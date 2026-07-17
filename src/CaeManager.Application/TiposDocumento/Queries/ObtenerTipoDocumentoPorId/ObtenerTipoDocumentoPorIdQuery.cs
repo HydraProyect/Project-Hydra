@@ -31,8 +31,18 @@ public class ObtenerTipoDocumentoPorIdQueryHandler(IApplicationDbContext dbConte
             .Where(t => t.Id == request.Id)
             .Select(t => new
             {
-                t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden, t.AmbitoAplicacion, t.EsObligatorio, t.Notas,
-                t.Descripcion, t.CriteriosValidacion, t.SeSolicitaA, t.Observaciones
+                t.Id,
+                t.Nombre,
+                t.VigenciaMeses,
+                t.AplicaVencimientoAutomatico,
+                t.Orden,
+                t.AmbitoAplicacion,
+                t.EsObligatorio,
+                t.Notas,
+                t.Descripcion,
+                t.CriteriosValidacion,
+                t.SeSolicitaA,
+                t.Observaciones
             })
             .FirstOrDefaultAsync(cancellationToken);
 

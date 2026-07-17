@@ -16,9 +16,9 @@ public class ObtenerCentrosParaSelectorQueryHandler(IApplicationDbContext dbCont
         ObtenerCentrosParaSelectorQuery request, CancellationToken cancellationToken)
     {
         var consulta = from centro in dbContext.Centros
-                        join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
-                        join empresa in dbContext.Empresas on centro.EmpresaId equals empresa.Id
-                        select new { centro, cliente, empresa };
+                       join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
+                       join empresa in dbContext.Empresas on centro.EmpresaId equals empresa.Id
+                       select new { centro, cliente, empresa };
 
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         if (centroIdsVisibles is not null)

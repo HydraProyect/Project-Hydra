@@ -31,8 +31,16 @@ public class ObtenerDocumentoPorIdQueryHandler(IApplicationDbContext dbContext)
             .Where(d => d.Id == request.Id)
             .Select(d => new
             {
-                d.Id, d.TrabajadorId, d.ClienteId, d.EmpresaId, d.VehiculoId, d.TipoDocumentoId,
-                d.FechaEmision, d.FechaVencimiento, d.ArchivoUrl, d.Comentarios
+                d.Id,
+                d.TrabajadorId,
+                d.ClienteId,
+                d.EmpresaId,
+                d.VehiculoId,
+                d.TipoDocumentoId,
+                d.FechaEmision,
+                d.FechaVencimiento,
+                d.ArchivoUrl,
+                d.Comentarios
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -42,7 +50,12 @@ public class ObtenerDocumentoPorIdQueryHandler(IApplicationDbContext dbContext)
             .Where(t => t.Id == documento.TipoDocumentoId)
             .Select(t => new
             {
-                t.Nombre, t.AplicaVencimientoAutomatico, t.Descripcion, t.CriteriosValidacion, t.SeSolicitaA, t.Observaciones
+                t.Nombre,
+                t.AplicaVencimientoAutomatico,
+                t.Descripcion,
+                t.CriteriosValidacion,
+                t.SeSolicitaA,
+                t.Observaciones
             })
             .FirstOrDefaultAsync(cancellationToken);
 
