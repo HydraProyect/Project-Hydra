@@ -40,10 +40,10 @@ public class ObtenerVisitasQueryHandler(IApplicationDbContext dbContext, IAlcanc
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
         var consulta = from visita in dbContext.Visitas
-                        join centro in dbContext.Centros on visita.CentroId equals centro.Id
-                        join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
-                        join empresa in dbContext.Empresas on centro.EmpresaId equals empresa.Id
-                        select new { visita, centro, cliente, empresa };
+                       join centro in dbContext.Centros on visita.CentroId equals centro.Id
+                       join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
+                       join empresa in dbContext.Empresas on centro.EmpresaId equals empresa.Id
+                       select new { visita, centro, cliente, empresa };
 
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         if (centroIdsVisibles is not null)
