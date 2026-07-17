@@ -373,6 +373,50 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 4. **Pantalla "Supervisión"** (Coordinador CAE y Dirección CAE, dentro de Configuración): comparativa de cumplimiento/rendimiento entre los Gestores CAE de la cartera, y reasignación de Clientes (y todo lo asociado, que se resuelve solo al cambiar `EjecutivoUsuarioId`) entre Gestores para cubrir bajas o repartos de cartera. También la UI para que Dirección CAE/Administrador asignen Gestores a un Coordinador (hoy solo existe el campo en `/usuarios`, sin una vista de gestión en bloque).
 5. **Widget de notificaciones diarias**, ahora ya definido por el usuario: documentos por vencer, y alerta si hay una Visita con algún Trabajador con documentación vencida — por usuario, visible solo para Gestor CAE. Sigue sin implementar (depende de decidir dónde vive en la UI — Dashboard vs. panel propio — no confirmado todavía).
 
+## Iniciativa de hardening — CI/CD, tests E2E, multi-tenant, seguridad, observabilidad, RGPD
+
+Planteada por el usuario el 2026-07-17: antes de vender el producto a clientes corporativos reales hace falta resolver ocho frentes que hasta ahora no se habían tratado como bloque. Priorización explícita del usuario, **no en fila** — tres franjas según si son trabajo de ingeniería secuencial o decisiones que se pueden (y deben) resolver hoy en paralelo sin esperar a nada:
+
+- **Franja 0 — bloqueante, primero de todo**: CI/CD y tests E2E automatizados. Todo lo demás se construye más rápido y con más seguridad si esto existe antes.
+- **Franja 1 — en paralelo, no dependen de la Franja 0**: decisión multi-tenant, gestión de secretos/claves, observabilidad.
+- **Franja 2 — se apoyan en las anteriores**: triage de backlog + infraestructura de email, RGPD/LOPD, proceso de cadencia de hardening (el mecanismo que evita que se repita el backlog de 13 puntos que generaron las Fases 7-23 sin este proceso).
+
+### 1. CI/CD — 🟡 en marcha (fundación hecha 2026-07-17)
+
+- ✅ `.github/workflows/ci.yml`: en cada push/PR a `main`/`claude/**` → `dotnet restore`, `dotnet build -warnaserror`, `dotnet format --verify-no-changes`, `dotnet test` sobre los 3 proyectos de test, job separado de `dotnet ef migrations has-pending-model-changes` (detecta migraciones olvidadas antes de mergear), y un job que reconstruye la imagen Docker real de despliegue (el mismo `Dockerfile` con `-r linux-x64 --self-contained false` de la Fase 22 — así el bug de SDK band de esa fase se habría detectado en CI, no en producción).
+  - Se instaló `dotnet-ef` como herramienta local (`.config/dotnet-tools.json`, antes solo estaba como herramienta global de esta sesión) para que el job de migraciones sea reproducible en un runner limpio de GitHub Actions.
+  - Se corrigió `dotnet format` sobre todo el repo antes de activar el gate — había violaciones de espaciado preexistentes (nunca antes forzadas) que habrían roto el pipeline el primer día; ahora arranca en verde.
+  - No verificado en este entorno que el job de Docker realmente pase en GitHub Actions (no hay daemon Docker disponible aquí) — el Dockerfile en sí es el mismo que ya corre en producción en Railway, sin cambios.
+- ⬜ **Sin completar** (necesita acceso al panel de GitHub/Railway que este entorno no tiene): branch protection rule bloqueando merge si el pipeline falla; entorno de staging en Railway (segundo servicio, misma imagen, BD separada, deploy automático desde una rama `staging` y manual/aprobado a producción desde `main` — hoy todo va directo a producción); notificación de build roto (Slack/email/GitHub) — sin esto un CI verde que nadie mira no sirve.
+
+### 2. Tests E2E automatizados — ⬜ sin empezar
+
+Formalizar lo que hasta ahora ha sido verificación manual con Playwright sesión a sesión (mencionada en casi todas las Fases de este documento) como una suite real en el repo, ejecutada en CI. Definido por el usuario: cubrir primero los flujos críticos de negocio (login → crear Cliente → Empresa → Trabajador → subir Documento → semáforo de vigencia correcto; los 6 roles y qué ve cada uno, ya verificado manualmente en Fase 31), un test por cada bug real ya corregido (drawers, `blazor.web.js` de Fase 22, reindexado de Clientes de Fase 18) para que no puedan volver sin que un test lo note, y bUnit para componentes Blazor de lógica no trivial (`CampoTexto`, `Drawer`, `SelectorTema`) por ser más rápidos que Playwright en CI. Regla propuesta por el usuario para que esto no vuelva a quedar en deuda: ninguna fase nueva se cierra sin al menos un test E2E del flujo que añade.
+
+### 3. Decisión multi-tenant — ✅ decidida y documentada 2026-07-17
+
+Ver `ADR-001-multitenant.md`: el producto es **SaaS multi-cliente**, no uso interno de una sola organización — esto reemplaza el punto "Multi-tenant real" que estaba listado más abajo como fuera de alcance de v1. Modelo elegido: `TenantId` por fila + Global Query Filter de EF Core (extensión directa del patrón ya usado para `EstaEliminado`), no base de datos separada por tenant. Auditadas las 39 queries de `Application/*/Queries`: ninguna usa SQL crudo ni `IgnoreQueryFilters()`, así que el filtro global protegería las 39 a la vez sin tocar cada handler. Dos deudas concretas quedan documentadas en el ADR para cuando se implemente: sellar `TenantId` en escritura vía interceptor (no confiar en cada Command), y convertir 7 índices únicos hoy globales (`Cliente.Cif`, `Empresa.Cif`/`RazonSocial`, `Subcontrata.RazonSocial`, `TipoDocumento.Nombre`, `Trabajador.Dni`, `Vehiculo.NumeroPlaca`) en únicos compuestos `(TenantId, campo)` — un mismo Trabajador/Empresa real puede legítimamente ser cliente de dos organizaciones PRL distintas. Implementación (añadir la columna, el filtro, el interceptor, los índices compuestos) **todavía no empezada** — esto es la decisión, no la construcción.
+
+### 4. Gestión de secretos y claves de cifrado — ⬜ sin empezar
+
+Pendiente de abordar: migrar las claves de Data Protection (hoy `PersistKeysToFileSystem` en el volumen de Railway, Fase 21) a un almacén gestionado o al menos con backup fuera de Railway; runbook de recuperación si se pierde el volumen; confirmar que `AdministradorInicial:Contrasena` está puesta a un valor real en Railway y no al default de `DEPLOY.md`; 2FA nativo de ASP.NET Core Identity para Administrador; forzar cambio de contraseña en primer login para usuarios creados por un Administrador; auditar que ningún secreto esté en `appsettings.json` versionado (grep pendiente); escaneo de secretos (`gitleaks`) como parte del CI del punto 1.
+
+### 5. Observabilidad — ⬜ sin empezar
+
+Pendiente: logging estructurado (Serilog) con sink consultable; error tracking (Sentry u similar) sobre el middleware que ya traduce excepciones a un estado de error genérico (`ARCHITECTURE.md`); métricas de negocio (documentos vencidos sin gestionar, tiempo de respuesta del Dashboard, tasa de fallo de importaciones), no solo técnicas; alertas activas si `/salud` falla o el volumen de Railway se acerca al límite; backups automatizados **y verificados con una restauración probada** de la base SQLite; panel de "salud del sistema" para Administrador dentro de la propia app (última siembra, última importación, errores recientes).
+
+### 6. Backlog priorizado + infraestructura de email — 🟡 backlog ya triado, email sin empezar
+
+El "Backlog pendiente" de más abajo en este documento ya distingue bugs (mayoría resueltos) de features de diseño pendientes de decisión — ver punto 12 (email de bienvenida) más abajo, con la nota ya registrada de evaluar Microsoft Graph/Exchange Online antes que un proveedor nuevo. Pendiente según lo definido ahora: priorizar el valor real de negocio de `IEmailService` en alertas proactivas de vencimiento por correo, no solo el email de bienvenida pedido explícitamente. El diseño del `Documento` a nivel Cliente/Empresa ya se implementó (Fase 23/punto 9 del backlog); el piloto de drawers persistentes sigue pendiente (punto 8 del backlog).
+
+### 7. Cumplimiento normativo (RGPD/LOPD) — ⬜ sin empezar
+
+Pendiente: política de retención de datos (hoy el soft-delete vía `EstaEliminado` guarda todo indefinidamente — decidir retención tras baja de un Trabajador/Documento y quién puede purgar definitivamente, extendiendo el "fuera de alcance v1" que hoy solo cubre archivos); documento de tratamiento de datos (qué PII se almacena — DNI/NIE, datos médicos PRL —, base legal, quién accede, retención); mecanismo real de derecho al olvido (hoy el global query filter oculta, no borra); confirmar que Railway termina TLS end-to-end sin tramo en claro (HSTS/ForwardedHeaders ya están desde Fase 21); extender el registro de accesos (hoy solo cubre credenciales de plataforma, `ARCHITECTURE.md`) a quién vio qué dato sensible de qué Trabajador y cuándo; DPA si se factura como SaaS a terceros — bloqueante comercial, no técnico.
+
+### 8. Proceso de cadencia (hardening intercalado) — ⬜ sin empezar
+
+Pendiente: regla explícita en este documento de una "fase de estabilización" cada 5-6 fases de producto (deuda de tests, backlog de bugs, dependencias); checklist de "definition of done" más estricta que la actual ("verificado en navegador" pasa a "+ test automatizado + CI en verde + sin bugs nuevos abiertos"); convertir este backlog en Issues de GitHub reales con labels; umbral de calidad explícito (CI en verde + cobertura de Domain + 0 bugs críticos abiertos) como gate antes de aceptar el primer cliente corporativo real — coherente con la decisión de la sección 3 de que el destino es SaaS multi-cliente.
+
 ## Backlog pendiente — reportado por el usuario el 2026-07-16, sin implementar
 
 ⏳ Sin empezar. Lista de bugs/mejoras reportados tras probar Fase 23 en Railway, para retomar en un chat nuevo. Cada punto incluye el síntoma tal como lo reportó el usuario y, donde ya hay una hipótesis técnica clara, una nota de diagnóstico — pero ninguno se ha investigado a fondo todavía salvo que se diga explícitamente.
@@ -429,7 +473,7 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 
 ## Fuera de alcance de v1 (explícito, no implica "nunca")
 
-- Multi-tenant real (varias organizaciones aisladas en una instalación).
+- ~~Multi-tenant real (varias organizaciones aisladas en una instalación).~~ **Decisión revertida el 2026-07-17**: el destino del producto sí es multi-tenant (SaaS multi-cliente) — ver sección "Iniciativa de hardening" → punto 3 y `ADR-001-multitenant.md`. La implementación (columna `TenantId`, filtro global, interceptor de escritura, índices compuestos) sigue sin construirse; lo que cambia aquí es que ya no es una decisión pendiente ni "fuera de alcance", es un compromiso confirmado a construir cuando toque en la secuencia de Franjas.
 - SSO/Entra ID activo (la arquitectura lo deja preparado, pero no se implementa hasta que haya un requisito concreto).
 - Migración a PostgreSQL/SQL Server (arquitectura preparada, no ejecutada hasta que el volumen lo justifique).
 - CIF/Empresa en las plantillas de importación por Excel de Fase 5 (Cuadro de Control CAE de KHS) y Fase 7 (plantilla simple de Clientes) — ninguna de las dos se extendió; siguen sin poder crear Clientes/Centros nuevos. La Fase 18 resuelve esta limitación con una plantilla combinada nueva y separada, no modificando las dos anteriores.

@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+    branches: [main]
+
+# Cancela ejecuciones anteriores del mismo PR/rama cuando llega un push nuevo
+# — evita gastar minutos de CI en un estado ya obsoleto.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-and-test:
+    name: Build, format y tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      # -warnaserror: ningún warning nuevo pasa desapercibido — coherente con
+      # el nivel de rigor que ya pide CODING_STANDARDS.md, ahora ejecutable.
+      - name: Compilar (warnings como errores)
+        run: dotnet build CaeManager.slnx --no-restore -warnaserror
+
+      - name: Verificar formato (dotnet format)
+        run: dotnet format CaeManager.slnx --no-restore --verify-no-changes
+
+      - name: Tests de Domain
+        run: dotnet test tests/CaeManager.Domain.Tests --no-restore --logger "console;verbosity=normal"
+
+      - name: Tests de Application
+        run: dotnet test tests/CaeManager.Application.Tests --no-restore --logger "console;verbosity=normal"
+
+      - name: Tests de integración
+        run: dotnet test tests/CaeManager.IntegrationTests --no-restore --logger "console;verbosity=normal"
+
+  migraciones-pendientes:
+    name: Detectar migraciones EF olvidadas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Restaurar herramientas locales (dotnet-ef)
+        run: dotnet tool restore
+
+      # Falla si alguien cambió el modelo (una entidad, una propiedad) sin
+      # generar la migración correspondiente — el tipo de olvido que solo se
+      # descubre hoy al desplegar y ver crashear la app contra el volumen real.
+      - name: dotnet ef migrations has-pending-model-changes
+        run: dotnet ef migrations has-pending-model-changes --project src/CaeManager.Infrastructure --startup-project src/CaeManager.Web
+
+  docker-build:
+    name: Build de la imagen de despliegue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reconstruye exactamente la imagen que despliega Railway (mismo
+      # Dockerfile, mismo -r linux-x64 --self-contained false de la Fase 22)
+      # — así un SDK band distinto o un asset de framework faltante se
+      # detecta aquí, no en producción como pasó esa vez.
+      - name: Construir imagen Docker
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: caemanager:ci

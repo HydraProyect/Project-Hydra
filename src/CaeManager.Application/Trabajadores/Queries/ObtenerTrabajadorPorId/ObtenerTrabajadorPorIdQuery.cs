@@ -27,8 +27,15 @@ public class ObtenerTrabajadorPorIdQueryHandler(IApplicationDbContext dbContext)
             .Where(t => t.Id == request.Id)
             .Select(t => new
             {
-                t.Id, t.EmpresaId, t.SubcontrataId, t.Nombre, t.Apellidos,
-                t.Dni, t.FechaNacimiento, t.Email, t.Observaciones
+                t.Id,
+                t.EmpresaId,
+                t.SubcontrataId,
+                t.Nombre,
+                t.Apellidos,
+                t.Dni,
+                t.FechaNacimiento,
+                t.Email,
+                t.Observaciones
             })
             .FirstOrDefaultAsync(cancellationToken);
 
