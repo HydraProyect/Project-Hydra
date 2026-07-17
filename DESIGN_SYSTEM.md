@@ -1,4 +1,4 @@
-# Design System 3.1 — CAE Manager (identidad ProjectHydra)
+# Design System 3.2 — CAE Manager (identidad ProjectHydra)
 
 ## Estado de este documento
 
@@ -19,12 +19,16 @@ Referencia de mezcla: ~60% identidad corporativa de ProjectHydra (profesional, h
 Paleta neutra + un acento de marca primario + un acento secundario + colores semánticos para los semáforos de vigencia documental (el patrón visual más importante del producto, dado que todo el negocio gira en torno a vigente/próximo/urgente/vencido).
 
 ```
-color.primary.50   #EBF2F8
-color.primary.100  #D3E3F0
-color.primary.300  #7BA3C7
-color.primary.500  #0D4E89   ← acento de marca (acciones primarias, foco, enlaces)
-color.primary.600  #0A3E6F   ← hover
-color.primary.700  #072C4E
+color.primary.50   #EBF3FE
+color.primary.100  #CEE0FD
+color.primary.300  #91B9FB
+color.primary.500  #0A63F6   ← acento de marca (acciones primarias, foco, enlaces) — modo claro
+color.primary.600  #0850C4   ← hover — modo claro
+color.primary.700  #073E97   ← activo/pressed — modo claro
+
+color.primary.500  #5B93FF   ← acento de marca — modo oscuro (más claro que en modo día: el navy #0A63F6 pierde contraste sobre fondo oscuro)
+color.primary.600  #7BA8FF   ← hover — modo oscuro (se aclara, no se oscurece: oscurecer más reduce visibilidad contra un fondo ya oscuro)
+color.primary.700  #9CBEFF   ← activo/pressed — modo oscuro
 
 color.secondary.50   #EAFAFB
 color.secondary.100  #C7EFF2
@@ -86,10 +90,10 @@ Layouts respiran: ante la duda entre aumentar o comprimir espaciado, se aumenta.
 ### Radius, borde, elevación
 
 ```
-radius.sm        8px    — chips, elementos pequeños
-radius.md         12px  — botones, inputs
-radius.card-sm    16px  — tarjetas pequeñas / KPI
-radius.lg         20px  — tarjetas principales, diálogos, drawers
+radius.sm        10px   — chips, elementos pequeños
+radius.md         14px  — botones, inputs
+radius.card-sm    18px  — tarjetas pequeñas / KPI
+radius.lg         24px  — tarjetas principales, diálogos, drawers
 radius.full       9999px — avatares, pills, badges
 
 border.default  1px solid color.neutral.200
@@ -113,6 +117,22 @@ transition.slow  250ms ease  — entrada/salida de toast, overlays
 
 Incluye: elevación sutil en hover de botón, transición de color en foco/hover, toasts con fade+slide de entrada, skeleton loading (shimmer) en estados de carga. Nunca animación que retrase la percepción de velocidad.
 
+### Micro-interacciones (catálogo de animación)
+
+Set de 7 patrones de animación explorados y confirmados para dar al front una sensación más premium ("look fluido") — los 7 implementados. Todos son CSS puro (keyframes/transitions) salvo el ripple del botón y el buscador global, que usan un único listener JS global delegado en `document` (ver más abajo) — nunca JS interop por instancia.
+
+**Implementados:**
+
+1. **Botón con rebote elástico (spring) + ripple con posición real de clic** (`Boton.razor.css` + `wwwroot/js/microinteracciones.js`). El `transform` en hover/active usa `cubic-bezier(0.34, 1.56, 0.64, 1)` (overshoot ligero) en vez de un ease lineal. El ripple (`<span class="boton-ondulacion">`) sí sigue el punto exacto de clic: un único `document.addEventListener('click', ...)` delegado (con `.closest('.boton')`) calcula `clientX/clientY` relativos al botón y crea el `<span>` en esa posición — patrón tomado del reference `commandpalette.js` aportado por el usuario. Se eligió un listener global en vez de JS interop por instancia porque `Boton.razor` se renderiza decenas de veces por página (tablas, formularios); un módulo por botón habría ido en contra del propio objetivo de fluidez, y el listener delegado tiene coste ~cero por instancia adicional. `prefers-reduced-motion` lo desactiva.
+2. **Revelado escalonado** (`.stagger-item` en `list-page.css`, aplicado también a `.tabla-datos tbody tr` y a las tarjetas KPI del Dashboard). Cada fila/tarjeta entra con `animation-delay` creciente por `nth-child` (0–275ms) — sin JS, sin índice explícito por elemento. Blazor reutiliza las filas existentes al paginar o filtrar en vivo (mismo nodo DOM, solo cambia el texto), así que el efecto se ve en la carga inicial de una pantalla, no se repite en cada tecla de un buscador (repetirlo ahí sería ruido, no pulido).
+3. **Toast con barra de progreso que se autodescarta** (`AnfitrionToasts.razor`/`.css`). Barra `scaleX(1)→scaleX(0)` sincronizada con `ToastService.DuracionAutoDescarte` (5s) vía `animation-duration` inline — una sola fuente de verdad para la duración, no un valor repetido en CSS y en C#. Los toasts de error no la llevan porque no se autodescartan.
+4. **Command palette (buscador global, ⌘K/Ctrl+K)** — ya existía (`BuscadorGlobal.razor`, Fase 6/23, con debounce de 250ms y búsqueda real vía `BuscarGlobalQuery` sobre Cliente/Empresa/Subcontrata/Centro/Trabajador). Esta ronda añadió navegación con ↑/↓ + Enter (índice plano sobre las 5 categorías, coincide con el orden de renderizado), resaltado del elemento seleccionado, pie con los atajos visibles, y una entrada con overshoot sutil (`cubic-bezier(0.22, 1, 0.36, 1)`) en vez de un fade plano.
+5. **Bordes muy redondeados / sombras suaves** — no es una animación, pero es la misma ronda de decisión: `radius.*` sube un escalón completo (ver tabla arriba) para un look más "fluido"; `shadow.card`/`shadow.overlay` no cambian (ya eran suaves y extendidas desde la realineación de 2026-07).
+6. **Gradient mesh animado en tarjetas destacadas** (`Dashboard.razor.css`, confirmado por el usuario limitado a las tarjetas KPI del Dashboard — no al resto de la app operativa). Dos `radial-gradient` de opacidad muy baja (8–10%, vía `color-mix(in srgb, var(--color-primary-500) 10%, transparent)`) en un `::before` detrás del contenido, con `translate`/`scale` oscilando en 16s (`@keyframes flotar-gradiente`). Vive en `z-index: 0` con la etiqueta/valor de la tarjeta en `z-index: 1`, para que el borde de color semántico (vencido/urgente/próximo/vigente) siga siendo el portador principal de significado — el gradiente es textura, no señal. `prefers-reduced-motion` lo desactiva.
+7. **Glow sutil en hover de enlaces** (`base.css`, `a:hover { text-shadow: ... }`, confirmado "muy sutil solo en hover de enlaces" — no en títulos estáticos). `color-mix(in srgb, var(--color-primary-500) 35%, transparent)` con 12px de blur, excluido explícitamente en `.nav-item`/`.buscador-item` (que ya tienen su propio tratamiento de hover por fondo, no por texto, y duplicar el efecto ahí sería ruido). `prefers-reduced-motion` lo desactiva.
+
+Fuera de este catálogo de animación (feature de producto distinta, no micro-interacción, pendiente): un **widget de notificaciones diarias** — el usuario confirmó que lo quiere en el roadmap pero no para esta ronda ("no por ahora pero añádelo... pendiente de definir bien"). No tiene equivalente en el dominio actual de CAE Manager (el prototipo adjunto usa `TareaPendiente`, una entidad que no existe aquí) — ver `ROADMAP.md` → "Backlog pendiente" para el punto de seguimiento; necesita su propia decisión de producto (¿qué notifica? ¿vencimientos próximos, tareas manuales, ambos? ¿reinicio diario o histórico?) antes de diseñarse.
+
 ### Iconografía
 
 Un único set de iconos **outline** en todo el sistema (trazo 1.75px, sin relleno, esquinas y remates redondeados — misma convención visual que Lucide/Heroicons). Implementado como componente `Icono.razor` con SVG inline (sin dependencia de una librería externa ni de una fuente de iconos). Nunca mezclar con emojis ni con un segundo estilo de icono en la misma pantalla.
@@ -133,6 +153,7 @@ Un único set de iconos **outline** en todo el sistema (trazo 1.75px, sin rellen
 | Toast (ToastService + AnfitrionToasts) | `src/CaeManager.Web/Components/DesignSystem/ToastService.cs`, `AnfitrionToasts.razor` |
 | Modal / DialogoConfirmacion | `src/CaeManager.Web/Components/DesignSystem/Modal.razor`, `DialogoConfirmacion.razor` |
 | Drawer | `src/CaeManager.Web/Components/DesignSystem/Drawer.razor` |
+| SelectorMultiple (checkboxes con buscador + paginación + "solo relacionados") | `src/CaeManager.Web/Components/DesignSystem/SelectorMultiple.razor` |
 | Layout (barra lateral + barra superior) | `src/CaeManager.Web/Components/Layout/MainLayout.razor`, `NavMenu.razor` |
 | DataTable | Se adopta `Microsoft.AspNetCore.Components.QuickGrid` (oficial de .NET) en vez de reimplementar ordenamiento/paginación — se tematiza con la clase compartida `tabla-datos` (`wwwroot/css/list-page.css`), consumida tanto por QuickGrid como por tablas HTML simples. |
 
@@ -180,3 +201,5 @@ mobile   <768px      — navegación por drawer, tablas → tarjetas apiladas
 ## Historial
 
 - **2026-07 — Realineación de identidad ProjectHydra.** Se actualizó la paleta de color (primario navy `#0D4E89` + secundario teal `#2FB8C6`, reemplazando el azul genérico anterior), la escala tipográfica (H1–H4/Body/Small/Caption explícitos), el sistema de radios (reestructurado en 5 niveles: `sm`/`md`/`card-sm`/`lg`/`full`, antes 3 niveles), sombras (más suaves y extendidas, `0 8px 30px` en vez de sombras de doble capa más duras) y se añadió un token de `motion` explícito. Se introdujo el primer set de iconos outline (`Icono.razor`) — hasta entonces la navegación no tenía iconos. Los **nombres** de las variables CSS existentes se mantuvieron estables (más de 50 archivos ya las consumían); solo cambiaron sus valores, más la incorporación de tokens nuevos donde el spec de marca no mapeaba 1:1 con el sistema anterior. Ver `ROADMAP.md` para el detalle de qué se retocó pantalla por pantalla y qué queda pendiente (Chips, Tooltips, Tabs, Breadcrumbs, Charts, selector de tema).
+- **2026-07 — Look más premium: paleta real de ProjectHydra.com + catálogo de micro-interacciones.** `color.primary.500` pasa de `#0D4E89` a `#0A63F6` (modo claro) / `#5B93FF` (modo oscuro, nuevo — antes el primario no tenía variante de tema oscuro) — tomado de la identidad real de ProjectHydra.com, no de una elección genérica. La escala de `radius` sube un escalón completo (`sm` 8→10px, `md` 12→14px, `card-sm` 16→18px, `lg` 20→24px) para el look "fluido" pedido. Se añadió la sección "Micro-interacciones (catálogo de animación)" arriba con 5 patrones implementados (botón spring+ripple, revelado escalonado, toast con barra de progreso, command palette con navegación por teclado, radios más pronunciados) y 2 pendientes de confirmación explícita por chocar con la filosofía "color con intención, nunca decorativo" del documento (gradiente de fondo animado, glow de texto). Partió de un CLAUDE.md/brief de diseño que originalmente venía con stack Next.js/Supabase/Prisma/cmdk — no aplica a este repo (ASP.NET Core/Blazor Server); se tradujo la intención visual a los tokens y componentes Razor reales, y no se integraron los modelos `Entidad`/`Documento`/`SearchController` de ese prototipo porque este repo ya tiene equivalentes más completos (Cliente/Empresa/Subcontrata/Centro/Trabajador/Documento + `BuscarGlobalQuery`).
+- **2026-07 — Cierre del catálogo de micro-interacciones: gradient mesh, glow y ripple con posición real.** El usuario confirmó los 2 puntos que habían quedado pendientes de confirmación explícita: gradiente animado sí, pero acotado a las tarjetas KPI destacadas del Dashboard (no al resto de la app); glow de texto sí, pero "muy sutil solo en hover de enlaces" (no en títulos). Ambos implementados con `color-mix()` sobre los tokens existentes en vez de valores nuevos hardcodeados — ver detalle en el catálogo de arriba. El usuario también subió `commandpalette.js`/`READMEintegracionblazor.md` del prototipo de referencia, que reveló que el patrón correcto para el ripple con posición real de clic es un único listener JS delegado en `document` (no JS interop por instancia de Blazor) — se creó `wwwroot/js/microinteracciones.js` con ese patrón, sustituyendo el ripple centrado CSS-only de la ronda anterior. El widget de notificaciones diarias queda explícitamente fuera de esta ronda ("no por ahora... pendiente de definir bien") y pasa al backlog de `ROADMAP.md` como feature de producto pendiente de definición, no como ajuste visual.

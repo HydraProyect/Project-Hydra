@@ -9,4 +9,12 @@ namespace CaeManager.Application.Common;
 public interface ICurrentUserService
 {
     Task<Guid?> ObtenerUsuarioActualIdAsync();
+
+    /// <summary>
+    /// Rol del usuario actual (el sistema asigna exactamente uno por
+    /// usuario, ver Usuarios.razor). Null fuera de un circuito de Blazor
+    /// (igual que ObtenerUsuarioActualIdAsync) o si el usuario no tiene
+    /// ningún rol asignado.
+    /// </summary>
+    Task<string?> ObtenerRolActualAsync();
 }

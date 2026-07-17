@@ -1,0 +1,97 @@
+@*
+    Lista de checkboxes con buscador, paginación y filtro "solo
+    relacionados" — para selectores muchos-a-muchos con cientos de
+    elementos (Clientes/Empresas en los drawers de Empresas/Subcontratas).
+    Ver UX_PATTERNS.md.
+*@
+<div class="campo">
+    @if (!string.IsNullOrWhiteSpace(Etiqueta))
+    {
+        <label>@Etiqueta</label>
+    }
+
+    @if (Elementos.Count == 0)
+    {
+        <p class="texto-vacio-seccion">@TextoVacio</p>
+    }
+    else
+    {
+        <div class="selector-multiple-controles">
+            <CampoTexto Placeholder="Buscar…" Valor="@_busqueda" ValorChanged="CambiarBusquedaAsync" />
+            <label class="campo-checkbox">
+                <input type="checkbox"
+                       checked="@_soloRelacionados"
+                       @onchange="e => CambiarSoloRelacionados(e.Value is bool marcado && marcado)" />
+                Solo mostrar relacionados
+            </label>
+        </div>
+
+        @if (ElementosFiltrados.Count == 0)
+        {
+            <p class="texto-vacio-seccion">Ningún elemento coincide con la búsqueda.</p>
+        }
+        else
+        {
+            <div class="lista-seleccion-multiple">
+                @foreach (var elemento in ElementosPagina)
+                {
+                    <label class="campo-checkbox">
+                        <input type="checkbox"
+                               checked="@Seleccionados.Contains(elemento.Id)"
+                               @onchange="e => AlternarAsync(elemento.Id, e.Value is bool marcado && marcado)" />
+                        @elemento.Nombre
+                    </label>
+                }
+            </div>
+
+            @if (TotalPaginas > 1)
+            {
+                <PaginadorSimple PaginaActual="PaginaActualEfectiva" TotalPaginas="TotalPaginas"
+                                  TotalElementos="ElementosFiltrados.Count" Etiqueta="elemento(s)"
+                                  PaginaActualChanged="v => _paginaActual = v" />
+            }
+        }
+    }
+</div>
+
+@code {
+    private const int ItemsPorPagina = 20;
+
+    private string _busqueda = string.Empty;
+    private bool _soloRelacionados;
+    private int _paginaActual = 1;
+
+    [Parameter] public string? Etiqueta { get; set; }
+    [Parameter] public IReadOnlyList<ElementoSeleccionable> Elementos { get; set; } = [];
+    [Parameter] public IReadOnlySet<Guid> Seleccionados { get; set; } = new HashSet<Guid>();
+    [Parameter] public EventCallback<(Guid Id, bool Marcado)> OnAlternar { get; set; }
+    [Parameter] public string TextoVacio { get; set; } = "Todavía no hay elementos creados.";
+
+    private IReadOnlyList<ElementoSeleccionable> ElementosFiltrados =>
+        Elementos
+            .Where(e => string.IsNullOrWhiteSpace(_busqueda) || e.Nombre.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
+            .Where(e => !_soloRelacionados || Seleccionados.Contains(e.Id))
+            .ToList();
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(ElementosFiltrados.Count / (double)ItemsPorPagina));
+
+    private int PaginaActualEfectiva => Math.Clamp(_paginaActual, 1, TotalPaginas);
+
+    private IReadOnlyList<ElementoSeleccionable> ElementosPagina =>
+        ElementosFiltrados.Skip((PaginaActualEfectiva - 1) * ItemsPorPagina).Take(ItemsPorPagina).ToList();
+
+    private Task CambiarBusquedaAsync(string valor)
+    {
+        _busqueda = valor;
+        _paginaActual = 1;
+        return Task.CompletedTask;
+    }
+
+    private void CambiarSoloRelacionados(bool marcado)
+    {
+        _soloRelacionados = marcado;
+        _paginaActual = 1;
+    }
+
+    private Task AlternarAsync(Guid id, bool marcado) => OnAlternar.InvokeAsync((id, marcado));
+}

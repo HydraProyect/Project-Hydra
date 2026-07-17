@@ -36,3 +36,21 @@
 .tarjeta-metrica-info {
     border-left-color: var(--color-info-500);
 }
+
+.tarjeta-metrica-clicable {
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.tarjeta-metrica-clicable:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-overlay);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tarjeta-metrica-clicable:hover {
+        transform: none;
+    }
+}

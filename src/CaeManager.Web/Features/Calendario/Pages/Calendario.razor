@@ -51,18 +51,28 @@
                     {
                         var dia = celda.Value;
                         var vencimientosDelDia = VencimientosDelDia(dia);
+                        var visitasDelDia = VisitasDelDia(dia);
                         var peorEstado = PeorEstado(vencimientosDelDia);
                         var esHoy = dia == DateOnly.FromDateTime(DateTime.Today);
+                        var tieneDatos = vencimientosDelDia.Count > 0 || visitasDelDia.Count > 0;
 
-                        <div class="calendario-celda @(esHoy ? "calendario-celda-hoy" : "") @(vencimientosDelDia.Count > 0 ? "calendario-celda-con-datos" : "")"
+                        <div class="calendario-celda @(esHoy ? "calendario-celda-hoy" : "") @(tieneDatos ? "calendario-celda-con-datos" : "")"
                              @onclick="() => SeleccionarDia(dia)">
                             <span class="calendario-dia-numero">@dia.Day</span>
-                            @if (peorEstado is not null)
-                            {
-                                <span class="calendario-indicador">
-                                    <Badge Tono="EstadoDocumentoUi.Tono(peorEstado.Value)">@vencimientosDelDia.Count</Badge>
-                                </span>
-                            }
+                            <span class="calendario-indicadores">
+                                @if (peorEstado is not null)
+                                {
+                                    <span class="calendario-indicador">
+                                        <Badge Tono="EstadoDocumentoUi.Tono(peorEstado.Value)">@vencimientosDelDia.Count</Badge>
+                                    </span>
+                                }
+                                @if (visitasDelDia.Count > 0)
+                                {
+                                    <span class="calendario-indicador" title="Visitas programadas">
+                                        <Badge Tono="TonoBadge.Info">@visitasDelDia.Count</Badge>
+                                    </span>
+                                }
+                            </span>
                         </div>
                     }
                 }
@@ -73,33 +83,81 @@
 
 <Modal Visible="@(_diaSeleccionado is not null)"
        VisibleChanged="@((bool visible) => { if (!visible) CerrarDetalle(); })"
-       Titulo="@(_diaSeleccionado is not null ? $"Vencimientos del {_diaSeleccionado:dd/MM/yyyy}" : string.Empty)">
+       Titulo="@(_diaSeleccionado is not null ? $"{_diaSeleccionado:dd/MM/yyyy}" : string.Empty)">
     @if (_diaSeleccionado is not null)
     {
-        <table class="tabla-datos">
-            <thead>
-                <tr>
-                    <th>Estado</th>
-                    <th>Trabajador</th>
-                    <th>Tipo de documento</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var vencimiento in VencimientosDelDia(_diaSeleccionado.Value))
-                {
+        var vencimientosDelDiaSeleccionado = VencimientosDelDia(_diaSeleccionado.Value);
+        var visitasDelDiaSeleccionado = VisitasDelDia(_diaSeleccionado.Value);
+
+        @if (vencimientosDelDiaSeleccionado.Count > 0)
+        {
+            <h3 class="calendario-subtitulo-modal">Vencimientos</h3>
+            <table class="tabla-datos">
+                <thead>
                     <tr>
-                        <td><Badge Tono="EstadoDocumentoUi.Tono(vencimiento.Estado)">@EstadoDocumentoUi.Texto(vencimiento.Estado)</Badge></td>
-                        <td>@vencimiento.TrabajadorNombre</td>
-                        <td>@vencimiento.TipoDocumentoNombre</td>
-                        <td>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarDocumento(vencimiento.DocumentoId)">
-                                Gestionar
-                            </Boton>
-                        </td>
+                        <th>Estado</th>
+                        <th>Trabajador</th>
+                        <th>Tipo de documento</th>
+                        <th></th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var vencimiento in vencimientosDelDiaSeleccionado)
+                    {
+                        <tr>
+                            <td><Badge Tono="EstadoDocumentoUi.Tono(vencimiento.Estado)">@EstadoDocumentoUi.Texto(vencimiento.Estado)</Badge></td>
+                            <td>@vencimiento.TrabajadorNombre</td>
+                            <td>@vencimiento.TipoDocumentoNombre</td>
+                            <td>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarDocumento(vencimiento.DocumentoId)">
+                                    Gestionar
+                                </Boton>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (visitasDelDiaSeleccionado.Count > 0)
+        {
+            <h3 class="calendario-subtitulo-modal">Visitas programadas</h3>
+            <div class="calendario-tabla-modal-contenedor">
+            <table class="tabla-datos">
+                <thead>
+                    <tr>
+                        <th>Centro / Cliente</th>
+                        <th>Trabaj.</th>
+                        <th>Notif.</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var visita in visitasDelDiaSeleccionado)
+                    {
+                        <tr>
+                            <td>@visita.CentroNombre<div class="calendario-fila-secundaria">@visita.ClienteRazonSocial</div></td>
+                            <td>@visita.TotalTrabajadores</td>
+                            <td>
+                                @if (visita.NotificadoCliente)
+                                {
+                                    <Badge Tono="TonoBadge.Exito">Sí</Badge>
+                                }
+                                else
+                                {
+                                    <Badge Tono="TonoBadge.Advertencia">No</Badge>
+                                }
+                            </td>
+                            <td>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarVisita(visita.Id)">
+                                    Gestionar
+                                </Boton>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            </div>
+        }
     }
 </Modal>

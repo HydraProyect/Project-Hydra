@@ -1,5 +1,5 @@
 /*
-  Design tokens de CAE Manager (ver DESIGN_SYSTEM.md — identidad Geseme).
+  Design tokens de CAE Manager (ver DESIGN_SYSTEM.md — identidad ProjectHydra).
   Fuente de verdad única: ningún componente hardcodea un color, tamaño de
   fuente o espaciado — todo se referencia a través de estas variables.
   Los nombres de variable se mantienen estables entre rediseños (más de 50
@@ -8,15 +8,15 @@
 */
 
 :root {
-  /* Color — primario (Geseme) */
-  --color-primary-50: #ebf2f8;
-  --color-primary-100: #d3e3f0;
-  --color-primary-300: #7ba3c7;
-  --color-primary-500: #0d4e89;
-  --color-primary-600: #0a3e6f;
-  --color-primary-700: #072c4e;
+  /* Color — primario (ProjectHydra, tomado de la identidad real de ProjectHydra.com) */
+  --color-primary-50: #ebf3fe;
+  --color-primary-100: #cee0fd;
+  --color-primary-300: #91b9fb;
+  --color-primary-500: #0a63f6;
+  --color-primary-600: #0850c4;
+  --color-primary-700: #073e97;
 
-  /* Color — secundario (acento teal Geseme) */
+  /* Color — secundario (acento teal ProjectHydra) */
   --color-secondary-50: #eafafb;
   --color-secondary-100: #c7eff2;
   --color-secondary-300: #7dd9e1;
@@ -86,11 +86,11 @@
   --space-16: 4rem;     /* 64px */
   --space-24: 6rem;     /* 96px */
 
-  /* Radius / borde / elevación */
-  --radius-sm: 8px;       /* chips, elementos pequeños */
-  --radius-md: 12px;      /* botones, inputs */
-  --radius-card-sm: 16px; /* tarjetas pequeñas / KPI */
-  --radius-lg: 20px;      /* tarjetas principales, diálogos, drawers */
+  /* Radius / borde / elevación — look "fluido", nunca esquinas planas */
+  --radius-sm: 10px;      /* chips, elementos pequeños */
+  --radius-md: 14px;      /* botones, inputs */
+  --radius-card-sm: 18px; /* tarjetas pequeñas / KPI */
+  --radius-lg: 24px;      /* tarjetas principales, diálogos, drawers */
   --radius-full: 9999px;  /* badges, pills, avatares */
 
   --border-default: 1px solid var(--color-border);
@@ -123,6 +123,15 @@
     --color-danger-50: #3a0a0a;
     --color-secondary-50: #04292c;
 
+    /* Azul más claro que en modo día — el navy #0a63f6 pierde contraste
+       sobre fondo oscuro; #5b93ff es el valor confirmado para modo oscuro
+       en la identidad de ProjectHydra.com. Hover/activo se aclaran en vez de
+       oscurecerse (patrón estándar en temas oscuros: oscurecer reduce
+       visibilidad contra un fondo ya oscuro). */
+    --color-primary-500: #5b93ff;
+    --color-primary-600: #7ba8ff;
+    --color-primary-700: #9cbeff;
+
     --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.35);
     --shadow-overlay: 0 20px 60px rgba(0, 0, 0, 0.5);
   }
@@ -150,6 +159,10 @@
   --color-danger-50: #3a0a0a;
   --color-secondary-50: #04292c;
 
+  --color-primary-500: #5b93ff;
+  --color-primary-600: #7ba8ff;
+  --color-primary-700: #9cbeff;
+
   --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.35);
   --shadow-overlay: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
@@ -166,6 +179,10 @@
   --color-warning-50: #fff8eb;
   --color-danger-50: #fef0f0;
   --color-secondary-50: #eafafb;
+
+  --color-primary-500: #0a63f6;
+  --color-primary-600: #0850c4;
+  --color-primary-700: #073e97;
 
   --shadow-card: 0 8px 30px rgba(15, 23, 42, 0.05);
   --shadow-overlay: 0 20px 60px rgba(15, 23, 42, 0.14);

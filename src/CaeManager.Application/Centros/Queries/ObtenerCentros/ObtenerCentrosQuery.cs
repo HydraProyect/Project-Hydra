@@ -10,7 +10,7 @@ public record ObtenerCentrosQuery(string? Busqueda, Guid? ClienteId, int Pagina 
 public record CentroListaDto(
     Guid Id, string Nombre, string? CodigoCentro, Guid ClienteId, string ClienteRazonSocial, string EmpresaRazonSocial);
 
-public class ObtenerCentrosQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerCentrosQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCentrosQuery, ResultadoPaginado<CentroListaDto>>
 {
     public async Task<ResultadoPaginado<CentroListaDto>> Handle(ObtenerCentrosQuery request, CancellationToken cancellationToken)
@@ -20,6 +20,10 @@ public class ObtenerCentrosQueryHandler(IApplicationDbContext dbContext)
             join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
             join empresa in dbContext.Empresas on centro.EmpresaId equals empresa.Id
             select new { centro, cliente, empresa };
+
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        if (centroIdsVisibles is not null)
+            consulta = consulta.Where(x => centroIdsVisibles.Contains(x.centro.Id));
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {

@@ -40,7 +40,8 @@
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="EmpresaListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
-                <PropertyColumn Property="@(e => e.RazonSocial)" Sortable="true" />
+                <PropertyColumn Property="@(e => e.RazonSocial)" Title="Razón social" Sortable="true" />
+                <PropertyColumn Property="@(e => e.Cif)" Title="CIF" />
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
                         Editar
@@ -75,28 +76,13 @@
         }
 
         <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.RazonSocial))" />
+        <CampoTexto Etiqueta="CIF" Valor="@_cif" ValorChanged="v => _cif = v" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.Cif))" />
 
-        <div class="campo">
-            <label>Clientes con los que trabaja</label>
-            @if (_clientesDisponibles.Count == 0)
-            {
-                <p class="texto-vacio-seccion">Todavía no hay clientes creados.</p>
-            }
-            else
-            {
-                <div class="lista-seleccion-multiple">
-                    @foreach (var cliente in _clientesDisponibles)
-                    {
-                        <label class="campo-checkbox">
-                            <input type="checkbox"
-                                   checked="@_clienteIdsSeleccionados.Contains(cliente.Id)"
-                                   @onchange="e => AlternarCliente(cliente.Id, e.Value is bool marcado && marcado)" />
-                            @cliente.RazonSocial
-                        </label>
-                    }
-                </div>
-            }
-        </div>
+        <SelectorMultiple Etiqueta="Clientes con los que trabaja"
+                           Elementos="@_clientesDisponiblesSelector"
+                           Seleccionados="@_clienteIdsSeleccionados"
+                           OnAlternar="args => AlternarCliente(args.Id, args.Marcado)"
+                           TextoVacio="Todavía no hay clientes creados." />
 
         @if (_editandoId is not null)
         {

@@ -1,10 +1,28 @@
-<div class="tarjeta-metrica tarjeta-metrica-@Tono.ToString().ToLowerInvariant()">
-    <span class="tarjeta-metrica-etiqueta">@Etiqueta</span>
-    <span class="tarjeta-metrica-valor">@Valor</span>
-</div>
+@if (Enlace is not null)
+{
+    <a href="@Enlace" class="tarjeta-metrica tarjeta-metrica-@Tono.ToString().ToLowerInvariant() tarjeta-metrica-clicable">
+        <span class="tarjeta-metrica-etiqueta">@Etiqueta</span>
+        <span class="tarjeta-metrica-valor">@Valor</span>
+    </a>
+}
+else
+{
+    <div class="tarjeta-metrica tarjeta-metrica-@Tono.ToString().ToLowerInvariant()">
+        <span class="tarjeta-metrica-etiqueta">@Etiqueta</span>
+        <span class="tarjeta-metrica-valor">@Valor</span>
+    </div>
+}
 
 @code {
     [Parameter] public string Etiqueta { get; set; } = string.Empty;
     [Parameter] public string Valor { get; set; } = string.Empty;
     [Parameter] public TonoBadge Tono { get; set; } = TonoBadge.Neutro;
+
+    /// <summary>
+    /// Si se informa, la tarjeta se renderiza como enlace a esa ruta (p. ej.
+    /// los KPI del Dashboard llevando a la lista filtrada correspondiente).
+    /// Ausente en el resto de usos (resúmenes de importación), donde no
+    /// tiene sentido que sea clicable.
+    /// </summary>
+    [Parameter] public string? Enlace { get; set; }
 }

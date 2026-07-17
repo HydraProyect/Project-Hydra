@@ -1,10 +1,13 @@
+using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Documentos;
@@ -27,8 +30,18 @@ public partial class Documentos : ComponentBase
     /// </summary>
     [SupplyParameterFromQuery] public Guid? DocumentoId { get; set; }
 
+    /// <summary>
+    /// Permite llegar aquí desde el Dashboard con el filtro de Estado ya
+    /// aplicado (p. ej. la tarjeta KPI "Vigentes" enlaza a
+    /// "/documentos?estado=Vigente").
+    /// </summary>
+    [SupplyParameterFromQuery] public string? Estado { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
+        if (!string.IsNullOrWhiteSpace(Estado) && Enum.TryParse<EstadoDocumento>(Estado, out _))
+            _estadoFiltro = Estado;
+
         if (DocumentoId is not null)
             await AbrirEditarAsync(DocumentoId.Value);
     }
@@ -37,17 +50,26 @@ public partial class Documentos : ComponentBase
     private QuickGrid<DocumentoListaDto>? _grid;
 
     private string _busqueda = string.Empty;
+    private string _ambitoFiltro = string.Empty;
+    private string _estadoFiltro = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
 
     private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
+    private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
+    private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
+    private IReadOnlyList<VehiculoSelectorDto> _vehiculosDisponibles = [];
     private IReadOnlyList<TipoDocumentoListaDto> _tiposDisponibles = [];
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    private string _ambitoAplicacion = nameof(AmbitoAplicacion.Trabajador);
     private string _trabajadorId = string.Empty;
-    private string _trabajadorNombreSoloLectura = string.Empty;
+    private string _clienteId = string.Empty;
+    private string _empresaId = string.Empty;
+    private string _vehiculoId = string.Empty;
+    private string _propietarioNombreSoloLectura = string.Empty;
     private string _tipoDocumentoId = string.Empty;
     private string _tipoDocumentoNombreSoloLectura = string.Empty;
     private bool _tipoDocumentoAplicaVencimientoAutomaticoEdit;
@@ -67,7 +89,7 @@ public partial class Documentos : ComponentBase
 
     private bool _confirmarEliminarVisible;
     private Guid _idAEliminar;
-    private string _trabajadorAEliminar = string.Empty;
+    private string _propietarioAEliminar = string.Empty;
     private string _tipoDocumentoAEliminar = string.Empty;
     private bool _eliminando;
 
@@ -101,9 +123,14 @@ public partial class Documentos : ComponentBase
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
 
+            var ambitoFiltro = Enum.TryParse<AmbitoAplicacion>(_ambitoFiltro, out var ambito) ? ambito : (AmbitoAplicacion?)null;
+            var estadoFiltro = Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado) ? estado : (EstadoDocumento?)null;
+
             var resultado = await Mediator.Send(new ObtenerDocumentosQuery(
                 TrabajadorId: null,
+                Ambito: ambitoFiltro,
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+                Estado: estadoFiltro,
                 Pagina: pagina,
                 TamanoPagina: _paginacion.ItemsPerPage));
 
@@ -129,6 +156,18 @@ public partial class Documentos : ComponentBase
         await RecargarAsync();
     }
 
+    private async Task CambiarAmbitoFiltroAsync(string valor)
+    {
+        _ambitoFiltro = valor;
+        await RecargarAsync();
+    }
+
+    private async Task CambiarEstadoFiltroAsync(string valor)
+    {
+        _estadoFiltro = valor;
+        await RecargarAsync();
+    }
+
     private async Task RecargarAsync()
     {
         await _paginacion.SetCurrentPageIndexAsync(0);
@@ -141,11 +180,15 @@ public partial class Documentos : ComponentBase
 
     private async Task AbrirCrearAsync()
     {
+        _ambitoAplicacion = nameof(AmbitoAplicacion.Trabajador);
         _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
-        _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery());
+        _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador));
 
         _editandoId = null;
         _trabajadorId = string.Empty;
+        _clienteId = string.Empty;
+        _empresaId = string.Empty;
+        _vehiculoId = string.Empty;
         _tipoDocumentoId = string.Empty;
         _fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = null;
@@ -159,6 +202,27 @@ public partial class Documentos : ComponentBase
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+    }
+
+    private async Task CambiarAmbitoAsync(string valor)
+    {
+        _ambitoAplicacion = valor;
+        _trabajadorId = string.Empty;
+        _clienteId = string.Empty;
+        _empresaId = string.Empty;
+        _vehiculoId = string.Empty;
+
+        var ambito = Enum.Parse<AmbitoAplicacion>(valor);
+
+        if (ambito == AmbitoAplicacion.Cliente && _clientesDisponibles.Count == 0)
+            _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+        else if (ambito == AmbitoAplicacion.Empresa && _empresasDisponibles.Count == 0)
+            _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+        else if (ambito == AmbitoAplicacion.Vehiculo && _vehiculosDisponibles.Count == 0)
+            _vehiculosDisponibles = await Mediator.Send(new ObtenerVehiculosParaSelectorQuery());
+
+        _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: ambito));
+        CambiarTipoDocumento(string.Empty);
     }
 
     private void CambiarTipoDocumento(string valor)
@@ -183,7 +247,8 @@ public partial class Documentos : ComponentBase
         }
 
         _editandoId = documento.Id;
-        _trabajadorNombreSoloLectura = documento.TrabajadorNombre;
+        _ambitoAplicacion = documento.Ambito.ToString();
+        _propietarioNombreSoloLectura = documento.PropietarioNombre;
         _tipoDocumentoNombreSoloLectura = documento.TipoDocumentoNombre;
         _tipoDocumentoAplicaVencimientoAutomaticoEdit = documento.TipoDocumentoAplicaVencimientoAutomatico;
         _fechaEmision = documento.FechaEmision.ToString("yyyy-MM-dd");
@@ -318,9 +383,24 @@ public partial class Documentos : ComponentBase
 
             if (_editandoId is null)
             {
-                if (!Guid.TryParse(_trabajadorId, out var trabajadorId))
+                var ambito = Enum.Parse<AmbitoAplicacion>(_ambitoAplicacion);
+                var propietarioId = ambito switch
                 {
-                    _mensajeErrorFormulario = "Selecciona un trabajador.";
+                    AmbitoAplicacion.Trabajador => _trabajadorId,
+                    AmbitoAplicacion.Cliente => _clienteId,
+                    AmbitoAplicacion.Vehiculo => _vehiculoId,
+                    _ => _empresaId
+                };
+
+                if (!Guid.TryParse(propietarioId, out var idPropietario))
+                {
+                    _mensajeErrorFormulario = ambito switch
+                    {
+                        AmbitoAplicacion.Trabajador => "Selecciona un trabajador.",
+                        AmbitoAplicacion.Cliente => "Selecciona un cliente.",
+                        AmbitoAplicacion.Vehiculo => "Selecciona un vehículo.",
+                        _ => "Selecciona una empresa."
+                    };
                     return;
                 }
 
@@ -330,8 +410,16 @@ public partial class Documentos : ComponentBase
                     return;
                 }
 
-                var resultado = await Mediator.Send(
-                    new CrearDocumentoCommand(trabajadorId, tipoDocumentoId, fechaEmision, fechaVencimientoManual, _archivoUrl, comentarios));
+                var resultado = await Mediator.Send(new CrearDocumentoCommand(
+                    TrabajadorId: ambito == AmbitoAplicacion.Trabajador ? idPropietario : null,
+                    ClienteId: ambito == AmbitoAplicacion.Cliente ? idPropietario : null,
+                    EmpresaId: ambito == AmbitoAplicacion.Empresa ? idPropietario : null,
+                    VehiculoId: ambito == AmbitoAplicacion.Vehiculo ? idPropietario : null,
+                    TipoDocumentoId: tipoDocumentoId,
+                    FechaEmision: fechaEmision,
+                    FechaVencimientoManual: fechaVencimientoManual,
+                    ArchivoUrl: _archivoUrl,
+                    Comentarios: comentarios));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
             else
@@ -370,10 +458,10 @@ public partial class Documentos : ComponentBase
         }
     }
 
-    private void AbrirEliminar(Guid id, string trabajadorNombre, string tipoDocumentoNombre)
+    private void AbrirEliminar(Guid id, string propietarioNombre, string tipoDocumentoNombre)
     {
         _idAEliminar = id;
-        _trabajadorAEliminar = trabajadorNombre;
+        _propietarioAEliminar = propietarioNombre;
         _tipoDocumentoAEliminar = tipoDocumentoNombre;
         _confirmarEliminarVisible = true;
     }

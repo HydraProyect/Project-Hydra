@@ -15,7 +15,7 @@ public record AsignacionListaDto(
     DateOnly FechaAlta,
     DateOnly? FechaBaja);
 
-public class ObtenerAsignacionesQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerAsignacionesQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerAsignacionesQuery, ResultadoPaginado<AsignacionListaDto>>
 {
     public async Task<ResultadoPaginado<AsignacionListaDto>> Handle(
@@ -27,6 +27,10 @@ public class ObtenerAsignacionesQueryHandler(IApplicationDbContext dbContext)
             join centro in dbContext.Centros on asignacion.CentroId equals centro.Id
             join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
             select new { asignacion, trabajador, centro, cliente };
+
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        if (centroIdsVisibles is not null)
+            consulta = consulta.Where(x => centroIdsVisibles.Contains(x.centro.Id));
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {

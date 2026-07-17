@@ -26,6 +26,12 @@ public partial class Subcontratas : ComponentBase
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
+    private IReadOnlyList<ElementoSeleccionable> _clientesDisponiblesSelector => _clientesDisponibles
+        .Select(c => new ElementoSeleccionable(c.Id, c.RazonSocial))
+        .ToList();
+    private IReadOnlyList<ElementoSeleccionable> _empresasDisponiblesSelector => _empresasDisponibles
+        .Select(e => new ElementoSeleccionable(e.Id, e.RazonSocial))
+        .ToList();
 
     private bool _drawerVisible;
     private Guid? _editandoId;
@@ -218,33 +224,41 @@ public partial class Subcontratas : ComponentBase
 
         try
         {
-            string? mensajeError;
-
             var clienteIds = _clienteIdsSeleccionados.ToList();
             var empresaIds = _empresaIdsSeleccionados.ToList();
+            var eraCreacion = _editandoId is null;
 
-            if (_editandoId is null)
+            if (eraCreacion)
             {
                 var resultado = await Mediator.Send(new CrearSubcontrataCommand(_razonSocial, clienteIds, empresaIds));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+                if (resultado.EsFallido)
+                {
+                    _mensajeErrorFormulario = resultado.Error.Mensaje;
+                    return;
+                }
+
+                // Tras crear, el drawer no se cierra — pasa a modo edición
+                // para que las credenciales de acceso queden visibles sin
+                // tener que reabrir el formulario desde la tabla.
+                _editandoId = resultado.Valor;
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarSubcontrataCommand(_editandoId.Value, _razonSocial, clienteIds, empresaIds));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
-            }
-
-            if (mensajeError is not null)
-            {
-                _mensajeErrorFormulario = mensajeError;
-                return;
+                var resultado = await Mediator.Send(new EditarSubcontrataCommand(_editandoId!.Value, _razonSocial, clienteIds, empresaIds));
+                if (resultado.EsFallido)
+                {
+                    _mensajeErrorFormulario = resultado.Error.Mensaje;
+                    return;
+                }
             }
 
             ToastService.Mostrar(
-                _editandoId is null ? "Subcontrata creada correctamente." : "Subcontrata actualizada correctamente.",
+                eraCreacion ? "Subcontrata creada correctamente." : "Subcontrata actualizada correctamente.",
                 TonoToast.Exito);
 
-            _drawerVisible = false;
+            if (!eraCreacion)
+                _drawerVisible = false;
+
             await RecargarAsync();
         }
         catch (ValidationException ex)

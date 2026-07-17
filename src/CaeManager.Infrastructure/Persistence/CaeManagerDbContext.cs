@@ -10,6 +10,8 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Domain.Vehiculos;
+using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence.Seed;
 using Microsoft.AspNetCore.DataProtection;
@@ -47,6 +49,9 @@ public class CaeManagerDbContext(
     public DbSet<TipoDocumentoCentro> TiposDocumentoCentros => Set<TipoDocumentoCentro>();
     public DbSet<Documento> Documentos => Set<Documento>();
     public DbSet<Asignacion> Asignaciones => Set<Asignacion>();
+    public DbSet<Visita> Visitas => Set<Visita>();
+    public DbSet<VisitaTrabajador> VisitasTrabajadores => Set<VisitaTrabajador>();
+    public DbSet<Vehiculo> Vehiculos => Set<Vehiculo>();
     public DbSet<RequisitoDocumental> RequisitosDocumentales => Set<RequisitoDocumental>();
     public DbSet<Alerta> Alertas => Set<Alerta>();
     public DbSet<ParametroSistema> ParametrosSistema => Set<ParametroSistema>();
@@ -66,6 +71,9 @@ public class CaeManagerDbContext(
     IQueryable<TipoDocumentoCentro> IApplicationDbContext.TiposDocumentoCentros => TiposDocumentoCentros;
     IQueryable<Documento> IApplicationDbContext.Documentos => Documentos;
     IQueryable<Asignacion> IApplicationDbContext.Asignaciones => Asignaciones;
+    IQueryable<Visita> IApplicationDbContext.Visitas => Visitas;
+    IQueryable<VisitaTrabajador> IApplicationDbContext.VisitasTrabajadores => VisitasTrabajadores;
+    IQueryable<Vehiculo> IApplicationDbContext.Vehiculos => Vehiculos;
     IQueryable<ParametroSistema> IApplicationDbContext.ParametrosSistema => ParametrosSistema;
     IQueryable<RegistroAuditoria> IApplicationDbContext.RegistrosAuditoria => RegistrosAuditoria;
 

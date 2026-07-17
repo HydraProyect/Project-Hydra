@@ -35,10 +35,13 @@ public class MigracionesTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Siembra_los_15_tipos_de_documento_reales_del_excel()
+    public async Task Siembra_los_32_tipos_de_documento_del_catalogo()
     {
+        // 15 de Trabajador (excel original) + 13 de Empresa (documentos base
+        // obligatorios del cliente) + 4 de Vehículo (ITC, ficha técnica,
+        // seguro, autorización de circulación).
         var total = await _dbContext.TiposDocumento.CountAsync();
-        total.Should().Be(15);
+        total.Should().Be(32);
     }
 
     [Fact]
@@ -51,10 +54,11 @@ public class MigracionesTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Siembra_los_cuatro_roles()
+    public async Task Siembra_los_seis_roles()
     {
+        // Administrador, DireccionCae, CoordinadorCae, GestorCae, Consulta, Cliente (ver Roles.cs, Fase 31).
         var total = await _dbContext.Roles.CountAsync();
-        total.Should().Be(4);
+        total.Should().Be(6);
     }
 
     [Fact]

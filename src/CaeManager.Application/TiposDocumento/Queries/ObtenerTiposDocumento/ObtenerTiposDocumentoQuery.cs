@@ -13,7 +13,8 @@ namespace CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 /// ninguna asociación a Centro (<see cref="TipoDocumentoCentro"/>) es
 /// global y aparece siempre, independientemente del filtro.
 /// </summary>
-public record ObtenerTiposDocumentoQuery(Guid? ClienteId = null, Guid? EmpresaId = null, Guid? CentroId = null)
+public record ObtenerTiposDocumentoQuery(
+    Guid? ClienteId = null, Guid? EmpresaId = null, Guid? CentroId = null, AmbitoAplicacion? AmbitoAplicacion = null)
     : IRequest<IReadOnlyList<TipoDocumentoListaDto>>;
 
 public record TipoDocumentoListaDto(
@@ -22,6 +23,8 @@ public record TipoDocumentoListaDto(
     int? VigenciaMeses,
     bool AplicaVencimientoAutomatico,
     int Orden,
+    AmbitoAplicacion AmbitoAplicacion,
+    bool EsObligatorio,
     string? Descripcion,
     string? CriteriosValidacion,
     string? SeSolicitaA,
@@ -34,6 +37,9 @@ public class ObtenerTiposDocumentoQueryHandler(IApplicationDbContext dbContext)
         ObtenerTiposDocumentoQuery request, CancellationToken cancellationToken)
     {
         var consulta = dbContext.TiposDocumento.AsQueryable();
+
+        if (request.AmbitoAplicacion is not null)
+            consulta = consulta.Where(t => t.AmbitoAplicacion == request.AmbitoAplicacion);
 
         if (request.ClienteId is not null || request.EmpresaId is not null || request.CentroId is not null)
         {
@@ -58,7 +64,7 @@ public class ObtenerTiposDocumentoQueryHandler(IApplicationDbContext dbContext)
         return await consulta
             .OrderBy(t => t.Orden)
             .Select(t => new TipoDocumentoListaDto(
-                t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden,
+                t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden, t.AmbitoAplicacion, t.EsObligatorio,
                 t.Descripcion, t.CriteriosValidacion, t.SeSolicitaA, t.Observaciones))
             .ToListAsync(cancellationToken);
     }

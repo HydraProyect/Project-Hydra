@@ -20,6 +20,12 @@ public partial class BuscadorGlobal : ComponentBase
     private bool _buscando;
     private ResultadoBusquedaGlobalDto? _resultado;
     private CancellationTokenSource? _debounceCts;
+    private int _indiceSeleccionado = -1;
+
+    /// <summary>Todas las categorías en una sola lista, en el mismo orden en que se renderizan — para navegar con ↑↓ + Enter.</summary>
+    private IReadOnlyList<ItemBusquedaDto> ElementosPlanos => _resultado is null
+        ? []
+        : [.. _resultado.Clientes, .. _resultado.Empresas, .. _resultado.Subcontratas, .. _resultado.Centros, .. _resultado.Trabajadores];
 
     protected override void OnInitialized()
     {
@@ -64,6 +70,7 @@ public partial class BuscadorGlobal : ComponentBase
         _visible = true;
         _termino = string.Empty;
         _resultado = null;
+        _indiceSeleccionado = -1;
         StateHasChanged();
 
         if (_modulo is not null)
@@ -80,12 +87,28 @@ public partial class BuscadorGlobal : ComponentBase
         _debounceCts?.Cancel();
     }
 
-    private Task ManejarTeclaAsync(KeyboardEventArgs e)
+    private void ManejarTeclaAsync(KeyboardEventArgs e)
     {
-        if (e.Key == "Escape")
-            Cerrar();
+        switch (e.Key)
+        {
+            case "Escape":
+                Cerrar();
+                break;
 
-        return Task.CompletedTask;
+            case "ArrowDown" when ElementosPlanos.Count > 0:
+                _indiceSeleccionado = Math.Min(_indiceSeleccionado + 1, ElementosPlanos.Count - 1);
+                break;
+
+            case "ArrowUp" when ElementosPlanos.Count > 0:
+                _indiceSeleccionado = _indiceSeleccionado <= 0 ? 0 : _indiceSeleccionado - 1;
+                break;
+
+            case "Enter" when _indiceSeleccionado >= 0 && _indiceSeleccionado < ElementosPlanos.Count:
+                var destino = ElementosPlanos[_indiceSeleccionado].UrlDestino;
+                Cerrar();
+                Navigation.NavigateTo(destino);
+                break;
+        }
     }
 
     private async Task ManejarEntradaAsync(ChangeEventArgs e)
@@ -95,6 +118,8 @@ public partial class BuscadorGlobal : ComponentBase
         _debounceCts?.Cancel();
         var cts = new CancellationTokenSource();
         _debounceCts = cts;
+
+        _indiceSeleccionado = -1;
 
         if (_termino.Trim().Length < 2)
         {

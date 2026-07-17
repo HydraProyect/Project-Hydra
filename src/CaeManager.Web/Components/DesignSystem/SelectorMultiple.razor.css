@@ -1,0 +1,17 @@
+.selector-multiple-controles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-4);
+    margin-bottom: var(--space-2);
+}
+
+.selector-multiple-controles .campo {
+    flex: 1 1 160px;
+    margin-bottom: 0;
+}
+
+.selector-multiple-controles .campo-checkbox {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}

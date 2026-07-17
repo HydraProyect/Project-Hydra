@@ -17,6 +17,38 @@ public class ClienteTests
         cliente.Cif.Should().Be(CifValido);
         cliente.EsCritico.Should().BeTrue();
         cliente.EstaEliminado.Should().BeFalse();
+        cliente.EjecutivoUsuarioId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Crea_un_cliente_con_ejecutivo_asignado_desde_el_alta()
+    {
+        var ejecutivoId = Guid.NewGuid();
+
+        var cliente = new Cliente("RENDELSUR", CifValido, esCritico: false, ejecutivoUsuarioId: ejecutivoId);
+
+        cliente.EjecutivoUsuarioId.Should().Be(ejecutivoId);
+    }
+
+    [Fact]
+    public void AsignarEjecutivo_reasigna_la_cartera_a_otro_gestor()
+    {
+        var cliente = new Cliente("RENDELSUR", CifValido, esCritico: false, ejecutivoUsuarioId: Guid.NewGuid());
+        var nuevoEjecutivoId = Guid.NewGuid();
+
+        cliente.AsignarEjecutivo(nuevoEjecutivoId);
+
+        cliente.EjecutivoUsuarioId.Should().Be(nuevoEjecutivoId);
+    }
+
+    [Fact]
+    public void AsignarEjecutivo_admite_dejar_la_cartera_sin_asignar()
+    {
+        var cliente = new Cliente("RENDELSUR", CifValido, esCritico: false, ejecutivoUsuarioId: Guid.NewGuid());
+
+        cliente.AsignarEjecutivo(null);
+
+        cliente.EjecutivoUsuarioId.Should().BeNull();
     }
 
     [Theory]

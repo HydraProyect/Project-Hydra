@@ -1,0 +1,164 @@
+@page "/visitas"
+@rendermode InteractiveServer
+@using CaeManager.Application.Visitas.Commands.CrearVisita
+@using CaeManager.Application.Visitas.Commands.EditarVisita
+@using CaeManager.Application.Visitas.Commands.EliminarVisita
+@using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente
+@using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId
+@using CaeManager.Application.Visitas.Queries.ObtenerVisitas
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Application.Common
+@using FluentValidation
+@using MediatR
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject ICurrentUserService CurrentUserService
+
+<PageTitle>Visitas — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Visitas</h1>
+        <div class="acciones-cabecera">
+            <Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton>
+        </div>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoTexto Placeholder="Buscar por centro, cliente o empresa…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <label class="filtro-critico">
+            <input type="checkbox" @bind="_soloActivas" @bind:after="RecargarAsync" /> Solo activas
+        </label>
+        <CampoSelect Etiqueta="Notificado al cliente" Valor="@_filtroNotificado" ValorChanged="FiltrarPorNotificadoAsync">
+            <option value="">Todas</option>
+            <option value="si">Sí</option>
+            <option value="no">No</option>
+        </CampoSelect>
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las visitas" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        @* El grid se mantiene siempre montado (solo se oculta con CSS) para que la
+           referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
+           pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
+        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+            <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
+                <PropertyColumn Property="@(v => v.CentroNombre)" Title="Centro" Sortable="true" />
+                <TemplateColumn Title="Cliente / Empresa">
+                    @context.ClienteRazonSocial — @context.EmpresaRazonSocial
+                </TemplateColumn>
+                <TemplateColumn Title="Fechas">
+                    @context.FechaInicio.ToString("dd/MM/yyyy") – @context.FechaFin.ToString("dd/MM/yyyy")
+                </TemplateColumn>
+                <TemplateColumn Title="Trabajadores" Align="Align.Center">
+                    @context.TotalTrabajadores
+                </TemplateColumn>
+                <TemplateColumn Title="Documentación" Align="Align.Center">
+                    @if (context.DocumentacionCompleta)
+                    {
+                        <Badge Tono="TonoBadge.Exito">Completa</Badge>
+                    }
+                    else
+                    {
+                        <Badge Tono="TonoBadge.Peligro">Por gestionar</Badge>
+                    }
+                </TemplateColumn>
+                <TemplateColumn Title="Notificado al cliente" Align="Align.Center">
+                    <label class="campo-checkbox">
+                        <input type="checkbox" checked="@context.NotificadoCliente"
+                               @onchange="e => AlternarNotificadoAsync(context.Id, e.Value is bool marcado && marcado)" />
+                    </label>
+                </TemplateColumn>
+                <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
+                        Editar
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
+                        Eliminar
+                    </Boton>
+                </TemplateColumn>
+            </QuickGrid>
+
+            <div class="paginador">
+                <Paginator State="_paginacion" />
+            </div>
+        </div>
+
+        @if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio Titulo="Todavía no hay visitas programadas" Descripcion="Crea la primera visita para empezar a llevar el control de accesos programados.">
+                <Accion>
+                    <Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+    }
+</div>
+
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nueva visita" : "Editar visita")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        @if (_editandoId is null)
+        {
+            <CampoSelect Etiqueta="Centro" Valor="@_centroId" ValorChanged="v => _centroId = v">
+                <option value="">Selecciona un centro…</option>
+                @foreach (var centro in _centrosDisponibles)
+                {
+                    <option value="@centro.Id">@centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)</option>
+                }
+            </CampoSelect>
+        }
+        else
+        {
+            <div class="campo">
+                <label>Centro</label>
+                <p class="texto-vacio-seccion">@_centroNombreEnEdicion</p>
+            </div>
+        }
+
+        <CampoTexto Etiqueta="Fecha de inicio" Type="date" Valor="@_fechaInicio" ValorChanged="v => _fechaInicio = v" />
+        <CampoTexto Etiqueta="Fecha de fin" Type="date" Valor="@_fechaFin" ValorChanged="v => _fechaFin = v" />
+
+        <SelectorMultiple Etiqueta="Trabajadores que entran"
+                           Elementos="@_trabajadoresDisponiblesSelector"
+                           Seleccionados="@_trabajadorIdsSeleccionados"
+                           OnAlternar="args => AlternarTrabajador(args.Id, args.Marcado)"
+                           TextoVacio="Todavía no hay trabajadores creados." />
+
+        <label class="campo-checkbox">
+            <input type="checkbox" @bind="_notificadoCliente" /> Notificado al cliente
+        </label>
+
+        <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+            Guardar
+        </Boton>
+    </Pie>
+</Drawer>
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarVisible"
+    VisibleChanged="v => _confirmarEliminarVisible = v"
+    Titulo="@($"¿Eliminar la visita a {_centroAEliminar}?")"
+    Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
+    EnProgreso="_eliminando"
+    OnConfirmar="ConfirmarEliminarAsync" />

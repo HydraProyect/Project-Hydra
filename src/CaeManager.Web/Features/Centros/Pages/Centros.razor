@@ -78,7 +78,7 @@
 
         @if (_editandoId is null)
         {
-            <CampoSelect Etiqueta="Cliente" Valor="@_clienteId" ValorChanged="CambiarClienteAsync">
+            <CampoSelect Etiqueta="Cliente" Valor="@_clienteId" ValorChanged="v => _clienteId = v">
                 <option value="">Selecciona un cliente…</option>
                 @foreach (var cliente in _clientesDisponibles)
                 {
@@ -86,17 +86,13 @@
                 }
             </CampoSelect>
 
-            <CampoSelect Etiqueta="Empresa" Valor="@_empresaId" ValorChanged="v => _empresaId = v" Deshabilitado="@string.IsNullOrEmpty(_clienteId)">
-                <option value="">@(string.IsNullOrEmpty(_clienteId) ? "Elige primero un cliente…" : "Selecciona una empresa…")</option>
+            <CampoSelect Etiqueta="Empresa" Valor="@_empresaId" ValorChanged="v => _empresaId = v">
+                <option value="">Selecciona una empresa…</option>
                 @foreach (var empresa in _empresasDisponibles)
                 {
                     <option value="@empresa.Id">@empresa.RazonSocial</option>
                 }
             </CampoSelect>
-            @if (!string.IsNullOrEmpty(_clienteId) && _empresasDisponibles.Count == 0)
-            {
-                <p class="texto-vacio-seccion">Este cliente todavía no tiene ninguna empresa asociada — añádela desde Empresas.</p>
-            }
         }
         else
         {

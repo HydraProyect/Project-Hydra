@@ -1,6 +1,9 @@
 using System.Security.Claims;
+using CaeManager.Application.Clientes.Queries.BuscarClientePorCif;
+using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -9,11 +12,14 @@ namespace CaeManager.Web.Features.Usuarios.Pages;
 
 public record UsuarioListaDto(Guid Id, string Email, string NombreCompleto, string Rol, bool Activo);
 
+public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
+
 public partial class Usuarios : ComponentBase
 {
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private IMediator Mediator { get; set; } = default!;
 
     private const int TamanoPagina = 20;
 
@@ -40,6 +46,13 @@ public partial class Usuarios : ComponentBase
     private string _rol = Roles.Consulta;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
+
+    private IReadOnlyList<CoordinadorDto> _coordinadoresDisponibles = [];
+    private string _coordinadorUsuarioId = string.Empty;
+
+    private string _clienteCif = string.Empty;
+    private ClientePorCifDto? _clienteEncontrado;
+    private bool _buscandoCliente;
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
@@ -77,6 +90,43 @@ public partial class Usuarios : ComponentBase
         }
     }
 
+    private async Task CambiarRolAsync(string valor)
+    {
+        _rol = valor;
+
+        if (_rol == Roles.GestorCae)
+            await CargarCoordinadoresAsync();
+    }
+
+    private async Task CargarCoordinadoresAsync()
+    {
+        var coordinadores = await UserManager.GetUsersInRoleAsync(Roles.CoordinadorCae);
+        _coordinadoresDisponibles = coordinadores
+            .OrderBy(u => u.NombreCompleto)
+            .Select(u => new CoordinadorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty))
+            .ToList();
+    }
+
+    private async Task BuscarClientePorCifAsync(string valor)
+    {
+        _clienteCif = valor;
+        _clienteEncontrado = null;
+
+        if (string.IsNullOrWhiteSpace(valor)) return;
+
+        _buscandoCliente = true;
+        StateHasChanged();
+
+        try
+        {
+            _clienteEncontrado = await Mediator.Send(new BuscarClientePorCifQuery(valor));
+        }
+        finally
+        {
+            _buscandoCliente = false;
+        }
+    }
+
     private void AbrirCrear()
     {
         _editandoId = null;
@@ -84,6 +134,9 @@ public partial class Usuarios : ComponentBase
         _nombreCompleto = string.Empty;
         _password = string.Empty;
         _rol = Roles.Consulta;
+        _coordinadorUsuarioId = string.Empty;
+        _clienteCif = string.Empty;
+        _clienteEncontrado = null;
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
     }
@@ -105,6 +158,23 @@ public partial class Usuarios : ComponentBase
         _nombreCompleto = usuario.NombreCompleto;
         _password = string.Empty;
         _rol = roles.FirstOrDefault() ?? Roles.Consulta;
+        _coordinadorUsuarioId = usuario.CoordinadorUsuarioId?.ToString() ?? string.Empty;
+        _clienteCif = string.Empty;
+        _clienteEncontrado = null;
+
+        if (_rol == Roles.GestorCae)
+            await CargarCoordinadoresAsync();
+
+        if (_rol == Roles.Cliente && usuario.ClienteId is not null)
+        {
+            var cliente = await Mediator.Send(new ObtenerClientePorIdQuery(usuario.ClienteId.Value));
+            if (cliente is not null)
+            {
+                _clienteCif = cliente.Cif;
+                _clienteEncontrado = new ClientePorCifDto(cliente.Id, cliente.RazonSocial, cliente.Cif);
+            }
+        }
+
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
     }
@@ -123,6 +193,12 @@ public partial class Usuarios : ComponentBase
 
         try
         {
+            if (_rol == Roles.Cliente && _clienteEncontrado is null)
+            {
+                _mensajeErrorFormulario = "Busca y confirma el CIF del cliente a vincular antes de guardar.";
+                return;
+            }
+
             if (_editandoId is null)
                 await CrearUsuarioAsync();
             else
@@ -147,7 +223,9 @@ public partial class Usuarios : ComponentBase
             UserName = _email,
             Email = _email,
             NombreCompleto = _nombreCompleto,
-            EmailConfirmed = true
+            EmailConfirmed = true,
+            CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null,
+            ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null
         };
 
         var resultado = await UserManager.CreateAsync(usuario, _password);
@@ -180,6 +258,8 @@ public partial class Usuarios : ComponentBase
         }
 
         usuario.NombreCompleto = _nombreCompleto;
+        usuario.CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null;
+        usuario.ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null;
         await UserManager.UpdateAsync(usuario);
 
         var rolesActuales = await UserManager.GetRolesAsync(usuario);

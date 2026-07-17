@@ -31,13 +31,15 @@
                 }
                 else if (_resultado is not null)
                 {
+                    var indice = 0;
                     @if (_resultado.Clientes.Count > 0)
                     {
                         <div class="buscador-categoria">
                             <h3>Clientes</h3>
                             @foreach (var item in _resultado.Clientes)
                             {
-                                <a class="buscador-item" href="@item.UrlDestino">@item.Titulo</a>
+                                var indiceItem = indice++;
+                                <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">@item.Titulo</a>
                             }
                         </div>
                     }
@@ -47,7 +49,8 @@
                             <h3>Empresas</h3>
                             @foreach (var item in _resultado.Empresas)
                             {
-                                <a class="buscador-item" href="@item.UrlDestino">@item.Titulo</a>
+                                var indiceItem = indice++;
+                                <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">@item.Titulo</a>
                             }
                         </div>
                     }
@@ -57,7 +60,8 @@
                             <h3>Subcontratas</h3>
                             @foreach (var item in _resultado.Subcontratas)
                             {
-                                <a class="buscador-item" href="@item.UrlDestino">@item.Titulo</a>
+                                var indiceItem = indice++;
+                                <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">@item.Titulo</a>
                             }
                         </div>
                     }
@@ -67,7 +71,8 @@
                             <h3>Centros</h3>
                             @foreach (var item in _resultado.Centros)
                             {
-                                <a class="buscador-item" href="@item.UrlDestino">@item.Titulo</a>
+                                var indiceItem = indice++;
+                                <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">@item.Titulo</a>
                             }
                         </div>
                     }
@@ -77,11 +82,18 @@
                             <h3>Trabajadores</h3>
                             @foreach (var item in _resultado.Trabajadores)
                             {
-                                <a class="buscador-item" href="@item.UrlDestino">@item.Titulo <span class="buscador-item-subtitulo">@item.Subtitulo</span></a>
+                                var indiceItem = indice++;
+                                <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">@item.Titulo <span class="buscador-item-subtitulo">@item.Subtitulo</span></a>
                             }
                         </div>
                     }
                 }
+            </div>
+
+            <div class="buscador-pie">
+                <span><kbd>↑</kbd><kbd>↓</kbd> moverse</span>
+                <span><kbd>↵</kbd> ir</span>
+                <span><kbd>Esc</kbd> cerrar</span>
             </div>
         </div>
     </div>

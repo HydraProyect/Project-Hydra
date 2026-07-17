@@ -9,12 +9,16 @@ public record ObtenerClientesQuery(string? Busqueda, bool? SoloCriticos, int Pag
 
 public record ClienteListaDto(Guid Id, string RazonSocial, string Cif, bool EsCritico, DateTime CreadoEnUtc);
 
-public class ObtenerClientesQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerClientesQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerClientesQuery, ResultadoPaginado<ClienteListaDto>>
 {
     public async Task<ResultadoPaginado<ClienteListaDto>> Handle(ObtenerClientesQuery request, CancellationToken cancellationToken)
     {
         var consulta = dbContext.Clientes.AsQueryable();
+
+        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        if (clienteIdsVisibles is not null)
+            consulta = consulta.Where(c => clienteIdsVisibles.Contains(c.Id));
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {

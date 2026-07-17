@@ -7,6 +7,9 @@
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
+@using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector
 @using CaeManager.Application.Common
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Documentos
@@ -33,7 +36,22 @@
     </div>
 
     <div class="barra-filtros">
-        <CampoTexto Placeholder="Buscar por trabajador o tipo de documento…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <CampoTexto Placeholder="Buscar por propietario o tipo de documento…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <CampoSelect Etiqueta="Ámbito" Valor="@_ambitoFiltro" ValorChanged="CambiarAmbitoFiltroAsync">
+            <option value="">Todos</option>
+            <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
+            <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
+            <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
+            <option value="@nameof(AmbitoAplicacion.Vehiculo)">Vehículo</option>
+        </CampoSelect>
+        <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync">
+            <option value="">Todos</option>
+            <option value="@nameof(EstadoDocumento.Vencido)">Vencido</option>
+            <option value="@nameof(EstadoDocumento.Urgente)">Urgente</option>
+            <option value="@nameof(EstadoDocumento.Proximo)">Próximo</option>
+            <option value="@nameof(EstadoDocumento.Vigente)">Vigente</option>
+            <option value="@nameof(EstadoDocumento.NoAplica)">No aplica</option>
+        </CampoSelect>
     </div>
 
     @if (_errorCarga)
@@ -48,7 +66,10 @@
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
-                <PropertyColumn Property="@(d => d.TrabajadorNombre)" Title="Trabajador" Sortable="true" />
+                <PropertyColumn Property="@(d => d.PropietarioNombre)" Title="Propietario" Sortable="true" />
+                <TemplateColumn Title="Ámbito">
+                    <Badge>@context.Ambito</Badge>
+                </TemplateColumn>
                 <PropertyColumn Property="@(d => d.TipoDocumentoNombre)" Title="Tipo de documento" />
                 <PropertyColumn Property="@(d => d.FechaEmision)" Format="dd/MM/yyyy" Title="Emisión" />
                 <TemplateColumn Title="Vencimiento">
@@ -71,7 +92,7 @@
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
                         Renovar
                     </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.TrabajadorNombre, context.TipoDocumentoNombre)">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.PropietarioNombre, context.TipoDocumentoNombre)">
                         Eliminar
                     </Boton>
                 </TemplateColumn>
@@ -102,27 +123,78 @@
 
         @if (_editandoId is null)
         {
-            <CampoSelect Etiqueta="Trabajador" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
-                <option value="">Selecciona un trabajador…</option>
-                @foreach (var trabajador in _trabajadoresDisponibles)
-                {
-                    <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
-                }
+            <CampoSelect Etiqueta="¿A quién pertenece?" Valor="@_ambitoAplicacion" ValorChanged="CambiarAmbitoAsync">
+                <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
+                <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
+                <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
+                <option value="@nameof(AmbitoAplicacion.Vehiculo)">Vehículo</option>
             </CampoSelect>
 
-            <CampoSelect Etiqueta="Tipo de documento" Valor="@_tipoDocumentoId" ValorChanged="CambiarTipoDocumento">
-                <option value="">Selecciona un tipo de documento…</option>
-                @foreach (var tipo in _tiposDisponibles)
-                {
-                    <option value="@tipo.Id">@tipo.Nombre</option>
-                }
-            </CampoSelect>
+            @if (_ambitoAplicacion == nameof(AmbitoAplicacion.Trabajador))
+            {
+                <CampoSelect Etiqueta="Trabajador" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
+                    <option value="">Selecciona un trabajador…</option>
+                    @foreach (var trabajador in _trabajadoresDisponibles)
+                    {
+                        <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+                    }
+                </CampoSelect>
+            }
+            else if (_ambitoAplicacion == nameof(AmbitoAplicacion.Cliente))
+            {
+                <CampoSelect Etiqueta="Cliente" Valor="@_clienteId" ValorChanged="v => _clienteId = v">
+                    <option value="">Selecciona un cliente…</option>
+                    @foreach (var cliente in _clientesDisponibles)
+                    {
+                        <option value="@cliente.Id">@cliente.RazonSocial</option>
+                    }
+                </CampoSelect>
+            }
+            else if (_ambitoAplicacion == nameof(AmbitoAplicacion.Empresa))
+            {
+                <CampoSelect Etiqueta="Empresa" Valor="@_empresaId" ValorChanged="v => _empresaId = v">
+                    <option value="">Selecciona una empresa…</option>
+                    @foreach (var empresa in _empresasDisponibles)
+                    {
+                        <option value="@empresa.Id">@empresa.RazonSocial</option>
+                    }
+                </CampoSelect>
+            }
+            else
+            {
+                <CampoSelect Etiqueta="Vehículo" Valor="@_vehiculoId" ValorChanged="v => _vehiculoId = v">
+                    <option value="">Selecciona un vehículo…</option>
+                    @foreach (var vehiculo in _vehiculosDisponibles)
+                    {
+                        <option value="@vehiculo.Id">@vehiculo.Nombre (@vehiculo.NumeroPlaca)</option>
+                    }
+                </CampoSelect>
+            }
+
+            @if (_tiposDisponibles.Count == 0)
+            {
+                <p class="texto-vacio-seccion">Todavía no hay ningún tipo de documento de este ámbito — créalo primero desde Tipos de Documento.</p>
+            }
+            else
+            {
+                <CampoSelect Etiqueta="Tipo de documento" Valor="@_tipoDocumentoId" ValorChanged="CambiarTipoDocumento">
+                    <option value="">Selecciona un tipo de documento…</option>
+                    @foreach (var tipo in _tiposDisponibles)
+                    {
+                        <option value="@tipo.Id">@tipo.Nombre</option>
+                    }
+                </CampoSelect>
+            }
         }
         else
         {
             <div class="campo">
-                <label>Trabajador</label>
-                <span>@_trabajadorNombreSoloLectura</span>
+                <label>Ámbito</label>
+                <span>@_ambitoAplicacion</span>
+            </div>
+            <div class="campo">
+                <label>Propietario</label>
+                <span>@_propietarioNombreSoloLectura</span>
             </div>
             <div class="campo">
                 <label>Tipo de documento</label>
@@ -185,7 +257,7 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             Cancelar
         </Boton>
-        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+        <Boton Deshabilitado="_subiendoArchivo" Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>
     </Pie>
@@ -195,7 +267,7 @@
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
     Titulo="@($"¿Eliminar este documento?")"
-    Mensaje="@($"{_tipoDocumentoAEliminar} de {_trabajadorAEliminar} se ocultará de las listas activas. Podrás recuperarlo desde Auditoría.")"
+    Mensaje="@($"{_tipoDocumentoAEliminar} de {_propietarioAEliminar} se ocultará de las listas activas. Podrás recuperarlo desde Auditoría.")"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
