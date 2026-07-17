@@ -1,0 +1,23 @@
+<button type="@Type"
+        class="boton boton-@ClaseVariante boton-@ClaseTamano"
+        disabled="@(Deshabilitado || Cargando)"
+        @onclick="OnClick">
+    @if (Cargando)
+    {
+        <span class="boton-spinner" aria-hidden="true"></span>
+    }
+    @ChildContent
+</button>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public VarianteBoton Variante { get; set; } = VarianteBoton.Primario;
+    [Parameter] public TamanoBoton Tamano { get; set; } = TamanoBoton.Medio;
+    [Parameter] public bool Deshabilitado { get; set; }
+    [Parameter] public bool Cargando { get; set; }
+    [Parameter] public string Type { get; set; } = "button";
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    private string ClaseVariante => Variante.ToString().ToLowerInvariant();
+    private string ClaseTamano => Tamano.ToString().ToLowerInvariant();
+}

@@ -1,0 +1,35 @@
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    font: var(--font-label-md);
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+}
+
+.badge-neutro {
+    background-color: var(--color-neutral-100);
+    color: var(--color-neutral-700);
+}
+
+.badge-exito {
+    background-color: var(--color-success-50);
+    color: var(--color-success-500);
+}
+
+.badge-advertencia {
+    background-color: var(--color-warning-50);
+    color: var(--color-warning-500);
+}
+
+.badge-peligro {
+    background-color: var(--color-danger-50);
+    color: var(--color-danger-500);
+}
+
+.badge-info {
+    background-color: var(--color-info-50);
+    color: var(--color-info-500);
+}

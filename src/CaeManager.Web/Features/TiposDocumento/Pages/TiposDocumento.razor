@@ -1,0 +1,162 @@
+@page "/tipos-documento"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
+@using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
+@using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento
+@using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerTipoDocumentoPorId
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
+@using FluentValidation
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<PageTitle>Tipos de Documento — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Tipos de Documento</h1>
+        <Boton OnClick="AbrirCrear">+ Nuevo tipo</Boton>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoSelect Etiqueta="Cliente" Valor="@_clienteFiltroId" ValorChanged="CambiarClienteFiltroAsync">
+            <option value="">Todos los clientes</option>
+            @foreach (var cliente in _clientesFiltroDisponibles)
+            {
+                <option value="@cliente.Id">@cliente.RazonSocial</option>
+            }
+        </CampoSelect>
+
+        <CampoSelect Etiqueta="Empresa" Valor="@_empresaFiltroId" ValorChanged="CambiarEmpresaFiltroAsync" Deshabilitado="@string.IsNullOrEmpty(_clienteFiltroId)">
+            <option value="">Todas las empresas</option>
+            @foreach (var empresa in _empresasFiltroDisponibles)
+            {
+                <option value="@empresa.Id">@empresa.RazonSocial</option>
+            }
+        </CampoSelect>
+
+        <CampoSelect Etiqueta="Centro" Valor="@_centroFiltroId" ValorChanged="CambiarCentroFiltroAsync" Deshabilitado="@string.IsNullOrEmpty(_empresaFiltroId)">
+            <option value="">Todos los centros</option>
+            @foreach (var centro in _centrosFiltroDisponibles)
+            {
+                <option value="@centro.Id">@centro.Nombre</option>
+            }
+        </CampoSelect>
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar los tipos de documento" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="6" />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Orden</th>
+                    <th>Nombre</th>
+                    <th>Vigencia</th>
+                    <th>Vencimiento automático</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var tipo in TiposDePagina)
+                {
+                    <tr>
+                        <td>@tipo.Orden</td>
+                        <td>@tipo.Nombre</td>
+                        <td>@(tipo.VigenciaMeses is null ? "—" : $"{tipo.VigenciaMeses} meses")</td>
+                        <td>
+                            @if (tipo.AplicaVencimientoAutomatico)
+                            {
+                                <Badge Tono="TonoBadge.Exito">Sí</Badge>
+                            }
+                            else
+                            {
+                                <Badge>No</Badge>
+                            }
+                        </td>
+                        <td>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(tipo.Id)">
+                                Editar
+                            </Boton>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_tipos.Count"
+                          Etiqueta="tipo(s) de documento" PaginaActualChanged="IrAPaginaAsync" />
+    }
+</div>
+
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo tipo de documento" : "Editar tipo de documento")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Nombre))" />
+
+        <label class="campo-checkbox">
+            <input type="checkbox" @bind="_aplicaVencimientoAutomatico" /> Aplica vencimiento automático
+        </label>
+
+        @if (_aplicaVencimientoAutomatico)
+        {
+            <CampoTexto Etiqueta="Vigencia (meses)" Type="number" Valor="@_vigenciaMeses" ValorChanged="v => _vigenciaMeses = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.VigenciaMeses))" />
+        }
+
+        <CampoTexto Etiqueta="Orden" Type="number" Valor="@_orden" ValorChanged="v => _orden = v" />
+        <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
+
+        <CampoTextarea Etiqueta="Descripción" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Descripcion))" />
+        <CampoTextarea Etiqueta="Criterios de validación" Valor="@_criteriosValidacion" ValorChanged="v => _criteriosValidacion = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.CriteriosValidacion))" />
+        <CampoTexto Etiqueta="Se solicita a" Valor="@_seSolicitaA" ValorChanged="v => _seSolicitaA = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.SeSolicitaA))" />
+        <CampoTextarea Etiqueta="Observaciones" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Observaciones))" />
+
+        <div class="campo">
+            <label>Centros donde aplica (vacío = aplica en todos)</label>
+            @if (_centrosDisponibles.Count == 0)
+            {
+                <p class="texto-vacio-seccion">Todavía no hay centros creados.</p>
+            }
+            else
+            {
+                <div class="lista-seleccion-multiple">
+                    @foreach (var centro in _centrosDisponibles)
+                    {
+                        <label class="campo-checkbox">
+                            <input type="checkbox"
+                                   checked="@_centroIdsSeleccionados.Contains(centro.Id)"
+                                   @onchange="e => AlternarCentro(centro.Id, e.Value is bool marcado && marcado)" />
+                            @centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)
+                        </label>
+                    }
+                </div>
+            }
+        </div>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+            Guardar
+        </Boton>
+    </Pie>
+</Drawer>

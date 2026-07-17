@@ -1,0 +1,127 @@
+@page "/asignaciones"
+@rendermode InteractiveServer
+@using CaeManager.Application.Asignaciones.Commands.CrearAsignacion
+@using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignacion
+@using CaeManager.Application.Asignaciones.Queries.ObtenerAsignaciones
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Application.Common
+@using FluentValidation
+@using MediatR
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<PageTitle>Asignaciones — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Asignaciones</h1>
+        <Boton OnClick="AbrirCrearAsync">+ Nueva asignación</Boton>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoTexto Placeholder="Buscar por trabajador o centro…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las asignaciones" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+            <QuickGrid @ref="_grid" TGridItem="AsignacionListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
+                <PropertyColumn Property="@(a => a.TrabajadorNombre)" Title="Trabajador" Sortable="true" />
+                <PropertyColumn Property="@(a => a.CentroNombre)" Title="Centro" />
+                <PropertyColumn Property="@(a => a.ClienteNombre)" Title="Cliente" />
+                <PropertyColumn Property="@(a => a.FechaAlta)" Format="dd/MM/yyyy" Title="Alta" />
+                <TemplateColumn Title="Estado">
+                    @if (context.FechaBaja is null)
+                    {
+                        <Badge Tono="TonoBadge.Exito">Activa</Badge>
+                    }
+                    else
+                    {
+                        <Badge>Baja el @context.FechaBaja.Value.ToString("dd/MM/yyyy")</Badge>
+                    }
+                </TemplateColumn>
+                <TemplateColumn Title="Acciones" Align="Align.End">
+                    @if (context.FechaBaja is null)
+                    {
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirDarDeBaja(context.Id, context.TrabajadorNombre, context.CentroNombre)">
+                            Dar de baja
+                        </Boton>
+                    }
+                </TemplateColumn>
+            </QuickGrid>
+
+            <div class="paginador">
+                <Paginator State="_paginacion" />
+            </div>
+        </div>
+
+        @if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio Titulo="Aún no hay asignaciones" Descripcion="Da de alta a un trabajador en un centro para empezar.">
+                <Accion>
+                    <Boton OnClick="AbrirCrearAsync">+ Nueva asignación</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+    }
+</div>
+
+<Drawer Visible="_drawerVisible" VisibleChanged="v => _drawerVisible = v" Titulo="Nueva asignación" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        <CampoSelect Etiqueta="Trabajador" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
+            <option value="">Selecciona un trabajador…</option>
+            @foreach (var trabajador in _trabajadoresDisponibles)
+            {
+                <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+            }
+        </CampoSelect>
+
+        <CampoSelect Etiqueta="Centro" Valor="@_centroId" ValorChanged="v => _centroId = v">
+            <option value="">Selecciona un centro…</option>
+            @foreach (var centro in _centrosDisponibles)
+            {
+                <option value="@centro.Id">@centro.Nombre (@centro.ClienteRazonSocial)</option>
+            }
+        </CampoSelect>
+
+        <CampoTexto Etiqueta="Fecha de alta" Type="date" Valor="@_fechaAlta" ValorChanged="v => _fechaAlta = v" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerVisible = false">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+            Guardar
+        </Boton>
+    </Pie>
+</Drawer>
+
+<Modal Visible="_darDeBajaVisible" VisibleChanged="v => _darDeBajaVisible = v" Titulo="@($"Dar de baja a {_trabajadorParaBaja}")">
+    <ChildContent>
+        <p>@_trabajadorParaBaja dejará de estar activo en @_centroParaBaja a partir de la fecha indicada.</p>
+        <CampoTexto Etiqueta="Fecha de baja" Type="date" Valor="@_fechaBaja" ValorChanged="v => _fechaBaja = v" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesandoBaja" OnClick="() => _darDeBajaVisible = false">
+            Cancelar
+        </Boton>
+        <Boton Variante="VarianteBoton.Destructivo" Cargando="_procesandoBaja" OnClick="ConfirmarDarDeBajaAsync">
+            Dar de baja
+        </Boton>
+    </Pie>
+</Modal>

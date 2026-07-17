@@ -1,0 +1,19 @@
+.rejilla-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-4);
+}
+
+.rejilla-desglose {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--space-4);
+    margin-top: var(--space-5);
+    align-items: start;
+}
+
+.enlace-ver-todas {
+    display: inline-block;
+    margin-top: var(--space-3);
+    font: var(--font-body-sm);
+}

@@ -1,0 +1,45 @@
+@page "/configuracion"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+
+<PageTitle>Configuración — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <h1 class="titulo-pagina">Configuración</h1>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar la configuración" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else
+    {
+        <Tarjeta Titulo="Umbrales de alerta" Class="tarjeta-configuracion">
+            <p class="descripcion-configuracion">
+                Días restantes hasta el vencimiento a partir de los cuales un documento pasa a "Próximo" o "Urgente".
+                Corresponde a la sección "Umbrales de alerta" de la hoja Parametros del Excel original.
+            </p>
+
+            @if (_mensajeErrorFormulario is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+            }
+
+            <CampoTexto Etiqueta="Umbral próximo (días)" Type="number" Valor="@_umbralAmbarDias" ValorChanged="v => _umbralAmbarDias = v"
+                        MensajeError="@ObtenerError(nameof(CaeManager.Application.Configuracion.Commands.ActualizarParametroSistema.ActualizarParametroSistemaCommand.UmbralAmbarDias))" />
+            <CampoTexto Etiqueta="Umbral urgente (días)" Type="number" Valor="@_umbralRojoDias" ValorChanged="v => _umbralRojoDias = v"
+                        MensajeError="@ObtenerError(nameof(CaeManager.Application.Configuracion.Commands.ActualizarParametroSistema.ActualizarParametroSistemaCommand.UmbralRojoDias))" />
+
+            <div class="acciones-formulario">
+                <Boton OnClick="GuardarAsync" Cargando="_guardando">Guardar cambios</Boton>
+            </div>
+        </Tarjeta>
+    }
+</div>

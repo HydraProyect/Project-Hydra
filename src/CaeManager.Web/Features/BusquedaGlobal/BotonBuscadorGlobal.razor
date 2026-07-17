@@ -1,0 +1,6 @@
+@rendermode InteractiveServer
+@inject BusquedaGlobalService BusquedaGlobalService
+
+<button type="button" class="boton-buscador-global" @onclick="() => BusquedaGlobalService.Abrir()">
+    <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /> Buscar <span class="atajo-teclado">Ctrl+K</span>
+</button>

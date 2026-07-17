@@ -1,0 +1,25 @@
+<div class="tarjeta @Class">
+    @if (!string.IsNullOrWhiteSpace(Titulo) || AccionesHeader is not null)
+    {
+        <div class="tarjeta-header">
+            @if (!string.IsNullOrWhiteSpace(Titulo))
+            {
+                <h2 class="tarjeta-titulo">@Titulo</h2>
+            }
+            @if (AccionesHeader is not null)
+            {
+                <div class="tarjeta-acciones">@AccionesHeader</div>
+            }
+        </div>
+    }
+    <div class="tarjeta-contenido">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? Titulo { get; set; }
+    [Parameter] public RenderFragment? AccionesHeader { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

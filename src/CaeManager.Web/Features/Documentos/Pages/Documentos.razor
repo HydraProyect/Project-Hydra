@@ -1,0 +1,209 @@
+@page "/documentos"
+@rendermode InteractiveServer
+@using CaeManager.Application.Documentos.Commands.CrearDocumento
+@using CaeManager.Application.Documentos.Commands.EliminarDocumento
+@using CaeManager.Application.Documentos.Commands.RenovarDocumento
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Application.Common
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos
+@using FluentValidation
+@using MediatR
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject ICurrentUserService CurrentUserService
+@inject IFileStorageService AlmacenamientoArchivos
+
+<PageTitle>Documentos — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Documentos</h1>
+        <div class="acciones-cabecera">
+            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
+                <a class="enlace-exportar" href="/documentos/importar">Importar documentos</a>
+            </AuthorizeView>
+            <Boton OnClick="AbrirCrearAsync">+ Nuevo documento</Boton>
+        </div>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoTexto Placeholder="Buscar por trabajador o tipo de documento…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar los documentos" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+            <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
+                <PropertyColumn Property="@(d => d.TrabajadorNombre)" Title="Trabajador" Sortable="true" />
+                <PropertyColumn Property="@(d => d.TipoDocumentoNombre)" Title="Tipo de documento" />
+                <PropertyColumn Property="@(d => d.FechaEmision)" Format="dd/MM/yyyy" Title="Emisión" />
+                <TemplateColumn Title="Vencimiento">
+                    @(context.FechaVencimiento is null ? "—" : context.FechaVencimiento.Value.ToString("dd/MM/yyyy"))
+                </TemplateColumn>
+                <TemplateColumn Title="Estado">
+                    <Badge Tono="EstadoDocumentoUi.Tono(context.Estado)">@EstadoDocumentoUi.Texto(context.Estado)</Badge>
+                </TemplateColumn>
+                <TemplateColumn Title="Archivo">
+                    @if (context.ArchivoUrl is not null)
+                    {
+                        <a href="/documentos/@context.Id/archivo" target="_blank">Ver PDF</a>
+                    }
+                    else
+                    {
+                        <span class="detalle-tecnico">Sin adjunto</span>
+                    }
+                </TemplateColumn>
+                <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
+                        Renovar
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.TrabajadorNombre, context.TipoDocumentoNombre)">
+                        Eliminar
+                    </Boton>
+                </TemplateColumn>
+            </QuickGrid>
+
+            <div class="paginador">
+                <Paginator State="_paginacion" />
+            </div>
+        </div>
+
+        @if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio Titulo="Aún no hay documentos" Descripcion="Sube el primero para empezar a controlar vigencias.">
+                <Accion>
+                    <Boton OnClick="AbrirCrearAsync">+ Nuevo documento</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+    }
+</div>
+
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo documento" : "Renovar documento")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        @if (_editandoId is null)
+        {
+            <CampoSelect Etiqueta="Trabajador" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
+                <option value="">Selecciona un trabajador…</option>
+                @foreach (var trabajador in _trabajadoresDisponibles)
+                {
+                    <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+                }
+            </CampoSelect>
+
+            <CampoSelect Etiqueta="Tipo de documento" Valor="@_tipoDocumentoId" ValorChanged="CambiarTipoDocumento">
+                <option value="">Selecciona un tipo de documento…</option>
+                @foreach (var tipo in _tiposDisponibles)
+                {
+                    <option value="@tipo.Id">@tipo.Nombre</option>
+                }
+            </CampoSelect>
+        }
+        else
+        {
+            <div class="campo">
+                <label>Trabajador</label>
+                <span>@_trabajadorNombreSoloLectura</span>
+            </div>
+            <div class="campo">
+                <label>Tipo de documento</label>
+                <span>@_tipoDocumentoNombreSoloLectura</span>
+            </div>
+        }
+
+        @if (TieneGlosario)
+        {
+            <div class="glosario-tipo-documento">
+                @if (!string.IsNullOrWhiteSpace(_glosarioDescripcion))
+                {
+                    <p><strong>Descripción:</strong> @_glosarioDescripcion</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(_glosarioCriteriosValidacion))
+                {
+                    <p><strong>Criterios de validación:</strong> @_glosarioCriteriosValidacion</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(_glosarioSeSolicitaA))
+                {
+                    <p><strong>Se solicita a:</strong> @_glosarioSeSolicitaA</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(_glosarioObservaciones))
+                {
+                    <p><strong>Observaciones:</strong> @_glosarioObservaciones</p>
+                }
+            </div>
+        }
+
+        <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmision" ValorChanged="v => _fechaEmision = v" />
+
+        @if (RequiereVencimientoManual)
+        {
+            <div class="campo-con-boton">
+                <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoManual" ValorChanged="v => _fechaVencimientoManual = v" />
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="CopiarFechaEmisionAVencimiento">
+                    Copiar fecha de emisión
+                </Boton>
+            </div>
+            <p class="texto-vacio-seccion">Este tipo de documento no calcula el vencimiento automáticamente — indícalo a mano.</p>
+        }
+
+        <div class="campo">
+            <label>Archivo (PDF, JPG o PNG, máx. 10 MB por archivo)</label>
+            <InputFile OnChange="ManejarArchivoSeleccionadoAsync" multiple accept=".pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png" />
+            <p class="texto-vacio-seccion">Puedes seleccionar varios archivos a la vez (p. ej. varias fotos) — se combinan automáticamente en un solo PDF.</p>
+            @if (_subiendoArchivo)
+            {
+                <span class="detalle-tecnico">Procesando…</span>
+            }
+            else if (_archivoUrl is not null)
+            {
+                <span class="detalle-tecnico">Archivo adjuntado correctamente.</span>
+            }
+        </div>
+
+        <CampoTextarea Etiqueta="Comentarios" Valor="@_comentarios" ValorChanged="v => _comentarios = v" Filas="3" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+            Guardar
+        </Boton>
+    </Pie>
+</Drawer>
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarVisible"
+    VisibleChanged="v => _confirmarEliminarVisible = v"
+    Titulo="@($"¿Eliminar este documento?")"
+    Mensaje="@($"{_tipoDocumentoAEliminar} de {_trabajadorAEliminar} se ocultará de las listas activas. Podrás recuperarlo desde Auditoría.")"
+    EnProgreso="_eliminando"
+    OnConfirmar="ConfirmarEliminarAsync" />
+
+<DialogoConfirmacion
+    Visible="_confirmarVigenciaAnteriorVisible"
+    VisibleChanged="v => _confirmarVigenciaAnteriorVisible = v"
+    Titulo="La nueva fecha de emisión es anterior a la actual"
+    Mensaje="El documento que estás subiendo tiene una vigencia anterior a la del que ya estaba registrado — comprueba que sea el archivo correcto antes de continuar."
+    TextoBotonConfirmar="Continuar de todas formas"
+    EnProgreso="_procesandoConfirmacionVigencia"
+    OnConfirmar="ConfirmarGuardarConVigenciaAnteriorAsync" />

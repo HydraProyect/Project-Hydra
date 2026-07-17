@@ -1,0 +1,105 @@
+@page "/calendario"
+@rendermode InteractiveServer
+@using CaeManager.Application.Calendario.Queries
+@using CaeManager.Web.Features.Documentos
+
+<PageTitle>Calendario — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Calendario de vencimientos</h1>
+    </div>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar el calendario" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <div class="calendario-navegacion">
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesAnteriorAsync">← Mes anterior</Boton>
+            <div class="calendario-mes-actual">
+                <span class="calendario-titulo-mes">@TituloMes.Substring(0, 1).ToUpperInvariant()@TituloMes.Substring(1)</span>
+                <button type="button" class="enlace-hoy" @onclick="MesActualAsync">Hoy</button>
+            </div>
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesSiguienteAsync">Mes siguiente →</Boton>
+        </div>
+
+        @if (_cargando)
+        {
+            <EstadoCargando Filas="4" />
+        }
+        else
+        {
+            <div class="calendario-rejilla">
+                @foreach (var nombreDia in NombresDiasSemana)
+                {
+                    <div class="calendario-cabecera-dia">@nombreDia</div>
+                }
+
+                @foreach (var celda in CeldasDelMes())
+                {
+                    @if (celda is null)
+                    {
+                        <div class="calendario-celda calendario-celda-vacia"></div>
+                    }
+                    else
+                    {
+                        var dia = celda.Value;
+                        var vencimientosDelDia = VencimientosDelDia(dia);
+                        var peorEstado = PeorEstado(vencimientosDelDia);
+                        var esHoy = dia == DateOnly.FromDateTime(DateTime.Today);
+
+                        <div class="calendario-celda @(esHoy ? "calendario-celda-hoy" : "") @(vencimientosDelDia.Count > 0 ? "calendario-celda-con-datos" : "")"
+                             @onclick="() => SeleccionarDia(dia)">
+                            <span class="calendario-dia-numero">@dia.Day</span>
+                            @if (peorEstado is not null)
+                            {
+                                <span class="calendario-indicador">
+                                    <Badge Tono="EstadoDocumentoUi.Tono(peorEstado.Value)">@vencimientosDelDia.Count</Badge>
+                                </span>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        }
+    }
+</div>
+
+<Modal Visible="@(_diaSeleccionado is not null)"
+       VisibleChanged="@((bool visible) => { if (!visible) CerrarDetalle(); })"
+       Titulo="@(_diaSeleccionado is not null ? $"Vencimientos del {_diaSeleccionado:dd/MM/yyyy}" : string.Empty)">
+    @if (_diaSeleccionado is not null)
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Estado</th>
+                    <th>Trabajador</th>
+                    <th>Tipo de documento</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var vencimiento in VencimientosDelDia(_diaSeleccionado.Value))
+                {
+                    <tr>
+                        <td><Badge Tono="EstadoDocumentoUi.Tono(vencimiento.Estado)">@EstadoDocumentoUi.Texto(vencimiento.Estado)</Badge></td>
+                        <td>@vencimiento.TrabajadorNombre</td>
+                        <td>@vencimiento.TipoDocumentoNombre</td>
+                        <td>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarDocumento(vencimiento.DocumentoId)">
+                                Gestionar
+                            </Boton>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</Modal>

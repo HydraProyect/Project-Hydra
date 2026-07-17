@@ -1,0 +1,88 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JsRuntime
+@inject BusquedaGlobalService BusquedaGlobalService
+@inject MediatR.IMediator Mediator
+@inject NavigationManager Navigation
+@using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal
+
+@if (_visible)
+{
+    <div class="buscador-superposicion" @onclick="Cerrar">
+        <div class="buscador-panel" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <input @ref="_inputElemento"
+                   class="buscador-input"
+                   placeholder="Buscar clientes, empresas, centros, trabajadores…"
+                   value="@_termino"
+                   @oninput="ManejarEntradaAsync"
+                   @onkeydown="ManejarTeclaAsync" />
+
+            <div class="buscador-resultados">
+                @if (_termino.Trim().Length < 2)
+                {
+                    <p class="buscador-mensaje">Escribe al menos 2 caracteres para buscar.</p>
+                }
+                else if (_buscando)
+                {
+                    <p class="buscador-mensaje">Buscando…</p>
+                }
+                else if (_resultado is not null && !_resultado.TieneResultados)
+                {
+                    <p class="buscador-mensaje">Sin resultados para «@_termino».</p>
+                }
+                else if (_resultado is not null)
+                {
+                    @if (_resultado.Clientes.Count > 0)
+                    {
+                        <div class="buscador-categoria">
+                            <h3>Clientes</h3>
+                            @foreach (var item in _resultado.Clientes)
+                            {
+                                <a class="buscador-item" href="@item.UrlDestino">@item.Titulo</a>
+                            }
+                        </div>
+                    }
+                    @if (_resultado.Empresas.Count > 0)
+                    {
+                        <div class="buscador-categoria">
+                            <h3>Empresas</h3>
+                            @foreach (var item in _resultado.Empresas)
+                            {
+                                <a class="buscador-item" href="@item.UrlDestino">@item.Titulo</a>
+                            }
+                        </div>
+                    }
+                    @if (_resultado.Subcontratas.Count > 0)
+                    {
+                        <div class="buscador-categoria">
+                            <h3>Subcontratas</h3>
+                            @foreach (var item in _resultado.Subcontratas)
+                            {
+                                <a class="buscador-item" href="@item.UrlDestino">@item.Titulo</a>
+                            }
+                        </div>
+                    }
+                    @if (_resultado.Centros.Count > 0)
+                    {
+                        <div class="buscador-categoria">
+                            <h3>Centros</h3>
+                            @foreach (var item in _resultado.Centros)
+                            {
+                                <a class="buscador-item" href="@item.UrlDestino">@item.Titulo</a>
+                            }
+                        </div>
+                    }
+                    @if (_resultado.Trabajadores.Count > 0)
+                    {
+                        <div class="buscador-categoria">
+                            <h3>Trabajadores</h3>
+                            @foreach (var item in _resultado.Trabajadores)
+                            {
+                                <a class="buscador-item" href="@item.UrlDestino">@item.Titulo <span class="buscador-item-subtitulo">@item.Subtitulo</span></a>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}

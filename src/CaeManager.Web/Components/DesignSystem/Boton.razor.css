@@ -1,0 +1,97 @@
+.boton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    border-radius: var(--radius-md);
+    font: var(--font-label-md);
+    font-weight: 600;
+    cursor: pointer;
+    border: var(--border-default);
+    transition: background-color var(--transition-base), border-color var(--transition-base),
+        opacity var(--transition-base), box-shadow var(--transition-base), transform var(--transition-fast);
+    white-space: nowrap;
+}
+
+.boton:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.boton-medio {
+    padding: 0.875rem 1.5rem; /* 14px 24px */
+    min-height: 44px;
+}
+
+.boton-pequeno {
+    padding: var(--space-2) var(--space-4);
+    min-height: 36px;
+    font-size: 0.8125rem;
+}
+
+.boton-primario {
+    background-color: var(--color-primary-500);
+    border-color: var(--color-primary-500);
+    color: var(--color-neutral-0);
+}
+
+.boton-primario:not(:disabled):hover {
+    background-color: var(--color-primary-600);
+    border-color: var(--color-primary-600);
+    box-shadow: var(--shadow-card);
+    transform: translateY(-1px);
+}
+
+.boton-secundario {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
+
+.boton-secundario:not(:disabled):hover {
+    background-color: var(--color-surface-hover);
+    box-shadow: var(--shadow-card);
+    transform: translateY(-1px);
+}
+
+.boton-fantasma {
+    background-color: transparent;
+    border-color: transparent;
+    color: var(--color-text);
+}
+
+.boton-fantasma:not(:disabled):hover {
+    background-color: var(--color-surface-hover);
+}
+
+.boton-destructivo {
+    background-color: var(--color-danger-500);
+    border-color: var(--color-danger-500);
+    color: var(--color-neutral-0);
+}
+
+.boton-destructivo:not(:disabled):hover {
+    opacity: 0.9;
+    box-shadow: var(--shadow-card);
+    transform: translateY(-1px);
+}
+
+.boton:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.boton-spinner {
+    width: 14px;
+    height: 14px;
+    border-radius: var(--radius-full);
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: girar 0.6s linear infinite;
+}
+
+@keyframes girar {
+    to {
+        transform: rotate(360deg);
+    }
+}

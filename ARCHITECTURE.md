@@ -1,0 +1,158 @@
+# Arquitectura — CAE Manager
+
+## Stack
+
+- **Backend**: ASP.NET Core 10 (LTS). *Nota: el brief original especificaba .NET 9; se usa .NET 10 porque es la versión LTS vigente y la única disponible a través de los canales de paquetes permitidos en el entorno de desarrollo — .NET 9 es STS y ya estaría cerca de fin de soporte. No afecta ninguna decisión de arquitectura de este documento.*
+- **Frontend**: Blazor Server (interactividad server-side; sin necesidad de API pública en v1)
+- **ORM**: Entity Framework Core 10
+- **Base de datos**: SQLite en desarrollo y v1 de producción; el acceso a datos se hace exclusivamente a través de EF Core con proveedor intercambiable, de forma que migrar a PostgreSQL o SQL Server sea un cambio de configuración, no de código.
+- **Autenticación**: ASP.NET Core Identity + cookies, con puntos de extensión para añadir inicio de sesión corporativo (Microsoft Entra ID) más adelante sin rediseñar el modelo de usuarios.
+
+## Por qué Blazor Server (y no WASM ni una API + SPA)
+
+10 usuarios concurrentes iniciales, con crecimiento moderado esperado. Blazor Server da:
+- Estado en el servidor → lógica de negocio, validaciones y acceso a datos sin duplicar contratos entre cliente y servidor.
+- Interactividad rica (tablas virtualizadas, filtros en vivo) sin construir una API REST/GraphQL separada.
+- Tiempo de carga inicial mínimo (no se descarga runtime .NET al navegador).
+
+El coste (una conexión SignalR persistente por usuario) es irrelevante a esta escala. Si el producto crece a un volumen de usuarios donde esto se vuelva un problema, es una migración localizada a la capa de Presentation — las capas Domain/Application/Infrastructure no cambian.
+
+## Las cuatro capas
+
+Cada capa es un proyecto (`.csproj`) separado. Las dependencias solo apuntan hacia adentro:
+
+```
+Presentation (Blazor Server)
+      ↓
+Application (casos de uso, CQRS, validación)
+      ↓
+Domain (entidades, reglas de negocio, sin dependencias externas)
+      ↑
+Infrastructure (EF Core, Identity, almacenamiento de archivos, cifrado)
+```
+
+`Infrastructure` implementa interfaces definidas en `Domain`/`Application`; nunca al revés. `Domain` no referencia ningún paquete NuGet de infraestructura (ni siquiera EF Core).
+
+```
+CaeManager.sln
+├── src/
+│   ├── CaeManager.Domain/
+│   │   ├── Clientes/            (Cliente.cs, ICLienteRepository.cs, ...)
+│   │   ├── Centros/
+│   │   ├── Empresas/
+│   │   ├── Trabajadores/
+│   │   ├── Documentos/          (TipoDocumento.cs, Documento.cs, EstadoDocumento.cs)
+│   │   ├── Asignaciones/
+│   │   ├── Alertas/
+│   │   ├── Auditoria/
+│   │   └── Common/              (Entity base, ValueObject base, Result<T>, DomainEvent)
+│   │
+│   ├── CaeManager.Application/
+│   │   ├── Clientes/
+│   │   │   ├── Commands/        (CrearCliente, EditarCliente, EliminarCliente)
+│   │   │   ├── Queries/         (ObtenerClientes, ObtenerClientePorId)
+│   │   │   ├── Dtos/
+│   │   │   └── Validators/
+│   │   ├── Centros/
+│   │   ├── ...                  (una carpeta por feature de dominio)
+│   │   └── Common/               (behaviors de MediatR, mapeos base)
+│   │
+│   ├── CaeManager.Infrastructure/
+│   │   ├── Persistence/
+│   │   │   ├── CaeManagerDbContext.cs
+│   │   │   ├── Configurations/  (EntityTypeConfiguration por entidad, Fluent API)
+│   │   │   ├── Migrations/
+│   │   │   └── Repositories/
+│   │   ├── Identity/
+│   │   ├── FileStorage/
+│   │   ├── Encryption/          (cifrado de credenciales de plataformas externas)
+│   │   └── Auditing/            (SaveChangesInterceptor)
+│   │
+│   └── CaeManager.Web/           (Presentation — Blazor Server)
+│       ├── Features/
+│       │   ├── Dashboard/
+│       │   ├── Clientes/
+│       │   │   ├── Pages/       (ListaClientes.razor, DetalleCliente.razor)
+│       │   │   ├── Components/  (ClienteFormulario.razor, ClienteTabla.razor)
+│       │   │   └── State/
+│       │   ├── Centros/
+│       │   ├── Trabajadores/
+│       │   ├── Documentos/
+│       │   ├── Asignaciones/
+│       │   ├── Alertas/
+│       │   ├── Calendario/
+│       │   ├── Reportes/
+│       │   ├── Usuarios/
+│       │   ├── Roles/
+│       │   ├── Configuracion/
+│       │   └── Auditoria/
+│       ├── DesignSystem/         (componentes compartidos: Button, Table, Modal, ...)
+│       ├── Layout/
+│       └── Program.cs
+│
+└── tests/
+    ├── CaeManager.Domain.Tests/
+    ├── CaeManager.Application.Tests/
+    └── CaeManager.IntegrationTests/
+```
+
+### Resolviendo "Feature First" vs "Clean Architecture"
+
+El brief pide ambas cosas y no son contradictorias si se aplican en el nivel correcto:
+
+- **Entre capas**: Clean Architecture (Domain / Application / Infrastructure / Presentation como proyectos separados).
+- **Dentro de Application y Presentation**: Feature-First — una carpeta por dominio de negocio (Clientes, Centros, Trabajadores...), nunca una carpeta `Controllers/`, `Services/` o `Models/` genérica que mezcle features distintas.
+- **Dentro de Domain**: organizado por agregado (mismo criterio, es el dominio quien manda).
+
+Regla práctica: si para entender "todo lo relacionado con Trabajadores" hay que abrir carpetas dispersas por tipo técnico, la organización está mal. Debe bastar con abrir `Trabajadores/` en cada capa.
+
+## CQRS ligero con MediatR
+
+Cada caso de uso es un Command (escritura) o Query (lectura) explícito, manejado por MediatR:
+
+- **Commands**: pasan por el Domain (cargan el agregado vía repositorio, invocan métodos de negocio que protegen invariantes, persisten). Ejemplo: `CrearClienteCommand → CrearClienteCommandHandler`.
+- **Queries**: proyectan directamente a DTOs de lectura con `.AsNoTracking().Select(...)`, sin pasar por el repositorio de agregados — las queries no tienen invariantes que proteger, solo necesitan ser rápidas. Application define `IApplicationDbContext` con una propiedad `IQueryable<T>` de solo lectura por agregado; `CaeManagerDbContext` la implementa en Infrastructure. Application referencia el paquete `Microsoft.EntityFrameworkCore` (la capa de abstracciones, para poder usar `CountAsync`/`ToListAsync`/etc. sobre `IQueryable<T>`) pero **nunca** un proveedor concreto (`Microsoft.EntityFrameworkCore.Sqlite`, `...SqlServer`, ...) ni el tipo `CaeManagerDbContext` — eso es exclusivo de Infrastructure. Es la misma distinción que ya aplicamos a la base de datos en general: la tecnología concreta es intercambiable, el contrato no.
+- **Pipeline behaviors** de MediatR para: validación (FluentValidation), logging, y captura de excepciones de dominio → `Result<T>`.
+
+No se usa un `IRepository<T>` genérico. Cada agregado raíz (Cliente, Centro, Empresa, Trabajador, Documento, Asignacion) tiene su propia interfaz de repositorio definida en `Domain`, con los métodos que ese agregado necesita — no un CRUD genérico que invite a saltarse invariantes.
+
+## Manejo de errores
+
+- Errores esperables de negocio (validación, reglas violadas, "no encontrado") → `Result<T>` / `Result`, nunca excepciones. La UI los traduce a microcopy en español (ver `UX_PATTERNS.md`).
+- Excepciones reservadas para errores verdaderamente inesperados (fallo de infraestructura). Un middleware/behavior las captura, las registra (logging estructurado) y las traduce a un estado de error genérico y amigable.
+
+## Autenticación y autorización
+
+- ASP.NET Core Identity como almacén de usuarios y roles, con cookie de autenticación (`AuthenticationStateProvider` nativo de Blazor Server).
+- Roles semilla: `Administrador`, `Supervisor`, `EjecutivoCae`, `Consulta` — alineados 1:1 con los cuatro dashboards del brief.
+- Autorización basada en policies (`[Authorize(Policy = "...")]`), no en checks de rol hardcodeados dispersos por el código.
+- Preparado para SSO: Identity se mantiene como almacén de usuarios/roles incluso si en el futuro se añade un proveedor externo (Entra ID vía OpenID Connect) como método de login adicional — no se sustituye Identity, se le añade un external login provider.
+
+## Auditoría y soft delete
+
+- Interceptor de EF Core (`SaveChangesInterceptor`) que registra en una tabla `Auditoria` cada creación/modificación/eliminación de entidades marcadas como auditables: quién, cuándo, qué cambió (antes/después serializado).
+- Soft delete por convención: propiedades `EstaEliminado`, `EliminadoEnUtc`, `EliminadoPor` en la clase base de entidad, con un **global query filter** de EF Core que las excluye automáticamente de cualquier consulta. Eliminar nunca borra la fila físicamente.
+
+## Datos sensibles
+
+Las credenciales de plataformas externas (usuario/contraseña de portales como CTAIMA) se cifran en reposo usando la **ASP.NET Core Data Protection API**, mediante un `ValueConverter` de EF Core aplicado solo a esos campos. Nunca se registran en logs ni en el historial de auditoría en texto plano. El acceso a verlas está restringido por policy y queda registrado en auditoría como "acceso a dato sensible".
+
+## Archivos (PDFs de documentos)
+
+Abstracción `IFileStorageService` en Application, implementada en Infrastructure sobre disco local en v1 (ruta configurable), con la interfaz diseñada para poder cambiar a almacenamiento en la nube sin tocar Application ni Presentation.
+
+## Generación de reportes (Excel/PDF)
+
+Excel se genera con **ClosedXML** (MIT). Para PDF se evaluó y se descartó **QuestPDF**: su licencia Community factura según los ingresos *de la empresa que usa el software*, no de CAE Manager como producto — inaceptable para un SaaS comercial de terceros. Se usa **PDFsharp 6.x** (MIT, github.com/empira/PDFsharp) en su lugar, dibujando la tabla directamente con `XGraphics` — el volumen esperado de filas no justifica una librería de layout de tablas.
+
+PDFsharp 6 no depende de GDI+ ni de las fuentes del sistema operativo (es multiplataforma de verdad), pero por eso mismo exige un `IFontResolver` explícito. Se embebe **DejaVu Sans** (licencia estilo Bitstream Vera, permisiva, ver `src/CaeManager.Web/Resources/Fonts/LICENSE-DejaVuFonts.txt`) como recurso del ensamblado (`EmbeddedFontResolver`), para no depender de que el servidor de despliegue tenga fuentes instaladas — necesario, además, para que los caracteres acentuados del español se rendericen bien.
+
+## Testing desde el inicio
+
+- `CaeManager.Domain.Tests`: pruebas unitarias de reglas de negocio puras (p. ej. cálculo de estado de un Documento según vigencia y umbrales) — sin base de datos.
+- `CaeManager.Application.Tests`: handlers de Commands/Queries con repositorios en memoria o mocks.
+- `CaeManager.IntegrationTests`: EF Core contra SQLite en archivo temporal, validando migraciones y queries reales.
+
+## Convención de nombres de proyecto
+
+Prefijo `CaeManager` en todos los proyectos, en español para el dominio (`Cliente`, `Trabajador`, `Documento`) y en inglés para términos técnicos genéricos (`Command`, `Query`, `Repository`, `Result`) — ver detalle completo en `CODING_STANDARDS.md`.

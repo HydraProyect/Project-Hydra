@@ -1,0 +1,29 @@
+@using CaeManager.Application.Importacion
+@using CaeManager.Web.Components.DesignSystem
+
+<table class="tabla-datos">
+    <thead>
+        <tr>
+            <th>Hoja</th>
+            <th>Fila</th>
+            <th>Elemento</th>
+            <th>Motivo</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Items)
+        {
+            <tr>
+                <td><Badge Tono="Tono">@item.Hoja</Badge></td>
+                <td>@(item.Fila == 0 ? "—" : item.Fila.ToString())</td>
+                <td>@item.Descripcion</td>
+                <td>@item.Motivo</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ItemImportacionDto> Items { get; set; } = [];
+    [Parameter] public TonoBadge Tono { get; set; } = TonoBadge.Neutro;
+}

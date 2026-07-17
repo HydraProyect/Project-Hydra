@@ -1,0 +1,38 @@
+.tarjeta-metrica {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-5);
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-card-sm);
+    box-shadow: var(--shadow-card);
+    border-left: 3px solid var(--color-neutral-300);
+}
+
+.tarjeta-metrica-etiqueta {
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.tarjeta-metrica-valor {
+    font: var(--font-heading-xl);
+}
+
+.tarjeta-metrica-exito {
+    border-left-color: var(--color-success-500);
+}
+
+.tarjeta-metrica-advertencia {
+    border-left-color: var(--color-warning-500);
+}
+
+.tarjeta-metrica-peligro {
+    border-left-color: var(--color-danger-500);
+}
+
+.tarjeta-metrica-info {
+    border-left-color: var(--color-info-500);
+}

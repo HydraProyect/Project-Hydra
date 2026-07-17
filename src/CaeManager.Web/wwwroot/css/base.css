@@ -1,0 +1,67 @@
+/* Reset mínimo + estilos base (ver DESIGN_SYSTEM.md). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font: var(--font-body-md);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  color: var(--color-text);
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--color-primary-600);
+}
+
+button {
+  font-family: inherit;
+}
+
+:focus-visible {
+  outline: var(--border-focus);
+  outline-offset: 2px;
+}
+
+::selection {
+  background-color: var(--color-primary-100);
+}
+
+.contenedor-pagina {
+  padding: var(--space-8);
+  max-width: 1400px;
+}
+
+.titulo-pagina {
+  font: var(--font-heading-xl);
+  margin-bottom: var(--space-6);
+}
+
+.detalle-tecnico {
+  text-align: center;
+  color: var(--color-text-muted);
+  font: var(--font-body-sm);
+  margin-top: var(--space-4);
+}

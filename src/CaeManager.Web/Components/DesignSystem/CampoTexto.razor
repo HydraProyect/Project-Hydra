@@ -1,0 +1,33 @@
+<div class="campo">
+    @if (!string.IsNullOrWhiteSpace(Etiqueta))
+    {
+        <label for="@_id">@Etiqueta</label>
+    }
+    <input id="@_id"
+           type="@Type"
+           class="campo-input @(TieneError ? "campo-input-error" : null)"
+           value="@Valor"
+           placeholder="@Placeholder"
+           disabled="@Deshabilitado"
+           @oninput="ManejarCambioAsync" />
+    @if (TieneError)
+    {
+        <span class="campo-mensaje-error" role="alert">@MensajeError</span>
+    }
+</div>
+
+@code {
+    private readonly string _id = $"campo-{Guid.NewGuid():N}";
+
+    [Parameter] public string? Etiqueta { get; set; }
+    [Parameter] public string Valor { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValorChanged { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string Type { get; set; } = "text";
+    [Parameter] public bool Deshabilitado { get; set; }
+    [Parameter] public string? MensajeError { get; set; }
+
+    private bool TieneError => !string.IsNullOrWhiteSpace(MensajeError);
+
+    private Task ManejarCambioAsync(ChangeEventArgs e) => ValorChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+}

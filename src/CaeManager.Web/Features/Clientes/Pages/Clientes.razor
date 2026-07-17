@@ -1,0 +1,123 @@
+@page "/clientes"
+@rendermode InteractiveServer
+@using CaeManager.Application.Clientes.Commands.CrearCliente
+@using CaeManager.Application.Clientes.Commands.EditarCliente
+@using CaeManager.Application.Clientes.Commands.EliminarCliente
+@using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
+@using CaeManager.Application.Clientes.Queries.ObtenerClientes
+@using CaeManager.Application.Common
+@using FluentValidation
+@using MediatR
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject ICurrentUserService CurrentUserService
+
+<PageTitle>Clientes — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Clientes</h1>
+        <div class="acciones-cabecera">
+            <a class="enlace-exportar" href="/clientes/exportar.xlsx">Exportar a Excel</a>
+            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
+                <a class="enlace-exportar" href="/clientes/importar">Importar clientes</a>
+                <a class="enlace-exportar" href="/clientes/importar-combinado">Importación combinada</a>
+            </AuthorizeView>
+            <Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton>
+        </div>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoTexto Placeholder="Buscar por nombre…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <label class="filtro-critico">
+            <input type="checkbox" @bind="_soloCriticos" @bind:after="RecargarAsync" /> Solo críticos
+        </label>
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar los clientes" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        @* El grid se mantiene siempre montado (solo se oculta con CSS) para que la
+           referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
+           pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
+        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+            <QuickGrid @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
+                <PropertyColumn Property="@(c => c.RazonSocial)" Title="Razón social" Sortable="true" />
+                <PropertyColumn Property="@(c => c.Cif)" Title="CIF" />
+                <TemplateColumn Title="Crítico" Align="Align.Center">
+                    @if (context.EsCritico)
+                    {
+                        <Badge Tono="TonoBadge.Peligro">Crítico</Badge>
+                    }
+                    else
+                    {
+                        <Badge>Normal</Badge>
+                    }
+                </TemplateColumn>
+                <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
+                        Editar
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
+                        Eliminar
+                    </Boton>
+                </TemplateColumn>
+            </QuickGrid>
+
+            <div class="paginador">
+                <Paginator State="_paginacion" />
+            </div>
+        </div>
+
+        @if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio Titulo="Aún no hay clientes" Descripcion="Crea el primero para empezar a organizar tus centros de trabajo.">
+                <Accion>
+                    <Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+    }
+</div>
+
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo cliente" : "Editar cliente")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" MensajeError="@ObtenerError(nameof(CrearClienteCommand.RazonSocial))" />
+        <CampoTexto Etiqueta="CIF" Valor="@_cif" ValorChanged="v => _cif = v" MensajeError="@ObtenerError(nameof(CrearClienteCommand.Cif))" />
+
+        <label class="campo-checkbox">
+            <input type="checkbox" @bind="_esCritico" /> Cliente crítico
+        </label>
+
+        <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" Filas="4" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+            Guardar
+        </Boton>
+    </Pie>
+</Drawer>
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarVisible"
+    VisibleChanged="v => _confirmarEliminarVisible = v"
+    Titulo="@($"¿Eliminar a {_razonSocialAEliminar}?")"
+    Mensaje="Se ocultará de las listas activas. Podrás recuperarlo desde Auditoría."
+    EnProgreso="_eliminando"
+    OnConfirmar="ConfirmarEliminarAsync" />

@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CaeManager.Application/CaeManager.Application.csproj" />
+    <Project Path="src/CaeManager.Domain/CaeManager.Domain.csproj" />
+    <Project Path="src/CaeManager.Infrastructure/CaeManager.Infrastructure.csproj" />
+    <Project Path="src/CaeManager.Web/CaeManager.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CaeManager.Application.Tests/CaeManager.Application.Tests.csproj" />
+    <Project Path="tests/CaeManager.Domain.Tests/CaeManager.Domain.Tests.csproj" />
+    <Project Path="tests/CaeManager.IntegrationTests/CaeManager.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

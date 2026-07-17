@@ -1,0 +1,96 @@
+@page "/importacion"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@using CaeManager.Web.Features.Importacion
+
+<PageTitle>Importar desde Excel — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <h1 class="titulo-pagina">Importar desde Excel</h1>
+    <p class="descripcion-importacion">
+        Sube el Cuadro de Control CAE (hojas Centros_Plataformas, Empleados, Extranjeros y Asignaciones).
+        Primero se analiza el archivo sin escribir nada — revisa qué se va a crear, qué se omite y por qué
+        antes de confirmar.
+    </p>
+
+    @if (_resultado is null)
+    {
+        <Tarjeta Titulo="1. Selecciona el archivo" Class="tarjeta-importacion">
+            <InputFile OnChange="ManejarArchivoSeleccionadoAsync" accept=".xlsx" />
+            @if (_nombreArchivo is not null)
+            {
+                <p class="nombre-archivo">@_nombreArchivo</p>
+            }
+        </Tarjeta>
+
+        @if (_mensajeError is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeError</div>
+        }
+
+        @if (_analizando)
+        {
+            <ProgresoConMensajes Visible="true" Mensajes="MensajesAnalizando" />
+        }
+        else if (_plan is not null)
+        {
+            <Tarjeta Titulo="2. Revisa el plan de importación" Class="tarjeta-importacion">
+                <div class="rejilla-resumen-importacion">
+                    <TarjetaMetrica Etiqueta="Clientes nuevos" Valor="@_plan.ClientesCentros.Count(c => !c.YaExisteCliente).ToString()" />
+                    <TarjetaMetrica Etiqueta="Centros nuevos" Valor="@_plan.ClientesCentros.Count(c => !c.YaExisteCentro).ToString()" />
+                    <TarjetaMetrica Etiqueta="Empresas nuevas" Valor="@_plan.Empresas.Count(e => !e.YaExiste).ToString()" />
+                    <TarjetaMetrica Etiqueta="Trabajadores nuevos" Valor="@_plan.Trabajadores.Count(t => !t.YaExiste).ToString()" />
+                    <TarjetaMetrica Etiqueta="Documentos nuevos" Valor="@_plan.Documentos.Count(d => !d.YaExiste).ToString()" />
+                    <TarjetaMetrica Etiqueta="Asignaciones nuevas" Valor="@_plan.Asignaciones.Count(a => !a.YaExiste).ToString()" />
+                </div>
+
+                @if (_plan.Advertencias.Count > 0)
+                {
+                    <h3 class="titulo-seccion-importacion">Advertencias (@_plan.Advertencias.Count) — se importan, pero revisa</h3>
+                    <TablaItemsImportacion Items="_plan.Advertencias" Tono="TonoBadge.Advertencia" />
+                }
+
+                @if (_plan.Omitidos.Count > 0)
+                {
+                    <h3 class="titulo-seccion-importacion">Omitidos (@_plan.Omitidos.Count) — no se importan</h3>
+                    <TablaItemsImportacion Items="_plan.Omitidos" Tono="TonoBadge.Peligro" />
+                }
+
+                <div class="acciones-formulario">
+                    <Boton OnClick="ConfirmarImportacionAsync" Cargando="_importando">Confirmar importación</Boton>
+                </div>
+
+                <ProgresoConMensajes Visible="_importando" Mensajes="MensajesImportando" />
+            </Tarjeta>
+        }
+    }
+    else
+    {
+        <Tarjeta Titulo="Importación completada" Class="tarjeta-importacion">
+            <div class="rejilla-resumen-importacion">
+                <TarjetaMetrica Etiqueta="Clientes creados" Valor="@_resultado.ClientesCreados.ToString()" Tono="TonoBadge.Exito" />
+                <TarjetaMetrica Etiqueta="Centros creados" Valor="@_resultado.CentrosCreados.ToString()" Tono="TonoBadge.Exito" />
+                <TarjetaMetrica Etiqueta="Empresas creadas" Valor="@_resultado.EmpresasCreadas.ToString()" Tono="TonoBadge.Exito" />
+                <TarjetaMetrica Etiqueta="Trabajadores creados" Valor="@_resultado.TrabajadoresCreados.ToString()" Tono="TonoBadge.Exito" />
+                <TarjetaMetrica Etiqueta="Documentos creados" Valor="@_resultado.DocumentosCreados.ToString()" Tono="TonoBadge.Exito" />
+                <TarjetaMetrica Etiqueta="Asignaciones creadas" Valor="@_resultado.AsignacionesCreadas.ToString()" Tono="TonoBadge.Exito" />
+            </div>
+
+            @if (_resultado.Advertencias.Count > 0)
+            {
+                <h3 class="titulo-seccion-importacion">Advertencias (@_resultado.Advertencias.Count)</h3>
+                <TablaItemsImportacion Items="_resultado.Advertencias" Tono="TonoBadge.Advertencia" />
+            }
+
+            @if (_resultado.Omitidos.Count > 0)
+            {
+                <h3 class="titulo-seccion-importacion">Omitidos (@_resultado.Omitidos.Count)</h3>
+                <TablaItemsImportacion Items="_resultado.Omitidos" Tono="TonoBadge.Peligro" />
+            }
+
+            <div class="acciones-formulario">
+                <Boton Variante="VarianteBoton.Secundario" OnClick="EmpezarDeNuevo">Nueva importación</Boton>
+            </div>
+        </Tarjeta>
+    }
+</div>

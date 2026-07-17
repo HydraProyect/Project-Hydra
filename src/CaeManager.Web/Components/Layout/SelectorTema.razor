@@ -1,0 +1,14 @@
+@using CaeManager.Infrastructure.Identity
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JsRuntime
+
+@if (_temaActual is not null)
+{
+    <select class="selector-tema" value="@_temaActual" @onchange="CambiarTemaAsync" aria-label="Tema">
+        <option value="sistema">Tema del sistema</option>
+        <option value="claro">Claro</option>
+        <option value="oscuro">Oscuro</option>
+    </select>
+}
