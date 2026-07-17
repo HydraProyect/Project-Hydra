@@ -7,8 +7,11 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Domain.Vehiculos;
+using CaeManager.Domain.Visitas;
 using CaeManager.Application.Importacion;
 using CaeManager.Infrastructure.Auditing;
+using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
@@ -79,9 +82,13 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITipoDocumentoCentroRepository, TipoDocumentoCentroRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
         services.AddScoped<IAsignacionRepository, AsignacionRepository>();
+        services.AddScoped<IVisitaRepository, VisitaRepository>();
+        services.AddScoped<IVisitaTrabajadorRepository, VisitaTrabajadorRepository>();
+        services.AddScoped<IVehiculoRepository, VehiculoRepository>();
         services.AddScoped<IParametroSistemaRepository, ParametroSistemaRepository>();
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
         services.AddSingleton<IFileStorageService, DiskFileStorageService>();

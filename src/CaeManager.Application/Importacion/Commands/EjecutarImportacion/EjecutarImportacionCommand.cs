@@ -146,7 +146,7 @@ public class EjecutarImportacionCommandHandler(
             try
             {
                 var fechaVencimiento = CalculadoraEstadoDocumento.CalcularFechaVencimiento(fila.FechaEmision, tipoDocumento.VigenciaMeses);
-                var documento = new Documento(trabajadorId, tipoDocumento.Id, fila.FechaEmision, fechaVencimiento);
+                var documento = Documento.DeTrabajador(trabajadorId, tipoDocumento.Id, fila.FechaEmision, fechaVencimiento);
                 documentoRepositorio.Agregar(documento);
                 documentosCreados++;
             }

@@ -9,7 +9,7 @@ public record ObtenerCentrosParaSelectorQuery(Guid? ClienteId = null, Guid? Empr
 
 public record CentroSelectorDto(Guid Id, string Nombre, string ClienteRazonSocial, string EmpresaRazonSocial);
 
-public class ObtenerCentrosParaSelectorQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerCentrosParaSelectorQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCentrosParaSelectorQuery, IReadOnlyList<CentroSelectorDto>>
 {
     public async Task<IReadOnlyList<CentroSelectorDto>> Handle(
@@ -19,6 +19,10 @@ public class ObtenerCentrosParaSelectorQueryHandler(IApplicationDbContext dbCont
                         join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
                         join empresa in dbContext.Empresas on centro.EmpresaId equals empresa.Id
                         select new { centro, cliente, empresa };
+
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        if (centroIdsVisibles is not null)
+            consulta = consulta.Where(x => centroIdsVisibles.Contains(x.centro.Id));
 
         if (request.ClienteId is not null)
             consulta = consulta.Where(x => x.centro.ClienteId == request.ClienteId);

@@ -10,7 +10,9 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// ROADMAP.md, Fase 3): "documentos que requieren atención" para
 /// EjecutivoCae, "centros en riesgo" añadido para Supervisor, "empresas en
 /// riesgo" añadido para Administrador. Consulta no ve nada de esto, solo
-/// los KPI base de ObtenerKpisDashboardQuery.
+/// los KPI base de ObtenerKpisDashboardQuery. Solo cubre Documentos de
+/// Trabajador — los de Cliente/Empresa no aparecen en el desglose todavía
+/// (fuera de alcance).
 /// </summary>
 public record ObtenerDesgloseDashboardQuery : IRequest<DesgloseDashboardDto>;
 
@@ -39,7 +41,7 @@ public record DesgloseDashboardDto(
     IReadOnlyList<RiesgoCentroDto> CentrosEnRiesgo,
     IReadOnlyList<RiesgoEmpresaDto> EmpresasEnRiesgo);
 
-public class ObtenerDesgloseDashboardQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerDesgloseDashboardQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDesgloseDashboardQuery, DesgloseDashboardDto>
 {
     private const int MaximoFilas = 5;
@@ -48,10 +50,14 @@ public class ObtenerDesgloseDashboardQueryHandler(IApplicationDbContext dbContex
     {
         var parametros = await dbContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
 
         var filas = await (
             from documento in dbContext.Documentos
-            join trabajador in dbContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
+            where documento.TrabajadorId != null
+            where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
+            join trabajador in dbContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
             join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             join empresa in dbContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
             from empresa in empresasCoincidentes.DefaultIfEmpty()
@@ -109,6 +115,7 @@ public class ObtenerDesgloseDashboardQueryHandler(IApplicationDbContext dbContex
             join centro in dbContext.Centros on asignacion.CentroId equals centro.Id
             join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
             where asignacion.FechaBaja == null
+            where centroIdsVisibles == null || centroIdsVisibles.Contains(centro.Id)
             select new { asignacion.TrabajadorId, CentroId = centro.Id, CentroNombre = centro.Nombre, ClienteNombre = cliente.RazonSocial })
             .ToListAsync(cancellationToken);
 

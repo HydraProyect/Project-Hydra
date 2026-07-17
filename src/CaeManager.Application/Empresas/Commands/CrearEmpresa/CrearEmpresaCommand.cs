@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CaeManager.Application.Empresas.Commands.CrearEmpresa;
 
-public record CrearEmpresaCommand(string RazonSocial, IReadOnlyList<Guid> ClienteIds) : IRequest<Result<Guid>>;
+public record CrearEmpresaCommand(string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds) : IRequest<Result<Guid>>;
 
 public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaCommand>
 {
@@ -16,6 +16,16 @@ public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaComman
             .NotEmpty().WithMessage("La razón social es obligatoria.")
             .MaximumLength(Empresa.LongitudMaximaRazonSocial)
             .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
+
+        RuleFor(c => c.Cif)
+            .Must(EsCifValido).WithMessage("El CIF no es válido.")
+            .When(c => !string.IsNullOrWhiteSpace(c.Cif));
+    }
+
+    private static bool EsCifValido(string? cif)
+    {
+        var resultado = ValidadorIdentificacion.Analizar(cif!);
+        return resultado.Tipo == TipoIdentificacion.NifEmpresa && resultado.EsValido;
     }
 }
 
@@ -28,7 +38,10 @@ public class CrearEmpresaCommandHandler(
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.RazonSocialDuplicada", "Ya existe una empresa con esta razón social."));
 
-        var empresa = new Empresa(request.RazonSocial);
+        if (!string.IsNullOrWhiteSpace(request.Cif) && await repositorio.ExisteConCifAsync(request.Cif, cancellationToken: cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Empresa.CifDuplicado", "Ya existe una empresa con este CIF."));
+
+        var empresa = new Empresa(request.RazonSocial, request.Cif);
         repositorio.Agregar(empresa);
 
         foreach (var clienteId in request.ClienteIds.Distinct())

@@ -16,8 +16,8 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// <summary>
 /// Genera una base de datos genérica de tamaño realista (cientos de filas
 /// por entidad) para pruebas de carga básicas y para verificar que los
-/// cuatro perfiles (Administrador/Supervisor/EjecutivoCae/Consulta) ven lo
-/// que deben ver con volumen real de datos — no para desarrollo normal.
+/// seis roles (ver Roles.cs) ven lo que deben ver con volumen real de
+/// datos — no para desarrollo normal.
 ///
 /// Apagado por defecto: solo se ejecuta si <c>DatosPrueba:Activo</c> es
 /// <c>true</c> en configuración, y solo la primera vez (si ya hay algún
@@ -69,7 +69,11 @@ public static class DatosPruebaSeeder
         CancellationToken cancellationToken = default)
     {
         if (!configuration.GetValue<bool>("DatosPrueba:Activo"))
+        {
+            logger.LogInformation("DatosPrueba:Activo no está activado (valor leído: '{Valor}') — no se siembran datos de prueba.",
+                configuration["DatosPrueba:Activo"] ?? "(sin definir)");
             return;
+        }
 
         if (await dbContext.Clientes.AnyAsync(cancellationToken))
         {
@@ -214,19 +218,28 @@ public static class DatosPruebaSeeder
                 var fechaEmision = fechaVencimiento?.AddMonths(-(tipoDocumento.VigenciaMeses ?? 12)) ?? hoy.AddDays(-aleatorio.Next(30, 400));
                 if (fechaEmision > hoy) fechaEmision = hoy;
 
-                documentos.Add(new Documento(trabajador.Id, tipoDocumento.Id, fechaEmision, fechaVencimiento));
+                documentos.Add(Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, fechaEmision, fechaVencimiento));
             }
         }
         dbContext.Documentos.AddRange(documentos);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // --- Usuarios de prueba: 3 por cada uno de los 4 roles ---
+        // --- Usuarios de prueba: 3 por cada uno de los 6 roles ---
+        var usuariosPorRol = new Dictionary<string, List<ApplicationUser>>();
+
         foreach (var rol in Roles.Todos)
         {
+            usuariosPorRol[rol] = [];
+
             for (var i = 1; i <= 3; i++)
             {
                 var email = $"{PrefijoEmailPrueba}{rol.ToLowerInvariant()}{i}{DominioEmailPrueba}";
-                if (await userManager.FindByEmailAsync(email) is not null) continue;
+                var existente = await userManager.FindByEmailAsync(email);
+                if (existente is not null)
+                {
+                    usuariosPorRol[rol].Add(existente);
+                    continue;
+                }
 
                 var usuario = new ApplicationUser
                 {
@@ -246,8 +259,43 @@ public static class DatosPruebaSeeder
                 }
 
                 await userManager.AddToRoleAsync(usuario, rol);
+                usuariosPorRol[rol].Add(usuario);
             }
         }
+
+        // --- Cartera de prueba: sin esto, los usuarios de prueba de los
+        // roles con alcance acotado (GestorCae/CoordinadorCae/Cliente) no
+        // verían ningún dato — ver IAlcanceDatosService (Fase 31). Los tres
+        // GestorCae de prueba reportan al primer CoordinadorCae, se reparten
+        // los primeros 30 Clientes sembrados como cartera, y cada usuario
+        // Cliente de prueba queda vinculado a un Cliente real distinto.
+        var coordinadorPrincipal = usuariosPorRol[Roles.CoordinadorCae].FirstOrDefault();
+        var gestoresPrueba = usuariosPorRol[Roles.GestorCae];
+
+        if (coordinadorPrincipal is not null)
+        {
+            foreach (var gestor in gestoresPrueba)
+            {
+                gestor.CoordinadorUsuarioId = coordinadorPrincipal.Id;
+                await userManager.UpdateAsync(gestor);
+            }
+        }
+
+        if (gestoresPrueba.Count > 0)
+        {
+            const int clientesParaCartera = 30;
+            for (var i = 0; i < Math.Min(clientesParaCartera, clientes.Count); i++)
+                clientes[i].AsignarEjecutivo(gestoresPrueba[i % gestoresPrueba.Count].Id);
+        }
+
+        var clientesPrueba = usuariosPorRol[Roles.Cliente];
+        for (var i = 0; i < clientesPrueba.Count && i < clientes.Count; i++)
+        {
+            clientesPrueba[i].ClienteId = clientes[i].Id;
+            await userManager.UpdateAsync(clientesPrueba[i]);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
             "Datos de prueba sembrados: {Clientes} clientes, {Empresas} empresas, {Subcontratas} subcontratas, " +

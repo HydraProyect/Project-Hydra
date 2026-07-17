@@ -17,18 +17,32 @@ public class Cliente : EntidadBase
     public bool EsCritico { get; private set; }
     public string? Notas { get; private set; }
 
+    /// <summary>
+    /// El Gestor CAE (rol GestorCae) dueño de este Cliente — "creado o
+    /// asignado" (ver Roles.cs). Null significa sin gestor asignado, visible
+    /// solo para Administrador/DireccionCae hasta que se reasigne (ver
+    /// pantalla Supervisión, Fase futura). Guid suelto hacia ApplicationUser
+    /// (Infrastructure.Identity) — Domain no puede referenciarlo directamente,
+    /// mismo patrón que EliminadoPorUsuarioId.
+    /// </summary>
+    public Guid? EjecutivoUsuarioId { get; private set; }
+
     private Cliente()
     {
         // Requerido por EF Core.
     }
 
-    public Cliente(string razonSocial, string cif, bool esCritico, string? notas = null)
+    public Cliente(string razonSocial, string cif, bool esCritico, string? notas = null, Guid? ejecutivoUsuarioId = null)
     {
         EstablecerRazonSocial(razonSocial);
         EstablecerCif(cif);
         EsCritico = esCritico;
         Notas = notas;
+        EjecutivoUsuarioId = ejecutivoUsuarioId;
     }
+
+    /// <summary>Reasigna la cartera a otro Gestor CAE (o la deja sin asignar con null).</summary>
+    public void AsignarEjecutivo(Guid? ejecutivoUsuarioId) => EjecutivoUsuarioId = ejecutivoUsuarioId;
 
     public void Actualizar(string razonSocial, string cif, bool esCritico, string? notas)
     {

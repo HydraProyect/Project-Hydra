@@ -105,7 +105,7 @@ public partial class Centros : ComponentBase
     private async Task AbrirCrearAsync()
     {
         _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
-        _empresasDisponibles = [];
+        _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
 
         _editandoId = null;
         _clienteId = string.Empty;
@@ -118,16 +118,6 @@ public partial class Centros : ComponentBase
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
-    }
-
-    private async Task CambiarClienteAsync(string clienteId)
-    {
-        _clienteId = clienteId;
-        _empresaId = string.Empty;
-
-        _empresasDisponibles = Guid.TryParse(clienteId, out var id)
-            ? await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(id))
-            : [];
     }
 
     private async Task AbrirEditarAsync(Guid id)

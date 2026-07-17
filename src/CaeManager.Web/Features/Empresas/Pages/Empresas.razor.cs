@@ -24,10 +24,14 @@ public partial class Empresas : ComponentBase
     private int _totalElementos;
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
+    private IReadOnlyList<ElementoSeleccionable> _clientesDisponiblesSelector => _clientesDisponibles
+        .Select(c => new ElementoSeleccionable(c.Id, c.RazonSocial))
+        .ToList();
 
     private bool _drawerVisible;
     private Guid? _editandoId;
     private string _razonSocial = string.Empty;
+    private string _cif = string.Empty;
     private HashSet<Guid> _clienteIdsSeleccionados = [];
     private bool _guardando;
     private string? _mensajeErrorFormulario;
@@ -107,6 +111,7 @@ public partial class Empresas : ComponentBase
 
         _editandoId = null;
         _razonSocial = string.Empty;
+        _cif = string.Empty;
         _clienteIdsSeleccionados = [];
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
@@ -132,6 +137,7 @@ public partial class Empresas : ComponentBase
 
         _editandoId = empresa.Id;
         _razonSocial = empresa.RazonSocial;
+        _cif = empresa.Cif ?? string.Empty;
         _clienteIdsSeleccionados = empresa.ClienteIds.ToHashSet();
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
@@ -203,32 +209,41 @@ public partial class Empresas : ComponentBase
 
         try
         {
-            string? mensajeError;
-
             var clienteIds = _clienteIdsSeleccionados.ToList();
+            var cif = string.IsNullOrWhiteSpace(_cif) ? null : _cif;
+            var eraCreacion = _editandoId is null;
 
-            if (_editandoId is null)
+            if (eraCreacion)
             {
-                var resultado = await Mediator.Send(new CrearEmpresaCommand(_razonSocial, clienteIds));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+                var resultado = await Mediator.Send(new CrearEmpresaCommand(_razonSocial, cif, clienteIds));
+                if (resultado.EsFallido)
+                {
+                    _mensajeErrorFormulario = resultado.Error.Mensaje;
+                    return;
+                }
+
+                // Tras crear, el drawer no se cierra — pasa a modo edición
+                // para que las credenciales de acceso queden visibles sin
+                // tener que reabrir el formulario desde la tabla.
+                _editandoId = resultado.Valor;
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarEmpresaCommand(_editandoId.Value, _razonSocial, clienteIds));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
-            }
-
-            if (mensajeError is not null)
-            {
-                _mensajeErrorFormulario = mensajeError;
-                return;
+                var resultado = await Mediator.Send(new EditarEmpresaCommand(_editandoId!.Value, _razonSocial, cif, clienteIds));
+                if (resultado.EsFallido)
+                {
+                    _mensajeErrorFormulario = resultado.Error.Mensaje;
+                    return;
+                }
             }
 
             ToastService.Mostrar(
-                _editandoId is null ? "Empresa creada correctamente." : "Empresa actualizada correctamente.",
+                eraCreacion ? "Empresa creada correctamente." : "Empresa actualizada correctamente.",
                 TonoToast.Exito);
 
-            _drawerVisible = false;
+            if (!eraCreacion)
+                _drawerVisible = false;
+
             await RecargarAsync();
         }
         catch (ValidationException ex)

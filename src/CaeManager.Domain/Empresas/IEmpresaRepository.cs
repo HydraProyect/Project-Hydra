@@ -6,6 +6,8 @@ public interface IEmpresaRepository
 
     Task<bool> ExisteConRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default);
 
+    Task<bool> ExisteConCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default);
+
     /// <summary>Una Empresa con Trabajadores no puede eliminarse (ver EliminarEmpresaCommand).</summary>
     Task<bool> TieneTrabajadoresAsync(Guid empresaId, CancellationToken cancellationToken = default);
 

@@ -15,7 +15,7 @@ public class CrearClienteCommandHandlerTests
     {
         var repositorio = new ClienteRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork);
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso());
 
         var resultado = await handler.Handle(
             new CrearClienteCommand("COBEGA (Coca-Cola European Partners)", CifValido, true, "Notas"), CancellationToken.None);
@@ -31,7 +31,7 @@ public class CrearClienteCommandHandlerTests
         var repositorio = new ClienteRepositorioFalso();
         repositorio.Agregar(new Cliente("RENDELSUR", CifValido, false));
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork);
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso());
 
         var resultado = await handler.Handle(new CrearClienteCommand("RENDELSUR", OtroCifValido, false, null), CancellationToken.None);
 
@@ -46,12 +46,40 @@ public class CrearClienteCommandHandlerTests
         var repositorio = new ClienteRepositorioFalso();
         repositorio.Agregar(new Cliente("RENDELSUR", CifValido, false));
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork);
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso());
 
         var resultado = await handler.Handle(new CrearClienteCommand("Otra razón social", CifValido, false, null), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Cliente.CifDuplicado");
         unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Asigna_automaticamente_al_gestor_cae_que_lo_crea()
+    {
+        var repositorio = new ClienteRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var gestorId = Guid.NewGuid();
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(gestorId, "GestorCae"));
+
+        var resultado = await handler.Handle(new CrearClienteCommand("RENDELSUR", CifValido, false, null), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        repositorio.Clientes.Single().EjecutivoUsuarioId.Should().Be(gestorId);
+    }
+
+    [Fact]
+    public async Task No_asigna_gestor_cuando_lo_crea_otro_rol()
+    {
+        var repositorio = new ClienteRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var administradorId = Guid.NewGuid();
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(administradorId, "Administrador"));
+
+        var resultado = await handler.Handle(new CrearClienteCommand("RENDELSUR", CifValido, false, null), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        repositorio.Clientes.Single().EjecutivoUsuarioId.Should().BeNull();
     }
 }

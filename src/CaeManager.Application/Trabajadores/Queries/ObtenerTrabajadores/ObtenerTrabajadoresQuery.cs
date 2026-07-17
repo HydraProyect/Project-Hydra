@@ -10,7 +10,7 @@ public record ObtenerTrabajadoresQuery(
 
 public record TrabajadorListaDto(Guid Id, string Nombre, string Apellidos, string Dni, string EmpleadorNombre);
 
-public class ObtenerTrabajadoresQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerTrabajadoresQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTrabajadoresQuery, ResultadoPaginado<TrabajadorListaDto>>
 {
     public async Task<ResultadoPaginado<TrabajadorListaDto>> Handle(
@@ -23,6 +23,13 @@ public class ObtenerTrabajadoresQueryHandler(IApplicationDbContext dbContext)
             join subcontrata in dbContext.Subcontratas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
             from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
             select new { trabajador, EmpleadorNombre = empresa != null ? empresa.RazonSocial : subcontrata!.RazonSocial };
+
+        // Este es el listado (tabla /trabajadores), no el selector de "elige
+        // un trabajador ya existente" — se acota a los que tienen una
+        // Asignación activa en un Centro visible (ver IAlcanceDatosService).
+        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        if (trabajadorIdsVisibles is not null)
+            consulta = consulta.Where(x => trabajadorIdsVisibles.Contains(x.trabajador.Id));
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {

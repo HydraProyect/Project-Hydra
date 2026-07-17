@@ -11,6 +11,8 @@ public record CrearTipoDocumentoCommand(
     int? VigenciaMeses,
     bool AplicaVencimientoAutomatico,
     int Orden,
+    AmbitoAplicacion AmbitoAplicacion,
+    bool EsObligatorio,
     string? Notas,
     string? Descripcion,
     string? CriteriosValidacion,
@@ -56,6 +58,8 @@ public class CrearTipoDocumentoCommandHandler(
             request.VigenciaMeses,
             request.AplicaVencimientoAutomatico,
             request.Orden,
+            request.AmbitoAplicacion,
+            request.EsObligatorio,
             request.Notas,
             request.Descripcion,
             request.CriteriosValidacion,
@@ -64,8 +68,13 @@ public class CrearTipoDocumentoCommandHandler(
 
         repositorio.Agregar(tipoDocumento);
 
-        foreach (var centroId in request.CentroIds.Distinct())
-            tipoDocumentoCentroRepositorio.Agregar(new TipoDocumentoCentro(tipoDocumento.Id, centroId));
+        // Los Centros donde aplica solo tienen sentido para el ámbito
+        // Trabajador — un Cliente/Empresa no depende de un Centro concreto.
+        if (request.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
+        {
+            foreach (var centroId in request.CentroIds.Distinct())
+                tipoDocumentoCentroRepositorio.Agregar(new TipoDocumentoCentro(tipoDocumento.Id, centroId));
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

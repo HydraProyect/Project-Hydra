@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +13,8 @@ public record TipoDocumentoDetalleDto(
     int? VigenciaMeses,
     bool AplicaVencimientoAutomatico,
     int Orden,
+    AmbitoAplicacion AmbitoAplicacion,
+    bool EsObligatorio,
     string? Notas,
     string? Descripcion,
     string? CriteriosValidacion,
@@ -28,7 +31,7 @@ public class ObtenerTipoDocumentoPorIdQueryHandler(IApplicationDbContext dbConte
             .Where(t => t.Id == request.Id)
             .Select(t => new
             {
-                t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden, t.Notas,
+                t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden, t.AmbitoAplicacion, t.EsObligatorio, t.Notas,
                 t.Descripcion, t.CriteriosValidacion, t.SeSolicitaA, t.Observaciones
             })
             .FirstOrDefaultAsync(cancellationToken);
@@ -42,7 +45,7 @@ public class ObtenerTipoDocumentoPorIdQueryHandler(IApplicationDbContext dbConte
 
         return new TipoDocumentoDetalleDto(
             tipoDocumento.Id, tipoDocumento.Nombre, tipoDocumento.VigenciaMeses, tipoDocumento.AplicaVencimientoAutomatico,
-            tipoDocumento.Orden, tipoDocumento.Notas, tipoDocumento.Descripcion, tipoDocumento.CriteriosValidacion,
-            tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones, centroIds);
+            tipoDocumento.Orden, tipoDocumento.AmbitoAplicacion, tipoDocumento.EsObligatorio, tipoDocumento.Notas, tipoDocumento.Descripcion,
+            tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones, centroIds);
     }
 }

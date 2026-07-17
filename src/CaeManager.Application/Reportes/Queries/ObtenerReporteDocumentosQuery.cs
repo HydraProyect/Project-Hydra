@@ -10,7 +10,8 @@ namespace CaeManager.Application.Reportes.Queries;
 /// a diferencia de Alertas, incluye también los documentos Vigentes — es
 /// el reporte que se entrega a un cliente/auditor para demostrar cobertura
 /// completa, no solo lo pendiente de acción. Mismo cálculo de estado que
-/// Dashboard/Alertas/Calendario.
+/// Dashboard/Alertas/Calendario. Solo cubre Documentos de Trabajador — los
+/// de Cliente/Empresa no aparecen en este reporte todavía (fuera de alcance).
 /// </summary>
 public record ObtenerReporteDocumentosQuery : IRequest<IReadOnlyList<FilaReporteDocumentoDto>>;
 
@@ -32,7 +33,8 @@ public class ObtenerReporteDocumentosQueryHandler(IApplicationDbContext dbContex
 
         var filas = await (
             from documento in dbContext.Documentos
-            join trabajador in dbContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
+            where documento.TrabajadorId != null
+            join trabajador in dbContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
             join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             join empresa in dbContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
             from empresa in empresasCoincidentes.DefaultIfEmpty()

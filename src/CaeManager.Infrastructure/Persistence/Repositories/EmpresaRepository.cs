@@ -14,6 +14,11 @@ public class EmpresaRepository(CaeManagerDbContext dbContext) : IEmpresaReposito
             e => e.RazonSocial.ToUpper() == razonSocial.ToUpper() && (excluirId == null || e.Id != excluirId),
             cancellationToken);
 
+    public Task<bool> ExisteConCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
+        dbContext.Empresas.AnyAsync(
+            e => e.Cif != null && e.Cif.ToUpper() == cif.ToUpper() && (excluirId == null || e.Id != excluirId),
+            cancellationToken);
+
     public Task<bool> TieneTrabajadoresAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
         dbContext.Set<Trabajador>().AnyAsync(t => t.EmpresaId == empresaId, cancellationToken);
 

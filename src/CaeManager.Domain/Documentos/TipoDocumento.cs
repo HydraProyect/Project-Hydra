@@ -27,6 +27,23 @@ public class TipoDocumento : Entity
     public string? SeSolicitaA { get; private set; }
     public string? Observaciones { get; private set; }
 
+    /// <summary>
+    /// Si es obligatorio para todos los Clientes/Empresas (o Vehículos, según
+    /// el Ámbito) — lo usa la verificación de documentación de Visitas para
+    /// distinguir "no aplica, no cuenta como pendiente" de "obligatorio y
+    /// falta, hay que gestionarlo". No aplica a Ámbito Trabajador, donde
+    /// todavía no existe una lista estructurada de qué es obligatorio.
+    /// </summary>
+    public bool EsObligatorio { get; private set; }
+
+    /// <summary>
+    /// A qué se asocian los Documentos de este tipo — Trabajador, Cliente o
+    /// Empresa (ver <see cref="Documento"/>). Fijo desde la creación: no se
+    /// puede cambiar más adelante porque ya podría haber Documentos creados
+    /// bajo el ámbito original, y cambiarlo los dejaría inconsistentes.
+    /// </summary>
+    public AmbitoAplicacion AmbitoAplicacion { get; private set; }
+
     private TipoDocumento()
     {
     }
@@ -36,6 +53,8 @@ public class TipoDocumento : Entity
         int? vigenciaMeses,
         bool aplicaVencimientoAutomatico,
         int orden,
+        AmbitoAplicacion ambitoAplicacion,
+        bool esObligatorio = false,
         string? notas = null,
         string? descripcion = null,
         string? criteriosValidacion = null,
@@ -45,6 +64,8 @@ public class TipoDocumento : Entity
         EstablecerNombre(nombre);
         EstablecerVigencia(vigenciaMeses, aplicaVencimientoAutomatico);
         Orden = orden;
+        AmbitoAplicacion = ambitoAplicacion;
+        EsObligatorio = esObligatorio;
         Notas = notas;
         EstablecerGlosario(descripcion, criteriosValidacion, seSolicitaA, observaciones);
     }
@@ -54,6 +75,7 @@ public class TipoDocumento : Entity
         int? vigenciaMeses,
         bool aplicaVencimientoAutomatico,
         int orden,
+        bool esObligatorio,
         string? notas,
         string? descripcion,
         string? criteriosValidacion,
@@ -63,6 +85,7 @@ public class TipoDocumento : Entity
         EstablecerNombre(nombre);
         EstablecerVigencia(vigenciaMeses, aplicaVencimientoAutomatico);
         Orden = orden;
+        EsObligatorio = esObligatorio;
         Notas = notas;
         EstablecerGlosario(descripcion, criteriosValidacion, seSolicitaA, observaciones);
     }

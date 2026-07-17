@@ -32,9 +32,14 @@ public class CrearClienteCommandValidator : AbstractValidator<CrearClienteComman
     }
 }
 
-public class CrearClienteCommandHandler(IClienteRepository repositorio, IUnitOfWork unitOfWork)
+public class CrearClienteCommandHandler(
+    IClienteRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService currentUserService)
     : IRequestHandler<CrearClienteCommand, Result<Guid>>
 {
+    // Application no puede referenciar Infrastructure.Identity.Roles — mismo
+    // motivo que en AutorizacionEscrituraBehavior.
+    private const string RolGestorCae = "GestorCae";
+
     public async Task<Result<Guid>> Handle(CrearClienteCommand request, CancellationToken cancellationToken)
     {
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, cancellationToken: cancellationToken))
@@ -43,7 +48,14 @@ public class CrearClienteCommandHandler(IClienteRepository repositorio, IUnitOfW
         if (await repositorio.ExisteConCifAsync(request.Cif, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Cliente.CifDuplicado", "Ya existe un cliente con este CIF."));
 
-        var cliente = new Cliente(request.RazonSocial, request.Cif, request.EsCritico, request.Notas);
+        // Un Cliente creado por un Gestor CAE queda automáticamente en su
+        // cartera — "creados o asignados" (ver Roles.cs). El resto de roles
+        // que pueden crear Clientes (Administrador, DireccionCae,
+        // CoordinadorCae) lo dejan sin gestor hasta asignarlo explícitamente.
+        var rol = await currentUserService.ObtenerRolActualAsync();
+        var ejecutivoUsuarioId = rol == RolGestorCae ? await currentUserService.ObtenerUsuarioActualIdAsync() : null;
+
+        var cliente = new Cliente(request.RazonSocial, request.Cif, request.EsCritico, request.Notas, ejecutivoUsuarioId);
         repositorio.Agregar(cliente);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

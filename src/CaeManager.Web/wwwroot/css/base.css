@@ -36,6 +36,28 @@ a {
   color: var(--color-primary-600);
 }
 
+/*
+  Glow muy sutil en hover — solo enlaces de contenido (import/export,
+  "volver", "ver todas"...), nunca permanente ni en títulos estáticos. La
+  navegación lateral (.nav-item) y los resultados del buscador global
+  (.buscador-item) tienen su propio tratamiento de hover (fondo, no
+  texto) y quedan excluidos explícitamente para no duplicar el efecto.
+*/
+a:hover {
+  text-shadow: 0 0 12px color-mix(in srgb, var(--color-primary-500) 35%, transparent);
+}
+
+.nav-item:hover,
+.buscador-item:hover {
+  text-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a:hover {
+    text-shadow: none;
+  }
+}
+
 button {
   font-family: inherit;
 }
@@ -64,4 +86,38 @@ button {
   color: var(--color-text-muted);
   font: var(--font-body-sm);
   margin-top: var(--space-4);
+}
+
+/*
+  Ripple de .boton (ver wwwroot/js/microinteracciones.js). Va aquí, global
+  y sin aislar, a propósito: el <span class="boton-ondulacion"> lo crea
+  document.createElement en JS puro, y una regla dentro de Boton.razor.css
+  quedaría reescrita por Blazor a ".boton-ondulacion[b-xxxxxxxx]" — un
+  elemento creado fuera del árbol de Razor nunca tiene ese atributo de
+  scope, así que nunca la alcanzaría (bug real: sin position:absolute el
+  span queda en flujo normal con el ancho/alto que le pone el JS, inflando
+  el botón en cada clic sin límite, y como la animación nunca llega a
+  aplicarse tampoco, animationend nunca dispara y el span nunca se quita).
+*/
+.boton-ondulacion {
+  position: absolute;
+  border-radius: var(--radius-full);
+  background-color: currentColor;
+  opacity: 0.22;
+  pointer-events: none;
+  transform: scale(0);
+  animation: expandir-ondulacion 550ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes expandir-ondulacion {
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boton-ondulacion {
+    display: none;
+  }
 }

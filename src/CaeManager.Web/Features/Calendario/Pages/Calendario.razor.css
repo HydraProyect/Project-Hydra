@@ -81,6 +81,27 @@
     background-color: var(--color-surface-hover);
 }
 
-.calendario-indicador {
+.calendario-indicadores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
     align-self: flex-start;
+}
+
+.calendario-subtitulo-modal {
+    font: var(--font-heading-sm);
+    margin: var(--space-5) 0 var(--space-3);
+}
+
+.calendario-subtitulo-modal:first-child {
+    margin-top: 0;
+}
+
+.calendario-tabla-modal-contenedor {
+    overflow-x: auto;
+}
+
+.calendario-fila-secundaria {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
 }

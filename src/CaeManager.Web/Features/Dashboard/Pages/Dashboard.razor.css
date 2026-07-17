@@ -4,6 +4,73 @@
     gap: var(--space-4);
 }
 
+/*
+  Revelado escalonado de las tarjetas KPI (ver .stagger-item en
+  list-page.css) — TarjetaMetrica es un componente hijo, así que hace
+  falta ::deep para que el aislamiento de CSS de Blazor alcance su
+  elemento raíz.
+*/
+.rejilla-kpis ::deep .tarjeta-metrica {
+    animation: revelar-escalonado var(--transition-slow) ease-out backwards;
+}
+
+.rejilla-kpis ::deep .tarjeta-metrica:nth-child(1) { animation-delay: 0ms; }
+.rejilla-kpis ::deep .tarjeta-metrica:nth-child(2) { animation-delay: 40ms; }
+.rejilla-kpis ::deep .tarjeta-metrica:nth-child(3) { animation-delay: 80ms; }
+.rejilla-kpis ::deep .tarjeta-metrica:nth-child(4) { animation-delay: 120ms; }
+.rejilla-kpis ::deep .tarjeta-metrica:nth-child(5) { animation-delay: 160ms; }
+.rejilla-kpis ::deep .tarjeta-metrica:nth-child(6) { animation-delay: 200ms; }
+.rejilla-kpis ::deep .tarjeta-metrica:nth-child(7) { animation-delay: 240ms; }
+
+@media (prefers-reduced-motion: reduce) {
+    .rejilla-kpis ::deep .tarjeta-metrica {
+        animation: none;
+    }
+}
+
+/*
+  Gradient mesh muy sutil, solo en las tarjetas KPI del Dashboard (no en
+  TarjetaMetrica en general — se usa también en resúmenes de importación,
+  donde este efecto diluiría el "destacado" en vez de reforzarlo). Vive
+  detrás del contenido (z-index) y con opacidad baja para no competir con
+  el borde de color semántico (vencido/urgente/próximo/vigente), que sigue
+  siendo el portador principal de significado.
+*/
+.rejilla-kpis ::deep .tarjeta-metrica {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.rejilla-kpis ::deep .tarjeta-metrica::before {
+    content: '';
+    position: absolute;
+    inset: -50%;
+    z-index: 0;
+    background:
+        radial-gradient(circle at 15% 20%, color-mix(in srgb, var(--color-primary-500) 10%, transparent) 0%, transparent 55%),
+        radial-gradient(circle at 85% 75%, color-mix(in srgb, var(--color-secondary-500) 8%, transparent) 0%, transparent 55%);
+    animation: flotar-gradiente 16s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.rejilla-kpis ::deep .tarjeta-metrica-etiqueta,
+.rejilla-kpis ::deep .tarjeta-metrica-valor {
+    position: relative;
+    z-index: 1;
+}
+
+@keyframes flotar-gradiente {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(3%, -3%) scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rejilla-kpis ::deep .tarjeta-metrica::before {
+        animation: none;
+    }
+}
+
 .rejilla-desglose {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -16,4 +83,14 @@
     display: inline-block;
     margin-top: var(--space-3);
     font: var(--font-body-sm);
+}
+
+/*
+  Filas de los "boxes" de desglose (documentos en atención, centros/empresas
+  en riesgo) llevan a la pantalla correspondiente ya filtrada — el fondo de
+  hover ya lo da la regla global .tabla-datos tr:hover td, esto solo añade
+  el cursor como affordance de que la fila entera es clicable.
+*/
+.fila-clicable {
+    cursor: pointer;
 }
