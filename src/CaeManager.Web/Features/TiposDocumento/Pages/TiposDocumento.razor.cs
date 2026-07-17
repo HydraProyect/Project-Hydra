@@ -5,6 +5,7 @@ using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento;
 using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTipoDocumentoPorId;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -32,7 +33,9 @@ public partial class TiposDocumento : ComponentBase
     private bool _drawerVisible;
     private Guid? _editandoId;
     private string _nombre = string.Empty;
+    private string _ambitoAplicacion = nameof(AmbitoAplicacion.Trabajador);
     private bool _aplicaVencimientoAutomatico;
+    private bool _esObligatorio;
     private string _vigenciaMeses = string.Empty;
     private string _orden = "0";
     private string _notas = string.Empty;
@@ -123,7 +126,9 @@ public partial class TiposDocumento : ComponentBase
 
         _editandoId = null;
         _nombre = string.Empty;
+        _ambitoAplicacion = nameof(AmbitoAplicacion.Trabajador);
         _aplicaVencimientoAutomatico = false;
+        _esObligatorio = false;
         _vigenciaMeses = string.Empty;
         _orden = (_tipos.Count > 0 ? _tipos.Max(t => t.Orden) + 1 : 1).ToString();
         _notas = string.Empty;
@@ -151,7 +156,9 @@ public partial class TiposDocumento : ComponentBase
 
         _editandoId = tipo.Id;
         _nombre = tipo.Nombre;
+        _ambitoAplicacion = tipo.AmbitoAplicacion.ToString();
         _aplicaVencimientoAutomatico = tipo.AplicaVencimientoAutomatico;
+        _esObligatorio = tipo.EsObligatorio;
         _vigenciaMeses = tipo.VigenciaMeses?.ToString() ?? string.Empty;
         _orden = tipo.Orden.ToString();
         _notas = tipo.Notas ?? string.Empty;
@@ -200,9 +207,10 @@ public partial class TiposDocumento : ComponentBase
 
             if (_editandoId is null)
             {
+                var ambito = Enum.Parse<AmbitoAplicacion>(_ambitoAplicacion);
                 var resultado = await Mediator.Send(
                     new CrearTipoDocumentoCommand(
-                        _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, notas,
+                        _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, ambito, _esObligatorio, notas,
                         descripcion, criteriosValidacion, seSolicitaA, observaciones, centroIds));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
@@ -210,7 +218,7 @@ public partial class TiposDocumento : ComponentBase
             {
                 var resultado = await Mediator.Send(
                     new EditarTipoDocumentoCommand(
-                        _editandoId.Value, _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, notas,
+                        _editandoId.Value, _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, _esObligatorio, notas,
                         descripcion, criteriosValidacion, seSolicitaA, observaciones, centroIds));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }

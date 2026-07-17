@@ -1,4 +1,5 @@
 using CaeManager.Application.Calendario.Queries;
+using CaeManager.Application.Visitas.Queries.ObtenerVisitasParaCalendario;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -14,6 +15,7 @@ public partial class Calendario : ComponentBase
 
     private DateOnly _mesActual = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private IReadOnlyList<VencimientoCalendarioDto> _vencimientos = [];
+    private IReadOnlyList<VisitaCalendarioDto> _visitas = [];
     private bool _cargando = true;
     private bool _error;
     private DateOnly? _diaSeleccionado;
@@ -31,6 +33,7 @@ public partial class Calendario : ComponentBase
         try
         {
             _vencimientos = await Mediator.Send(new ObtenerVencimientosMesQuery(_mesActual.Year, _mesActual.Month));
+            _visitas = await Mediator.Send(new ObtenerVisitasParaCalendarioQuery(_mesActual.Year, _mesActual.Month));
         }
         catch (Exception)
         {
@@ -65,7 +68,7 @@ public partial class Calendario : ComponentBase
 
     private void SeleccionarDia(DateOnly dia)
     {
-        if (VencimientosDelDia(dia).Count > 0)
+        if (VencimientosDelDia(dia).Count > 0 || VisitasDelDia(dia).Count > 0)
             _diaSeleccionado = dia;
     }
 
@@ -74,8 +77,17 @@ public partial class Calendario : ComponentBase
     private void GestionarDocumento(Guid documentoId) =>
         NavigationManager.NavigateTo($"/documentos?documentoId={documentoId}");
 
+    private void GestionarVisita(Guid visitaId) =>
+        NavigationManager.NavigateTo("/visitas");
+
     private List<VencimientoCalendarioDto> VencimientosDelDia(DateOnly dia) =>
         _vencimientos.Where(v => v.FechaVencimiento == dia).ToList();
+
+    // Una Visita cubre un rango, no un solo día — a diferencia de
+    // VencimientosDelDia, aquí se comprueba que el día caiga dentro de
+    // [FechaInicio, FechaFin], no una igualdad exacta.
+    private List<VisitaCalendarioDto> VisitasDelDia(DateOnly dia) =>
+        _visitas.Where(v => dia >= v.FechaInicio && dia <= v.FechaFin).ToList();
 
     private static EstadoDocumento? PeorEstado(IReadOnlyList<VencimientoCalendarioDto> vencimientosDelDia)
     {

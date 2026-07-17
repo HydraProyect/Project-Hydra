@@ -1,6 +1,6 @@
 @page "/usuarios"
 @rendermode InteractiveServer
-@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}")]
 @using CaeManager.Infrastructure.Identity
 
 <PageTitle>Usuarios — CAE Manager</PageTitle>
@@ -41,7 +41,7 @@
                     <tr>
                         <td>@usuario.Email</td>
                         <td>@usuario.NombreCompleto</td>
-                        <td>@usuario.Rol</td>
+                        <td>@Roles.NombreVisible(usuario.Rol)</td>
                         <td>
                             @if (usuario.Activo)
                             {
@@ -90,12 +90,44 @@
         {
             <CampoTexto Etiqueta="Contraseña temporal" Type="password" Valor="@_password" ValorChanged="v => _password = v" />
         }
-        <CampoSelect Etiqueta="Rol" Valor="@_rol" ValorChanged="v => _rol = v">
+        <CampoSelect Etiqueta="Rol" Valor="@_rol" ValorChanged="CambiarRolAsync">
             @foreach (var rol in Roles.Todos)
             {
-                <option value="@rol">@rol</option>
+                <option value="@rol">@Roles.NombreVisible(rol)</option>
             }
         </CampoSelect>
+
+        @if (_rol == Roles.GestorCae)
+        {
+            <CampoSelect Etiqueta="Coordinador CAE asignado" Valor="@_coordinadorUsuarioId" ValorChanged="v => _coordinadorUsuarioId = v">
+                <option value="">Sin asignar por ahora</option>
+                @foreach (var coordinador in _coordinadoresDisponibles)
+                {
+                    <option value="@coordinador.Id">@coordinador.NombreCompleto (@coordinador.Email)</option>
+                }
+            </CampoSelect>
+            <p class="texto-vacio-seccion">Sin coordinador asignado, solo Administrador y Dirección CAE ven su cartera.</p>
+        }
+
+        @if (_rol == Roles.Cliente)
+        {
+            <CampoTexto Etiqueta="CIF del cliente a vincular" Valor="@_clienteCif" ValorChanged="BuscarClientePorCifAsync" />
+            @if (_buscandoCliente)
+            {
+                <p class="texto-vacio-seccion">Buscando…</p>
+            }
+            else if (!string.IsNullOrWhiteSpace(_clienteCif))
+            {
+                @if (_clienteEncontrado is not null)
+                {
+                    <p class="pista-documento pista-documento-exito">✓ @_clienteEncontrado.RazonSocial</p>
+                }
+                else
+                {
+                    <p class="pista-documento pista-documento-error">✗ No encontramos ningún cliente con este CIF — créalo primero en Clientes.</p>
+                }
+            }
+        }
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" OnClick="() => CerrarDrawerAsync(false)">Cancelar</Boton>

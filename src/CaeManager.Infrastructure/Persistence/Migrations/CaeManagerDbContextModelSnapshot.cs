@@ -210,6 +210,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("EjecutivoUsuarioId")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("EliminadoEnUtc")
                         .HasColumnType("TEXT");
 
@@ -235,6 +238,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Cif")
                         .IsUnique();
+
+                    b.HasIndex("EjecutivoUsuarioId");
 
                     b.HasIndex("RazonSocial");
 
@@ -276,6 +281,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("ClienteId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Comentarios")
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
@@ -287,6 +295,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EmpresaId")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("EstaEliminado")
@@ -301,14 +312,23 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TipoDocumentoId")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("TrabajadorId")
+                    b.Property<Guid?>("TrabajadorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("VehiculoId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
                     b.HasIndex("FechaVencimiento");
 
+                    b.HasIndex("ClienteId", "TipoDocumentoId");
+
+                    b.HasIndex("EmpresaId", "TipoDocumentoId");
+
                     b.HasIndex("TrabajadorId", "TipoDocumentoId");
+
+                    b.HasIndex("VehiculoId", "TipoDocumentoId");
 
                     b.ToTable("Documentos", (string)null);
                 });
@@ -317,6 +337,11 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AmbitoAplicacion")
+                        .IsRequired()
+                        .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("AplicaVencimientoAutomatico")
@@ -329,6 +354,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<string>("Descripcion")
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("EsObligatorio")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -364,7 +392,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000001"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = true,
+                            EsObligatorio = false,
                             Nombre = "Apto médico laboral",
                             Notas = "Renovación anual estándar.",
                             Orden = 1,
@@ -373,7 +403,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000002"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = true,
+                            EsObligatorio = false,
                             Nombre = "EPIS (firma)",
                             Notas = "Se firman cada año según nota de origen.",
                             Orden = 2,
@@ -382,7 +414,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000003"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = true,
+                            EsObligatorio = false,
                             Nombre = "Reciclaje 4h",
                             Notas = "Cada 4 años, según Dpto. Formación.",
                             Orden = 3,
@@ -391,7 +425,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000004"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = true,
+                            EsObligatorio = false,
                             Nombre = "Formación Art. 19",
                             Notas = "Recordatorio cada 3 años.",
                             Orden = 4,
@@ -400,7 +436,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000005"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            EsObligatorio = false,
                             Nombre = "Formación 60h (base convenio)",
                             Notas = "Formación base, no consta caducidad.",
                             Orden = 5
@@ -408,7 +446,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000006"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            EsObligatorio = false,
                             Nombre = "Formación 20h",
                             Notas = "Mismo curso de convenio que 60h/6h, no consta caducidad.",
                             Orden = 6
@@ -416,7 +456,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000007"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            EsObligatorio = false,
                             Nombre = "Formación 6h",
                             Notas = "Mismo curso de convenio que 60h/20h, no consta caducidad.",
                             Orden = 7
@@ -424,7 +466,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000008"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            EsObligatorio = false,
                             Nombre = "Información Art. 18",
                             Notas = "No consta periodicidad de renovación.",
                             Orden = 8
@@ -432,7 +476,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000009"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            EsObligatorio = false,
                             Nombre = "Carretillas elevadoras",
                             Notas = "Configurable si el convenio interno define vigencia.",
                             Orden = 9
@@ -440,7 +486,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-00000000000a"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            EsObligatorio = false,
                             Nombre = "PEMP (plataformas elevadoras)",
                             Notas = "Configurable si el convenio interno define vigencia.",
                             Orden = 10
@@ -448,7 +496,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-00000000000b"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            EsObligatorio = false,
                             Nombre = "LOTO (4h)",
                             Notas = "Configurable si el convenio interno define vigencia.",
                             Orden = 11
@@ -456,7 +506,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-00000000000c"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            EsObligatorio = false,
                             Nombre = "Seguridad alimentaria",
                             Notas = "Configurable si el convenio interno define vigencia.",
                             Orden = 12
@@ -464,7 +516,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-00000000000d"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            EsObligatorio = false,
                             Nombre = "Primeros auxilios",
                             Notas = "Se recomienda revisar cada 2 años; sin dato oficial de origen.",
                             Orden = 13
@@ -472,7 +526,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-00000000000e"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            EsObligatorio = false,
                             Nombre = "Espacios confinados",
                             Notas = "Configurable si el convenio interno define vigencia.",
                             Orden = 14
@@ -480,10 +536,188 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-00000000000f"),
+                            AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            EsObligatorio = false,
                             Nombre = "Trabajos en altura (8h)",
                             Notas = "Configurable si el convenio interno define vigencia.",
                             Orden = 15
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000001"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = true,
+                            EsObligatorio = true,
+                            Nombre = "Certificado de estar al corriente con la Seguridad Social",
+                            Notas = "Mensual.",
+                            Orden = 16,
+                            VigenciaMeses = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000002"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            EsObligatorio = true,
+                            Nombre = "Certificado de estar al corriente con Hacienda",
+                            Notas = "Vigencia variable (1, 3, 6 o 12 meses según lo que exija el cliente) — la fecha de vencimiento se introduce a mano al subir el documento.",
+                            Orden = 17
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000003"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = true,
+                            EsObligatorio = true,
+                            Nombre = "ITA",
+                            Notas = "Mensual.",
+                            Orden = 18,
+                            VigenciaMeses = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000004"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = true,
+                            EsObligatorio = true,
+                            Nombre = "RLC/TC1",
+                            Notas = "Mensual — el documento de un periodo (p. ej. 01/05) vence 3 meses después (01/08), porque tarda en emitirse con la fecha del periodo ya pasada.",
+                            Orden = 19,
+                            VigenciaMeses = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000005"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = true,
+                            EsObligatorio = true,
+                            Nombre = "Recibo de pago RLC/TC1",
+                            Notas = "Mismo criterio de vigencia que el RLC/TC1.",
+                            Orden = 20,
+                            VigenciaMeses = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000006"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = true,
+                            EsObligatorio = true,
+                            Nombre = "RLC/TC1 + Recibo de pago",
+                            Notas = "Variante combinada — mismo criterio de vigencia que el RLC/TC1.",
+                            Orden = 21,
+                            VigenciaMeses = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000007"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = true,
+                            EsObligatorio = true,
+                            Nombre = "RNT/TC2",
+                            Notas = "Mismo criterio que el RLC/TC1.",
+                            Orden = 22,
+                            VigenciaMeses = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000008"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            EsObligatorio = true,
+                            Nombre = "Mutua",
+                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
+                            Orden = 23
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000009"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            EsObligatorio = true,
+                            Nombre = "Seguro de Responsabilidad Civil + recibo de pago",
+                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
+                            Orden = 24
+                        },
+                        new
+                        {
+                            Id = new Guid("2000000a-0000-0000-0000-00000000000a"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            EsObligatorio = true,
+                            Nombre = "SPA (Servicio de Prevención Ajeno)",
+                            Notas = "Debe venir acompañado de un certificado de pago que indica la fecha fin de validez — se introduce esa fecha manualmente.",
+                            Orden = 25
+                        },
+                        new
+                        {
+                            Id = new Guid("2000000b-0000-0000-0000-00000000000b"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            EsObligatorio = true,
+                            Nombre = "EVR (Evaluación de Riesgos Laborales)",
+                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
+                            Orden = 26
+                        },
+                        new
+                        {
+                            Id = new Guid("2000000c-0000-0000-0000-00000000000c"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            EsObligatorio = true,
+                            Nombre = "PAP (Planificación de la Actividad Preventiva)",
+                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
+                            Orden = 27
+                        },
+                        new
+                        {
+                            Id = new Guid("2000000d-0000-0000-0000-00000000000d"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            EsObligatorio = false,
+                            Nombre = "Tarjeta CIF",
+                            Notas = "Opcional — no obligatorio para todos los clientes.",
+                            Orden = 28
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000001"),
+                            AmbitoAplicacion = "Vehiculo",
+                            AplicaVencimientoAutomatico = false,
+                            EsObligatorio = true,
+                            Nombre = "ITC",
+                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
+                            Orden = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000002"),
+                            AmbitoAplicacion = "Vehiculo",
+                            AplicaVencimientoAutomatico = false,
+                            EsObligatorio = true,
+                            Nombre = "Ficha técnica",
+                            Notas = "No caduca por sí sola, pero se pide como documento adjunto del vehículo.",
+                            Orden = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000003"),
+                            AmbitoAplicacion = "Vehiculo",
+                            AplicaVencimientoAutomatico = false,
+                            EsObligatorio = true,
+                            Nombre = "Seguro",
+                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
+                            Orden = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000004"),
+                            AmbitoAplicacion = "Vehiculo",
+                            AplicaVencimientoAutomatico = false,
+                            EsObligatorio = true,
+                            Nombre = "Autorización de circulación",
+                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
+                            Orden = 4
                         });
                 });
 
@@ -546,6 +780,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Cif")
+                        .HasMaxLength(9)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("TEXT");
 
@@ -564,6 +802,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Cif")
+                        .IsUnique();
 
                     b.HasIndex("RazonSocial")
                         .IsUnique();
@@ -805,6 +1046,124 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.ToTable("Trabajadores", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Vehiculos.Vehiculo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EmpresaId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Modelo")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NumeroPlaca")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("SubcontrataId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmpresaId");
+
+                    b.HasIndex("NumeroPlaca")
+                        .IsUnique();
+
+                    b.HasIndex("SubcontrataId");
+
+                    b.ToTable("Vehiculos", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Visitas.Visita", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("FechaFin")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("FechaInicio")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("NotificadoCliente")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CentroId");
+
+                    b.HasIndex("FechaFin");
+
+                    b.ToTable("Visitas", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Visitas.VisitaTrabajador", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TrabajadorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("VisitaId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TrabajadorId");
+
+                    b.HasIndex("VisitaId");
+
+                    b.HasIndex("VisitaId", "TrabajadorId")
+                        .IsUnique();
+
+                    b.ToTable("VisitasTrabajadores", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Infrastructure.Identity.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -814,8 +1173,14 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("ClienteId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("CoordinadorUsuarioId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
@@ -915,15 +1280,15 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000002"),
                             ConcurrencyStamp = "30000000-0000-0000-0000-000000000002",
-                            Name = "Supervisor",
-                            NormalizedName = "SUPERVISOR"
+                            Name = "CoordinadorCae",
+                            NormalizedName = "COORDINADORCAE"
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000003"),
                             ConcurrencyStamp = "30000000-0000-0000-0000-000000000003",
-                            Name = "EjecutivoCae",
-                            NormalizedName = "EJECUTIVOCAE"
+                            Name = "GestorCae",
+                            NormalizedName = "GESTORCAE"
                         },
                         new
                         {
@@ -931,6 +1296,20 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             ConcurrencyStamp = "30000000-0000-0000-0000-000000000004",
                             Name = "Consulta",
                             NormalizedName = "CONSULTA"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000005"),
+                            ConcurrencyStamp = "30000000-0000-0000-0000-000000000005",
+                            Name = "DireccionCae",
+                            NormalizedName = "DIRECCIONCAE"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000006"),
+                            ConcurrencyStamp = "30000000-0000-0000-0000-000000000006",
+                            Name = "Cliente",
+                            NormalizedName = "CLIENTE"
                         });
                 });
 

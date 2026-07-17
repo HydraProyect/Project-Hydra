@@ -8,6 +8,7 @@
 @using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTipoDocumentoPorId
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
+@using CaeManager.Domain.Documentos
 @using FluentValidation
 @using MediatR
 @inject IMediator Mediator
@@ -66,8 +67,10 @@
                 <tr>
                     <th>Orden</th>
                     <th>Nombre</th>
+                    <th>Ámbito</th>
                     <th>Vigencia</th>
                     <th>Vencimiento automático</th>
+                    <th>Obligatorio</th>
                     <th></th>
                 </tr>
             </thead>
@@ -77,6 +80,7 @@
                     <tr>
                         <td>@tipo.Orden</td>
                         <td>@tipo.Nombre</td>
+                        <td>@tipo.AmbitoAplicacion</td>
                         <td>@(tipo.VigenciaMeses is null ? "—" : $"{tipo.VigenciaMeses} meses")</td>
                         <td>
                             @if (tipo.AplicaVencimientoAutomatico)
@@ -86,6 +90,16 @@
                             else
                             {
                                 <Badge>No</Badge>
+                            }
+                        </td>
+                        <td>
+                            @if (tipo.EsObligatorio)
+                            {
+                                <Badge Tono="TonoBadge.Advertencia">Obligatorio</Badge>
+                            }
+                            else
+                            {
+                                <Badge>Opcional</Badge>
                             }
                         </td>
                         <td>
@@ -112,8 +126,29 @@
 
         <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Nombre))" />
 
+        @if (_editandoId is null)
+        {
+            <CampoSelect Etiqueta="Ámbito" Valor="@_ambitoAplicacion" ValorChanged="v => _ambitoAplicacion = v">
+                <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
+                <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
+                <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
+                <option value="@nameof(AmbitoAplicacion.Vehiculo)">Vehículo</option>
+            </CampoSelect>
+        }
+        else
+        {
+            <div class="campo">
+                <label>Ámbito</label>
+                <span>@_ambitoAplicacion</span>
+            </div>
+        }
+
         <label class="campo-checkbox">
             <input type="checkbox" @bind="_aplicaVencimientoAutomatico" /> Aplica vencimiento automático
+        </label>
+
+        <label class="campo-checkbox">
+            <input type="checkbox" @bind="_esObligatorio" /> Obligatorio para todos los clientes
         </label>
 
         @if (_aplicaVencimientoAutomatico)
@@ -129,27 +164,30 @@
         <CampoTexto Etiqueta="Se solicita a" Valor="@_seSolicitaA" ValorChanged="v => _seSolicitaA = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.SeSolicitaA))" />
         <CampoTextarea Etiqueta="Observaciones" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Observaciones))" />
 
-        <div class="campo">
-            <label>Centros donde aplica (vacío = aplica en todos)</label>
-            @if (_centrosDisponibles.Count == 0)
-            {
-                <p class="texto-vacio-seccion">Todavía no hay centros creados.</p>
-            }
-            else
-            {
-                <div class="lista-seleccion-multiple">
-                    @foreach (var centro in _centrosDisponibles)
-                    {
-                        <label class="campo-checkbox">
-                            <input type="checkbox"
-                                   checked="@_centroIdsSeleccionados.Contains(centro.Id)"
-                                   @onchange="e => AlternarCentro(centro.Id, e.Value is bool marcado && marcado)" />
-                            @centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)
-                        </label>
-                    }
-                </div>
-            }
-        </div>
+        @if (_ambitoAplicacion == nameof(AmbitoAplicacion.Trabajador))
+        {
+            <div class="campo">
+                <label>Centros donde aplica (vacío = aplica en todos)</label>
+                @if (_centrosDisponibles.Count == 0)
+                {
+                    <p class="texto-vacio-seccion">Todavía no hay centros creados.</p>
+                }
+                else
+                {
+                    <div class="lista-seleccion-multiple">
+                        @foreach (var centro in _centrosDisponibles)
+                        {
+                            <label class="campo-checkbox">
+                                <input type="checkbox"
+                                       checked="@_centroIdsSeleccionados.Contains(centro.Id)"
+                                       @onchange="e => AlternarCentro(centro.Id, e.Value is bool marcado && marcado)" />
+                                @centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)
+                            </label>
+                        }
+                    </div>
+                }
+            </div>
+        }
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">

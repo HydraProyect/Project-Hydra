@@ -10,6 +10,7 @@
 }
 
 .toast {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -19,6 +20,7 @@
     box-shadow: var(--shadow-overlay);
     font: var(--font-body-md);
     color: var(--color-neutral-0);
+    overflow: hidden;
     animation: entrar-toast var(--transition-slow) ease-out;
 }
 
@@ -56,4 +58,39 @@
 
 .toast-error {
     background-color: var(--color-danger-500);
+}
+
+/*
+  Barra de progreso que se vacía a la misma velocidad que el autodescarte
+  (duración fijada desde ToastService.DuracionAutoDescarte vía
+  animation-duration inline) — comunica cuánto tiempo queda antes de que
+  el toast desaparezca solo, sin necesidad de leerlo en ningún sitio.
+*/
+.toast-progreso {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    width: 100%;
+    background-color: rgba(255, 255, 255, 0.55);
+    transform-origin: left;
+    animation-name: vaciar-progreso;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+@keyframes vaciar-progreso {
+    from {
+        transform: scaleX(1);
+    }
+    to {
+        transform: scaleX(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toast-progreso {
+        animation: none;
+        opacity: 0;
+    }
 }

@@ -19,6 +19,8 @@ public class TipoDocumentoConfiguration : IEntityTypeConfiguration<TipoDocumento
         builder.Property(t => t.SeSolicitaA).HasMaxLength(TipoDocumento.LongitudMaximaSeSolicitaA);
         builder.Property(t => t.Observaciones).HasMaxLength(TipoDocumento.LongitudMaximaObservaciones);
 
+        builder.Property(t => t.AmbitoAplicacion).HasConversion<string>().HasMaxLength(20).IsRequired();
+
         builder.HasIndex(t => t.Nombre).IsUnique();
 
         builder.HasData(TipoDocumentoSeedData.ComoFilasParaMigracion());

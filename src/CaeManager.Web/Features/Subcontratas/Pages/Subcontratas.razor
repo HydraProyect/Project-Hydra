@@ -77,49 +77,17 @@
 
         <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.RazonSocial))" />
 
-        <div class="campo">
-            <label>Clientes que la contrataron</label>
-            @if (_clientesDisponibles.Count == 0)
-            {
-                <p class="texto-vacio-seccion">Todavía no hay clientes creados.</p>
-            }
-            else
-            {
-                <div class="lista-seleccion-multiple">
-                    @foreach (var cliente in _clientesDisponibles)
-                    {
-                        <label class="campo-checkbox">
-                            <input type="checkbox"
-                                   checked="@_clienteIdsSeleccionados.Contains(cliente.Id)"
-                                   @onchange="e => AlternarCliente(cliente.Id, e.Value is bool marcado && marcado)" />
-                            @cliente.RazonSocial
-                        </label>
-                    }
-                </div>
-            }
-        </div>
+        <SelectorMultiple Etiqueta="Clientes que la contrataron"
+                           Elementos="@_clientesDisponiblesSelector"
+                           Seleccionados="@_clienteIdsSeleccionados"
+                           OnAlternar="args => AlternarCliente(args.Id, args.Marcado)"
+                           TextoVacio="Todavía no hay clientes creados." />
 
-        <div class="campo">
-            <label>Empresas a las que presta servicio</label>
-            @if (_empresasDisponibles.Count == 0)
-            {
-                <p class="texto-vacio-seccion">Todavía no hay empresas creadas.</p>
-            }
-            else
-            {
-                <div class="lista-seleccion-multiple">
-                    @foreach (var empresa in _empresasDisponibles)
-                    {
-                        <label class="campo-checkbox">
-                            <input type="checkbox"
-                                   checked="@_empresaIdsSeleccionados.Contains(empresa.Id)"
-                                   @onchange="e => AlternarEmpresa(empresa.Id, e.Value is bool marcado && marcado)" />
-                            @empresa.RazonSocial
-                        </label>
-                    }
-                </div>
-            }
-        </div>
+        <SelectorMultiple Etiqueta="Empresas a las que presta servicio"
+                           Elementos="@_empresasDisponiblesSelector"
+                           Seleccionados="@_empresaIdsSeleccionados"
+                           OnAlternar="args => AlternarEmpresa(args.Id, args.Marcado)"
+                           TextoVacio="Todavía no hay empresas creadas." />
 
         @if (_editandoId is not null)
         {

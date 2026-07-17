@@ -1,0 +1,7 @@
+.barra-filtros {
+    max-width: 640px;
+}
+
+.filtro-empresa {
+    flex: 0 0 240px;
+}

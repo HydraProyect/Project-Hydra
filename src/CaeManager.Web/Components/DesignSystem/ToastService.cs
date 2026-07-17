@@ -17,7 +17,8 @@ public record ToastMensaje(Guid Id, string Mensaje, TonoToast Tono);
 /// </summary>
 public class ToastService
 {
-    private static readonly TimeSpan DuracionAutoDescarte = TimeSpan.FromSeconds(5);
+    /// <summary>Pública para que AnfitrionToasts pueda sincronizar la barra de progreso con la misma duración.</summary>
+    public static readonly TimeSpan DuracionAutoDescarte = TimeSpan.FromSeconds(5);
 
     private readonly List<ToastMensaje> _mensajes = [];
 

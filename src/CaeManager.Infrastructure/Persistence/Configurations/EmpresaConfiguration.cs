@@ -15,7 +15,11 @@ public class EmpresaConfiguration : IEntityTypeConfiguration<Empresa>
             .IsRequired()
             .HasMaxLength(Empresa.LongitudMaximaRazonSocial);
 
+        builder.Property(e => e.Cif)
+            .HasMaxLength(Empresa.LongitudCif);
+
         builder.HasIndex(e => e.RazonSocial).IsUnique();
+        builder.HasIndex(e => e.Cif).IsUnique();
 
         builder.HasQueryFilter(e => !e.EstaEliminado);
     }

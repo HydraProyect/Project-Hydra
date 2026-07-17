@@ -15,6 +15,9 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
         builder.Property(d => d.Comentarios).HasMaxLength(Documento.LongitudMaximaComentarios);
 
         builder.HasIndex(d => new { d.TrabajadorId, d.TipoDocumentoId });
+        builder.HasIndex(d => new { d.ClienteId, d.TipoDocumentoId });
+        builder.HasIndex(d => new { d.EmpresaId, d.TipoDocumentoId });
+        builder.HasIndex(d => new { d.VehiculoId, d.TipoDocumentoId });
         builder.HasIndex(d => d.FechaVencimiento);
 
         builder.HasQueryFilter(d => !d.EstaEliminado);

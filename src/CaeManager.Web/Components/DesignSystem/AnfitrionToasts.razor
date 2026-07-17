@@ -7,6 +7,10 @@
         <div class="toast toast-@toast.Tono.ToString().ToLowerInvariant()" role="status">
             <span>@toast.Mensaje</span>
             <button type="button" aria-label="Cerrar" @onclick="() => ToastService.Descartar(toast.Id)">×</button>
+            @if (toast.Tono != TonoToast.Error)
+            {
+                <div class="toast-progreso" style="animation-duration:@((int)ToastService.DuracionAutoDescarte.TotalMilliseconds)ms"></div>
+            }
         </div>
     }
 </div>

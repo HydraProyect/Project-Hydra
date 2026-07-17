@@ -7,6 +7,8 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Domain.Vehiculos;
+using CaeManager.Domain.Visitas;
 
 namespace CaeManager.Application.Common;
 
@@ -32,6 +34,9 @@ public interface IApplicationDbContext
     IQueryable<TipoDocumentoCentro> TiposDocumentoCentros { get; }
     IQueryable<Documento> Documentos { get; }
     IQueryable<Asignacion> Asignaciones { get; }
+    IQueryable<Visita> Visitas { get; }
+    IQueryable<VisitaTrabajador> VisitasTrabajadores { get; }
+    IQueryable<Vehiculo> Vehiculos { get; }
     IQueryable<ParametroSistema> ParametrosSistema { get; }
     IQueryable<RegistroAuditoria> RegistrosAuditoria { get; }
 }

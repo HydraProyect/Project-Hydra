@@ -9,7 +9,8 @@ namespace CaeManager.Application.Calendario.Queries;
 /// Vencimientos de Documento dentro de un mes calendario, para la vista
 /// mensual de Calendario (ver ROADMAP.md, Fase 3). Mismo cálculo de estado
 /// que Dashboard/Alertas — nunca puede haber dos semáforos distintos para
-/// el mismo documento.
+/// el mismo documento. Solo cubre Documentos de Trabajador — los de
+/// Cliente/Empresa no aparecen en el calendario todavía (fuera de alcance).
 /// </summary>
 public record ObtenerVencimientosMesQuery(int Anio, int Mes) : IRequest<IReadOnlyList<VencimientoCalendarioDto>>;
 
@@ -20,7 +21,7 @@ public record VencimientoCalendarioDto(
     string TipoDocumentoNombre,
     EstadoDocumento Estado);
 
-public class ObtenerVencimientosMesQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerVencimientosMesQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVencimientosMesQuery, IReadOnlyList<VencimientoCalendarioDto>>
 {
     public async Task<IReadOnlyList<VencimientoCalendarioDto>> Handle(ObtenerVencimientosMesQuery request, CancellationToken cancellationToken)
@@ -30,10 +31,13 @@ public class ObtenerVencimientosMesQueryHandler(IApplicationDbContext dbContext)
 
         var parametros = await dbContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
         var filas = await (
             from documento in dbContext.Documentos
-            join trabajador in dbContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
+            where documento.TrabajadorId != null
+            where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
+            join trabajador in dbContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
             join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             where documento.FechaVencimiento != null
                 && documento.FechaVencimiento >= primerDia

@@ -155,3 +155,60 @@
     background-color: var(--color-surface-hover);
     transition: background-color var(--transition-fast);
 }
+
+/*
+  QuickGrid rellena el cuerpo de la tabla con filas <tr><td></td></tr>
+  vacías hasta completar ItemsPerPage cuando hay menos resultados que el
+  tamaño de página, incluso sin Virtualize — es un comportamiento del
+  componente, no del ItemsProvider (que ya devuelve solo los elementos
+  reales). Se ocultan por CSS las filas donde ninguna celda tiene contenido.
+*/
+.tabla-datos tbody tr:not(:has(td:not(:empty))) {
+    display: none;
+}
+
+/*
+  Revelado escalonado: cada fila/tarjeta entra un poco después que la
+  anterior en vez de aparecer todas a la vez. Solo se dispara cuando el
+  navegador inserta el elemento en el DOM — Blazor reutiliza las filas
+  existentes al paginar/filtrar (mismo índice, solo cambia el contenido),
+  así que esto se ve en la carga inicial de una pantalla, no se repite en
+  cada tecla de un buscador en vivo (sería ruido, no pulido).
+  .stagger-item es la clase genérica para reutilizar el mismo patrón fuera
+  de tablas (p. ej. tarjetas de KPI en Dashboard).
+*/
+@keyframes revelar-escalonado {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.tabla-datos tbody tr,
+.stagger-item {
+    animation: revelar-escalonado var(--transition-slow) ease-out backwards;
+}
+
+.tabla-datos tbody tr:nth-child(1), .stagger-item:nth-child(1)   { animation-delay: 0ms; }
+.tabla-datos tbody tr:nth-child(2), .stagger-item:nth-child(2)   { animation-delay: 25ms; }
+.tabla-datos tbody tr:nth-child(3), .stagger-item:nth-child(3)   { animation-delay: 50ms; }
+.tabla-datos tbody tr:nth-child(4), .stagger-item:nth-child(4)   { animation-delay: 75ms; }
+.tabla-datos tbody tr:nth-child(5), .stagger-item:nth-child(5)   { animation-delay: 100ms; }
+.tabla-datos tbody tr:nth-child(6), .stagger-item:nth-child(6)   { animation-delay: 125ms; }
+.tabla-datos tbody tr:nth-child(7), .stagger-item:nth-child(7)   { animation-delay: 150ms; }
+.tabla-datos tbody tr:nth-child(8), .stagger-item:nth-child(8)   { animation-delay: 175ms; }
+.tabla-datos tbody tr:nth-child(9), .stagger-item:nth-child(9)   { animation-delay: 200ms; }
+.tabla-datos tbody tr:nth-child(10), .stagger-item:nth-child(10) { animation-delay: 225ms; }
+.tabla-datos tbody tr:nth-child(11), .stagger-item:nth-child(11) { animation-delay: 250ms; }
+.tabla-datos tbody tr:nth-child(n+12), .stagger-item:nth-child(n+12) { animation-delay: 275ms; }
+
+@media (prefers-reduced-motion: reduce) {
+    .tabla-datos tbody tr,
+    .stagger-item {
+        animation: none;
+    }
+}

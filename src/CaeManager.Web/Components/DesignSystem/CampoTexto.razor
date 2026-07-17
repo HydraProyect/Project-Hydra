@@ -1,3 +1,4 @@
+@implements IDisposable
 <div class="campo">
     @if (!string.IsNullOrWhiteSpace(Etiqueta))
     {
@@ -9,7 +10,8 @@
            value="@Valor"
            placeholder="@Placeholder"
            disabled="@Deshabilitado"
-           @oninput="ManejarCambioAsync" />
+           @oninput="ManejarCambioAsync"
+           @onblur="ManejarBlurAsync" />
     @if (TieneError)
     {
         <span class="campo-mensaje-error" role="alert">@MensajeError</span>
@@ -17,7 +19,11 @@
 </div>
 
 @code {
+    private const int DebounceMilisegundos = 300;
+
     private readonly string _id = $"campo-{Guid.NewGuid():N}";
+    private CancellationTokenSource? _debounceCts;
+    private string _ultimoValor = string.Empty;
 
     [Parameter] public string? Etiqueta { get; set; }
     [Parameter] public string Valor { get; set; } = string.Empty;
@@ -29,5 +35,48 @@
 
     private bool TieneError => !string.IsNullOrWhiteSpace(MensajeError);
 
-    private Task ManejarCambioAsync(ChangeEventArgs e) => ValorChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+    /// <summary>
+    /// Espera una pausa al escribir antes de notificar al padre — evitar
+    /// el round-trip a cada tecla evita que la respuesta de una tecla
+    /// anterior llegue tarde (bajo latencia de red real) y "corrija"
+    /// visualmente lo que el usuario ya escribió después.
+    /// </summary>
+    private async Task ManejarCambioAsync(ChangeEventArgs e)
+    {
+        _ultimoValor = e.Value?.ToString() ?? string.Empty;
+
+        _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _debounceCts = cts;
+
+        try
+        {
+            await Task.Delay(DebounceMilisegundos, cts.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        await ValorChanged.InvokeAsync(_ultimoValor);
+    }
+
+    /// <summary>
+    /// Al perder el foco (p. ej. al hacer clic en "Guardar") se cancela el
+    /// debounce pendiente y se notifica el valor ya mismo — si no, un clic
+    /// rápido tras escribir podría llegar al padre antes que la última
+    /// tecla, enviando un valor desactualizado.
+    /// </summary>
+    private async Task ManejarBlurAsync()
+    {
+        _debounceCts?.Cancel();
+        await ValorChanged.InvokeAsync(_ultimoValor);
+    }
+
+    public void Dispose()
+    {
+        _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
+    }
 }

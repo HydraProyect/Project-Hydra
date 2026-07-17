@@ -6,7 +6,7 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 
 public record ObtenerEmpresaPorIdQuery(Guid Id) : IRequest<EmpresaDetalleDto?>;
 
-public record EmpresaDetalleDto(Guid Id, string RazonSocial, DateTime CreadoEnUtc, IReadOnlyList<Guid> ClienteIds);
+public record EmpresaDetalleDto(Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, IReadOnlyList<Guid> ClienteIds);
 
 public class ObtenerEmpresaPorIdQueryHandler(IApplicationDbContext dbContext)
     : IRequestHandler<ObtenerEmpresaPorIdQuery, EmpresaDetalleDto?>
@@ -15,7 +15,7 @@ public class ObtenerEmpresaPorIdQueryHandler(IApplicationDbContext dbContext)
     {
         var empresa = await dbContext.Empresas
             .Where(e => e.Id == request.Id)
-            .Select(e => new { e.Id, e.RazonSocial, e.CreadoEnUtc })
+            .Select(e => new { e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (empresa is null) return null;
@@ -25,6 +25,6 @@ public class ObtenerEmpresaPorIdQueryHandler(IApplicationDbContext dbContext)
             .Select(ec => ec.ClienteId)
             .ToListAsync(cancellationToken);
 
-        return new EmpresaDetalleDto(empresa.Id, empresa.RazonSocial, empresa.CreadoEnUtc, clienteIds);
+        return new EmpresaDetalleDto(empresa.Id, empresa.RazonSocial, empresa.Cif, empresa.CreadoEnUtc, clienteIds);
     }
 }

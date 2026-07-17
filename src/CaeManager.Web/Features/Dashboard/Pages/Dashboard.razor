@@ -23,12 +23,13 @@
     else
     {
         <div class="rejilla-kpis">
-            <TarjetaMetrica Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" />
-            <TarjetaMetrica Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" />
-            <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()" Tono="TonoBadge.Peligro" />
-            <TarjetaMetrica Etiqueta="Urgentes (≤15 días)" Valor="@_kpis.DocumentosUrgentes.ToString()" Tono="TonoBadge.Peligro" />
-            <TarjetaMetrica Etiqueta="Próximos (≤30 días)" Valor="@_kpis.DocumentosProximos.ToString()" Tono="TonoBadge.Advertencia" />
-            <TarjetaMetrica Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" Tono="TonoBadge.Exito" />
+            <TarjetaMetrica Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" Enlace="/trabajadores" />
+            <TarjetaMetrica Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" Enlace="/centros" />
+            <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()" Tono="TonoBadge.Peligro" Enlace="/alertas?estado=Vencido" />
+            <TarjetaMetrica Etiqueta="Urgentes (≤15 días)" Valor="@_kpis.DocumentosUrgentes.ToString()" Tono="TonoBadge.Peligro" Enlace="/alertas?estado=Urgente" />
+            <TarjetaMetrica Etiqueta="Próximos (≤30 días)" Valor="@_kpis.DocumentosProximos.ToString()" Tono="TonoBadge.Advertencia" Enlace="/alertas?estado=Proximo" />
+            <TarjetaMetrica Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" Tono="TonoBadge.Exito" Enlace="/documentos?estado=Vigente" />
+            <TarjetaMetrica Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" Enlace="/visitas" />
         </div>
 
         @if (_mostrarDocumentosAtencion && _desglose is not null)
@@ -53,7 +54,7 @@
                             <tbody>
                                 @foreach (var documento in _desglose.DocumentosAtencion)
                                 {
-                                    <tr>
+                                    <tr class="fila-clicable" @onclick="() => IrADocumento(documento.DocumentoId)">
                                         <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
                                         <td>@documento.TrabajadorNombre</td>
                                         <td>@documento.TipoDocumentoNombre</td>
@@ -87,7 +88,7 @@
                                 <tbody>
                                     @foreach (var centro in _desglose.CentrosEnRiesgo)
                                     {
-                                        <tr>
+                                        <tr class="fila-clicable" @onclick="() => IrACentro(centro.CentroNombre)">
                                             <td>@centro.CentroNombre</td>
                                             <td>@centro.ClienteNombre</td>
                                             <td><Badge Tono="TonoBadge.Peligro">@centro.DocumentosVencidos</Badge></td>
@@ -120,7 +121,7 @@
                                 <tbody>
                                     @foreach (var empresa in _desglose.EmpresasEnRiesgo)
                                     {
-                                        <tr>
+                                        <tr class="fila-clicable" @onclick="() => IrAEmpresa(empresa.EmpresaRazonSocial)">
                                             <td>@empresa.EmpresaRazonSocial</td>
                                             <td><Badge Tono="TonoBadge.Peligro">@empresa.DocumentosVencidos</Badge></td>
                                             <td><Badge Tono="TonoBadge.Advertencia">@empresa.DocumentosUrgentes</Badge></td>

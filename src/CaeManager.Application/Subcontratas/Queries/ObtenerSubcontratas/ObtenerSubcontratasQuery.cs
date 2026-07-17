@@ -9,12 +9,16 @@ public record ObtenerSubcontratasQuery(string? Busqueda, int Pagina = 1, int Tam
 
 public record SubcontrataListaDto(Guid Id, string RazonSocial, DateTime CreadoEnUtc);
 
-public class ObtenerSubcontratasQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerSubcontratasQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerSubcontratasQuery, ResultadoPaginado<SubcontrataListaDto>>
 {
     public async Task<ResultadoPaginado<SubcontrataListaDto>> Handle(ObtenerSubcontratasQuery request, CancellationToken cancellationToken)
     {
         var consulta = dbContext.Subcontratas.AsQueryable();
+
+        var subcontrataIdsVisibles = await alcanceDatos.ObtenerSubcontrataIdsVisiblesAsync(cancellationToken);
+        if (subcontrataIdsVisibles is not null)
+            consulta = consulta.Where(s => subcontrataIdsVisibles.Contains(s.Id));
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {

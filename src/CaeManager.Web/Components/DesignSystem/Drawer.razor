@@ -6,8 +6,8 @@
 *@
 @if (Visible)
 {
-    <div class="drawer-superposicion" @onclick="ManejarClicSuperposicionAsync">
-        <div class="drawer-panel" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId">
+    <div class="drawer-superposicion" @onmousedown="() => _mouseDownEnSuperposicion = true" @onclick="ManejarClicSuperposicionAsync">
+        <div class="drawer-panel" @onmousedown="() => _mouseDownEnSuperposicion = false" @onmousedown:stopPropagation="true" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId">
             <div class="drawer-header">
                 <h2 id="@_tituloId">@Titulo</h2>
                 <button type="button" class="drawer-cerrar" aria-label="Cerrar" @onclick="CerrarAsync">×</button>
@@ -40,7 +40,18 @@
     /// </summary>
     [Parameter] public bool CerrarAlHacerClicFuera { get; set; } = true;
 
+    /// <summary>
+    /// True solo si el mousedown que originó el click en curso empezó en la
+    /// superposición (no en el panel). Evita cerrar el drawer cuando el
+    /// usuario selecciona texto arrastrando desde dentro del panel y suelta
+    /// el clic fuera — el evento "click" del navegador se dispara igualmente
+    /// sobre la superposición en ese caso, aunque el gesto no fuera un
+    /// verdadero "clic fuera".
+    /// </summary>
+    private bool _mouseDownEnSuperposicion;
+
     private Task CerrarAsync() => VisibleChanged.InvokeAsync(false);
 
-    private Task ManejarClicSuperposicionAsync() => CerrarAlHacerClicFuera ? CerrarAsync() : Task.CompletedTask;
+    private Task ManejarClicSuperposicionAsync() =>
+        CerrarAlHacerClicFuera && _mouseDownEnSuperposicion ? CerrarAsync() : Task.CompletedTask;
 }
