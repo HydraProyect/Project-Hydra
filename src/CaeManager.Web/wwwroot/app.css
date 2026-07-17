@@ -1,0 +1,12 @@
+/* Overrides mínimos que no encajan como CSS aislado de un componente. */
+
+.blazor-error-boundary {
+    background-color: var(--color-danger-500);
+    color: var(--color-neutral-0);
+    padding: var(--space-4) var(--space-4) var(--space-4) var(--space-8);
+    border-radius: var(--radius-md);
+}
+
+.blazor-error-boundary::after {
+    content: "No pudimos cargar esta sección. Intenta nuevamente en unos segundos.";
+}

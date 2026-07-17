@@ -1,0 +1,174 @@
+@page "/trabajadores"
+@rendermode InteractiveServer
+@using CaeManager.Application.Trabajadores.Commands.CrearTrabajador
+@using CaeManager.Application.Trabajadores.Commands.EditarTrabajador
+@using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
+@using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector
+@using CaeManager.Application.Common
+@using FluentValidation
+@using MediatR
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject ICurrentUserService CurrentUserService
+
+<PageTitle>Trabajadores — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Trabajadores</h1>
+        <Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoTexto Placeholder="Buscar por nombre, apellidos o DNI…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <div class="filtro-empresa">
+            <CampoSelect Etiqueta="Empresa" Valor="@_filtroEmpresaId" ValorChanged="FiltrarPorEmpresaAsync">
+                <option value="">Todas las empresas</option>
+                @foreach (var empresa in _empresasDisponibles)
+                {
+                    <option value="@empresa.Id">@empresa.RazonSocial</option>
+                }
+            </CampoSelect>
+        </div>
+        <div class="filtro-empresa">
+            <CampoSelect Etiqueta="Subcontrata" Valor="@_filtroSubcontrataId" ValorChanged="FiltrarPorSubcontrataAsync">
+                <option value="">Todas las subcontratas</option>
+                @foreach (var subcontrata in _subcontratasDisponibles)
+                {
+                    <option value="@subcontrata.Id">@subcontrata.RazonSocial</option>
+                }
+            </CampoSelect>
+        </div>
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar los trabajadores" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+            <QuickGrid @ref="_grid" TGridItem="TrabajadorListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
+                <PropertyColumn Property="@(t => t.Apellidos)" Sortable="true" />
+                <PropertyColumn Property="@(t => t.Nombre)" Sortable="true" />
+                <PropertyColumn Property="@(t => t.Dni)" Title="DNI" />
+                <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="Empresa / Subcontrata" Sortable="true" />
+                <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
+                        Editar
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, NombreCompleto(context))">
+                        Eliminar
+                    </Boton>
+                </TemplateColumn>
+            </QuickGrid>
+
+            <div class="paginador">
+                <Paginator State="_paginacion" />
+            </div>
+        </div>
+
+        @if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio Titulo="Aún no hay trabajadores" Descripcion="Crea el primero para empezar a gestionar su documentación.">
+                <Accion>
+                    <Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+    }
+</div>
+
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo trabajador" : "Editar trabajador")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        @if (_editandoId is null)
+        {
+            <div class="campo">
+                <label>Empleador</label>
+                <div class="lista-seleccion-multiple">
+                    <label class="campo-checkbox">
+                        <input type="radio" name="tipo-empleador" checked="@(_tipoEmpleador == "empresa")" @onchange="SeleccionarTipoEmpresa" />
+                        Empresa
+                    </label>
+                    <label class="campo-checkbox">
+                        <input type="radio" name="tipo-empleador" checked="@(_tipoEmpleador == "subcontrata")" @onchange="SeleccionarTipoSubcontrata" />
+                        Subcontrata
+                    </label>
+                </div>
+            </div>
+
+            @if (_tipoEmpleador == "empresa")
+            {
+                <CampoSelect Etiqueta="Empresa" Valor="@_empresaId" ValorChanged="v => _empresaId = v">
+                    <option value="">Selecciona una empresa…</option>
+                    @foreach (var empresa in _empresasDisponibles)
+                    {
+                        <option value="@empresa.Id">@empresa.RazonSocial</option>
+                    }
+                </CampoSelect>
+            }
+            else
+            {
+                <CampoSelect Etiqueta="Subcontrata" Valor="@_subcontrataId" ValorChanged="v => _subcontrataId = v">
+                    <option value="">Selecciona una subcontrata…</option>
+                    @foreach (var subcontrata in _subcontratasDisponibles)
+                    {
+                        <option value="@subcontrata.Id">@subcontrata.RazonSocial</option>
+                    }
+                </CampoSelect>
+            }
+
+            <CampoTexto Etiqueta="Documento de identidad (DNI, NIE, TIE o pasaporte)" Valor="@_dni" ValorChanged="v => _dni = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Dni))" />
+            @if (PistaDni is not null)
+            {
+                <p class="pista-documento pista-documento-@ToneDni">@PistaDni</p>
+            }
+        }
+        else
+        {
+            <div class="campo">
+                <label>@(_tipoEmpleador == "subcontrata" ? "Subcontrata" : "Empresa")</label>
+                <span>@_empleadorNombreSoloLectura</span>
+            </div>
+            <div class="campo">
+                <label>DNI</label>
+                <span>@_dni</span>
+            </div>
+        }
+
+        <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Nombre))" />
+        <CampoTexto Etiqueta="Apellidos" Valor="@_apellidos" ValorChanged="v => _apellidos = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Apellidos))" />
+        <CampoTexto Etiqueta="Fecha de nacimiento" Type="date" Valor="@_fechaNacimiento" ValorChanged="v => _fechaNacimiento = v" />
+        <CampoTexto Etiqueta="Email" Type="email" Valor="@_email" ValorChanged="v => _email = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Email))" />
+        <CampoTextarea Etiqueta="Observaciones" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+            Guardar
+        </Boton>
+    </Pie>
+</Drawer>
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarVisible"
+    VisibleChanged="v => _confirmarEliminarVisible = v"
+    Titulo="@($"¿Eliminar a {_nombreAEliminar}?")"
+    Mensaje="Se ocultará de las listas activas. Podrás recuperarlo desde Auditoría."
+    EnProgreso="_eliminando"
+    OnConfirmar="ConfirmarEliminarAsync" />

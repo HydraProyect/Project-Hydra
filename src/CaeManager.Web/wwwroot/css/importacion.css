@@ -1,0 +1,55 @@
+/*
+  Estilos compartidos por las páginas de importación masiva (el asistente
+  Analizar → revisar plan → confirmar → reporte). Ver CODING_STANDARDS.md:
+  una vez un patrón se repite en un segundo módulo, se extrae en vez de
+  duplicarse por página. Usado por /importacion (Fase 5) y
+  /clientes/importar.
+*/
+
+.descripcion-importacion {
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+    margin-bottom: var(--space-5);
+    max-width: 720px;
+}
+
+.tarjeta-importacion {
+    margin-bottom: var(--space-5);
+    max-width: 900px;
+}
+
+.nombre-archivo {
+    margin-top: var(--space-2);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.rejilla-resumen-importacion {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+}
+
+.titulo-seccion-importacion {
+    font: var(--font-heading-sm);
+    margin: var(--space-5) 0 var(--space-3);
+}
+
+.acciones-formulario {
+    margin-top: var(--space-5);
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.enlace-volver {
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.enlace-volver:hover {
+    color: var(--color-text);
+    text-decoration: underline;
+}

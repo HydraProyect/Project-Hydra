@@ -1,0 +1,172 @@
+/*
+  Design tokens de CAE Manager (ver DESIGN_SYSTEM.md — identidad Geseme).
+  Fuente de verdad única: ningún componente hardcodea un color, tamaño de
+  fuente o espaciado — todo se referencia a través de estas variables.
+  Los nombres de variable se mantienen estables entre rediseños (más de 50
+  archivos los consumen); lo que cambia entre versiones del sistema es su
+  valor, no su nombre.
+*/
+
+:root {
+  /* Color — primario (Geseme) */
+  --color-primary-50: #ebf2f8;
+  --color-primary-100: #d3e3f0;
+  --color-primary-300: #7ba3c7;
+  --color-primary-500: #0d4e89;
+  --color-primary-600: #0a3e6f;
+  --color-primary-700: #072c4e;
+
+  /* Color — secundario (acento teal Geseme) */
+  --color-secondary-50: #eafafb;
+  --color-secondary-100: #c7eff2;
+  --color-secondary-300: #7dd9e1;
+  --color-secondary-500: #2fb8c6;
+  --color-secondary-600: #229ca9;
+
+  /* Color — neutro */
+  --color-neutral-0: #ffffff;
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e5e7eb;
+  --color-neutral-300: #d1d5db;
+  --color-neutral-500: #6b7280;
+  --color-neutral-700: #374151;
+  --color-neutral-900: #1f2937;
+
+  /* Color — semántico (semáforo de vigencia documental) */
+  --color-success-50: #eafbf1;
+  --color-success-500: #22c55e;
+  --color-warning-50: #fff8eb;
+  --color-warning-500: #f59e0b;
+  --color-danger-50: #fef0f0;
+  --color-danger-500: #ef4444;
+  --color-info-50: var(--color-secondary-50);
+  --color-info-500: var(--color-secondary-500);
+
+  /* Superficie / texto (tema claro por defecto) */
+  --color-bg: var(--color-neutral-50);
+  --color-surface: var(--color-neutral-0);
+  --color-surface-hover: var(--color-neutral-100);
+  --color-text: var(--color-neutral-900);
+  --color-text-muted: var(--color-neutral-500);
+  --color-border: var(--color-neutral-200);
+
+  /* Tipografía */
+  --font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-heading-xl: 700 2.25rem/2.75rem var(--font-family);   /* H1 36/44 */
+  --font-heading-lg: 700 1.875rem/2.375rem var(--font-family); /* H2 30/38 */
+  --font-heading-md: 600 1.5rem/2rem var(--font-family);       /* H3 24/32 */
+  --font-heading-sm: 600 1.25rem/1.75rem var(--font-family);   /* H4 20/28 */
+  --font-body-lg: 400 1rem/1.5rem var(--font-family);          /* Body 16/24 */
+  --font-body-md: 400 0.875rem/1.25rem var(--font-family);     /* Small 14/20 */
+  --font-body-sm: 500 0.75rem/1rem var(--font-family);         /* Caption 12/16 */
+  --font-label-md: 600 0.8125rem/1rem var(--font-family);
+
+  /* Alias con los nombres exactos del brief de marca — mismo valor que su
+     equivalente de arriba, para código nuevo que quiera referenciar la
+     escala H1–H4/Body/Small/Caption directamente. */
+  --font-h1: var(--font-heading-xl);
+  --font-h2: var(--font-heading-lg);
+  --font-h3: var(--font-heading-md);
+  --font-h4: var(--font-heading-sm);
+  --font-body: var(--font-body-lg);
+  --font-small: var(--font-body-md);
+  --font-caption: var(--font-body-sm);
+
+  /* Espaciado (escala de 8px con medios pasos donde hacen falta) */
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
+  --space-24: 6rem;     /* 96px */
+
+  /* Radius / borde / elevación */
+  --radius-sm: 8px;       /* chips, elementos pequeños */
+  --radius-md: 12px;      /* botones, inputs */
+  --radius-card-sm: 16px; /* tarjetas pequeñas / KPI */
+  --radius-lg: 20px;      /* tarjetas principales, diálogos, drawers */
+  --radius-full: 9999px;  /* badges, pills, avatares */
+
+  --border-default: 1px solid var(--color-border);
+  --border-focus: 2px solid var(--color-primary-500);
+
+  --shadow-card: 0 8px 30px rgba(15, 23, 42, 0.05);
+  --shadow-overlay: 0 20px 60px rgba(15, 23, 42, 0.14);
+
+  /* Motion — sutil, nunca decorativa (ver DESIGN_SYSTEM.md) */
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 250ms ease;
+
+  /* Layout */
+  --sidebar-width: 260px;
+  --navbar-height: 64px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0b1220;
+    --color-surface: #111827;
+    --color-surface-hover: #1a2333;
+    --color-text: #f1f5f9;
+    --color-text-muted: #94a3b8;
+    --color-border: #263041;
+
+    --color-success-50: #052e1a;
+    --color-warning-50: #3a2405;
+    --color-danger-50: #3a0a0a;
+    --color-secondary-50: #04292c;
+
+    --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.35);
+    --shadow-overlay: 0 20px 60px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/*
+  Selector de tema manual (ver SelectorTema.razor): sobrescribe la
+  preferencia del sistema operativo cuando el usuario elige explícitamente
+  Claro u Oscuro en vez de "Sistema". Mismos valores que el bloque
+  @media de arriba — se repiten aquí (en vez de compartir una regla)
+  porque un atributo en :root siempre debe ganar a un @media, y ambos
+  necesitan existir por separado para que eso sea cierto en los dos
+  sentidos (Oscuro con SO en claro, y Claro con SO en oscuro).
+*/
+:root[data-theme='oscuro'] {
+  --color-bg: #0b1220;
+  --color-surface: #111827;
+  --color-surface-hover: #1a2333;
+  --color-text: #f1f5f9;
+  --color-text-muted: #94a3b8;
+  --color-border: #263041;
+
+  --color-success-50: #052e1a;
+  --color-warning-50: #3a2405;
+  --color-danger-50: #3a0a0a;
+  --color-secondary-50: #04292c;
+
+  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.35);
+  --shadow-overlay: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme='claro'] {
+  --color-bg: var(--color-neutral-50);
+  --color-surface: var(--color-neutral-0);
+  --color-surface-hover: var(--color-neutral-100);
+  --color-text: var(--color-neutral-900);
+  --color-text-muted: var(--color-neutral-500);
+  --color-border: var(--color-neutral-200);
+
+  --color-success-50: #eafbf1;
+  --color-warning-50: #fff8eb;
+  --color-danger-50: #fef0f0;
+  --color-secondary-50: #eafafb;
+
+  --shadow-card: 0 8px 30px rgba(15, 23, 42, 0.05);
+  --shadow-overlay: 0 20px 60px rgba(15, 23, 42, 0.14);
+}

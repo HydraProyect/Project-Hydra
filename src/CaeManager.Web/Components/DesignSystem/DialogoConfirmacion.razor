@@ -1,0 +1,31 @@
+@*
+    Patrón estándar de confirmación destructiva (ver UX_PATTERNS.md, "Eliminar").
+    Nunca usar confirm() del navegador — siempre este diálogo.
+*@
+<Modal Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" CerrarAlHacerClicFuera="!EnProgreso">
+    <ChildContent>
+        <p>@Mensaje</p>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="EnProgreso" OnClick="CancelarAsync">
+            Cancelar
+        </Boton>
+        <Boton Variante="VarianteBoton.Destructivo" Cargando="EnProgreso" OnClick="ConfirmarAsync">
+            @TextoBotonConfirmar
+        </Boton>
+    </Pie>
+</Modal>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public string Mensaje { get; set; } = string.Empty;
+    [Parameter] public string TextoBotonConfirmar { get; set; } = "Eliminar";
+    [Parameter] public bool EnProgreso { get; set; }
+    [Parameter] public EventCallback OnConfirmar { get; set; }
+
+    private Task CancelarAsync() => VisibleChanged.InvokeAsync(false);
+
+    private Task ConfirmarAsync() => OnConfirmar.InvokeAsync();
+}

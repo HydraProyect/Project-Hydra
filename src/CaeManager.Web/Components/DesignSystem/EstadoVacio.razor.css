@@ -1,0 +1,24 @@
+.estado-vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-2);
+    padding: var(--space-12) var(--space-6);
+    color: var(--color-text-muted);
+}
+
+.estado-vacio-icono {
+    font-size: 2.5rem;
+    margin-bottom: var(--space-2);
+    color: var(--color-neutral-300);
+}
+
+.estado-vacio h3 {
+    font: var(--font-heading-md);
+    color: var(--color-text);
+}
+
+.estado-vacio-accion {
+    margin-top: var(--space-4);
+}

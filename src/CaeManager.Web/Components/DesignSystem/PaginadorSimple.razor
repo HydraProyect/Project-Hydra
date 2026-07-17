@@ -1,0 +1,28 @@
+@*
+    Paginador Anterior/Siguiente reutilizable para listas que no usan
+    QuickGrid (ya sea porque la Query no está paginada en servidor y se
+    pagina en memoria, o porque el listado es un patrón de solo lectura
+    como Auditoría). Para tablas con Query paginada en servidor se prefiere
+    QuickGrid + Paginator (ver Clientes, Trabajadores, etc.).
+*@
+<div class="paginador paginador-simple">
+    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+           Deshabilitado="@(PaginaActual <= 1)" OnClick="() => CambiarPaginaAsync(PaginaActual - 1)">
+        ← Anterior
+    </Boton>
+    <span class="paginador-texto">Página @PaginaActual de @Math.Max(TotalPaginas, 1) — @TotalElementos @Etiqueta</span>
+    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+           Deshabilitado="@(PaginaActual >= TotalPaginas)" OnClick="() => CambiarPaginaAsync(PaginaActual + 1)">
+        Siguiente →
+    </Boton>
+</div>
+
+@code {
+    [Parameter] public int PaginaActual { get; set; } = 1;
+    [Parameter] public int TotalPaginas { get; set; }
+    [Parameter] public int TotalElementos { get; set; }
+    [Parameter] public string Etiqueta { get; set; } = "elemento(s)";
+    [Parameter] public EventCallback<int> PaginaActualChanged { get; set; }
+
+    private Task CambiarPaginaAsync(int pagina) => PaginaActualChanged.InvokeAsync(pagina);
+}

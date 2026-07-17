@@ -1,0 +1,10 @@
+<div class="tarjeta-metrica tarjeta-metrica-@Tono.ToString().ToLowerInvariant()">
+    <span class="tarjeta-metrica-etiqueta">@Etiqueta</span>
+    <span class="tarjeta-metrica-valor">@Valor</span>
+</div>
+
+@code {
+    [Parameter] public string Etiqueta { get; set; } = string.Empty;
+    [Parameter] public string Valor { get; set; } = string.Empty;
+    [Parameter] public TonoBadge Tono { get; set; } = TonoBadge.Neutro;
+}

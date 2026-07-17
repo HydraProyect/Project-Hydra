@@ -1,0 +1,27 @@
+.esqueleto-lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.esqueleto-fila {
+    height: 44px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(
+        90deg,
+        var(--color-neutral-100) 25%,
+        var(--color-neutral-200) 37%,
+        var(--color-neutral-100) 63%
+    );
+    background-size: 400% 100%;
+    animation: brillo 1.4s ease infinite;
+}
+
+@keyframes brillo {
+    0% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0 50%;
+    }
+}

@@ -1,0 +1,304 @@
+using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
+using CaeManager.Application.Subcontratas.Commands.EditarSubcontrata;
+using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
+using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcontrata;
+using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
+using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
+using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
+using CaeManager.Web.Components.DesignSystem;
+using FluentValidation;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.QuickGrid;
+
+namespace CaeManager.Web.Features.Subcontratas.Pages;
+
+public partial class Subcontratas : ComponentBase
+{
+    private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
+    private QuickGrid<SubcontrataListaDto>? _grid;
+
+    private string _busqueda = string.Empty;
+    private bool _cargando = true;
+    private bool _errorCarga;
+    private int _totalElementos;
+
+    private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
+    private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
+
+    private bool _drawerVisible;
+    private Guid? _editandoId;
+    private string _razonSocial = string.Empty;
+    private HashSet<Guid> _clienteIdsSeleccionados = [];
+    private HashSet<Guid> _empresaIdsSeleccionados = [];
+    private bool _guardando;
+    private string? _mensajeErrorFormulario;
+    private Dictionary<string, string> _erroresCampo = new();
+
+    private bool _confirmarEliminarVisible;
+    private Guid _idAEliminar;
+    private string _razonSocialAEliminar = string.Empty;
+    private bool _eliminando;
+
+    private string _credencialUrl = string.Empty;
+    private string _credencialCampoEmpresa = string.Empty;
+    private string _credencialUsuario = string.Empty;
+    private string _credencialContrasena = string.Empty;
+    private bool _guardandoCredenciales;
+    private string? _mensajeErrorCredenciales;
+
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? TerminoBusquedaInicial { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(TerminoBusquedaInicial))
+            _busqueda = TerminoBusquedaInicial;
+    }
+
+    private async ValueTask<GridItemsProviderResult<SubcontrataListaDto>> ProveerElementosAsync(
+        GridItemsProviderRequest<SubcontrataListaDto> request)
+    {
+        _cargando = true;
+        _errorCarga = false;
+
+        try
+        {
+            var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+
+            var resultado = await Mediator.Send(new ObtenerSubcontratasQuery(
+                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+                Pagina: pagina,
+                TamanoPagina: _paginacion.ItemsPerPage));
+
+            _totalElementos = resultado.TotalElementos;
+
+            return GridItemsProviderResult.From(resultado.Elementos.ToList(), resultado.TotalElementos);
+        }
+        catch (Exception)
+        {
+            _errorCarga = true;
+            return GridItemsProviderResult.From(new List<SubcontrataListaDto>(), 0);
+        }
+        finally
+        {
+            _cargando = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task BuscarAsync(string valor)
+    {
+        _busqueda = valor;
+        await RecargarAsync();
+    }
+
+    private async Task RecargarAsync()
+    {
+        await _paginacion.SetCurrentPageIndexAsync(0);
+
+        if (_grid is not null)
+            await _grid.RefreshDataAsync();
+
+        StateHasChanged();
+    }
+
+    private async Task AbrirCrear()
+    {
+        _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+        _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+
+        _editandoId = null;
+        _razonSocial = string.Empty;
+        _clienteIdsSeleccionados = [];
+        _empresaIdsSeleccionados = [];
+        _erroresCampo = new Dictionary<string, string>();
+        _mensajeErrorFormulario = null;
+        _credencialUrl = string.Empty;
+        _credencialCampoEmpresa = string.Empty;
+        _credencialUsuario = string.Empty;
+        _credencialContrasena = string.Empty;
+        _mensajeErrorCredenciales = null;
+        _drawerVisible = true;
+    }
+
+    private async Task AbrirEditarAsync(Guid id)
+    {
+        _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+        _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+
+        var subcontrata = await Mediator.Send(new ObtenerSubcontrataPorIdQuery(id));
+        if (subcontrata is null)
+        {
+            ToastService.Mostrar("No encontramos esta subcontrata. Puede que ya se haya eliminado.", TonoToast.Error);
+            await RecargarAsync();
+            return;
+        }
+
+        _editandoId = subcontrata.Id;
+        _razonSocial = subcontrata.RazonSocial;
+        _clienteIdsSeleccionados = subcontrata.ClienteIds.ToHashSet();
+        _empresaIdsSeleccionados = subcontrata.EmpresaIds.ToHashSet();
+        _erroresCampo = new Dictionary<string, string>();
+        _mensajeErrorFormulario = null;
+
+        var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(subcontrata.Id));
+        _credencialUrl = credencial?.UrlAcceso ?? string.Empty;
+        _credencialCampoEmpresa = credencial?.CampoEmpresa ?? string.Empty;
+        _credencialUsuario = credencial?.Usuario ?? string.Empty;
+        _credencialContrasena = credencial?.Contrasena ?? string.Empty;
+        _mensajeErrorCredenciales = null;
+
+        _drawerVisible = true;
+    }
+
+    private async Task GuardarCredencialesAsync()
+    {
+        if (_editandoId is null) return;
+
+        _guardandoCredenciales = true;
+        _mensajeErrorCredenciales = null;
+
+        try
+        {
+            var urlAcceso = string.IsNullOrWhiteSpace(_credencialUrl) ? null : _credencialUrl;
+            var campoEmpresa = string.IsNullOrWhiteSpace(_credencialCampoEmpresa) ? null : _credencialCampoEmpresa;
+            var usuario = string.IsNullOrWhiteSpace(_credencialUsuario) ? null : _credencialUsuario;
+            var contrasena = string.IsNullOrWhiteSpace(_credencialContrasena) ? null : _credencialContrasena;
+
+            var resultado = await Mediator.Send(
+                new GuardarCredencialAccesoSubcontrataCommand(_editandoId.Value, urlAcceso, campoEmpresa, usuario, contrasena));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorCredenciales = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Credenciales guardadas correctamente.", TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            _mensajeErrorCredenciales = "No pudimos guardar las credenciales. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _guardandoCredenciales = false;
+        }
+    }
+
+    private void AlternarCliente(Guid clienteId, bool seleccionado)
+    {
+        if (seleccionado)
+            _clienteIdsSeleccionados.Add(clienteId);
+        else
+            _clienteIdsSeleccionados.Remove(clienteId);
+    }
+
+    private void AlternarEmpresa(Guid empresaId, bool seleccionado)
+    {
+        if (seleccionado)
+            _empresaIdsSeleccionados.Add(empresaId);
+        else
+            _empresaIdsSeleccionados.Remove(empresaId);
+    }
+
+    private Task CerrarDrawerAsync(bool visible)
+    {
+        _drawerVisible = visible;
+        return Task.CompletedTask;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _guardando = true;
+        _mensajeErrorFormulario = null;
+        _erroresCampo = new Dictionary<string, string>();
+
+        try
+        {
+            string? mensajeError;
+
+            var clienteIds = _clienteIdsSeleccionados.ToList();
+            var empresaIds = _empresaIdsSeleccionados.ToList();
+
+            if (_editandoId is null)
+            {
+                var resultado = await Mediator.Send(new CrearSubcontrataCommand(_razonSocial, clienteIds, empresaIds));
+                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+            }
+            else
+            {
+                var resultado = await Mediator.Send(new EditarSubcontrataCommand(_editandoId.Value, _razonSocial, clienteIds, empresaIds));
+                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+            }
+
+            if (mensajeError is not null)
+            {
+                _mensajeErrorFormulario = mensajeError;
+                return;
+            }
+
+            ToastService.Mostrar(
+                _editandoId is null ? "Subcontrata creada correctamente." : "Subcontrata actualizada correctamente.",
+                TonoToast.Exito);
+
+            _drawerVisible = false;
+            await RecargarAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _erroresCampo = ex.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+        }
+        catch (Exception)
+        {
+            _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
+
+    private void AbrirEliminar(Guid id, string razonSocial)
+    {
+        _idAEliminar = id;
+        _razonSocialAEliminar = razonSocial;
+        _confirmarEliminarVisible = true;
+    }
+
+    private async Task ConfirmarEliminarAsync()
+    {
+        _eliminando = true;
+
+        try
+        {
+            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
+            var resultado = await Mediator.Send(new EliminarSubcontrataCommand(_idAEliminar, usuarioId ?? Guid.Empty));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            }
+            else
+            {
+                ToastService.Mostrar("Subcontrata eliminada correctamente.", TonoToast.Exito);
+                _confirmarEliminarVisible = false;
+                await RecargarAsync();
+            }
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos eliminar la subcontrata. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            _eliminando = false;
+        }
+    }
+}

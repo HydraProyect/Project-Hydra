@@ -1,0 +1,39 @@
+@page "/roles"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+
+<PageTitle>Roles — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <h1 class="titulo-pagina">Roles</h1>
+    <p class="descripcion-roles">
+        Los 4 roles del sistema están fijos: cada uno corresponde a un nivel de visibilidad ya
+        integrado en Dashboard y en los módulos de administración. No es un catálogo editable —
+        para dar de alta usuarios y asignarles un rol, ve a <a href="/usuarios">Usuarios</a>.
+    </p>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar los roles" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else
+    {
+        <div class="rejilla-roles">
+            @foreach (var rol in _roles)
+            {
+                <Tarjeta Titulo="@rol.Nombre">
+                    <p class="descripcion-rol">@rol.Descripcion</p>
+                    <span class="contador-usuarios">@rol.CantidadUsuarios usuario(s)</span>
+                </Tarjeta>
+            }
+        </div>
+    }
+</div>

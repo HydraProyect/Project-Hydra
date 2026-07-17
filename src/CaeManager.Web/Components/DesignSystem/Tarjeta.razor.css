@@ -1,0 +1,22 @@
+.tarjeta {
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+}
+
+.tarjeta-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: var(--border-default);
+}
+
+.tarjeta-titulo {
+    font: var(--font-heading-md);
+}
+
+.tarjeta-contenido {
+    padding: var(--space-5);
+}

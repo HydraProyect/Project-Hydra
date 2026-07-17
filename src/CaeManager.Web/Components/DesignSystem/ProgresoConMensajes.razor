@@ -1,0 +1,75 @@
+@*
+    Barra de progreso indeterminada + mensajes contextuales rotativos, para
+    operaciones que tardan varios segundos y tienen varias etapas internas
+    (p. ej. una importación masiva) — sustituye al esqueleto genérico
+    (EstadoCargando) cuando comunicar "en qué punto va" hace la espera más
+    llevadera. La barra es deliberadamente indeterminada (no un porcentaje
+    real): el backend no reporta progreso granular, y fingir un porcentaje
+    exacto sería engañoso.
+*@
+@implements IAsyncDisposable
+
+@if (Visible)
+{
+    <div class="progreso-carga">
+        <div class="progreso-barra">
+            <div class="progreso-barra-relleno"></div>
+        </div>
+        <p class="progreso-mensaje">@_mensajeActual</p>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public IReadOnlyList<string> Mensajes { get; set; } = ["Cargando…"];
+    [Parameter] public int IntervaloMs { get; set; } = 1400;
+
+    private System.Timers.Timer? _temporizador;
+    private int _indice;
+    private string _mensajeActual = string.Empty;
+    private bool _visibleAnterior;
+
+    protected override void OnParametersSet()
+    {
+        if (Visible && !_visibleAnterior)
+            IniciarCiclo();
+        else if (!Visible && _visibleAnterior)
+            DetenerCiclo();
+
+        _visibleAnterior = Visible;
+    }
+
+    private void IniciarCiclo()
+    {
+        _indice = 0;
+        _mensajeActual = Mensajes.Count > 0 ? Mensajes[0] : string.Empty;
+
+        DetenerCiclo();
+
+        if (Mensajes.Count <= 1) return;
+
+        _temporizador = new System.Timers.Timer(IntervaloMs) { AutoReset = true };
+        _temporizador.Elapsed += (_, _) => AvanzarMensaje();
+        _temporizador.Start();
+    }
+
+    private void AvanzarMensaje()
+    {
+        _indice = (_indice + 1) % Mensajes.Count;
+        _mensajeActual = Mensajes[_indice];
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void DetenerCiclo()
+    {
+        _temporizador?.Stop();
+        _temporizador?.Dispose();
+        _temporizador = null;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        DetenerCiclo();
+        return ValueTask.CompletedTask;
+    }
+}

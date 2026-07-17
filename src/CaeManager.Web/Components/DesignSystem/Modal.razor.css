@@ -1,0 +1,60 @@
+.modal-superposicion {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+    padding: var(--space-4);
+}
+
+.modal-contenido {
+    background-color: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-overlay);
+    width: 100%;
+    max-width: 520px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-5);
+    border-bottom: var(--border-default);
+}
+
+.modal-header h2 {
+    font: var(--font-heading-md);
+}
+
+.modal-cerrar {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--space-1);
+}
+
+.modal-cerrar:hover {
+    color: var(--color-text);
+}
+
+.modal-cuerpo {
+    padding: var(--space-5);
+    overflow-y: auto;
+}
+
+.modal-pie {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-top: var(--border-default);
+}

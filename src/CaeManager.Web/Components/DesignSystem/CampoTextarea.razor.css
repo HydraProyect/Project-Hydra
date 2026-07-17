@@ -1,0 +1,22 @@
+.campo-textarea {
+    min-height: 96px;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    border: var(--border-default);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+    resize: vertical;
+    transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.campo-textarea:focus {
+    outline: var(--border-focus);
+    outline-offset: -1px;
+    box-shadow: 0 0 0 4px var(--color-primary-100);
+}
+
+.campo-textarea:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
