@@ -1,0 +1,70 @@
+.nav-principal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-3);
+}
+
+/*
+    ::deep es obligatorio: <NavLink> es un componente hijo de Blazor, no una
+    etiqueta escrita directamente en este archivo — el <a> que renderiza
+    internamente no recibe el atributo de scope de CSS isolation de
+    NavMenu.razor. Sin ::deep estos selectores nunca matchean (mismo bug real
+    ya encontrado y documentado en Login.razor con <InputText>).
+*/
+.nav-principal ::deep .nav-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: 40px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+    text-decoration: none;
+    position: relative;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast),
+        border-color var(--transition-fast), box-shadow var(--transition-fast), transform 100ms ease;
+}
+
+.nav-principal ::deep .nav-item .icono {
+    color: var(--color-text-muted);
+    transition: color var(--transition-fast);
+}
+
+.nav-principal ::deep .nav-item:hover {
+    background-color: var(--color-surface-hover);
+    border-color: var(--color-border);
+    color: var(--color-text);
+    box-shadow: var(--shadow-card);
+}
+
+.nav-principal ::deep .nav-item:hover .icono {
+    color: var(--color-text);
+}
+
+/* Feedback táctil: al pulsar, el botón "cede" ligeramente y suelta al soltar. */
+.nav-principal ::deep .nav-item:active {
+    transform: scale(0.97);
+    background-color: var(--color-surface-hover);
+    box-shadow: none;
+    transition-duration: 80ms;
+}
+
+.nav-principal ::deep .nav-item.active {
+    background-color: var(--color-primary-50);
+    border-color: var(--color-primary-100);
+    color: var(--color-primary-700);
+    font-weight: 600;
+}
+
+.nav-principal ::deep .nav-item.active .icono {
+    color: var(--color-primary-600);
+}
+
+.nav-principal ::deep .nav-item.active:hover {
+    background-color: var(--color-primary-100);
+    border-color: var(--color-primary-100);
+}

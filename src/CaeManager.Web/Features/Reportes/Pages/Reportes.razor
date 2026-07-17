@@ -1,0 +1,110 @@
+@page "/reportes"
+@rendermode InteractiveServer
+@using CaeManager.Application.Reportes.Queries
+@using CaeManager.Web.Features.Documentos
+@using MediatR
+@inject IMediator Mediator
+
+<PageTitle>Reportes — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Reportes</h1>
+        <div class="acciones-cabecera">
+            <a class="enlace-exportar" href="/reportes/documentos.xlsx">Exportar a Excel</a>
+            <a class="enlace-exportar" href="/reportes/documentos.pdf">Exportar a PDF</a>
+        </div>
+    </div>
+
+    <p class="descripcion-reporte">
+        Reporte de vigencia documental: todos los documentos registrados con su estado actual,
+        incluidos los vigentes — el mismo cálculo de semáforo que usan Dashboard, Alertas y Calendario.
+    </p>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar el reporte" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="6" />
+    }
+    else if (_filas.Count == 0)
+    {
+        <EstadoVacio Titulo="No hay documentos registrados todavía" Descripcion="Cuando se carguen documentos, aparecerán aquí." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Estado</th>
+                    <th>Trabajador</th>
+                    <th>Empresa</th>
+                    <th>Tipo de documento</th>
+                    <th>Vencimiento</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var fila in FilasDePagina)
+                {
+                    <tr>
+                        <td><Badge Tono="EstadoDocumentoUi.Tono(fila.Estado)">@EstadoDocumentoUi.Texto(fila.Estado)</Badge></td>
+                        <td>@fila.TrabajadorNombre</td>
+                        <td>@fila.EmpresaRazonSocial</td>
+                        <td>@fila.TipoDocumentoNombre</td>
+                        <td>@(fila.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_filas.Count"
+                          Etiqueta="documento(s)" PaginaActualChanged="IrAPaginaAsync" />
+    }
+</div>
+
+@code {
+    private const int TamanoPagina = 20;
+
+    private IReadOnlyList<FilaReporteDocumentoDto> _filas = [];
+    private bool _cargando = true;
+    private bool _error;
+    private int _pagina = 1;
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_filas.Count / (double)TamanoPagina));
+    private IReadOnlyList<FilaReporteDocumentoDto> FilasDePagina => _filas.Skip((_pagina - 1) * TamanoPagina).Take(TamanoPagina).ToList();
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private Task IrAPaginaAsync(int pagina)
+    {
+        _pagina = pagina;
+        return Task.CompletedTask;
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+        StateHasChanged();
+
+        try
+        {
+            _filas = await Mediator.Send(new ObtenerReporteDocumentosQuery());
+            _pagina = 1;
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+}

@@ -1,0 +1,47 @@
+@inherits LayoutComponentBase
+
+<div class="shell">
+    <aside class="barra-lateral">
+        <div class="marca">CAE Manager</div>
+        <NavMenu />
+    </aside>
+
+    <div class="area-principal">
+        <header class="barra-superior">
+            <CaeManager.Web.Features.BusquedaGlobal.BotonBuscadorGlobal />
+            <AuthorizeView>
+                <Authorized>
+                    <div class="menu-usuario">
+                        <SelectorTema @rendermode="InteractiveServer" />
+                        <span class="menu-usuario-nombre">@context.User.Identity?.Name</span>
+                        <form method="post" action="/cuenta/cerrar-sesion">
+                            <AntiforgeryToken />
+                            <button type="submit" class="boton-cerrar-sesion">
+                                <Icono Nombre="cerrar-sesion" Tamano="TamanoIcono.Pequeno" /> Cerrar sesión
+                            </button>
+                        </form>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+        </header>
+
+        <main class="contenido">
+            @Body
+        </main>
+    </div>
+</div>
+
+@* Body carga con su propio @rendermode, pero ese modo no se propaga hacia
+   arriba al Layout — todo lo que vive fuera de @Body necesita su propio
+   @rendermode explícito o nunca recibe eventos interactivos (bug real
+   encontrado al construir el buscador global: los toasts llevaban toda la
+   Fase 2 sin funcionar por este mismo motivo, sin que ningún test lo
+   hubiera detectado). *@
+<AnfitrionToasts @rendermode="InteractiveServer" />
+<CaeManager.Web.Features.BusquedaGlobal.BuscadorGlobal @rendermode="InteractiveServer" />
+
+<div id="blazor-error-ui" data-nosnippet>
+    No pudimos completar esa acción.
+    <a href="." class="reload">Recargar</a>
+    <span class="dismiss">🗙</span>
+</div>

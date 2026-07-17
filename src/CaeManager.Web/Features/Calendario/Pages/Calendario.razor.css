@@ -1,0 +1,86 @@
+.calendario-navegacion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+}
+
+.calendario-mes-actual {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.calendario-titulo-mes {
+    font: var(--font-heading-md);
+    text-transform: capitalize;
+    min-width: 10ch;
+    text-align: center;
+}
+
+.enlace-hoy {
+    background: none;
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: var(--space-1) var(--space-3);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.enlace-hoy:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.calendario-rejilla {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background-color: var(--color-neutral-50);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.calendario-cabecera-dia {
+    background-color: var(--color-neutral-50);
+    padding: var(--space-2);
+    text-align: center;
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+}
+
+.calendario-celda {
+    background-color: var(--color-surface);
+    min-height: 84px;
+    padding: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.calendario-celda-vacia {
+    background-color: var(--color-neutral-50);
+}
+
+.calendario-dia-numero {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.calendario-celda-hoy .calendario-dia-numero {
+    color: var(--color-primary-500);
+    font-weight: 700;
+}
+
+.calendario-celda-con-datos {
+    cursor: pointer;
+}
+
+.calendario-celda-con-datos:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.calendario-indicador {
+    align-self: flex-start;
+}

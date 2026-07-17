@@ -1,0 +1,22 @@
+<div class="estado-vacio">
+    @if (Icono is not null)
+    {
+        <div class="estado-vacio-icono" aria-hidden="true">@Icono</div>
+    }
+    <h3>@Titulo</h3>
+    @if (!string.IsNullOrWhiteSpace(Descripcion))
+    {
+        <p>@Descripcion</p>
+    }
+    @if (Accion is not null)
+    {
+        <div class="estado-vacio-accion">@Accion</div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public string? Descripcion { get; set; }
+    [Parameter] public RenderFragment? Accion { get; set; }
+    [Parameter] public RenderFragment? Icono { get; set; }
+}

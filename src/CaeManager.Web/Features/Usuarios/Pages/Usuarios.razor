@@ -1,0 +1,104 @@
+@page "/usuarios"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@using CaeManager.Infrastructure.Identity
+
+<PageTitle>Usuarios — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Usuarios</h1>
+        <Boton OnClick="AbrirCrear">+ Nuevo usuario</Boton>
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar los usuarios" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="6" />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Correo</th>
+                    <th>Nombre</th>
+                    <th>Rol</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var usuario in UsuariosDePagina)
+                {
+                    <tr>
+                        <td>@usuario.Email</td>
+                        <td>@usuario.NombreCompleto</td>
+                        <td>@usuario.Rol</td>
+                        <td>
+                            @if (usuario.Activo)
+                            {
+                                <Badge Tono="TonoBadge.Exito">Activo</Badge>
+                            }
+                            else
+                            {
+                                <Badge Tono="TonoBadge.Peligro">Desactivado</Badge>
+                            }
+                        </td>
+                        <td>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(usuario.Id)">
+                                Editar
+                            </Boton>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarActivacionAsync(usuario)">
+                                @(usuario.Activo ? "Desactivar" : "Reactivar")
+                            </Boton>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        @if (_usuarios.Count == 0)
+        {
+            <EstadoVacio Titulo="Aún no hay usuarios" Descripcion="Crea el primero para dar acceso al sistema." />
+        }
+        else
+        {
+            <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_usuarios.Count"
+                              Etiqueta="usuario(s)" PaginaActualChanged="IrAPaginaAsync" />
+        }
+    }
+</div>
+
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo usuario" : "Editar usuario")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        <CampoTexto Etiqueta="Correo" Type="email" Valor="@_email" ValorChanged="v => _email = v" Deshabilitado="@(_editandoId is not null)" />
+        <CampoTexto Etiqueta="Nombre completo" Valor="@_nombreCompleto" ValorChanged="v => _nombreCompleto = v" />
+        @if (_editandoId is null)
+        {
+            <CampoTexto Etiqueta="Contraseña temporal" Type="password" Valor="@_password" ValorChanged="v => _password = v" />
+        }
+        <CampoSelect Etiqueta="Rol" Valor="@_rol" ValorChanged="v => _rol = v">
+            @foreach (var rol in Roles.Todos)
+            {
+                <option value="@rol">@rol</option>
+            }
+        </CampoSelect>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="() => CerrarDrawerAsync(false)">Cancelar</Boton>
+        <Boton OnClick="GuardarAsync" Cargando="_guardando">Guardar</Boton>
+    </Pie>
+</Drawer>

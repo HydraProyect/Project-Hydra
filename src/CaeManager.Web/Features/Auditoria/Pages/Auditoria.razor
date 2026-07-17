@@ -1,0 +1,79 @@
+@page "/auditoria"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+
+<PageTitle>Auditoría — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Auditoría</h1>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoSelect Etiqueta="Tipo de entidad" Valor="@(_filtroEntidadTipo ?? string.Empty)" ValorChanged="FiltrarPorEntidadAsync">
+            <option value="">Todas</option>
+            @foreach (var tipo in TiposEntidad)
+            {
+                <option value="@tipo">@tipo</option>
+            }
+        </CampoSelect>
+    </div>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar la auditoría" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="8" />
+    }
+    else if (_resultado is null || _resultado.Elementos.Count == 0)
+    {
+        <EstadoVacio Titulo="No hay registros de auditoría" Descripcion="Todavía no se ha modificado ninguna entidad con este filtro." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Entidad</th>
+                    <th>Acción</th>
+                    <th>Usuario</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var registro in _resultado.Elementos)
+                {
+                    <tr>
+                        <td>@registro.FechaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@registro.EntidadTipo</td>
+                        <td>
+                            <Badge Tono="@(registro.Accion switch {
+                                "Creado" => TonoBadge.Exito,
+                                "Eliminado" => TonoBadge.Peligro,
+                                _ => TonoBadge.Advertencia
+                            })">@registro.Accion</Badge>
+                        </td>
+                        <td>@NombreUsuario(registro.UsuarioId)</td>
+                        <td>
+                            @if (TieneArchivoAnterior(registro))
+                            {
+                                <a href="/auditoria/@registro.Id/archivo-anterior" target="_blank">Ver archivo anterior</a>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <PaginadorSimple PaginaActual="_resultado.Pagina" TotalPaginas="_resultado.TotalPaginas"
+                          TotalElementos="_resultado.TotalElementos" Etiqueta="registro(s)"
+                          PaginaActualChanged="IrAPaginaAsync" />
+    }
+</div>

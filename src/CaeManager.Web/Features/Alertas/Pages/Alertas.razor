@@ -1,0 +1,73 @@
+@page "/alertas"
+@rendermode InteractiveServer
+@using CaeManager.Application.Alertas.Queries.ObtenerAlertas
+@using CaeManager.Web.Features.Documentos
+@using MediatR
+@inject IMediator Mediator
+
+<PageTitle>Alertas — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <h1 class="titulo-pagina">Alertas</h1>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las alertas" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="6" />
+    }
+    else if (_alertas.Count == 0)
+    {
+        <EstadoVacio Titulo="No hay alertas activas" Descripcion="Todos los documentos están vigentes o fuera del umbral de aviso." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Estado</th>
+                    <th>Trabajador</th>
+                    <th>Tipo de documento</th>
+                    <th>Vencimiento</th>
+                    <th>Archivo</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var alerta in AlertasDePagina)
+                {
+                    <tr>
+                        <td><Badge Tono="EstadoDocumentoUi.Tono(alerta.Estado)">@EstadoDocumentoUi.Texto(alerta.Estado)</Badge></td>
+                        <td>@alerta.TrabajadorNombre</td>
+                        <td>@alerta.TipoDocumentoNombre</td>
+                        <td>@(alerta.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
+                        <td>
+                            @if (alerta.ArchivoUrl is not null)
+                            {
+                                <a href="/documentos/@alerta.DocumentoId/archivo" target="_blank">Ver PDF</a>
+                            }
+                            else
+                            {
+                                <span class="detalle-tecnico">Sin adjunto</span>
+                            }
+                        </td>
+                        <td>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarDocumento(alerta.DocumentoId)">
+                                Gestionar
+                            </Boton>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_alertas.Count"
+                          Etiqueta="alerta(s)" PaginaActualChanged="IrAPaginaAsync" />
+    }
+</div>

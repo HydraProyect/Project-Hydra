@@ -1,0 +1,62 @@
+@*
+    Solo se listan los módulos que ya existen y funcionan (ver ROADMAP.md).
+    Un enlace a una pantalla que todavía no existe es peor que no tener el
+    enlace — se añade módulo a módulo conforme se construye. Un único set de
+    iconos outline (ver DESIGN_SYSTEM.md, "Iconografía") — nunca mezclar
+    estilos de icono entre pantallas.
+*@
+<nav class="nav-principal">
+    <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
+        <Icono Nombre="dashboard" /> Dashboard
+    </NavLink>
+    <NavLink class="nav-item" href="clientes">
+        <Icono Nombre="clientes" /> Clientes
+    </NavLink>
+    <NavLink class="nav-item" href="empresas">
+        <Icono Nombre="empresas" /> Empresas
+    </NavLink>
+    <NavLink class="nav-item" href="subcontratas">
+        <Icono Nombre="subcontratas" /> Subcontratas
+    </NavLink>
+    <NavLink class="nav-item" href="centros">
+        <Icono Nombre="centros" /> Centros
+    </NavLink>
+    <NavLink class="nav-item" href="trabajadores">
+        <Icono Nombre="trabajadores" /> Trabajadores
+    </NavLink>
+    <NavLink class="nav-item" href="documentos">
+        <Icono Nombre="documentos" /> Documentos
+    </NavLink>
+    <NavLink class="nav-item" href="asignaciones">
+        <Icono Nombre="asignaciones" /> Asignaciones
+    </NavLink>
+    <NavLink class="nav-item" href="alertas">
+        <Icono Nombre="alertas" /> Alertas
+    </NavLink>
+    <NavLink class="nav-item" href="calendario">
+        <Icono Nombre="calendario" /> Calendario
+    </NavLink>
+    <NavLink class="nav-item" href="reportes">
+        <Icono Nombre="reportes" /> Reportes
+    </NavLink>
+    <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
+        <NavLink class="nav-item" href="tipos-documento">
+            <Icono Nombre="tipos-documento" /> Tipos de Documento
+        </NavLink>
+        <NavLink class="nav-item" href="configuracion">
+            <Icono Nombre="configuracion" /> Configuración
+        </NavLink>
+        <NavLink class="nav-item" href="auditoria">
+            <Icono Nombre="auditoria" /> Auditoría
+        </NavLink>
+        <NavLink class="nav-item" href="usuarios">
+            <Icono Nombre="usuarios" /> Usuarios
+        </NavLink>
+        <NavLink class="nav-item" href="roles">
+            <Icono Nombre="roles" /> Roles
+        </NavLink>
+        <NavLink class="nav-item" href="importacion">
+            <Icono Nombre="importar" /> Importar desde Excel
+        </NavLink>
+    </AuthorizeView>
+</nav>

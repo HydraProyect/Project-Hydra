@@ -1,0 +1,24 @@
+.boton-buscador-global {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    background-color: var(--color-neutral-50);
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: var(--space-1) var(--space-3);
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+    cursor: pointer;
+}
+
+.boton-buscador-global:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.atajo-teclado {
+    font: var(--font-body-sm);
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-sm);
+    border: var(--border-default);
+    color: var(--color-text-muted);
+}

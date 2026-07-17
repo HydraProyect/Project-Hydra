@@ -1,0 +1,11 @@
+.paginador-simple {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+}
+
+.paginador-texto {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}

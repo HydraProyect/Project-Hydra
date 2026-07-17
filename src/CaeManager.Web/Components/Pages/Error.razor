@@ -1,0 +1,28 @@
+@page "/Error"
+@layout MainLayout
+@attribute [AllowAnonymous]
+@using System.Diagnostics
+
+<PageTitle>Error — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <EstadoVacio
+        Titulo="Ocurrió un error inesperado"
+        Descripcion="No pudimos completar tu solicitud. Intenta nuevamente en unos segundos." />
+
+    @if (ShowRequestId)
+    {
+        <p class="detalle-tecnico">Referencia técnica: <code>@RequestId</code></p>
+    }
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

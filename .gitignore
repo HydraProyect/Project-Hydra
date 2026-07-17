@@ -1,0 +1,10 @@
+bin/
+obj/
+*.user
+.vs/
+*.db
+*.db-shm
+*.db-wal
+appsettings.Development.json
+node_modules/
+App_Data/

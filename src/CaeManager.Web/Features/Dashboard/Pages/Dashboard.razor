@@ -1,0 +1,137 @@
+@page "/"
+@rendermode InteractiveServer
+@using CaeManager.Application.Dashboard.Queries
+@using CaeManager.Web.Features.Documentos
+
+<PageTitle>Dashboard — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <h1 class="titulo-pagina">Dashboard</h1>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar el dashboard" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_kpis is null)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else
+    {
+        <div class="rejilla-kpis">
+            <TarjetaMetrica Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" />
+            <TarjetaMetrica Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" />
+            <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()" Tono="TonoBadge.Peligro" />
+            <TarjetaMetrica Etiqueta="Urgentes (≤15 días)" Valor="@_kpis.DocumentosUrgentes.ToString()" Tono="TonoBadge.Peligro" />
+            <TarjetaMetrica Etiqueta="Próximos (≤30 días)" Valor="@_kpis.DocumentosProximos.ToString()" Tono="TonoBadge.Advertencia" />
+            <TarjetaMetrica Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" Tono="TonoBadge.Exito" />
+        </div>
+
+        @if (_mostrarDocumentosAtencion && _desglose is not null)
+        {
+            <div class="rejilla-desglose">
+                <Tarjeta Titulo="Documentos que requieren atención">
+                    @if (_desglose.DocumentosAtencion.Count == 0)
+                    {
+                        <p class="texto-vacio-seccion">No hay documentos urgentes ni vencidos ahora mismo.</p>
+                    }
+                    else
+                    {
+                        <table class="tabla-datos">
+                            <thead>
+                                <tr>
+                                    <th>Estado</th>
+                                    <th>Trabajador</th>
+                                    <th>Tipo de documento</th>
+                                    <th>Vencimiento</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var documento in _desglose.DocumentosAtencion)
+                                {
+                                    <tr>
+                                        <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
+                                        <td>@documento.TrabajadorNombre</td>
+                                        <td>@documento.TipoDocumentoNombre</td>
+                                        <td>@(documento.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        <a class="enlace-ver-todas" href="/alertas">Ver todas las alertas →</a>
+                    }
+                </Tarjeta>
+
+                @if (_mostrarCentrosEnRiesgo)
+                {
+                    <Tarjeta Titulo="Centros con más riesgo">
+                        @if (_desglose.CentrosEnRiesgo.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">Ningún centro tiene documentación urgente o vencida.</p>
+                        }
+                        else
+                        {
+                            <table class="tabla-datos">
+                                <thead>
+                                    <tr>
+                                        <th>Centro</th>
+                                        <th>Cliente</th>
+                                        <th>Vencidos</th>
+                                        <th>Urgentes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var centro in _desglose.CentrosEnRiesgo)
+                                    {
+                                        <tr>
+                                            <td>@centro.CentroNombre</td>
+                                            <td>@centro.ClienteNombre</td>
+                                            <td><Badge Tono="TonoBadge.Peligro">@centro.DocumentosVencidos</Badge></td>
+                                            <td><Badge Tono="TonoBadge.Advertencia">@centro.DocumentosUrgentes</Badge></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </Tarjeta>
+                }
+
+                @if (_mostrarEmpresasEnRiesgo)
+                {
+                    <Tarjeta Titulo="Empresas con más riesgo">
+                        @if (_desglose.EmpresasEnRiesgo.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">Ninguna empresa tiene documentación urgente o vencida.</p>
+                        }
+                        else
+                        {
+                            <table class="tabla-datos">
+                                <thead>
+                                    <tr>
+                                        <th>Empresa</th>
+                                        <th>Vencidos</th>
+                                        <th>Urgentes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var empresa in _desglose.EmpresasEnRiesgo)
+                                    {
+                                        <tr>
+                                            <td>@empresa.EmpresaRazonSocial</td>
+                                            <td><Badge Tono="TonoBadge.Peligro">@empresa.DocumentosVencidos</Badge></td>
+                                            <td><Badge Tono="TonoBadge.Advertencia">@empresa.DocumentosUrgentes</Badge></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </Tarjeta>
+                }
+            </div>
+        }
+    }
+</div>

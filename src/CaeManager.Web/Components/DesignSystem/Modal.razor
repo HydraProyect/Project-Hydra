@@ -1,0 +1,33 @@
+@if (Visible)
+{
+    <div class="modal-superposicion" @onclick="ManejarClicSuperposicionAsync">
+        <div class="modal-contenido" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId">
+            <div class="modal-header">
+                <h2 id="@_tituloId">@Titulo</h2>
+                <button type="button" class="modal-cerrar" aria-label="Cerrar" @onclick="CerrarAsync">×</button>
+            </div>
+            <div class="modal-cuerpo">
+                @ChildContent
+            </div>
+            @if (Pie is not null)
+            {
+                <div class="modal-pie">@Pie</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private readonly string _tituloId = $"modal-titulo-{Guid.NewGuid():N}";
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Pie { get; set; }
+    [Parameter] public bool CerrarAlHacerClicFuera { get; set; } = true;
+
+    private Task CerrarAsync() => VisibleChanged.InvokeAsync(false);
+
+    private Task ManejarClicSuperposicionAsync() => CerrarAlHacerClicFuera ? CerrarAsync() : Task.CompletedTask;
+}

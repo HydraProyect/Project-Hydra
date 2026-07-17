@@ -1,0 +1,21 @@
+.boton-copiar {
+    font: var(--font-label-md);
+    color: var(--color-primary-500);
+    background: none;
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--transition-fast);
+}
+
+.boton-copiar:hover:not(:disabled) {
+    background-color: var(--color-surface-hover);
+}
+
+.boton-copiar:disabled {
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+}

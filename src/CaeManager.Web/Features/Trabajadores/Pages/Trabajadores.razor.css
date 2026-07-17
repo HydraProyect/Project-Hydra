@@ -1,0 +1,25 @@
+.barra-filtros {
+    max-width: 640px;
+}
+
+.filtro-empresa {
+    flex: 0 0 240px;
+}
+
+.pista-documento {
+    font: var(--font-body-sm);
+    margin-top: calc(var(--space-1) * -1);
+    margin-bottom: var(--space-2);
+}
+
+.pista-documento-exito {
+    color: var(--color-success-600, var(--color-success-500));
+}
+
+.pista-documento-error {
+    color: var(--color-danger-500);
+}
+
+.pista-documento-info {
+    color: var(--color-text-muted);
+}

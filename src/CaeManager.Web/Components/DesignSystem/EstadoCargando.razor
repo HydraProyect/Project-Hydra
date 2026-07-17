@@ -1,0 +1,10 @@
+<div class="esqueleto-lista" aria-busy="true" aria-label="Cargando…">
+    @for (var i = 0; i < Filas; i++)
+    {
+        <div class="esqueleto-fila"></div>
+    }
+</div>
+
+@code {
+    [Parameter] public int Filas { get; set; } = 5;
+}

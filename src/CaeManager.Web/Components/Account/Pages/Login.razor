@@ -1,0 +1,76 @@
+@page "/cuenta/iniciar-sesion"
+@layout CaeManager.Web.Components.Layout.AuthLayout
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using CaeManager.Infrastructure.Identity
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Navigation
+
+<PageTitle>Iniciar sesión — CAE Manager</PageTitle>
+
+<div class="tarjeta-login">
+    <h1>CAE Manager</h1>
+    <p class="subtitulo-login">Coordinación de Actividades Empresariales</p>
+
+    @if (Entrada is not null)
+    {
+        <EditForm Model="Entrada" method="post" OnValidSubmit="IniciarSesionAsync" FormName="iniciar-sesion">
+            <DataAnnotationsValidator />
+
+            @if (mensajeError is not null)
+            {
+                <div class="alerta-login" role="alert">@mensajeError</div>
+            }
+
+            <label for="email">Correo electrónico</label>
+            <InputText id="email" @bind-Value="Entrada.Email" autocomplete="username" />
+            <ValidationMessage For="() => Entrada.Email" />
+
+            <label for="password">Contraseña</label>
+            <InputText id="password" type="password" @bind-Value="Entrada.Password" autocomplete="current-password" />
+            <ValidationMessage For="() => Entrada.Password" />
+
+            <button type="submit" class="boton-primario">Iniciar sesión</button>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private string? mensajeError;
+
+    [SupplyParameterFromForm]
+    private DatosEntrada? Entrada { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override void OnInitialized() => Entrada ??= new DatosEntrada();
+
+    private async Task IniciarSesionAsync()
+    {
+        if (Entrada is null) return;
+
+        var resultado = await SignInManager.PasswordSignInAsync(
+            Entrada.Email, Entrada.Password, isPersistent: true, lockoutOnFailure: false);
+
+        if (resultado.Succeeded)
+        {
+            Navigation.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+            return;
+        }
+
+        mensajeError = "No pudimos iniciar sesión. Revisa tu correo y contraseña e intenta nuevamente.";
+    }
+
+    private sealed class DatosEntrada
+    {
+        [Required(ErrorMessage = "El correo es obligatorio.")]
+        [EmailAddress(ErrorMessage = "Introduce un correo válido.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "La contraseña es obligatoria.")]
+        public string Password { get; set; } = string.Empty;
+    }
+}

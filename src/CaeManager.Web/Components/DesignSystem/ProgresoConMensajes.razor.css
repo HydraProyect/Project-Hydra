@@ -1,0 +1,53 @@
+.progreso-carga {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-12) var(--space-6);
+}
+
+.progreso-barra {
+    position: relative;
+    width: 100%;
+    max-width: 360px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-neutral-100);
+    overflow: hidden;
+}
+
+.progreso-barra-relleno {
+    position: absolute;
+    top: 0;
+    left: -35%;
+    height: 100%;
+    width: 35%;
+    border-radius: var(--radius-full);
+    background-color: var(--color-primary-500);
+    animation: progreso-indeterminado 1.6s ease-in-out infinite;
+}
+
+@keyframes progreso-indeterminado {
+    0% {
+        left: -35%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+.progreso-mensaje {
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+    text-align: center;
+    min-height: 1.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .progreso-barra-relleno {
+        animation: none;
+        left: 0;
+        width: 100%;
+        opacity: 0.6;
+    }
+}

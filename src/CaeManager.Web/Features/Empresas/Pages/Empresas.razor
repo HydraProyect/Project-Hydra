@@ -1,0 +1,152 @@
+@page "/empresas"
+@rendermode InteractiveServer
+@using CaeManager.Application.Empresas.Commands.CrearEmpresa
+@using CaeManager.Application.Empresas.Commands.EditarEmpresa
+@using CaeManager.Application.Empresas.Commands.EliminarEmpresa
+@using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa
+@using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresas
+@using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
+@using CaeManager.Application.Common
+@using FluentValidation
+@using MediatR
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject ICurrentUserService CurrentUserService
+
+<PageTitle>Empresas — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Empresas</h1>
+        <Boton OnClick="AbrirCrear">+ Nueva empresa</Boton>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoTexto Placeholder="Buscar por razón social…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las empresas" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+            <QuickGrid @ref="_grid" TGridItem="EmpresaListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
+                <PropertyColumn Property="@(e => e.RazonSocial)" Sortable="true" />
+                <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
+                        Editar
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
+                        Eliminar
+                    </Boton>
+                </TemplateColumn>
+            </QuickGrid>
+
+            <div class="paginador">
+                <Paginator State="_paginacion" />
+            </div>
+        </div>
+
+        @if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio Titulo="Aún no hay empresas" Descripcion="Crea la primera para poder dar de alta trabajadores.">
+                <Accion>
+                    <Boton OnClick="AbrirCrear">+ Nueva empresa</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+    }
+</div>
+
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nueva empresa" : "Editar empresa")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.RazonSocial))" />
+
+        <div class="campo">
+            <label>Clientes con los que trabaja</label>
+            @if (_clientesDisponibles.Count == 0)
+            {
+                <p class="texto-vacio-seccion">Todavía no hay clientes creados.</p>
+            }
+            else
+            {
+                <div class="lista-seleccion-multiple">
+                    @foreach (var cliente in _clientesDisponibles)
+                    {
+                        <label class="campo-checkbox">
+                            <input type="checkbox"
+                                   checked="@_clienteIdsSeleccionados.Contains(cliente.Id)"
+                                   @onchange="e => AlternarCliente(cliente.Id, e.Value is bool marcado && marcado)" />
+                            @cliente.RazonSocial
+                        </label>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (_editandoId is not null)
+        {
+            <div class="campo">
+                <label>Credenciales de acceso a plataforma externa</label>
+            </div>
+
+            @if (_mensajeErrorCredenciales is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorCredenciales</div>
+            }
+
+            <div class="campo-con-boton">
+                <CampoTexto Etiqueta="URL" Valor="@_credencialUrl" ValorChanged="v => _credencialUrl = v" />
+                <BotonCopiar Valor="@_credencialUrl" Etiqueta="la URL" />
+            </div>
+            <div class="campo-con-boton">
+                <CampoTexto Etiqueta="Empresa / Cliente / Proveedor" Valor="@_credencialCampoEmpresa" ValorChanged="v => _credencialCampoEmpresa = v" />
+                <BotonCopiar Valor="@_credencialCampoEmpresa" Etiqueta="este campo" />
+            </div>
+            <div class="campo-con-boton">
+                <CampoTexto Etiqueta="Usuario" Valor="@_credencialUsuario" ValorChanged="v => _credencialUsuario = v" />
+                <BotonCopiar Valor="@_credencialUsuario" Etiqueta="el usuario" />
+            </div>
+            <div class="campo-con-boton">
+                <CampoTexto Etiqueta="Contraseña" Type="password" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
+                <BotonCopiar Valor="@_credencialContrasena" Etiqueta="la contraseña" />
+            </div>
+
+            <div class="acciones-formulario">
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoCredenciales" OnClick="GuardarCredencialesAsync">
+                    Guardar credenciales
+                </Boton>
+            </div>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+            Guardar
+        </Boton>
+    </Pie>
+</Drawer>
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarVisible"
+    VisibleChanged="v => _confirmarEliminarVisible = v"
+    Titulo="@($"¿Eliminar a {_razonSocialAEliminar}?")"
+    Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
+    EnProgreso="_eliminando"
+    OnConfirmar="ConfirmarEliminarAsync" />

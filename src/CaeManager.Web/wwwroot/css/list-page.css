@@ -1,0 +1,157 @@
+/*
+  Layout compartido por toda página de listado con tabla (Clientes, Empresas,
+  Centros, Trabajadores, ...). Ver CODING_STANDARDS.md: una vez un patrón se
+  repite en un segundo módulo, se extrae en vez de duplicarse por página.
+*/
+
+.cabecera-pagina {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-6);
+}
+
+.cabecera-pagina .titulo-pagina {
+    margin-bottom: 0;
+}
+
+.acciones-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.enlace-exportar {
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.enlace-exportar:hover {
+    color: var(--color-text);
+    text-decoration: underline;
+}
+
+.barra-filtros {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    margin-bottom: var(--space-4);
+    max-width: 480px;
+}
+
+.barra-filtros .campo {
+    flex: 1;
+}
+
+.filtro-critico {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-body-md);
+    white-space: nowrap;
+}
+
+.campo-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-body-md);
+}
+
+.campo-con-boton {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-2);
+}
+
+.campo-con-boton > .campo {
+    flex: 1;
+}
+
+.lista-seleccion-multiple {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-height: 200px;
+    overflow-y: auto;
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+}
+
+.glosario-tipo-documento {
+    background-color: var(--color-neutral-50);
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.glosario-tipo-documento p {
+    margin: 0;
+}
+
+.glosario-tipo-documento strong {
+    color: var(--color-text);
+}
+
+.alerta-formulario {
+    background-color: var(--color-danger-50);
+    color: var(--color-danger-500);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    font: var(--font-body-sm);
+}
+
+.paginador {
+    margin-top: var(--space-4);
+}
+
+.texto-vacio-seccion {
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+}
+
+.tabla-datos {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.tabla-datos th {
+    text-align: left;
+    padding: var(--space-4);
+    font: var(--font-label-md);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.6875rem;
+    color: var(--color-text-muted);
+    background-color: var(--color-neutral-50);
+    border-bottom: var(--border-default);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.tabla-datos td {
+    padding: var(--space-4);
+    border-bottom: var(--border-default);
+    font: var(--font-body-md);
+}
+
+.tabla-datos tr:last-child td {
+    border-bottom: none;
+}
+
+.tabla-datos tr:hover td {
+    background-color: var(--color-surface-hover);
+    transition: background-color var(--transition-fast);
+}

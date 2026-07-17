@@ -1,0 +1,14 @@
+.selector-tema {
+    font: var(--font-body-md);
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+}
+
+.selector-tema:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}
