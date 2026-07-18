@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
@@ -5,11 +6,14 @@ using PdfSharp.Pdf.IO;
 namespace CaeManager.Web.Documentos;
 
 /// <summary>
-/// Convierte imágenes JPG/PNG a PDF y combina varios archivos (PDF y/o
-/// imágenes, en cualquier orden) en un único PDF multipágina — para el
-/// caso común de subir varias fotos de las páginas de un mismo documento.
-/// Usa PdfSharp directamente igual que GeneradorPdfReporteDocumentos (ver
-/// esa clase sobre por qué no se usa QuestPDF).
+/// Convierte imágenes JPG/PNG y documentos Word (.docx) a PDF, y combina
+/// varios archivos (PDF, imágenes y/o Word, en cualquier orden) en un único
+/// PDF multipágina — para el caso común de subir varias fotos de las
+/// páginas de un mismo documento. Imágenes usan PdfSharp directamente igual
+/// que GeneradorPdfReporteDocumentos (ver esa clase sobre por qué no se usa
+/// QuestPDF); Word delega en <see cref="IConversorWordPdfService"/>
+/// (LibreOffice headless en Infrastructure) porque no existe una librería
+/// .NET pura capaz de renderizar el layout real de un .docx.
 /// </summary>
 public static class ConversorArchivosPdf
 {
@@ -22,19 +26,27 @@ public static class ConversorArchivosPdf
     public static bool EsPdf(string nombreArchivo) =>
         nombreArchivo.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
 
+    public static bool EsWord(string nombreArchivo) =>
+        nombreArchivo.EndsWith(".docx", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
-    /// Combina uno o varios archivos (PDF o imagen) en un único PDF, en el
-    /// orden recibido. Con un solo archivo PDF de entrada, el resultado es
-    /// equivalente al original — no hace falta un camino especial para el
-    /// caso de un único PDF sin convertir.
+    /// Combina uno o varios archivos (PDF, imagen o Word) en un único PDF,
+    /// en el orden recibido. Con un solo archivo PDF de entrada, el
+    /// resultado es equivalente al original — no hace falta un camino
+    /// especial para el caso de un único PDF sin convertir.
     /// </summary>
-    public static byte[] Unificar(IReadOnlyList<(byte[] Contenido, string NombreArchivo)> archivos)
+    public static async Task<byte[]> UnificarAsync(
+        IReadOnlyList<(byte[] Contenido, string NombreArchivo)> archivos,
+        IConversorWordPdfService conversorWord,
+        CancellationToken cancellationToken = default)
     {
         using var documentoFinal = new PdfDocument();
 
         foreach (var (contenido, nombreArchivo) in archivos)
         {
-            var contenidoPdf = EsImagen(nombreArchivo) ? ConvertirImagenAPdf(contenido) : contenido;
+            var contenidoPdf = EsImagen(nombreArchivo) ? ConvertirImagenAPdf(contenido)
+                : EsWord(nombreArchivo) ? await conversorWord.ConvertirAPdfAsync(contenido, cancellationToken)
+                : contenido;
 
             using var flujo = new MemoryStream(contenidoPdf);
             using var documentoOrigen = PdfReader.Open(flujo, PdfDocumentOpenMode.Import);
