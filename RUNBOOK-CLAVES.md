@@ -20,10 +20,17 @@ Esto **no** afecta a las contraseñas de los propios usuarios de CAE Manager (es
 
 ## Prevención
 
-- Hoy Railway no hace backup automático del volumen en todos los planes (`DEPLOY.md` ya lo marca como pendiente de resolver) — revisa el plan actual y actívalo si existe, o programa un backup manual periódico.
-- Un backup de `CaeManager.db` **sin** `dataprotection-keys/` (o viceversa) no sirve de nada útil por sí solo para las credenciales cifradas — ver la sección siguiente. Cualquier mecanismo de backup que se monte debe copiar **los dos juntos, como una unidad atómica**, no por separado ni en momentos distintos.
-- Opción simple sin infraestructura nueva: un job programado (fuera de Railway, o un cron en el propio contenedor si se añade) que haga `sqlite3 /data/CaeManager.db ".backup /tmp/backup.db"` (backup consistente sin bloquear escrituras) + copie `dataprotection-keys/` al mismo destino externo (S3, un bucket, lo que ya use el equipo) en la misma operación.
-- Alternativa más robusta a mediano plazo: `ProtectKeysWithCertificate` o un almacén gestionado (Azure Key Vault, AWS KMS) en vez de archivos en el volumen — elimina este riesgo de raíz porque las claves dejan de vivir junto a los datos que protegen. Ver también `ROADMAP.md` → "Iniciativa de hardening" § 4.
+- **Implementado (2026-07-18)**: `BackupHostedService` (`src/CaeManager.Infrastructure/Backups/`) sube automáticamente `CaeManager.db` + `dataprotection-keys/` **juntos, en la misma operación**, a un bucket de S3 — cada `Backups:IntervaloHoras` (24h por defecto) y una vez más al arrancar el proceso. La base de datos se respalda con `SqliteConnection.BackupDatabase` (el mecanismo online de SQLite, no bloquea escrituras mientras corre) y las claves se comprimen en un `.zip`. Apagado por defecto (`Backups:Activo=false`, mismo patrón que `DatosPrueba:Activo`) — no intenta nada sin cuenta de AWS configurada. Variables necesarias en Railway: `Backups__Activo=true`, `Backups__Aws__AccessKeyId`, `Backups__Aws__SecretAccessKey`, `Backups__Aws__BucketName`, `Backups__Aws__Region` (ver `DEPLOY.md`).
+  - Producción y staging pueden compartir el mismo bucket/credenciales sin pisarse — cada backup se sube bajo un prefijo `{RAILWAY_SERVICE_NAME}/{fecha-hora}/`, tomado automáticamente de la variable que Railway ya inyecta por servicio.
+  - Retención: el bucket tiene versionado activado (recomendado al crearlo) para poder recuperar una versión anterior si un backup corrupto sobrescribe uno bueno. Para borrar automáticamente backups viejos, configura una **Lifecycle rule** en el propio bucket de S3 (consola de AWS → el bucket → pestaña *Management* → *Create lifecycle rule* → expirar objetos con más de N días) — no hay borrado automático implementado en la app a propósito, para no arriesgarse a borrar algo que todavía hiciera falta por un bug.
+- Alternativa más robusta a mediano plazo, todavía sin implementar: `ProtectKeysWithCertificate` o un almacén gestionado (Azure Key Vault, AWS KMS) en vez de archivos en el volumen — elimina el riesgo de raíz porque las claves dejan de vivir junto a los datos que protegen. Ver también `ROADMAP.md` → "Iniciativa de hardening" § 4.
+
+## Recuperación — desde un backup en S3
+
+1. En la consola de AWS → S3 → el bucket configurado → entra a la carpeta `{nombre-del-servicio}/` (el nombre que le pusiste al servicio en Railway) → elige la carpeta con la fecha-hora más reciente antes del incidente.
+2. Descarga los dos archivos de esa carpeta: `CaeManager.db` y `dataprotection-keys.zip`.
+3. Sube `CaeManager.db` al volumen de Railway (`/data/CaeManager.db`) y descomprime `dataprotection-keys.zip` dentro de `/data/dataprotection-keys/` — **los dos juntos, del mismo backup**, nunca mezclando fechas distintas entre uno y otro.
+4. Sigue con la sección "Recuperación — con backup disponible" de más abajo para el resto de la verificación.
 
 ## Recuperación — con backup disponible
 
