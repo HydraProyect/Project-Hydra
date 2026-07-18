@@ -32,6 +32,15 @@ RUN dotnet publish src/CaeManager.Web/CaeManager.Web.csproj -c Release -o /app/p
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 ENV ASPNETCORE_ENVIRONMENT=Production
+
+# libreoffice-writer (no el paquete "libreoffice" completo, que instala
+# también Calc/Impress/etc. sin necesidad) aporta el binario "soffice" que
+# LibreOfficeConversorWordPdfService invoca en modo headless para convertir
+# Word (.docx) a PDF al subir un Documento — ver ARCHITECTURE.md.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libreoffice-writer \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/publish .
 
 EXPOSE 8080

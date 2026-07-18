@@ -141,6 +141,12 @@ Las credenciales de plataformas externas (usuario/contraseña de portales como C
 
 Abstracción `IFileStorageService` en Application, implementada en Infrastructure sobre disco local en v1 (ruta configurable), con la interfaz diseñada para poder cambiar a almacenamiento en la nube sin tocar Application ni Presentation.
 
+Todo archivo adjunto de un Documento se guarda siempre como un único PDF, aunque el usuario suba imágenes, Word o varios archivos a la vez:
+
+- **JPG/PNG → PDF**: PDFsharp local (`ConversorArchivosPdf` en `CaeManager.Web/Documentos/`), instantáneo.
+- **Word (.docx) → PDF**: abstracción `IConversorWordPdfService` en Application, implementada en Infrastructure (`LibreOfficeConversorWordPdfService`) invocando **LibreOffice headless** (`soffice --headless --convert-to pdf`) como proceso externo. Se descartó Aspose.Words/GroupDocs por licencia comercial (mismo criterio que QuestPDF más abajo) y una API cloud de conversión por sacar documentos de trabajadores fuera del servidor — dato sensible en este dominio (PRL). El Dockerfile instala el paquete `libreoffice-writer` en la imagen final.
+- **Varios archivos en una misma subida** (cualquier mezcla de PDF/imagen/Word) se combinan en un único PDF multipágina antes de guardarse.
+
 ## Generación de reportes (Excel/PDF)
 
 Excel se genera con **ClosedXML** (MIT). Para PDF se evaluó y se descartó **QuestPDF**: su licencia Community factura según los ingresos *de la empresa que usa el software*, no de CAE Manager como producto — inaceptable para un SaaS comercial de terceros. Se usa **PDFsharp 6.x** (MIT, github.com/empira/PDFsharp) en su lugar, dibujando la tabla directamente con `XGraphics` — el volumen esperado de filas no justifica una librería de layout de tablas.

@@ -21,6 +21,7 @@
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
 @inject IFileStorageService AlmacenamientoArchivos
+@inject IConversorWordPdfService ConversorWordPdf
 
 <PageTitle>Documentos — CAE Manager</PageTitle>
 
@@ -238,8 +239,8 @@
         }
 
         <div class="campo">
-            <label>Archivo (PDF, JPG o PNG, máx. 10 MB por archivo)</label>
-            <InputFile OnChange="ManejarArchivoSeleccionadoAsync" multiple accept=".pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png" />
+            <label>Archivo (PDF, JPG, PNG o Word, máx. 10 MB por archivo)</label>
+            <InputFile OnChange="ManejarArchivoSeleccionadoAsync" multiple accept=".pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
             <p class="texto-vacio-seccion">Puedes seleccionar varios archivos a la vez (p. ej. varias fotos) — se combinan automáticamente en un solo PDF.</p>
             @if (_subiendoArchivo)
             {

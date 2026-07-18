@@ -14,6 +14,7 @@ using CaeManager.Infrastructure.AsistenteIa;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Backups;
+using CaeManager.Infrastructure.Conversion;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
@@ -94,6 +95,9 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
         services.AddSingleton<IFileStorageService, DiskFileStorageService>();
+
+        services.Configure<LibreOfficeConversorWordPdfServiceOptions>(configuration.GetSection(LibreOfficeConversorWordPdfServiceOptions.SeccionConfiguracion));
+        services.AddSingleton<IConversorWordPdfService, LibreOfficeConversorWordPdfService>();
 
         services.Configure<BackupsOptions>(configuration.GetSection(BackupsOptions.SeccionConfiguracion));
         services.AddHostedService<BackupHostedService>();

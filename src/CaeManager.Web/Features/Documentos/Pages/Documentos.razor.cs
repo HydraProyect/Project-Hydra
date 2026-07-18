@@ -274,10 +274,12 @@ public partial class Documentos : ComponentBase
     private void CopiarFechaEmisionAVencimiento() => _fechaVencimientoManual = _fechaEmision;
 
     /// <summary>
-    /// Acepta PDF, JPG y PNG. Las imágenes se convierten a PDF automáticamente;
-    /// si se seleccionan varios archivos a la vez (p. ej. varias fotos de las
-    /// páginas de un mismo documento), se combinan en un único PDF multipágina
-    /// antes de guardarse — nunca se adjunta más de un archivo por Documento.
+    /// Acepta PDF, JPG, PNG y Word (.docx). Las imágenes y los Word se
+    /// convierten a PDF automáticamente (Word vía LibreOffice headless, ver
+    /// <see cref="ConversorArchivosPdf"/>); si se seleccionan varios archivos
+    /// a la vez (p. ej. varias fotos de las páginas de un mismo documento),
+    /// se combinan en un único PDF multipágina antes de guardarse — nunca se
+    /// adjunta más de un archivo por Documento.
     /// </summary>
     private async Task ManejarArchivoSeleccionadoAsync(InputFileChangeEventArgs e)
     {
@@ -285,9 +287,11 @@ public partial class Documentos : ComponentBase
 
         foreach (var archivo in archivos)
         {
-            if (!ConversorArchivosPdf.EsPdf(archivo.Name) && !ConversorArchivosPdf.EsImagen(archivo.Name))
+            if (!ConversorArchivosPdf.EsPdf(archivo.Name)
+                && !ConversorArchivosPdf.EsImagen(archivo.Name)
+                && !ConversorArchivosPdf.EsWord(archivo.Name))
             {
-                ToastService.Mostrar($"\"{archivo.Name}\" no es un PDF, JPG ni PNG.", TonoToast.Error);
+                ToastService.Mostrar($"\"{archivo.Name}\" no es un PDF, JPG, PNG ni Word (.docx).", TonoToast.Error);
                 return;
             }
 
@@ -312,7 +316,7 @@ public partial class Documentos : ComponentBase
                 contenidos.Add((memoria.ToArray(), archivo.Name));
             }
 
-            var pdfUnificado = ConversorArchivosPdf.Unificar(contenidos);
+            var pdfUnificado = await ConversorArchivosPdf.UnificarAsync(contenidos, ConversorWordPdf);
 
             using var flujoPdf = new MemoryStream(pdfUnificado);
             _archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
