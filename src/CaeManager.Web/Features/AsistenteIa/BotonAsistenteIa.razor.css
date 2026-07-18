@@ -1,0 +1,33 @@
+.boton-asistente-ia {
+    position: fixed;
+    right: var(--space-6);
+    bottom: var(--space-6);
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-full);
+    border: none;
+    background-color: var(--color-primary-500);
+    color: var(--color-neutral-0);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.boton-asistente-ia:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .boton-asistente-ia {
+        transition: none;
+    }
+
+    .boton-asistente-ia:hover {
+        transform: none;
+    }
+}
