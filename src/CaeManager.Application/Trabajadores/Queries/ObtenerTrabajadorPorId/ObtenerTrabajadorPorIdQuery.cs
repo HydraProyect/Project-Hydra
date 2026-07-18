@@ -18,11 +18,13 @@ public record TrabajadorDetalleDto(
     string? Email,
     string? Observaciones);
 
-public class ObtenerTrabajadorPorIdQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerTrabajadorPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTrabajadorPorIdQuery, TrabajadorDetalleDto?>
 {
     public async Task<TrabajadorDetalleDto?> Handle(ObtenerTrabajadorPorIdQuery request, CancellationToken cancellationToken)
     {
+        if (!await alcanceDatos.TrabajadorVisibleAsync(request.Id, cancellationToken)) return null;
+
         var trabajador = await dbContext.Trabajadores
             .Where(t => t.Id == request.Id)
             .Select(t => new

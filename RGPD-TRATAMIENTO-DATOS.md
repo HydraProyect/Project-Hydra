@@ -49,7 +49,7 @@ Registro factual de qué datos personales trata la aplicación, dónde viven, qu
 | Microsoft Graph / M365 (cuando se active `IEmailService`, ver `ROADMAP.md` §6) | Correos enviados/recibidos, que pueden incluir datos de Trabajadores adjuntos como documentos | Según el tenant de M365 del cliente |
 | Anthropic API (cuando se active la Iniciativa de IA, ver `ROADMAP.md` §7b) | Contenido de PDFs de reconocimientos médicos enviados para extracción — **incluye datos de salud** | Ver política de privacidad/DPA de Anthropic antes de activar esto con datos reales |
 
-Un DPA formal con cada uno de estos, y entre Project Hydra y sus clientes, es el [Issue #13](https://github.com/christopherjp1-jpg/Project-Hydra/issues/13) — bloqueante comercial antes de facturar a un cliente real, no técnico.
+Un DPA formal con cada uno de estos subencargados es el [Issue #13](https://github.com/christopherjp1-jpg/Project-Hydra/issues/13) — **sigue aplicando íntegro con el uso interno actual**: son encargados del tratamiento de la empresa, se venda o no el software (ver `ADR-002-single-tenant.md` § 4). La otra mitad original de ese Issue —el DPA entre Project Hydra y sus clientes como proveedor SaaS— **no aplica mientras el uso sea interno** (`ADR-002-single-tenant.md`); volvería a ser bloqueante comercial solo si se retoma la venta a terceros en el fork futuro.
 
 ## 7. Cifrado en tránsito
 
