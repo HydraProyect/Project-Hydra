@@ -8,6 +8,8 @@
   <Folder Name="/tests/">
     <Project Path="tests/CaeManager.Application.Tests/CaeManager.Application.Tests.csproj" />
     <Project Path="tests/CaeManager.Domain.Tests/CaeManager.Domain.Tests.csproj" />
+    <Project Path="tests/CaeManager.E2ETests/CaeManager.E2ETests.csproj" />
     <Project Path="tests/CaeManager.IntegrationTests/CaeManager.IntegrationTests.csproj" />
+    <Project Path="tests/CaeManager.Web.Tests/CaeManager.Web.Tests.csproj" />
   </Folder>
 </Solution>

@@ -225,7 +225,12 @@ public partial class Usuarios : ComponentBase
             NombreCompleto = _nombreCompleto,
             EmailConfirmed = true,
             CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null,
-            ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null
+            ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null,
+            // La contraseña que acaba de escribir el Administrador es
+            // temporal, pensada para entregarse fuera de banda — se obliga
+            // a cambiarla en el primer inicio de sesión real del usuario
+            // (ver CambiarContrasena.razor y el guard en MainLayout).
+            DebeCambiarContrasena = true
         };
 
         var resultado = await UserManager.CreateAsync(usuario, _password);

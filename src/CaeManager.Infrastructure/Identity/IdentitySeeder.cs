@@ -44,7 +44,11 @@ public static class IdentitySeeder
             UserName = email,
             Email = email,
             NombreCompleto = "Administrador",
-            EmailConfirmed = true
+            EmailConfirmed = true,
+            // No es una contraseña temporal: el despliegue la eligió a
+            // propósito (o acepta el default documentado en DEPLOY.md), no
+            // hay ningún tercero esperando cambiarla en su primer acceso.
+            DebeCambiarContrasena = false
         };
 
         var resultado = await userManager.CreateAsync(administrador, contrasena);
