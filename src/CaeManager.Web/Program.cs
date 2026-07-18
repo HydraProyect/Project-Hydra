@@ -14,10 +14,12 @@ using CaeManager.Web.Features.Clientes;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Reportes;
 using CaeManager.Web.Services;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using PdfSharp.Fonts;
 using Serilog;
 using System.Globalization;
@@ -97,13 +99,37 @@ builder.Services.AddScoped<BusquedaGlobalService>();
 builder.Services.AddScoped<AsistenteIaService>();
 
 builder.Services.AddCascadingAuthenticationState();
-builder.Services
+var authenticationBuilder = builder.Services
     .AddAuthentication(options =>
     {
         options.DefaultScheme = IdentityConstants.ApplicationScheme;
         options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
-    })
-    .AddIdentityCookies();
+    });
+authenticationBuilder.AddIdentityCookies();
+
+// Login corporativo vía Microsoft Entra ID (SSO), opcional — ver
+// AzureAdOptions y RestriccionLoginLocalClaimsTransformation. Sin las tres
+// variables configuradas, este proveedor externo ni se registra: el login
+// local sigue siendo el único camino y se comporta exactamente igual que
+// hoy (mismo principio "inerte por defecto" que Sentry/Backups/Anthropic).
+var azureAd = builder.Configuration.GetSection(AzureAdOptions.SeccionConfiguracion).Get<AzureAdOptions>() ?? new AzureAdOptions();
+if (azureAd.EstaConfigurado)
+{
+    authenticationBuilder.AddOpenIdConnect(IdentityEndpointsExtensions.EsquemaMicrosoft, "Microsoft (empresa)", options =>
+    {
+        options.Authority = $"{azureAd.Instance}{azureAd.TenantId}/v2.0";
+        options.ClientId = azureAd.ClientId;
+        options.ClientSecret = azureAd.ClientSecret;
+        options.ResponseType = OpenIdConnectResponseType.Code;
+        options.CallbackPath = "/signin-microsoft";
+        options.SignInScheme = IdentityConstants.ExternalScheme;
+        options.SaveTokens = false;
+        options.Scope.Clear();
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
+        options.Scope.Add("email");
+    });
+}
 
 builder.Services.ConfigureApplicationCookie(options =>
 {

@@ -51,6 +51,27 @@ Producción y staging pueden usar las mismas variables de `Backups__Aws__*` (mis
 
 Las dos variables de `AdministradorInicial` solo se aplican **la primera vez que arranca** (cuando todavía no existe ningún usuario administrador) — si el servicio ya arrancó una vez sin ellas, cambia la contraseña desde `/usuarios` en vez de tocar estas variables.
 
+### Login corporativo con Microsoft (SSO / Entra ID)
+
+| Variable | Valor | Para qué |
+|---|---|---|
+| `AzureAd__TenantId` | Id del tenant de Entra ID de la empresa | Restringe el login a cuentas de esa organización — nunca "cualquier cuenta Microsoft" |
+| `AzureAd__ClientId` | Application (client) ID del App Registration | |
+| `AzureAd__ClientSecret` | un Client Secret del mismo App Registration | Como cualquier secreto, va directo aquí — nunca se comparte por chat. Los Client Secret de Entra ID caducan (máximo 24 meses) — hay que rotarlo antes de que caduque o el login con Microsoft deja de funcionar (el login local sigue disponible siempre) |
+
+**Sin estas tres variables, "Iniciar sesión con Microsoft" ni se muestra** — el login local sigue siendo el único camino, exactamente igual que hoy (mismo principio que `Sentry__Dsn`/`Backups__Activo`/`Anthropic__ApiKey`).
+
+**En cuanto se configuran, cambia el comportamiento del login local**: sigue funcionando (nunca se bloquea), pero el rol efectivo de esa sesión queda limitado a Consulta (solo lectura), sin importar el rol real guardado — es una capa extra de control pensada para que los roles editores (Administrador, Dirección CAE, Coordinador/Gestor CAE) solo puedan editar si entran por Microsoft. **Antes de activar esto en producción**, confirma que el email de cada `ApplicationUser` con rol editor coincide exactamente con su cuenta de Microsoft corporativa real — si no coincide, esa persona queda atascada en solo-lectura sin ruta de recuperación salvo quitar las variables de Railway.
+
+Pasos para crear el App Registration en [entra.microsoft.com](https://entra.microsoft.com) (Aplicaciones → Registros de aplicaciones → Nuevo registro):
+1. Tipo de cuenta: **"Cuentas solo en este directorio organizativo"** (single-tenant) — nunca "cualquier cuenta Microsoft" ni multi-tenant.
+2. Plataforma de redirección: **Web**, con la URI `https://tu-dominio.up.railway.app/signin-microsoft` (una por cada dominio real — producción y staging necesitan cada uno la suya, añadidas ambas al mismo App Registration).
+3. En **Certificados y secretos**, crea un Client Secret nuevo (anota la fecha de caducidad) — es el valor de `AzureAd__ClientSecret`.
+4. Permisos de API: no hace falta añadir ninguno además de los delegados por defecto (`openid`/`profile`/`email` los pide el propio flujo de inicio de sesión, no requieren consentimiento de administrador aparte).
+5. El **Application (client) ID** y el **Directory (tenant) ID** están en la pantalla "Introducción" del propio registro.
+
+Los usuarios que van a iniciar sesión por Microsoft deben existir de antemano en CAE Manager (`/usuarios`, con su email real de empresa) — el login con Microsoft nunca crea cuentas nuevas, solo verifica la identidad de una ya dada de alta.
+
 ### Datos de prueba para pruebas de carga y verificación de perfiles
 
 Con `DatosPrueba__Activo=true`, el primer arranque siembra automáticamente (solo si todavía no hay ningún Cliente — no duplica en redeploys posteriores):

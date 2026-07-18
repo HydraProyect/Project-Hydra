@@ -90,3 +90,21 @@
     box-shadow: var(--shadow-card);
     transform: translateY(-1px);
 }
+
+/* .boton-primario ya da tamaño/color — aquí solo lo necesario para que un
+   <a> (no un <button>) se comporte igual: sin esto, "width: 100%" e "inline"
+   (el display por defecto de <a>) dejan el enlace encogido al texto. */
+.boton-microsoft {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    margin-top: 0;
+}
+
+.separador-login {
+    text-align: center;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    margin: var(--space-4) 0 0;
+}

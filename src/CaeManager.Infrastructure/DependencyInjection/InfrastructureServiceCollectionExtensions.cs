@@ -10,6 +10,7 @@ using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Visitas;
 using CaeManager.Application.Importacion;
+using Microsoft.AspNetCore.Authentication;
 using CaeManager.Infrastructure.AsistenteIa;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
@@ -54,6 +55,9 @@ public static class InfrastructureServiceCollectionExtensions
             .AddEntityFrameworkStores<CaeManagerDbContext>()
             .AddSignInManager<SignInManager<ApplicationUser>>()
             .AddDefaultTokenProviders();
+
+        services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
+        services.AddTransient<IClaimsTransformation, RestriccionLoginLocalClaimsTransformation>();
 
         // Sin persistir las claves, cada reinicio del proceso genera unas nuevas
         // y todo lo cifrado con las anteriores (credenciales de Empresa/Centro,
