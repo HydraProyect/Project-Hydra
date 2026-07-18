@@ -16,6 +16,7 @@ using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Backups;
 using CaeManager.Infrastructure.Conversion;
+using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
@@ -108,6 +109,9 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>();
+
+        services.Configure<GraphEmailOptions>(configuration.GetSection(GraphEmailOptions.SeccionConfiguracion));
+        services.AddHttpClient<IEmailService, GraphEmailService>();
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();

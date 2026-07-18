@@ -1,0 +1,15 @@
+@page "/cuenta/pendiente-de-rol"
+@layout CaeManager.Web.Components.Layout.AuthLayout
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>Asignación de rol pendiente — CAE Manager</PageTitle>
+
+<div class="tarjeta-login">
+    <h1>CAE Manager</h1>
+    <p class="subtitulo-login">Asignación de rol pendiente</p>
+    <p class="mensaje-pendiente">Tu acceso está siendo revisado. Será asignada por el administrador en los próximos momentos.</p>
+    <form method="post" action="/cuenta/cerrar-sesion">
+        <button type="submit" class="boton-primario">Cerrar sesión</button>
+    </form>
+</div>

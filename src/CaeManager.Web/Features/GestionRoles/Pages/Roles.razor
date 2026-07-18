@@ -6,11 +6,17 @@
 
 <div class="contenedor-pagina">
     <h1 class="titulo-pagina">Roles</h1>
-    <p class="descripcion-roles">
-        Los 4 roles del sistema están fijos: cada uno corresponde a un nivel de visibilidad ya
-        integrado en Dashboard y en los módulos de administración. No es un catálogo editable —
-        para dar de alta usuarios y asignarles un rol, ve a <a href="/usuarios">Usuarios</a>.
-    </p>
+
+    <div class="pestanas-roles">
+        <button type="button" class="@ClasePestana("roles")" @onclick='() => CambiarPestana("roles")'>Roles</button>
+        <button type="button" class="@ClasePestana("pendientes")" @onclick='() => CambiarPestana("pendientes")'>
+            Pendientes de asignar
+            @if (_usuariosPendientes.Count > 0)
+            {
+                <Badge Tono="TonoBadge.Peligro">@_usuariosPendientes.Count</Badge>
+            }
+        </button>
+    </div>
 
     @if (_error)
     {
@@ -24,8 +30,14 @@
     {
         <EstadoCargando Filas="4" />
     }
-    else
+    else if (_pestanaActiva == "roles")
     {
+        <p class="descripcion-roles">
+            Los 6 roles del sistema están fijos: cada uno corresponde a un nivel de visibilidad ya
+            integrado en Dashboard y en los módulos de administración. No es un catálogo editable —
+            para dar de alta usuarios y asignarles un rol, ve a <a href="/usuarios">Usuarios</a>.
+        </p>
+
         <div class="rejilla-roles">
             @foreach (var rol in _roles)
             {
@@ -35,5 +47,56 @@
                 </Tarjeta>
             }
         </div>
+    }
+    else
+    {
+        <p class="descripcion-roles">
+            Usuarios que iniciaron sesión con su cuenta de Microsoft pero todavía no tienen rol
+            asignado — ven una pantalla de espera hasta que les asignes uno aquí. Para Gestor CAE o
+            Cliente con sus vínculos completos (coordinador, cliente asociado), asígnales primero un
+            rol simple aquí y termina de configurarlo después en <a href="/usuarios">Usuarios</a>.
+        </p>
+
+        @if (_usuariosPendientes.Count == 0)
+        {
+            <EstadoVacio Titulo="No hay nadie pendiente" Descripcion="Todos los usuarios que han iniciado sesión tienen un rol asignado." />
+        }
+        else
+        {
+            <table class="tabla-datos">
+                <thead>
+                    <tr>
+                        <th>Correo</th>
+                        <th>Nombre</th>
+                        <th>Solicitado</th>
+                        <th>Rol a asignar</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var pendiente in _usuariosPendientes)
+                    {
+                        <tr>
+                            <td>@pendiente.Email</td>
+                            <td>@pendiente.NombreCompleto</td>
+                            <td>@pendiente.FechaCreacion.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>
+                                <CampoSelect Etiqueta="" Valor="@RolElegido(pendiente.Id)" ValorChanged="v => CambiarRolElegido(pendiente.Id, v)">
+                                    @foreach (var rol in CaeManager.Infrastructure.Identity.Roles.Todos)
+                                    {
+                                        <option value="@rol">@CaeManager.Infrastructure.Identity.Roles.NombreVisible(rol)</option>
+                                    }
+                                </CampoSelect>
+                            </td>
+                            <td>
+                                <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AsignarRolAsync(pendiente)" Cargando="@(_asignandoId == pendiente.Id)">
+                                    Asignar
+                                </Boton>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
     }
 </div>
