@@ -28,7 +28,8 @@ public record TipoDocumentoListaDto(
     string? Descripcion,
     string? CriteriosValidacion,
     string? SeSolicitaA,
-    string? Observaciones);
+    string? Observaciones,
+    bool LecturaIaActiva);
 
 public class ObtenerTiposDocumentoQueryHandler(IApplicationDbContext dbContext)
     : IRequestHandler<ObtenerTiposDocumentoQuery, IReadOnlyList<TipoDocumentoListaDto>>
@@ -65,7 +66,7 @@ public class ObtenerTiposDocumentoQueryHandler(IApplicationDbContext dbContext)
             .OrderBy(t => t.Orden)
             .Select(t => new TipoDocumentoListaDto(
                 t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden, t.AmbitoAplicacion, t.EsObligatorio,
-                t.Descripcion, t.CriteriosValidacion, t.SeSolicitaA, t.Observaciones))
+                t.Descripcion, t.CriteriosValidacion, t.SeSolicitaA, t.Observaciones, t.LecturaIaActiva))
             .ToListAsync(cancellationToken);
     }
 }

@@ -103,6 +103,18 @@
         </label>
 
         <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" Filas="4" />
+
+        @if (_editandoId is not null && _puedeReasignarEjecutivo)
+        {
+            <CampoSelect Etiqueta="Gestor CAE asignado" Valor="@_ejecutivoUsuarioId" ValorChanged="v => _ejecutivoUsuarioId = v">
+                <option value="">Sin asignar</option>
+                @foreach (var gestor in _gestoresDisponibles)
+                {
+                    <option value="@gestor.Id">@gestor.NombreCompleto (@gestor.Email)</option>
+                }
+            </CampoSelect>
+            <p class="texto-vacio-seccion">Al cambiarlo, se avisa al Gestor CAE anterior y al nuevo de este cambio de cartera.</p>
+        }
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">

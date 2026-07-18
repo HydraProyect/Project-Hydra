@@ -44,6 +44,16 @@ public class TipoDocumento : Entity
     /// </summary>
     public AmbitoAplicacion AmbitoAplicacion { get; private set; }
 
+    /// <summary>
+    /// Interruptor global de Administrador: si está en false, la lectura
+    /// automática por IA de este tipo de documento queda desactivada para
+    /// todos los Clientes, sin excepción — ver
+    /// <see cref="Documentos.ConfiguracionIaDocumentoCliente"/> para el
+    /// nivel 2 (Gestor CAE, solo para su propia cartera). Empieza activo:
+    /// solo se desactiva explícitamente.
+    /// </summary>
+    public bool LecturaIaActiva { get; private set; } = true;
+
     private TipoDocumento()
     {
     }
@@ -89,6 +99,8 @@ public class TipoDocumento : Entity
         Notas = notas;
         EstablecerGlosario(descripcion, criteriosValidacion, seSolicitaA, observaciones);
     }
+
+    public void EstablecerLecturaIaActiva(bool activa) => LecturaIaActiva = activa;
 
     private void EstablecerGlosario(string? descripcion, string? criteriosValidacion, string? seSolicitaA, string? observaciones)
     {

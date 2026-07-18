@@ -63,6 +63,7 @@ public static class TipoDocumentoSeedData
             Orden = d.Orden,
             Notas = d.Notas,
             AmbitoAplicacion = d.Ambito,
-            EsObligatorio = d.EsObligatorio
+            EsObligatorio = d.EsObligatorio,
+            LecturaIaActiva = true
         });
 }
