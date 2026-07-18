@@ -1,0 +1,92 @@
+@page "/cuenta/verificar-2fa"
+@layout CaeManager.Web.Components.Layout.AuthLayout
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using CaeManager.Infrastructure.Identity
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Navigation
+
+<PageTitle>Verificación en dos pasos — CAE Manager</PageTitle>
+
+<div class="tarjeta-login">
+    <h1>CAE Manager</h1>
+    <p class="subtitulo-login">Introduce el código de tu aplicación autenticadora</p>
+
+    @if (Entrada is not null && _usuarioPendiente is not null)
+    {
+        <EditForm Model="Entrada" method="post" OnValidSubmit="VerificarAsync" FormName="verificar-2fa">
+            <DataAnnotationsValidator />
+
+            @if (mensajeError is not null)
+            {
+                <div class="alerta-login" role="alert">@mensajeError</div>
+            }
+
+            <label for="codigo">Código de 6 dígitos</label>
+            <InputText id="codigo" @bind-Value="Entrada.Codigo" autocomplete="one-time-code" inputmode="numeric" />
+            <ValidationMessage For="() => Entrada.Codigo" />
+
+            <button type="submit" class="boton-primario">Verificar</button>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private string? mensajeError;
+    private ApplicationUser? _usuarioPendiente;
+
+    [SupplyParameterFromForm]
+    private DatosEntrada? Entrada { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Entrada ??= new DatosEntrada();
+
+        // Si no hay un login con contraseña ya validado en curso (por
+        // ejemplo, alguien navega aquí directamente sin haber pasado por
+        // Login.razor), no hay nada que verificar — de vuelta al login.
+        _usuarioPendiente = await SignInManager.GetTwoFactorAuthenticationUserAsync();
+        if (_usuarioPendiente is null)
+            Navigation.NavigateTo("/cuenta/iniciar-sesion", forceLoad: true);
+    }
+
+    private async Task VerificarAsync()
+    {
+        if (Entrada is null || _usuarioPendiente is null) return;
+
+        var resultado = await SignInManager.TwoFactorAuthenticatorSignInAsync(
+            Entrada.Codigo, isPersistent: true, rememberClient: false);
+
+        if (resultado.Succeeded)
+        {
+            // Mismo caso borde que en Login.razor: un Administrador creado
+            // con contraseña temporal que además ya tuviera 2FA activado
+            // (por ejemplo, reactivado tras estar desactivado) también debe
+            // pasar por el cambio de contraseña — el guard de MainLayout lo
+            // haría cumplir igualmente, pero se resuelve aquí ya para
+            // evitar el salto visible.
+            if (_usuarioPendiente.DebeCambiarContrasena)
+            {
+                Navigation.NavigateTo("/cuenta/cambiar-contrasena", forceLoad: true);
+                return;
+            }
+
+            Navigation.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+            return;
+        }
+
+        mensajeError = "Código no válido. Revisa tu aplicación autenticadora e intenta nuevamente.";
+    }
+
+    private sealed class DatosEntrada
+    {
+        [Required(ErrorMessage = "Introduce el código de verificación.")]
+        [StringLength(6, MinimumLength = 6, ErrorMessage = "El código debe tener 6 dígitos.")]
+        public string Codigo { get; set; } = string.Empty;
+    }
+}

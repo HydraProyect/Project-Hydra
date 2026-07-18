@@ -1,0 +1,88 @@
+.tarjeta-2fa {
+    max-width: 480px;
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--space-8);
+}
+
+.tarjeta-2fa label {
+    display: block;
+    font: var(--font-label-md);
+    margin-top: var(--space-4);
+    margin-bottom: var(--space-1);
+}
+
+.clave-manual {
+    background-color: var(--color-neutral-50);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    font-family: monospace;
+    word-break: break-all;
+    margin: var(--space-2) 0;
+}
+
+.texto-2fa-exito {
+    color: var(--color-success-500);
+    font-weight: 600;
+}
+
+/*
+  ::deep obligatorio: <InputText> renderiza su <input> nativo sin el
+  atributo de scope de CSS isolation de este archivo — mismo motivo
+  documentado en Login.razor.css.
+*/
+.tarjeta-2fa ::deep input {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 var(--space-4);
+    border-radius: var(--radius-md);
+    border: var(--border-default);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+    transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.tarjeta-2fa ::deep input:focus {
+    outline: var(--border-focus);
+    outline-offset: -1px;
+    box-shadow: 0 0 0 4px var(--color-primary-100);
+}
+
+.tarjeta-2fa ::deep .validation-message {
+    display: block;
+    color: var(--color-danger-500);
+    font: var(--font-body-sm);
+    margin-top: var(--space-1);
+}
+
+.alerta-login {
+    background-color: var(--color-danger-50);
+    color: var(--color-danger-500);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    font: var(--font-body-sm);
+    margin-bottom: var(--space-2);
+}
+
+.boton-primario {
+    width: 100%;
+    min-height: 48px;
+    margin-top: var(--space-6);
+    border-radius: var(--radius-md);
+    border: none;
+    background-color: var(--color-primary-500);
+    color: var(--color-neutral-0);
+    font: var(--font-label-md);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-fast);
+}
+
+.boton-primario:hover {
+    background-color: var(--color-primary-600);
+    box-shadow: var(--shadow-card);
+    transform: translateY(-1px);
+}
