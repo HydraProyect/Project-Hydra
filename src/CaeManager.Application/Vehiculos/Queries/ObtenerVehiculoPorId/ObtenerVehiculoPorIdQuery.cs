@@ -15,11 +15,13 @@ public record VehiculoDetalleDto(
     string Modelo,
     string NumeroPlaca);
 
-public class ObtenerVehiculoPorIdQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerVehiculoPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVehiculoPorIdQuery, VehiculoDetalleDto?>
 {
     public async Task<VehiculoDetalleDto?> Handle(ObtenerVehiculoPorIdQuery request, CancellationToken cancellationToken)
     {
+        if (!await alcanceDatos.VehiculoVisibleAsync(request.Id, cancellationToken)) return null;
+
         var vehiculo = await dbContext.Vehiculos
             .Where(v => v.Id == request.Id)
             .Select(v => new { v.Id, v.EmpresaId, v.SubcontrataId, v.Nombre, v.Modelo, v.NumeroPlaca })

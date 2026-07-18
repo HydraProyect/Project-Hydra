@@ -18,7 +18,7 @@ public record VisitaDetalleDto(
     bool NotificadoCliente,
     string? Notas);
 
-public class ObtenerVisitaPorIdQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerVisitaPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVisitaPorIdQuery, VisitaDetalleDto?>
 {
     public async Task<VisitaDetalleDto?> Handle(ObtenerVisitaPorIdQuery request, CancellationToken cancellationToken)
@@ -44,6 +44,7 @@ public class ObtenerVisitaPorIdQueryHandler(IApplicationDbContext dbContext)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (visita is null) return null;
+        if (!await alcanceDatos.CentroVisibleAsync(visita.CentroId, cancellationToken)) return null;
 
         var trabajadorIds = await dbContext.VisitasTrabajadores
             .Where(vt => vt.VisitaId == request.Id)
