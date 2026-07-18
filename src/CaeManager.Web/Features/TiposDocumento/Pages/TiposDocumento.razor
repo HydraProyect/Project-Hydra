@@ -4,6 +4,7 @@
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
+@using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal
 @using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento
 @using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTipoDocumentoPorId
@@ -71,6 +72,7 @@
                     <th>Vigencia</th>
                     <th>Vencimiento automático</th>
                     <th>Obligatorio</th>
+                    <th>Lectura IA</th>
                     <th></th>
                 </tr>
             </thead>
@@ -101,6 +103,12 @@
                             {
                                 <Badge>Opcional</Badge>
                             }
+                        </td>
+                        <td>
+                            <label class="campo-checkbox" title="Lectura automática por IA para este tipo de documento, en todos los clientes">
+                                <input type="checkbox" checked="@tipo.LecturaIaActiva" @onchange="e => AlternarLecturaIaAsync(tipo.Id, e.Value is bool activa && activa)" />
+                                @(tipo.LecturaIaActiva ? "Activa" : "Desactivada")
+                            </label>
                         </td>
                         <td>
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(tipo.Id)">

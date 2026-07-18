@@ -1,0 +1,76 @@
+@page "/clientes/{ClienteId:guid}/lectura-ia"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
+@using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaCliente
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerConfiguracionIaPorCliente
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<PageTitle>Lectura IA — @(_cliente?.RazonSocial ?? "Cliente") — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Lectura automática por IA — @(_cliente?.RazonSocial ?? "…")</h1>
+    </div>
+
+    <p class="descripcion-roles">
+        Activa o desactiva la extracción automática por IA para cada tipo de documento, solo para
+        este cliente. Un tipo de documento desactivado por el Administrador para todos los
+        clientes (columna "Nivel 1") no se puede reactivar aquí.
+    </p>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar la configuración" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a este cliente.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="6" />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Tipo de documento</th>
+                    <th>Nivel 1 (Administrador)</th>
+                    <th>Nivel 2 (este cliente)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var tipo in _configuracion)
+                {
+                    <tr>
+                        <td>@tipo.Nombre</td>
+                        <td>
+                            @if (tipo.GlobalActiva)
+                            {
+                                <Badge Tono="TonoBadge.Exito">Activa</Badge>
+                            }
+                            else
+                            {
+                                <Badge Tono="TonoBadge.Peligro">Desactivada para todos</Badge>
+                            }
+                        </td>
+                        <td>
+                            <label class="campo-checkbox">
+                                <input type="checkbox"
+                                       checked="@tipo.EfectivaActiva"
+                                       disabled="@(!tipo.GlobalActiva || _actualizandoId == tipo.TipoDocumentoId)"
+                                       @onchange="e => AlternarAsync(tipo.TipoDocumentoId, e.Value is bool activa && activa)" />
+                                @(tipo.EfectivaActiva ? "Activa" : "Desactivada")
+                            </label>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>

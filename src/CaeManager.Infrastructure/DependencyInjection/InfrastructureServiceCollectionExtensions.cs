@@ -5,6 +5,7 @@ using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
@@ -88,6 +89,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITrabajadorRepository, TrabajadorRepository>();
         services.AddScoped<ITipoDocumentoRepository, TipoDocumentoRepository>();
         services.AddScoped<ITipoDocumentoCentroRepository, TipoDocumentoCentroRepository>();
+        services.AddScoped<IConfiguracionIaDocumentoClienteRepository, ConfiguracionIaDocumentoClienteRepository>();
+        services.AddScoped<INotificacionUsuarioRepository, NotificacionUsuarioRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
         services.AddScoped<IAsignacionRepository, AsignacionRepository>();
         services.AddScoped<IVisitaRepository, VisitaRepository>();

@@ -6,7 +6,7 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 
 public record ObtenerClientePorIdQuery(Guid Id) : IRequest<ClienteDetalleDto?>;
 
-public record ClienteDetalleDto(Guid Id, string RazonSocial, string Cif, bool EsCritico, string? Notas, DateTime CreadoEnUtc);
+public record ClienteDetalleDto(Guid Id, string RazonSocial, string Cif, bool EsCritico, string? Notas, DateTime CreadoEnUtc, Guid? EjecutivoUsuarioId);
 
 public class ObtenerClientePorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerClientePorIdQuery, ClienteDetalleDto?>
@@ -17,7 +17,7 @@ public class ObtenerClientePorIdQueryHandler(IApplicationDbContext dbContext, IA
 
         return await dbContext.Clientes
             .Where(c => c.Id == request.Id)
-            .Select(c => new ClienteDetalleDto(c.Id, c.RazonSocial, c.Cif, c.EsCritico, c.Notas, c.CreadoEnUtc))
+            .Select(c => new ClienteDetalleDto(c.Id, c.RazonSocial, c.Cif, c.EsCritico, c.Notas, c.CreadoEnUtc, c.EjecutivoUsuarioId))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }
