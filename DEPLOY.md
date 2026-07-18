@@ -43,6 +43,11 @@ En la pestaña **Variables** del servicio, añade:
 
 Producción y staging pueden usar las mismas variables de `Backups__Aws__*` (mismo bucket) sin pisarse los backups entre sí — cada uno sube a su propia carpeta dentro del bucket, identificada automáticamente por el nombre del servicio en Railway.
 
+| Variable | Valor | Para qué |
+|---|---|---|
+| `Anthropic__ApiKey` | tu API key de [console.anthropic.com](https://console.anthropic.com) | Activa el chat "Pregúntale a Hydra" (botón flotante) — sin esta variable el botón ni se muestra. Si la key tiene fecha de expiración (recomendado), hay que rotarla en Railway antes de que caduque o el chat deja de responder |
+| `Anthropic__Modelo` | (opcional, por defecto `claude-sonnet-5`) | Modelo usado para el chat |
+
 Las dos variables de `AdministradorInicial` solo se aplican **la primera vez que arranca** (cuando todavía no existe ningún usuario administrador) — si el servicio ya arrancó una vez sin ellas, cambia la contraseña desde `/usuarios` en vez de tocar estas variables.
 
 ### Datos de prueba para pruebas de carga y verificación de perfiles

@@ -7,6 +7,7 @@ using CaeManager.Infrastructure.Persistence.Seed;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.AsistenteIa;
 using CaeManager.Web.Features.Auditoria;
 using CaeManager.Web.Features.BusquedaGlobal;
 using CaeManager.Web.Features.Clientes;
@@ -93,6 +94,7 @@ builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<BusquedaGlobalService>();
+builder.Services.AddScoped<AsistenteIaService>();
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services
