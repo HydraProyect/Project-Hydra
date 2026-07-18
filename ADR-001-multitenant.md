@@ -2,6 +2,8 @@
 
 **Estado**: Decidido (2026-07-17).
 
+> **Nota (2026-07-18)**: la vía multi-cliente queda **en pausa** — ver `ADR-002-single-tenant.md`. Este documento se conserva íntegro como referencia técnica válida para cuando/si se retome (la auditoría de queries, el interceptor de escritura y los índices compuestos siguen siendo el plan de implementación correcto). Mientras el uso sea interno, no se implementa `TenantId` en este repositorio.
+
 ## Decisión
 
 CAE Manager se construye como **SaaS multi-cliente**: el destino del producto no es una única organización de uso interno, sino un producto vendible a varios clientes PRL independientes entre sí, cada uno con su propio conjunto de Clientes/Empresas/Trabajadores/Documentos.
