@@ -22,7 +22,7 @@ public record DocumentoDetalleDto(
     string? TipoDocumentoSeSolicitaA,
     string? TipoDocumentoObservaciones);
 
-public class ObtenerDocumentoPorIdQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerDocumentoPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentoPorIdQuery, DocumentoDetalleDto?>
 {
     public async Task<DocumentoDetalleDto?> Handle(ObtenerDocumentoPorIdQuery request, CancellationToken cancellationToken)
@@ -45,6 +45,21 @@ public class ObtenerDocumentoPorIdQueryHandler(IApplicationDbContext dbContext)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (documento is null) return null;
+
+        // El ámbito (Trabajador/Cliente/Vehículo/Empresa) determina contra qué
+        // cartera se comprueba el alcance — son cuatro FKs mutuamente
+        // excluyentes (ver Fase 29 de ROADMAP.md), así que solo una aplica.
+        // Documento de Trabajador es el caso más sensible: incluye archivos de
+        // vigilancia de la salud (categoría especial Art. 9 RGPD).
+        var visible = documento.TrabajadorId is { } trabajadorId
+            ? await alcanceDatos.TrabajadorVisibleAsync(trabajadorId, cancellationToken)
+            : documento.ClienteId is { } clienteId
+                ? await alcanceDatos.ClienteVisibleAsync(clienteId, cancellationToken)
+                : documento.VehiculoId is { } vehiculoId
+                    ? await alcanceDatos.VehiculoVisibleAsync(vehiculoId, cancellationToken)
+                    : await alcanceDatos.EmpresaVisibleAsync(documento.EmpresaId!.Value, cancellationToken);
+
+        if (!visible) return null;
 
         var tipoDocumento = await dbContext.TiposDocumento
             .Where(t => t.Id == documento.TipoDocumentoId)
