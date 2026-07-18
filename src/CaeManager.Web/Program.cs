@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using PdfSharp.Fonts;
+using Serilog;
 using System.Globalization;
 
 // El resolver de fuentes de PDFsharp 6 es global e independiente del ciclo de
@@ -31,6 +32,61 @@ var builder = WebApplication.CreateBuilder(args);
 var culturaEspanola = new CultureInfo("es-ES");
 CultureInfo.DefaultThreadCurrentCulture = culturaEspanola;
 CultureInfo.DefaultThreadCurrentUICulture = culturaEspanola;
+
+// Logging estructurado con Serilog — sustituye al proveedor de logging por
+// defecto de Microsoft.Extensions.Logging (la sección "Logging" del
+// appsettings ya no se usa; los niveles ahora se leen de "Serilog", con el
+// mismo mecanismo de env vars que el resto de la app, p. ej.
+// Serilog__MinimumLevel__Default=Warning). Los sitios que ya hacen
+// logger.LogInformation/LogWarning/LogError (IdentitySeeder,
+// DatosPruebaSeeder) no necesitan cambios: solo se sustituye el proveedor,
+// no la API de ILogger.
+//
+// La ruta del sink de archivo sigue el mismo patrón que
+// DataProtection:RutaClaves / AlmacenamientoArchivos:Ruta (relativa al
+// content root si no es absoluta) en vez de vivir dentro del JSON de
+// Serilog, para poder fijarla con una única variable de entorno con el
+// mismo estilo de clave en español que el resto de esta app.
+var rutaLogs = builder.Configuration["Logging:RutaArchivo"] ?? "App_Data/logs/log-.txt";
+var rutaLogsAbsoluta = Path.IsPathRooted(rutaLogs)
+    ? rutaLogs
+    : Path.Combine(builder.Environment.ContentRootPath, rutaLogs);
+
+builder.Host.UseSerilog((context, services, loggerConfiguration) => loggerConfiguration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .WriteTo.File(rutaLogsAbsoluta, rollingInterval: RollingInterval.Day, retainedFileCountLimit: 31));
+
+// Para añadir un sink en la nube (Seq, Axiom, etc.) más adelante: agregar el
+// paquete NuGet correspondiente y un .WriteTo.Xxx(...) condicionado a que su
+// clave de configuración (p. ej. "Serilog:Seq:ServerUrl") esté presente en
+// builder.Configuration — mismo patrón "funciona sin configurar, se
+// endurece con una variable de entorno en producción" que
+// DataProtection/AlmacenamientoArchivos. Ningún paquete de sink en la nube
+// está referenciado todavía porque no hay cuenta provisionada (ver
+// RUNBOOK-CLAVES.md / ROADMAP.md).
+
+// Error tracking con Sentry — si "Sentry:Dsn" no está configurado (hoy, en
+// todos los entornos: no hay cuenta de Sentry provisionada todavía), la SDK
+// queda inerte por diseño propio: no envía nada, no lanza, no bloquea el
+// arranque. IMPORTANTE: hay que pasar explícitamente "" (no null) para que
+// quede inerte — un Dsn null hace que Sentry.SentrySdk.InitHub lance
+// ArgumentNullException en el arranque en vez de desactivarse en silencio
+// (comprobado en local, no es el comportamiento que sugiere la documentación
+// a primera vista). El middleware de Sentry se registra internamente vía
+// IStartupFilter y envuelve TODO el pipeline HTTP, incluido
+// app.UseExceptionHandler("/Error", ...) más abajo — captura la excepción
+// real para reportarla y la deja seguir su curso normal hacia la página de
+// error genérica ya existente (ver ARCHITECTURE.md, "Excepciones reservadas
+// para errores verdaderamente inesperados").
+builder.WebHost.UseSentry(options =>
+{
+    options.Dsn = builder.Configuration["Sentry:Dsn"] ?? string.Empty;
+    options.Environment = builder.Environment.EnvironmentName;
+    options.SendDefaultPii = false;
+});
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
@@ -92,6 +148,11 @@ using (var scope = app.Services.CreateScope())
     await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration);
     await DatosPruebaSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
 }
+
+// Registrado antes del manejo de excepciones para envolverlo por completo:
+// una petición que termina en 500 vía UseExceptionHandler se sigue
+// registrando aquí con su código de estado final, no como si hubiera ido bien.
+app.UseSerilogRequestLogging();
 
 if (!app.Environment.IsDevelopment())
 {

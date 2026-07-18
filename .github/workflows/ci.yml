@@ -88,3 +88,63 @@ jobs:
           file: Dockerfile
           push: false
           tags: caemanager:ci
+
+  bunit-tests:
+    name: Tests de componentes (bUnit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Tests de componentes Blazor
+        run: dotnet test tests/CaeManager.Web.Tests --logger "console;verbosity=normal"
+
+  e2e-tests:
+    name: Tests E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      # Arranca la propia app (WebAppFixture) como subproceso real contra un
+      # SQLite temporal — necesita el .dll ya compilado antes de correr los
+      # tests, y el propio proyecto Web (CaeManager.Web.dll) también.
+      - name: Compilar
+        run: dotnet build CaeManager.slnx --no-restore
+
+      # El paquete Microsoft.Playwright genera un playwright.ps1 en el output
+      # del proyecto que lo referencia — se usa ese, no una instalación
+      # global, para no acoplar la versión de los navegadores a nada fuera
+      # del propio csproj (ver CaeManager.E2ETests.csproj).
+      - name: Instalar navegadores de Playwright
+        run: pwsh tests/CaeManager.E2ETests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Tests E2E
+        run: dotnet test tests/CaeManager.E2ETests --no-build --logger "console;verbosity=normal"
+
+  gitleaks:
+    name: Escaneo de secretos (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

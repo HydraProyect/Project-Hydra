@@ -1,0 +1,171 @@
+@page "/cuenta/configurar-2fa"
+@attribute [Authorize]
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using System.Text
+@using System.Text.Encodings.Web
+@using CaeManager.Infrastructure.Identity
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Autenticación en dos pasos — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Autenticación en dos pasos</h1>
+    </div>
+
+    @if (_cargando)
+    {
+        <p>Cargando…</p>
+    }
+    else if (_dosFactoresActivo)
+    {
+        <div class="tarjeta-2fa">
+            <p class="texto-2fa-exito">✓ La autenticación en dos pasos ya está activada en tu cuenta.</p>
+        </div>
+    }
+    else if (_claveCompartida is not null && Entrada is not null)
+    {
+        <div class="tarjeta-2fa">
+            <p>
+                Escanea la clave con una aplicación autenticadora compatible con TOTP
+                (Google Authenticator, Microsoft Authenticator, 1Password, etc.) o
+                introdúcela manualmente:
+            </p>
+
+            <p class="clave-manual"><code>@_claveCompartida</code></p>
+
+            <p class="texto-vacio-seccion">
+                Si tu aplicación admite añadir cuentas pegando una URI, usa esta:
+            </p>
+            <p class="clave-manual"><code>@_uriOtpAuth</code></p>
+
+            @if (mensajeError is not null)
+            {
+                <div class="alerta-login" role="alert">@mensajeError</div>
+            }
+
+            <EditForm Model="Entrada" method="post" OnValidSubmit="VerificarAsync" FormName="configurar-2fa">
+                <DataAnnotationsValidator />
+
+                <label for="codigo">Código de 6 dígitos generado por la app</label>
+                <InputText id="codigo" @bind-Value="Entrada.Codigo" autocomplete="one-time-code" inputmode="numeric" />
+                <ValidationMessage For="() => Entrada.Codigo" />
+
+                <button type="submit" class="boton-primario">Activar autenticación en dos pasos</button>
+            </EditForm>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _cargando = true;
+    private bool _dosFactoresActivo;
+    private string? _claveCompartida;
+    private string? _uriOtpAuth;
+    private string? mensajeError;
+    private ApplicationUser? _usuario;
+
+    private const string Emisor = "CAE Manager";
+
+    [SupplyParameterFromForm]
+    private DatosEntrada? Entrada { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Entrada ??= new DatosEntrada();
+
+        var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(idClaim, out var id))
+        {
+            _cargando = false;
+            return;
+        }
+
+        _usuario = await UserManager.FindByIdAsync(id.ToString());
+        if (_usuario is null)
+        {
+            _cargando = false;
+            return;
+        }
+
+        _dosFactoresActivo = await UserManager.GetTwoFactorEnabledAsync(_usuario);
+        if (!_dosFactoresActivo)
+            await CargarClaveCompartidaAsync(_usuario);
+
+        _cargando = false;
+    }
+
+    private async Task CargarClaveCompartidaAsync(ApplicationUser usuario)
+    {
+        var claveSinFormato = await UserManager.GetAuthenticatorKeyAsync(usuario);
+        if (string.IsNullOrEmpty(claveSinFormato))
+        {
+            await UserManager.ResetAuthenticatorKeyAsync(usuario);
+            claveSinFormato = await UserManager.GetAuthenticatorKeyAsync(usuario);
+        }
+
+        _claveCompartida = FormatearClave(claveSinFormato!);
+        _uriOtpAuth = GenerarUriOtpAuth(usuario.Email ?? usuario.UserName ?? string.Empty, claveSinFormato!);
+    }
+
+    private async Task VerificarAsync()
+    {
+        if (Entrada is null || _usuario is null) return;
+
+        var codigoLimpio = Entrada.Codigo.Replace(" ", string.Empty).Replace("-", string.Empty);
+
+        var esValido = await UserManager.VerifyTwoFactorTokenAsync(
+            _usuario, UserManager.Options.Tokens.AuthenticatorTokenProvider, codigoLimpio);
+
+        if (!esValido)
+        {
+            mensajeError = "El código no es válido. Comprueba la hora de tu dispositivo e inténtalo de nuevo.";
+            return;
+        }
+
+        await UserManager.SetTwoFactorEnabledAsync(_usuario, true);
+        _dosFactoresActivo = true;
+        mensajeError = null;
+    }
+
+    /// <summary>
+    /// Agrupa la clave de 4 en 4 caracteres para que sea más fácil de leer
+    /// y transcribir a mano — mismo formato que usa la plantilla oficial de
+    /// ASP.NET Core Identity para esta misma pantalla.
+    /// </summary>
+    private static string FormatearClave(string claveSinFormato)
+    {
+        var resultado = new StringBuilder();
+        var posicion = 0;
+        while (posicion + 4 < claveSinFormato.Length)
+        {
+            resultado.Append(claveSinFormato.AsSpan(posicion, 4)).Append(' ');
+            posicion += 4;
+        }
+        if (posicion < claveSinFormato.Length)
+            resultado.Append(claveSinFormato.AsSpan(posicion));
+
+        return resultado.ToString().ToLowerInvariant();
+    }
+
+    private static string GenerarUriOtpAuth(string email, string claveSinFormato) =>
+        string.Format(
+            System.Globalization.CultureInfo.InvariantCulture,
+            "otpauth://totp/{0}:{1}?secret={2}&issuer={0}&digits=6",
+            UrlEncoder.Default.Encode(Emisor),
+            UrlEncoder.Default.Encode(email),
+            claveSinFormato);
+
+    private sealed class DatosEntrada
+    {
+        [Required(ErrorMessage = "Introduce el código de la aplicación autenticadora.")]
+        [StringLength(6, MinimumLength = 6, ErrorMessage = "El código debe tener 6 dígitos.")]
+        public string Codigo { get; set; } = string.Empty;
+    }
+}

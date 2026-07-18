@@ -246,7 +246,11 @@ public static class DatosPruebaSeeder
                     UserName = email,
                     Email = email,
                     NombreCompleto = $"Prueba {rol} {i}",
-                    EmailConfirmed = true
+                    EmailConfirmed = true,
+                    // Todo su propósito es poder iniciar sesión directamente
+                    // con ContrasenaUsuariosPrueba — nunca deben quedar
+                    // atrapados en la pantalla de cambio de contraseña.
+                    DebeCambiarContrasena = false
                 };
 
                 var resultado = await userManager.CreateAsync(usuario, ContrasenaUsuariosPrueba);

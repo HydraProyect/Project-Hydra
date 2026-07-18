@@ -27,4 +27,16 @@ public class ApplicationUser : IdentityUser<Guid>
     /// restricción", a diferencia del resto de roles.
     /// </summary>
     public Guid? ClienteId { get; set; }
+
+    /// <summary>
+    /// True cuando un Administrador acaba de crear este usuario con una
+    /// contraseña temporal (ver Usuarios.razor.cs) y todavía no la ha
+    /// cambiado por una propia. Se comprueba tras cada inicio de sesión
+    /// (ver Login.razor) y se hace cumplir en cada navegación desde
+    /// MainLayout — nunca se marca en true para el Administrador inicial
+    /// (IdentitySeeder) ni para los usuarios de DatosPruebaSeeder, porque
+    /// ambos usan una contraseña conocida y elegida deliberadamente, no una
+    /// temporal de un tercero.
+    /// </summary>
+    public bool DebeCambiarContrasena { get; set; }
 }

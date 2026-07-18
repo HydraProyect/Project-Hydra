@@ -1,0 +1,112 @@
+@page "/cuenta/cambiar-contrasena"
+@layout CaeManager.Web.Components.Layout.AuthLayout
+@attribute [Authorize]
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using CaeManager.Infrastructure.Identity
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Cambiar contraseña — CAE Manager</PageTitle>
+
+<div class="tarjeta-login">
+    <h1>CAE Manager</h1>
+    <p class="subtitulo-login">Tienes que cambiar tu contraseña antes de continuar</p>
+
+    @if (Entrada is not null)
+    {
+        <EditForm Model="Entrada" method="post" OnValidSubmit="CambiarContrasenaAsync" FormName="cambiar-contrasena">
+            <DataAnnotationsValidator />
+
+            @if (mensajeError is not null)
+            {
+                <div class="alerta-login" role="alert">@mensajeError</div>
+            }
+
+            <label for="password-actual">Contraseña actual</label>
+            <InputText id="password-actual" type="password" @bind-Value="Entrada.ContrasenaActual" autocomplete="current-password" />
+            <ValidationMessage For="() => Entrada.ContrasenaActual" />
+
+            <label for="password-nueva">Contraseña nueva</label>
+            <InputText id="password-nueva" type="password" @bind-Value="Entrada.ContrasenaNueva" autocomplete="new-password" />
+            <ValidationMessage For="() => Entrada.ContrasenaNueva" />
+
+            <label for="password-confirmar">Confirma la contraseña nueva</label>
+            <InputText id="password-confirmar" type="password" @bind-Value="Entrada.ConfirmarContrasenaNueva" autocomplete="new-password" />
+            <ValidationMessage For="() => Entrada.ConfirmarContrasenaNueva" />
+
+            <button type="submit" class="boton-primario">Cambiar contraseña</button>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private string? mensajeError;
+
+    [SupplyParameterFromForm]
+    private DatosEntrada? Entrada { get; set; }
+
+    protected override void OnInitialized() => Entrada ??= new DatosEntrada();
+
+    private async Task CambiarContrasenaAsync()
+    {
+        if (Entrada is null) return;
+
+        if (Entrada.ContrasenaNueva != Entrada.ConfirmarContrasenaNueva)
+        {
+            mensajeError = "La confirmación no coincide con la contraseña nueva.";
+            return;
+        }
+
+        var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(idClaim, out var id))
+        {
+            mensajeError = "No pudimos identificar tu sesión. Vuelve a iniciar sesión.";
+            return;
+        }
+
+        var usuario = await UserManager.FindByIdAsync(id.ToString());
+        if (usuario is null)
+        {
+            mensajeError = "No pudimos identificar tu sesión. Vuelve a iniciar sesión.";
+            return;
+        }
+
+        var resultado = await UserManager.ChangePasswordAsync(usuario, Entrada.ContrasenaActual, Entrada.ContrasenaNueva);
+        if (!resultado.Succeeded)
+        {
+            mensajeError = string.Join(" ", resultado.Errors.Select(e => e.Description));
+            return;
+        }
+
+        usuario.DebeCambiarContrasena = false;
+        await UserManager.UpdateAsync(usuario);
+
+        // Reemite la cookie de autenticación tras el cambio de credencial —
+        // práctica estándar de Identity (rota el security stamp) aunque el
+        // guard de MainLayout ya relee DebeCambiarContrasena de la base de
+        // datos en cada navegación, no de un claim cacheado.
+        await SignInManager.RefreshSignInAsync(usuario);
+
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+
+    private sealed class DatosEntrada
+    {
+        [Required(ErrorMessage = "Introduce tu contraseña actual.")]
+        public string ContrasenaActual { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Introduce la contraseña nueva.")]
+        [MinLength(8, ErrorMessage = "La contraseña nueva debe tener al menos 8 caracteres.")]
+        public string ContrasenaNueva { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Confirma la contraseña nueva.")]
+        public string ConfirmarContrasenaNueva { get; set; } = string.Empty;
+    }
+}
