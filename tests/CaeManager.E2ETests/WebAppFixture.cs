@@ -66,7 +66,13 @@ public sealed class WebAppFixture : IAsyncLifetime
         _playwright = await Playwright.CreateAsync();
         Browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
         {
-            ExecutablePath = ExecutablePathChromium,
+            // ExecutablePathChromium solo existe en el sandbox de este
+            // entorno de desarrollo — en CI (y en cualquier otra máquina)
+            // el Chromium real vive donde lo puso "playwright install"
+            // (ver ci.yml), la caché estándar de Playwright. Se usa el path
+            // fijo solo si de verdad está ahí; si no, se deja sin
+            // ExecutablePath para que Playwright resuelva el suyo.
+            ExecutablePath = File.Exists(ExecutablePathChromium) ? ExecutablePathChromium : null,
             Headless = true,
         });
     }
