@@ -12,6 +12,7 @@ using CaeManager.Domain.Visitas;
 using CaeManager.Application.Importacion;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Backups;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
@@ -92,6 +93,9 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
         services.AddSingleton<IFileStorageService, DiskFileStorageService>();
+
+        services.Configure<BackupsOptions>(configuration.GetSection(BackupsOptions.SeccionConfiguracion));
+        services.AddHostedService<BackupHostedService>();
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();
