@@ -16,7 +16,10 @@ namespace CaeManager.Infrastructure.Identity;
 /// Inerte mientras <see cref="AzureAdOptions.EstaConfigurado"/> sea falso,
 /// para no bloquear el login local antes de tener SSO activo (arranque en
 /// frío del propio Administrador) — mismo principio "inerte por defecto"
-/// que Sentry/Backups/Anthropic.
+/// que Sentry/Backups/Anthropic. **Excepción explícita**: Administrador
+/// conserva su rol real incluso por login local — vía de escape deliberada
+/// (pedida por el usuario) para nunca perder acceso de administración al
+/// portal si algo falla del lado de Entra ID durante pruebas o en producción.
 /// </summary>
 public class RestriccionLoginLocalClaimsTransformation : IClaimsTransformation
 {
@@ -35,6 +38,7 @@ public class RestriccionLoginLocalClaimsTransformation : IClaimsTransformation
         if (!_azureAd.Value.EstaConfigurado) return Task.FromResult(principal);
         if (principal.Identity is not ClaimsIdentity identidad || !identidad.IsAuthenticated) return Task.FromResult(principal);
         if (identidad.HasClaim(TipoClaimMetodoLogin, MetodoLoginSso)) return Task.FromResult(principal);
+        if (identidad.HasClaim(identidad.RoleClaimType, Roles.Administrador)) return Task.FromResult(principal);
 
         foreach (var claimRol in identidad.FindAll(identidad.RoleClaimType).ToList())
             identidad.RemoveClaim(claimRol);

@@ -61,16 +61,25 @@ Las dos variables de `AdministradorInicial` solo se aplican **la primera vez que
 
 **Sin estas tres variables, "Iniciar sesión con Microsoft" ni se muestra** — el login local sigue siendo el único camino, exactamente igual que hoy (mismo principio que `Sentry__Dsn`/`Backups__Activo`/`Anthropic__ApiKey`).
 
-**En cuanto se configuran, cambia el comportamiento del login local**: sigue funcionando (nunca se bloquea), pero el rol efectivo de esa sesión queda limitado a Consulta (solo lectura), sin importar el rol real guardado — es una capa extra de control pensada para que los roles editores (Administrador, Dirección CAE, Coordinador/Gestor CAE) solo puedan editar si entran por Microsoft. **Antes de activar esto en producción**, confirma que el email de cada `ApplicationUser` con rol editor coincide exactamente con su cuenta de Microsoft corporativa real — si no coincide, esa persona queda atascada en solo-lectura sin ruta de recuperación salvo quitar las variables de Railway.
+**En cuanto se configuran, cambia el comportamiento del login local**: sigue funcionando (nunca se bloquea), pero el rol efectivo de esa sesión queda limitado a Consulta (solo lectura), sin importar el rol real guardado — es una capa extra de control pensada para que los roles editores (Dirección CAE, Coordinador/Gestor CAE) solo puedan editar si entran por Microsoft. **Excepción explícita: Administrador conserva su rol real incluso por login local** — vía de escape deliberada para nunca perder acceso de administración al portal si algo falla del lado de Entra ID (pedida por el usuario tras las primeras pruebas). Para el resto de roles, **antes de activar esto en producción**, confirma que el email de cada `ApplicationUser` editor coincide exactamente con su cuenta de Microsoft corporativa real — si no coincide, esa persona queda atascada en solo-lectura hasta que un Administrador (que sí puede entrar siempre localmente) le dé de alta correctamente o le asigne un rol si aparece como pendiente (ver más abajo).
 
 Pasos para crear el App Registration en [entra.microsoft.com](https://entra.microsoft.com) (Aplicaciones → Registros de aplicaciones → Nuevo registro):
 1. Tipo de cuenta: **"Cuentas solo en este directorio organizativo"** (single-tenant) — nunca "cualquier cuenta Microsoft" ni multi-tenant.
 2. Plataforma de redirección: **Web**, con la URI `https://tu-dominio.up.railway.app/signin-microsoft` (una por cada dominio real — producción y staging necesitan cada uno la suya, añadidas ambas al mismo App Registration).
 3. En **Certificados y secretos**, crea un Client Secret nuevo (anota la fecha de caducidad) — es el valor de `AzureAd__ClientSecret`.
-4. Permisos de API: no hace falta añadir ninguno además de los delegados por defecto (`openid`/`profile`/`email` los pide el propio flujo de inicio de sesión, no requieren consentimiento de administrador aparte).
+4. Permisos de API: no hace falta añadir ninguno además de los delegados por defecto (`openid`/`profile`/`email` los pide el propio flujo de inicio de sesión, no requieren consentimiento de administrador aparte) — salvo que también actives el envío de correo (ver siguiente sección), que sí necesita un permiso de aplicación aparte.
 5. El **Application (client) ID** y el **Directory (tenant) ID** están en la pantalla "Introducción" del propio registro.
 
-Los usuarios que van a iniciar sesión por Microsoft deben existir de antemano en CAE Manager (`/usuarios`, con su email real de empresa) — el login con Microsoft nunca crea cuentas nuevas, solo verifica la identidad de una ya dada de alta.
+**Cualquier cuenta del tenant configurado puede iniciar sesión** (restringido por `AzureAd__TenantId`, nunca "cualquier cuenta Microsoft") — pero solo entra con acceso real si un Administrador ya le asignó un rol. Si es la primera vez que esa persona inicia sesión, se crea automáticamente una cuenta sin rol y queda en una pantalla de espera ("Asignación de rol pendiente") hasta que un Administrador le asigna uno desde la pestaña **"Pendientes de asignar"** en `/roles` — ver la sección de correo más abajo para las notificaciones asociadas.
+
+### Envío de correo (Microsoft Graph)
+
+| Variable | Valor | Para qué |
+|---|---|---|
+| `Graph__TenantId` / `Graph__ClientId` / `Graph__ClientSecret` | mismos valores que `AzureAd__*` si reutilizas el mismo App Registration, o los de uno distinto | Requiere el permiso de **aplicación** (no delegado) `Mail.Send` en Entra ID, con **consentimiento de administrador** concedido — a diferencia del login SSO, este envío no depende de que haya ningún usuario con sesión iniciada |
+| `Graph__BuzonRemitente` | UPN de un buzón real del tenant (ej. `notificaciones@empresa.com`) | Remitente de los correos — debe existir como buzón real con licencia de correo |
+
+**Sin las cuatro variables, el envío de correo queda inerte** — las notificaciones que lo disparan (usuario pendiente de rol, confirmación de rol asignado) se registran en el log como aviso pero no impiden la acción de negocio (crear la cuenta pendiente, asignar el rol siguen funcionando igual). La plantilla/diseño final de estos correos está todavía por definir — hoy es HTML mínimo, sin estilos.
 
 ### Datos de prueba para pruebas de carga y verificación de perfiles
 

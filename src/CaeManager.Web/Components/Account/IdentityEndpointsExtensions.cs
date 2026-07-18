@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -37,16 +38,14 @@ public static class IdentityEndpointsExtensions
 
         // A dónde vuelve el navegador ya con la cookie externa temporal
         // firmada (IdentityConstants.ExternalScheme) tras un login de
-        // Microsoft correcto. Dos reglas explícitas, ver
-        // RestriccionLoginLocalClaimsTransformation para el resto del diseño:
-        // (1) nunca auto-provisiona cuentas nuevas — el email de Microsoft
-        // debe coincidir con un ApplicationUser ya dado de alta por un
-        // Administrador en /usuarios; (2) no exige DebeCambiarContrasena —
-        // ese flujo es solo para la contraseña local, que un usuario SSO
-        // puede no usar nunca.
+        // Microsoft correcto. Ver RestriccionLoginLocalClaimsTransformation
+        // para el resto del diseño de esta funcionalidad. No exige
+        // DebeCambiarContrasena — ese flujo es solo para la contraseña
+        // local, que un usuario SSO puede no usar nunca.
         endpoints.MapGet("/cuenta/microsoft-callback", async (
             SignInManager<ApplicationUser> signInManager,
             UserManager<ApplicationUser> userManager,
+            IEmailService emailService,
             ILogger<Program> logger,
             string? returnUrl) =>
         {
@@ -57,12 +56,43 @@ public static class IdentityEndpointsExtensions
             var email = infoExterna.Principal.FindFirstValue(ClaimTypes.Email)
                 ?? infoExterna.Principal.FindFirstValue("preferred_username");
 
-            var usuario = email is not null ? await userManager.FindByEmailAsync(email) : null;
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                logger.LogWarning("Login de Microsoft rechazado: la cuenta no trajo un email utilizable.");
+                await signInManager.SignOutAsync();
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+            }
+
+            var usuario = await userManager.FindByEmailAsync(email);
+            var esUsuarioNuevo = usuario is null;
+
             if (usuario is null)
             {
-                logger.LogWarning("Login de Microsoft rechazado: {Email} no tiene una cuenta dada de alta en CAE Manager.", email);
-                await signInManager.SignOutAsync();
-                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-cuenta");
+                // Auto-provisión sin rol: cualquier cuenta del tenant de la
+                // empresa (ya restringido por AzureAdOptions.TenantId, ver
+                // Program.cs) puede iniciar sesión, pero queda en la sala de
+                // espera ("Pendientes de asignar", ver Roles.razor) hasta que
+                // un Administrador le asigna un rol — nunca entra con acceso
+                // real solo por tener cuenta de Microsoft de la empresa.
+                var nombreCompleto = infoExterna.Principal.FindFirstValue(ClaimTypes.Name) ?? email;
+                usuario = new ApplicationUser
+                {
+                    UserName = email,
+                    Email = email,
+                    NombreCompleto = nombreCompleto,
+                    EmailConfirmed = true,
+                    DebeCambiarContrasena = false,
+                };
+
+                var resultadoCreacion = await userManager.CreateAsync(usuario);
+                if (!resultadoCreacion.Succeeded)
+                {
+                    logger.LogError(
+                        "No se pudo auto-provisionar la cuenta de {Email} desde el login de Microsoft: {Errores}",
+                        email, string.Join(" ", resultadoCreacion.Errors.Select(e => e.Description)));
+                    await signInManager.SignOutAsync();
+                    return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+                }
             }
 
             var yaVinculado = (await userManager.GetLoginsAsync(usuario))
@@ -73,9 +103,42 @@ public static class IdentityEndpointsExtensions
             await signInManager.SignInWithClaimsAsync(usuario, isPersistent: true,
                 additionalClaims: [new Claim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)]);
 
+            var roles = await userManager.GetRolesAsync(usuario);
+            if (roles.Count == 0)
+            {
+                // Aviso a los Administradores solo la primera vez (al crear
+                // la cuenta) — no en cada login mientras siga pendiente, para
+                // no generar correo repetido. Best-effort: un fallo de envío
+                // nunca debe impedir que el usuario entre a la sala de espera.
+                if (esUsuarioNuevo)
+                    await NotificarAdministradoresUsuarioPendienteAsync(userManager, emailService, logger, usuario);
+
+                return Results.LocalRedirect("/cuenta/pendiente-de-rol");
+            }
+
             return Results.LocalRedirect(string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl);
         }).AllowAnonymous();
 
         return endpoints;
+    }
+
+    private static async Task NotificarAdministradoresUsuarioPendienteAsync(
+        UserManager<ApplicationUser> userManager, IEmailService emailService, ILogger logger, ApplicationUser usuarioPendiente)
+    {
+        var administradores = await userManager.GetUsersInRoleAsync(Roles.Administrador);
+        var cuerpo = $"""
+            <p>{System.Net.WebUtility.HtmlEncode(usuarioPendiente.NombreCompleto)} ({System.Net.WebUtility.HtmlEncode(usuarioPendiente.Email)}) inició sesión con su cuenta de Microsoft y está a la espera de que le asignes un rol.</p>
+            <p>Puedes hacerlo desde la pestaña "Pendientes de asignar" en Roles.</p>
+            """;
+
+        foreach (var administrador in administradores)
+        {
+            if (string.IsNullOrWhiteSpace(administrador.Email)) continue;
+
+            var resultado = await emailService.EnviarAsync(
+                administrador.Email, "Nuevo usuario pendiente de asignar rol — CAE Manager", cuerpo);
+            if (resultado.EsFallido)
+                logger.LogWarning("No se pudo notificar a {Email} sobre un usuario pendiente de rol.", administrador.Email);
+        }
     }
 }
