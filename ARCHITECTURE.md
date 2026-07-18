@@ -6,7 +6,7 @@
 - **Frontend**: Blazor Server (interactividad server-side; sin necesidad de API pública en v1)
 - **ORM**: Entity Framework Core 10
 - **Base de datos**: SQLite en desarrollo y v1 de producción; el acceso a datos se hace exclusivamente a través de EF Core con proveedor intercambiable, de forma que migrar a PostgreSQL o SQL Server sea un cambio de configuración, no de código.
-- **Autenticación**: ASP.NET Core Identity + cookies, con puntos de extensión para añadir inicio de sesión corporativo (Microsoft Entra ID) más adelante sin rediseñar el modelo de usuarios.
+- **Autenticación**: ASP.NET Core Identity + cookies, con login corporativo opcional vía Microsoft Entra ID (OpenID Connect) — ver más abajo.
 
 ## Por qué Blazor Server (y no WASM ni una API + SPA)
 
@@ -126,7 +126,7 @@ No se usa un `IRepository<T>` genérico. Cada agregado raíz (Cliente, Centro, E
 - ASP.NET Core Identity como almacén de usuarios y roles, con cookie de autenticación (`AuthenticationStateProvider` nativo de Blazor Server).
 - Roles semilla: `Administrador`, `Supervisor`, `EjecutivoCae`, `Consulta` — alineados 1:1 con los cuatro dashboards del brief.
 - Autorización basada en policies (`[Authorize(Policy = "...")]`), no en checks de rol hardcodeados dispersos por el código.
-- Preparado para SSO: Identity se mantiene como almacén de usuarios/roles incluso si en el futuro se añade un proveedor externo (Entra ID vía OpenID Connect) como método de login adicional — no se sustituye Identity, se le añade un external login provider.
+- **SSO con Microsoft Entra ID** (opcional, `AzureAd:*` en configuración — ver `DEPLOY.md`): Identity sigue siendo el almacén de usuarios/roles, Entra ID solo se añade como external login provider (OpenID Connect) — nunca auto-provisiona cuentas, solo vincula/verifica un `ApplicationUser` ya dado de alta cuyo email coincida. Mientras esté configurado, `RestriccionLoginLocalClaimsTransformation` (`IClaimsTransformation` global) limita el rol efectivo de cualquier sesión que no se haya autenticado por Microsoft a `Consulta`, como capa extra de control para los roles editores — el login local no se bloquea, pero deja de dar permisos de edición. Sin `AzureAd:*` configurado, esto queda completamente inerte (mismo principio que Sentry/Backups/Anthropic).
 
 ## Auditoría y soft delete
 
