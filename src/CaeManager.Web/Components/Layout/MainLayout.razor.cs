@@ -35,7 +35,20 @@ public partial class MainLayout
         if (!Guid.TryParse(idClaim, out var id)) return;
 
         var usuario = await UserManager.FindByIdAsync(id.ToString());
-        if (usuario is { DebeCambiarContrasena: true })
+        if (usuario is null) return;
+
+        if (usuario.DebeCambiarContrasena)
+        {
             Navigation.NavigateTo("/cuenta/cambiar-contrasena", forceLoad: true);
+            return;
+        }
+
+        // Mismo motivo que el guard de arriba: sin esto, un usuario
+        // auto-provisionado por SSO sin rol asignado (ver
+        // IdentityEndpointsExtensions) podría saltarse la sala de espera
+        // escribiendo cualquier otra URL a mano.
+        var roles = await UserManager.GetRolesAsync(usuario);
+        if (roles.Count == 0)
+            Navigation.NavigateTo("/cuenta/pendiente-de-rol", forceLoad: true);
     }
 }

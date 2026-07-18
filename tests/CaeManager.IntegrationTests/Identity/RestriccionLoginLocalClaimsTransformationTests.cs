@@ -10,8 +10,10 @@ namespace CaeManager.IntegrationTests.Identity;
 /// Verifica la capa extra de control del login SSO: mientras Entra ID esté
 /// configurado, cualquier sesión sin la marca de login por Microsoft queda
 /// con el rol efectivo limitado a Consulta, sin importar qué roles reales
-/// traiga el principal — y queda intacta mientras Entra ID no esté
-/// configurado, para no bloquear el login local antes de activar SSO.
+/// traiga el principal (salvo Administrador, vía de escape deliberada para
+/// nunca perder acceso de administración) — y queda intacta mientras Entra
+/// ID no esté configurado, para no bloquear el login local antes de
+/// activar SSO.
 /// </summary>
 public class RestriccionLoginLocalClaimsTransformationTests
 {
@@ -39,12 +41,23 @@ public class RestriccionLoginLocalClaimsTransformationTests
     public async Task Con_sso_configurado_un_login_local_queda_limitado_a_consulta()
     {
         var transformacion = CrearTransformacion(ssoConfigurado: true);
-        var principal = CrearPrincipal(esSso: false, Roles.Administrador);
+        var principal = CrearPrincipal(esSso: false, Roles.GestorCae);
 
         var resultado = await transformacion.TransformAsync(principal);
 
         var rolesResultantes = resultado.FindAll(ClaimTypes.Role).Select(c => c.Value);
         rolesResultantes.Should().ContainSingle().Which.Should().Be(Roles.Consulta);
+    }
+
+    [Fact]
+    public async Task Con_sso_configurado_un_administrador_con_login_local_conserva_su_rol_real()
+    {
+        var transformacion = CrearTransformacion(ssoConfigurado: true);
+        var principal = CrearPrincipal(esSso: false, Roles.Administrador);
+
+        var resultado = await transformacion.TransformAsync(principal);
+
+        resultado.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().BeEquivalentTo([Roles.Administrador]);
     }
 
     [Fact]
@@ -73,7 +86,7 @@ public class RestriccionLoginLocalClaimsTransformationTests
     public async Task Es_idempotente_al_aplicarse_dos_veces_seguidas()
     {
         var transformacion = CrearTransformacion(ssoConfigurado: true);
-        var principal = CrearPrincipal(esSso: false, Roles.Administrador);
+        var principal = CrearPrincipal(esSso: false, Roles.GestorCae);
 
         var primeraPasada = await transformacion.TransformAsync(principal);
         var segundaPasada = await transformacion.TransformAsync(primeraPasada);
