@@ -1,0 +1,186 @@
+.asistente-panel {
+    position: fixed;
+    right: var(--space-6);
+    bottom: calc(56px + var(--space-6) + var(--space-3));
+    z-index: 41;
+    width: min(440px, calc(100vw - 2 * var(--space-4)));
+    height: min(520px, calc(100vh - 120px));
+    background-color: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-overlay);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: entrar-desde-abajo 0.15s ease-out;
+}
+
+@keyframes entrar-desde-abajo {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .asistente-panel {
+        animation: none;
+    }
+}
+
+.asistente-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: var(--border-default);
+}
+
+.asistente-cabecera h2 {
+    font: var(--font-heading-sm);
+    margin: 0;
+}
+
+.asistente-cerrar {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 0;
+}
+
+.asistente-descripcion {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    padding: 0 var(--space-5) var(--space-3);
+    margin: 0;
+}
+
+.asistente-mensajes {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.asistente-mensaje-vacio {
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+    text-align: center;
+    margin-top: var(--space-6);
+}
+
+.asistente-mensaje {
+    font: var(--font-body-md);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    max-width: 85%;
+    white-space: pre-wrap;
+}
+
+.asistente-mensaje-usuario {
+    align-self: flex-end;
+    background-color: var(--color-primary-500);
+    color: var(--color-neutral-0);
+}
+
+.asistente-mensaje-asistente {
+    align-self: flex-start;
+    background-color: var(--color-surface-hover);
+    color: var(--color-text);
+}
+
+/* Las respuestas del asistente son HTML real (ver RenderizarMarkdown en
+   AsistenteIa.razor.cs) — un bloque casi a todo el ancho lee mejor una
+   respuesta estructurada (títulos, listas) que una burbuja de chat
+   angosta, a diferencia del mensaje corto del usuario. */
+.asistente-mensaje-markdown {
+    max-width: 100%;
+    white-space: normal;
+}
+
+.asistente-mensaje-markdown :first-child {
+    margin-top: 0;
+}
+
+.asistente-mensaje-markdown :last-child {
+    margin-bottom: 0;
+}
+
+.asistente-mensaje-markdown h2 {
+    font: var(--font-heading-sm);
+    margin: var(--space-3) 0 var(--space-1);
+}
+
+.asistente-mensaje-markdown ul,
+.asistente-mensaje-markdown ol {
+    margin: var(--space-1) 0;
+    padding-left: var(--space-5);
+}
+
+.asistente-mensaje-markdown p {
+    margin: var(--space-1) 0;
+}
+
+.asistente-mensaje-cargando {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.asistente-mensaje-error {
+    align-self: stretch;
+    font: var(--font-body-sm);
+    color: var(--color-danger-500);
+    text-align: center;
+    padding: var(--space-2);
+}
+
+.asistente-entrada {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-5);
+    border-top: var(--border-default);
+}
+
+.asistente-textarea {
+    flex: 1;
+    resize: none;
+    font: var(--font-body-md);
+    font-family: var(--font-family);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    min-height: 40px;
+    max-height: 120px;
+    background-color: var(--color-surface);
+    color: var(--color-text);
+}
+
+.asistente-textarea:focus {
+    outline: none;
+    border: var(--border-focus);
+}
+
+.asistente-boton-enviar {
+    background-color: var(--color-primary-500);
+    color: var(--color-neutral-0);
+    border: none;
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-4);
+    font: var(--font-body-md);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.asistente-boton-enviar:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

@@ -1,0 +1,56 @@
+@using CaeManager.Application.Common
+
+@if (_visible)
+{
+    <div class="asistente-panel" role="dialog" aria-modal="true" aria-labelledby="asistente-titulo">
+        <div class="asistente-cabecera">
+            <h2 id="asistente-titulo">Pregúntale a Hydra</h2>
+            <button type="button" class="asistente-cerrar" @onclick="Cerrar" aria-label="Cerrar">×</button>
+        </div>
+
+        <p class="asistente-descripcion">
+            Especialista en legislación de Prevención de Riesgos Laborales (España/UE). No tiene acceso a tus Clientes, Trabajadores ni Documentos — solo responde dudas normativas generales.
+        </p>
+
+        <div class="asistente-mensajes">
+            @if (_historial.Count == 0)
+            {
+                <p class="asistente-mensaje-vacio">Escribe tu pregunta sobre PRL para empezar.</p>
+            }
+
+            @foreach (var mensaje in _historial)
+            {
+                @if (mensaje.Rol == RolMensajeChat.Usuario)
+                {
+                    <div class="asistente-mensaje asistente-mensaje-usuario">@mensaje.Texto</div>
+                }
+                else
+                {
+                    <div class="asistente-mensaje asistente-mensaje-asistente asistente-mensaje-markdown">@RenderizarMarkdown(mensaje.Texto)</div>
+                }
+            }
+
+            @if (_enviando)
+            {
+                <div class="asistente-mensaje asistente-mensaje-asistente asistente-mensaje-cargando">Pensando…</div>
+            }
+
+            @if (_mensajeError is not null)
+            {
+                <div class="asistente-mensaje-error" role="alert">@_mensajeError</div>
+            }
+        </div>
+
+        <div class="asistente-entrada">
+            <textarea class="asistente-textarea"
+                      placeholder="Escribe tu pregunta…"
+                      value="@_pregunta"
+                      disabled="@_enviando"
+                      @oninput="e => _pregunta = e.Value?.ToString() ?? string.Empty"
+                      @onkeydown="ManejarTeclaAsync"></textarea>
+            <button type="button" class="asistente-boton-enviar" disabled="@(_enviando || _pregunta.Trim().Length == 0)" @onclick="EnviarAsync">
+                Enviar
+            </button>
+        </div>
+    </div>
+}

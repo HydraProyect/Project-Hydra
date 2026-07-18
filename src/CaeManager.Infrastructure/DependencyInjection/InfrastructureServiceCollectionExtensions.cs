@@ -10,6 +10,7 @@ using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Visitas;
 using CaeManager.Application.Importacion;
+using CaeManager.Infrastructure.AsistenteIa;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Backups;
@@ -96,6 +97,9 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<BackupsOptions>(configuration.GetSection(BackupsOptions.SeccionConfiguracion));
         services.AddHostedService<BackupHostedService>();
+
+        services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
+        services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>();
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();

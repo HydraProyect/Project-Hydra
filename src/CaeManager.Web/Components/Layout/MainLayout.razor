@@ -39,6 +39,12 @@
    hubiera detectado). *@
 <AnfitrionToasts @rendermode="InteractiveServer" />
 <CaeManager.Web.Features.BusquedaGlobal.BuscadorGlobal @rendermode="InteractiveServer" />
+<AuthorizeView>
+    <Authorized>
+        <CaeManager.Web.Features.AsistenteIa.BotonAsistenteIa />
+        <CaeManager.Web.Features.AsistenteIa.AsistenteIa @rendermode="InteractiveServer" />
+    </Authorized>
+</AuthorizeView>
 
 <div id="blazor-error-ui" data-nosnippet>
     No pudimos completar esa acción.
