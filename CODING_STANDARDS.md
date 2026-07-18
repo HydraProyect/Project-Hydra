@@ -63,3 +63,6 @@ SOLID, DRY, KISS, YAGNI. Código mantenible siempre por encima de código "rápi
 - [ ] ¿El microcopy está en español y sigue el tono de `UX_PATTERNS.md`?
 - [ ] ¿Hay una prueba que falle si la regla de negocio se rompe?
 - [ ] ¿Se introdujo una abstracción que no tiene todavía un segundo caso de uso real? Si sí, simplificar.
+- [ ] **¿Hay al menos un test E2E (`tests/CaeManager.E2ETests`) o bUnit (`tests/CaeManager.Web.Tests`) del flujo nuevo que añade esta fase**, si toca un flujo de usuario o un componente de lógica no trivial? Esta regla existe precisamente porque las Fases 7-23 se cerraron sin ella y generaron un backlog de 13 bugs/mejoras sin cubrir — ver ROADMAP.md, "Iniciativa de hardening" § 2 y § 8.
+- [ ] ¿CI está en verde (los 6 checks de `ci.yml`) antes de mergear, no solo "compila en mi máquina"?
+- [ ] ¿Se actualizó `ROADMAP.md` con lo hecho/pendiente de esta fase, siguiendo el formato ya establecido (✅/🟡/⬜ + fecha)?
