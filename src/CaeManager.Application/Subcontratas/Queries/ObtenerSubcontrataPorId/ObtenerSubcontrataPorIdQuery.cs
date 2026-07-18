@@ -9,11 +9,13 @@ public record ObtenerSubcontrataPorIdQuery(Guid Id) : IRequest<SubcontrataDetall
 public record SubcontrataDetalleDto(
     Guid Id, string RazonSocial, DateTime CreadoEnUtc, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds);
 
-public class ObtenerSubcontrataPorIdQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerSubcontrataPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerSubcontrataPorIdQuery, SubcontrataDetalleDto?>
 {
     public async Task<SubcontrataDetalleDto?> Handle(ObtenerSubcontrataPorIdQuery request, CancellationToken cancellationToken)
     {
+        if (!await alcanceDatos.SubcontrataVisibleAsync(request.Id, cancellationToken)) return null;
+
         var subcontrata = await dbContext.Subcontratas
             .Where(s => s.Id == request.Id)
             .Select(s => new { s.Id, s.RazonSocial, s.CreadoEnUtc })
