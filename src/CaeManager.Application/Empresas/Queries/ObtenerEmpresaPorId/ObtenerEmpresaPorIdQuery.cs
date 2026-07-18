@@ -8,11 +8,13 @@ public record ObtenerEmpresaPorIdQuery(Guid Id) : IRequest<EmpresaDetalleDto?>;
 
 public record EmpresaDetalleDto(Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, IReadOnlyList<Guid> ClienteIds);
 
-public class ObtenerEmpresaPorIdQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerEmpresaPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerEmpresaPorIdQuery, EmpresaDetalleDto?>
 {
     public async Task<EmpresaDetalleDto?> Handle(ObtenerEmpresaPorIdQuery request, CancellationToken cancellationToken)
     {
+        if (!await alcanceDatos.EmpresaVisibleAsync(request.Id, cancellationToken)) return null;
+
         var empresa = await dbContext.Empresas
             .Where(e => e.Id == request.Id)
             .Select(e => new { e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc })
