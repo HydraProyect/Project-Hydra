@@ -5,6 +5,7 @@ using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
@@ -32,6 +33,8 @@ public interface IApplicationDbContext
     IQueryable<Trabajador> Trabajadores { get; }
     IQueryable<TipoDocumento> TiposDocumento { get; }
     IQueryable<TipoDocumentoCentro> TiposDocumentoCentros { get; }
+    IQueryable<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente { get; }
+    IQueryable<NotificacionUsuario> NotificacionesUsuario { get; }
     IQueryable<Documento> Documentos { get; }
     IQueryable<Asignacion> Asignaciones { get; }
     IQueryable<Visita> Visitas { get; }

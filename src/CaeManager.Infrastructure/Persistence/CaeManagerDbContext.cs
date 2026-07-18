@@ -7,6 +7,7 @@ using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
@@ -47,6 +48,8 @@ public class CaeManagerDbContext(
     public DbSet<Trabajador> Trabajadores => Set<Trabajador>();
     public DbSet<TipoDocumento> TiposDocumento => Set<TipoDocumento>();
     public DbSet<TipoDocumentoCentro> TiposDocumentoCentros => Set<TipoDocumentoCentro>();
+    public DbSet<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente => Set<ConfiguracionIaDocumentoCliente>();
+    public DbSet<NotificacionUsuario> NotificacionesUsuario => Set<NotificacionUsuario>();
     public DbSet<Documento> Documentos => Set<Documento>();
     public DbSet<Asignacion> Asignaciones => Set<Asignacion>();
     public DbSet<Visita> Visitas => Set<Visita>();
@@ -69,6 +72,8 @@ public class CaeManagerDbContext(
     IQueryable<Trabajador> IApplicationDbContext.Trabajadores => Trabajadores;
     IQueryable<TipoDocumento> IApplicationDbContext.TiposDocumento => TiposDocumento;
     IQueryable<TipoDocumentoCentro> IApplicationDbContext.TiposDocumentoCentros => TiposDocumentoCentros;
+    IQueryable<ConfiguracionIaDocumentoCliente> IApplicationDbContext.ConfiguracionesIaDocumentoCliente => ConfiguracionesIaDocumentoCliente;
+    IQueryable<NotificacionUsuario> IApplicationDbContext.NotificacionesUsuario => NotificacionesUsuario;
     IQueryable<Documento> IApplicationDbContext.Documentos => Documentos;
     IQueryable<Asignacion> IApplicationDbContext.Asignaciones => Asignaciones;
     IQueryable<Visita> IApplicationDbContext.Visitas => Visitas;

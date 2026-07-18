@@ -1,0 +1,46 @@
+@rendermode InteractiveServer
+@using CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida
+@using CaeManager.Application.Notificaciones.Queries.ObtenerNotificacionesPendientes
+@using MediatR
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+@if (_pendientes.Count > 0)
+{
+    var actual = _pendientes[0];
+    <Modal Visible="true" VisibleChanged="_ => DescartarAsync(actual)" Titulo="@actual.Titulo" CerrarAlHacerClicFuera="false">
+        <ChildContent>
+            <p>@actual.Mensaje</p>
+        </ChildContent>
+        <Pie>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => DescartarAsync(actual)">Omitir</Boton>
+            @if (!string.IsNullOrWhiteSpace(actual.UrlAccion))
+            {
+                <Boton OnClick="() => GestionarAsync(actual)">@(actual.TextoAccion ?? "Gestionar")</Boton>
+            }
+        </Pie>
+    </Modal>
+}
+
+@code {
+    private IReadOnlyList<NotificacionDto> _pendientes = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _pendientes = await Mediator.Send(new ObtenerNotificacionesPendientesQuery());
+    }
+
+    private async Task DescartarAsync(NotificacionDto notificacion)
+    {
+        await Mediator.Send(new MarcarNotificacionLeidaCommand(notificacion.Id));
+        _pendientes = _pendientes.Where(n => n.Id != notificacion.Id).ToList();
+    }
+
+    private async Task GestionarAsync(NotificacionDto notificacion)
+    {
+        await Mediator.Send(new MarcarNotificacionLeidaCommand(notificacion.Id));
+        _pendientes = _pendientes.Where(n => n.Id != notificacion.Id).ToList();
+        if (!string.IsNullOrWhiteSpace(notificacion.UrlAccion))
+            Navigation.NavigateTo(notificacion.UrlAccion, forceLoad: true);
+    }
+}

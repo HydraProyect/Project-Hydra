@@ -1,19 +1,36 @@
 using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Clientes.Commands.EditarCliente;
 using CaeManager.Application.Clientes.Commands.EliminarCliente;
+using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.QuickGrid;
+using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Clientes.Pages;
 
+public record GestorCaeSelectorDto(Guid Id, string NombreCompleto, string Email);
+
 public partial class Clientes : ComponentBase
 {
+    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+
+    private static readonly string[] RolesQuePuedenReasignar =
+        [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae];
+
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
     private QuickGrid<ClienteListaDto>? _grid;
+
+    private bool _puedeReasignarEjecutivo;
+    private IReadOnlyList<GestorCaeSelectorDto> _gestoresDisponibles = [];
+    private string _ejecutivoUsuarioId = string.Empty;
+    private string _ejecutivoUsuarioIdOriginal = string.Empty;
 
     private string _busqueda = string.Empty;
     private bool _soloCriticos;
@@ -39,12 +56,19 @@ public partial class Clientes : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         // Permite que el buscador global (Ctrl/Cmd+K) navegue aquí con el
         // filtro ya cargado, p. ej. /clientes?q=COBEGA.
         if (!string.IsNullOrWhiteSpace(TerminoBusquedaInicial))
             _busqueda = TerminoBusquedaInicial;
+
+        // Reasignar el Gestor CAE dueño de un Cliente es una decisión de
+        // rango superior (ver ReasignarEjecutivoClienteCommand) — el propio
+        // Gestor CAE no ve ni puede tocar este campo sobre sus propios
+        // clientes.
+        var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _puedeReasignarEjecutivo = RolesQuePuedenReasignar.Any(estadoAutenticacion.User.IsInRole);
     }
 
     private async ValueTask<GridItemsProviderResult<ClienteListaDto>> ProveerElementosAsync(
@@ -104,6 +128,8 @@ public partial class Clientes : ComponentBase
         _cif = string.Empty;
         _esCritico = false;
         _notas = string.Empty;
+        _ejecutivoUsuarioId = string.Empty;
+        _ejecutivoUsuarioIdOriginal = string.Empty;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
@@ -119,10 +145,21 @@ public partial class Clientes : ComponentBase
             return;
         }
 
+        if (_puedeReasignarEjecutivo && _gestoresDisponibles.Count == 0)
+        {
+            var gestores = await UserManager.GetUsersInRoleAsync(Roles.GestorCae);
+            _gestoresDisponibles = gestores
+                .OrderBy(u => u.NombreCompleto)
+                .Select(u => new GestorCaeSelectorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty))
+                .ToList();
+        }
+
         _editandoId = cliente.Id;
         _razonSocial = cliente.RazonSocial;
         _cif = cliente.Cif;
         _esCritico = cliente.EsCritico;
+        _ejecutivoUsuarioId = cliente.EjecutivoUsuarioId?.ToString() ?? string.Empty;
+        _ejecutivoUsuarioIdOriginal = _ejecutivoUsuarioId;
         _notas = cliente.Notas ?? string.Empty;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
@@ -161,6 +198,14 @@ public partial class Clientes : ComponentBase
             {
                 _mensajeErrorFormulario = mensajeError;
                 return;
+            }
+
+            if (_editandoId is not null && _puedeReasignarEjecutivo && _ejecutivoUsuarioId != _ejecutivoUsuarioIdOriginal)
+            {
+                var nuevoEjecutivoId = Guid.TryParse(_ejecutivoUsuarioId, out var idGestor) ? idGestor : (Guid?)null;
+                var resultadoReasignar = await Mediator.Send(new ReasignarEjecutivoClienteCommand(_editandoId.Value, nuevoEjecutivoId));
+                if (resultadoReasignar.EsFallido)
+                    ToastService.Mostrar(resultadoReasignar.Error.Mensaje, TonoToast.Error);
             }
 
             ToastService.Mostrar(
