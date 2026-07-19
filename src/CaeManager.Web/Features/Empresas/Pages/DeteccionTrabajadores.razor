@@ -1,0 +1,116 @@
+@page "/empresas/{EmpresaId:guid}/deteccion-trabajadores"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
+@using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente
+@using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionNuevo
+@using CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa
+@using CaeManager.Domain.Trabajadores
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<PageTitle>Detección de personal — @(_empresa?.RazonSocial ?? "Empresa") — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Detección de personal — @(_empresa?.RazonSocial ?? "…")</h1>
+    </div>
+
+    <p class="descripcion-roles">
+        Cambios de personal detectados automáticamente al leer por IA un documento de esta empresa
+        (p. ej. ITA, RNT/TC2). Revisa cada caso antes de aplicar cualquier cambio — nada se hace
+        automáticamente.
+    </p>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las detecciones" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a esta empresa.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_detecciones.Count == 0)
+    {
+        <EstadoVacio Titulo="Sin cambios pendientes" Descripcion="No hay detecciones de personal pendientes de revisar para esta empresa." />
+    }
+    else
+    {
+        var nuevos = _detecciones.Where(d => d.Tipo == TipoDeteccion.Nuevo).ToList();
+        var ausentes = _detecciones.Where(d => d.Tipo == TipoDeteccion.Ausente).ToList();
+
+        @if (nuevos.Count > 0)
+        {
+            <h2 class="titulo-seccion">Trabajadores nuevos detectados (@nuevos.Count)</h2>
+            <p class="texto-vacio-seccion">Aparecen en el documento pero no están dados de alta en el sistema.</p>
+            <table class="tabla-datos">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>DNI</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var deteccion in nuevos)
+                    {
+                        <tr>
+                            <td>@deteccion.Nombre @deteccion.Apellidos</td>
+                            <td>@deteccion.Dni</td>
+                            <td>
+                                <div style="display:flex;gap:.5rem;">
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == deteccion.Id)" OnClick="() => ResolverNuevoAsync(deteccion.Id, false)">
+                                        Descartar
+                                    </Boton>
+                                    <Boton Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == deteccion.Id)" OnClick="() => ResolverNuevoAsync(deteccion.Id, true)">
+                                        Dar de alta
+                                    </Boton>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (ausentes.Count > 0)
+        {
+            <h2 class="titulo-seccion">Trabajadores ausentes (@ausentes.Count)</h2>
+            <p class="texto-vacio-seccion">Están activos en el sistema pero ya no aparecen en el documento.</p>
+            <table class="tabla-datos">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>DNI</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var deteccion in ausentes)
+                    {
+                        <tr>
+                            <td>@deteccion.Nombre @deteccion.Apellidos</td>
+                            <td>@deteccion.Dni</td>
+                            <td>
+                                <div style="display:flex;gap:.5rem;">
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == deteccion.Id)" OnClick="() => ResolverAusenteAsync(deteccion.Id, false)">
+                                        Mantener activo
+                                    </Boton>
+                                    <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == deteccion.Id)" OnClick="() => ResolverAusenteAsync(deteccion.Id, true)">
+                                        Dar de baja
+                                    </Boton>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+</div>

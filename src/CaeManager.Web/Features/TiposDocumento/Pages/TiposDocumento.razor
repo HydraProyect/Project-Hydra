@@ -4,6 +4,7 @@
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
+@using CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajadoresGlobal
 @using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal
 @using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento
 @using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento
@@ -73,6 +74,7 @@
                     <th>Vencimiento automático</th>
                     <th>Obligatorio</th>
                     <th>Lectura IA</th>
+                    <th>Detecta trabajadores</th>
                     <th></th>
                 </tr>
             </thead>
@@ -109,6 +111,19 @@
                                 <input type="checkbox" checked="@tipo.LecturaIaActiva" @onchange="e => AlternarLecturaIaAsync(tipo.Id, e.Value is bool activa && activa)" />
                                 @(tipo.LecturaIaActiva ? "Activa" : "Desactivada")
                             </label>
+                        </td>
+                        <td>
+                            @if (tipo.AmbitoAplicacion == AmbitoAplicacion.Empresa)
+                            {
+                                <label class="campo-checkbox" title="Detecta automáticamente altas y bajas de personal comparando este documento (p. ej. ITA, RNT) contra los trabajadores activos de la empresa">
+                                    <input type="checkbox" checked="@tipo.DeteccionTrabajadoresActiva" @onchange="e => AlternarDeteccionTrabajadoresAsync(tipo.Id, e.Value is bool activa && activa)" />
+                                    @(tipo.DeteccionTrabajadoresActiva ? "Activa" : "Desactivada")
+                                </label>
+                            }
+                            else
+                            {
+                                <span class="texto-vacio-seccion">No aplica</span>
+                            }
                         </td>
                         <td>
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(tipo.Id)">
