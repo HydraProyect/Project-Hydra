@@ -31,6 +31,7 @@ public interface IApplicationDbContext
     IQueryable<CredencialAccesoSubcontrata> CredencialesAccesoSubcontrata { get; }
     IQueryable<Centro> Centros { get; }
     IQueryable<Trabajador> Trabajadores { get; }
+    IQueryable<DeteccionTrabajador> DeteccionesTrabajador { get; }
     IQueryable<TipoDocumento> TiposDocumento { get; }
     IQueryable<TipoDocumentoCentro> TiposDocumentoCentros { get; }
     IQueryable<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente { get; }

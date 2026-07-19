@@ -52,6 +52,19 @@ public static class TipoDocumentoSeedData
         (new Guid("30000000-0000-0000-0000-000000000004"), "Autorización de circulación", null, false, 4, AmbitoAplicacion.Vehiculo, true, "Vigencia sin especificar — fecha de vencimiento manual."),
     ];
 
+    /// <summary>
+    /// Tipos de documento de Empresa que traen un listado de personal y por
+    /// tanto tiene sentido activarles la detección automática de altas/bajas
+    /// de trabajadores (Fase 36) — el resto (certificados, seguros, mutua...)
+    /// no contienen ningún listado, así que activarla generaría llamadas a
+    /// IA y "detecciones" sin sentido.
+    /// </summary>
+    private static readonly HashSet<Guid> IdsConDeteccionTrabajadores =
+    [
+        new Guid("20000000-0000-0000-0000-000000000003"), // ITA
+        new Guid("20000000-0000-0000-0000-000000000007"), // RNT/TC2
+    ];
+
     /// <summary>Proyección plana usada por HasData (necesita anonymous/objeto con las propiedades de la entidad).</summary>
     public static IEnumerable<object> ComoFilasParaMigracion() =>
         Datos.Select(d => new
@@ -64,6 +77,7 @@ public static class TipoDocumentoSeedData
             Notas = d.Notas,
             AmbitoAplicacion = d.Ambito,
             EsObligatorio = d.EsObligatorio,
-            LecturaIaActiva = true
+            LecturaIaActiva = true,
+            DeteccionTrabajadoresActiva = IdsConDeteccionTrabajadores.Contains(d.Id)
         });
 }

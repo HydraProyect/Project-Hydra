@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajadoresGlobal;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal;
 using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento;
 using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento;
@@ -258,6 +259,18 @@ public partial class TiposDocumento : ComponentBase
     private async Task AlternarLecturaIaAsync(Guid tipoDocumentoId, bool activa)
     {
         var resultado = await Mediator.Send(new ActualizarLecturaIaGlobalCommand(tipoDocumentoId, activa));
+        if (resultado.EsFallido)
+        {
+            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            return;
+        }
+
+        await CargarAsync();
+    }
+
+    private async Task AlternarDeteccionTrabajadoresAsync(Guid tipoDocumentoId, bool activa)
+    {
+        var resultado = await Mediator.Send(new ActualizarDeteccionTrabajadoresGlobalCommand(tipoDocumentoId, activa));
         if (resultado.EsFallido)
         {
             ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);

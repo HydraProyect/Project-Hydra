@@ -87,6 +87,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ICredencialAccesoSubcontrataRepository, CredencialAccesoSubcontrataRepository>();
         services.AddScoped<ICentroRepository, CentroRepository>();
         services.AddScoped<ITrabajadorRepository, TrabajadorRepository>();
+        services.AddScoped<IDeteccionTrabajadorRepository, DeteccionTrabajadorRepository>();
         services.AddScoped<ITipoDocumentoRepository, TipoDocumentoRepository>();
         services.AddScoped<ITipoDocumentoCentroRepository, TipoDocumentoCentroRepository>();
         services.AddScoped<IConfiguracionIaDocumentoClienteRepository, ConfiguracionIaDocumentoClienteRepository>();
@@ -112,6 +113,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>();
+        services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>();
 
         services.Configure<GraphEmailOptions>(configuration.GetSection(GraphEmailOptions.SeccionConfiguracion));
         services.AddHttpClient<IEmailService, GraphEmailService>();
