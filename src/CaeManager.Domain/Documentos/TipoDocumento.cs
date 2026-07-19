@@ -54,6 +54,21 @@ public class TipoDocumento : Entity
     /// </summary>
     public bool LecturaIaActiva { get; private set; } = true;
 
+    /// <summary>
+    /// Solo tiene sentido para Ámbito Empresa: si está activo, un Documento
+    /// de este tipo dispara la detección automática de altas/bajas de
+    /// personal (ver DeteccionTrabajadoresService, Fase 36) — comparando el
+    /// listado de trabajadores que aparece en el propio documento (ITA,
+    /// RNT/TC2...) contra los Trabajadores activos de la Empresa. Empieza
+    /// desactivado a propósito: la mayoría de documentos de Empresa
+    /// (certificados, seguros, mutua...) no contienen ningún listado de
+    /// personal, así que activarlo por defecto generaría llamadas a IA y
+    /// detecciones sin sentido — el Administrador lo activa explícitamente
+    /// solo para los tipos que sí traen un listado (ver TipoDocumentoSeedData,
+    /// donde ITA y RNT/TC2 ya vienen activados).
+    /// </summary>
+    public bool DeteccionTrabajadoresActiva { get; private set; }
+
     private TipoDocumento()
     {
     }
@@ -101,6 +116,8 @@ public class TipoDocumento : Entity
     }
 
     public void EstablecerLecturaIaActiva(bool activa) => LecturaIaActiva = activa;
+
+    public void EstablecerDeteccionTrabajadoresActiva(bool activa) => DeteccionTrabajadoresActiva = activa;
 
     private void EstablecerGlosario(string? descripcion, string? criteriosValidacion, string? seSolicitaA, string? observaciones)
     {

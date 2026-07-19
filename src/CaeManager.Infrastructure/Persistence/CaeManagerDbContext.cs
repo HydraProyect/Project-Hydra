@@ -46,6 +46,7 @@ public class CaeManagerDbContext(
     public DbSet<SubcontrataEmpresa> SubcontratasEmpresas => Set<SubcontrataEmpresa>();
     public DbSet<CredencialAccesoSubcontrata> CredencialesAccesoSubcontrata => Set<CredencialAccesoSubcontrata>();
     public DbSet<Trabajador> Trabajadores => Set<Trabajador>();
+    public DbSet<DeteccionTrabajador> DeteccionesTrabajador => Set<DeteccionTrabajador>();
     public DbSet<TipoDocumento> TiposDocumento => Set<TipoDocumento>();
     public DbSet<TipoDocumentoCentro> TiposDocumentoCentros => Set<TipoDocumentoCentro>();
     public DbSet<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente => Set<ConfiguracionIaDocumentoCliente>();
@@ -70,6 +71,7 @@ public class CaeManagerDbContext(
     IQueryable<CredencialAccesoSubcontrata> IApplicationDbContext.CredencialesAccesoSubcontrata => CredencialesAccesoSubcontrata;
     IQueryable<Centro> IApplicationDbContext.Centros => Centros;
     IQueryable<Trabajador> IApplicationDbContext.Trabajadores => Trabajadores;
+    IQueryable<DeteccionTrabajador> IApplicationDbContext.DeteccionesTrabajador => DeteccionesTrabajador;
     IQueryable<TipoDocumento> IApplicationDbContext.TiposDocumento => TiposDocumento;
     IQueryable<TipoDocumentoCentro> IApplicationDbContext.TiposDocumentoCentros => TiposDocumentoCentros;
     IQueryable<ConfiguracionIaDocumentoCliente> IApplicationDbContext.ConfiguracionesIaDocumentoCliente => ConfiguracionesIaDocumentoCliente;

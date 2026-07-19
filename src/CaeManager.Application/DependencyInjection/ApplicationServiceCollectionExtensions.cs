@@ -1,5 +1,6 @@
 using System.Reflection;
 using CaeManager.Application.Common;
+using CaeManager.Application.Trabajadores.Deteccion;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,6 +17,11 @@ public static class ApplicationServiceCollectionExtensions
         // Orden importa: un Command bloqueado por rol ni siquiera llega a validarse.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionEscrituraBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+
+        // Orquestador puro (solo depende de contratos de Application, ver
+        // DeteccionTrabajadoresService) — se registra aquí y no en
+        // Infrastructure porque no toca nada específico de infraestructura.
+        services.AddScoped<IDeteccionTrabajadoresService, DeteccionTrabajadoresService>();
 
         return services;
     }

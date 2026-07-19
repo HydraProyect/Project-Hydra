@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Trabajadores.Deteccion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -41,7 +42,8 @@ public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCo
 }
 
 public class CrearDocumentoCommandHandler(
-    IDocumentoRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
+    IDocumentoRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork,
+    IDeteccionTrabajadoresService deteccionTrabajadores)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDocumentoCommand request, CancellationToken cancellationToken)
@@ -84,6 +86,13 @@ public class CrearDocumentoCommandHandler(
 
         repositorio.Agregar(documento);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Mejor esfuerzo: la detección de altas/bajas de personal (Fase 36)
+        // nunca debe impedir que la subida del propio Documento se dé por
+        // completada, así que un fallo aquí solo se registra en el log
+        // (dentro del propio servicio) y no se propaga.
+        if (ambitoSolicitado == AmbitoAplicacion.Empresa && tipoDocumento.DeteccionTrabajadoresActiva && !string.IsNullOrWhiteSpace(request.ArchivoUrl))
+            await deteccionTrabajadores.ProcesarDocumentoAsync(documento.Id, cancellationToken);
 
         return Result.Exito(documento.Id);
     }
