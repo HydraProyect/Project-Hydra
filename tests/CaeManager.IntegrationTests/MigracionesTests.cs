@@ -35,13 +35,14 @@ public class MigracionesTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Siembra_los_32_tipos_de_documento_del_catalogo()
+    public async Task Siembra_los_70_tipos_de_documento_del_catalogo()
     {
-        // 15 de Trabajador (excel original) + 13 de Empresa (documentos base
-        // obligatorios del cliente) + 4 de Vehículo (ITC, ficha técnica,
-        // seguro, autorización de circulación).
+        // 15+21=36 de Trabajador (excel original + ampliación Fase 37) +
+        // 13+17=30 de Empresa (documentos base obligatorios del cliente +
+        // ampliación Fase 37) + 4 de Vehículo (ITC, ficha técnica, seguro,
+        // autorización de circulación).
         var total = await _dbContext.TiposDocumento.CountAsync();
-        total.Should().Be(32);
+        total.Should().Be(70);
     }
 
     [Fact]
