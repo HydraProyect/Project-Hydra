@@ -7,7 +7,7 @@ namespace CaeManager.Domain.Configuracion;
 /// datos (impuesto por Infrastructure, no por esta clase). Corresponde a la
 /// sección "Umbrales de alerta" de la hoja "Parametros" del Excel original.
 /// </summary>
-public class ParametroSistema : Entity
+public class ParametroSistema : EntidadConTenant
 {
     public int UmbralAmbarDias { get; private set; }
     public int UmbralRojoDias { get; private set; }

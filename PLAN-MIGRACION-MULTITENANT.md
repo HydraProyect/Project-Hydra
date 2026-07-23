@@ -58,6 +58,8 @@ No se avanza a la Etapa 1 sin este criterio cumplido.
 
 ## 2. Etapa 1 — Esquema aditivo (nullable, cero impacto funcional)
 
+✅ **Completa y validada (2026-07-23)**. `Tenant` (agregado raíz) + `EntidadConTenant` (nueva base intermedia entre `Entity` y `EntidadBase`, con `TenantId` nullable) en Domain; las 16 clases que heredaban directo de `Entity` pasan a heredar de `EntidadConTenant`; `ApplicationUser.TenantId` en Identity; `TenantConfiguration` + `DbSet<Tenant>`/`IApplicationDbContext.Tenants` en Infrastructure/Application; migración `AgregarTenantNullable` (25 tablas: las 24 de Domain + `AspNetUsers`, más la tabla `Tenants` nueva). Validado con: `dotnet build -warnaserror` (0/0), `dotnet format --verify-no-changes` (limpio), `CaeManager.Domain.Tests` 119/119, `CaeManager.Application.Tests` 39/39, `CaeManager.IntegrationTests` 22/24 (los 2 fallos son el mismo problema preexistente de LibreOffice no instalado en el entorno de desarrollo, no relacionado con este cambio — ver `ROADMAP.md`), `CaeManager.Web.Tests` 7/7. Tests nuevos: `TenantTests` (10, Domain) y 3 en `MigracionesTests` (Integration: persistencia de `Tenant`, `TenantId` nulo por defecto sin interceptor todavía, columna nullable verificada por `PRAGMA table_info`).
+
 Objetivo: desplegable sin que nada del comportamiento actual cambie.
 
 1. **Migración EF Core `AgregarTenant`**: crea la tabla `Tenant` (Domain: `src/CaeManager.Domain/Tenants/Tenant.cs`, agregado raíz nuevo, con repositorio propio como el resto — ver `ADR-003`/`DOMAIN.md` § Agregados raíz).
