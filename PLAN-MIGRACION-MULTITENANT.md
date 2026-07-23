@@ -1,0 +1,130 @@
+# Plan de migración detallado — Multi-tenancy (`TenantId`)
+
+**Estado**: Plan de ejecución (Fase 3 de la secuencia de `ADR-003-saas-multitenant.md`). Desarrolla a nivel de pasos concretos las etapas 0–5 de `INFORME-MULTITENANT.md` § 12. **No implementado** — este documento se aprueba antes de escribir la primera migración EF Core.
+
+Prerequisito ya cumplido: documentación consolidada (`ADR-003`, `docs/MULTITENANCY.md`, `DOMAIN.md`, y `PROJECT.md`/`ROADMAP.md`/`CLAUDE.md`/`ARCHITECTURE.md`/`DATABASE.md` actualizados).
+
+---
+
+## 0. Alcance exacto (qué toca cada etapa)
+
+### 0.1 Tablas afectadas (25 `*Configuration.cs`, verificado en el código)
+
+Todas reciben `TenantId`, salvo las anotadas:
+
+`Cliente`, `Centro`, `PlataformaAcceso`, `Empresa`, `EmpresaCliente`, `CredencialAccesoEmpresa`, `Subcontrata`, `SubcontrataCliente`, `SubcontrataEmpresa`, `CredencialAccesoSubcontrata`, `Trabajador`, `DeteccionTrabajador`, `Vehiculo`, `TipoDocumento`, `TipoDocumentoCentro`, `ConfiguracionIaDocumentoCliente`, `Documento`, `Asignacion`, `Visita`, `VisitaTrabajador`, `RequisitoDocumental`, `Alerta`, `NotificacionUsuario`, `ParametroSistema`, `RegistroAuditoria`.
+
+Más, fuera de `*Configuration.cs` porque vive en Identity: `AspNetUsers` (`ApplicationUser`).
+
+**Sin `TenantId`** (confirmado en `docs/MULTITENANCY.md` § 4.1 y § 7): `AspNetRoles`, `AspNetUserRoles`, `AspNetUserClaims`, etc. (particionadas por usuario, que ya lleva tenant), y la propia tabla `Tenant`.
+
+### 0.2 Nueva tabla
+
+`Tenant`: `Id` (Guid, PK), `Nombre` (string), `Estado` (enum: Activo/Suspendido), `CreadoEnUtc` (datetime). Sin más campos en v1 (billing/plan quedan fuera, YAGNI — `ADR-001`).
+
+### 0.3 Índices únicos que cambian (los 7 de `ADR-001`, confirmados en el código hoy)
+
+| Tabla | Índice hoy | Índice destino |
+|---|---|---|
+| `Cliente` | `Cif` | `(TenantId, Cif)` |
+| `Empresa` | `Cif` | `(TenantId, Cif)` |
+| `Empresa` | `RazonSocial` | `(TenantId, RazonSocial)` |
+| `Subcontrata` | `RazonSocial` | `(TenantId, RazonSocial)` |
+| `TipoDocumento` | `Nombre` | `(TenantId, Nombre)` |
+| `Trabajador` | `Dni` | `(TenantId, Dni)` |
+| `Vehiculo` | `NumeroPlaca` | `(TenantId, NumeroPlaca)` |
+
+Índices únicos de tablas de unión (ya compuestos hoy) se les antepone `TenantId` igual: `EmpresaCliente (EmpresaId, ClienteId)` → `(TenantId, EmpresaId, ClienteId)`, y así con `SubcontrataCliente`, `SubcontrataEmpresa`, `TipoDocumentoCentro`, `ConfiguracionIaDocumentoCliente`, `VisitaTrabajador`, `Asignacion (TrabajadorId, CentroId, FechaAlta)`, `CredencialAccesoEmpresa.EmpresaId` (único), `CredencialAccesoSubcontrata.SubcontrataId` (único), `PlataformaAcceso.CentroId` (único).
+
+**Excepción deliberada, sin cambio**: `AspNetUsers.NormalizedUserName`/`NormalizedEmail` — quedan **globalmente únicos**, no `(TenantId, ...)`. Es la limitación v1 ya documentada en `docs/MULTITENANCY.md` § 8 (resolución de tenant por claim, no por subdominio): el login necesita resolver el usuario por email antes de conocer el tenant, así que dos tenants no pueden compartir el mismo email de login todavía. No tocar este índice en ninguna etapa.
+
+### 0.4 `ParametroSistema`: cambio de semántica, no solo de esquema
+
+Hoy es fila única global (umbrales 30/15). Pasa a una fila por tenant. Esto es el único cambio conceptual real (`INFORME-MULTITENANT.md` § 14) — se trata en la Etapa 2 como parte del backfill, no como un `ADD COLUMN` más.
+
+---
+
+## 1. Etapa 0 — Ensayo (obligatoria, bloquea todo lo siguiente)
+
+1. **Backup verificado** de la base de datos de producción (SQLite: copia de archivo + `PRAGMA integrity_check` sobre la copia).
+2. **Restauración de prueba** en un entorno aislado, arrancando la app contra esa copia para confirmar que el backup es realmente restaurable (no solo que el archivo existe).
+3. **Ensayo completo de las Etapas 1–4** (de este plan) contra esa copia, de principio a fin, antes de tocar producción.
+4. **Ampliar `CaeManager.IntegrationTests` / `MigracionesTests`** con: (a) aplicar todas las migraciones nuevas contra una BD SQLite de archivo temporal vacía y verificar que no falla; (b) un test de "backfill" que parte de una BD con datos sintéticos (fixture) representativos de cada tabla de § 0.1 y verifica que tras la Etapa 2 ninguna fila tiene `TenantId` nulo.
+5. **Criterio de salida de la Etapa 0**: el ensayo completo (pasos 1–4) se ejecuta sin intervención manual además de los comandos documentados aquí, y el test de backfill pasa en CI.
+
+No se avanza a la Etapa 1 sin este criterio cumplido.
+
+---
+
+## 2. Etapa 1 — Esquema aditivo (nullable, cero impacto funcional)
+
+Objetivo: desplegable sin que nada del comportamiento actual cambie.
+
+1. **Migración EF Core `AgregarTenant`**: crea la tabla `Tenant` (Domain: `src/CaeManager.Domain/Tenants/Tenant.cs`, agregado raíz nuevo, con repositorio propio como el resto — ver `ADR-003`/`DOMAIN.md` § Agregados raíz).
+2. **Migración EF Core `AgregarTenantIdNullable`**: añade `TenantId` (`Guid?`, sin índice todavía salvo los ya existentes que se dejan intactos) a las 24 tablas de § 0.1 más `AspNetUsers`. Una sola migración para las 24+1 tablas (no una por tabla) — reduce el número de despliegues intermedios.
+3. **`ParametroSistemaConfiguration`**: se quita el carácter singleton (si hoy fuerza `HasData`/PK fija) y se prepara para múltiples filas — sin `TenantId` todavía obligatorio, ver Etapa 2.
+4. **Deploy**. Sin cambios de comportamiento: nadie lee ni escribe `TenantId` todavía. Verificación: la app sigue funcionando exactamente igual, `dotnet ef database update` no falla, `MigracionesTests` en verde.
+
+---
+
+## 3. Etapa 2 — Backfill (crear el tenant #1 y sellar todas las filas)
+
+1. **Migración/script de datos `SembrarTenantPorDefecto`**: inserta una fila en `Tenant` (`Nombre` = nombre de la organización actual, `Estado` = Activo). Este Id se referencia como *tenant por defecto* durante el resto de la etapa.
+2. **`UPDATE` por tabla** (una sentencia por cada una de las 24+1 tablas de § 0.1): `SET TenantId = @tenantPorDefecto WHERE TenantId IS NULL`. Se ejecuta dentro de la migración EF Core (no un script suelto fuera de control de versiones), para que quede en el historial de migraciones igual que cualquier otro cambio de esquema.
+3. **`ParametroSistema`**: en vez de un `UPDATE`, la fila única existente pasa a llevar `TenantId = tenantPorDefecto` (sigue siendo una sola fila, ahora perteneciente a un tenant — el resto de tenants futuros la sembrarán al aprovisionarse, ver § 6).
+4. **`TipoDocumento`**: los 15+ tipos semilla existentes pasan a pertenecer al tenant por defecto (mismo `UPDATE`). A partir de aquí son **su** catálogo editable — un tenant nuevo recibe una copia de esta plantilla al aprovisionarse (§ 6), no una referencia compartida.
+5. **Verificación obligatoria antes de continuar**: query de recuento `SELECT COUNT(*) FROM <tabla> WHERE TenantId IS NULL` para las 25 tablas debe devolver 0 en todas. Se automatiza como el test de la Etapa 0 punto 4, ejecutado ahora contra la BD real post-backfill (no solo contra el fixture sintético).
+6. **Deploy**. Sigue sin haber filtro activo — el `TenantId` ya está sellado en todas las filas, pero todavía no se usa para nada. Comportamiento observable: ninguno.
+
+---
+
+## 4. Etapa 3 — Cierre (el único deploy con riesgo real)
+
+Este es el paso que ADR-002 quería evitar con el fork; se ejecuta con la red de seguridad de las Etapas 0–2 ya completadas.
+
+1. **Migración EF Core `CerrarTenantId`**: `TenantId` pasa de `Guid?` a `Guid` (NOT NULL) en las 25 tablas. En SQLite esto es un table-rebuild gestionado por EF Core (recrea la tabla, copia datos, renombra) — es exactamente la operación que se ensayó en la Etapa 0 y por la que la copia de backup es indispensable aquí, no antes.
+2. **Misma migración o la siguiente**: sustituir los 7 índices únicos simples + los índices únicos compuestos existentes por sus versiones con `TenantId` primero (§ 0.3).
+3. **`ITenantActual`** (Application, nueva interfaz) + implementación en Infrastructure que resuelve el tenant desde el claim `tenant_id` de la sesión (`docs/MULTITENANCY.md` § 8) — mismo patrón que `ICurrentUserService`. Se registra en DI antes de activar el filtro (paso siguiente), nunca al revés.
+4. **Filtro global combinado** en cada una de las 25 `*Configuration.cs`: `HasQueryFilter(x => !x.EstaEliminado && x.TenantId == tenantActual)` — **sustituyendo**, no añadiendo, el `HasQueryFilter` existente de soft-delete (EF Core solo permite uno por entidad; añadir un segundo silenciosamente desactivaría el de soft-delete — riesgo ya señalado en `docs/MULTITENANCY.md` § 4.2, verificar explícitamente en revisión de código que las 9 configuraciones que hoy ya tienen `HasQueryFilter` para soft-delete quedan con el filtro combinado, no duplicado).
+5. **Interceptor `TenantSellauditInterceptor`** (o ampliar `AuditoriaInterceptor` existente en `src/CaeManager.Infrastructure/Auditing/`, a decidir en implementación cuál es más consistente con el patrón ya usado) en `SaveChanges`: sella `TenantId = tenantActual` en toda entidad `Added`, y **rechaza** (excepción) cualquier entidad `Modified`/`Deleted` cuyo `TenantId` en BD no coincida con `tenantActual` — defensa adicional a la del filtro de lectura, para el caso de una entidad cargada por otra vía (raro, pero barato de proteger).
+6. **Login**: al autenticar (local y SSO), estampar el claim `tenant_id` desde `ApplicationUser.TenantId` en la cookie de Identity.
+7. **Jobs de fondo** (generación de alertas, notificaciones, detección IA — identificar los `IHostedService`/jobs programados existentes): se modifican para iterar tenants activos y abrir un ámbito de `ITenantActual` explícito por cada uno, nunca ejecutar sin tenant resuelto (`docs/MULTITENANCY.md` § 8.4).
+8. **Deploy único**, fuera de horario de uso si es posible, con el backup de la Etapa 0 fresco (repetir backup justo antes, no reutilizar el de la Etapa 0). Este es el paso que convierte "sellado pero sin usar" en "aislamiento activo".
+
+**Plan de rollback de esta etapa**: si tras el deploy aparece un problema, el rollback es restaurar el backup pre-Etapa-3 (las Etapas 1–2 son aditivas y no necesitan deshacerse) — no se intenta un rollback de esquema en caliente sobre una tabla ya recreada NOT NULL. Por eso el backup inmediatamente anterior a esta etapa, no el de la Etapa 0, es el que realmente importa operativamente.
+
+---
+
+## 5. Etapa 4 — Archivos
+
+1. `IFileStorageService`: las rutas nuevas se escriben bajo `{tenantId}/...` en vez de la ruta plana actual.
+2. **Comando de mantenimiento idempotente** (ejecutable una vez, verificable con un dry-run antes de mover nada de verdad) que mueve los archivos existentes de Documentos a la carpeta del tenant por defecto y actualiza `Documento.ArchivoUrl` en la misma operación por archivo (mover + actualizar referencia atómico por fila, para que un fallo a mitad no deje archivos huérfanos ni referencias rotas).
+3. Verificación: recuento de archivos movidos = recuento de `Documento` con `ArchivoUrl` no nulo del tenant por defecto; descarga de una muestra aleatoria de documentos para confirmar que el PDF servido es el correcto tras el movimiento.
+
+---
+
+## 6. Aprovisionamiento de un tenant nuevo (queda diseñado aquí, se construye cuando haya un segundo tenant real — YAGNI, no antes)
+
+Caso de uso que las Etapas 1–4 dejan preparado pero no implementan como flujo de producto (no hay UI de alta de tenant en v1, ver `ADR-001` — sin self-signup):
+
+1. Insertar fila en `Tenant`.
+2. Copiar la plantilla de `TipoDocumento` (los 15+ tipos, tal como estaban en el momento de crear el tenant o una plantilla mantenida aparte — a decidir en el momento) al nuevo `TenantId`.
+3. Sembrar `ParametroSistema` (umbrales 30/15 por defecto) para el nuevo tenant.
+4. Crear el primer `ApplicationUser` Administrador del tenant.
+5. En ningún paso se referencia ni se copia dato de otro tenant.
+
+---
+
+## 7. Etapa 5 — Verificación y cierre
+
+1. **Tests de aislamiento por agregado** (nuevos, en `CaeManager.IntegrationTests`): por cada uno de los 25 tipos, crear datos en dos tenants distintos y verificar que una Query filtrada por tenant A nunca devuelve filas de tenant B — este es el test que sustituye a "confiar en la revisión manual" y el que debe quedar en CI de forma permanente, no solo para este cambio.
+2. **Test del interceptor**: intento de modificar una entidad de otro tenant lanza excepción.
+3. **Test de índices**: insertar el mismo `Dni`/`Cif`/`RazonSocial`/`NumeroPlaca` en dos tenants distintos debe **permitirse**; insertarlo dos veces en el mismo tenant debe **fallar** — verifica ambos lados del índice compuesto, no solo que "ya no falla nunca".
+4. **Verificación end-to-end en navegador** (regla ya vigente en `CLAUDE.md`): login, alta de datos, navegación por las pantallas principales, con dos usuarios de dos tenants distintos en dos sesiones simultáneas, confirmando visualmente que ninguno ve datos del otro.
+5. **Cierre**: actualizar `ROADMAP.md` marcando la fase multi-tenant como completada (deja de decir "el código todavía no tiene `TenantId`" en `CLAUDE.md`), y registrar en `docs/MULTITENANCY.md` la fecha de cierre de cada etapa.
+
+---
+
+## 8. Fuera de alcance de este plan (deuda ya identificada, no se aborda aquí)
+
+SSO por tenant, subdominios, migración a PostgreSQL, DPA/Términos de Uso por tenant, self-signup/billing, cuotas de IA por tenant — todos son condiciones de salida a producción SaaS (`ADR-003`) o backlog (`INFORME-MULTITENANT.md` § 16), con su propio plan cuando corresponda. Este plan cubre exclusivamente el aislamiento de datos por `TenantId`.
