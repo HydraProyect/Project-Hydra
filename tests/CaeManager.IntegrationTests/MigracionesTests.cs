@@ -1,6 +1,7 @@
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -94,6 +95,31 @@ public class MigracionesTests : IAsyncLifetime
     }
 
     // --- Etapa 1 de PLAN-MIGRACION-MULTITENANT.md (esquema aditivo, TenantId nullable) ---
+
+    [Fact]
+    public async Task Siembra_el_tenant_por_defecto_activo()
+    {
+        var tenant = await _dbContext.Tenants.SingleAsync();
+
+        tenant.Id.Should().Be(TenantSeedData.IdPorDefecto);
+        tenant.Estado.Should().Be(EstadoTenant.Activo);
+    }
+
+    [Fact]
+    public async Task El_backfill_sella_el_catalogo_de_tipos_de_documento_al_tenant_por_defecto()
+    {
+        var tenantIdsDistintos = await _dbContext.TiposDocumento.Select(t => t.TenantId).Distinct().ToListAsync();
+
+        tenantIdsDistintos.Should().Equal(TenantSeedData.IdPorDefecto);
+    }
+
+    [Fact]
+    public async Task El_backfill_sella_el_parametro_de_sistema_al_tenant_por_defecto()
+    {
+        var parametro = await _dbContext.ParametrosSistema.SingleAsync();
+
+        parametro.TenantId.Should().Be(TenantSeedData.IdPorDefecto);
+    }
 
     [Fact]
     public async Task Guarda_y_recupera_un_tenant()

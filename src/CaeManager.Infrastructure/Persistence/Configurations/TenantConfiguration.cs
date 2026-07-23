@@ -1,4 +1,5 @@
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Persistence.Seed;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -21,5 +22,16 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
 
         // Sin HasQueryFilter: Tenant no pertenece a ningún tenant (ver
         // docs/MULTITENANCY.md § 4.1) y no tiene soft delete (ver Tenant.cs).
+
+        // El tenant #1 (la organización actual, ver Etapa 2 de
+        // PLAN-MIGRACION-MULTITENANT.md) — fecha fija, no DateTime.UtcNow,
+        // para que la migración generada sea reproducible.
+        builder.HasData(new
+        {
+            Id = TenantSeedData.IdPorDefecto,
+            Nombre = TenantSeedData.NombrePorDefecto,
+            Estado = EstadoTenant.Activo,
+            CreadoEnUtc = new DateTime(2026, 7, 23, 0, 0, 0, DateTimeKind.Utc),
+        });
     }
 }
