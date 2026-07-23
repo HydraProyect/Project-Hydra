@@ -19,11 +19,16 @@ Las obligaciones RGPD/LOPDGDD siguen aplicando íntegras al tratamiento de datos
 - `docs/MULTITENANCY.md` — normativa multi-tenant: aislamiento, catálogos, resolución de tenant.
 - `ADR-001` (guía técnica multi-tenant, reactivada) · `ADR-002` (superseded, histórico) · `ADR-003` (decisión vigente).
 - `INFORME-MULTITENANT.md` / `PLAN-MIGRACION-MULTITENANT.md` — análisis y plan de ejecución del multi-tenant, por etapas.
-- `ARQUITECTURA-INTEGRACIONES.md` — diseño de la futura Plataforma de Integraciones (Dokify, 6Coordina, CTAIMA...); backlog, no implementado — léelo antes de tomar cualquier decisión de multi-tenant/credenciales/jobs de fondo que pudiera cerrarle puertas.
+- `ARQUITECTURA-INTEGRACIONES.md` — diseño de la futura Plataforma de Integraciones (Dokify, 6Coordina, CTAIMA...), basado en capacidades (`CapacidadesIntegracion`) y versionado de API, no en nombres de proveedor; backlog, no implementado — léelo antes de tomar cualquier decisión de multi-tenant/credenciales/jobs de fondo que pudiera cerrarle puertas.
+- `docs/INTEGRATION_GUIDELINES.md` — guía paso a paso para construir un conector nuevo, cuando llegue el primero (no antes).
 - `ROADMAP.md` — historial de fases y backlog. Es largo — usa `grep` por sección en vez de leerlo entero.
 - `RGPD-TRATAMIENTO-DATOS.md` — datos personales tratados, base legal, subencargados. No sustituye revisión legal.
 - `CODING_STANDARDS.md`, `DESIGN_SYSTEM.md`, `UX_PATTERNS.md` — convenciones de código y producto, antes de escribir código o UI nueva.
 - `PLAN-MASTER-DETAIL-WORKSPACE.md` / `PLAN-CONTEXT-WORKSPACE.md` — rediseño de navegación contextual (diseño en debate, implementación pendiente).
+
+## Disciplina de decisión para cambios de arquitectura
+
+Cuando la tarea toque más que una feature aislada (multi-tenant, integraciones, IA, observabilidad — cualquier decisión "de plataforma"), resuelve en este orden y no lo saltees: **1. Dominio** (qué representa el negocio) → **2. Arquitectura** (cómo se organiza el sistema) → **3. Plataforma** (multi-tenancy/integraciones/IA/observabilidad como capacidades transversales) → **4. Implementación** (código). Documentar en ese orden es lo que permite incorporar una capacidad nueva sin reabrir las anteriores — ver `ARQUITECTURA-INTEGRACIONES.md` § 0 como ejemplo aplicado.
 
 ## Reglas de trabajo ya establecidas en este proyecto (no las reinventes)
 
