@@ -10,6 +10,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Subcontratas;
+using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Visitas;
@@ -60,6 +61,7 @@ public class CaeManagerDbContext(
     public DbSet<Alerta> Alertas => Set<Alerta>();
     public DbSet<ParametroSistema> ParametrosSistema => Set<ParametroSistema>();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
+    public DbSet<Tenant> Tenants => Set<Tenant>();
 
     IQueryable<Cliente> IApplicationDbContext.Clientes => Clientes;
     IQueryable<Empresa> IApplicationDbContext.Empresas => Empresas;
@@ -83,6 +85,7 @@ public class CaeManagerDbContext(
     IQueryable<Vehiculo> IApplicationDbContext.Vehiculos => Vehiculos;
     IQueryable<ParametroSistema> IApplicationDbContext.ParametrosSistema => ParametrosSistema;
     IQueryable<RegistroAuditoria> IApplicationDbContext.RegistrosAuditoria => RegistrosAuditoria;
+    IQueryable<Tenant> IApplicationDbContext.Tenants => Tenants;
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

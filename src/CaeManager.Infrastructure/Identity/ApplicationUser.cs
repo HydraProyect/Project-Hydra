@@ -48,4 +48,16 @@ public class ApplicationUser : IdentityUser<Guid>
     /// que un Administrador le asigna uno.
     /// </summary>
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Tenant al que pertenece este usuario (ver docs/MULTITENANCY.md § 8,
+    /// Tenant Resolution Strategy — se estampa como claim de sesión al
+    /// autenticar). Nullable durante la Etapa 1 de
+    /// PLAN-MIGRACION-MULTITENANT.md (esquema aditivo); pasa a NOT NULL en
+    /// la Etapa 3. <c>NormalizedUserName</c>/<c>NormalizedEmail</c> se
+    /// mantienen únicos globalmente en v1 (no por tenant) — ver
+    /// docs/MULTITENANCY.md § 8, limitación aceptada mientras la resolución
+    /// de tenant sea por claim y no por subdominio.
+    /// </summary>
+    public Guid? TenantId { get; set; }
 }

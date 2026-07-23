@@ -8,7 +8,7 @@ namespace CaeManager.Domain.Documentos;
 /// el de todo el catálogo semilla). Sin ciclo de vida propio (igual que
 /// EmpresaCliente): desvincular es una baja física.
 /// </summary>
-public class TipoDocumentoCentro : Entity
+public class TipoDocumentoCentro : EntidadConTenant
 {
     public Guid TipoDocumentoId { get; private set; }
     public Guid CentroId { get; private set; }
