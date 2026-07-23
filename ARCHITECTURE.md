@@ -45,7 +45,7 @@ CaeManager.sln
 │   │   ├── Asignaciones/
 │   │   ├── Alertas/
 │   │   ├── Auditoria/
-│   │   └── Common/              (Entity base, ValueObject base, Result<T>, DomainEvent)
+│   │   └── Common/              (Entity base, EntidadBase con soft delete, Result<T> — sin Domain Events: no existen y no se construyen sin caso de uso real, YAGNI)
 │   │
 │   ├── CaeManager.Application/
 │   │   ├── Clientes/
@@ -128,6 +128,10 @@ No se usa un `IRepository<T>` genérico. Cada agregado raíz (Cliente, Centro, E
 - Autorización basada en policies (`[Authorize(Policy = "...")]`), no en checks de rol hardcodeados dispersos por el código.
 - **SSO con Microsoft Entra ID** (opcional, `AzureAd:*` en configuración — ver `DEPLOY.md`): Identity sigue siendo el almacén de usuarios/roles, Entra ID solo se añade como external login provider (OpenID Connect), restringido al tenant de la empresa. Cualquier cuenta del tenant puede iniciar sesión — si es la primera vez, se auto-provisiona un `ApplicationUser` **sin ningún rol**, que queda en una pantalla de espera (`/cuenta/pendiente-de-rol`) hasta que un Administrador le asigna uno desde la pestaña "Pendientes de asignar" en `/roles` (ver `Roles.razor`). Mientras Entra ID esté configurado, `RestriccionLoginLocalClaimsTransformation` (`IClaimsTransformation` global) limita el rol efectivo de cualquier sesión que no se haya autenticado por Microsoft a `Consulta`, como capa extra de control para los roles editores — **excepto Administrador**, que conserva su rol real incluso por login local (vía de escape deliberada para nunca perder acceso de administración). Sin `AzureAd:*` configurado, todo esto queda completamente inerte (mismo principio que Sentry/Backups/Anthropic) — el login local se comporta exactamente igual que antes de que existiera SSO.
 - **Envío de correo** (`IEmailService` en Application, `GraphEmailService` en Infrastructure, opcional, `Graph:*` en configuración — ver `DEPLOY.md`): Microsoft Graph con permisos de aplicación (client credentials, no depende de que haya sesión de usuario), usado para notificar a los Administradores cuando hay un usuario pendiente de rol y para confirmar al usuario cuando se le asigna uno. Siempre "best effort": un fallo de envío se registra en el log pero nunca revierte ni bloquea la acción de negocio que lo dispara. Sin `Graph:*` configurado, queda inerte igual que el resto de integraciones opcionales.
+
+## Multi-tenancy (decidido, implementación pendiente — ver `docs/MULTITENANCY.md`)
+
+Hydra es multi-tenant por diseño (`ADR-003-saas-multitenant.md`): cada organización compradora es un tenant, frontera absoluta de aislamiento. Mecanismo elegido (`ADR-001`, reactivado): `TenantId` por fila + **Global Query Filter combinado con el de soft delete** (EF Core solo admite un `HasQueryFilter` por entidad: `!EstaEliminado && TenantId == tenantActual`), interceptor de `SaveChanges` que sella `TenantId` en escritura (los Commands nunca lo pasan), índices únicos de negocio compuestos `(TenantId, campo)`, y `ITenantActual` resuelto por claim de sesión (mismo patrón que `ICurrentUserService`; estrategia completa en `docs/MULTITENANCY.md` § 8). El aislamiento es un concern de Infrastructure: Domain y Application no razonan sobre tenants. Estado: documentado y aprobado; columna, filtros e interceptor **todavía no existen en el código** — ver secuencia en `ADR-003`.
 
 ## Auditoría y soft delete
 
