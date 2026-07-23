@@ -1,5 +1,6 @@
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
@@ -22,11 +23,13 @@ public class MigracionesTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        var tenantActual = new TenantActualAmbiental { TenantId = TenantSeedData.IdPorDefecto };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 
-        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider());
+        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
         await _dbContext.Database.MigrateAsync();
     }
 
@@ -136,37 +139,38 @@ public class MigracionesTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Un_cliente_nuevo_no_tiene_TenantId_todavia_porque_no_hay_interceptor_de_sellado()
+    public async Task El_interceptor_sella_el_tenant_actual_en_una_entidad_nueva_sin_que_el_Command_lo_asigne()
     {
-        // Etapa 1 es puramente aditiva: la columna existe (nullable) pero
-        // nada la rellena todavía — eso llega en la Etapa 3 (interceptor).
+        // Etapa 3 (cierre): TenantSelladoInterceptor sella TenantId con el
+        // valor de ITenantActual — el Command (aquí, el propio test) nunca
+        // lo asigna, Cliente no expone ningún setter para ello.
         var cliente = new Cliente("RENDELSUR", "B12345674", esCritico: false);
         _dbContext.Clientes.Add(cliente);
         await _dbContext.SaveChangesAsync();
 
         var recuperado = await _dbContext.Clientes.FindAsync(cliente.Id);
 
-        recuperado!.TenantId.Should().BeNull();
+        recuperado!.TenantId.Should().Be(TenantSeedData.IdPorDefecto);
     }
 
     [Fact]
-    public async Task Las_25_tablas_multi_tenant_no_tienen_TenantId_nulo_prohibido_todavia()
+    public async Task Las_25_tablas_multi_tenant_tienen_TenantId_como_NOT_NULL()
     {
-        // Verificación de esquema: la columna admite NULL en esta etapa —
-        // si esto falla, alguna Configuration marcó la columna como
-        // requerida antes de tiempo (la Etapa 3 es la que la cierra).
+        // Verificación de esquema tras el cierre (Etapa 3): la columna ya
+        // no admite NULL — si esto falla, la migración CerrarTenantId no se
+        // aplicó o alguna tabla quedó fuera.
         await using var comando = _dbContext.Database.GetDbConnection().CreateCommand();
         await _dbContext.Database.OpenConnectionAsync();
         comando.CommandText = "PRAGMA table_info('Clientes');";
         await using var lector = await comando.ExecuteReaderAsync();
 
-        var notNullClienteId = false;
+        var notNullTenantId = false;
         while (await lector.ReadAsync())
         {
             if (string.Equals(lector["name"].ToString(), "TenantId", StringComparison.Ordinal))
-                notNullClienteId = Convert.ToInt32(lector["notnull"]) == 1;
+                notNullTenantId = Convert.ToInt32(lector["notnull"]) == 1;
         }
 
-        notNullClienteId.Should().BeFalse();
+        notNullTenantId.Should().BeTrue();
     }
 }

@@ -15,10 +15,10 @@ public class VehiculoConfiguration : IEntityTypeConfiguration<Vehiculo>
         builder.Property(v => v.Modelo).IsRequired().HasMaxLength(Vehiculo.LongitudMaximaModelo);
         builder.Property(v => v.NumeroPlaca).IsRequired().HasMaxLength(Vehiculo.LongitudMaximaNumeroPlaca);
 
-        builder.HasIndex(v => v.NumeroPlaca).IsUnique();
+        builder.HasIndex(v => new { v.TenantId, v.NumeroPlaca }).IsUnique();
         builder.HasIndex(v => v.EmpresaId);
         builder.HasIndex(v => v.SubcontrataId);
 
-        builder.HasQueryFilter(v => !v.EstaEliminado);
+        // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }

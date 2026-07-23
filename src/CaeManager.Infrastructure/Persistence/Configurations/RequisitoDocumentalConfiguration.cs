@@ -17,6 +17,6 @@ public class RequisitoDocumentalConfiguration : IEntityTypeConfiguration<Requisi
 
         builder.HasIndex(r => r.CentroId);
 
-        builder.HasQueryFilter(r => !r.EstaEliminado);
+        // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }
