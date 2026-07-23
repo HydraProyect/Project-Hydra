@@ -6,7 +6,9 @@ using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -36,11 +38,13 @@ public class AlcancePorIdTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        var tenantActual = new TenantActualAmbiental { TenantId = TenantSeedData.IdPorDefecto };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 
-        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider());
+        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
         await _dbContext.Database.MigrateAsync();
 
         _clienteVisible = new Cliente("COBEGA (Coca-Cola European Partners)", "B12345674", esCritico: true);
