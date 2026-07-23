@@ -18,7 +18,7 @@ namespace CaeManager.Domain.Empresas;
 /// dominio no conoce el cifrado, solo modela el valor en texto plano en
 /// memoria durante el ciclo de vida de la petición.
 /// </summary>
-public class CredencialAccesoEmpresa : Entity
+public class CredencialAccesoEmpresa : EntidadConTenant
 {
     public const int LongitudMaximaUrlAcceso = 500;
     public const int LongitudMaximaCampoEmpresa = 200;
