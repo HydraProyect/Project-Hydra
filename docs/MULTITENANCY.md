@@ -72,6 +72,7 @@ Criterio de clasificación: un catálogo es **global** si es parte del producto 
 | Plantillas de importación Excel (`/clientes/plantilla.xlsx`, etc.) | **Global** | Formato de intercambio del producto, igual para todos los tenants. |
 | Umbrales/textos de UI, microcopy, Design System | **Global** | Identidad del producto. Branding por tenant (logo, colores) es una posible feature comercial futura — backlog, no ahora. |
 | Configuración de integraciones (`AzureAd:*`, `Graph:*`, `Anthropic:*`, Sentry, Backups) | **Global hoy, por-tenant en el futuro señalado** | Hoy son configuración de la instalación (appsettings). SSO por tenant y cuotas de IA por tenant están identificados como deuda SaaS en `INFORME-MULTITENANT.md` § 16 — se abordan cuando haya un segundo tenant real que los necesite, con diseño propio (secretos por tenant cifrados, no appsettings). |
+| `ProveedorIntegracion` (catálogo de la futura Plataforma de Integraciones — Dokify, 6Coordina, CTAIMA, eCoordina, Microsoft 365, Anthropic, OpenAI...) | **Global** | Es parte del producto: qué proveedores soporta Hydra, del mismo modo que los roles son parte del código. La instancia que cada tenant activa y configura (`ConexionIntegracion`, `CredencialIntegracion`, `TrabajoIntegracion`, `SincronizacionIntegracion`, `SuscripcionWebhook`, `EventoWebhook`) es **por tenant**, con `TenantId` obligatorio como cualquier otra tabla de datos. Ver `ARQUITECTURA-INTEGRACIONES.md` (diseño de backlog, no implementado). |
 
 ## 8. Tenant Resolution Strategy
 
@@ -92,6 +93,10 @@ Criterio de clasificación: un catálogo es **global** si es parte del producto 
 | Subdominio (`geseme.hydra.app`) | La opción canónica SaaS a largo plazo: branding, aislamiento de cookies por origen, y necesaria para SSO por tenant (elegir IdP antes del login). Coste hoy: DNS wildcard + TLS wildcard + lógica de host en despliegue — sin valor mientras no haya segundo tenant. **Evolución prevista, compatible con el claim**: el subdominio pasará a *seleccionar* el tenant en el login; el claim seguirá siendo la fuente de verdad de la sesión. Se decide su adopción cuando se aborde SSO por tenant. |
 | Path (`/t/{tenant}/...`) | Contamina todas las rutas (rompe la regla de "nunca renombrar rutas" de los planes de navegación) y no aporta nada sobre el claim en una app con sesión. Descartada. |
 | Header (`X-Tenant-Id`) | Pensada para APIs machine-to-machine, que no existen en v1. Manipulable si no se valida contra la sesión — y si hay que validarla contra la sesión, es redundante con el claim. Descartada hasta que exista una API pública (donde el tenant vendrá del token OAuth, no de un header suelto). |
+
+### Tercer modo, específico de integraciones: identificador de recurso + verificación de firma
+
+Los dos modos anteriores (claim de sesión, ámbito explícito de jobs) cubren contextos interactivos y de fondo, pero no un tercer contexto real: **webhooks entrantes** de proveedores externos (Dokify, 6Coordina, CTAIMA..., ver `ARQUITECTURA-INTEGRACIONES.md`), que llegan sin sesión de usuario ni claim posible. Se resuelven por el identificador de la `ConexionIntegracion` embebido en la propia URL del webhook, **verificado por firma HMAC** contra el secreto de esa conexión antes de confiar en el tenant que implica — nunca se resuelve el tenant de un payload sin verificar la firma primero. Es el mismo principio de fallo cerrado que el resto de esta estrategia, adaptado a un origen que no es un usuario ni un proceso interno.
 
 ### Implicaciones documentadas
 
@@ -115,3 +120,5 @@ Criterio de clasificación: un catálogo es **global** si es parte del producto 
 - `ADR-001-multitenant.md` — el modelo técnico (TenantId por fila, filtro global, interceptor, índices compuestos) — reactivado como guía por ADR-003.
 - `ADR-002-single-tenant.md` — superseded; se conserva como registro histórico y por su § 4 (obligaciones RGPD que siguen vigentes).
 - `INFORME-MULTITENANT.md` — análisis técnico completo: riesgos, estrategia de migración por etapas, impactos CQRS/DDD/rendimiento.
+- `PLAN-MIGRACION-MULTITENANT.md` — plan de ejecución por etapas.
+- `ARQUITECTURA-INTEGRACIONES.md` — diseño de la futura Plataforma de Integraciones (proveedores CAE/ERP/CRM/IA), backlog, no implementado — asegura que las decisiones de esta página no le cierren puertas.
