@@ -1,4 +1,5 @@
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
@@ -90,5 +91,56 @@ public class MigracionesTests : IAsyncLifetime
         var visible = await _dbContext.Clientes.FirstOrDefaultAsync(c => c.Id == cliente.Id);
 
         visible.Should().BeNull();
+    }
+
+    // --- Etapa 1 de PLAN-MIGRACION-MULTITENANT.md (esquema aditivo, TenantId nullable) ---
+
+    [Fact]
+    public async Task Guarda_y_recupera_un_tenant()
+    {
+        var tenant = new Tenant("GESEME");
+        _dbContext.Tenants.Add(tenant);
+        await _dbContext.SaveChangesAsync();
+
+        var recuperado = await _dbContext.Tenants.FindAsync(tenant.Id);
+
+        recuperado.Should().NotBeNull();
+        recuperado!.Nombre.Should().Be("GESEME");
+        recuperado.Estado.Should().Be(EstadoTenant.Activo);
+    }
+
+    [Fact]
+    public async Task Un_cliente_nuevo_no_tiene_TenantId_todavia_porque_no_hay_interceptor_de_sellado()
+    {
+        // Etapa 1 es puramente aditiva: la columna existe (nullable) pero
+        // nada la rellena todavía — eso llega en la Etapa 3 (interceptor).
+        var cliente = new Cliente("RENDELSUR", "B12345674", esCritico: false);
+        _dbContext.Clientes.Add(cliente);
+        await _dbContext.SaveChangesAsync();
+
+        var recuperado = await _dbContext.Clientes.FindAsync(cliente.Id);
+
+        recuperado!.TenantId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Las_25_tablas_multi_tenant_no_tienen_TenantId_nulo_prohibido_todavia()
+    {
+        // Verificación de esquema: la columna admite NULL en esta etapa —
+        // si esto falla, alguna Configuration marcó la columna como
+        // requerida antes de tiempo (la Etapa 3 es la que la cierra).
+        await using var comando = _dbContext.Database.GetDbConnection().CreateCommand();
+        await _dbContext.Database.OpenConnectionAsync();
+        comando.CommandText = "PRAGMA table_info('Clientes');";
+        await using var lector = await comando.ExecuteReaderAsync();
+
+        var notNullClienteId = false;
+        while (await lector.ReadAsync())
+        {
+            if (string.Equals(lector["name"].ToString(), "TenantId", StringComparison.Ordinal))
+                notNullClienteId = Convert.ToInt32(lector["notnull"]) == 1;
+        }
+
+        notNullClienteId.Should().BeFalse();
     }
 }

@@ -12,7 +12,7 @@ namespace CaeManager.Domain.Subcontratas;
 /// dominio no conoce el cifrado, solo modela el valor en texto plano en
 /// memoria durante el ciclo de vida de la petición.
 /// </summary>
-public class CredencialAccesoSubcontrata : Entity
+public class CredencialAccesoSubcontrata : EntidadConTenant
 {
     public const int LongitudMaximaUrlAcceso = 500;
     public const int LongitudMaximaCampoEmpresa = 200;
