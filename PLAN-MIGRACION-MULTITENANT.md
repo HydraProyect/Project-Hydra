@@ -114,9 +114,12 @@ Este es el paso que ADR-002 quería evitar con el fork; se ejecuta con la red de
 
 ## 5. Etapa 4 — Archivos
 
-1. `IFileStorageService`: las rutas nuevas se escriben bajo `{tenantId}/...` en vez de la ruta plana actual.
-2. **Comando de mantenimiento idempotente** (ejecutable una vez, verificable con un dry-run antes de mover nada de verdad) que mueve los archivos existentes de Documentos a la carpeta del tenant por defecto y actualiza `Documento.ArchivoUrl` en la misma operación por archivo (mover + actualizar referencia atómico por fila, para que un fallo a mitad no deje archivos huérfanos ni referencias rotas).
-3. Verificación: recuento de archivos movidos = recuento de `Documento` con `ArchivoUrl` no nulo del tenant por defecto; descarga de una muestra aleatoria de documentos para confirmar que el PDF servido es el correcto tras el movimiento.
+✅ **Punto 1 completo y validado (2026-07-23)**. ⬜ **Punto 2 diferido explícitamente** (ver nota).
+
+1. ✅ `IFileStorageService`/`DiskFileStorageService`: las rutas nuevas se escriben bajo `{tenantId}/...` (carpeta = `Guid.ToString("N")`). Registro de DI cambiado de `Singleton` a `Scoped` — dependía implícitamente de nada, ahora depende de `ITenantActual` (scoped), y un singleton con una dependencia scoped sería una dependencia cautiva (capturaría el primer tenant resuelto para siempre). `GuardarAsync` sin tenant resuelto lanza (fallo cerrado, mismo criterio que el interceptor). `AbrirAsync` valida que el segmento de tenant del identificador coincide con el tenant actual — un identificador de otro tenant, aunque se conozca exacto, se comporta como "no existe" (`FileNotFoundException`), mismo principio que el fix IDOR del Issue #18 para Ids de entidades. Sanea cada segmento de ruta por separado (protección contra path traversal, reforzada respecto a la versión anterior).
+2. ⬜ **Diferido**: el comando de mantenimiento que migraría archivos preexistentes a la carpeta del tenant por defecto no se construye todavía — no hay ningún archivo real que migrar (esta sesión no tiene acceso a la base de datos de producción real, y un despliegue nuevo/vacío no tiene archivos planos que mover). Se construye cuando se ejecute la migración real contra producción (junto con las Etapas 0–3, con el mismo criterio de ensayo sobre copia). Diseño ya acordado en el punto 2 original de esta sección — no repetido aquí, sigue vigente como especificación de lo que hay que construir en ese momento.
+
+**Tests** (`DiskFileStorageServiceTests`, nuevo): guarda bajo la carpeta del tenant; el propio tenant puede reabrir lo que guardó; **otro tenant no puede abrirlo aunque conozca el identificador exacto**; sin tenant resuelto no se puede guardar ni abrir nada; un identificador con intento de path traversal no escapa de la carpeta del tenant. Validado con: build `-warnaserror` (0/0), `dotnet format` limpio, `Domain.Tests` 119/119, `Application.Tests` 39/39, `Web.Tests` 7/7, `IntegrationTests` 38/40 (los 2 fallos son el mismo problema preexistente de LibreOffice, no relacionado).
 
 ---
 
