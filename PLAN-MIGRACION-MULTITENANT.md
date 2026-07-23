@@ -84,6 +84,19 @@ Objetivo: desplegable sin que nada del comportamiento actual cambie.
 
 ## 4. Etapa 3 — Cierre (el único deploy con riesgo real)
 
+✅ **Completa y validada (2026-07-23)** — implementada y probada en esta sesión (entorno de desarrollo/CI; la aplicación contra el entorno de producción real queda pendiente del propio despliegue, ver condiciones de `ADR-003`). Piezas construidas:
+
+- `ITenantActual` (Application, síncrono — EF Core lo necesita así dentro de `HasQueryFilter`) + `TenantActualAmbiental` (Infrastructure, settable — jobs de fondo/migraciones/tests) + `TenantActual` (Web, lee el claim `tenant_id` vía `AuthenticationStateProvider`, mismo patrón que `CurrentUserService`).
+- `TenantClaimsPrincipalFactory` (`IUserClaimsPrincipalFactory<ApplicationUser>`): añade el claim `tenant_id` al construir el `ClaimsPrincipal` en el login (desde `user.TenantId`, ya en memoria — sin consulta adicional, sin riesgo de recursión con el filtro global porque `AspNetUsers` queda deliberadamente **sin** filtro de tenant, ya que el login necesita resolver el usuario antes de conocer su tenant).
+- `TenantSelladoInterceptor`: sella `TenantId` en toda entidad `Added` desde `ITenantActual` (lanza si no hay tenant resuelto — fallo cerrado) y rechaza `Modified`/`Deleted` de una entidad de otro tenant.
+- Filtro global **centralizado** en `CaeManagerDbContext.OnModelCreating` (no repartido en los 25 `*Configuration.cs`) — 9 agregados combinan soft-delete + tenant, 16 tablas de unión/satélite solo tenant. Se retiraron los `HasQueryFilter` sueltos de soft-delete de las 9 configuraciones (quedarían reemplazados igualmente; centralizarlo hace visible de un vistazo que ninguno se perdió).
+- `EntidadConTenant.TenantId` y `ApplicationUser.TenantId`: `Guid?` → `Guid` (NOT NULL). `HasData` de `TipoDocumento`/`ParametroSistema` con `TenantId` explícito. `IdentitySeeder`/`DatosPruebaSeeder` sellan `TenantId` al crear usuarios.
+- Migración `CerrarTenantId`: `AlterColumn` a NOT NULL en las 25 tablas + los 16 índices únicos compuestos (7 simples + 9 de unión/satélite) con `TenantId` primero. `dotnet ef migrations has-pending-model-changes` confirma cero deriva de modelo tras aplicarla.
+
+**Tests decisivos** (`AislamientoMultiTenantTests`, nuevo — dos `CaeManagerDbContext` sobre el mismo archivo SQLite, cada uno con su propio tenant, exactamente el escenario real): un Cliente creado por el tenant A es invisible para B y visible para A; lo mismo para una entidad `EntidadConTenant` sin soft-delete (Alerta); el interceptor sella el tenant sin que el código lo asigne; crear sin tenant resuelto lanza; modificar una entidad de otro tenant (cargada vía `IgnoreQueryFilters` justificado) lanza; el mismo CIF en dos tenants se permite, duplicado en el mismo tenant se rechaza por el índice compuesto. Más los tests existentes de `MigracionesTests`/`AlcancePorIdTests`/`DeteccionTrabajadoresServiceTests` actualizados para el nuevo constructor de `CaeManagerDbContext` (necesitaban registrar el interceptor manualmente, al no pasar por `AddInfrastructure`).
+
+Validado con: build `-warnaserror` (0/0), `dotnet format --verify-no-changes` (limpio), `dotnet ef migrations has-pending-model-changes` (sin cambios pendientes), `Domain.Tests` 119/119, `Application.Tests` 39/39, `Web.Tests` 7/7, `IntegrationTests` 32/34 (los 2 fallos son el mismo problema preexistente de LibreOffice, no relacionado).
+
 Este es el paso que ADR-002 quería evitar con el fork; se ejecuta con la red de seguridad de las Etapas 0–2 ya completadas.
 
 1. **Migración EF Core `CerrarTenantId`**: `TenantId` pasa de `Guid?` a `Guid` (NOT NULL) en las 25 tablas. En SQLite esto es un table-rebuild gestionado por EF Core (recrea la tabla, copia datos, renombra) — es exactamente la operación que se ensayó en la Etapa 0 y por la que la copia de backup es indispensable aquí, no antes.

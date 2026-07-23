@@ -8,14 +8,14 @@ namespace CaeManager.Domain.Common;
 /// misma, la única entidad que queda deliberadamente fuera de esta jerarquía —
 /// pertenecen a un tenant.
 ///
-/// <see cref="TenantId"/> es nullable durante la Etapa 1 de
-/// <c>PLAN-MIGRACION-MULTITENANT.md</c> (esquema aditivo, sin filtro global
-/// todavía). Pasa a NOT NULL en la Etapa 3 (cierre), momento en el que
-/// también se sella exclusivamente desde el interceptor de <c>SaveChanges</c>
-/// — de ahí el <c>private set</c> ya desde ahora: ningún Command debe poder
-/// asignarlo directamente.
+/// <see cref="TenantId"/> se sella exclusivamente desde
+/// <c>TenantSelladoInterceptor</c> (Infrastructure) al guardar — ningún
+/// Command lo asigna directamente, de ahí el <c>private set</c>. NOT NULL
+/// desde la Etapa 3 de <c>PLAN-MIGRACION-MULTITENANT.md</c> (cierre); antes
+/// de esa etapa la columna física fue nullable (esquema aditivo, Etapa 1),
+/// pero el tipo del dominio ya lo modela como requerido.
 /// </summary>
 public abstract class EntidadConTenant : Entity
 {
-    public Guid? TenantId { get; private set; }
+    public Guid TenantId { get; private set; }
 }
