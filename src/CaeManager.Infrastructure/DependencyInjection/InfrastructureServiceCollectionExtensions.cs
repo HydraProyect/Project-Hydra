@@ -108,7 +108,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
-        services.AddSingleton<IFileStorageService, DiskFileStorageService>();
+        // Scoped (no Singleton): depende de ITenantActual, que es scoped —
+        // ver docs/MULTITENANCY.md § 4.6.
+        services.AddScoped<IFileStorageService, DiskFileStorageService>();
 
         services.Configure<LibreOfficeConversorWordPdfServiceOptions>(configuration.GetSection(LibreOfficeConversorWordPdfServiceOptions.SeccionConfiguracion));
         services.AddSingleton<IConversorWordPdfService, LibreOfficeConversorWordPdfService>();
