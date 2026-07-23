@@ -26,7 +26,8 @@ namespace CaeManager.Infrastructure.Persistence;
 
 public class CaeManagerDbContext(
     DbContextOptions<CaeManagerDbContext> options,
-    IDataProtectionProvider dataProtectionProvider)
+    IDataProtectionProvider dataProtectionProvider,
+    ITenantActual tenantActual)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options), IApplicationDbContext, IUnitOfWork
 {
     private readonly IDataProtector _protectorCredenciales =
@@ -116,5 +117,42 @@ public class CaeManagerDbContext(
         builder.Entity<CredencialAccesoSubcontrata>().Property(c => c.Contrasena).HasConversion(conversorCredencialesSubcontrata);
 
         builder.Entity<IdentityRole<Guid>>().HasData(IdentityRoleSeedData.Filas());
+
+        // Filtro global de aislamiento por tenant, centralizado aquí (no en
+        // cada *Configuration.cs) — ver docs/MULTITENANCY.md § 4.2: EF Core
+        // solo admite un HasQueryFilter por entidad, así que ponerlo en un
+        // único lugar evita que un segundo HasQueryFilter futuro reemplace
+        // silenciosamente este sin que nadie lo note. Los 9 agregados con
+        // soft delete combinan ambos filtros; los 16 restantes (tablas de
+        // unión/satélite sin ciclo de vida propio) solo llevan el de tenant.
+        // AspNetUsers queda deliberadamente sin filtro — el login necesita
+        // poder resolver el usuario (y por tanto su tenant) antes de
+        // conocerlo, ver TenantClaimsPrincipalFactory.
+        builder.Entity<Cliente>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Centro>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Documento>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Empresa>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<RequisitoDocumental>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Subcontrata>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Trabajador>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Vehiculo>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Visita>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+
+        builder.Entity<Alerta>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<Asignacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<RegistroAuditoria>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<PlataformaAcceso>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<ParametroSistema>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<ConfiguracionIaDocumentoCliente>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<TipoDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<TipoDocumentoCentro>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<CredencialAccesoEmpresa>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<EmpresaCliente>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<NotificacionUsuario>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<CredencialAccesoSubcontrata>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<SubcontrataCliente>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<SubcontrataEmpresa>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<DeteccionTrabajador>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<VisitaTrabajador>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
     }
 }

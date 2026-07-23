@@ -1,3 +1,4 @@
+using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
@@ -36,7 +37,10 @@ public class BackfillTenantPorDefectoTests : IAsyncLifetime
             .UseSqlite($"Data Source={_rutaBaseDatos}")
             .Options;
 
-        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider());
+        // Este test opera vía SQL crudo/migraciones, no a través del DbSet
+        // filtrado — el tenant ambiental no es relevante aquí, pero el
+        // constructor lo exige.
+        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), new TenantActualAmbiental());
 
         // 1. Migrar solo hasta el esquema aditivo (Etapa 1) — TenantId ya
         // existe como columna nullable, pero el backfill (Etapa 2) todavía

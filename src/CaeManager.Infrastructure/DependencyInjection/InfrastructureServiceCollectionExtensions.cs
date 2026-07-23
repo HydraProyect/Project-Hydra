@@ -21,6 +21,7 @@ using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
+using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using Microsoft.AspNetCore.DataProtection;
@@ -38,11 +39,14 @@ public static class InfrastructureServiceCollectionExtensions
         this IServiceCollection services, IConfiguration configuration, IHostEnvironment entorno)
     {
         services.AddScoped<AuditoriaInterceptor>();
+        services.AddScoped<TenantSelladoInterceptor>();
 
         services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
         {
             options.UseSqlite(configuration.GetConnectionString("CaeManagerDb"));
-            options.AddInterceptors(serviceProvider.GetRequiredService<AuditoriaInterceptor>());
+            options.AddInterceptors(
+                serviceProvider.GetRequiredService<AuditoriaInterceptor>(),
+                serviceProvider.GetRequiredService<TenantSelladoInterceptor>());
         });
 
         services
@@ -56,6 +60,7 @@ public static class InfrastructureServiceCollectionExtensions
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<CaeManagerDbContext>()
             .AddSignInManager<SignInManager<ApplicationUser>>()
+            .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
             .AddDefaultTokenProviders();
 
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
