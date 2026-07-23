@@ -16,6 +16,7 @@ Las obligaciones RGPD/LOPDGDD siguen aplicando íntegras al tratamiento de datos
 - `DOMAIN.md` — modelo de dominio: agregados, relaciones e invariantes (fuente de verdad conceptual).
 - `ARCHITECTURE.md` — capas, patrones, stack técnico.
 - `DATABASE.md` — persistencia y regla de negocio central (cálculo de estado de Documento).
+- `docs/PLATFORM.md` — qué es Hydra como plataforma: kernel transversal (MultiTenant/Identity/Authorization/Integrations/AI/Notifications/Storage/Observability/Background Jobs/Feature Flags/Licensing) vs. módulos de negocio (CAE). Léelo antes de decidir si algo nuevo es kernel o dominio. **Con este documento se cierra la fase de consolidación documental** — lo siguiente es implementación (`PLAN-MIGRACION-MULTITENANT.md`), no más documentos de arquitectura salvo necesidad real.
 - `docs/MULTITENANCY.md` — normativa multi-tenant: aislamiento, catálogos, resolución de tenant.
 - `ADR-001` (guía técnica multi-tenant, reactivada) · `ADR-002` (superseded, histórico) · `ADR-003` (decisión vigente).
 - `INFORME-MULTITENANT.md` / `PLAN-MIGRACION-MULTITENANT.md` — análisis y plan de ejecución del multi-tenant, por etapas.
