@@ -133,6 +133,10 @@ No se usa un `IRepository<T>` genérico. Cada agregado raíz (Cliente, Centro, E
 
 Hydra es multi-tenant por diseño (`ADR-003-saas-multitenant.md`): cada organización compradora es un tenant, frontera absoluta de aislamiento. Mecanismo elegido (`ADR-001`, reactivado): `TenantId` por fila + **Global Query Filter combinado con el de soft delete** (EF Core solo admite un `HasQueryFilter` por entidad: `!EstaEliminado && TenantId == tenantActual`), interceptor de `SaveChanges` que sella `TenantId` en escritura (los Commands nunca lo pasan), índices únicos de negocio compuestos `(TenantId, campo)`, y `ITenantActual` resuelto por claim de sesión (mismo patrón que `ICurrentUserService`; estrategia completa en `docs/MULTITENANCY.md` § 8). El aislamiento es un concern de Infrastructure: Domain y Application no razonan sobre tenants. Estado: documentado y aprobado; columna, filtros e interceptor **todavía no existen en el código** — ver secuencia en `ADR-003`.
 
+## Plataforma de Integraciones (diseño de backlog, no implementado — ver `ARQUITECTURA-INTEGRACIONES.md`)
+
+Hydra se integrará con plataformas CAE/ERP/CRM/IA externas (Dokify, 6Coordina, CTAIMA, eCoordina, Microsoft 365...) mediante una capa de **proveedores de integración** (`IIntegrationProvider`) desacoplada del dominio — mismo principio que ya aplican `IEmailService`/`IFileStorageService`: la interfaz vive en Application, el adaptador concreto de cada proveedor vive en Infrastructure, y ningún tipo de Domain/Application/Presentation conoce el nombre de un proveedor real. Cada tenant activa y configura sus integraciones de forma independiente (capacidad por-tenant), sobre el mismo aislamiento de `TenantId` del resto del dominio. Detalle completo, incluida la clasificación de catálogos y el modo de resolución de tenant para webhooks entrantes, en `ARQUITECTURA-INTEGRACIONES.md` y `docs/MULTITENANCY.md` § 7-8.
+
 ## Auditoría y soft delete
 
 - Interceptor de EF Core (`SaveChangesInterceptor`) que registra en una tabla `Auditoria` cada creación/modificación/eliminación de entidades marcadas como auditables: quién, cuándo, qué cambió (antes/después serializado).
