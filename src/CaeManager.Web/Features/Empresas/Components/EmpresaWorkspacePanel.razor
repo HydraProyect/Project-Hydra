@@ -8,10 +8,10 @@
     tomada explícitamente para no listar "todos los centros del cliente"
     cuando la Empresa solo opera en unos pocos.
 *@
+@using CaeManager.Application.Centros
 @using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
 @using CaeManager.Domain.Documentos
-@using CaeManager.Web.Components.Workspace
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
@@ -51,6 +51,14 @@ else
                 {
                     <EstadoCargando Filas="3" />
                 }
+                else if (_errorCentros)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarCentrosAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
                 else if (_centros is { Count: 0 })
                 {
                     <EstadoVacio Titulo="Sin actividad en ningún centro" Descripcion="Ningún trabajador de esta empresa tiene asignaciones activas todavía." />
@@ -62,6 +70,7 @@ else
                         @foreach (var centro in _centros)
                         {
                             <FilaEntidadRelacionada
+                                @key="centro.Id"
                                 Titulo="@centro.Nombre"
                                 Subtitulo="@($"{centro.ClienteRazonSocial} · {centro.TrabajadoresAsignados} trabajador(es)")"
                                 OnClic="() => AbrirCentroAsync(centro)" />
@@ -101,6 +110,7 @@ else
 
     private IReadOnlyList<CentroConActividadDto>? _centros;
     private bool _cargandoCentros;
+    private bool _errorCentros;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -108,10 +118,11 @@ else
         {
             _idCargado = EntidadId;
             _centros = null;
+            _errorCentros = false;
             await CargarCabeceraAsync();
         }
 
-        if (PestanaActiva == "centros" && _centros is null && !_cargandoCentros)
+        if (PestanaActiva == "centros" && _centros is null && !_errorCentros && !_cargandoCentros)
             await CargarCentrosAsync();
     }
 
@@ -136,9 +147,26 @@ else
 
     private async Task CargarCentrosAsync()
     {
+        var idSolicitado = EntidadId;
         _cargandoCentros = true;
-        _centros = await Mediator.Send(new ObtenerCentrosConActividadDeEmpresaQuery(EntidadId));
-        _cargandoCentros = false;
+        _errorCentros = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerCentrosConActividadDeEmpresaQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _centros = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorCentros = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoCentros = false;
+        }
     }
 
     private Task AbrirCentroAsync(CentroConActividadDto centro) =>

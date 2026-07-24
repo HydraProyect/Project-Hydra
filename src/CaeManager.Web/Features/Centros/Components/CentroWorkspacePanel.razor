@@ -10,7 +10,6 @@
 @using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro
 @using CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeCentro
 @using CaeManager.Application.RequisitosDocumentales.Queries.ObtenerRequisitosDocumentalesDeCentro
-@using CaeManager.Web.Components.Workspace
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
@@ -52,6 +51,14 @@ else
                 {
                     <EstadoCargando Filas="3" />
                 }
+                else if (_errorRequisitos)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar los requisitos" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarRequisitosAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
                 else if (_requisitos is { Count: 0 })
                 {
                     <EstadoVacio Titulo="Sin requisitos adicionales" Descripcion="Este centro no tiene ningún Requisito Documental registrado más allá de la documentación base." />
@@ -61,7 +68,7 @@ else
                     <ul class="workspace-lista-requisitos">
                         @foreach (var requisito in _requisitos)
                         {
-                            <li class="workspace-tarjeta-requisito">
+                            <li class="workspace-tarjeta-requisito" @key="requisito.Id">
                                 <div class="workspace-tarjeta-requisito-cabecera">
                                     <span>@requisito.Descripcion</span>
                                     @if (requisito.BloqueaAcceso)
@@ -88,6 +95,14 @@ else
                 {
                     <EstadoCargando Filas="3" />
                 }
+                else if (_errorTrabajadores)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar los trabajadores" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarTrabajadoresAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
                 else if (_trabajadores is { Count: 0 })
                 {
                     <EstadoVacio Titulo="Sin trabajadores asignados" Descripcion="Ningún trabajador tiene una asignación activa en este centro." />
@@ -98,6 +113,7 @@ else
                         @foreach (var trabajador in _trabajadores)
                         {
                             <FilaEntidadRelacionada
+                                @key="trabajador.TrabajadorId"
                                 Titulo="@trabajador.Nombre"
                                 Subtitulo="@($"{trabajador.EmpleadorNombre} · desde {trabajador.FechaAlta:dd/MM/yyyy}")"
                                 OnClic="() => AbrirTrabajadorAsync(trabajador)" />
@@ -111,6 +127,14 @@ else
                 {
                     <EstadoCargando Filas="3" />
                 }
+                else if (_errorVehiculos)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar los vehículos" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarVehiculosAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
                 else if (_vehiculos is { Count: 0 })
                 {
                     <EstadoVacio Titulo="Sin vehículos con actividad" Descripcion="Ninguna Empresa/Subcontrata con trabajadores activos en este centro tiene vehículos registrados." />
@@ -122,6 +146,7 @@ else
                         @foreach (var vehiculo in _vehiculos)
                         {
                             <FilaEntidadRelacionada
+                                @key="vehiculo.Id"
                                 Titulo="@($"{vehiculo.Nombre} ({vehiculo.NumeroPlaca})")"
                                 Subtitulo="@vehiculo.EmpleadorNombre"
                                 OnClic="() => AbrirVehiculoAsync(vehiculo)" />
@@ -134,6 +159,14 @@ else
                 @if (_cargandoPlataforma)
                 {
                     <EstadoCargando Filas="2" />
+                }
+                else if (_errorPlataforma)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar la plataforma" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarPlataformaAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
                 }
                 else if (_plataforma is null)
                 {
@@ -184,13 +217,17 @@ else
 
     private IReadOnlyList<RequisitoDocumentalDto>? _requisitos;
     private bool _cargandoRequisitos;
+    private bool _errorRequisitos;
     private IReadOnlyList<TrabajadorAsignadoDto>? _trabajadores;
     private bool _cargandoTrabajadores;
+    private bool _errorTrabajadores;
     private IReadOnlyList<VehiculoConActividadDto>? _vehiculos;
     private bool _cargandoVehiculos;
+    private bool _errorVehiculos;
     private PlataformaAccesoResumenDto? _plataforma;
     private bool _plataformaCargada;
     private bool _cargandoPlataforma;
+    private bool _errorPlataforma;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -198,22 +235,26 @@ else
         {
             _idCargado = EntidadId;
             _requisitos = null;
+            _errorRequisitos = false;
             _trabajadores = null;
+            _errorTrabajadores = false;
             _vehiculos = null;
+            _errorVehiculos = false;
             _plataformaCargada = false;
+            _errorPlataforma = false;
             await CargarCabeceraAsync();
         }
 
-        if (PestanaActiva == "requisitos" && _requisitos is null && !_cargandoRequisitos)
+        if (PestanaActiva == "requisitos" && _requisitos is null && !_errorRequisitos && !_cargandoRequisitos)
             await CargarRequisitosAsync();
 
-        if (PestanaActiva == "trabajadores" && _trabajadores is null && !_cargandoTrabajadores)
+        if (PestanaActiva == "trabajadores" && _trabajadores is null && !_errorTrabajadores && !_cargandoTrabajadores)
             await CargarTrabajadoresAsync();
 
-        if (PestanaActiva == "vehiculos" && _vehiculos is null && !_cargandoVehiculos)
+        if (PestanaActiva == "vehiculos" && _vehiculos is null && !_errorVehiculos && !_cargandoVehiculos)
             await CargarVehiculosAsync();
 
-        if (PestanaActiva == "plataforma" && !_plataformaCargada && !_cargandoPlataforma)
+        if (PestanaActiva == "plataforma" && !_plataformaCargada && !_errorPlataforma && !_cargandoPlataforma)
             await CargarPlataformaAsync();
     }
 
@@ -238,31 +279,101 @@ else
 
     private async Task CargarRequisitosAsync()
     {
+        var idSolicitado = EntidadId;
         _cargandoRequisitos = true;
-        _requisitos = await Mediator.Send(new ObtenerRequisitosDocumentalesDeCentroQuery(EntidadId));
-        _cargandoRequisitos = false;
+        _errorRequisitos = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerRequisitosDocumentalesDeCentroQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _requisitos = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorRequisitos = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoRequisitos = false;
+        }
     }
 
     private async Task CargarTrabajadoresAsync()
     {
+        var idSolicitado = EntidadId;
         _cargandoTrabajadores = true;
-        _trabajadores = await Mediator.Send(new ObtenerTrabajadoresAsignadosDeCentroQuery(EntidadId));
-        _cargandoTrabajadores = false;
+        _errorTrabajadores = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerTrabajadoresAsignadosDeCentroQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _trabajadores = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorTrabajadores = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoTrabajadores = false;
+        }
     }
 
     private async Task CargarVehiculosAsync()
     {
+        var idSolicitado = EntidadId;
         _cargandoVehiculos = true;
-        _vehiculos = await Mediator.Send(new ObtenerVehiculosConActividadDeCentroQuery(EntidadId));
-        _cargandoVehiculos = false;
+        _errorVehiculos = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerVehiculosConActividadDeCentroQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _vehiculos = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorVehiculos = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoVehiculos = false;
+        }
     }
 
     private async Task CargarPlataformaAsync()
     {
+        var idSolicitado = EntidadId;
         _cargandoPlataforma = true;
-        _plataforma = await Mediator.Send(new ObtenerPlataformaAccesoDeCentroQuery(EntidadId));
-        _plataformaCargada = true;
-        _cargandoPlataforma = false;
+        _errorPlataforma = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerPlataformaAccesoDeCentroQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+            {
+                _plataforma = resultado;
+                _plataformaCargada = true;
+            }
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorPlataforma = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoPlataforma = false;
+        }
     }
 
     private Task AbrirTrabajadorAsync(TrabajadorAsignadoDto trabajador) =>

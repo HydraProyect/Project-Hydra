@@ -8,7 +8,6 @@
 @using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente
 @using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente
 @using CaeManager.Domain.Documentos
-@using CaeManager.Web.Components.Workspace
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
@@ -52,6 +51,14 @@ else
                 {
                     <EstadoCargando Filas="3" />
                 }
+                else if (_errorEmpresas)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar las empresas" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarEmpresasAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
                 else if (_empresas is { Count: 0 })
                 {
                     <EstadoVacio Titulo="Sin empresas" Descripcion="Este cliente todavía no tiene ninguna Empresa asociada." />
@@ -61,7 +68,7 @@ else
                     <ul class="workspace-lista-entidades">
                         @foreach (var empresa in _empresas)
                         {
-                            <FilaEntidadRelacionada Titulo="@empresa.RazonSocial" Subtitulo="@empresa.Cif" OnClic="() => AbrirEmpresaAsync(empresa)" />
+                            <FilaEntidadRelacionada @key="empresa.Id" Titulo="@empresa.RazonSocial" Subtitulo="@empresa.Cif" OnClic="() => AbrirEmpresaAsync(empresa)" />
                         }
                     </ul>
                 }
@@ -72,6 +79,14 @@ else
                 {
                     <EstadoCargando Filas="3" />
                 }
+                else if (_errorSubcontratas)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar las subcontratas" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarSubcontratasAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
                 else if (_subcontratas is { Count: 0 })
                 {
                     <EstadoVacio Titulo="Sin subcontratas" Descripcion="Este cliente todavía no tiene ninguna Subcontrata asociada." />
@@ -81,7 +96,7 @@ else
                     <ul class="workspace-lista-entidades">
                         @foreach (var subcontrata in _subcontratas)
                         {
-                            <FilaEntidadRelacionada Titulo="@subcontrata.RazonSocial" OnClic="() => AbrirSubcontrataAsync(subcontrata)" />
+                            <FilaEntidadRelacionada @key="subcontrata.Id" Titulo="@subcontrata.RazonSocial" OnClic="() => AbrirSubcontrataAsync(subcontrata)" />
                         }
                     </ul>
                 }
@@ -124,8 +139,10 @@ else
 
     private IReadOnlyList<EmpresaDeClienteDto>? _empresas;
     private bool _cargandoEmpresas;
+    private bool _errorEmpresas;
     private IReadOnlyList<SubcontrataDeClienteDto>? _subcontratas;
     private bool _cargandoSubcontratas;
+    private bool _errorSubcontratas;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -133,14 +150,16 @@ else
         {
             _idCargado = EntidadId;
             _empresas = null;
+            _errorEmpresas = false;
             _subcontratas = null;
+            _errorSubcontratas = false;
             await CargarCabeceraAsync();
         }
 
-        if (PestanaActiva == "empresas" && _empresas is null && !_cargandoEmpresas)
+        if (PestanaActiva == "empresas" && _empresas is null && !_errorEmpresas && !_cargandoEmpresas)
             await CargarEmpresasAsync();
 
-        if (PestanaActiva == "subcontratas" && _subcontratas is null && !_cargandoSubcontratas)
+        if (PestanaActiva == "subcontratas" && _subcontratas is null && !_errorSubcontratas && !_cargandoSubcontratas)
             await CargarSubcontratasAsync();
     }
 
@@ -165,16 +184,50 @@ else
 
     private async Task CargarEmpresasAsync()
     {
+        var idSolicitado = EntidadId;
         _cargandoEmpresas = true;
-        _empresas = await Mediator.Send(new ObtenerEmpresasDeClienteQuery(EntidadId));
-        _cargandoEmpresas = false;
+        _errorEmpresas = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerEmpresasDeClienteQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _empresas = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorEmpresas = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoEmpresas = false;
+        }
     }
 
     private async Task CargarSubcontratasAsync()
     {
+        var idSolicitado = EntidadId;
         _cargandoSubcontratas = true;
-        _subcontratas = await Mediator.Send(new ObtenerSubcontratasDeClienteQuery(EntidadId));
-        _cargandoSubcontratas = false;
+        _errorSubcontratas = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerSubcontratasDeClienteQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _subcontratas = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorSubcontratas = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoSubcontratas = false;
+        }
     }
 
     private Task AbrirEmpresaAsync(EmpresaDeClienteDto empresa) =>

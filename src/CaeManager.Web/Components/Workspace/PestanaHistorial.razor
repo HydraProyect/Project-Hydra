@@ -32,7 +32,7 @@ else
     <ul class="workspace-historial-lista">
         @foreach (var registro in _registros)
         {
-            <li class="workspace-historial-item">
+            <li class="workspace-historial-item" @key="registro.Id">
                 <div class="workspace-historial-cabecera">
                     <Badge Tono="@(registro.Accion switch { "Creado" => TonoBadge.Exito, "Eliminado" => TonoBadge.Peligro, _ => TonoBadge.Advertencia })">
                         @registro.Accion

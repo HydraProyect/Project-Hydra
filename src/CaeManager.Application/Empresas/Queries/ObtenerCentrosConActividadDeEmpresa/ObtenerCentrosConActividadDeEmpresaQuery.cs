@@ -1,3 +1,4 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -15,8 +16,6 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEm
 /// </summary>
 public record ObtenerCentrosConActividadDeEmpresaQuery(Guid EmpresaId) : IRequest<IReadOnlyList<CentroConActividadDto>>;
 
-public record CentroConActividadDto(Guid Id, string Nombre, string ClienteRazonSocial, int TrabajadoresAsignados);
-
 public class ObtenerCentrosConActividadDeEmpresaQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCentrosConActividadDeEmpresaQuery, IReadOnlyList<CentroConActividadDto>>
 {
@@ -33,14 +32,9 @@ public class ObtenerCentrosConActividadDeEmpresaQueryHandler(IApplicationDbConte
             where trabajador.EmpresaId == request.EmpresaId
             join centro in dbContext.Centros on asignacion.CentroId equals centro.Id
             join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
-            select new { centro.Id, centro.Nombre, ClienteRazonSocial = cliente.RazonSocial, TrabajadorId = trabajador.Id })
+            select new FilaActividadCentro(centro.Id, centro.Nombre, cliente.RazonSocial, trabajador.Id))
             .ToListAsync(cancellationToken);
 
-        return filas
-            .GroupBy(x => new { x.Id, x.Nombre, x.ClienteRazonSocial })
-            .Select(g => new CentroConActividadDto(
-                g.Key.Id, g.Key.Nombre, g.Key.ClienteRazonSocial, g.Select(x => x.TrabajadorId).Distinct().Count()))
-            .OrderBy(d => d.Nombre)
-            .ToList();
+        return CentroConActividadAgrupador.Agrupar(filas);
     }
 }
