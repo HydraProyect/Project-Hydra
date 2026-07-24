@@ -5,10 +5,10 @@
     duplicando lógica o limitando funcionalidades"). Pestañas: Información,
     Trabajadores, Documentación, Centros, Historial.
 *@
+@using CaeManager.Application.Centros
 @using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores
-@using CaeManager.Web.Components.Workspace
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
@@ -48,6 +48,14 @@ else
                 {
                     <EstadoCargando Filas="3" />
                 }
+                else if (_errorTrabajadores)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar los trabajadores" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarTrabajadoresAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
                 else if (_trabajadores is { Count: 0 })
                 {
                     <EstadoVacio Titulo="Sin trabajadores" Descripcion="Esta subcontrata todavía no tiene ningún trabajador dado de alta." />
@@ -58,6 +66,7 @@ else
                         @foreach (var trabajador in _trabajadores)
                         {
                             <FilaEntidadRelacionada
+                                @key="trabajador.Id"
                                 Titulo="@($"{trabajador.Nombre} {trabajador.Apellidos}")"
                                 Subtitulo="@trabajador.Dni"
                                 OnClic="() => AbrirTrabajadorAsync(trabajador)" />
@@ -75,6 +84,14 @@ else
                 {
                     <EstadoCargando Filas="3" />
                 }
+                else if (_errorCentros)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarCentrosAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
                 else if (_centros is { Count: 0 })
                 {
                     <EstadoVacio Titulo="Sin actividad en ningún centro" Descripcion="Ningún trabajador de esta subcontrata tiene asignaciones activas todavía." />
@@ -86,6 +103,7 @@ else
                         @foreach (var centro in _centros)
                         {
                             <FilaEntidadRelacionada
+                                @key="centro.Id"
                                 Titulo="@centro.Nombre"
                                 Subtitulo="@($"{centro.ClienteRazonSocial} · {centro.TrabajadoresAsignados} trabajador(es)")"
                                 OnClic="() => AbrirCentroAsync(centro)" />
@@ -122,8 +140,10 @@ else
 
     private IReadOnlyList<TrabajadorListaDto>? _trabajadores;
     private bool _cargandoTrabajadores;
+    private bool _errorTrabajadores;
     private IReadOnlyList<CentroConActividadDto>? _centros;
     private bool _cargandoCentros;
+    private bool _errorCentros;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -131,14 +151,16 @@ else
         {
             _idCargado = EntidadId;
             _trabajadores = null;
+            _errorTrabajadores = false;
             _centros = null;
+            _errorCentros = false;
             await CargarCabeceraAsync();
         }
 
-        if (PestanaActiva == "trabajadores" && _trabajadores is null && !_cargandoTrabajadores)
+        if (PestanaActiva == "trabajadores" && _trabajadores is null && !_errorTrabajadores && !_cargandoTrabajadores)
             await CargarTrabajadoresAsync();
 
-        if (PestanaActiva == "centros" && _centros is null && !_cargandoCentros)
+        if (PestanaActiva == "centros" && _centros is null && !_errorCentros && !_cargandoCentros)
             await CargarCentrosAsync();
     }
 
@@ -163,17 +185,50 @@ else
 
     private async Task CargarTrabajadoresAsync()
     {
+        var idSolicitado = EntidadId;
         _cargandoTrabajadores = true;
-        var resultado = await Mediator.Send(new ObtenerTrabajadoresQuery(Busqueda: null, SubcontrataId: EntidadId, TamanoPagina: 50));
-        _trabajadores = resultado.Elementos;
-        _cargandoTrabajadores = false;
+        _errorTrabajadores = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerTrabajadoresQuery(Busqueda: null, SubcontrataId: idSolicitado, TamanoPagina: 50));
+            if (idSolicitado == EntidadId)
+                _trabajadores = resultado.Elementos;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorTrabajadores = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoTrabajadores = false;
+        }
     }
 
     private async Task CargarCentrosAsync()
     {
+        var idSolicitado = EntidadId;
         _cargandoCentros = true;
-        _centros = await Mediator.Send(new ObtenerCentrosConActividadDeSubcontrataQuery(EntidadId));
-        _cargandoCentros = false;
+        _errorCentros = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerCentrosConActividadDeSubcontrataQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _centros = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorCentros = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoCentros = false;
+        }
     }
 
     private Task AbrirTrabajadorAsync(TrabajadorListaDto trabajador) =>
