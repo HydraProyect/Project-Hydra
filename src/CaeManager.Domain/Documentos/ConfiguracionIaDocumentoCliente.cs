@@ -15,7 +15,7 @@ namespace CaeManager.Domain.Documentos;
 /// responsabilidad del nuevo Gestor revisarla (ver el aviso que dispara
 /// ReasignarEjecutivoClienteCommand).
 /// </summary>
-public class ConfiguracionIaDocumentoCliente : Entity
+public class ConfiguracionIaDocumentoCliente : EntidadConTenant
 {
     public Guid ClienteId { get; private set; }
     public Guid TipoDocumentoId { get; private set; }

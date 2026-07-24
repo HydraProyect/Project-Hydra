@@ -2,6 +2,8 @@
 
 Este modelo está derivado y validado contra `CAE_KHS_Cuadro_de_Control_2.xlsx`, el cuadro de control real que este sistema reemplaza. Cada entidad se justifica con lo que esa hoja de cálculo hace hoy manualmente, corrigiendo sus problemas de normalización conocidos (ver sección final).
 
+> **Nota de vigencia (2026-07-23)**: el dominio ha crecido desde la redacción original de este documento — el grafo completo y actualizado (Subcontrata, Vehículo, Visita, tablas de unión N:N, propietario polimórfico de Documento) está en **`DOMAIN.md`**, que es la fuente de verdad conceptual; este archivo conserva el detalle de columnas y el mapeo desde el Excel. Correcciones puntuales ya aplicadas abajo: `Trabajador.EmpresaId` es hoy **nullable** (Empresa *o* Subcontrata), y `Documento` tiene propietario polimórfico (no solo Trabajador). Además, por `ADR-003-saas-multitenant.md`, **toda tabla de datos incorporará `TenantId` (Guid, NOT NULL)** con filtro global e índices únicos compuestos `(TenantId, campo)` — reglas completas en `docs/MULTITENANCY.md`; hasta que esa fase esté implementada, el esquema físico actual no lo tiene todavía.
+
 ## Diagrama de entidades
 
 ```mermaid
@@ -73,10 +75,11 @@ Empleado de una Empresa. Corresponde a una fila de la hoja `Empleados` (o `Extra
 | Campo | Tipo | Notas |
 |---|---|---|
 | Id | Guid | PK |
-| EmpresaId | Guid | FK → Empresa |
+| EmpresaId | Guid? | FK → Empresa — **nullable**: un Trabajador pertenece a una Empresa **o** a una Subcontrata (`SubcontrataId?`), mutuamente excluyentes (ver `DOMAIN.md`) |
+| SubcontrataId | Guid? | FK → Subcontrata (ver arriba) |
 | Nombre | string(100) | |
 | Apellidos | string(150) | |
-| Dni | string(20) | Único |
+| Dni | string(20) | Único (pasará a único por tenant: `(TenantId, Dni)` — `docs/MULTITENANCY.md` § 5) |
 | FechaNacimiento | date? | |
 | Email | string?(200) | |
 | Observaciones | string?(1000) | Del campo "Observaciones / notas especiales" — casos particulares como altas específicas de obra |
@@ -102,7 +105,8 @@ Instancia de un TipoDocumento para un Trabajador. Corresponde a las columnas "Fe
 | Campo | Tipo | Notas |
 |---|---|---|
 | Id | Guid | PK |
-| TrabajadorId | Guid | FK → Trabajador |
+| TrabajadorId | Guid? | Propietario **polimórfico excluyente**: exactamente uno de TrabajadorId / ClienteId / EmpresaId / VehiculoId está poblado (ver `DOMAIN.md`) |
+| ClienteId / EmpresaId / VehiculoId | Guid? | Ver arriba |
 | TipoDocumentoId | Guid | FK → TipoDocumento |
 | FechaEmision | date | |
 | FechaVencimiento | date? | **Calculada**: `FechaEmision + TipoDocumento.VigenciaMeses` si `AplicaVencimientoAutomatico`, si no null. Se persiste (columna calculada o al guardar) para poder indexar/filtrar por vencimiento sin recalcular en cada query. |

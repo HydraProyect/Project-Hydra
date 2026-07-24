@@ -24,6 +24,6 @@ public class CentroConfiguration : IEntityTypeConfiguration<Centro>
         builder.HasIndex(c => c.ClienteId);
         builder.HasIndex(c => c.EmpresaId);
 
-        builder.HasQueryFilter(c => !c.EstaEliminado);
+        // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }
