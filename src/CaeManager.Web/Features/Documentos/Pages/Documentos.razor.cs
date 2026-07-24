@@ -15,6 +15,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.QuickGrid;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.Documentos.Pages;
 
@@ -321,8 +322,9 @@ public partial class Documentos : ComponentBase
             using var flujoPdf = new MemoryStream(pdfUnificado);
             _archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Fallo al procesar el archivo subido en Documentos");
             ToastService.Mostrar("No pudimos procesar el archivo. Intenta nuevamente.", TonoToast.Error);
         }
         finally
