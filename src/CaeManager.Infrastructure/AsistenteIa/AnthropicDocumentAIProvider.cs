@@ -100,7 +100,7 @@ public class AnthropicDocumentAIProvider(
         if (respuesta.EsFallido)
             return Result.Fallo<string>(respuesta.Error);
 
-        return Result.Exito(respuesta.Valor.Trim());
+        return Result.Exito(respuesta.Valor.Texto.Trim());
     }
 
     private static bool EsPdf(string nombreArchivo) => nombreArchivo.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
@@ -131,10 +131,19 @@ public class AnthropicDocumentAIProvider(
         if (respuesta.EsFallido)
             return Result.Fallo<ExtraccionEstructuradaDto>(respuesta.Error);
 
-        return ParsearEstructurado(respuesta.Valor);
+        var costeEstimado = CalcularCoste(respuesta.Valor.TokensEntrada, respuesta.Valor.TokensSalida);
+        return ParsearEstructurado(respuesta.Valor.Texto, costeEstimado);
     }
 
-    private async Task<Result<string>> EnviarAsync(SolicitudAnthropic solicitud, string prefijoError, CancellationToken cancellationToken)
+    /// <summary>Coste orientativo, solo para auditoría (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2) — nunca se usa para decidir enrutado.</summary>
+    private decimal CalcularCoste(int tokensEntrada, int tokensSalida)
+    {
+        var config = opciones.Value;
+        return tokensEntrada / 1_000_000m * config.CostoPorMillonTokensEntrada
+            + tokensSalida / 1_000_000m * config.CostoPorMillonTokensSalida;
+    }
+
+    private async Task<Result<RespuestaConUso>> EnviarAsync(SolicitudAnthropic solicitud, string prefijoError, CancellationToken cancellationToken)
     {
         using var peticion = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages")
         {
@@ -151,7 +160,7 @@ public class AnthropicDocumentAIProvider(
             {
                 var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError("La API de Anthropic devolvió {StatusCode}: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
-                return Result.Fallo<string>(Error.Crear($"{prefijoError}.ErrorApi", "No pudimos procesar el documento automáticamente."));
+                return Result.Fallo<RespuestaConUso>(Error.Crear($"{prefijoError}.ErrorApi", "No pudimos procesar el documento automáticamente."));
             }
 
             var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaAnthropic>(cancellationToken);
@@ -159,20 +168,20 @@ public class AnthropicDocumentAIProvider(
 
             if (string.IsNullOrWhiteSpace(texto))
             {
-                return Result.Fallo<string>(Error.Crear($"{prefijoError}.RespuestaVacia", "No pudimos procesar el documento automáticamente."));
+                return Result.Fallo<RespuestaConUso>(Error.Crear($"{prefijoError}.RespuestaVacia", "No pudimos procesar el documento automáticamente."));
             }
 
-            return Result.Exito(texto);
+            return Result.Exito(new RespuestaConUso(texto, cuerpo?.Usage?.TokensEntrada ?? 0, cuerpo?.Usage?.TokensSalida ?? 0));
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al contactar la API de Anthropic.");
-            return Result.Fallo<string>(Error.Crear($"{prefijoError}.ErrorRed", "No pudimos procesar el documento automáticamente."));
+            return Result.Fallo<RespuestaConUso>(Error.Crear($"{prefijoError}.ErrorRed", "No pudimos procesar el documento automáticamente."));
         }
     }
 
     /// <summary>Igual red de seguridad que el resto de servicios de Anthropic: el modelo a veces envuelve el JSON en un bloque de código markdown pese a la instrucción.</summary>
-    private Result<ExtraccionEstructuradaDto> ParsearEstructurado(string texto)
+    private Result<ExtraccionEstructuradaDto> ParsearEstructurado(string texto, decimal costeEstimado)
     {
         var inicio = texto.IndexOf('{');
         var fin = texto.LastIndexOf('}');
@@ -198,7 +207,7 @@ public class AnthropicDocumentAIProvider(
             var confianza = Math.Clamp(extraido.ConfianzaGeneral, 0, 100);
             var campos = (extraido.Campos ?? new Dictionary<string, string?>()) as IReadOnlyDictionary<string, string?>;
 
-            return Result.Exito(new ExtraccionEstructuradaDto(extraido.TipoDetectado, campos, confianza, extraido.NotasValidacion));
+            return Result.Exito(new ExtraccionEstructuradaDto(extraido.TipoDetectado, campos, confianza, extraido.NotasValidacion, costeEstimado));
         }
         catch (JsonException ex)
         {
@@ -243,9 +252,16 @@ public class AnthropicDocumentAIProvider(
         [property: JsonPropertyName("data")] string Data);
 
     private sealed record RespuestaAnthropic(
-        [property: JsonPropertyName("content")] IReadOnlyList<BloqueContenidoAnthropic> Content);
+        [property: JsonPropertyName("content")] IReadOnlyList<BloqueContenidoAnthropic> Content,
+        [property: JsonPropertyName("usage")] UsoAnthropic? Usage);
 
     private sealed record BloqueContenidoAnthropic(
         [property: JsonPropertyName("type")] string Type,
         [property: JsonPropertyName("text")] string? Text);
+
+    private sealed record UsoAnthropic(
+        [property: JsonPropertyName("input_tokens")] int TokensEntrada,
+        [property: JsonPropertyName("output_tokens")] int TokensSalida);
+
+    private sealed record RespuestaConUso(string Texto, int TokensEntrada, int TokensSalida);
 }
