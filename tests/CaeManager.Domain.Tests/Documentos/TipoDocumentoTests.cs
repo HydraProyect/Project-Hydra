@@ -41,4 +41,16 @@ public class TipoDocumentoTests
 
         tipo.EsObligatorio.Should().BeTrue();
     }
+
+    [Fact]
+    public void VerificacionIaActiva_empieza_desactivada_y_se_puede_alternar()
+    {
+        var tipo = new TipoDocumento("Apto médico", 12, aplicaVencimientoAutomatico: true, orden: 1, AmbitoAplicacion.Trabajador);
+
+        tipo.VerificacionIaActiva.Should().BeFalse();
+
+        tipo.EstablecerVerificacionIaActiva(true);
+
+        tipo.VerificacionIaActiva.Should().BeTrue();
+    }
 }

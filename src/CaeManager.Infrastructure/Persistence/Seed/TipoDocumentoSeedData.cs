@@ -121,6 +121,10 @@ public static class TipoDocumentoSeedData
             EsObligatorio = d.EsObligatorio,
             LecturaIaActiva = true,
             DeteccionTrabajadoresActiva = IdsConDeteccionTrabajadores.Contains(d.Id),
+            // Empieza desactivada para todo el catálogo semilla — mismo
+            // criterio que DeteccionTrabajadoresActiva: el Administrador la
+            // activa explícitamente solo donde interesa (ver Issue #19).
+            VerificacionIaActiva = false,
             // El catálogo semilla pertenece al tenant #1 (ver Etapa 2 de
             // PLAN-MIGRACION-MULTITENANT.md) — un tenant nuevo recibirá su
             // propia copia editable al aprovisionarse (docs/MULTITENANCY.md § 7),
