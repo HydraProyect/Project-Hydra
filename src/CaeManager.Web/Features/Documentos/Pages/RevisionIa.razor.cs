@@ -12,6 +12,9 @@ public partial class RevisionIa : ComponentBase
     private bool _errorCarga;
     private Guid? _procesandoId;
 
+    /// <summary>Como mucho un documento a la vez — evita cargar N iframes de PDF si el usuario despliega varias filas seguidas.</summary>
+    private Guid? _documentoIdExpandido;
+
     protected override Task OnInitializedAsync() => CargarAsync();
 
     private async Task CargarAsync()
@@ -56,6 +59,9 @@ public partial class RevisionIa : ComponentBase
             _procesandoId = null;
         }
     }
+
+    private void AlternarPrevisualizacion(Guid documentoId) =>
+        _documentoIdExpandido = _documentoIdExpandido == documentoId ? null : documentoId;
 
     private static TonoBadge TonoConfianza(int confianza) => confianza switch
     {

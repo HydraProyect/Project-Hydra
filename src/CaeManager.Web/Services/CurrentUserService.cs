@@ -4,7 +4,8 @@ using Microsoft.AspNetCore.Components.Authorization;
 
 namespace CaeManager.Web.Services;
 
-public class CurrentUserService(AuthenticationStateProvider authenticationStateProvider) : ICurrentUserService
+public class CurrentUserService(
+    AuthenticationStateProvider authenticationStateProvider, IHttpContextAccessor httpContextAccessor) : ICurrentUserService
 {
     public async Task<Guid?> ObtenerUsuarioActualIdAsync()
     {
@@ -22,18 +23,27 @@ public class CurrentUserService(AuthenticationStateProvider authenticationStateP
         return usuario?.FindFirst(ClaimTypes.Role)?.Value;
     }
 
-    // Fuera de un circuito de Blazor (migraciones/siembra al arrancar, jobs en
-    // segundo plano) no hay AuthenticationState — no hay usuario que auditar.
+    // Dentro de un circuito de Blazor, AuthenticationStateProvider ya trae el
+    // ClaimsPrincipal correcto (capturado al negociar el circuito). Fuera de
+    // uno — endpoints minimal API como GET /documentos/{id}/archivo, que no
+    // tienen circuito pero sí HttpContext.User ya autenticado por la cookie
+    // de Identity — hace falta el fallback a IHttpContextAccessor; si tampoco
+    // hay HttpContext (migraciones/siembra al arrancar, jobs en segundo
+    // plano), no hay usuario que auditar.
     private async Task<ClaimsPrincipal?> ObtenerUsuarioAsync()
     {
         try
         {
             var estado = await authenticationStateProvider.GetAuthenticationStateAsync();
-            return estado.User;
+            if (estado.User.Identity?.IsAuthenticated == true)
+                return estado.User;
         }
         catch (InvalidOperationException)
         {
-            return null;
+            // sin circuito de Blazor — se intenta el fallback de abajo.
         }
+
+        var usuarioHttp = httpContextAccessor.HttpContext?.User;
+        return usuarioHttp?.Identity?.IsAuthenticated == true ? usuarioHttp : null;
     }
 }
