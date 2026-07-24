@@ -5,6 +5,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Subcontratas;
@@ -99,6 +100,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITipoDocumentoCentroRepository, TipoDocumentoCentroRepository>();
         services.AddScoped<IConfiguracionIaDocumentoClienteRepository, ConfiguracionIaDocumentoClienteRepository>();
         services.AddScoped<IRevisionIaDocumentoRepository, RevisionIaDocumentoRepository>();
+        services.AddScoped<IExtraccionIaCacheRepository, ExtraccionIaCacheRepository>();
+        services.AddScoped<IAuditoriaExtraccionIaRepository, AuditoriaExtraccionIaRepository>();
         services.AddSingleton<IClasificadorDocumentoService, PdfSharpClasificadorDocumentoService>();
         services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
         services.AddScoped<INotificacionUsuarioRepository, NotificacionUsuarioRepository>();
