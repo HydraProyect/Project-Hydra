@@ -1,6 +1,8 @@
 # Arquitectura — Motor de IA Documental multi-proveedor (Gemini + Mistral OCR)
 
-**Estado**: Propuesta de arquitectura para revisión — **no implementado**. Responde a la petición del usuario (2026-07-24) de enrutar cada documento al proveedor de IA más barato sin sacrificar precisión, con Gemini 2.5 Flash y Mistral OCR como proveedores iniciales. Sigue la disciplina de `CLAUDE.md`: Dominio → Arquitectura → Plataforma → Implementación — este documento cubre las tres primeras; la implementación se hace después de confirmar esto.
+**Estado**: Propuesta de arquitectura, decisiones cerradas con el usuario el 2026-07-24 — **todavía no implementado**, siguiente paso es la Fase 1 de § 5. Responde a la petición del usuario de enrutar cada documento al proveedor de IA más barato sin sacrificar precisión, con Gemini 2.5 Flash y Mistral OCR como proveedores iniciales. Sigue la disciplina de `CLAUDE.md`: Dominio → Arquitectura → Plataforma → Implementación — este documento cubre las tres primeras.
+
+**Decisiones del usuario (2026-07-24)**: (1) el chat "Pregúntale a Hydra" sigue sobre Anthropic sin tocarse — es intercambiable en el futuro, pero no como parte de este trabajo; (2) modelo de credenciales: clave global por ahora (recomendación del asistente, no objetada — ver § 4.1); (3) el coste por página no es un criterio de enrutado en v1, solo un dato de auditoría (ver § 4.2, simplificación aceptada); (4) la localización de páginas relevantes en documentos grandes queda fuera de esta entrega, como fase separada.
 
 ## 0. Punto de partida real (no aspiracional)
 
@@ -47,18 +49,23 @@ public interface IDocumentAIProvider
 {
     string Codigo { get; }                       // "gemini-2-5-flash", "mistral-ocr"
     CapacidadesProveedorIa Capacidades { get; }
-    decimal CostoEstimadoPorPagina { get; }       // para que el router compare sin llamar a nadie
 
     Task<Result<string>> ExtraerTextoAsync(byte[] contenidoPagina, CancellationToken ct);           // OCR
     Task<Result<ExtraccionEstructuradaDto>> ExtraerEstructuradoAsync(string texto, string tipoEsperado, CancellationToken ct); // estructuración
 }
+
+// Auditoría, no enrutado — ver § 4.2. Cada proveedor calcula su propio
+// coste con sus propias unidades (Gemini por tokens, Mistral OCR por
+// página); no hay un campo de interfaz porque no se compara entre
+// proveedores todavía.
+public record CosteEstimadoDto(decimal Importe, string Moneda, string Unidad);
 
 public record ExtraccionEstructuradaDto(
     string? TipoDetectado, IReadOnlyDictionary<string, string?> Campos,
     int ConfianzaGeneral, string? NotasValidacion);
 ```
 
-`IExtraccionMetadatosDocumentoIaService` (Fase 38) **no desaparece** — pasa a ser el contrato específico del caso "metadatos de Documento de Trabajador" (tipo/fechas/firma), y su implementación Anthropic puede seguir existiendo como un `IDocumentAIProvider` más (`Capacidades = ExtraccionEstructurada`) o quedarse como está si el usuario decide no meter Anthropic en este router — es una decisión de producto (¿tres proveedores conviven, o Gemini/Mistral sustituyen a Anthropic para este flujo?), señalada en § 6.
+**Decidido con el usuario**: el chat "Pregúntale a Hydra" (`IAsistenteIaService`/`AnthropicAsistenteIaService`) **no se toca** — sigue sobre Anthropic, fuera de este router. `IExtraccionMetadatosDocumentoIaService` (Fase 38, construido esta misma sesión, todavía sin usuarios reales dependiendo de él) sí es candidato directo a que su implementación pase de Anthropic a `DocumentAIRouterService` (Gemini + Mistral) — es exactamente el flujo que motivó esta propuesta. `IExtraccionTrabajadoresIaService` (Fase 36, detección de altas/bajas de personal, en uso) se deja **fuera de esta fase a propósito**: migrarlo también es una extensión natural más adelante, no una decisión que haya que tomar ahora para poder construir el router.
 
 ### 2.3 El Router (`DocumentAIRouterService`, Application)
 
@@ -87,15 +94,22 @@ No es un mecanismo nuevo de resiliencia (`ARQUITECTURA-INTEGRACIONES.md` § 6 ya
 | Cache documental por SHA256 | ⬜ Nuevo, pero pequeño: hash del archivo ya se puede calcular en `IFileStorageService.GuardarAsync` o antes de llamar al router; una tabla `ExtraccionIaCache(HashSha256, ExtraccionJson, TenantId)` con índice único `(TenantId, HashSha256)` evita reprocesar. |
 | Clasificación digital/escaneado/mixto | ⬜ Nuevo — requiere una librería de extracción de texto por página (PDFsharp no la tiene). Propuesta: **PdfPig** (MIT, pura .NET, sin dependencias nativas — a diferencia de motores OCR nativos, aquí solo hace falta leer si una página ya tiene texto embebido, no reconocerlo). Vive en `Infrastructure/DocumentosIa/`, detrás de una interfaz `IClasificadorDocumentoService` para no acoplar Application a PdfPig directamente. |
 | Localización de páginas relevantes (pólizas de 200+ páginas) | ⬜ Nuevo, pero **explícitamente fuera de esta primera entrega** — pertenece al bloque "Expedientes/documentos grandes" del Issue #19, no a la selección de proveedor. Lo trato como Fase 2 de esta propuesta (§ 7). |
-| Auditoría (proveedor/tiempo/coste/páginas/confianza/incidencias) | ⬜ Nuevo — extiende el patrón "documento enriquecido" del Issue #19: una tabla `AuditoriaExtraccionIa` (o columnas en `RevisionIaDocumento`/nueva tabla ligada 1:1 al Documento) con esos 6 campos, poblada por el orquestador tras cada llamada, con `TenantId` desde el día uno. |
+| Auditoría (proveedor/tiempo/coste/páginas/confianza/incidencias) | ⬜ Nuevo — extiende el patrón "documento enriquecido" del Issue #19: una tabla `AuditoriaExtraccionIa` (o columnas en `RevisionIaDocumento`/nueva tabla ligada 1:1 al Documento) con esos 6 campos, poblada por el orquestador tras cada llamada, con `TenantId` desde el día uno. **El coste es solo un campo registrado, no una entrada de decisión** (ver § 4.2) — cada proveedor lo calcula con su propia unidad de precio (constante configurable en su propio `*Options`, mismo patrón que `AnthropicOptions.MaxTokensRespuesta`), sin tabla ni comparación entre proveedores en v1. |
 | `IDocumentAIProvider` + Factory + capacidades | ⬜ Nuevo, pero es la generalización que `docs/PLATFORM.md` § 4 ya preveía — no una capa añadida "por si acaso". |
 
-## 4. Puntos que necesito que confirmes antes de escribir código
+## 4. Decisiones cerradas con el usuario (2026-07-24)
 
-1. **¿Conviven Gemini/Mistral con Anthropic, o Anthropic queda solo para el chat/detección de trabajadores?** Afecta si `AnthropicExtraccionMetadatosDocumentoIaService` (Fase 38) se registra también como `IDocumentAIProvider` o se deja aparte.
-2. **Credenciales**: mismo patrón "inerte por defecto" que `AnthropicOptions` — necesito que confirmes que Gemini/Mistral se provisionan igual (API key en configuración, sin llamada real hasta que exista) antes de dar por buena la Fase de implementación, igual que se hizo con Anthropic.
-3. **Coste estimado por página**: pediste "priorizando siempre el menor coste posible" — necesito una fuente de verdad para `CostoEstimadoPorPagina` de cada proveedor (¿tabla de configuración editable, o constante en código con nota de revisión periódica, mismo criterio que `DocumentValidityRules` del Issue #19?).
-4. **Alcance de esta primera entrega**: propongo dejar **fuera** de esta fase (igual que Fase 38 dejó fuera Cliente/Empresa/Vehículo) la localización de páginas relevantes de documentos grandes y el Document Graph/Expedientes — son results independientes del router de proveedor y añadirían mucho alcance a la vez. ¿De acuerdo en trocearlo así, o quieres todo junto?
+### 4.1 Credenciales: clave global por ahora
+
+Mismo patrón "inerte por defecto" que `AnthropicOptions`: `GeminiOptions.ApiKey`/`MistralOptions.ApiKey`, un único valor en configuración (no por tenant), sin llamada real hasta que exista. Es una recomendación del asistente que el usuario no objetó — más simple, coherente con cómo funciona Anthropic hoy. **Queda anotado para revisar** el día que se venda a terceros como SaaS real (`ADR-003` § condiciones de salida): en ese momento sí puede tener sentido pasar a un modelo por-tenant (`CredencialIntegracion`) para que el consumo de IA lo facture cada cliente, no Hydra — no es una migración gratis (cambia de dónde sale la `ApiKey` en cada llamada), así que se trata como decisión explícita futura, no implícita.
+
+### 4.2 Coste: solo auditoría, no criterio de enrutado
+
+Con dos proveedores y cada uno dueño de una capacidad distinta (Mistral = OCR, Gemini = estructuración), **el router nunca elige entre dos proveedores que hacen lo mismo** — los 4 casos ya determinan qué proveedor se usa, no hay comparación de precio que hacer. El coste estimado por página deja de ser un input de `IDocumentAIProvider` y pasa a ser un dato calculado solo para el registro de auditoría, con una constante configurable por proveedor (no una tabla nueva). Si en el futuro aparece un segundo proveedor de OCR o de estructuración, ahí sí hace falta comparar coste real — se aborda en ese momento, no antes (YAGNI).
+
+### 4.3 Alcance de esta primera entrega
+
+Confirmado: la localización de páginas relevantes en documentos grandes (pólizas de cientos de páginas) y el Document Graph/Expedientes quedan **fuera de esta fase**, como una fase separada posterior — no bloquean la construcción del router de proveedor.
 
 ## 5. Siguiente paso propuesto
 
