@@ -17,8 +17,14 @@ public interface IDocumentAIProvider
 
     CapacidadesProveedorIa Capacidades { get; }
 
-    /// <summary>OCR: extrae el texto plano de una página escaneada o una imagen suelta. Requiere <see cref="CapacidadesProveedorIa.OcrImagenAEscaneado"/>.</summary>
-    Task<Result<string>> ExtraerTextoAsync(byte[] contenidoImagen, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// OCR/lectura nativa: extrae el texto plano de un archivo completo
+    /// (PDF escaneado o imagen suelta — <paramref name="nombreArchivo"/> es
+    /// lo que decide cómo se envía al proveedor, p. ej. como bloque
+    /// "document" o "image" en Anthropic). Requiere
+    /// <see cref="CapacidadesProveedorIa.OcrImagenAEscaneado"/>.
+    /// </summary>
+    Task<Result<string>> ExtraerTextoAsync(byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default);
 
     /// <summary>Extracción estructurada con confidence score a partir de texto ya disponible (digital o ya pasado por OCR). Requiere <see cref="CapacidadesProveedorIa.ExtraccionEstructurada"/>.</summary>
     Task<Result<ExtraccionEstructuradaDto>> ExtraerEstructuradoAsync(string texto, string tipoEsperado, CancellationToken cancellationToken = default);

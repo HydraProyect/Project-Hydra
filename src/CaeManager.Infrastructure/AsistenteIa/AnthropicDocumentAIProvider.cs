@@ -31,9 +31,9 @@ public class AnthropicDocumentAIProvider(
     private const string SystemPromptOcr =
         """
         Eres un sistema de OCR, no un asistente conversacional. Transcribe
-        exactamente el texto que aparece en la imagen, tal cual, sin
-        traducir, resumir ni corregir errores. Responde únicamente con el
-        texto transcrito, sin explicaciones ni comentarios. Si la imagen no
+        exactamente el texto que aparece en el documento o imagen, tal cual,
+        sin traducir, resumir ni corregir errores. Responde únicamente con
+        el texto transcrito, sin explicaciones ni comentarios. Si no
         contiene texto legible, responde con una cadena vacía.
         """;
 
@@ -50,13 +50,19 @@ public class AnthropicDocumentAIProvider(
         adicional, sin explicaciones, sin bloques de código markdown — solo
         el objeto JSON, con exactamente estos campos:
 
-        {"tipoDetectado": "...", "campos": {"nombreDeCampo": "valor", ...}, "confianzaGeneral": 0-100, "notasValidacion": "..." o null}
+        {"tipoDetectado": "...", "campos": {"fechaEmision": "YYYY-MM-DD" o ausente, "fechaVencimiento": "YYYY-MM-DD" o ausente, "tieneFirma": "true"/"false" o ausente, "nombreDeCampo": "valor", ...}, "confianzaGeneral": 0-100, "notasValidacion": "..." o null}
 
         Reglas:
-        - "campos" contiene todos los datos relevantes que puedas extraer
-          con certeza razonable (fechas, importes, números de referencia,
-          partes implicadas, coberturas, etc.), como pares clave/valor de
-          texto — usa nombres de campo descriptivos en minúscula.
+        - "fechaEmision"/"fechaVencimiento" (si aparecen explícitas, formato
+          ISO YYYY-MM-DD) y "tieneFirma" ("true" si detectas una firma
+          física/digital/electrónica, "false" si claramente no hay ninguna)
+          son campos comunes a casi cualquier documento CAE — inclúyelos
+          cuando puedas determinarlos.
+        - Además de esos tres, "campos" contiene todos los demás datos
+          relevantes que puedas extraer con certeza razonable (importes,
+          números de referencia, partes implicadas, coberturas, etc.), como
+          pares clave/valor de texto — usa nombres de campo descriptivos en
+          minúscula.
         - No inventes información. Si un dato no puede extraerse con
           certeza, no lo incluyas en "campos" y explica el motivo en
           "notasValidacion".
@@ -64,7 +70,7 @@ public class AnthropicDocumentAIProvider(
         - Responde únicamente con el objeto JSON.
         """;
 
-    public async Task<Result<string>> ExtraerTextoAsync(byte[] contenidoImagen, CancellationToken cancellationToken = default)
+    public async Task<Result<string>> ExtraerTextoAsync(byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default)
     {
         var config = opciones.Value;
 
@@ -74,6 +80,10 @@ public class AnthropicDocumentAIProvider(
                 "DocumentAIProvider.NoConfigurado", "La lectura automática por IA no está disponible ahora mismo."));
         }
 
+        var bloqueArchivo = EsPdf(nombreArchivo)
+            ? new BloqueContenido("document", new FuenteArchivo("base64", "application/pdf", Convert.ToBase64String(contenidoArchivo)), null)
+            : new BloqueContenido("image", new FuenteArchivo("base64", DetectarTipoImagen(contenidoArchivo), Convert.ToBase64String(contenidoArchivo)), null);
+
         var solicitud = new SolicitudAnthropic(
             config.Modelo,
             config.MaxTokensRespuesta,
@@ -81,8 +91,8 @@ public class AnthropicDocumentAIProvider(
             [
                 new MensajeAnthropic("user",
                 [
-                    new BloqueContenido("image", new FuenteImagen("base64", DetectarTipoImagen(contenidoImagen), Convert.ToBase64String(contenidoImagen)), null),
-                    new BloqueContenido("text", null, "Transcribe el texto de esta imagen.")
+                    bloqueArchivo,
+                    new BloqueContenido("text", null, "Transcribe el texto de este documento.")
                 ])
             ]);
 
@@ -92,6 +102,8 @@ public class AnthropicDocumentAIProvider(
 
         return Result.Exito(respuesta.Valor.Trim());
     }
+
+    private static bool EsPdf(string nombreArchivo) => nombreArchivo.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
 
     public async Task<Result<ExtraccionEstructuradaDto>> ExtraerEstructuradoAsync(
         string texto, string tipoEsperado, CancellationToken cancellationToken = default)
@@ -222,10 +234,10 @@ public class AnthropicDocumentAIProvider(
 
     private sealed record BloqueContenido(
         [property: JsonPropertyName("type")] string Type,
-        [property: JsonPropertyName("source")] FuenteImagen? Source,
+        [property: JsonPropertyName("source")] FuenteArchivo? Source,
         [property: JsonPropertyName("text")] string? Text);
 
-    private sealed record FuenteImagen(
+    private sealed record FuenteArchivo(
         [property: JsonPropertyName("type")] string Type,
         [property: JsonPropertyName("media_type")] string MediaType,
         [property: JsonPropertyName("data")] string Data);

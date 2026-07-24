@@ -100,6 +100,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IConfiguracionIaDocumentoClienteRepository, ConfiguracionIaDocumentoClienteRepository>();
         services.AddScoped<IRevisionIaDocumentoRepository, RevisionIaDocumentoRepository>();
         services.AddSingleton<IClasificadorDocumentoService, PdfSharpClasificadorDocumentoService>();
+        services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
         services.AddScoped<INotificacionUsuarioRepository, NotificacionUsuarioRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
         services.AddScoped<IAsignacionRepository, AsignacionRepository>();
@@ -125,7 +126,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>();
         services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>();
-        services.AddHttpClient<IExtraccionMetadatosDocumentoIaService, AnthropicExtraccionMetadatosDocumentoIaService>();
+        // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
+        // implementación directa de Anthropic aquí — RouterExtraccionMetadatosDocumentoIaService
+        // (Application) la satisface delegando en IDocumentAIRouterService,
+        // registrada en ApplicationServiceCollectionExtensions.
         // IDocumentAIProvider: registro por interfaz general, no un typed
         // client dedicado — así IEnumerable<IDocumentAIProvider> recoge
         // todos los proveedores (Gemini/Mistral después) para la Factory
