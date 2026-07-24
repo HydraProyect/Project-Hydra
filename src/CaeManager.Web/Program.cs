@@ -174,8 +174,17 @@ using (var scope = app.Services.CreateScope())
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration);
-    await DatosPruebaSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
+
+    // Sin sesión de usuario en el arranque no hay tenant que resolver por
+    // claim — la siembra (Administrador inicial + datos de prueba) se
+    // ejecuta explícitamente como tenant #1 (ver AmbitoTenantExplicito,
+    // docs/MULTITENANCY.md § 8.4). Sin esto, TenantSelladoInterceptor
+    // rechazaría cualquier entidad de dominio que DatosPruebaSeeder cree.
+    using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
+    {
+        await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration);
+        await DatosPruebaSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
+    }
 }
 
 // Registrado antes del manejo de excepciones para envolverlo por completo:
