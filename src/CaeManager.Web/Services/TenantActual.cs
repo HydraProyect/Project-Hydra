@@ -8,8 +8,11 @@ namespace CaeManager.Web.Services;
 /// Resuelve el tenant de la sesión Blazor desde el claim <c>tenant_id</c>
 /// (ver <see cref="TenantClaimsPrincipalFactory"/> y docs/MULTITENANCY.md
 /// § 8). Mismo patrón que <see cref="CurrentUserService"/>: fuera de un
-/// circuito de Blazor (migraciones/siembra al arrancar) no hay
-/// <c>AuthenticationState</c>, y se resuelve a <c>null</c> — el filtro
+/// circuito de Blazor no hay <c>AuthenticationState</c>. Antes de asumir
+/// "sin tenant" en ese caso, consulta primero <see cref="AmbitoTenantExplicito"/>
+/// — así la siembra al arrancar (Program.cs) y futuros jobs de fondo
+/// pueden operar sin sesión sin que el interceptor los rechace. Solo si
+/// tampoco hay ámbito explícito se resuelve a <c>null</c> — el filtro
 /// global interpreta eso como "sin tenant, sin datos" (fallo cerrado).
 ///
 /// <see cref="ITenantActual.TenantId"/> es síncrono porque EF Core necesita
@@ -29,6 +32,9 @@ public class TenantActual(AuthenticationStateProvider authenticationStateProvide
     {
         get
         {
+            if (AmbitoTenantExplicito.TenantIdActual is { } tenantIdExplicito)
+                return tenantIdExplicito;
+
             if (!_resuelto)
             {
                 _tenantId = ResolverAsync().GetAwaiter().GetResult();
