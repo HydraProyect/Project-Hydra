@@ -30,6 +30,7 @@ namespace CaeManager.Application.DocumentosIa;
 public class DocumentAIRouterService(
     IClasificadorDocumentoService clasificador,
     IExtractorTextoDigitalService extractorTextoDigital,
+    ILocalizadorPaginasRelevantesService localizadorPaginas,
     IDocumentAIProviderFactory proveedores,
     IExtraccionIaCacheRepository cacheRepositorio,
     IAuditoriaExtraccionIaRepository auditoriaRepositorio,
@@ -39,7 +40,13 @@ public class DocumentAIRouterService(
     /// <summary>Mismo umbral que VerificacionIaDocumentoService (Fase 38) — por debajo de esto, vale la pena un segundo intento si hay otro proveedor.</summary>
     private const int UmbralReintento = 70;
 
+    /// <summary>Por debajo de esto no vale la pena el coste de localizar páginas — se manda el documento completo tal cual (ver § 4.3).</summary>
+    private const int UmbralPaginasParaLocalizar = 15;
+
     private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
+
+    /// <summary>Texto ya listo para estructurar, con una nota opcional (solo informativa, va a auditoría) cuando se descartaron páginas de un documento grande.</summary>
+    private sealed record TextoExtraidoDto(string Texto, string? NotaLocalizacion);
 
     public async Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
         byte[] contenido, string nombreArchivo, string tipoEsperado, CancellationToken cancellationToken = default)
@@ -86,9 +93,9 @@ public class DocumentAIRouterService(
         }
 
         var proveedorUsado = proveedoresEstructuracion[0];
-        var resultado = await proveedorUsado.ExtraerEstructuradoAsync(texto.Valor, tipoEsperado, cancellationToken);
+        var resultado = await proveedorUsado.ExtraerEstructuradoAsync(texto.Valor.Texto, tipoEsperado, cancellationToken);
 
-        (resultado, proveedorUsado) = await ReintentarSiHaceFaltaAsync(resultado, proveedorUsado, proveedoresEstructuracion, texto.Valor, tipoEsperado, cancellationToken);
+        (resultado, proveedorUsado) = await ReintentarSiHaceFaltaAsync(resultado, proveedorUsado, proveedoresEstructuracion, texto.Valor.Texto, tipoEsperado, cancellationToken);
 
         if (resultado.EsFallido)
         {
@@ -98,11 +105,18 @@ public class DocumentAIRouterService(
         }
 
         await GuardarEnCacheAsync(hash, resultado.Valor, cancellationToken);
+        var incidencias = CombinarIncidencias(texto.Valor.NotaLocalizacion, resultado.Valor.NotasValidacion);
         await RegistrarAuditoriaAsync(
             hash, tipoEsperado, proveedorUsado.Codigo, cronometro.ElapsedMilliseconds, resultado.Valor.CosteEstimado,
-            clasificacion.Valor.TotalPaginas, resultado.Valor.ConfianzaGeneral, resultado.Valor.NotasValidacion, cancellationToken);
+            clasificacion.Valor.TotalPaginas, resultado.Valor.ConfianzaGeneral, incidencias, cancellationToken);
 
         return resultado;
+    }
+
+    private static string? CombinarIncidencias(string? notaLocalizacion, string? notasValidacion)
+    {
+        var partes = new[] { notaLocalizacion, notasValidacion }.Where(parte => !string.IsNullOrWhiteSpace(parte)).ToList();
+        return partes.Count == 0 ? null : string.Join(" ", partes);
     }
 
     private async Task<(Result<ExtraccionEstructuradaDto> Resultado, IDocumentAIProvider Proveedor)> ReintentarSiHaceFaltaAsync(
@@ -125,20 +139,43 @@ public class DocumentAIRouterService(
         return (segundoResultado, segundoProveedor);
     }
 
-    private async Task<Result<string>> ObtenerTextoAsync(
+    private async Task<Result<TextoExtraidoDto>> ObtenerTextoAsync(
         ClasificacionDocumentoDto clasificacion, byte[] contenido, string nombreArchivo, CancellationToken cancellationToken)
     {
         if (clasificacion.Tipo == TipoContenidoDocumento.Digital)
-            return extractorTextoDigital.ExtraerTexto(contenido);
+        {
+            var paginas = extractorTextoDigital.ExtraerTextoPorPagina(contenido);
+            if (paginas.EsFallido)
+                return Result.Fallo<TextoExtraidoDto>(paginas.Error);
+
+            return Result.Exito(ConstruirTextoDigital(paginas.Valor));
+        }
 
         var proveedoresOcr = proveedores.ObtenerPorCapacidad(CapacidadesProveedorIa.OcrImagenAEscaneado);
         if (proveedoresOcr.Count == 0)
         {
-            return Result.Fallo<string>(Error.Crear(
+            return Result.Fallo<TextoExtraidoDto>(Error.Crear(
                 "DocumentAIRouter.SinProveedorOcr", "No hay ningún proveedor de OCR disponible para procesar este documento."));
         }
 
-        return await proveedoresOcr[0].ExtraerTextoAsync(contenido, nombreArchivo, cancellationToken);
+        var textoOcr = await proveedoresOcr[0].ExtraerTextoAsync(contenido, nombreArchivo, cancellationToken);
+        if (textoOcr.EsFallido)
+            return Result.Fallo<TextoExtraidoDto>(textoOcr.Error);
+
+        return Result.Exito(new TextoExtraidoDto(textoOcr.Valor, null));
+    }
+
+    /// <summary>Por debajo del umbral, se manda el documento completo — localizar páginas solo compensa en documentos grandes (§ 4.3).</summary>
+    private TextoExtraidoDto ConstruirTextoDigital(IReadOnlyList<string> paginas)
+    {
+        if (paginas.Count <= UmbralPaginasParaLocalizar)
+            return new TextoExtraidoDto(string.Join("\n\n", paginas), null);
+
+        var indicesRelevantes = localizadorPaginas.Localizar(paginas);
+        var texto = string.Join("\n\n", indicesRelevantes.Select(indice => paginas[indice]));
+        var nota = $"Documento grande ({paginas.Count} páginas): se seleccionaron {indicesRelevantes.Count} páginas relevantes antes de enviar a IA.";
+
+        return new TextoExtraidoDto(texto, nota);
     }
 
     private async Task GuardarEnCacheAsync(string hash, ExtraccionEstructuradaDto extraccion, CancellationToken cancellationToken)
