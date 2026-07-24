@@ -156,6 +156,28 @@
     transition: background-color var(--transition-fast);
 }
 
+.celda-acciones-revision {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    white-space: nowrap;
+}
+
+.fila-previsualizacion td {
+    padding: var(--space-4);
+    background-color: var(--color-neutral-50);
+}
+
+.previsualizacion-documento {
+    display: block;
+    width: 100%;
+    height: 600px;
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+}
+
 /*
   QuickGrid rellena el cuerpo de la tabla con filas <tr><td></td></tr>
   vacías hasta completar ItemsPerPage cuando hay menos resultados que el
