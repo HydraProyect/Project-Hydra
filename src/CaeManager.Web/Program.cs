@@ -185,6 +185,11 @@ using (var scope = app.Services.CreateScope())
         await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration);
         await DatosPruebaSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
     }
+
+    // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
+    // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
+    // que SegundoTenant:Activo esté configurado explícitamente.
+    await SegundoTenantSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
 }
 
 // Registrado antes del manejo de excepciones para envolverlo por completo:
