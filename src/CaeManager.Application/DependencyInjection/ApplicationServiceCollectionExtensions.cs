@@ -1,5 +1,6 @@
 using System.Reflection;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.Trabajadores.Deteccion;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,7 @@ public static class ApplicationServiceCollectionExtensions
         // DeteccionTrabajadoresService) — se registra aquí y no en
         // Infrastructure porque no toca nada específico de infraestructura.
         services.AddScoped<IDeteccionTrabajadoresService, DeteccionTrabajadoresService>();
+        services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
 
         return services;
     }
