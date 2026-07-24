@@ -15,7 +15,8 @@ public record ObtenerAuditoriaQuery(
     string? EntidadTipo,
     Guid? UsuarioId,
     int Pagina = 1,
-    int TamanoPagina = 30) : IRequest<ResultadoPaginado<RegistroAuditoriaDto>>;
+    int TamanoPagina = 30,
+    Guid? EntidadId = null) : IRequest<ResultadoPaginado<RegistroAuditoriaDto>>;
 
 public record RegistroAuditoriaDto(
     Guid Id,
@@ -39,6 +40,9 @@ public class ObtenerAuditoriaQueryHandler(IApplicationDbContext dbContext)
 
         if (request.UsuarioId is not null)
             consulta = consulta.Where(r => r.UsuarioId == request.UsuarioId);
+
+        if (request.EntidadId is not null)
+            consulta = consulta.Where(r => r.EntidadId == request.EntidadId);
 
         var total = await consulta.CountAsync(cancellationToken);
 

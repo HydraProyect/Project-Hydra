@@ -1,0 +1,93 @@
+@* Panel de Vehículo para el Context Workspace. Pestañas: Información, Documentación, Historial. *@
+@using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Components.Workspace
+@using MediatR
+@inject IMediator Mediator
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error || _detalle is null)
+{
+    <EstadoVacio Titulo="No pudimos cargar el vehículo" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarCabeceraAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else
+{
+    <div class="workspace-cabecera-entidad">
+        <h2 class="workspace-titulo-entidad">@_detalle.Nombre</h2>
+    </div>
+
+    <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del vehículo">
+        @switch (PestanaActiva)
+        {
+            case "informacion":
+                <div class="workspace-grupo-campos">
+                    <CampoInfo Etiqueta="Nombre" Valor="@_detalle.Nombre" />
+                    <CampoInfo Etiqueta="Modelo" Valor="@_detalle.Modelo" />
+                    <CampoInfo Etiqueta="Matrícula" Valor="@_detalle.NumeroPlaca" />
+                    <CampoInfo Etiqueta="Empleador" Valor="@_detalle.EmpleadorNombre" />
+                </div>
+                break;
+
+            case "documentacion":
+                <PestanaDocumentacion Ambito="AmbitoAplicacion.Vehiculo" PropietarioId="EntidadId" />
+                break;
+
+            case "historial":
+                <PestanaHistorial EntidadTipo="Vehiculo" EntidadId="EntidadId" />
+                break;
+        }
+    </Pestanas>
+}
+
+@code {
+    private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
+    [
+        new("informacion", "Información"),
+        new("documentacion", "Documentación"),
+        new("historial", "Historial")
+    ];
+
+    [Parameter, EditorRequired] public Guid EntidadId { get; set; }
+    [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
+
+    private VehiculoDetalleDto? _detalle;
+    private bool _cargando = true;
+    private bool _error;
+    private Guid _idCargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EntidadId == _idCargado)
+            return;
+
+        _idCargado = EntidadId;
+        await CargarCabeceraAsync();
+    }
+
+    private async Task CargarCabeceraAsync()
+    {
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            _detalle = await Mediator.Send(new ObtenerVehiculoPorIdQuery(EntidadId));
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+}

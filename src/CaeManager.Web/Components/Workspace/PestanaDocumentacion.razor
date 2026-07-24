@@ -1,0 +1,98 @@
+@*
+    Pestaña "Documentación" reutilizada por los paneles de Cliente, Empresa,
+    Trabajador y Vehículo — Documento ya modela su dueño con cuatro FKs
+    excluyentes según AmbitoAplicacion (ver ObtenerDocumentosQuery), así que
+    un único componente parametrizado por Ambito+PropietarioId cubre los
+    cuatro casos sin duplicar la carga ni el pintado.
+
+    Cada fila navega al Context Workspace del propio Documento — el panel
+    cambia de contenido internamente, no se abre uno nuevo.
+*@
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos
+@using MediatR
+@inject IMediator Mediator
+@inject ContextWorkspaceService WorkspaceService
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="No pudimos cargar la documentación" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_documentos.Count == 0)
+{
+    <EstadoVacio Titulo="Sin documentos" Descripcion="Todavía no hay documentos registrados para esta entidad." />
+}
+else
+{
+    <ul class="workspace-lista-entidades">
+        @foreach (var documento in _documentos)
+        {
+            <FilaEntidadRelacionada
+                Titulo="@documento.TipoDocumentoNombre"
+                Subtitulo="@($"Vence: {(documento.FechaVencimiento is null ? "—" : documento.FechaVencimiento.Value.ToString("dd/MM/yyyy"))}")"
+                OnClic="() => AbrirDocumentoAsync(documento)">
+                <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
+            </FilaEntidadRelacionada>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter, EditorRequired] public AmbitoAplicacion Ambito { get; set; }
+    [Parameter, EditorRequired] public Guid PropietarioId { get; set; }
+
+    private IReadOnlyList<DocumentoListaDto> _documentos = [];
+    private bool _cargando = true;
+    private bool _error;
+    private (AmbitoAplicacion Ambito, Guid PropietarioId)? _claveCargada;
+
+    /// <summary>
+    /// OnParametersSetAsync (no OnInitializedAsync): el Context Workspace
+    /// reutiliza esta misma instancia de componente al navegar entre dos
+    /// entidades del mismo tipo (p. ej. Trabajador → Trabajador vía
+    /// breadcrumb) — sin este guard por clave, la pestaña se quedaría
+    /// mostrando los documentos de la entidad anterior.
+    /// </summary>
+    protected override Task OnParametersSetAsync()
+    {
+        var clave = (Ambito, PropietarioId);
+        if (_claveCargada == clave)
+            return Task.CompletedTask;
+
+        _claveCargada = clave;
+        return CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerDocumentosQuery(
+                TrabajadorId: null, Ambito: Ambito, Busqueda: null, TamanoPagina: 50, PropietarioId: PropietarioId));
+            _documentos = resultado.Elementos;
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private Task AbrirDocumentoAsync(DocumentoListaDto documento) =>
+        WorkspaceService.NavegarAAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion");
+}

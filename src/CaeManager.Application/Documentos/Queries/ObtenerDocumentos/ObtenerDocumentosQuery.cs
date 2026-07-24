@@ -7,7 +7,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 
 public record ObtenerDocumentosQuery(
     Guid? TrabajadorId, AmbitoAplicacion? Ambito, string? Busqueda, EstadoDocumento? Estado = null,
-    int Pagina = 1, int TamanoPagina = 20)
+    int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null)
     : IRequest<ResultadoPaginado<DocumentoListaDto>>;
 
 public record DocumentoListaDto(
@@ -51,6 +51,7 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
                 documento.Id,
                 Ambito = AmbitoAplicacion.Trabajador,
                 TrabajadorId = (Guid?)documento.TrabajadorId,
+                PropietarioId = (Guid?)documento.TrabajadorId,
                 PropietarioNombre = trabajador.Nombre + " " + trabajador.Apellidos,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaEmision,
@@ -69,6 +70,7 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
                 documento.Id,
                 Ambito = AmbitoAplicacion.Cliente,
                 TrabajadorId = (Guid?)null,
+                PropietarioId = (Guid?)documento.ClienteId,
                 PropietarioNombre = cliente.RazonSocial,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaEmision,
@@ -87,6 +89,7 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
                 documento.Id,
                 Ambito = AmbitoAplicacion.Empresa,
                 TrabajadorId = (Guid?)null,
+                PropietarioId = (Guid?)documento.EmpresaId,
                 PropietarioNombre = empresa.RazonSocial,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaEmision,
@@ -105,6 +108,7 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
                 documento.Id,
                 Ambito = AmbitoAplicacion.Vehiculo,
                 TrabajadorId = (Guid?)null,
+                PropietarioId = (Guid?)documento.VehiculoId,
                 PropietarioNombre = vehiculo.Nombre + " (" + vehiculo.NumeroPlaca + ")",
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaEmision,
@@ -119,6 +123,9 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
 
         if (request.Ambito is not null)
             consulta = consulta.Where(x => x.Ambito == request.Ambito);
+
+        if (request.PropietarioId is not null)
+            consulta = consulta.Where(x => x.PropietarioId == request.PropietarioId);
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {

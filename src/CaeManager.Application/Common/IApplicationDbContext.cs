@@ -6,6 +6,7 @@ using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Notificaciones;
+using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
@@ -43,4 +44,6 @@ public interface IApplicationDbContext
     IQueryable<Vehiculo> Vehiculos { get; }
     IQueryable<ParametroSistema> ParametrosSistema { get; }
     IQueryable<RegistroAuditoria> RegistrosAuditoria { get; }
+    IQueryable<RequisitoDocumental> RequisitosDocumentales { get; }
+    IQueryable<PlataformaAcceso> PlataformasAcceso { get; }
 }

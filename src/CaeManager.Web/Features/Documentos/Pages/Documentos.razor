@@ -22,6 +22,7 @@
 @inject ICurrentUserService CurrentUserService
 @inject IFileStorageService AlmacenamientoArchivos
 @inject IConversorWordPdfService ConversorWordPdf
+@inject ContextWorkspaceService WorkspaceService
 
 <PageTitle>Documentos — CAE Manager</PageTitle>
 
@@ -90,6 +91,9 @@
                     }
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, context.Id, context.TipoDocumentoNombre, "informacion")">
+                        Ver
+                    </Boton>
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
                         Renovar
                     </Boton>
