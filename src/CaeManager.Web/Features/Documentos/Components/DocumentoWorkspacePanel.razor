@@ -1,0 +1,119 @@
+@*
+    Panel de Documento para el Context Workspace. Pestañas: Información,
+    Versiones, Validación, Historial.
+
+    Versiones y Validación son funcionalidades futuras diferenciadas
+    (versionado de archivos / flujo de aprobación con validador, fecha,
+    motivo de rechazo) — no existen todavía como entidades de dominio, así
+    que se muestran como "Próximamente" en vez de reutilizar el historial
+    de auditoría como sustituto (decisión explícita del usuario: son
+    conceptos distintos).
+*@
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
+@using CaeManager.Web.Components.Workspace
+@using MediatR
+@inject IMediator Mediator
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="4" />
+}
+else if (_error || _detalle is null)
+{
+    <EstadoVacio Titulo="No pudimos cargar el documento" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarCabeceraAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else
+{
+    <div class="workspace-cabecera-entidad">
+        <h2 class="workspace-titulo-entidad">@_detalle.TipoDocumentoNombre</h2>
+        <Badge>@_detalle.Ambito</Badge>
+    </div>
+
+    <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del documento">
+        @switch (PestanaActiva)
+        {
+            case "informacion":
+                <div class="workspace-grupo-campos">
+                    <CampoInfo Etiqueta="Propietario" Valor="@_detalle.PropietarioNombre" />
+                    <CampoInfo Etiqueta="Tipo de documento" Valor="@_detalle.TipoDocumentoNombre" />
+                    <CampoInfo Etiqueta="Fecha de emisión" Valor="@_detalle.FechaEmision.ToString("dd/MM/yyyy")" />
+                    <CampoInfo Etiqueta="Fecha de vencimiento" Valor="@(_detalle.FechaVencimiento?.ToString("dd/MM/yyyy") ?? (_detalle.TipoDocumentoAplicaVencimientoAutomatico ? null : "No aplica"))" />
+                    <CampoInfo Etiqueta="Comentarios" Valor="@_detalle.Comentarios" />
+                    <CampoInfo Etiqueta="Archivo">
+                        @if (_detalle.ArchivoUrl is not null)
+                        {
+                            <a href="/documentos/@EntidadId/archivo" target="_blank">Ver PDF</a>
+                        }
+                        else
+                        {
+                            <span class="campo-info-vacio">Sin adjunto</span>
+                        }
+                    </CampoInfo>
+                </div>
+                break;
+
+            case "versiones":
+                <EstadoVacio Titulo="Próximamente" Descripcion="El versionado de archivos de un documento (v1, v2, v3…) todavía no está disponible en CAE Manager." />
+                break;
+
+            case "validacion":
+                <EstadoVacio Titulo="Próximamente" Descripcion="El flujo de validación (quién valida, fecha, motivo de rechazo, criterios incumplidos) todavía no está disponible en CAE Manager." />
+                break;
+
+            case "historial":
+                <PestanaHistorial EntidadTipo="Documento" EntidadId="EntidadId" />
+                break;
+        }
+    </Pestanas>
+}
+
+@code {
+    private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
+    [
+        new("informacion", "Información"),
+        new("versiones", "Versiones"),
+        new("validacion", "Validación"),
+        new("historial", "Historial")
+    ];
+
+    [Parameter, EditorRequired] public Guid EntidadId { get; set; }
+    [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
+
+    private DocumentoDetalleDto? _detalle;
+    private bool _cargando = true;
+    private bool _error;
+    private Guid _idCargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EntidadId == _idCargado)
+            return;
+
+        _idCargado = EntidadId;
+        await CargarCabeceraAsync();
+    }
+
+    private async Task CargarCabeceraAsync()
+    {
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            _detalle = await Mediator.Send(new ObtenerDocumentoPorIdQuery(EntidadId));
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+}

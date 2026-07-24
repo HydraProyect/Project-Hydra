@@ -14,6 +14,7 @@
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
 @inject IMediator Mediator
+@inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
 
@@ -43,6 +44,9 @@
             <QuickGrid @ref="_grid" TGridItem="SubcontrataListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
                 <PropertyColumn Property="@(s => s.RazonSocial)" Sortable="true" />
                 <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, context.Id, context.RazonSocial, "informacion")">
+                        Ver
+                    </Boton>
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
                         Editar
                     </Boton>

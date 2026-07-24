@@ -97,6 +97,7 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<BusquedaGlobalService>();
 builder.Services.AddScoped<AsistenteIaService>();
+builder.Services.AddScoped<CaeManager.Web.Components.Workspace.ContextWorkspaceService>();
 
 builder.Services.AddCascadingAuthenticationState();
 var authenticationBuilder = builder.Services
