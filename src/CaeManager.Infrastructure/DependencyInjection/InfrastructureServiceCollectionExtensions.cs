@@ -21,6 +21,7 @@ using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
+using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using Microsoft.AspNetCore.DataProtection;
@@ -38,11 +39,14 @@ public static class InfrastructureServiceCollectionExtensions
         this IServiceCollection services, IConfiguration configuration, IHostEnvironment entorno)
     {
         services.AddScoped<AuditoriaInterceptor>();
+        services.AddScoped<TenantSelladoInterceptor>();
 
         services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
         {
             options.UseSqlite(configuration.GetConnectionString("CaeManagerDb"));
-            options.AddInterceptors(serviceProvider.GetRequiredService<AuditoriaInterceptor>());
+            options.AddInterceptors(
+                serviceProvider.GetRequiredService<AuditoriaInterceptor>(),
+                serviceProvider.GetRequiredService<TenantSelladoInterceptor>());
         });
 
         services
@@ -56,6 +60,7 @@ public static class InfrastructureServiceCollectionExtensions
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<CaeManagerDbContext>()
             .AddSignInManager<SignInManager<ApplicationUser>>()
+            .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
             .AddDefaultTokenProviders();
 
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
@@ -103,7 +108,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
-        services.AddSingleton<IFileStorageService, DiskFileStorageService>();
+        // Scoped (no Singleton): depende de ITenantActual, que es scoped —
+        // ver docs/MULTITENANCY.md § 4.6.
+        services.AddScoped<IFileStorageService, DiskFileStorageService>();
 
         services.Configure<LibreOfficeConversorWordPdfServiceOptions>(configuration.GetSection(LibreOfficeConversorWordPdfServiceOptions.SeccionConfiguracion));
         services.AddSingleton<IConversorWordPdfService, LibreOfficeConversorWordPdfService>();
