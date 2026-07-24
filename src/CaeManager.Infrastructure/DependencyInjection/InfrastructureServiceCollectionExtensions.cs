@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
@@ -125,6 +126,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>();
         services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>();
         services.AddHttpClient<IExtraccionMetadatosDocumentoIaService, AnthropicExtraccionMetadatosDocumentoIaService>();
+        // IDocumentAIProvider: registro por interfaz general, no un typed
+        // client dedicado — así IEnumerable<IDocumentAIProvider> recoge
+        // todos los proveedores (Gemini/Mistral después) para la Factory
+        // (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2).
+        services.AddHttpClient<AnthropicDocumentAIProvider>();
+        services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<AnthropicDocumentAIProvider>());
 
         services.Configure<GraphEmailOptions>(configuration.GetSection(GraphEmailOptions.SeccionConfiguracion));
         services.AddHttpClient<IEmailService, GraphEmailService>();
