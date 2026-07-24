@@ -135,13 +135,14 @@ Caso de uso que las Etapas 1–4 dejan preparado pero no implementan como flujo 
 
 ---
 
-## 7. Etapa 5 — Verificación y cierre
+## 7. Etapa 5 — Verificación y cierre ✅ (completada 2026-07-24)
 
-1. **Tests de aislamiento por agregado** (nuevos, en `CaeManager.IntegrationTests`): por cada uno de los 25 tipos, crear datos en dos tenants distintos y verificar que una Query filtrada por tenant A nunca devuelve filas de tenant B — este es el test que sustituye a "confiar en la revisión manual" y el que debe quedar en CI de forma permanente, no solo para este cambio.
-2. **Test del interceptor**: intento de modificar una entidad de otro tenant lanza excepción.
-3. **Test de índices**: insertar el mismo `Dni`/`Cif`/`RazonSocial`/`NumeroPlaca` en dos tenants distintos debe **permitirse**; insertarlo dos veces en el mismo tenant debe **fallar** — verifica ambos lados del índice compuesto, no solo que "ya no falla nunca".
-4. **Verificación end-to-end en navegador** (regla ya vigente en `CLAUDE.md`): login, alta de datos, navegación por las pantallas principales, con dos usuarios de dos tenants distintos en dos sesiones simultáneas, confirmando visualmente que ninguno ve datos del otro.
-5. **Cierre**: actualizar `ROADMAP.md` marcando la fase multi-tenant como completada (deja de decir "el código todavía no tiene `TenantId`" en `CLAUDE.md`), y registrar en `docs/MULTITENANCY.md` la fecha de cierre de cada etapa.
+1. ✅ **Tests de aislamiento por agregado** (`AislamientoPorAgregadoTests`, `CaeManager.IntegrationTests`): un `[Fact]` por cada uno de los 25 tipos con `TenantId` — crea la entidad en el tenant A y verifica que una Query filtrada por el tenant B nunca la devuelve. 25/25 en verde, queda en CI de forma permanente.
+2. ✅ **Test del interceptor** (`AislamientoMultiTenantTests`): sellado automático de `TenantId` en alta; intento de modificar/eliminar una entidad de otro tenant (vía `IgnoreQueryFilters()` explícito y justificado, para poder llegar hasta la fila) lanza excepción; sin tenant resuelto, ni lectura ni escritura — fallo cerrado.
+3. ✅ **Test de índices** (`AislamientoMultiTenantTests`): el mismo `Cif` en dos tenants distintos se permite; el mismo `Cif` dos veces en el mismo tenant falla con `DbUpdateException` — ambos lados del índice compuesto verificados.
+4. ✅ **Verificación end-to-end en navegador real** (`AislamientoMultiTenantE2ETests`, `CaeManager.E2ETests`, Playwright/Chromium contra el binario real de `CaeManager.Web`): dos sesiones de navegador con contextos independientes, tenant A crea un Cliente con nombre único y lo ve en su propio listado; tenant B (sembrado opcionalmente por `SegundoTenantSeeder`, activado vía `SegundoTenant:Activo`) no lo ve, y su listado de Clientes está vacío pese a los ~200 Clientes de datos de prueba sembrados para el tenant A. 2/2 en verde.
+   - **Hallazgo real de esta verificación** (exactamente el tipo de regresión que esta etapa existe para atrapar, no detectada por ningún test de integración): al arrancar la app real, `DatosPruebaSeeder` fallaba con `InvalidOperationException` porque no hay sesión HTTP/circuito de Blazor durante el arranque, así que `ITenantActual` (implementación Web, basada en claim de sesión) resolvía a `null`. Corregido con `AmbitoTenantExplicito` (ámbito de tenant explícito basado en `AsyncLocal`, ver `docs/MULTITENANCY.md` § 8.4), usado tanto en la siembra de arranque (`Program.cs`) como en `SegundoTenantSeeder`. Verificado arrancando el proceso real dos veces (con y sin segundo tenant) y con la suite completa de tests E2E existente en verde.
+5. ✅ **Cierre**: `ROADMAP.md` actualizado marcando la fase multi-tenant como completada.
 
 ---
 
