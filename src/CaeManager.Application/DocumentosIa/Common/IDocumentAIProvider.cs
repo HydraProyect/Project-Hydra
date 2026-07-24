@@ -38,5 +38,14 @@ public interface IDocumentAIProvider
 /// documento CAE (póliza, recibo, certificado...) — el motor de reglas de
 /// Hydra decide qué campos le importan a cada tipo, no la IA.
 /// </summary>
+/// <summary>
+/// <paramref name="CosteEstimado"/> (en USD, null si el proveedor no lo
+/// calcula) es solo un dato de auditoría — nunca un criterio de enrutado
+/// (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2). Cada proveedor lo
+/// calcula con su propia unidad de precio; no hay un campo equivalente
+/// para <see cref="IDocumentAIProvider.ExtraerTextoAsync"/> todavía — el
+/// coste del paso de OCR queda fuera de esta primera versión de auditoría.
+/// </summary>
 public record ExtraccionEstructuradaDto(
-    string? TipoDetectado, IReadOnlyDictionary<string, string?> Campos, int ConfianzaGeneral, string? NotasValidacion);
+    string? TipoDetectado, IReadOnlyDictionary<string, string?> Campos, int ConfianzaGeneral, string? NotasValidacion,
+    decimal? CosteEstimado = null);

@@ -14,4 +14,16 @@ public class AnthropicOptions
     public string Modelo { get; set; } = "claude-sonnet-5";
 
     public int MaxTokensRespuesta { get; set; } = 1024;
+
+    /// <summary>
+    /// Precio orientativo por millón de tokens de entrada/salida (USD),
+    /// usado solo para el coste estimado de auditoría de
+    /// <see cref="AnthropicDocumentAIProvider"/> (ver
+    /// docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2 — nunca un criterio de
+    /// enrutado). Valores por defecto orientativos para Claude Sonnet;
+    /// revisar si cambia el modelo o su tarifa.
+    /// </summary>
+    public decimal CostoPorMillonTokensEntrada { get; set; } = 3m;
+
+    public decimal CostoPorMillonTokensSalida { get; set; } = 15m;
 }
