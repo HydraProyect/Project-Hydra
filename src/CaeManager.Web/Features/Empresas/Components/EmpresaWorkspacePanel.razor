@@ -1,0 +1,146 @@
+@*
+    Panel de Empresa para el Context Workspace. Pestañas: Información,
+    Centros, Documentación, Historial.
+
+    "Centros" no es una relación directa (Centro cuelga de Cliente, no de
+    Empresa — ver DATABASE.md): se deriva la actividad real
+    (Empresa → Trabajadores → Asignaciones activas → Centro), decisión
+    tomada explícitamente para no listar "todos los centros del cliente"
+    cuando la Empresa solo opera en unos pocos.
+*@
+@using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Components.Workspace
+@using MediatR
+@inject IMediator Mediator
+@inject ContextWorkspaceService WorkspaceService
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="4" />
+}
+else if (_error || _detalle is null)
+{
+    <EstadoVacio Titulo="No pudimos cargar la empresa" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarCabeceraAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else
+{
+    <div class="workspace-cabecera-entidad">
+        <h2 class="workspace-titulo-entidad">@_detalle.RazonSocial</h2>
+    </div>
+
+    <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones de la empresa">
+        @switch (PestanaActiva)
+        {
+            case "informacion":
+                <div class="workspace-grupo-campos">
+                    <CampoInfo Etiqueta="Razón social" Valor="@_detalle.RazonSocial" />
+                    <CampoInfo Etiqueta="CIF" Valor="@_detalle.Cif" />
+                    <CampoInfo Etiqueta="Clientes con los que trabaja" Valor="@_detalle.ClienteIds.Count.ToString()" />
+                    <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
+                </div>
+                break;
+
+            case "centros":
+                @if (_cargandoCentros)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_centros is { Count: 0 })
+                {
+                    <EstadoVacio Titulo="Sin actividad en ningún centro" Descripcion="Ningún trabajador de esta empresa tiene asignaciones activas todavía." />
+                }
+                else if (_centros is not null)
+                {
+                    <p class="workspace-nota-contextual">Centros donde esta empresa tiene actividad real (trabajadores con asignación activa) — no todos los centros de sus clientes.</p>
+                    <ul class="workspace-lista-entidades">
+                        @foreach (var centro in _centros)
+                        {
+                            <FilaEntidadRelacionada
+                                Titulo="@centro.Nombre"
+                                Subtitulo="@($"{centro.ClienteRazonSocial} · {centro.TrabajadoresAsignados} trabajador(es)")"
+                                OnClic="() => AbrirCentroAsync(centro)" />
+                        }
+                    </ul>
+                }
+                break;
+
+            case "documentacion":
+                <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="EntidadId" />
+                break;
+
+            case "historial":
+                <PestanaHistorial EntidadTipo="Empresa" EntidadId="EntidadId" />
+                break;
+        }
+    </Pestanas>
+}
+
+@code {
+    private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
+    [
+        new("informacion", "Información"),
+        new("centros", "Centros"),
+        new("documentacion", "Documentación"),
+        new("historial", "Historial")
+    ];
+
+    [Parameter, EditorRequired] public Guid EntidadId { get; set; }
+    [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
+
+    private EmpresaDetalleDto? _detalle;
+    private bool _cargando = true;
+    private bool _error;
+    private Guid _idCargado;
+
+    private IReadOnlyList<CentroConActividadDto>? _centros;
+    private bool _cargandoCentros;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EntidadId != _idCargado)
+        {
+            _idCargado = EntidadId;
+            _centros = null;
+            await CargarCabeceraAsync();
+        }
+
+        if (PestanaActiva == "centros" && _centros is null && !_cargandoCentros)
+            await CargarCentrosAsync();
+    }
+
+    private async Task CargarCabeceraAsync()
+    {
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            _detalle = await Mediator.Send(new ObtenerEmpresaPorIdQuery(EntidadId));
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task CargarCentrosAsync()
+    {
+        _cargandoCentros = true;
+        _centros = await Mediator.Send(new ObtenerCentrosConActividadDeEmpresaQuery(EntidadId));
+        _cargandoCentros = false;
+    }
+
+    private Task AbrirCentroAsync(CentroConActividadDto centro) =>
+        WorkspaceService.NavegarAAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
+}

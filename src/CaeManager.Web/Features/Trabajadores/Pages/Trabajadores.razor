@@ -14,6 +14,7 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
+@inject ContextWorkspaceService WorkspaceService
 
 <PageTitle>Trabajadores — CAE Manager</PageTitle>
 
@@ -62,6 +63,9 @@
                 <PropertyColumn Property="@(t => t.Dni)" Title="DNI" />
                 <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="Empresa / Subcontrata" Sortable="true" />
                 <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.Id, NombreCompleto(context), "informacion")">
+                        Ver
+                    </Boton>
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
                         Editar
                     </Boton>
