@@ -1,4 +1,3 @@
-using System.Text;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using PdfSharp.Pdf;
@@ -24,26 +23,22 @@ public class PdfSharpExtractorTextoDigitalService : IExtractorTextoDigitalServic
 {
     private static readonly HashSet<string> OperadoresDeTexto = new(StringComparer.Ordinal) { "Tj", "TJ" };
 
-    public Result<string> ExtraerTexto(byte[] contenidoPdf)
+    public Result<IReadOnlyList<string>> ExtraerTextoPorPagina(byte[] contenidoPdf)
     {
         try
         {
             using var flujo = new MemoryStream(contenidoPdf);
             using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Import);
 
-            var constructor = new StringBuilder();
-            foreach (var pagina in documento.Pages.Cast<PdfPage>())
-            {
-                var textoPagina = ExtraerTextoDePagina(pagina);
-                if (textoPagina.Length > 0)
-                    constructor.AppendLine(textoPagina);
-            }
+            IReadOnlyList<string> paginas = documento.Pages.Cast<PdfPage>()
+                .Select(ExtraerTextoDePagina)
+                .ToList();
 
-            return Result.Exito(constructor.ToString());
+            return Result.Exito(paginas);
         }
         catch (Exception)
         {
-            return Result.Fallo<string>(Error.Crear(
+            return Result.Fallo<IReadOnlyList<string>>(Error.Crear(
                 "ExtractorTextoDigital.ArchivoInvalido", "No pudimos leer el texto de este archivo."));
         }
     }

@@ -19,11 +19,21 @@ public class DocumentAIRouterServiceTests
     private static (DocumentAIRouterService Router, ExtraccionIaCacheRepositorioFalso Cache, AuditoriaExtraccionIaRepositorioFalso Auditoria) CrearRouterConDependencias(
         Result<ClasificacionDocumentoDto> clasificacion, Result<string> textoDigital, params IDocumentAIProvider[] proveedores)
     {
+        var textoPorPagina = textoDigital.EsExitoso
+            ? Result.Exito<IReadOnlyList<string>>([textoDigital.Valor])
+            : Result.Fallo<IReadOnlyList<string>>(textoDigital.Error);
+        return CrearRouterConDependencias(clasificacion, textoPorPagina, proveedores);
+    }
+
+    private static (DocumentAIRouterService Router, ExtraccionIaCacheRepositorioFalso Cache, AuditoriaExtraccionIaRepositorioFalso Auditoria) CrearRouterConDependencias(
+        Result<ClasificacionDocumentoDto> clasificacion, Result<IReadOnlyList<string>> textoPorPagina, params IDocumentAIProvider[] proveedores)
+    {
         var cache = new ExtraccionIaCacheRepositorioFalso();
         var auditoria = new AuditoriaExtraccionIaRepositorioFalso();
         var router = new DocumentAIRouterService(
             new ClasificadorDocumentoServiceFalso(clasificacion),
-            new ExtractorTextoDigitalServiceFalso(textoDigital),
+            new ExtractorTextoDigitalServiceFalso(textoPorPagina),
+            new LocalizadorPaginasRelevantesService(),
             new DocumentAIProviderFactory(proveedores),
             cache,
             auditoria,
@@ -231,5 +241,29 @@ public class DocumentAIRouterServiceTests
         await router.ProcesarAsync([4, 5, 6], "documento.pdf", "Póliza de seguro");
 
         proveedor.VecesLlamadoParaEstructurado.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Localiza_paginas_relevantes_y_lo_deja_constar_en_la_auditoria_para_un_documento_digital_grande()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 95, null)));
+
+        // 20 páginas de relleno (> UmbralPaginasParaLocalizar) con solo una relevante.
+        var paginas = Enumerable.Range(0, 20).Select(i => $"página de relleno {i}").ToList();
+        paginas[10] = "número de póliza 555, tomador: Empresa S.L.";
+        var clasificacion = Result.Exito(new ClasificacionDocumentoDto(
+            TipoContenidoDocumento.Digital, paginas.Count, Enumerable.Repeat(true, paginas.Count).ToList()));
+        var (router, _, auditoria) = CrearRouterConDependencias(clasificacion, Result.Exito<IReadOnlyList<string>>(paginas), proveedor);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "poliza.pdf", "Póliza de seguro");
+
+        resultado.EsExitoso.Should().BeTrue();
+        proveedor.UltimoTextoRecibidoParaEstructurar.Should().Contain("número de póliza 555");
+        proveedor.UltimoTextoRecibidoParaEstructurar.Should().NotContain("página de relleno 3");
+        auditoria.Auditorias.Should().ContainSingle();
+        auditoria.Auditorias[0].Incidencias.Should().Contain("Documento grande");
+        auditoria.Auditorias[0].NumeroPaginas.Should().Be(20);
     }
 }
