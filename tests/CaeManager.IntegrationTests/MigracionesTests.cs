@@ -1,5 +1,8 @@
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -20,11 +23,13 @@ public class MigracionesTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        var tenantActual = new TenantActualAmbiental { TenantId = TenantSeedData.IdPorDefecto };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 
-        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider());
+        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
         await _dbContext.Database.MigrateAsync();
     }
 
@@ -90,5 +95,82 @@ public class MigracionesTests : IAsyncLifetime
         var visible = await _dbContext.Clientes.FirstOrDefaultAsync(c => c.Id == cliente.Id);
 
         visible.Should().BeNull();
+    }
+
+    // --- Etapa 1 de PLAN-MIGRACION-MULTITENANT.md (esquema aditivo, TenantId nullable) ---
+
+    [Fact]
+    public async Task Siembra_el_tenant_por_defecto_activo()
+    {
+        var tenant = await _dbContext.Tenants.SingleAsync();
+
+        tenant.Id.Should().Be(TenantSeedData.IdPorDefecto);
+        tenant.Estado.Should().Be(EstadoTenant.Activo);
+    }
+
+    [Fact]
+    public async Task El_backfill_sella_el_catalogo_de_tipos_de_documento_al_tenant_por_defecto()
+    {
+        var tenantIdsDistintos = await _dbContext.TiposDocumento.Select(t => t.TenantId).Distinct().ToListAsync();
+
+        tenantIdsDistintos.Should().Equal(TenantSeedData.IdPorDefecto);
+    }
+
+    [Fact]
+    public async Task El_backfill_sella_el_parametro_de_sistema_al_tenant_por_defecto()
+    {
+        var parametro = await _dbContext.ParametrosSistema.SingleAsync();
+
+        parametro.TenantId.Should().Be(TenantSeedData.IdPorDefecto);
+    }
+
+    [Fact]
+    public async Task Guarda_y_recupera_un_tenant()
+    {
+        var tenant = new Tenant("GESEME");
+        _dbContext.Tenants.Add(tenant);
+        await _dbContext.SaveChangesAsync();
+
+        var recuperado = await _dbContext.Tenants.FindAsync(tenant.Id);
+
+        recuperado.Should().NotBeNull();
+        recuperado!.Nombre.Should().Be("GESEME");
+        recuperado.Estado.Should().Be(EstadoTenant.Activo);
+    }
+
+    [Fact]
+    public async Task El_interceptor_sella_el_tenant_actual_en_una_entidad_nueva_sin_que_el_Command_lo_asigne()
+    {
+        // Etapa 3 (cierre): TenantSelladoInterceptor sella TenantId con el
+        // valor de ITenantActual — el Command (aquí, el propio test) nunca
+        // lo asigna, Cliente no expone ningún setter para ello.
+        var cliente = new Cliente("RENDELSUR", "B12345674", esCritico: false);
+        _dbContext.Clientes.Add(cliente);
+        await _dbContext.SaveChangesAsync();
+
+        var recuperado = await _dbContext.Clientes.FindAsync(cliente.Id);
+
+        recuperado!.TenantId.Should().Be(TenantSeedData.IdPorDefecto);
+    }
+
+    [Fact]
+    public async Task Las_25_tablas_multi_tenant_tienen_TenantId_como_NOT_NULL()
+    {
+        // Verificación de esquema tras el cierre (Etapa 3): la columna ya
+        // no admite NULL — si esto falla, la migración CerrarTenantId no se
+        // aplicó o alguna tabla quedó fuera.
+        await using var comando = _dbContext.Database.GetDbConnection().CreateCommand();
+        await _dbContext.Database.OpenConnectionAsync();
+        comando.CommandText = "PRAGMA table_info('Clientes');";
+        await using var lector = await comando.ExecuteReaderAsync();
+
+        var notNullTenantId = false;
+        while (await lector.ReadAsync())
+        {
+            if (string.Equals(lector["name"].ToString(), "TenantId", StringComparison.Ordinal))
+                notNullTenantId = Convert.ToInt32(lector["notnull"]) == 1;
+        }
+
+        notNullTenantId.Should().BeTrue();
     }
 }

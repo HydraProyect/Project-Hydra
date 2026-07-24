@@ -11,7 +11,7 @@ namespace CaeManager.Domain.Notificaciones;
 /// que un Cliente recién asignado tiene algún TipoDocumento con lectura IA
 /// desactivada (con UrlAccion apuntando a la pantalla de configuración).
 /// </summary>
-public class NotificacionUsuario : Entity
+public class NotificacionUsuario : EntidadConTenant
 {
     public const int LongitudMaximaTitulo = 200;
     public const int LongitudMaximaMensaje = 1000;
