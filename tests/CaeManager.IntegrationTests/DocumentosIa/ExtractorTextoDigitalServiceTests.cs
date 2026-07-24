@@ -27,10 +27,10 @@ public class ExtractorTextoDigitalServiceTests
     {
         var pdf = CrearPdfConTexto("Reconocimiento medico apto sin restricciones");
 
-        var resultado = _servicio.ExtraerTexto(pdf);
+        var resultado = _servicio.ExtraerTextoPorPagina(pdf);
 
         resultado.EsExitoso.Should().BeTrue();
-        resultado.Valor.Should().Contain("Reconocimiento medico apto sin restricciones");
+        resultado.Valor.Should().ContainSingle().Which.Should().Contain("Reconocimiento medico apto sin restricciones");
     }
 
     [Fact]
@@ -38,13 +38,12 @@ public class ExtractorTextoDigitalServiceTests
     {
         var pdf = CrearPdfConVariasPaginas("Primera pagina de texto", "Segunda pagina de texto");
 
-        var resultado = _servicio.ExtraerTexto(pdf);
+        var resultado = _servicio.ExtraerTextoPorPagina(pdf);
 
         resultado.EsExitoso.Should().BeTrue();
-        var indicePrimera = resultado.Valor.IndexOf("Primera pagina de texto", StringComparison.Ordinal);
-        var indiceSegunda = resultado.Valor.IndexOf("Segunda pagina de texto", StringComparison.Ordinal);
-        indicePrimera.Should().BeGreaterThanOrEqualTo(0);
-        indiceSegunda.Should().BeGreaterThan(indicePrimera);
+        resultado.Valor.Should().HaveCount(2);
+        resultado.Valor[0].Should().Contain("Primera pagina de texto");
+        resultado.Valor[1].Should().Contain("Segunda pagina de texto");
     }
 
     [Fact]
@@ -57,16 +56,16 @@ public class ExtractorTextoDigitalServiceTests
         using var salida = new MemoryStream();
         documento.Save(salida);
 
-        var resultado = _servicio.ExtraerTexto(salida.ToArray());
+        var resultado = _servicio.ExtraerTextoPorPagina(salida.ToArray());
 
         resultado.EsExitoso.Should().BeTrue();
-        resultado.Valor.Trim().Should().BeEmpty();
+        resultado.Valor.Should().ContainSingle().Which.Trim().Should().BeEmpty();
     }
 
     [Fact]
     public void Devuelve_fallo_ante_un_pdf_corrupto()
     {
-        var resultado = _servicio.ExtraerTexto([0x25, 0x50, 0x44, 0x46, 0x00, 0x00]);
+        var resultado = _servicio.ExtraerTextoPorPagina([0x25, 0x50, 0x44, 0x46, 0x00, 0x00]);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("ExtractorTextoDigital.ArchivoInvalido");

@@ -3,7 +3,7 @@ using CaeManager.Domain.Common;
 
 namespace CaeManager.Application.Tests.DocumentosIa;
 
-public class ExtractorTextoDigitalServiceFalso(Result<string> resultado) : IExtractorTextoDigitalService
+public class ExtractorTextoDigitalServiceFalso(Result<IReadOnlyList<string>> resultado) : IExtractorTextoDigitalService
 {
-    public Result<string> ExtraerTexto(byte[] contenidoPdf) => resultado;
+    public Result<IReadOnlyList<string>> ExtraerTextoPorPagina(byte[] contenidoPdf) => resultado;
 }

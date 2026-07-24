@@ -12,5 +12,6 @@ namespace CaeManager.Application.Common;
 /// </summary>
 public interface IExtractorTextoDigitalService
 {
-    Result<string> ExtraerTexto(byte[] contenidoPdf);
+    /// <summary>Una entrada por página, en orden — necesario (no un único string concatenado) para que <see cref="ILocalizadorPaginasRelevantesService"/> pueda seleccionar solo las páginas relevantes de un documento grande antes de mandar nada a IA.</summary>
+    Result<IReadOnlyList<string>> ExtraerTextoPorPagina(byte[] contenidoPdf);
 }
