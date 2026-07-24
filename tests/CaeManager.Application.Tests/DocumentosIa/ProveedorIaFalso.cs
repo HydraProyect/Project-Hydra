@@ -15,6 +15,7 @@ public class ProveedorIaFalso(
 
     public int VecesLlamadoParaTexto { get; private set; }
     public int VecesLlamadoParaEstructurado { get; private set; }
+    public string? UltimoTextoRecibidoParaEstructurar { get; private set; }
 
     public Task<Result<string>> ExtraerTextoAsync(byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default)
     {
@@ -25,6 +26,7 @@ public class ProveedorIaFalso(
     public Task<Result<ExtraccionEstructuradaDto>> ExtraerEstructuradoAsync(string texto, string tipoEsperado, CancellationToken cancellationToken = default)
     {
         VecesLlamadoParaEstructurado++;
+        UltimoTextoRecibidoParaEstructurar = texto;
         return Task.FromResult(resultadoEstructurado ?? Result.Exito(new ExtraccionEstructuradaDto(tipoEsperado, new Dictionary<string, string?>(), 99, null)));
     }
 }
