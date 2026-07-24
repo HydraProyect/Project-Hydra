@@ -52,6 +52,7 @@ public class CaeManagerDbContext(
     public DbSet<TipoDocumento> TiposDocumento => Set<TipoDocumento>();
     public DbSet<TipoDocumentoCentro> TiposDocumentoCentros => Set<TipoDocumentoCentro>();
     public DbSet<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente => Set<ConfiguracionIaDocumentoCliente>();
+    public DbSet<RevisionIaDocumento> RevisionesIaDocumento => Set<RevisionIaDocumento>();
     public DbSet<NotificacionUsuario> NotificacionesUsuario => Set<NotificacionUsuario>();
     public DbSet<Documento> Documentos => Set<Documento>();
     public DbSet<Asignacion> Asignaciones => Set<Asignacion>();
@@ -78,6 +79,7 @@ public class CaeManagerDbContext(
     IQueryable<TipoDocumento> IApplicationDbContext.TiposDocumento => TiposDocumento;
     IQueryable<TipoDocumentoCentro> IApplicationDbContext.TiposDocumentoCentros => TiposDocumentoCentros;
     IQueryable<ConfiguracionIaDocumentoCliente> IApplicationDbContext.ConfiguracionesIaDocumentoCliente => ConfiguracionesIaDocumentoCliente;
+    IQueryable<RevisionIaDocumento> IApplicationDbContext.RevisionesIaDocumento => RevisionesIaDocumento;
     IQueryable<NotificacionUsuario> IApplicationDbContext.NotificacionesUsuario => NotificacionesUsuario;
     IQueryable<Documento> IApplicationDbContext.Documentos => Documentos;
     IQueryable<Asignacion> IApplicationDbContext.Asignaciones => Asignaciones;
@@ -154,5 +156,6 @@ public class CaeManagerDbContext(
         builder.Entity<SubcontrataEmpresa>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<DeteccionTrabajador>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<VisitaTrabajador>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<RevisionIaDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
     }
 }

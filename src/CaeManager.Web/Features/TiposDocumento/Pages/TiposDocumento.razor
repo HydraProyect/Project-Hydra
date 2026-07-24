@@ -6,6 +6,7 @@
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
 @using CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajadoresGlobal
 @using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal
+@using CaeManager.Application.TiposDocumento.Commands.ActualizarVerificacionIaGlobal
 @using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento
 @using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTipoDocumentoPorId
@@ -75,6 +76,7 @@
                     <th>Obligatorio</th>
                     <th>Lectura IA</th>
                     <th>Detecta trabajadores</th>
+                    <th>Verificación IA</th>
                     <th></th>
                 </tr>
             </thead>
@@ -118,6 +120,19 @@
                                 <label class="campo-checkbox" title="Detecta automáticamente altas y bajas de personal comparando este documento (p. ej. ITA, RNT) contra los trabajadores activos de la empresa">
                                     <input type="checkbox" checked="@tipo.DeteccionTrabajadoresActiva" @onchange="e => AlternarDeteccionTrabajadoresAsync(tipo.Id, e.Value is bool activa && activa)" />
                                     @(tipo.DeteccionTrabajadoresActiva ? "Activa" : "Desactivada")
+                                </label>
+                            }
+                            else
+                            {
+                                <span class="texto-vacio-seccion">No aplica</span>
+                            }
+                        </td>
+                        <td>
+                            @if (tipo.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
+                            {
+                                <label class="campo-checkbox" title="Verifica por IA el tipo, fecha de emisión y firma del documento contra lo introducido al subirlo, con confidence score">
+                                    <input type="checkbox" checked="@tipo.VerificacionIaActiva" @onchange="e => AlternarVerificacionIaAsync(tipo.Id, e.Value is bool activa && activa)" />
+                                    @(tipo.VerificacionIaActiva ? "Activa" : "Desactivada")
                                 </label>
                             }
                             else
