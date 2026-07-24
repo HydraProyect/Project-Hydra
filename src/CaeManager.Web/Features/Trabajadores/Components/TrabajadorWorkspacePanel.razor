@@ -12,7 +12,6 @@
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId
 @using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos
 @using CaeManager.Domain.Documentos
-@using CaeManager.Web.Components.Workspace
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
@@ -62,6 +61,14 @@ else
                 {
                     <EstadoCargando Filas="3" />
                 }
+                else if (_errorVehiculos)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar los vehículos" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarVehiculosAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
                 else if (_vehiculos is { Count: 0 })
                 {
                     <EstadoVacio Titulo="Sin vehículos" Descripcion="El empleador de este trabajador no tiene vehículos registrados." />
@@ -73,6 +80,7 @@ else
                         @foreach (var vehiculo in _vehiculos)
                         {
                             <FilaEntidadRelacionada
+                                @key="vehiculo.Id"
                                 Titulo="@($"{vehiculo.Nombre} ({vehiculo.NumeroPlaca})")"
                                 Subtitulo="@vehiculo.Modelo"
                                 OnClic="() => AbrirVehiculoAsync(vehiculo)" />
@@ -109,6 +117,7 @@ else
 
     private IReadOnlyList<VehiculoListaDto>? _vehiculos;
     private bool _cargandoVehiculos;
+    private bool _errorVehiculos;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -116,10 +125,11 @@ else
         {
             _idCargado = EntidadId;
             _vehiculos = null;
+            _errorVehiculos = false;
             await CargarCabeceraAsync();
         }
 
-        if (PestanaActiva == "vehiculos" && _vehiculos is null && !_cargandoVehiculos && _detalle is not null)
+        if (PestanaActiva == "vehiculos" && _vehiculos is null && !_errorVehiculos && !_cargandoVehiculos && _detalle is not null)
             await CargarVehiculosAsync();
     }
 
@@ -144,11 +154,29 @@ else
 
     private async Task CargarVehiculosAsync()
     {
+        var idSolicitado = EntidadId;
+        var empresaId = _detalle!.EmpresaId;
+        var subcontrataId = _detalle.SubcontrataId;
         _cargandoVehiculos = true;
-        var resultado = await Mediator.Send(new ObtenerVehiculosQuery(
-            Busqueda: null, EmpresaId: _detalle!.EmpresaId, SubcontrataId: _detalle.SubcontrataId, TamanoPagina: 50));
-        _vehiculos = resultado.Elementos;
-        _cargandoVehiculos = false;
+        _errorVehiculos = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerVehiculosQuery(
+                Busqueda: null, EmpresaId: empresaId, SubcontrataId: subcontrataId, TamanoPagina: 50));
+            if (idSolicitado == EntidadId)
+                _vehiculos = resultado.Elementos;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorVehiculos = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoVehiculos = false;
+        }
     }
 
     private Task AbrirVehiculoAsync(VehiculoListaDto vehiculo) =>

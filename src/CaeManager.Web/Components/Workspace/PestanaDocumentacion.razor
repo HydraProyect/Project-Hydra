@@ -37,6 +37,7 @@ else
         @foreach (var documento in _documentos)
         {
             <FilaEntidadRelacionada
+                @key="documento.Id"
                 Titulo="@documento.TipoDocumentoNombre"
                 Subtitulo="@($"Vence: {(documento.FechaVencimiento is null ? "—" : documento.FechaVencimiento.Value.ToString("dd/MM/yyyy"))}")"
                 OnClic="() => AbrirDocumentoAsync(documento)">
