@@ -62,12 +62,23 @@
                         <td>@(revision.TipoDetectado ?? "—")</td>
                         <td>@(revision.FechaEmisionDetectada?.ToString("dd/MM/yyyy") ?? "—")</td>
                         <td>@revision.Motivo</td>
-                        <td>
+                        <td class="celda-acciones-revision">
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarPrevisualizacion(revision.DocumentoId)">
+                                @(_documentoIdExpandido == revision.DocumentoId ? "Ocultar documento" : "Ver documento")
+                            </Boton>
                             <Boton Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == revision.Id)" OnClick="() => ResolverAsync(revision.Id)">
                                 Marcar como revisado
                             </Boton>
                         </td>
                     </tr>
+                    @if (_documentoIdExpandido == revision.DocumentoId)
+                    {
+                        <tr class="fila-previsualizacion">
+                            <td colspan="7">
+                                <iframe class="previsualizacion-documento" src="@($"/documentos/{revision.DocumentoId}/archivo")" title="Vista previa del documento"></iframe>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
