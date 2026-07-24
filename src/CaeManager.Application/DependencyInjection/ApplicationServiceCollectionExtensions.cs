@@ -1,6 +1,7 @@
 using System.Reflection;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Verificacion;
+using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Application.Trabajadores.Deteccion;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,10 @@ public static class ApplicationServiceCollectionExtensions
         // Infrastructure porque no toca nada específico de infraestructura.
         services.AddScoped<IDeteccionTrabajadoresService, DeteccionTrabajadoresService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
+
+        // Factory pura (Application) — cada IDocumentAIProvider real se
+        // registra en Infrastructure (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2).
+        services.AddScoped<IDocumentAIProviderFactory, DocumentAIProviderFactory>();
 
         return services;
     }

@@ -1,6 +1,6 @@
 # Arquitectura — Motor de IA Documental multi-proveedor (Gemini + Mistral OCR)
 
-**Estado**: Propuesta de arquitectura, decisiones cerradas con el usuario el 2026-07-24. **Fase 1 (clasificación local) completa** — ver § 3 y `ROADMAP.md`; siguiente paso es la Fase 2 de § 5 (`IDocumentAIProvider` sobre Anthropic para pruebas puntuales). Responde a la petición del usuario de enrutar cada documento al proveedor de IA más barato sin sacrificar precisión, con Gemini 2.5 Flash y Mistral OCR como proveedores futuros. Sigue la disciplina de `CLAUDE.md`: Dominio → Arquitectura → Plataforma → Implementación — este documento cubre las tres primeras.
+**Estado**: Propuesta de arquitectura, decisiones cerradas con el usuario el 2026-07-24. **Fases 1 (clasificación local) y 2 (`IDocumentAIProvider`/Factory/adaptador Anthropic) completas** — ver § 3 y `ROADMAP.md`; siguiente paso es la Fase 3 de § 5 (`DocumentAIRouterService`, los 4 casos + reintento inteligente). Responde a la petición del usuario de enrutar cada documento al proveedor de IA más barato sin sacrificar precisión, con Gemini 2.5 Flash y Mistral OCR como proveedores futuros. Sigue la disciplina de `CLAUDE.md`: Dominio → Arquitectura → Plataforma → Implementación — este documento cubre las tres primeras.
 
 **Decisiones del usuario (2026-07-24)**: (1) el chat "Pregúntale a Hydra" sigue sobre Anthropic sin tocarse — es intercambiable en el futuro, pero no como parte de este trabajo; (2) modelo de credenciales: clave global por ahora (recomendación del asistente, no objetada — ver § 4.1); (3) el coste por página no es un criterio de enrutado en v1, solo un dato de auditoría (ver § 4.2, simplificación aceptada); (4) la localización de páginas relevantes en documentos grandes queda fuera de esta entrega, como fase separada.
 
@@ -54,18 +54,20 @@ public interface IDocumentAIProvider
     Task<Result<ExtraccionEstructuradaDto>> ExtraerEstructuradoAsync(string texto, string tipoEsperado, CancellationToken ct); // estructuración
 }
 
-// Auditoría, no enrutado — ver § 4.2. Cada proveedor calcula su propio
-// coste con sus propias unidades (Gemini por tokens, Mistral OCR por
-// página); no hay un campo de interfaz porque no se compara entre
-// proveedores todavía.
-public record CosteEstimadoDto(decimal Importe, string Moneda, string Unidad);
-
 public record ExtraccionEstructuradaDto(
     string? TipoDetectado, IReadOnlyDictionary<string, string?> Campos,
     int ConfianzaGeneral, string? NotasValidacion);
+
+public interface IDocumentAIProviderFactory
+{
+    Result<IDocumentAIProvider> Resolver(string codigo);
+    IReadOnlyList<IDocumentAIProvider> ObtenerPorCapacidad(CapacidadesProveedorIa capacidad);
+}
 ```
 
-**Decidido con el usuario**: el chat "Pregúntale a Hydra" (`IAsistenteIaService`/`AnthropicAsistenteIaService`) **no se toca** — sigue sobre Anthropic, fuera de este router. `IExtraccionMetadatosDocumentoIaService` (Fase 38, construido esta misma sesión, todavía sin usuarios reales dependiendo de él) sí es candidato directo a que su implementación pase de Anthropic a `DocumentAIRouterService` (Gemini + Mistral) — es exactamente el flujo que motivó esta propuesta. `IExtraccionTrabajadoresIaService` (Fase 36, detección de altas/bajas de personal, en uso) se deja **fuera de esta fase a propósito**: migrarlo también es una extensión natural más adelante, no una decisión que haya que tomar ahora para poder construir el router.
+✅ **Implementado (Fase 2, 2026-07-24)** — sin `CostoEstimadoPorPagina` en la interfaz (queda solo como dato de auditoría, ver § 4.2, y se aborda en la Fase 4). `ObtenerPorCapacidad` (en vez de un simple `ObtenerTodos`) es lo que usará el router en la Fase 3 para preguntar "¿quién sabe hacer OCR?"/"¿quién sabe estructurar?" sin conocer proveedores por nombre. Primer adaptador real: `AnthropicDocumentAIProvider` (`Infrastructure/AsistenteIa/`), único proveedor registrado por ahora — declara **ambas** capacidades (`OcrImagenAEscaneado | ExtraccionEstructurada`) porque, a diferencia del reparto real Mistral/Gemini, Claude sabe hacer las dos cosas; sirve para probar el router completo (Fase 3) antes de tener claves de Gemini/Mistral.
+
+**Decidido con el usuario**: el chat "Pregúntale a Hydra" (`IAsistenteIaService`/`AnthropicAsistenteIaService`) **no se toca** — sigue sobre Anthropic, fuera de este router. `IExtraccionMetadatosDocumentoIaService` (Fase 38, construido esta misma sesión, todavía sin usuarios reales dependiendo de él) sí es candidato directo a que su implementación pase a usar `DocumentAIRouterService` en la Fase 3 — es exactamente el flujo que motivó esta propuesta. `IExtraccionTrabajadoresIaService` (Fase 36, detección de altas/bajas de personal, en uso) se deja **fuera de esta fase a propósito**: migrarlo también es una extensión natural más adelante, no una decisión que haya que tomar ahora para poder construir el router.
 
 ### 2.3 El Router (`DocumentAIRouterService`, Application)
 
@@ -95,7 +97,7 @@ No es un mecanismo nuevo de resiliencia (`ARQUITECTURA-INTEGRACIONES.md` § 6 ya
 | Clasificación digital/escaneado/mixto | ✅ **Completa (Fase 1, 2026-07-24)** — `IClasificadorDocumentoService`/`PdfSharpClasificadorDocumentoService`. **Cambio respecto a la propuesta original**: no se usó `UglyToad.PdfPig` — el paquete disponible en el feed de NuGet de esta sesión resultó sospechoso (solo 2 versiones publicadas, la más reciente `1.7.0-custom-5` con descripción placeholder sin contenido real, mientras que paquetes de control como `Newtonsoft.Json` sí mostraban su historial real completo por el mismo feed). No se instaló. En su lugar se reutilizó `PdfSharp` (ya dependencia del proyecto, historial de versiones normal verificado) y su `ContentReader`: cada página se lee como secuencia de operadores de contenido, y "tiene texto digital" se resuelve comprobando si aparece algún operador de mostrar texto (`Tj`/`TJ`/`'`/`"`) — sin necesitar una librería de extracción de texto dedicada. **Nota para sesiones futuras: no reintentar `UglyToad.PdfPig` sin re-verificar el paquete primero** (comparar historial de versiones y metadatos contra una fuente de confianza). |
 | Localización de páginas relevantes (pólizas de 200+ páginas) | ⬜ Nuevo, pero **explícitamente fuera de esta primera entrega** — pertenece al bloque "Expedientes/documentos grandes" del Issue #19, no a la selección de proveedor. Lo trato como Fase 2 de esta propuesta (§ 7). |
 | Auditoría (proveedor/tiempo/coste/páginas/confianza/incidencias) | ⬜ Nuevo — extiende el patrón "documento enriquecido" del Issue #19: una tabla `AuditoriaExtraccionIa` (o columnas en `RevisionIaDocumento`/nueva tabla ligada 1:1 al Documento) con esos 6 campos, poblada por el orquestador tras cada llamada, con `TenantId` desde el día uno. **El coste es solo un campo registrado, no una entrada de decisión** (ver § 4.2) — cada proveedor lo calcula con su propia unidad de precio (constante configurable en su propio `*Options`, mismo patrón que `AnthropicOptions.MaxTokensRespuesta`), sin tabla ni comparación entre proveedores en v1. |
-| `IDocumentAIProvider` + Factory + capacidades | ⬜ Nuevo, pero es la generalización que `docs/PLATFORM.md` § 4 ya preveía — no una capa añadida "por si acaso". |
+| `IDocumentAIProvider` + Factory + capacidades | ✅ **Completa (Fase 2, 2026-07-24)** — es la generalización que `docs/PLATFORM.md` § 4 ya preveía, no una capa añadida "por si acaso". `DocumentAIProviderFactory` (Application) + `AnthropicDocumentAIProvider` (Infrastructure, único proveedor registrado por ahora). |
 
 ## 4. Decisiones cerradas con el usuario (2026-07-24)
 
@@ -116,9 +118,9 @@ Confirmado: la localización de páginas relevantes en documentos grandes (póli
 ## 5. Siguiente paso propuesto
 
 Con tu confirmación de § 4, la implementación se trocea en:
-1. `IClasificadorDocumentoService` + PdfPig (Infrastructure) — clasificación local, sin llamar a ningún proveedor todavía.
-2. `IDocumentAIProvider` + Factory (Infrastructure) — primer adaptador real sobre Anthropic (clave ya disponible para pruebas puntuales, ver § 4.1); `GeminiDocumentAIProvider`/`MistralOcrDocumentAIProvider` se añaden cuando haya claves reales que probar, sin tocar el router.
-3. `DocumentAIRouterService` (Application) implementando los 4 casos + reintento inteligente, sustituyendo la llamada directa a `IExtraccionMetadatosDocumentoIaService` dentro de `VerificacionIaDocumentoService` por una llamada al router.
-4. Cache por SHA256 + tabla de auditoría.
+1. ✅ `IClasificadorDocumentoService` + PdfSharp (Infrastructure) — clasificación local, sin llamar a ningún proveedor todavía (Fase 39/1, 2026-07-24; ver nota sobre PdfPig en § 3).
+2. ✅ `IDocumentAIProvider` + Factory (Infrastructure) — primer adaptador real sobre Anthropic (Fase 39/2, 2026-07-24); `GeminiDocumentAIProvider`/`MistralOcrDocumentAIProvider` se añaden cuando haya claves reales que probar, sin tocar el router.
+3. ⬜ `DocumentAIRouterService` (Application) implementando los 4 casos + reintento inteligente, sustituyendo la llamada directa a `IExtraccionMetadatosDocumentoIaService` dentro de `VerificacionIaDocumentoService` por una llamada al router.
+4. ⬜ Cache por SHA256 + tabla de auditoría.
 
 Cada uno con su propia verificación (build/tests/E2E) antes de pasar al siguiente, mismo criterio de fases pequeñas que el resto de `ROADMAP.md`.
