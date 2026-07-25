@@ -8,6 +8,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Subcontratas;
+using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Visitas;
@@ -46,4 +47,5 @@ public interface IApplicationDbContext
     IQueryable<RegistroAuditoria> RegistrosAuditoria { get; }
     IQueryable<RequisitoDocumental> RequisitosDocumentales { get; }
     IQueryable<PlataformaAcceso> PlataformasAcceso { get; }
+    IQueryable<Tenant> Tenants { get; }
 }

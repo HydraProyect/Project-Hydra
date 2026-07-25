@@ -8,7 +8,7 @@ namespace CaeManager.Domain.Documentos;
 /// Excel original. Es configuración del sistema, editable solo por
 /// Administrador.
 /// </summary>
-public class TipoDocumento : Entity
+public class TipoDocumento : EntidadConTenant
 {
     public const int LongitudMaximaNombre = 150;
     public const int LongitudMaximaNotas = 500;
