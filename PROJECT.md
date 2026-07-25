@@ -8,7 +8,7 @@ El Excel de referencia (`CAE_KHS_Cuadro_de_Control_2.xlsx`) es el documento fuen
 
 ## A quién sirve
 
-Hydra es un **producto SaaS multi-tenant** (decisión 2026-07-23, `ADR-003-saas-multitenant.md`) para dos perfiles de comprador: **consultoras de PRL** que gestionan la CAE de varias empresas contratistas a la vez, y **empresas contratistas** que gestionan la suya propia. Cada organización compradora es un *tenant* aislado — la frontera absoluta del sistema (ver `docs/MULTITENANCY.md`, con los dos escenarios de negocio desarrollados).
+Hydra es un **producto SaaS multi-tenant** (decisión 2026-07-23, `ADR-003-saas-multitenant.md`) para dos perfiles de comprador: **consultoras de PRL** que gestionan la CAE de varias empresas contratistas a la vez, y **empresas contratistas** que gestionan la suya propia. Cada organización compradora es un *tenant* aislado — la frontera absoluta del sistema (ver `docs/MULTITENANCY.md`, con los dos escenarios de negocio desarrollados). El desarrollo comercial de estos dos perfiles (cualificación, tarifas, canal) es responsabilidad de `docs/business/` — ver `docs/business/ICP.md`.
 
 Estado del despliegue: la instalación actual sirve a una única organización (~10 usuarios simultáneos, perfil PRL / gestión CAE), que pasará a ser el tenant #1 cuando se complete la implementación del aislamiento multi-tenant (en curso, ver `ROADMAP.md`). Arquitectura preparada para crecer en tenants, usuarios, clientes, centros y volumen documental sin rediseño.
 
@@ -70,3 +70,4 @@ El usuario debe poder encontrar cualquier información en menos de tres clics. E
 - `UX_PATTERNS.md` — patrones de interacción y microcopy.
 - `CODING_STANDARDS.md` — convenciones de código.
 - `ROADMAP.md` — fases de entrega y criterios de aceptación.
+- `docs/business/` — documentación de negocio (pricing, ICP, modelo comercial, go-to-market) separada de la documentación técnica.
