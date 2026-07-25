@@ -2,6 +2,8 @@
 
 **Estado**: Diseño de arquitectura. No implementado. Este documento define el sistema de navegación contextual pedido — un panel lateral único e "inteligente" que sustituye el concepto genérico de "Side Workspace" descrito en `PLAN-MASTER-DETAIL-WORKSPACE.md` § 4 por una especificación concreta y con reglas más estrictas. **Este documento sustituye la tabla de pestañas de `PLAN-MASTER-DETAIL-WORKSPACE.md` § 4** por la especificada más abajo (§ 6), que es la autoritativa a partir de ahora.
 
+**Decisiones cerradas con el usuario (2026-07-25)**: cierre automático del panel al navegar a otra pantalla por el menú principal (§ 8.1); Subcontrata sí tiene Context Workspace propio, panel mínimo igual que Empresa (§ 6); Centro/Trabajador → Vehículos se resuelve como vista transitiva vía Empresa/Subcontrata, sin relación de modelo nueva (§ 15); Documento → Versiones se resuelve reutilizando `Auditoria` (misma fuente que Historial) añadiendo `FechaSubida`/`FechaCambio`, sin entidad `VersionDocumento` nueva (§ 15). Sigue abierto: Documento → Validación (§ 15.6).
+
 ---
 
 ## 1. Reglas de diseño (invariantes, no sugerencias)
@@ -95,7 +97,7 @@ public sealed record ContextWorkspaceEntry(
     string PestañaActiva);
 ```
 
-`TipoEntidadContexto` — enum cerrado con exactamente las 6 entidades con Context Workspace (Cliente, Empresa, Centro, Trabajador, Vehiculo, Documento — mismas 8→6 de `PLAN-MASTER-DETAIL-WORKSPACE.md` § 4 menos Subcontrata y Visita, que **no** tienen pestañas en el pedido de este documento; ver nota en § 15).
+`TipoEntidadContexto` — enum cerrado con exactamente las 7 entidades con Context Workspace (Cliente, Empresa, Centro, Trabajador, Vehiculo, Documento, Subcontrata — 8→7 de `PLAN-MASTER-DETAIL-WORKSPACE.md` § 4 menos Visita, que **no** tiene pestañas propias en esta especificación; Subcontrata se incorporó como panel mínimo el 2026-07-25, ver § 6/§ 15).
 
 **Por qué `EtiquetaBreadcrumb` se guarda en la entrada y no se recalcula**: pintar el breadcrumb completo (hasta 4-5 niveles típico: Cliente→Empresa→Centro→Trabajador→Documento) no debe disparar una query por segmento en cada render; se resuelve una vez al hacer el salto (la pantalla que origina la navegación ya tiene el nombre en memoria — viene de la fila de la tabla que el usuario clicó) y se congela en la entrada.
 
@@ -129,12 +131,13 @@ Cada componente de pestaña (`ClienteInformacionTab.razor`, `CentroTrabajadoresT
 |---|---|---|
 | **Cliente** | Información · Empresas · Subcontratas · Documentación · Actividad · Notas | Información = `Cliente` propio. Empresas = `EmpresaCliente` (N:N). Subcontratas = `SubcontrataCliente` (N:N). Documentación = `Documento` con `ClienteId = actual`. Actividad = `Auditoria` filtrada por `EntidadTipo=Cliente, EntidadId=actual` (reutiliza la Query de `/auditoria`, no una nueva). Notas = campo `Cliente.Notas` (string único hoy — ver gap § 15). |
 | **Empresa** | Información · Centros · Documentación · Historial | Información = `Empresa` propio + `CredencialAccesoEmpresa`. Centros = `Centro` con `EmpresaId = actual`. Documentación = `Documento` con `EmpresaId = actual`. Historial = `Auditoria` filtrada por Empresa. |
-| **Centro** | Información · Formularios · Trabajadores · Vehículos · Plataforma · Historial | Información = `Centro` propio. Formularios = `RequisitoDocumental` de este Centro + `TipoDocumentoCentro` (tipos exigidos) — **requiere construir su primer Command/Query, no existe hoy**, ver gap § 15. Trabajadores = `Asignacion` activa con `CentroId = actual` → `Trabajador`. Vehículos = **gap de modelo, ver § 15** (`Vehiculo` no tiene FK a `Centro` hoy). Plataforma = `PlataformaAcceso` (1:1). Historial = `Auditoria` filtrada por Centro. |
-| **Trabajador** | Información · Documentación · Citas · Vehículos · Historial | Información = `Trabajador` propio. Documentación = `Documento` con `TrabajadorId = actual`. Citas = `Visita` vía `VisitaTrabajador` donde `TrabajadorId = actual` (se muestra con la etiqueta "Citas", back con la entidad `Visita` existente — no es una entidad nueva). Vehículos = **gap de modelo, ver § 15**. Historial = `Auditoria` filtrada por Trabajador. |
+| **Centro** | Información · Formularios · Trabajadores · Vehículos · Plataforma · Historial | Información = `Centro` propio. Formularios = `RequisitoDocumental` de este Centro + `TipoDocumentoCentro` (tipos exigidos) — **requiere construir su primer Command/Query, no existe hoy**, ver gap § 15. Trabajadores = `Asignacion` activa con `CentroId = actual` → `Trabajador`. Vehículos = **vista transitiva** (decisión 2026-07-25, § 15): vehículos de la Empresa que opera el Centro, sin relación de modelo nueva. Plataforma = `PlataformaAcceso` (1:1). Historial = `Auditoria` filtrada por Centro. |
+| **Trabajador** | Información · Documentación · Citas · Vehículos · Historial | Información = `Trabajador` propio. Documentación = `Documento` con `TrabajadorId = actual`. Citas = `Visita` vía `VisitaTrabajador` donde `TrabajadorId = actual` (se muestra con la etiqueta "Citas", back con la entidad `Visita` existente — no es una entidad nueva). Vehículos = **vista transitiva** (decisión 2026-07-25, § 15): vehículos de la Empresa/Subcontrata que emplea al Trabajador, sin relación de modelo nueva. Historial = `Auditoria` filtrada por Trabajador. |
 | **Vehículo** | Información · Documentación · Historial | Información = `Vehiculo` propio. Documentación = `Documento` con `VehiculoId = actual`. Historial = `Auditoria` filtrada por Vehículo. |
-| **Documento** | Información · Versiones · Validación · Historial | Información = `Documento` propio + enlace "Ver propietario" (navega al Cliente/Empresa/Trabajador/Vehículo correspondiente según cuál FK esté poblada — `NavegarARelacionadoAsync`). Versiones = **gap de modelo, ver § 15** (`Documento` no tiene historial de versiones de archivo hoy, solo `ArchivoUrl` actual). Validación = **gap de modelo, ver § 15** (no existe un estado de aprobación/validación en el dominio, solo el `EstadoDocumento` calculado por vigencia). Historial = `Auditoria` filtrada por Documento (esta sí existe tal cual). |
+| **Subcontrata** | Información · Trabajadores · Vehículos · Historial | Panel mínimo, análogo a Empresa (decisión 2026-07-25, § 15) — evita que "Subcontratas" en las pestañas de relación de Cliente/Empresa deje un enlace muerto. Información = `Subcontrata` propio + `CredencialAccesoSubcontrata`. Trabajadores = `Trabajador` con `SubcontrataId = actual`. Vehículos = `Vehiculo` con `SubcontrataId = actual` (aquí sí es relación directa, no transitiva). Historial = `Auditoria` filtrada por Subcontrata. |
+| **Documento** | Información · Versiones · Historial | Información = `Documento` propio + enlace "Ver propietario" (navega al Cliente/Empresa/Trabajador/Vehículo correspondiente según cuál FK esté poblada — `NavegarARelacionadoAsync`). Versiones = **resuelto sin entidad nueva ni columna nueva** (decisión 2026-07-25, § 15): `RegistroAuditoria` (`Domain/Auditoria/`) ya guarda `FechaUtc`/`Accion` por cada cambio del interceptor de EF Core — "fecha de subida" es el `FechaUtc` del primer registro (`Accion="Creado"`) y "fecha de cambio" el del más reciente para ese `EntidadId`, ambos derivados de la misma tabla que ya alimenta Historial, sin tocar el esquema. Sigue sin ser un historial de archivos reemplazados (eso seguiría siendo `VersionDocumento`, explícitamente no construido); es una lectura de dos fechas sobre datos que ya existen. Validación = **pendiente de confirmar, ver § 15.6** — no incluida en esta versión del registro hasta cerrarlo. Historial = `Auditoria` filtrada por Documento. |
 
-**Subcontrata y Visita no tienen Context Workspace propio** en esta especificación (no aparecen en la lista pedida) — se llega a ellas únicamente como destino de navegación desde las pestañas de relación de otras entidades (p. ej. "Subcontratas" del Cliente lista subcontratas pero al hacer click, si Subcontrata no tiene su propio panel, el click debe decidirse explícitamente: **opción recomendada** — Subcontrata sí obtiene un Context Workspace mínimo (Información · Trabajadores · Vehículos · Historial, análogo a Empresa) para no dejar un enlace muerto; queda como pregunta abierta a confirmar antes de la Fase Subcontrata (§ 15), no una decisión tomada aquí.
+**Subcontrata y Visita**: Subcontrata ya tiene fila propia arriba (decisión 2026-07-25). Visita sigue sin Context Workspace propio en esta especificación (no aparece en el pedido original) — se llega a ella únicamente como destino de navegación desde la pestaña "Citas" de Trabajador o "Visitas" de Centro.
 
 ---
 
@@ -156,6 +159,14 @@ Tres mecanismos, no uno solo (defensa en profundidad):
 - **Botón "← Volver"** (separado del breadcrumb, junto a la cabecera) → `VolverAsync()`: un nivel exacto, equivalente a click en el penúltimo segmento.
 - **Botón cerrar (×)** en la cabecera → `Cerrar()`: vacía la pila entera, el panel desaparece y el layout vuelve a mostrar solo la lista maestra a ancho completo.
 - La pila **no tiene límite artificial**, pero en la práctica el grafo de entidades (plan anterior § 2) hace improbable pasar de 4-5 niveles (Cliente→Empresa→Centro→Trabajador→Documento es el camino más largo posible).
+
+### 8.1 Cierre automático al cambiar de pantalla (decisión cerrada, 2026-07-25)
+
+El documento original no especificaba qué pasa con el panel si el usuario navega a otra pantalla por el **menú principal** (no por el propio Workspace) mientras hay un Context Workspace abierto — p. ej. viendo el detalle de un Cliente y haciendo click en "Trabajadores" del nav lateral.
+
+**Decisión: el panel se cierra automáticamente.** Cambiar de pantalla por el menú principal es una señal inequívoca de "quiero ver otra cosa" — mantener abierto el detalle de una entidad mientras se navega a una lista no relacionada mezcla contextos y genera ambigüedad sobre a qué entidad se aplican las acciones visibles del panel. Es la misma regla de simplicidad que ya rige el resto del sistema (breadcrumb tipo pila sin "recordar" un forward, § 8).
+
+Mecanismo: `IContextWorkspaceService` se suscribe a `NavigationManager.LocationChanged`. Toda navegación que **no** provenga de una llamada propia del servicio (`AbrirAsync`/`NavegarARelacionadoAsync`/`CambiarPestaña`/`IrAAsync`/`VolverAsync`, todas identificables porque son las únicas que producen el patrón de URL `?ctx=...` descrito en § 10) se trata como "el usuario salió por el menú" y dispara `Cerrar()` antes de que la nueva página termine de renderizar — mismo criterio de "no dejar estado fantasma" que ya aplica al cerrar con Escape o el botón ×.
 
 ---
 
@@ -248,25 +259,34 @@ stateDiagram-v2
 
 ---
 
-## 15. Gaps de modelo de datos detectados (a confirmar antes de implementar, no decisiones tomadas)
+## 15. Gaps de modelo de datos detectados
 
-La especificación de pestañas pedida asume relaciones que **no existen todavía** en el dominio verificado en el plan anterior. Señalarlas ahora evita descubrirlas a mitad de una fase de implementación:
+La especificación de pestañas pedida asumía relaciones que no existían todavía en el dominio verificado en el plan anterior. Se cerraron 6 de los 7 con el usuario el 2026-07-25 (queda 1 abierto, punto 6):
 
-1. **Centro → Vehículos**: `Vehiculo` hoy solo tiene `EmpresaId`/`SubcontrataId`, ninguna FK a `Centro`. La pestaña "Vehículos" de Centro necesita o (a) una nueva relación explícita Centro↔Vehículo, o (b) mostrar transitivamente "vehículos de la Empresa/Subcontrata que opera este Centro" (dato indirecto, no una asignación real). Son productos distintos — decidir con el usuario.
-2. **Trabajador → Vehículos**: mismo problema — `Vehiculo` no se asigna a `Trabajador` en el dominio actual. Igual que el punto 1, requiere decisión de modelo antes de construir esa pestaña.
-3. **Centro → Formularios**: mapea a `RequisitoDocumental`, que **no tiene ningún Command/Query en `Application` todavía** (confirmado en el plan anterior) — la pestaña "Formularios" implica construir esa funcionalidad de cero, no solo una vista nueva de datos existentes.
-4. **Cliente → Notas**: el dominio solo tiene `Cliente.Notas` como un único campo de texto. Si el pedido es una nota simple editable, ya alcanza; si el pedido es un historial de notas con autor/fecha (más parecido a un muro de comentarios), es una entidad nueva (`NotaCliente`) no construida hoy.
-5. **Documento → Versiones**: el dominio guarda un único `ArchivoUrl` vigente por Documento, sin historial de versiones anteriores. Requiere una entidad nueva (`VersionDocumento` o similar) si se quiere un historial real de archivos reemplazados.
-6. **Documento → Validación**: no existe ningún estado de aprobación/revisión en el dominio — solo `EstadoDocumento` (calculado por vigencia: vigente/próximo/urgente/vencido/no aplica). Si "Validación" significa un flujo de aprobación humano (p. ej. Gestor CAE valida que el PDF subido es correcto), es un concepto de dominio nuevo, distinto del cálculo de vigencia existente.
-7. **Subcontrata sin Context Workspace propio**: aparece como destino de navegación desde Cliente/Empresa pero no tiene pestañas especificadas en este pedido — ver recomendación en § 6.
+1. ✅ **Centro → Vehículos** — resuelto: vista transitiva ("vehículos de la Empresa que opera este Centro"), sin relación de modelo nueva. Ver § 6.
+2. ✅ **Trabajador → Vehículos** — mismo criterio que el punto 1: vista transitiva vía la Empresa/Subcontrata que emplea al Trabajador. Ver § 6.
+3. ⬜ **Centro → Formularios**: mapea a `RequisitoDocumental`, que **no tiene ningún Command/Query en `Application` todavía** (confirmado en el plan anterior) — la pestaña "Formularios" implica construir esa funcionalidad de cero, no solo una vista nueva de datos existentes. Sin cerrar — no es una decisión de UX, es alcance de implementación a presupuestar en la Fase 3 (Centro) de `PLAN-MASTER-DETAIL-WORKSPACE.md` § 9.
+4. ✅ **Cliente → Notas** — resuelto: se mantiene el campo único `Cliente.Notas` editable inline con autoguardado (patrón ya permitido en `UX_PATTERNS.md`); no se construye `NotaCliente` como historial con autor/fecha en esta versión.
+5. ✅ **Documento → Versiones** — resuelto sin entidad ni columna nueva: se deriva de `RegistroAuditoria` (`FechaUtc` del primer y del último registro para ese `EntidadId`). Ver § 6.
+6. ⬜ **Documento → Validación** — **sigue abierto**. No existe ningún estado de aprobación/revisión en el dominio — solo `EstadoDocumento` (calculado por vigencia: vigente/próximo/urgente/vencido/no aplica). Si "Validación" significa un flujo de aprobación humano (p. ej. Gestor CAE valida que el PDF subido es correcto), es un concepto de dominio nuevo que se solapa con `VerificacionIaDocumentoService`/`RevisionIaDocumento` (Fase 38) — recomendación pendiente de confirmar: no incluir esta pestaña en el registro de § 6 hasta resolverlo ahí, no aquí.
+7. ✅ **Subcontrata sin Context Workspace propio** — resuelto: Subcontrata sí tiene panel propio, mínimo, análogo a Empresa. Ver § 6.
 
-Ninguno de estos gaps bloquea diseñar la arquitectura (este documento); sí bloquean poder implementar esas pestañas concretas sin antes decidir el modelo de datos correspondiente — se recomienda resolverlos uno a uno según el orden de fases de `PLAN-MASTER-DETAIL-WORKSPACE.md` § 9, no todos de golpe.
+El punto 6 no bloquea diseñar la arquitectura (este documento) ni empezar a implementar las entidades ya resueltas; sí bloquea construir la pestaña Validación de Documento hasta cerrarlo.
 
 ---
 
 ## 16. Qué queda fuera de este documento (aún no implementado, por diseño)
 
 - Código de `IContextWorkspaceService`, componentes `.razor`, o el registro `RegistroPestañasContexto` — son firmas de diseño, no implementación.
-- Resolución de los 7 gaps de § 15.
-- Decisión sobre Subcontrata (§ 6).
+- Documento → Validación (§ 15.6) — único gap sin cerrar.
 - Persistencia de la pila completa en `sessionStorage` (mencionada en § 10 como mejora futura, no de esta versión).
+
+---
+
+## 17. Revisión adicional (2026-07-25) — hallazgos no cubiertos en la versión original
+
+Tres observaciones de diseño detectadas al cerrar el documento con el usuario, no eran gaps de modelo (§ 15) sino de comportamiento/UX no especificado:
+
+1. **Densidad del panel a 480px** (Desktop/Laptop, § 12): las sub-listas dentro de una pestaña de relación (Documentos de un Trabajador, Trabajadores de un Centro...) van a mostrar bastantes menos columnas que las mismas entidades en su lista maestra a pantalla completa — el ancho fijo del panel no da para las mismas columnas que `tabla-datos` hoy. **Recomendación**: definir una variante "compacta" de `tabla-datos` (2-3 columnas clave + badge de estado, sin las columnas secundarias que sí caben en la lista maestra) antes de construir la primera pestaña de relación en la Fase 1 (Trabajador) — de lo contrario cada pestaña improvisa su propio recorte de columnas de forma inconsistente.
+2. **Verificación de alcance al navegar a un relacionado**: `NavegarARelacionadoAsync` puede aterrizar en una entidad fuera de la cartera del usuario actual (p. ej. "Ver propietario" de un Documento cuyo Cliente no está en el alcance de ese usuario — situación posible si el Documento se ve desde una lista con alcance más amplio que el detalle). **Recomendación, no negociable dado `CLAUDE.md`**: cada componente de pestaña de Información debe volver a pasar por `IAlcanceDatosService` al cargar, exactamente igual que ya exige el Issue #18 para las Query `*PorId*` de hoy — si no es visible, la pestaña muestra `EstadoVacio`/mensaje de sin-acceso, nunca los datos. Esto ya estaba implícito en § 5 punto 1 ("con `IAlcanceDatosService` aplicado") pero merece quedar explícito como regla de revisión de código, igual que la de R1 en § 7.
+3. **Breadcrumb en mobile, confirmado**: se confirma la propuesta de § 12 tal cual estaba escrita — colapsar a "← {segmento anterior}" con los niveles superiores accesibles vía un menú "···" (no long-press: no es un gesto descubrible en un producto de administración de datos, la base de usuarios no viene de apps consumer). Deja de ser "a validar en fase de implementación" y pasa a ser la especificación.
