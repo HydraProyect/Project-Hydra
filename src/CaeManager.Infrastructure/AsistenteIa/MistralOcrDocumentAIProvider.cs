@@ -22,13 +22,12 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 /// error controlado, nunca lanza.
 ///
 /// <c>ExtraerEstructuradoAsync</c> NO implementa la función "Document AI"
-/// de Mistral (extracción estructurada por esquema JSON, ver la nota de
-/// Fase 46 en ROADMAP.md) — varias páginas oficiales de Mistral
-/// bloquearon la verificación directa del formato exacto de esa petición
-/// (403) durante la implementación, y no se quiso adivinar un contrato
-/// HTTP no confirmado. Devuelve un fallo controlado explícito; se
-/// completa cuando se pueda verificar el formato real (documentación
-/// accesible o prueba con la clave real).
+/// de Mistral (extracción estructurada por esquema JSON, parámetro
+/// <c>document_annotation_format</c>) — el contrato HTTP ya está verificado
+/// (ver nota de Fase 47 en ROADMAP.md), pero la incompatibilidad es de
+/// firma: Mistral Document AI opera sobre el documento original en bruto,
+/// mientras que <c>ExtraerEstructuradoAsync</c> recibe texto pre-extraído.
+/// Devuelve un fallo controlado explícito.
 /// </summary>
 public class MistralOcrDocumentAIProvider(
     HttpClient httpClient,
@@ -50,11 +49,18 @@ public class MistralOcrDocumentAIProvider(
         }
 
         var esPdf = nombreArchivo.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
-        var mimeType = esPdf ? "application/pdf" : DetectarTipoImagen(contenidoArchivo);
-        var dataUrl = $"data:{mimeType};base64,{Convert.ToBase64String(contenidoArchivo)}";
-        var documento = esPdf
-            ? new DocumentoMistral("document_url", dataUrl, null)
-            : new DocumentoMistral("image_url", null, dataUrl);
+        object documento;
+        if (esPdf)
+        {
+            var dataUrl = $"data:application/pdf;base64,{Convert.ToBase64String(contenidoArchivo)}";
+            documento = new DocumentoPdfMistral("document_url", dataUrl);
+        }
+        else
+        {
+            var mimeType = DetectarTipoImagen(contenidoArchivo);
+            var dataUrl = $"data:{mimeType};base64,{Convert.ToBase64String(contenidoArchivo)}";
+            documento = new DocumentoImagenMistral("image_url", new ImagenUrlDetalleMistral("image_url", dataUrl));
+        }
 
         using var peticion = new HttpRequestMessage(HttpMethod.Post, "https://api.mistral.ai/v1/ocr")
         {
@@ -90,7 +96,7 @@ public class MistralOcrDocumentAIProvider(
         }
     }
 
-    /// <summary>Ver el comentario de clase: la extracción estructurada de Mistral ("Document AI") no se implementó por no poder verificar su contrato HTTP exacto — no se activa (§ Capacidades) y aquí devuelve un fallo explícito si algo llegara a invocarla igualmente.</summary>
+    /// <summary>Ver el comentario de clase: Mistral Document AI opera sobre el documento original en bruto, no sobre texto pre-extraído — la incompatibilidad es de firma, no de contrato HTTP. No se activa (§ Capacidades); devuelve un fallo explícito si algo llegara a invocarla igualmente.</summary>
     public Task<Result<ExtraccionEstructuradaDto>> ExtraerEstructuradoAsync(
         string texto, string tipoEsperado, CancellationToken cancellationToken = default) =>
         Task.FromResult(Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear(
@@ -107,12 +113,21 @@ public class MistralOcrDocumentAIProvider(
 
     private sealed record SolicitudOcrMistral(
         [property: JsonPropertyName("model")] string Model,
-        [property: JsonPropertyName("document")] DocumentoMistral Document);
+        [property: JsonPropertyName("document")] object Document);
 
-    private sealed record DocumentoMistral(
+    // DocumentURLChunk: { "type": "document_url", "document_url": "<data-uri>" }
+    private sealed record DocumentoPdfMistral(
         [property: JsonPropertyName("type")] string Type,
-        [property: JsonPropertyName("document_url")] string? DocumentUrl,
-        [property: JsonPropertyName("image_url")] string? ImageUrl);
+        [property: JsonPropertyName("document_url")] string DocumentUrl);
+
+    // ImageURLChunk: { "type": "image_url", "image_url": { "type": "image_url", "url": "<data-uri>" } }
+    private sealed record DocumentoImagenMistral(
+        [property: JsonPropertyName("type")] string Type,
+        [property: JsonPropertyName("image_url")] ImagenUrlDetalleMistral ImageUrl);
+
+    private sealed record ImagenUrlDetalleMistral(
+        [property: JsonPropertyName("type")] string Type,
+        [property: JsonPropertyName("url")] string Url);
 
     private sealed record RespuestaOcrMistral([property: JsonPropertyName("pages")] IReadOnlyList<PaginaMistral>? Pages);
 
