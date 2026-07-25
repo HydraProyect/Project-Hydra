@@ -40,6 +40,7 @@ public class CaeManagerDbContext(
     public DbSet<Cliente> Clientes => Set<Cliente>();
     public DbSet<Centro> Centros => Set<Centro>();
     public DbSet<PlataformaAcceso> PlataformasAcceso => Set<PlataformaAcceso>();
+    IQueryable<PlataformaAcceso> IApplicationDbContext.PlataformasAcceso => PlataformasAcceso;
     public DbSet<Empresa> Empresas => Set<Empresa>();
     public DbSet<EmpresaCliente> EmpresasClientes => Set<EmpresaCliente>();
     public DbSet<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Set<CredencialAccesoEmpresa>();
@@ -59,6 +60,7 @@ public class CaeManagerDbContext(
     public DbSet<VisitaTrabajador> VisitasTrabajadores => Set<VisitaTrabajador>();
     public DbSet<Vehiculo> Vehiculos => Set<Vehiculo>();
     public DbSet<RequisitoDocumental> RequisitosDocumentales => Set<RequisitoDocumental>();
+    IQueryable<RequisitoDocumental> IApplicationDbContext.RequisitosDocumentales => RequisitosDocumentales;
     public DbSet<Alerta> Alertas => Set<Alerta>();
     public DbSet<ParametroSistema> ParametrosSistema => Set<ParametroSistema>();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
