@@ -134,10 +134,27 @@ public static class InfrastructureServiceCollectionExtensions
         // implementación directa de Anthropic aquí — RouterExtraccionMetadatosDocumentoIaService
         // (Application) la satisface delegando en IDocumentAIRouterService,
         // registrada en ApplicationServiceCollectionExtensions.
-        // IDocumentAIProvider: registro por interfaz general, no un typed
-        // client dedicado — así IEnumerable<IDocumentAIProvider> recoge
-        // todos los proveedores (Gemini/Mistral después) para la Factory
-        // (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2).
+        //
+        // IDocumentAIProvider: registro por interfaz general (no un typed
+        // client dedicado) — así IEnumerable<IDocumentAIProvider> recoge
+        // todos los proveedores para la Factory (ver
+        // docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2). El ORDEN de estos
+        // registros importa: DocumentAIProviderFactory.ObtenerPorCapacidad
+        // conserva el orden de registro, y DocumentAIRouterService usa el
+        // primero de la lista como proveedor OCR sin reintento (a
+        // diferencia de la extracción estructurada, que sí reintenta con
+        // el segundo si el primero da poca confianza — ver Fase 41). Por
+        // eso Mistral (proveedor OCR especializado, registrado primero) se
+        // usa antes que Anthropic para OCR, mientras que para extracción
+        // estructurada Anthropic sigue siendo el primario (Fase 38-40,
+        // antes de tener claves reales) y Gemini el candidato de
+        // reintento — cambiar cuál es "primario" para estructuración es
+        // una decisión de benchmark, no algo que se cambie por tener una
+        // clave nueva (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1).
+        services.Configure<MistralOcrOptions>(configuration.GetSection(MistralOcrOptions.SeccionConfiguracion));
+        services.AddHttpClient<MistralOcrDocumentAIProvider>();
+        services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<MistralOcrDocumentAIProvider>());
+
         services.AddHttpClient<AnthropicDocumentAIProvider>();
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<AnthropicDocumentAIProvider>());
 
