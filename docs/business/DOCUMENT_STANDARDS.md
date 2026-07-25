@@ -71,7 +71,7 @@ El campo **Estado** de cada documento *es* la señal de qué tan normativo es su
 
 - **Tablas**: formato Markdown estándar (`| Columna | Columna |`), cabeceras en español, una fila por concepto. Se prefieren a listas largas cuando hay más de dos atributos por elemento (ver el uso ya establecido en `PROJECT.md` § "Glosario de dominio" y en `docs/PLATFORM.md` § 3 "Catálogo del kernel").
 - **Diagramas**: se evitan salvo que aporten algo que una tabla no pueda mostrar (jerarquías, flujos). Cuando hagan falta, se usa un árbol en bloque de código con caracteres ASCII (`├──`, `└──`, `│`), el mismo estilo que ya usa `docs/PLATFORM.md` § 1 — no herramientas externas ni imágenes, para que el diagrama viva y se versione como el resto del texto plano del repositorio.
-- **Glosario**: todo término con entrada en `docs/business/GLOSSARY.md` se usa tal cual está definido allí. Ningún documento de `docs/business/` (ni, idealmente, técnico) redefine un término localmente. Si un documento necesita matizar un término para su contexto concreto, enlaza a la entrada (`GLOSSARY.md#término`) y añade la matización como nota aparte — nunca como una definición alternativa que compita con la oficial.
+- **Lenguaje ubicuo**: todo término con entrada en `docs/business/UBIQUITOUS_LANGUAGE.md` se usa tal cual está definido allí. Ningún documento de `docs/business/` (ni, idealmente, técnico) redefine un término localmente. Si un documento necesita matizar un término para su contexto concreto, enlaza a la entrada (`UBIQUITOUS_LANGUAGE.md#término`) y añade la matización como nota aparte — nunca como una definición alternativa que compita con la oficial.
 
 ## 8. Aplicación retroactiva
 
@@ -81,5 +81,5 @@ Los 11 documentos temáticos ya creados en `docs/business/` siguen ya esta plant
 
 - `README.md` — índice de la carpeta; referencia esta guía en vez de repetir su contenido.
 - `DECISION_LOG.md` — registro de decisiones, formato de entrada.
-- `GLOSSARY.md` — vocabulario oficial de términos de negocio.
+- `UBIQUITOUS_LANGUAGE.md` — lenguaje ubicuo oficial de negocio.
 - `CLAUDE.md` — reglas de trabajo generales del repositorio, incluida la disciplina Dominio → Arquitectura → Plataforma → Implementación con la que esta guía se mantiene coherente.
