@@ -26,6 +26,7 @@ public class VerificacionIaDocumentoService(
     IFileStorageService almacenamiento,
     IExtraccionMetadatosDocumentoIaService extraccion,
     IRevisionIaDocumentoRepository revisionRepositorio,
+    IAprobacionDocumentoRepository aprobacionRepositorio,
     IUnitOfWork unitOfWork,
     ILogger<VerificacionIaDocumentoService> logger) : IVerificacionIaDocumentoService
 {
@@ -78,7 +79,11 @@ public class VerificacionIaDocumentoService(
         var motivos = ComputarMotivos(documento, extraido);
 
         if (motivos.Count == 0)
+        {
+            aprobacionRepositorio.Agregar(AprobacionDocumento.CrearAutomatica(documentoId, extraido.ConfianzaGeneral));
+            await unitOfWork.SaveChangesAsync(cancellationToken);
             return;
+        }
 
         var revision = RevisionIaDocumento.Crear(
             documentoId, extraido.ConfianzaGeneral, extraido.TipoDetectado,
