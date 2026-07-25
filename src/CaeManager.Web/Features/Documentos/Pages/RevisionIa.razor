@@ -1,0 +1,86 @@
+@page "/documentos/revision-ia"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento
+@using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<PageTitle>Revisión IA — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Revisión IA</h1>
+    </div>
+
+    <p class="descripcion-roles">
+        Documentos de trabajador donde la verificación automática por IA detectó confianza baja o una
+        discrepancia con lo introducido al subirlos. Revisa cada caso — nada se corrige automáticamente.
+    </p>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las revisiones" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_revisiones.Count == 0)
+    {
+        <EstadoVacio Titulo="Sin revisiones pendientes" Descripcion="No hay documentos de trabajador pendientes de revisión IA." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Trabajador</th>
+                    <th>Tipo de documento</th>
+                    <th>Confianza</th>
+                    <th>Tipo detectado</th>
+                    <th>Fecha emisión detectada</th>
+                    <th>Motivo</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var revision in _revisiones)
+                {
+                    <tr>
+                        <td>@revision.TrabajadorNombre</td>
+                        <td>@revision.TipoDocumentoNombre</td>
+                        <td>
+                            <Badge Tono="@TonoConfianza(revision.ConfianzaGeneral)">@revision.ConfianzaGeneral%</Badge>
+                        </td>
+                        <td>@(revision.TipoDetectado ?? "—")</td>
+                        <td>@(revision.FechaEmisionDetectada?.ToString("dd/MM/yyyy") ?? "—")</td>
+                        <td>@revision.Motivo</td>
+                        <td class="celda-acciones-revision">
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarPrevisualizacion(revision.DocumentoId)">
+                                @(_documentoIdExpandido == revision.DocumentoId ? "Ocultar documento" : "Ver documento")
+                            </Boton>
+                            <Boton Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == revision.Id)" OnClick="() => ResolverAsync(revision.Id)">
+                                Marcar como revisado
+                            </Boton>
+                        </td>
+                    </tr>
+                    @if (_documentoIdExpandido == revision.DocumentoId)
+                    {
+                        <tr class="fila-previsualizacion">
+                            <td colspan="7">
+                                <iframe class="previsualizacion-documento" src="@($"/documentos/{revision.DocumentoId}/archivo")" title="Vista previa del documento"></iframe>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    }
+</div>

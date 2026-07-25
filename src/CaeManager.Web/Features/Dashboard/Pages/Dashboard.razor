@@ -35,6 +35,39 @@
         @if (_mostrarDocumentosAtencion && _desglose is not null)
         {
             <div class="rejilla-desglose">
+                @if (_estadisticasAprobacion is not null)
+                {
+                    <Tarjeta Titulo="Gestiones automáticas vs manuales">
+                        @if (TotalAprobaciones == 0)
+                        {
+                            <p class="texto-vacio-seccion">Todavía no hay documentos verificados por IA.</p>
+                        }
+                        else
+                        {
+                            <div class="barra-comparativa" role="img" aria-label="@($"{PorcentajeAutomatica}% de las gestiones fueron automáticas, {PorcentajeManual}% manuales")">
+                                @if (PorcentajeAutomatica > 0)
+                                {
+                                    <div class="barra-comparativa-segmento barra-comparativa-automatica" style="width:@(PorcentajeAutomatica)%"></div>
+                                }
+                                @if (PorcentajeManual > 0)
+                                {
+                                    <div class="barra-comparativa-segmento barra-comparativa-manual" style="width:@(PorcentajeManual)%"></div>
+                                }
+                            </div>
+                            <ul class="barra-comparativa-leyenda">
+                                <li class="barra-comparativa-item">
+                                    <span class="barra-comparativa-punto barra-comparativa-automatica"></span>
+                                    Automáticas — @_estadisticasAprobacion.Automaticas (@PorcentajeAutomatica%)
+                                </li>
+                                <li class="barra-comparativa-item">
+                                    <span class="barra-comparativa-punto barra-comparativa-manual"></span>
+                                    Manuales — @_estadisticasAprobacion.Manuales (@PorcentajeManual%)
+                                </li>
+                            </ul>
+                        }
+                    </Tarjeta>
+                }
+
                 <Tarjeta Titulo="Documentos que requieren atención">
                     @if (_desglose.DocumentosAtencion.Count == 0)
                     {
