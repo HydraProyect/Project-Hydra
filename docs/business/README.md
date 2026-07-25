@@ -25,7 +25,7 @@ Una decisión técnica puede *depender* de una decisión de negocio (ej. "el pla
 Antes de escribir o editar cualquier documento de esta carpeta, dos referencias obligatorias:
 
 - **`DOCUMENT_STANDARDS.md`** — la guía editorial: plantilla de cada documento, vocabulario de estado (`Draft`/`In Progress`/`Approved`/`Deprecated`), cómo registrar decisiones, qué es normativo frente a exploratorio, cómo referenciar ADR y documentos técnicos, y convenciones de tablas/diagramas/glosario. Es el único lugar donde se define esa plantilla — este índice no la repite.
-- **`GLOSSARY.md`** — el vocabulario oficial de términos de negocio (Tenant, Consultora, Plan, Add-on...). Ningún documento redefine un término que ya tenga entrada allí.
+- **`UBIQUITOUS_LANGUAGE.md`** — el lenguaje ubicuo oficial de negocio (Tenant, Cliente Directo, Cliente Delegante, Delegated Workspace, Plan, Add-on...). Ningún documento redefine un término que ya tenga entrada allí.
 
 ## Orden de lectura recomendado
 
@@ -72,6 +72,6 @@ El modelo de negocio es la raíz: el ICP nace de él (a quién le sirve ese mode
 
 - Esta carpeta es la fuente oficial de toda decisión comercial. Ningún otro documento del repositorio debe definir pricing, planes, unit economics, ICP, competencia o roadmap comercial — debe referenciar el documento correspondiente aquí.
 - No se duplica contenido entre documentos de esta carpeta ni se copia contenido de documentos técnicos existentes. Si un documento técnico ya contiene información de negocio, se añade aquí (o allí) una referencia cruzada, nunca una copia.
-- Todo documento temático nuevo sigue la plantilla de `DOCUMENT_STANDARDS.md` § 2, y todo término de negocio nuevo se da de alta en `GLOSSARY.md` antes de usarse en más de un documento.
+- Todo documento temático nuevo sigue la plantilla de `DOCUMENT_STANDARDS.md` § 2, y todo término de negocio nuevo se da de alta en `UBIQUITOUS_LANGUAGE.md` antes de usarse en más de un documento.
 - Ningún documento de negocio decide por sí solo cambios de arquitectura, dominio o cumplimiento normativo (RGPD/LOPDGDD, DPA, términos de uso) — esas decisiones siguen las reglas de `CLAUDE.md` y requieren confirmación explícita del propietario del producto y, cuando aplique, revisión legal.
 - Ver `CLAUDE.md` para las reglas de trabajo generales del repositorio y `docs/PLATFORM.md` para dónde encaja "negocio" frente a "kernel de plataforma" y "módulo de dominio".

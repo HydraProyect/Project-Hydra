@@ -1,7 +1,7 @@
 # DECISION_LOG — Registro de decisiones de negocio de Hydra
 
 **Tipo**: Estratégico (registro transversal — no es un documento temático como los demás, es el historial de decisiones que los alimenta a todos)
-**Estado**: Draft — estructura creada, sin decisiones registradas todavía.
+**Estado**: In Progress — primera decisión registrada.
 **Propósito**: Ser el equivalente de negocio de los ADR técnicos (`ADR-001-multitenant.md`, `ADR-002-single-tenant.md`, `ADR-003-saas-multitenant.md`): un registro cronológico e inmutable de decisiones de negocio ya tomadas, con su motivo, las alternativas descartadas y su impacto. Cuando dentro de un año alguien dude por qué una decisión comercial se tomó de una manera y no de otra, este documento es la respuesta — igual que los ADR lo son hoy para la arquitectura técnica.
 
 ## Qué pertenece aquí
@@ -35,7 +35,23 @@ Una entrada nunca se edita para cambiar lo que se decidió en su momento — si 
 
 ## Entradas
 
-_Sin decisiones registradas todavía. La primera entrada se añade cuando el propietario del producto confirme la primera decisión formal de negocio._
+## 2026-07-25 — Resolución de tres colisiones de nombre en el lenguaje de negocio
+
+**Decisión**: Se resuelven las tres colisiones de nombre detectadas al construir `GLOSSARY.md` (renombrado en el mismo cambio a `UBIQUITOUS_LANGUAGE.md`):
+1. El concepto de negocio de "una consultora operando en nombre de una empresa gestionada" se nombra **Delegated Workspace** — nunca "Workspace" a secas.
+2. Se descarta "Cliente Final"; la familia de términos pasa a ser **Cliente** (cualquier organización que contrata Hydra) / **Cliente Directo** (gestiona su propia operación) / **Cliente Delegante** (delega en una Consultora).
+3. Se descarta "Coordinador CAE" como rol de autorización nuevo; el concepto se resuelve reconociendo dos ejes distintos — **cargo organizativo** de negocio (Draft: Director Consultora, Responsable de Operaciones, Líder de Equipo, Gestor CAE) frente a **rol de autorización** del sistema (ya implementado: Administrador, Supervisor, Ejecutivo CAE, Consulta) — sin renombrar ningún rol ya implementado en código.
+
+**Motivo**: Los tres términos originales colisionaban con conceptos ya existentes en el repositorio (el "Workspace" técnico de `PLAN-CONTEXT-WORKSPACE.md`, el "Cliente" de dominio de `PROJECT.md`, y el rol de autorización "Ejecutivo CAE"). Introducirlos sin resolver la colisión habría reproducido en la documentación de negocio el mismo problema que esta carpeta existe para evitar: dos documentos usando nombres distintos para lo mismo, o el mismo nombre para dos cosas distintas.
+
+**Alternativas descartadas**:
+- Para el Workspace de negocio: "Operating Workspace", "Business Workspace", "Organization Workspace", "Client Workspace" — descartadas por ser menos precisas que "Delegated Workspace" para el caso de uso real (una consultora actuando en nombre de un cliente).
+- Mantener "Cliente Final" como término aparte de "Cliente" — descartado por riesgo de confusión adicional con "usuario final" sin aportar un matiz que "Cliente Delegante"/"Cliente Directo" no cubran ya.
+- Renombrar el rol de autorización implementado "Ejecutivo CAE" a "Gestor CAE" o "Coordinador CAE" — descartado: es un cambio de código (ASP.NET Core Identity), no una decisión de vocabulario de negocio, y no lo pedía la tarea. "Gestor CAE" queda como cargo organizativo de negocio, en un eje distinto del rol de autorización.
+
+**Impacto**: `docs/business/GLOSSARY.md` renombrado a `docs/business/UBIQUITOUS_LANGUAGE.md` (mismo propósito, encuadre DDD). Términos **Cliente**, **Cliente Directo**, **Cliente Delegante** y **Delegated Workspace** pasan a `Approved` en ese documento. Se añade la distinción cargo organizativo / rol de autorización, con una lista `Draft` de cargos pendiente de confirmar en `BUSINESS_ARCHITECTURE.md`. Ningún cambio de código ni de roles ya implementados.
+
+**Estado**: Vigente
 
 ## Documentos relacionados
 
