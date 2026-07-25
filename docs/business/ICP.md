@@ -1,7 +1,7 @@
 # ICP — Perfil de Cliente Ideal (Ideal Customer Profile) de Hydra
 
 **Tipo**: Estratégico
-**Estado**: Placeholder — sin contenido desarrollado todavía.
+**Estado**: Draft — sin contenido desarrollado todavía.
 **Propósito**: Formalizar, desde el ángulo comercial, quién compra Hydra — desarrollando con criterios de cualificación los dos perfiles de comprador ya nombrados en la documentación de producto y técnica (`PROJECT.md` § "A quién sirve", `docs/MULTITENANCY.md` § 2 "Escenarios de negocio"): consultoras de PRL y empresas contratistas.
 
 ## Qué pertenece aquí

@@ -1,7 +1,7 @@
 # PRICING — Planes y tarifas de Hydra
 
 **Tipo**: Operativo
-**Estado**: Placeholder — sin contenido desarrollado todavía. No hay planes ni precios confirmados.
+**Estado**: Draft — sin contenido desarrollado todavía. No hay planes ni precios confirmados.
 **Propósito**: Documentar los planes comerciales concretos de Hydra y sus tarifas — la traducción operativa de `BUSINESS_MODEL.md` en algo que un cliente puede comprar. Es la fuente oficial para cualquier límite de plan que la plataforma técnica necesite consultar (ver el esbozo de `Licensing` en `docs/PLATFORM.md` § 4).
 
 ## Qué pertenece aquí

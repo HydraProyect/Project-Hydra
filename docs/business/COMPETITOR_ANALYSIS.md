@@ -1,7 +1,7 @@
 # COMPETITOR_ANALYSIS — Análisis de competidores de Hydra
 
 **Tipo**: Operativo
-**Estado**: Placeholder — sin contenido desarrollado todavía.
+**Estado**: Draft — sin contenido desarrollado todavía.
 **Propósito**: Mapear a los competidores directos e indirectos de Hydra en el mercado de gestión de Coordinación de Actividades Empresariales (CAE), y documentar cómo se posiciona Hydra frente a ellos.
 
 ## Qué pertenece aquí
