@@ -9,7 +9,7 @@ namespace CaeManager.Domain.Empresas;
 /// diferencia de Asignacion): desvincular es una baja física, no un soft
 /// delete ni una fecha de baja.
 /// </summary>
-public class EmpresaCliente : Entity
+public class EmpresaCliente : EntidadConTenant
 {
     public Guid EmpresaId { get; private set; }
     public Guid ClienteId { get; private set; }

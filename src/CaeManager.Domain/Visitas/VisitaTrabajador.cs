@@ -8,7 +8,7 @@ namespace CaeManager.Domain.Visitas;
 /// delete. Una Visita puede implicar a varios Trabajadores (un equipo que
 /// entra junto al Centro).
 /// </summary>
-public class VisitaTrabajador : Entity
+public class VisitaTrabajador : EntidadConTenant
 {
     public Guid VisitaId { get; private set; }
     public Guid TrabajadorId { get; private set; }

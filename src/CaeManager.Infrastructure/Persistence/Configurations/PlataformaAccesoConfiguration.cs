@@ -18,6 +18,6 @@ public class PlataformaAccesoConfiguration : IEntityTypeConfiguration<Plataforma
         // El cifrado de Usuario/Contrasena se configura en CaeManagerDbContext.OnModelCreating,
         // porque necesita el IDataProtector inyectado en el propio DbContext.
 
-        builder.HasIndex(p => p.CentroId).IsUnique();
+        builder.HasIndex(p => new { p.TenantId, p.CentroId }).IsUnique();
     }
 }

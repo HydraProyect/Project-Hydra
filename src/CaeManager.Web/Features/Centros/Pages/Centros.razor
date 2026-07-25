@@ -45,7 +45,7 @@
                 <PropertyColumn Property="@(c => c.EmpresaRazonSocial)" Title="Empresa" />
                 <PropertyColumn Property="@(c => c.CodigoCentro)" Title="Código" />
                 <TemplateColumn Title="Acciones" Align="Align.End">
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.Id, context.Nombre, "informacion")">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.Id, context.Nombre, "informacion")'>
                         Ver
                     </Boton>
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
