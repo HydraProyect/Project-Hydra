@@ -1,7 +1,7 @@
 # GO_TO_MARKET — Estrategia de salida al mercado de Hydra
 
 **Tipo**: Estratégico
-**Estado**: Placeholder — sin contenido desarrollado todavía.
+**Estado**: Draft — sin contenido desarrollado todavía.
 **Propósito**: Definir cómo Hydra llega a sus clientes objetivo — canales de adquisición, estrategia de lanzamiento y mensajes de posicionamiento — una vez definido a quién se dirige (`ICP.md`) y qué se le vende (`BUSINESS_MODEL.md`, `PRICING.md`).
 
 ## Qué pertenece aquí

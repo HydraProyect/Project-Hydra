@@ -1,7 +1,7 @@
 # ROADMAP_BUSINESS — Roadmap comercial de Hydra
 
 **Tipo**: Operativo
-**Estado**: Placeholder — sin contenido desarrollado todavía.
+**Estado**: Draft — sin contenido desarrollado todavía.
 **Propósito**: Calendario de hitos comerciales de Hydra (lanzamiento comercial, primeros tenants de pago, apertura de canal partner, expansión de segmento) — distinto de `ROADMAP.md`, que ordena las fases de **construcción técnica** del producto por dependencia de dominio.
 
 ## Qué pertenece aquí

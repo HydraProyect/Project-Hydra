@@ -1,7 +1,7 @@
 # PROFESSIONAL_SERVICES — Servicios profesionales de Hydra
 
 **Tipo**: Operativo
-**Estado**: Placeholder — sin contenido desarrollado todavía.
+**Estado**: Draft — sin contenido desarrollado todavía.
 **Propósito**: Catalogar los servicios que Hydra vende además de la licencia SaaS — onboarding, migración de datos del cliente, formación, soporte premium, desarrollos a medida — y cómo se tarifican.
 
 ## Qué pertenece aquí

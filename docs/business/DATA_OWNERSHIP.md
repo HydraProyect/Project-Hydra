@@ -1,7 +1,7 @@
 # DATA_OWNERSHIP — Propiedad y portabilidad de los datos por tenant
 
 **Tipo**: Estratégico
-**Estado**: Placeholder — sin contenido desarrollado todavía.
+**Estado**: Draft — sin contenido desarrollado todavía.
 **Propósito**: Definir, desde el ángulo comercial y contractual, de quién son los datos que un tenant introduce en Hydra, qué puede hacer Hydra con ellos, y qué ocurre con ellos si el tenant cancela — el argumento de confianza que se comunica a clientes potenciales y la base de negocio sobre la que se redactan el DPA y los Términos de Uso mencionados en `ADR-003-saas-multitenant.md`.
 
 ## Qué pertenece aquí

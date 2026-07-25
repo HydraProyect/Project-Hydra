@@ -1,7 +1,7 @@
 # PRODUCT_STRATEGY — Estrategia de producto de Hydra
 
 **Tipo**: Estratégico
-**Estado**: Placeholder — sin contenido desarrollado todavía.
+**Estado**: Draft — sin contenido desarrollado todavía.
 **Propósito**: Definir, desde el ángulo de negocio, hacia dónde evoluciona el producto Hydra a medio/largo plazo — qué módulos o capacidades futuras se priorizan y por qué, en función de la estrategia comercial y competitiva, no solo de la viabilidad técnica.
 
 ## Qué pertenece aquí

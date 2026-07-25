@@ -1,7 +1,7 @@
 # docs/business — Documentación de negocio de Hydra
 
 **Tipo**: Índice
-**Estado**: Estructura creada (2026-07-25), contenido pendiente de desarrollo. Ningún documento de esta carpeta tiene todavía decisiones de negocio confirmadas.
+**Estado**: Draft — estructura creada (2026-07-25), contenido pendiente de desarrollo. Ningún documento de esta carpeta tiene todavía decisiones de negocio confirmadas.
 
 ## Por qué existe esta carpeta
 
@@ -20,18 +20,33 @@ Hydra tiene, desde `ADR-003-saas-multitenant.md`, un objetivo comercial explíci
 
 Una decisión técnica puede *depender* de una decisión de negocio (ej. "el plan Starter permite hasta 5 Centros" depende de `PRICING.md`), pero el documento técnico no debe contener la cifra ni la regla comercial — solo una referencia. Ver `CLAUDE.md` § "Disciplina de decisión para cambios de arquitectura": Dominio → Arquitectura → Plataforma → Implementación. La documentación de negocio precede y alimenta ese orden desde fuera; no es un peldaño más de la misma escalera técnica.
 
+## Vocabulario de estado
+
+Cada documento declara su **Estado** con uno de estos cuatro valores — el mismo criterio que hace falta cuando esta carpeta pase de 12 a 40-50 documentos y ya no sea obvio cuál es la fuente de verdad vigente:
+
+| Estado | Significa |
+|---|---|
+| **Draft** | En redacción. El contenido, si existe, no está confirmado y puede cambiar sustancialmente. Es el estado de partida de todo documento nuevo — hoy lo son los 11 documentos temáticos de esta carpeta. |
+| **In Progress** | En desarrollo activo. Incompleto, pero ya usable como referencia parcial — algunas secciones están decididas, otras no. |
+| **Approved** | Aprobado por el propietario del producto/negocio. Es la fuente de verdad vigente para ese tema; cualquier documento técnico que lo referencie puede asumir su contenido como decidido. |
+| **Deprecated** | Superseded o ya no vigente. Se conserva como registro histórico, igual que `ADR-002-single-tenant.md` en el lado técnico — nunca se borra, se marca. |
+
+Un documento solo pasa a `Approved` cuando el propietario del producto lo confirma explícitamente — igual que las decisiones de cumplimiento normativo de `CLAUDE.md`, no es una decisión que un cambio de código pueda dar por hecha.
+
 ## Orden de lectura recomendado
 
-1. **`ICP.md`** — a quién vendemos. Todo lo demás depende de esto.
-2. **`BUSINESS_MODEL.md`** — cómo genera ingresos Hydra a partir de ese ICP.
-3. **`BUSINESS_ARCHITECTURE.md`** — cómo se organiza comercialmente lo anterior (segmentos, canales de venta, relación consultora ↔ contratista).
-4. **`PRICING.md`** — traducción del modelo de negocio en planes y tarifas concretas.
-5. **`UNIT_ECONOMICS.md`** — si los números del pricing funcionan (CAC, LTV, márgenes).
-6. **`PROFESSIONAL_SERVICES.md`** — qué se vende además de la licencia (onboarding, migración, soporte premium).
-7. **`DATA_OWNERSHIP.md`** — de quién son los datos de cada tenant y qué implica contractualmente.
-8. **`GO_TO_MARKET.md`** — cómo se lleva todo lo anterior al mercado.
-9. **`COMPETITOR_ANALYSIS.md`** — frente a quién competimos y con qué ventaja.
-10. **`PRODUCT_STRATEGY.md`** — hacia dónde evoluciona el producto para sostener la estrategia comercial.
+El modelo de negocio es la raíz: el ICP nace de él (a quién le sirve ese modelo), no al revés.
+
+1. **`BUSINESS_MODEL.md`** — cómo genera ingresos Hydra: qué se vende, a quién y bajo qué lógica. La raíz de la que derivan el resto de documentos.
+2. **`ICP.md`** — a quién se dirige ese modelo de negocio, con criterios de cualificación concretos.
+3. **`PRODUCT_STRATEGY.md`** — hacia dónde evoluciona el producto para sostener ese modelo frente al ICP identificado.
+4. **`BUSINESS_ARCHITECTURE.md`** — cómo se organiza comercialmente lo anterior (segmentos, canales de venta, relación consultora ↔ contratista).
+5. **`PRICING.md`** — traducción del modelo de negocio en planes y tarifas concretas.
+6. **`UNIT_ECONOMICS.md`** — si los números del pricing funcionan (CAC, LTV, márgenes).
+7. **`PROFESSIONAL_SERVICES.md`** — qué se vende además de la licencia (onboarding, migración, soporte premium).
+8. **`DATA_OWNERSHIP.md`** — de quién son los datos de cada tenant y qué implica contractualmente.
+9. **`GO_TO_MARKET.md`** — cómo se lleva todo lo anterior al mercado.
+10. **`COMPETITOR_ANALYSIS.md`** — frente a quién competimos y con qué ventaja.
 11. **`ROADMAP_BUSINESS.md`** — cuándo, en qué orden y con qué hitos comerciales.
 
 ## Documentos estratégicos vs. operativos
@@ -52,6 +67,12 @@ Una decisión técnica puede *depender* de una decisión de negocio (ej. "el pla
 - `UNIT_ECONOMICS.md`
 - `COMPETITOR_ANALYSIS.md`
 - `ROADMAP_BUSINESS.md`
+
+`DECISION_LOG.md` no entra en esta clasificación — no es un documento temático, es un registro transversal (ver siguiente sección).
+
+## Registro de decisiones
+
+`DECISION_LOG.md` no se lee de forma lineal como el resto: es el equivalente de negocio de los ADR técnicos (`ADR-001`, `ADR-002`, `ADR-003`) — un historial cronológico e inmutable de decisiones ya tomadas (fecha, decisión, motivo, alternativas descartadas, impacto), no un documento que se reescribe. Se consulta cuando hace falta saber *por qué* una decisión comercial se tomó de una manera y no de otra, y se amplía cada vez que el propietario del producto confirma una decisión de negocio nueva. Cualquier documento temático de esta carpeta puede generar una entrada ahí al pasar de `Draft`/`In Progress` a `Approved`.
 
 ## Reglas de esta carpeta
 

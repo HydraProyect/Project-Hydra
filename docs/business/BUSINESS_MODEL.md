@@ -1,7 +1,7 @@
 # BUSINESS_MODEL — Modelo de negocio de Hydra
 
 **Tipo**: Estratégico
-**Estado**: Placeholder — sin contenido desarrollado todavía.
+**Estado**: Draft — sin contenido desarrollado todavía.
 **Propósito**: Definir cómo Hydra genera ingresos — qué se vende, a quién y bajo qué lógica comercial general — como base de la que dependen `PRICING.md`, `UNIT_ECONOMICS.md` y el resto de documentos operativos de esta carpeta.
 
 ## Qué pertenece aquí

@@ -1,7 +1,7 @@
 # BUSINESS_ARCHITECTURE — Arquitectura comercial de Hydra
 
 **Tipo**: Estratégico
-**Estado**: Placeholder — sin contenido desarrollado todavía.
+**Estado**: Draft — sin contenido desarrollado todavía.
 **Propósito**: Describir cómo se organiza comercialmente el negocio — segmentos de cliente, canales de venta y relación entre los distintos tipos de comprador — igual que `ARCHITECTURE.md` describe cómo se organiza el sistema técnico. Es la contraparte de negocio de ese documento, no una versión resumida.
 
 ## Qué pertenece aquí

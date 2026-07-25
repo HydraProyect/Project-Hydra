@@ -1,7 +1,7 @@
 # UNIT_ECONOMICS — Economía unitaria de Hydra
 
 **Tipo**: Operativo
-**Estado**: Placeholder — sin contenido desarrollado todavía.
+**Estado**: Draft — sin contenido desarrollado todavía.
 **Propósito**: Medir si el modelo de negocio y las tarifas de `PRICING.md` son sostenibles: coste de adquisición de cliente, valor de vida del cliente, abandono y coste de servir cada tenant.
 
 ## Qué pertenece aquí
