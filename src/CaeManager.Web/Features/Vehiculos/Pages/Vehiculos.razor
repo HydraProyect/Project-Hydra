@@ -63,7 +63,7 @@
                 <PropertyColumn Property="@(v => v.NumeroPlaca)" Title="Placa" />
                 <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="Empresa / Subcontrata" Sortable="true" />
                 <TemplateColumn Title="Acciones" Align="Align.End">
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, context.Id, context.Nombre, "informacion")">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, context.Id, context.Nombre, "informacion")'>
                         Ver
                     </Boton>
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">

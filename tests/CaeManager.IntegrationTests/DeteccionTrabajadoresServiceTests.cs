@@ -7,7 +7,9 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Seed;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
@@ -35,11 +37,13 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        var tenantActual = new TenantActualAmbiental { TenantId = TenantSeedData.IdPorDefecto };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 
-        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider());
+        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
         await _dbContext.Database.MigrateAsync();
     }
 

@@ -1,6 +1,9 @@
 # ADR-002 — Vuelta a single-tenant: uso interno, no SaaS multi-cliente (por ahora)
 
-**Estado**: Decidido (2026-07-18). **Supersede parcialmente** a `ADR-001-multitenant.md`.
+> ⚠️ **SUPERSEDED (2026-07-23) por `ADR-003-saas-multitenant.md`.**
+> La estrategia SaaS multi-tenant pasa a ser el objetivo principal del producto y se implementa **in-place en este repositorio** (la cláusula de fork de este ADR queda sin efecto). Este documento se conserva como registro histórico; su § 4 (obligaciones RGPD que no dependen del modelo comercial) sigue siendo válido y está incorporado a ADR-003.
+
+**Estado**: ~~Decidido (2026-07-18)~~ **Superseded (2026-07-23)** — ver aviso arriba. Supersedía parcialmente a `ADR-001-multitenant.md`.
 
 ## Decisión
 

@@ -1,9 +1,9 @@
 # ADR-001 — Modelo multi-tenant
 
-> ⚠️ **EN PAUSA (2026-07-18) — NO IMPLEMENTAR sin instrucción explícita.**
-> CAE Manager vuelve a ser de **uso interno, single-tenant**. Este ADR se conserva íntegro como referencia técnica válida para *si algún día* se retoma la vía SaaS multi-cliente (la auditoría de queries, el interceptor de escritura y los índices compuestos siguen siendo el plan de implementación correcto), pero **no es la decisión vigente**. Ver `ADR-002-single-tenant.md` para el estado actual y antes de tocar nada relacionado con `TenantId`, aislamiento multi-organización o Issue #8.
+> ✅ **REACTIVADO (2026-07-23) por `ADR-003-saas-multitenant.md`.**
+> La pausa de 2026-07-18 (`ADR-002`) quedó superseded: la vía SaaS multi-tenant es de nuevo el objetivo del producto y se implementa in-place en este repositorio. Este ADR vuelve a ser la **guía técnica vigente** de implementación (modelo `TenantId` por fila, filtro global, interceptor de sellado, índices compuestos). El documento normativo de multi-tenancy es `docs/MULTITENANCY.md`; la auditoría de queries de abajo (39 en su momento) debe re-certificarse — hoy son 46 (ver `INFORME-MULTITENANT.md` § 2.5).
 
-**Estado**: Decidido (2026-07-17). Ver nota de pausa arriba.
+**Estado**: Decidido (2026-07-17) · en pausa 2026-07-18 (`ADR-002`) · **reactivado 2026-07-23 (`ADR-003`)**.
 
 ## Decisión
 

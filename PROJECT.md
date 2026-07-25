@@ -8,9 +8,9 @@ El Excel de referencia (`CAE_KHS_Cuadro_de_Control_2.xlsx`) es el documento fuen
 
 ## A quién sirve
 
-Uso inicial: ~10 usuarios simultáneos dentro de una empresa (perfil PRL / gestión CAE). Arquitectura preparada para crecer en usuarios, clientes, centros y volumen documental sin rediseño.
+Hydra es un **producto SaaS multi-tenant** (decisión 2026-07-23, `ADR-003-saas-multitenant.md`) para dos perfiles de comprador: **consultoras de PRL** que gestionan la CAE de varias empresas contratistas a la vez, y **empresas contratistas** que gestionan la suya propia. Cada organización compradora es un *tenant* aislado — la frontera absoluta del sistema (ver `docs/MULTITENANCY.md`, con los dos escenarios de negocio desarrollados).
 
-Modelo de despliegue v1: **single-tenant**. Una instalación gestiona los datos de una empresa (la "Empresa" contratista y sus empresas filiales, p. ej. una entidad nacional y otra extranjera) frente a todos sus clientes. No hay aislamiento multi-organización en v1; si en el futuro se necesita servir a varias organizaciones independientes desde la misma instalación, se aborda como evolución explícita (ver `ROADMAP.md`), no como supuesto de diseño oculto.
+Estado del despliegue: la instalación actual sirve a una única organización (~10 usuarios simultáneos, perfil PRL / gestión CAE), que pasará a ser el tenant #1 cuando se complete la implementación del aislamiento multi-tenant (en curso, ver `ROADMAP.md`). Arquitectura preparada para crecer en tenants, usuarios, clientes, centros y volumen documental sin rediseño.
 
 ## El problema que resolvemos
 
@@ -63,7 +63,9 @@ El usuario debe poder encontrar cualquier información en menos de tres clics. E
 ## Documentos relacionados
 
 - `ARCHITECTURE.md` — arquitectura técnica, capas, patrones.
+- `DOMAIN.md` — modelo de dominio: agregados, relaciones, invariantes.
 - `DATABASE.md` — modelo de datos, reglas de negocio, mapeo desde el Excel real.
+- `docs/MULTITENANCY.md` — normativa multi-tenant (aislamiento, catálogos, resolución de tenant).
 - `DESIGN_SYSTEM.md` — identidad visual, tokens, catálogo de componentes.
 - `UX_PATTERNS.md` — patrones de interacción y microcopy.
 - `CODING_STANDARDS.md` — convenciones de código.
