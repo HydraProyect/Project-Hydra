@@ -54,6 +54,7 @@ public class CaeManagerDbContext(
     public DbSet<TipoDocumentoCentro> TiposDocumentoCentros => Set<TipoDocumentoCentro>();
     public DbSet<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente => Set<ConfiguracionIaDocumentoCliente>();
     public DbSet<RevisionIaDocumento> RevisionesIaDocumento => Set<RevisionIaDocumento>();
+    public DbSet<AprobacionDocumento> AprobacionesDocumento => Set<AprobacionDocumento>();
     public DbSet<ExtraccionIaCache> ExtraccionesIaCache => Set<ExtraccionIaCache>();
     public DbSet<AuditoriaExtraccionIa> AuditoriasExtraccionIa => Set<AuditoriaExtraccionIa>();
     public DbSet<NotificacionUsuario> NotificacionesUsuario => Set<NotificacionUsuario>();
@@ -83,6 +84,7 @@ public class CaeManagerDbContext(
     IQueryable<TipoDocumentoCentro> IApplicationDbContext.TiposDocumentoCentros => TiposDocumentoCentros;
     IQueryable<ConfiguracionIaDocumentoCliente> IApplicationDbContext.ConfiguracionesIaDocumentoCliente => ConfiguracionesIaDocumentoCliente;
     IQueryable<RevisionIaDocumento> IApplicationDbContext.RevisionesIaDocumento => RevisionesIaDocumento;
+    IQueryable<AprobacionDocumento> IApplicationDbContext.AprobacionesDocumento => AprobacionesDocumento;
     IQueryable<ExtraccionIaCache> IApplicationDbContext.ExtraccionesIaCache => ExtraccionesIaCache;
     IQueryable<AuditoriaExtraccionIa> IApplicationDbContext.AuditoriasExtraccionIa => AuditoriasExtraccionIa;
     IQueryable<NotificacionUsuario> IApplicationDbContext.NotificacionesUsuario => NotificacionesUsuario;

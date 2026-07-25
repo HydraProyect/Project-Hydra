@@ -15,8 +15,10 @@ public record ResolverRevisionIaDocumentoCommand(Guid RevisionId) : IRequest<Res
 
 public class ResolverRevisionIaDocumentoCommandHandler(
     IRevisionIaDocumentoRepository revisionRepositorio,
+    IAprobacionDocumentoRepository aprobacionRepositorio,
     IApplicationDbContext dbContext,
     IAlcanceDatosService alcanceDatos,
+    ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<ResolverRevisionIaDocumentoCommand, Result>
 {
@@ -37,7 +39,12 @@ public class ResolverRevisionIaDocumentoCommandHandler(
         if (trabajadorId is null || !await alcanceDatos.TrabajadorVisibleAsync(trabajadorId.Value, cancellationToken))
             return Result.Fallo(Error.Crear("RevisionIa.NoEncontrada", "No encontramos esta revisión."));
 
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo(Error.Crear("RevisionIa.SinUsuario", "No pudimos identificar quién resuelve esta revisión."));
+
         revision.Resolver();
+        aprobacionRepositorio.Agregar(AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, usuarioId.Value));
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

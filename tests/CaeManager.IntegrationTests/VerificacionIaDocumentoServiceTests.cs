@@ -56,7 +56,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
 
     private VerificacionIaDocumentoService CrearServicio(IExtraccionMetadatosDocumentoIaService extraccion, IFileStorageService? almacenamiento = null) =>
         new(_dbContext, almacenamiento ?? new AlmacenamientoFalso(), extraccion,
-            new RevisionIaDocumentoRepository(_dbContext), _dbContext,
+            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext), _dbContext,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<VerificacionIaDocumentoService>.Instance);
 
     private Trabajador CrearTrabajador() => Trabajador.DeEmpresa(_empresa.Id, "Alvaro", "Sanchez Martin", "77189989B");
@@ -120,6 +120,12 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
 
         var revisiones = await _dbContext.RevisionesIaDocumento.Where(r => r.DocumentoId == documento.Id).ToListAsync();
         revisiones.Should().BeEmpty();
+
+        var aprobaciones = await _dbContext.AprobacionesDocumento.Where(a => a.DocumentoId == documento.Id).ToListAsync();
+        aprobaciones.Should().ContainSingle();
+        aprobaciones[0].Tipo.Should().Be(TipoAprobacionDocumento.Automatica);
+        aprobaciones[0].ConfianzaGeneral.Should().Be(99);
+        aprobaciones[0].UsuarioId.Should().BeNull();
     }
 
     [Fact]
