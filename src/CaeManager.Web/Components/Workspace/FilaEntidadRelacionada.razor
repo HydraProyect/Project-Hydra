@@ -1,0 +1,25 @@
+@*
+    Fila clicable "entidad relacionada" — extraída porque el mismo patrón
+    (título + subtítulo + clic para navegar internamente el Context
+    Workspace) se repite en Documentación, Empresas, Subcontratas, Centros,
+    Trabajadores y Vehículos de los distintos paneles.
+*@
+<li>
+    <button type="button" class="workspace-fila-entidad" @onclick="OnClic">
+        <span class="workspace-fila-entidad-texto">
+            <span class="workspace-fila-entidad-titulo">@Titulo</span>
+            @if (!string.IsNullOrWhiteSpace(Subtitulo))
+            {
+                <span class="workspace-fila-entidad-subtitulo">@Subtitulo</span>
+            }
+        </span>
+        @ChildContent
+    </button>
+</li>
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public string? Subtitulo { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnClic { get; set; }
+}

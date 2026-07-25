@@ -14,6 +14,8 @@ El **Tenant** es la organización que compra y utiliza Hydra. No es un concepto 
 
 ## 2. Escenarios de negocio
 
+Estos dos escenarios describen el modelo de aislamiento técnico por tenant; su desarrollo comercial (cualificación, tarifas, canal) vive en `docs/business/ICP.md` y `docs/business/BUSINESS_MODEL.md` — **TODO**: cuando ese contenido se desarrolle, esta sección debe referenciarlo en vez de duplicarlo.
+
 **Escenario 1 — Consultora PRL (ej. GESEME).** GESEME compra Hydra y gestiona la CAE de varias empresas contratistas (KHS, TOMRA, MATACHANA) frente a los clientes finales de estas (Mercadona, Heineken, Coca-Cola, Pepsi). Todo — Empresas, Clientes, Centros, Plataformas, Trabajadores, Vehículos, Documentación, Asignaciones — vive dentro del tenant GESEME, y sus usuarios ven toda la operación (modulada por el sistema de roles/cartera interno, ver § 6).
 
 **Escenario 2 — Contratista directa (ej. KHS).** KHS compra Hydra. Tenant = KHS, con una sola `Empresa` (KHS) y sus `Cliente`s (Mercadona, Heineken, Pepsi). Para KHS no existe TOMRA, ni MATACHANA, ni GESEME — ni como dato ni como posibilidad observable.
