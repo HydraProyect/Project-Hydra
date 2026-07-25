@@ -1,9 +1,11 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Subcontratas;
@@ -17,6 +19,7 @@ using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Backups;
 using CaeManager.Infrastructure.Conversion;
+using CaeManager.Infrastructure.DocumentosIa;
 using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.Identity;
@@ -96,6 +99,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITipoDocumentoRepository, TipoDocumentoRepository>();
         services.AddScoped<ITipoDocumentoCentroRepository, TipoDocumentoCentroRepository>();
         services.AddScoped<IConfiguracionIaDocumentoClienteRepository, ConfiguracionIaDocumentoClienteRepository>();
+        services.AddScoped<IRevisionIaDocumentoRepository, RevisionIaDocumentoRepository>();
+        services.AddScoped<IAprobacionDocumentoRepository, AprobacionDocumentoRepository>();
+        services.AddScoped<IExtraccionIaCacheRepository, ExtraccionIaCacheRepository>();
+        services.AddScoped<IAuditoriaExtraccionIaRepository, AuditoriaExtraccionIaRepository>();
+        services.AddSingleton<IClasificadorDocumentoService, PdfSharpClasificadorDocumentoService>();
+        services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
         services.AddScoped<INotificacionUsuarioRepository, NotificacionUsuarioRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
         services.AddScoped<IAsignacionRepository, AsignacionRepository>();
@@ -121,6 +130,20 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>();
         services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>();
+        // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
+        // implementación directa de Anthropic aquí — RouterExtraccionMetadatosDocumentoIaService
+        // (Application) la satisface delegando en IDocumentAIRouterService,
+        // registrada en ApplicationServiceCollectionExtensions.
+        // IDocumentAIProvider: registro por interfaz general, no un typed
+        // client dedicado — así IEnumerable<IDocumentAIProvider> recoge
+        // todos los proveedores (Gemini/Mistral después) para la Factory
+        // (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2).
+        services.AddHttpClient<AnthropicDocumentAIProvider>();
+        services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<AnthropicDocumentAIProvider>());
+
+        services.Configure<GeminiOptions>(configuration.GetSection(GeminiOptions.SeccionConfiguracion));
+        services.AddHttpClient<GeminiDocumentAIProvider>();
+        services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<GeminiDocumentAIProvider>());
 
         services.Configure<GraphEmailOptions>(configuration.GetSection(GraphEmailOptions.SeccionConfiguracion));
         services.AddHttpClient<IEmailService, GraphEmailService>();

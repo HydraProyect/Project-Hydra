@@ -6,6 +6,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.RequisitosDocumentales;
@@ -53,6 +54,10 @@ public class CaeManagerDbContext(
     public DbSet<TipoDocumento> TiposDocumento => Set<TipoDocumento>();
     public DbSet<TipoDocumentoCentro> TiposDocumentoCentros => Set<TipoDocumentoCentro>();
     public DbSet<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente => Set<ConfiguracionIaDocumentoCliente>();
+    public DbSet<RevisionIaDocumento> RevisionesIaDocumento => Set<RevisionIaDocumento>();
+    public DbSet<AprobacionDocumento> AprobacionesDocumento => Set<AprobacionDocumento>();
+    public DbSet<ExtraccionIaCache> ExtraccionesIaCache => Set<ExtraccionIaCache>();
+    public DbSet<AuditoriaExtraccionIa> AuditoriasExtraccionIa => Set<AuditoriaExtraccionIa>();
     public DbSet<NotificacionUsuario> NotificacionesUsuario => Set<NotificacionUsuario>();
     public DbSet<Documento> Documentos => Set<Documento>();
     public DbSet<Asignacion> Asignaciones => Set<Asignacion>();
@@ -80,6 +85,10 @@ public class CaeManagerDbContext(
     IQueryable<TipoDocumento> IApplicationDbContext.TiposDocumento => TiposDocumento;
     IQueryable<TipoDocumentoCentro> IApplicationDbContext.TiposDocumentoCentros => TiposDocumentoCentros;
     IQueryable<ConfiguracionIaDocumentoCliente> IApplicationDbContext.ConfiguracionesIaDocumentoCliente => ConfiguracionesIaDocumentoCliente;
+    IQueryable<RevisionIaDocumento> IApplicationDbContext.RevisionesIaDocumento => RevisionesIaDocumento;
+    IQueryable<AprobacionDocumento> IApplicationDbContext.AprobacionesDocumento => AprobacionesDocumento;
+    IQueryable<ExtraccionIaCache> IApplicationDbContext.ExtraccionesIaCache => ExtraccionesIaCache;
+    IQueryable<AuditoriaExtraccionIa> IApplicationDbContext.AuditoriasExtraccionIa => AuditoriasExtraccionIa;
     IQueryable<NotificacionUsuario> IApplicationDbContext.NotificacionesUsuario => NotificacionesUsuario;
     IQueryable<Documento> IApplicationDbContext.Documentos => Documentos;
     IQueryable<Asignacion> IApplicationDbContext.Asignaciones => Asignaciones;
@@ -155,6 +164,9 @@ public class CaeManagerDbContext(
         builder.Entity<SubcontrataCliente>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<SubcontrataEmpresa>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<DeteccionTrabajador>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<ExtraccionIaCache>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<AuditoriaExtraccionIa>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<VisitaTrabajador>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<RevisionIaDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
     }
 }

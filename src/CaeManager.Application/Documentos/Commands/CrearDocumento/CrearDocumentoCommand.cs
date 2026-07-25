@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.Trabajadores.Deteccion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -43,7 +44,7 @@ public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCo
 
 public class CrearDocumentoCommandHandler(
     IDocumentoRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork,
-    IDeteccionTrabajadoresService deteccionTrabajadores)
+    IDeteccionTrabajadoresService deteccionTrabajadores, IVerificacionIaDocumentoService verificacionIa)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDocumentoCommand request, CancellationToken cancellationToken)
@@ -93,6 +94,13 @@ public class CrearDocumentoCommandHandler(
         // (dentro del propio servicio) y no se propaga.
         if (ambitoSolicitado == AmbitoAplicacion.Empresa && tipoDocumento.DeteccionTrabajadoresActiva && !string.IsNullOrWhiteSpace(request.ArchivoUrl))
             await deteccionTrabajadores.ProcesarDocumentoAsync(documento.Id, cancellationToken);
+
+        // Mejor esfuerzo, mismo criterio que la detección de trabajadores de
+        // arriba: la verificación IA con confidence score (ver Issue #19)
+        // nunca debe impedir que la subida del propio Documento se dé por
+        // completada.
+        if (ambitoSolicitado == AmbitoAplicacion.Trabajador && tipoDocumento.VerificacionIaActiva && !string.IsNullOrWhiteSpace(request.ArchivoUrl))
+            await verificacionIa.ProcesarDocumentoAsync(documento.Id, cancellationToken);
 
         return Result.Exito(documento.Id);
     }
