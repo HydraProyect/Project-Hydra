@@ -1,0 +1,103 @@
+@*
+    Pestaña "Historial"/"Actividad" reutilizada por los 7 paneles del
+    Context Workspace — Auditoria ya guarda EntidadTipo/EntidadId de forma
+    genérica (ver AuditoriaInterceptor), así que un único componente sirve
+    para las siete entidades sin duplicar la lógica de carga.
+*@
+@using CaeManager.Application.Auditoria.Queries
+@using CaeManager.Infrastructure.Identity
+@using MediatR
+@using Microsoft.AspNetCore.Identity
+@inject IMediator Mediator
+@inject UserManager<ApplicationUser> UserManager
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="4" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="No pudimos cargar el historial" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_registros.Count == 0)
+{
+    <EstadoVacio Titulo="Sin cambios registrados" Descripcion="Todavía no hay historial de auditoría para este registro." />
+}
+else
+{
+    <ul class="workspace-historial-lista">
+        @foreach (var registro in _registros)
+        {
+            <li class="workspace-historial-item" @key="registro.Id">
+                <div class="workspace-historial-cabecera">
+                    <Badge Tono="@(registro.Accion switch { "Creado" => TonoBadge.Exito, "Eliminado" => TonoBadge.Peligro, _ => TonoBadge.Advertencia })">
+                        @registro.Accion
+                    </Badge>
+                    <span class="workspace-historial-fecha">@registro.FechaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                </div>
+                <span class="workspace-historial-usuario">@NombreUsuario(registro.UsuarioId)</span>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter, EditorRequired] public string EntidadTipo { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public Guid EntidadId { get; set; }
+
+    private IReadOnlyList<RegistroAuditoriaDto> _registros = [];
+    private readonly Dictionary<Guid, string> _usuariosPorId = new();
+    private bool _cargando = true;
+    private bool _error;
+    private (string EntidadTipo, Guid EntidadId)? _claveCargada;
+
+    /// <summary>Ver comentario equivalente en PestanaDocumentacion — misma instancia reutilizada entre entidades del mismo tipo.</summary>
+    protected override Task OnParametersSetAsync()
+    {
+        var clave = (EntidadTipo, EntidadId);
+        if (_claveCargada == clave)
+            return Task.CompletedTask;
+
+        _claveCargada = clave;
+        return CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(
+                new ObtenerAuditoriaQuery(EntidadTipo, UsuarioId: null, Pagina: 1, TamanoPagina: 20, EntidadId: EntidadId));
+            _registros = resultado.Elementos;
+
+            var idsFaltantes = _registros
+                .Where(r => r.UsuarioId is not null && !_usuariosPorId.ContainsKey(r.UsuarioId.Value))
+                .Select(r => r.UsuarioId!.Value)
+                .Distinct();
+
+            foreach (var id in idsFaltantes)
+            {
+                var usuario = await UserManager.FindByIdAsync(id.ToString());
+                _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+            }
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private string NombreUsuario(Guid? usuarioId) =>
+        usuarioId is null ? "Sistema" : _usuariosPorId.GetValueOrDefault(usuarioId.Value, "—");
+}
