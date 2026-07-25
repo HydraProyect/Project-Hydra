@@ -141,6 +141,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<AnthropicDocumentAIProvider>();
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<AnthropicDocumentAIProvider>());
 
+        services.Configure<GeminiOptions>(configuration.GetSection(GeminiOptions.SeccionConfiguracion));
+        services.AddHttpClient<GeminiDocumentAIProvider>();
+        services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<GeminiDocumentAIProvider>());
+
         services.Configure<GraphEmailOptions>(configuration.GetSection(GraphEmailOptions.SeccionConfiguracion));
         services.AddHttpClient<IEmailService, GraphEmailService>();
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
