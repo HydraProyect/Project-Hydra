@@ -1,5 +1,8 @@
 using System.Reflection;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Verificacion;
+using CaeManager.Application.DocumentosIa;
+using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Application.Trabajadores.Deteccion;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +25,18 @@ public static class ApplicationServiceCollectionExtensions
         // DeteccionTrabajadoresService) — se registra aquí y no en
         // Infrastructure porque no toca nada específico de infraestructura.
         services.AddScoped<IDeteccionTrabajadoresService, DeteccionTrabajadoresService>();
+        services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
+
+        // Factory pura (Application) — cada IDocumentAIProvider real se
+        // registra en Infrastructure (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2).
+        services.AddScoped<IDocumentAIProviderFactory, DocumentAIProviderFactory>();
+        services.AddScoped<IDocumentAIRouterService, DocumentAIRouterService>();
+        services.AddSingleton<ILocalizadorPaginasRelevantesService, LocalizadorPaginasRelevantesService>();
+
+        // Sustituye a AnthropicExtraccionMetadatosDocumentoIaService (Fase 38):
+        // VerificacionIaDocumentoService no cambia, solo qué implementación
+        // de IExtraccionMetadatosDocumentoIaService resuelve el contenedor.
+        services.AddScoped<IExtraccionMetadatosDocumentoIaService, RouterExtraccionMetadatosDocumentoIaService>();
 
         return services;
     }
