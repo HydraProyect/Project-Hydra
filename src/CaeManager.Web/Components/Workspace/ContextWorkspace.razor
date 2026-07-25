@@ -1,0 +1,116 @@
+@*
+    Host único del Context Workspace — montado una sola vez en MainLayout,
+    junto a AnfitrionToasts/BuscadorGlobal (ver comentario de esos dos en
+    MainLayout.razor: cualquier componente fuera de @@Body necesita su
+    propio @@rendermode explícito o nunca recibe eventos interactivos).
+
+    No modal (role="complementary", sin superposición oscurecida): el
+    usuario puede seguir interactuando con la página detrás mientras
+    consulta contexto — a diferencia de Drawer/Modal, que sí bloquean.
+*@
+@using CaeManager.Web.Features.Clientes.Components
+@using CaeManager.Web.Features.Empresas.Components
+@using CaeManager.Web.Features.Subcontratas.Components
+@using CaeManager.Web.Features.Centros.Components
+@using CaeManager.Web.Features.Trabajadores.Components
+@using CaeManager.Web.Features.Vehiculos.Components
+@using CaeManager.Web.Features.Documentos.Components
+@implements IDisposable
+@inject ContextWorkspaceService WorkspaceService
+
+@if (WorkspaceService.EstaAbierto)
+{
+    var frame = WorkspaceService.FrameActual!;
+    <aside class="workspace-panel"
+           role="complementary"
+           aria-label="@($"Panel de contexto — {frame.TituloVisible}")"
+           tabindex="-1"
+           @ref="_referenciaPanel"
+           @onkeydown="ManejarTeclaGlobalAsync">
+        <header class="workspace-header">
+            <div class="workspace-header-nav">
+                @if (WorkspaceService.Pila.Count > 1)
+                {
+                    <button type="button" class="workspace-boton-volver" @onclick="() => WorkspaceService.VolverAsync()">
+                        <Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /> Volver
+                    </button>
+                }
+                <Breadcrumb Elementos="_elementosBreadcrumb" ElementoSeleccionadoChanged="IrABreadcrumbAsync" EtiquetaNavegacion="Ruta del Context Workspace" />
+            </div>
+            <button type="button" class="workspace-cerrar" aria-label="Cerrar panel de contexto" @onclick="() => WorkspaceService.CerrarAsync()">×</button>
+        </header>
+
+        <div class="workspace-cuerpo">
+            @switch (frame.Tipo)
+            {
+                case EntidadWorkspace.Cliente:
+                    <ClienteWorkspacePanel EntidadId="@frame.EntidadId" PestanaActiva="@frame.PestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" />
+                    break;
+                case EntidadWorkspace.Empresa:
+                    <EmpresaWorkspacePanel EntidadId="@frame.EntidadId" PestanaActiva="@frame.PestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" />
+                    break;
+                case EntidadWorkspace.Subcontrata:
+                    <SubcontrataWorkspacePanel EntidadId="@frame.EntidadId" PestanaActiva="@frame.PestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" />
+                    break;
+                case EntidadWorkspace.Centro:
+                    <CentroWorkspacePanel EntidadId="@frame.EntidadId" PestanaActiva="@frame.PestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" />
+                    break;
+                case EntidadWorkspace.Trabajador:
+                    <TrabajadorWorkspacePanel EntidadId="@frame.EntidadId" PestanaActiva="@frame.PestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" />
+                    break;
+                case EntidadWorkspace.Vehiculo:
+                    <VehiculoWorkspacePanel EntidadId="@frame.EntidadId" PestanaActiva="@frame.PestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" />
+                    break;
+                case EntidadWorkspace.Documento:
+                    <DocumentoWorkspacePanel EntidadId="@frame.EntidadId" PestanaActiva="@frame.PestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" />
+                    break;
+            }
+        </div>
+    </aside>
+}
+
+@code {
+    private ElementReference _referenciaPanel;
+    private int _profundidadAnterior;
+    private IReadOnlyList<BreadcrumbElemento> _elementosBreadcrumb = [];
+
+    protected override void OnInitialized()
+    {
+        WorkspaceService.OnCambio += ManejarCambio;
+    }
+
+    private void ManejarCambio()
+    {
+        _elementosBreadcrumb = WorkspaceService.Pila.Select(f => new BreadcrumbElemento(f.TituloVisible)).ToList();
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Mueve el foco al panel solo cuando se abre desde cerrado (profundidad
+    /// 0 → 1) — navegar entre niveles o pestañas ya con el panel abierto no
+    /// debe robarle el foco al usuario si lo tiene en otro sitio del panel.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var profundidadActual = WorkspaceService.Pila.Count;
+
+        if (profundidadActual > 0 && _profundidadAnterior == 0)
+            await _referenciaPanel.FocusAsync();
+
+        _profundidadAnterior = profundidadActual;
+    }
+
+    private Task IrABreadcrumbAsync(int indice) => WorkspaceService.IrABreadcrumbAsync(indice);
+
+    private Task CambiarPestanaAsync(string pestana) => WorkspaceService.CambiarPestanaAsync(pestana);
+
+    private Task ManejarTeclaGlobalAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape")
+            return Task.CompletedTask;
+
+        return WorkspaceService.Pila.Count > 1 ? WorkspaceService.VolverAsync() : WorkspaceService.CerrarAsync();
+    }
+
+    public void Dispose() => WorkspaceService.OnCambio -= ManejarCambio;
+}

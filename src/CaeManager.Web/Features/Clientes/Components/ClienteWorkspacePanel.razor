@@ -1,0 +1,238 @@
+@*
+    Panel de Cliente para el Context Workspace (ver arquitectura acordada
+    con el usuario). Pestañas: Información, Empresas, Subcontratas,
+    Documentación, Actividad (= historial de auditoría, con otro nombre
+    porque Cliente no tiene una pestaña "Historial" separada), Notas.
+*@
+@using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
+@using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente
+@using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente
+@using CaeManager.Domain.Documentos
+@using MediatR
+@inject IMediator Mediator
+@inject ContextWorkspaceService WorkspaceService
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="4" />
+}
+else if (_error || _detalle is null)
+{
+    <EstadoVacio Titulo="No pudimos cargar el cliente" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarCabeceraAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else
+{
+    <div class="workspace-cabecera-entidad">
+        <h2 class="workspace-titulo-entidad">@_detalle.RazonSocial</h2>
+        @if (_detalle.EsCritico)
+        {
+            <Badge Tono="TonoBadge.Peligro">Crítico</Badge>
+        }
+    </div>
+
+    <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del cliente">
+        @switch (PestanaActiva)
+        {
+            case "informacion":
+                <div class="workspace-grupo-campos">
+                    <CampoInfo Etiqueta="Razón social" Valor="@_detalle.RazonSocial" />
+                    <CampoInfo Etiqueta="CIF" Valor="@_detalle.Cif" />
+                    <CampoInfo Etiqueta="Crítico" Valor="@(_detalle.EsCritico ? "Sí" : "No")" />
+                    <CampoInfo Etiqueta="Creado" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
+                </div>
+                break;
+
+            case "empresas":
+                @if (_cargandoEmpresas)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_errorEmpresas)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar las empresas" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarEmpresasAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (_empresas is { Count: 0 })
+                {
+                    <EstadoVacio Titulo="Sin empresas" Descripcion="Este cliente todavía no tiene ninguna Empresa asociada." />
+                }
+                else if (_empresas is not null)
+                {
+                    <ul class="workspace-lista-entidades">
+                        @foreach (var empresa in _empresas)
+                        {
+                            <FilaEntidadRelacionada @key="empresa.Id" Titulo="@empresa.RazonSocial" Subtitulo="@empresa.Cif" OnClic="() => AbrirEmpresaAsync(empresa)" />
+                        }
+                    </ul>
+                }
+                break;
+
+            case "subcontratas":
+                @if (_cargandoSubcontratas)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_errorSubcontratas)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar las subcontratas" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarSubcontratasAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (_subcontratas is { Count: 0 })
+                {
+                    <EstadoVacio Titulo="Sin subcontratas" Descripcion="Este cliente todavía no tiene ninguna Subcontrata asociada." />
+                }
+                else if (_subcontratas is not null)
+                {
+                    <ul class="workspace-lista-entidades">
+                        @foreach (var subcontrata in _subcontratas)
+                        {
+                            <FilaEntidadRelacionada @key="subcontrata.Id" Titulo="@subcontrata.RazonSocial" OnClic="() => AbrirSubcontrataAsync(subcontrata)" />
+                        }
+                    </ul>
+                }
+                break;
+
+            case "documentacion":
+                <PestanaDocumentacion Ambito="AmbitoAplicacion.Cliente" PropietarioId="EntidadId" />
+                break;
+
+            case "actividad":
+                <PestanaHistorial EntidadTipo="Cliente" EntidadId="EntidadId" />
+                break;
+
+            case "notas":
+                <p class="workspace-texto-notas">@(string.IsNullOrWhiteSpace(_detalle.Notas) ? "Sin notas." : _detalle.Notas)</p>
+                break;
+        }
+    </Pestanas>
+}
+
+@code {
+    private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
+    [
+        new("informacion", "Información"),
+        new("empresas", "Empresas"),
+        new("subcontratas", "Subcontratas"),
+        new("documentacion", "Documentación"),
+        new("actividad", "Actividad"),
+        new("notas", "Notas")
+    ];
+
+    [Parameter, EditorRequired] public Guid EntidadId { get; set; }
+    [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
+
+    private ClienteDetalleDto? _detalle;
+    private bool _cargando = true;
+    private bool _error;
+    private Guid _idCargado;
+
+    private IReadOnlyList<EmpresaDeClienteDto>? _empresas;
+    private bool _cargandoEmpresas;
+    private bool _errorEmpresas;
+    private IReadOnlyList<SubcontrataDeClienteDto>? _subcontratas;
+    private bool _cargandoSubcontratas;
+    private bool _errorSubcontratas;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EntidadId != _idCargado)
+        {
+            _idCargado = EntidadId;
+            _empresas = null;
+            _errorEmpresas = false;
+            _subcontratas = null;
+            _errorSubcontratas = false;
+            await CargarCabeceraAsync();
+        }
+
+        if (PestanaActiva == "empresas" && _empresas is null && !_errorEmpresas && !_cargandoEmpresas)
+            await CargarEmpresasAsync();
+
+        if (PestanaActiva == "subcontratas" && _subcontratas is null && !_errorSubcontratas && !_cargandoSubcontratas)
+            await CargarSubcontratasAsync();
+    }
+
+    private async Task CargarCabeceraAsync()
+    {
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            _detalle = await Mediator.Send(new ObtenerClientePorIdQuery(EntidadId));
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task CargarEmpresasAsync()
+    {
+        var idSolicitado = EntidadId;
+        _cargandoEmpresas = true;
+        _errorEmpresas = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerEmpresasDeClienteQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _empresas = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorEmpresas = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoEmpresas = false;
+        }
+    }
+
+    private async Task CargarSubcontratasAsync()
+    {
+        var idSolicitado = EntidadId;
+        _cargandoSubcontratas = true;
+        _errorSubcontratas = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerSubcontratasDeClienteQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _subcontratas = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorSubcontratas = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoSubcontratas = false;
+        }
+    }
+
+    private Task AbrirEmpresaAsync(EmpresaDeClienteDto empresa) =>
+        WorkspaceService.NavegarAAsync(EntidadWorkspace.Empresa, empresa.Id, empresa.RazonSocial, "informacion");
+
+    private Task AbrirSubcontrataAsync(SubcontrataDeClienteDto subcontrata) =>
+        WorkspaceService.NavegarAAsync(EntidadWorkspace.Subcontrata, subcontrata.Id, subcontrata.RazonSocial, "informacion");
+}
