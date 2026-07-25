@@ -12,6 +12,7 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
+@inject ContextWorkspaceService WorkspaceService
 
 <PageTitle>Clientes — CAE Manager</PageTitle>
 
@@ -63,6 +64,9 @@
                     }
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "informacion")'>
+                        Ver
+                    </Boton>
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
                         Editar
                     </Boton>

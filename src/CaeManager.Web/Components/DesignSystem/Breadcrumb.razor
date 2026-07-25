@@ -1,0 +1,30 @@
+@* Breadcrumb genérico — no sabe nada de dominio, solo pinta Elementos y notifica el índice pulsado. *@
+<nav class="breadcrumb" aria-label="@EtiquetaNavegacion">
+    <ol>
+        @for (var i = 0; i < Elementos.Count; i++)
+        {
+            var indice = i;
+            var elemento = Elementos[i];
+            var esActual = indice == Elementos.Count - 1;
+            <li class="breadcrumb-item">
+                @if (esActual)
+                {
+                    <span class="breadcrumb-actual" aria-current="page">@elemento.Etiqueta</span>
+                }
+                else
+                {
+                    <button type="button" class="breadcrumb-enlace" @onclick="() => ElementoSeleccionadoChanged.InvokeAsync(indice)">
+                        @elemento.Etiqueta
+                    </button>
+                    <span class="breadcrumb-separador" aria-hidden="true">/</span>
+                }
+            </li>
+        }
+    </ol>
+</nav>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<BreadcrumbElemento> Elementos { get; set; } = [];
+    [Parameter] public EventCallback<int> ElementoSeleccionadoChanged { get; set; }
+    [Parameter] public string EtiquetaNavegacion { get; set; } = "Ruta de navegación";
+}

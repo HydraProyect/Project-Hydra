@@ -1,0 +1,82 @@
+@*
+    Tabs genérico (patrón ARIA Tabs — https://www.w3.org/WAI/ARIA/apg/patterns/tabs/,
+    activación manual: mover el foco con flechas no cambia la pestaña activa,
+    hay que confirmar con Enter/Espacio, para no disparar la carga de datos
+    de cada pestaña solo por hojear con el teclado). Sin dependencia de
+    Context Workspace — reutilizable en cualquier pantalla con secciones.
+*@
+<div class="pestanas">
+    <div class="pestanas-lista" role="tablist" aria-label="@EtiquetaGrupo">
+        @for (var i = 0; i < Definiciones.Count; i++)
+        {
+            var indice = i;
+            var definicion = Definiciones[i];
+            var activa = definicion.Id == PestanaActiva;
+            <button type="button"
+                    role="tab"
+                    id="@ObtenerIdPestana(definicion.Id)"
+                    aria-selected="@(activa ? "true" : "false")"
+                    aria-controls="@ObtenerIdPanel(definicion.Id)"
+                    tabindex="@(activa ? "0" : "-1")"
+                    class="pestanas-boton @(activa ? "pestanas-boton-activa" : "")"
+                    @ref="_referencias[indice]"
+                    @onclick="() => ActivarAsync(definicion.Id)"
+                    @onkeydown="e => ManejarTeclaAsync(e, indice)">
+                @definicion.Etiqueta
+            </button>
+        }
+    </div>
+    <div class="pestanas-panel"
+         role="tabpanel"
+         id="@ObtenerIdPanel(PestanaActiva)"
+         aria-labelledby="@ObtenerIdPestana(PestanaActiva)"
+         tabindex="0">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    private readonly string _grupoId = $"pestanas-{Guid.NewGuid():N}";
+    private ElementReference[] _referencias = [];
+
+    [Parameter, EditorRequired] public IReadOnlyList<PestanaDefinicion> Definiciones { get; set; } = [];
+    [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
+    [Parameter] public string EtiquetaGrupo { get; set; } = "Secciones";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (_referencias.Length != Definiciones.Count)
+            _referencias = new ElementReference[Definiciones.Count];
+    }
+
+    private string ObtenerIdPestana(string id) => $"{_grupoId}-tab-{id}";
+    private string ObtenerIdPanel(string id) => $"{_grupoId}-panel-{id}";
+
+    private Task ActivarAsync(string id) =>
+        id == PestanaActiva ? Task.CompletedTask : PestanaActivaChanged.InvokeAsync(id);
+
+    private async Task ManejarTeclaAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e, int indiceActual)
+    {
+        if (Definiciones.Count == 0) return;
+
+        var nuevoIndice = e.Key switch
+        {
+            "ArrowRight" => (indiceActual + 1) % Definiciones.Count,
+            "ArrowLeft" => (indiceActual - 1 + Definiciones.Count) % Definiciones.Count,
+            "Home" => 0,
+            "End" => Definiciones.Count - 1,
+            _ => -1
+        };
+
+        if (nuevoIndice >= 0)
+        {
+            await _referencias[nuevoIndice].FocusAsync();
+            return;
+        }
+
+        if (e.Key is "Enter" or " ")
+            await ActivarAsync(Definiciones[indiceActual].Id);
+    }
+}
