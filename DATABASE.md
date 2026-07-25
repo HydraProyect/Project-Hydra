@@ -2,7 +2,7 @@
 
 Este modelo está derivado y validado contra `CAE_KHS_Cuadro_de_Control_2.xlsx`, el cuadro de control real que este sistema reemplaza. Cada entidad se justifica con lo que esa hoja de cálculo hace hoy manualmente, corrigiendo sus problemas de normalización conocidos (ver sección final).
 
-> **Nota de vigencia (2026-07-23)**: el dominio ha crecido desde la redacción original de este documento — el grafo completo y actualizado (Subcontrata, Vehículo, Visita, tablas de unión N:N, propietario polimórfico de Documento) está en **`DOMAIN.md`**, que es la fuente de verdad conceptual; este archivo conserva el detalle de columnas y el mapeo desde el Excel. Correcciones puntuales ya aplicadas abajo: `Trabajador.EmpresaId` es hoy **nullable** (Empresa *o* Subcontrata), y `Documento` tiene propietario polimórfico (no solo Trabajador). Además, por `ADR-003-saas-multitenant.md`, **toda tabla de datos incorporará `TenantId` (Guid, NOT NULL)** con filtro global e índices únicos compuestos `(TenantId, campo)` — reglas completas en `docs/MULTITENANCY.md`; hasta que esa fase esté implementada, el esquema físico actual no lo tiene todavía.
+> **Nota de vigencia (actualizada 2026-07-25)**: el dominio ha crecido desde la redacción original de este documento — el grafo completo y actualizado (Subcontrata, Vehículo, Visita, tablas de unión N:N, propietario polimórfico de Documento) está en **`DOMAIN.md`**, que es la fuente de verdad conceptual; este archivo conserva el detalle de columnas y el mapeo desde el Excel. Correcciones puntuales ya aplicadas abajo: `Trabajador.EmpresaId` es hoy **nullable** (Empresa *o* Subcontrata), y `Documento` tiene propietario polimórfico (no solo Trabajador). Además, la migración multi-tenant de `ADR-003-saas-multitenant.md` **ya está implementada y cerrada** (`PLAN-MIGRACION-MULTITENANT.md`, 5 etapas completadas, registrado en `ROADMAP.md`): las 25 tablas de dominio de este documento (todas salvo `Tenant` misma) tienen `TenantId` (Guid, **NOT NULL**), con filtro global de EF Core, un `SaveChangesInterceptor` que sella el tenant en alta y rechaza escritura cruzada, y los índices únicos que antes eran globales ya son compuestos `(TenantId, campo)` — reglas completas en `docs/MULTITENANCY.md`. Las columnas `TenantId` no se repiten campo a campo en cada tabla de abajo para no duplicar `docs/MULTITENANCY.md`; asúmelas presentes salvo que se indique lo contrario.
 
 ## Diagrama de entidades
 
@@ -79,7 +79,7 @@ Empleado de una Empresa. Corresponde a una fila de la hoja `Empleados` (o `Extra
 | SubcontrataId | Guid? | FK → Subcontrata (ver arriba) |
 | Nombre | string(100) | |
 | Apellidos | string(150) | |
-| Dni | string(20) | Único (pasará a único por tenant: `(TenantId, Dni)` — `docs/MULTITENANCY.md` § 5) |
+| Dni | string(20) | Único por tenant: `(TenantId, Dni)` — `docs/MULTITENANCY.md` § 5 |
 | FechaNacimiento | date? | |
 | Email | string?(200) | |
 | Observaciones | string?(1000) | Del campo "Observaciones / notas especiales" — casos particulares como altas específicas de obra |
