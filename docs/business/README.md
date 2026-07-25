@@ -20,18 +20,12 @@ Hydra tiene, desde `ADR-003-saas-multitenant.md`, un objetivo comercial explíci
 
 Una decisión técnica puede *depender* de una decisión de negocio (ej. "el plan Starter permite hasta 5 Centros" depende de `PRICING.md`), pero el documento técnico no debe contener la cifra ni la regla comercial — solo una referencia. Ver `CLAUDE.md` § "Disciplina de decisión para cambios de arquitectura": Dominio → Arquitectura → Plataforma → Implementación. La documentación de negocio precede y alimenta ese orden desde fuera; no es un peldaño más de la misma escalera técnica.
 
-## Vocabulario de estado
+## Convenciones y glosario
 
-Cada documento declara su **Estado** con uno de estos cuatro valores — el mismo criterio que hace falta cuando esta carpeta pase de 12 a 40-50 documentos y ya no sea obvio cuál es la fuente de verdad vigente:
+Antes de escribir o editar cualquier documento de esta carpeta, dos referencias obligatorias:
 
-| Estado | Significa |
-|---|---|
-| **Draft** | En redacción. El contenido, si existe, no está confirmado y puede cambiar sustancialmente. Es el estado de partida de todo documento nuevo — hoy lo son los 11 documentos temáticos de esta carpeta. |
-| **In Progress** | En desarrollo activo. Incompleto, pero ya usable como referencia parcial — algunas secciones están decididas, otras no. |
-| **Approved** | Aprobado por el propietario del producto/negocio. Es la fuente de verdad vigente para ese tema; cualquier documento técnico que lo referencie puede asumir su contenido como decidido. |
-| **Deprecated** | Superseded o ya no vigente. Se conserva como registro histórico, igual que `ADR-002-single-tenant.md` en el lado técnico — nunca se borra, se marca. |
-
-Un documento solo pasa a `Approved` cuando el propietario del producto lo confirma explícitamente — igual que las decisiones de cumplimiento normativo de `CLAUDE.md`, no es una decisión que un cambio de código pueda dar por hecha.
+- **`DOCUMENT_STANDARDS.md`** — la guía editorial: plantilla de cada documento, vocabulario de estado (`Draft`/`In Progress`/`Approved`/`Deprecated`), cómo registrar decisiones, qué es normativo frente a exploratorio, cómo referenciar ADR y documentos técnicos, y convenciones de tablas/diagramas/glosario. Es el único lugar donde se define esa plantilla — este índice no la repite.
+- **`GLOSSARY.md`** — el vocabulario oficial de términos de negocio (Tenant, Consultora, Plan, Add-on...). Ningún documento redefine un término que ya tenga entrada allí.
 
 ## Orden de lectura recomendado
 
@@ -78,5 +72,6 @@ El modelo de negocio es la raíz: el ICP nace de él (a quién le sirve ese mode
 
 - Esta carpeta es la fuente oficial de toda decisión comercial. Ningún otro documento del repositorio debe definir pricing, planes, unit economics, ICP, competencia o roadmap comercial — debe referenciar el documento correspondiente aquí.
 - No se duplica contenido entre documentos de esta carpeta ni se copia contenido de documentos técnicos existentes. Si un documento técnico ya contiene información de negocio, se añade aquí (o allí) una referencia cruzada, nunca una copia.
+- Todo documento temático nuevo sigue la plantilla de `DOCUMENT_STANDARDS.md` § 2, y todo término de negocio nuevo se da de alta en `GLOSSARY.md` antes de usarse en más de un documento.
 - Ningún documento de negocio decide por sí solo cambios de arquitectura, dominio o cumplimiento normativo (RGPD/LOPDGDD, DPA, términos de uso) — esas decisiones siguen las reglas de `CLAUDE.md` y requieren confirmación explícita del propietario del producto y, cuando aplique, revisión legal.
 - Ver `CLAUDE.md` para las reglas de trabajo generales del repositorio y `docs/PLATFORM.md` para dónde encaja "negocio" frente a "kernel de plataforma" y "módulo de dominio".
