@@ -38,6 +38,7 @@ public interface IApplicationDbContext
     IQueryable<TipoDocumentoCentro> TiposDocumentoCentros { get; }
     IQueryable<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente { get; }
     IQueryable<RevisionIaDocumento> RevisionesIaDocumento { get; }
+    IQueryable<AprobacionDocumento> AprobacionesDocumento { get; }
     IQueryable<ExtraccionIaCache> ExtraccionesIaCache { get; }
     IQueryable<AuditoriaExtraccionIa> AuditoriasExtraccionIa { get; }
     IQueryable<NotificacionUsuario> NotificacionesUsuario { get; }

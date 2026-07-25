@@ -23,6 +23,7 @@ namespace CaeManager.IntegrationTests;
 public class RevisionIaDocumentoTests : IAsyncLifetime
 {
     private readonly string _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-tests-{Guid.NewGuid()}.db");
+    private readonly Guid _usuarioIdDePrueba = Guid.NewGuid();
     private CaeManagerDbContext _dbContext = null!;
     private Trabajador _trabajadorVisible = null!;
     private Trabajador _trabajadorAjeno = null!;
@@ -85,12 +86,18 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
     {
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisible.Id]);
         var handler = new ResolverRevisionIaDocumentoCommandHandler(
-            new RevisionIaDocumentoRepository(_dbContext), _dbContext, alcance, _dbContext);
+            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext), _dbContext,
+            alcance, new CurrentUserServiceFalso(usuarioId: _usuarioIdDePrueba), _dbContext);
 
         var resultado = await handler.Handle(new ResolverRevisionIaDocumentoCommand(_revisionVisible.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         (await _dbContext.RevisionesIaDocumento.FirstAsync(r => r.Id == _revisionVisible.Id)).Resuelta.Should().BeTrue();
+
+        var aprobacion = await _dbContext.AprobacionesDocumento.FirstAsync(a => a.DocumentoId == _revisionVisible.DocumentoId);
+        aprobacion.Tipo.Should().Be(TipoAprobacionDocumento.Manual);
+        aprobacion.UsuarioId.Should().Be(_usuarioIdDePrueba);
+        aprobacion.ConfianzaGeneral.Should().Be(_revisionVisible.ConfianzaGeneral);
     }
 
     [Fact]
@@ -98,7 +105,8 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
     {
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisible.Id]);
         var handler = new ResolverRevisionIaDocumentoCommandHandler(
-            new RevisionIaDocumentoRepository(_dbContext), _dbContext, alcance, _dbContext);
+            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext), _dbContext,
+            alcance, new CurrentUserServiceFalso(usuarioId: _usuarioIdDePrueba), _dbContext);
 
         var resultado = await handler.Handle(new ResolverRevisionIaDocumentoCommand(_revisionAjena.Id), CancellationToken.None);
 
@@ -115,7 +123,8 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
 
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisible.Id]);
         var handler = new ResolverRevisionIaDocumentoCommandHandler(
-            new RevisionIaDocumentoRepository(_dbContext), _dbContext, alcance, _dbContext);
+            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext), _dbContext,
+            alcance, new CurrentUserServiceFalso(usuarioId: _usuarioIdDePrueba), _dbContext);
 
         var resultado = await handler.Handle(new ResolverRevisionIaDocumentoCommand(_revisionVisible.Id), CancellationToken.None);
 

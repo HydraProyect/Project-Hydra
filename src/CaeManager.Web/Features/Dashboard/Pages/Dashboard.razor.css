@@ -94,3 +94,55 @@
 .fila-clicable {
     cursor: pointer;
 }
+
+/*
+  Barra comparativa "gestiones automáticas vs manuales" — dos segmentos
+  proporcionales al %, sin librería de gráficos (DESIGN_SYSTEM.md § Pendientes
+  dejaba esto pendiente hasta que hubiera una necesidad real; una comparación
+  de dos categorías no la justifica todavía).
+*/
+.barra-comparativa {
+    display: flex;
+    width: 100%;
+    height: 12px;
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    background-color: var(--color-neutral-100);
+}
+
+.barra-comparativa-segmento {
+    height: 100%;
+    transition: width var(--transition-slow) ease-out;
+}
+
+.barra-comparativa-automatica {
+    background-color: var(--color-secondary-500);
+}
+
+.barra-comparativa-manual {
+    background-color: var(--color-primary-500);
+}
+
+.barra-comparativa-leyenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.barra-comparativa-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.barra-comparativa-punto {
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+}

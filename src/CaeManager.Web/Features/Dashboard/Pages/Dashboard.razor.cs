@@ -14,6 +14,7 @@ public partial class Dashboard : ComponentBase
 
     private KpisDashboardDto? _kpis;
     private DesgloseDashboardDto? _desglose;
+    private EstadisticasAprobacionDocumentoDto? _estadisticasAprobacion;
     private bool _error;
 
     // Escalera de visibilidad por rol (ver ROADMAP.md, Fases 3 y 31): cada
@@ -54,11 +55,21 @@ public partial class Dashboard : ComponentBase
             _kpis = await Mediator.Send(new ObtenerKpisDashboardQuery());
 
             if (_mostrarDocumentosAtencion)
+            {
                 _desglose = await Mediator.Send(new ObtenerDesgloseDashboardQuery());
+                _estadisticasAprobacion = await Mediator.Send(new ObtenerEstadisticasAprobacionDocumentoQuery());
+            }
         }
         catch (Exception)
         {
             _error = true;
         }
     }
+
+    /// <summary>Total de decisiones de verificación IA ya resueltas (automáticas + manuales) — 0 si todavía no se ha verificado ningún Documento.</summary>
+    private int TotalAprobaciones => (_estadisticasAprobacion?.Automaticas ?? 0) + (_estadisticasAprobacion?.Manuales ?? 0);
+
+    private int PorcentajeAutomatica => TotalAprobaciones == 0 ? 0 : _estadisticasAprobacion!.Automaticas * 100 / TotalAprobaciones;
+
+    private int PorcentajeManual => TotalAprobaciones == 0 ? 0 : 100 - PorcentajeAutomatica;
 }
