@@ -120,6 +120,11 @@ public static class TipoDocumentoSeedData
             AmbitoAplicacion = d.Ambito,
             EsObligatorio = d.EsObligatorio,
             LecturaIaActiva = true,
-            DeteccionTrabajadoresActiva = IdsConDeteccionTrabajadores.Contains(d.Id)
+            DeteccionTrabajadoresActiva = IdsConDeteccionTrabajadores.Contains(d.Id),
+            // El catálogo semilla pertenece al tenant #1 (ver Etapa 2 de
+            // PLAN-MIGRACION-MULTITENANT.md) — un tenant nuevo recibirá su
+            // propia copia editable al aprovisionarse (docs/MULTITENANCY.md § 7),
+            // no una referencia a esta misma fila.
+            TenantId = TenantSeedData.IdPorDefecto
         });
 }

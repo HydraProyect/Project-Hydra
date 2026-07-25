@@ -17,10 +17,10 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
         builder.Property(t => t.Email).HasMaxLength(Trabajador.LongitudMaximaEmail);
         builder.Property(t => t.Observaciones).HasMaxLength(Trabajador.LongitudMaximaObservaciones);
 
-        builder.HasIndex(t => t.Dni).IsUnique();
+        builder.HasIndex(t => new { t.TenantId, t.Dni }).IsUnique();
         builder.HasIndex(t => t.EmpresaId);
         builder.HasIndex(t => t.SubcontrataId);
 
-        builder.HasQueryFilter(t => !t.EstaEliminado);
+        // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }

@@ -250,7 +250,8 @@ public static class DatosPruebaSeeder
                     // Todo su propósito es poder iniciar sesión directamente
                     // con ContrasenaUsuariosPrueba — nunca deben quedar
                     // atrapados en la pantalla de cambio de contraseña.
-                    DebeCambiarContrasena = false
+                    DebeCambiarContrasena = false,
+                    TenantId = TenantSeedData.IdPorDefecto
                 };
 
                 var resultado = await userManager.CreateAsync(usuario, ContrasenaUsuariosPrueba);

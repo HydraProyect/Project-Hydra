@@ -139,6 +139,9 @@ jobs:
   gitleaks:
     name: Escaneo de secretos (gitleaks)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
