@@ -11,7 +11,7 @@ public class AsignacionConfiguration : IEntityTypeConfiguration<Asignacion>
         builder.ToTable("Asignaciones");
         builder.HasKey(a => a.Id);
 
-        builder.HasIndex(a => new { a.TrabajadorId, a.CentroId, a.FechaAlta }).IsUnique();
+        builder.HasIndex(a => new { a.TenantId, a.TrabajadorId, a.CentroId, a.FechaAlta }).IsUnique();
         builder.HasIndex(a => a.CentroId);
     }
 }

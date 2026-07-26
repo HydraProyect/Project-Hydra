@@ -23,9 +23,9 @@ public class ClienteConfiguration : IEntityTypeConfiguration<Cliente>
             .HasMaxLength(Cliente.LongitudMaximaNotas);
 
         builder.HasIndex(c => c.RazonSocial);
-        builder.HasIndex(c => c.Cif).IsUnique();
+        builder.HasIndex(c => new { c.TenantId, c.Cif }).IsUnique();
         builder.HasIndex(c => c.EjecutivoUsuarioId);
 
-        builder.HasQueryFilter(c => !c.EstaEliminado);
+        // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }

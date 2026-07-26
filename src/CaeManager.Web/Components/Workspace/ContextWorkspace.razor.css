@@ -1,0 +1,118 @@
+.workspace-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 520px;
+    background-color: var(--color-surface);
+    box-shadow: var(--shadow-overlay);
+    border-left: var(--border-default);
+    z-index: 1050;
+    display: flex;
+    flex-direction: column;
+    animation: workspace-entrar 0.2s ease-out;
+}
+
+.workspace-panel:focus-visible,
+.workspace-panel:focus {
+    outline: none;
+}
+
+@keyframes workspace-entrar {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .workspace-panel {
+        animation: none;
+    }
+}
+
+.workspace-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-bottom: var(--border-default);
+    flex-shrink: 0;
+}
+
+.workspace-header-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.workspace-boton-volver {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    background: none;
+    border: none;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.workspace-boton-volver:hover {
+    color: var(--color-primary-500);
+    background-color: var(--color-primary-50);
+}
+
+.workspace-boton-volver:focus-visible {
+    outline: var(--border-focus);
+}
+
+.workspace-cerrar {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--space-1);
+    flex-shrink: 0;
+}
+
+.workspace-cerrar:hover {
+    color: var(--color-text);
+}
+
+.workspace-cerrar:focus-visible {
+    outline: var(--border-focus);
+}
+
+.workspace-cuerpo {
+    padding: var(--space-5);
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+@media (max-width: 1023px) {
+    .workspace-panel {
+        max-width: 420px;
+    }
+}
+
+@media (max-width: 767px) {
+    .workspace-panel {
+        max-width: 100%;
+    }
+}

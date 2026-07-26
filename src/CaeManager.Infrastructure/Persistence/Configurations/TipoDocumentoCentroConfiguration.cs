@@ -11,7 +11,7 @@ public class TipoDocumentoCentroConfiguration : IEntityTypeConfiguration<TipoDoc
         builder.ToTable("TiposDocumentoCentros");
         builder.HasKey(tc => tc.Id);
 
-        builder.HasIndex(tc => new { tc.TipoDocumentoId, tc.CentroId }).IsUnique();
+        builder.HasIndex(tc => new { tc.TenantId, tc.TipoDocumentoId, tc.CentroId }).IsUnique();
         builder.HasIndex(tc => tc.CentroId);
     }
 }

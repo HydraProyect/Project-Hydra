@@ -6,10 +6,13 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Subcontratas;
+using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Visitas;
@@ -25,7 +28,8 @@ namespace CaeManager.Infrastructure.Persistence;
 
 public class CaeManagerDbContext(
     DbContextOptions<CaeManagerDbContext> options,
-    IDataProtectionProvider dataProtectionProvider)
+    IDataProtectionProvider dataProtectionProvider,
+    ITenantActual tenantActual)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options), IApplicationDbContext, IUnitOfWork
 {
     private readonly IDataProtector _protectorCredenciales =
@@ -38,6 +42,7 @@ public class CaeManagerDbContext(
     public DbSet<Cliente> Clientes => Set<Cliente>();
     public DbSet<Centro> Centros => Set<Centro>();
     public DbSet<PlataformaAcceso> PlataformasAcceso => Set<PlataformaAcceso>();
+    IQueryable<PlataformaAcceso> IApplicationDbContext.PlataformasAcceso => PlataformasAcceso;
     public DbSet<Empresa> Empresas => Set<Empresa>();
     public DbSet<EmpresaCliente> EmpresasClientes => Set<EmpresaCliente>();
     public DbSet<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Set<CredencialAccesoEmpresa>();
@@ -50,6 +55,10 @@ public class CaeManagerDbContext(
     public DbSet<TipoDocumento> TiposDocumento => Set<TipoDocumento>();
     public DbSet<TipoDocumentoCentro> TiposDocumentoCentros => Set<TipoDocumentoCentro>();
     public DbSet<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente => Set<ConfiguracionIaDocumentoCliente>();
+    public DbSet<RevisionIaDocumento> RevisionesIaDocumento => Set<RevisionIaDocumento>();
+    public DbSet<AprobacionDocumento> AprobacionesDocumento => Set<AprobacionDocumento>();
+    public DbSet<ExtraccionIaCache> ExtraccionesIaCache => Set<ExtraccionIaCache>();
+    public DbSet<AuditoriaExtraccionIa> AuditoriasExtraccionIa => Set<AuditoriaExtraccionIa>();
     public DbSet<NotificacionUsuario> NotificacionesUsuario => Set<NotificacionUsuario>();
     public DbSet<Documento> Documentos => Set<Documento>();
     public DbSet<Asignacion> Asignaciones => Set<Asignacion>();
@@ -57,9 +66,12 @@ public class CaeManagerDbContext(
     public DbSet<VisitaTrabajador> VisitasTrabajadores => Set<VisitaTrabajador>();
     public DbSet<Vehiculo> Vehiculos => Set<Vehiculo>();
     public DbSet<RequisitoDocumental> RequisitosDocumentales => Set<RequisitoDocumental>();
+    IQueryable<RequisitoDocumental> IApplicationDbContext.RequisitosDocumentales => RequisitosDocumentales;
     public DbSet<Alerta> Alertas => Set<Alerta>();
     public DbSet<ParametroSistema> ParametrosSistema => Set<ParametroSistema>();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
+    public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<TarifaCliente> TarifasCliente => Set<TarifaCliente>();
 
     IQueryable<Cliente> IApplicationDbContext.Clientes => Clientes;
     IQueryable<Empresa> IApplicationDbContext.Empresas => Empresas;
@@ -75,6 +87,10 @@ public class CaeManagerDbContext(
     IQueryable<TipoDocumento> IApplicationDbContext.TiposDocumento => TiposDocumento;
     IQueryable<TipoDocumentoCentro> IApplicationDbContext.TiposDocumentoCentros => TiposDocumentoCentros;
     IQueryable<ConfiguracionIaDocumentoCliente> IApplicationDbContext.ConfiguracionesIaDocumentoCliente => ConfiguracionesIaDocumentoCliente;
+    IQueryable<RevisionIaDocumento> IApplicationDbContext.RevisionesIaDocumento => RevisionesIaDocumento;
+    IQueryable<AprobacionDocumento> IApplicationDbContext.AprobacionesDocumento => AprobacionesDocumento;
+    IQueryable<ExtraccionIaCache> IApplicationDbContext.ExtraccionesIaCache => ExtraccionesIaCache;
+    IQueryable<AuditoriaExtraccionIa> IApplicationDbContext.AuditoriasExtraccionIa => AuditoriasExtraccionIa;
     IQueryable<NotificacionUsuario> IApplicationDbContext.NotificacionesUsuario => NotificacionesUsuario;
     IQueryable<Documento> IApplicationDbContext.Documentos => Documentos;
     IQueryable<Asignacion> IApplicationDbContext.Asignaciones => Asignaciones;
@@ -83,6 +99,8 @@ public class CaeManagerDbContext(
     IQueryable<Vehiculo> IApplicationDbContext.Vehiculos => Vehiculos;
     IQueryable<ParametroSistema> IApplicationDbContext.ParametrosSistema => ParametrosSistema;
     IQueryable<RegistroAuditoria> IApplicationDbContext.RegistrosAuditoria => RegistrosAuditoria;
+    IQueryable<Tenant> IApplicationDbContext.Tenants => Tenants;
+    IQueryable<TarifaCliente> IApplicationDbContext.TarifasCliente => TarifasCliente;
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -113,5 +131,45 @@ public class CaeManagerDbContext(
         builder.Entity<CredencialAccesoSubcontrata>().Property(c => c.Contrasena).HasConversion(conversorCredencialesSubcontrata);
 
         builder.Entity<IdentityRole<Guid>>().HasData(IdentityRoleSeedData.Filas());
+
+        // Filtro global de aislamiento por tenant, centralizado aquí (no en
+        // cada *Configuration.cs) — ver docs/MULTITENANCY.md § 4.2: EF Core
+        // solo admite un HasQueryFilter por entidad, así que ponerlo en un
+        // único lugar evita que un segundo HasQueryFilter futuro reemplace
+        // silenciosamente este sin que nadie lo note. Los 9 agregados con
+        // soft delete combinan ambos filtros; los 16 restantes (tablas de
+        // unión/satélite sin ciclo de vida propio) solo llevan el de tenant.
+        // AspNetUsers queda deliberadamente sin filtro — el login necesita
+        // poder resolver el usuario (y por tanto su tenant) antes de
+        // conocerlo, ver TenantClaimsPrincipalFactory.
+        builder.Entity<Cliente>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Centro>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Documento>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Empresa>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<RequisitoDocumental>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Subcontrata>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Trabajador>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Vehiculo>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Visita>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+
+        builder.Entity<Alerta>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<Asignacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<RegistroAuditoria>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<PlataformaAcceso>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<ParametroSistema>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<ConfiguracionIaDocumentoCliente>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<TipoDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<TipoDocumentoCentro>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<CredencialAccesoEmpresa>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<EmpresaCliente>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<NotificacionUsuario>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<CredencialAccesoSubcontrata>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<SubcontrataCliente>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<SubcontrataEmpresa>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<DeteccionTrabajador>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<ExtraccionIaCache>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<AuditoriaExtraccionIa>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<VisitaTrabajador>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<RevisionIaDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
     }
 }

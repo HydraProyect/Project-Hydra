@@ -4,9 +4,13 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Notificaciones;
+using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Subcontratas;
+using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Visitas;
@@ -35,6 +39,10 @@ public interface IApplicationDbContext
     IQueryable<TipoDocumento> TiposDocumento { get; }
     IQueryable<TipoDocumentoCentro> TiposDocumentoCentros { get; }
     IQueryable<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente { get; }
+    IQueryable<RevisionIaDocumento> RevisionesIaDocumento { get; }
+    IQueryable<AprobacionDocumento> AprobacionesDocumento { get; }
+    IQueryable<ExtraccionIaCache> ExtraccionesIaCache { get; }
+    IQueryable<AuditoriaExtraccionIa> AuditoriasExtraccionIa { get; }
     IQueryable<NotificacionUsuario> NotificacionesUsuario { get; }
     IQueryable<Documento> Documentos { get; }
     IQueryable<Asignacion> Asignaciones { get; }
@@ -43,4 +51,8 @@ public interface IApplicationDbContext
     IQueryable<Vehiculo> Vehiculos { get; }
     IQueryable<ParametroSistema> ParametrosSistema { get; }
     IQueryable<RegistroAuditoria> RegistrosAuditoria { get; }
+    IQueryable<RequisitoDocumental> RequisitosDocumentales { get; }
+    IQueryable<PlataformaAcceso> PlataformasAcceso { get; }
+    IQueryable<Tenant> Tenants { get; }
+    IQueryable<TarifaCliente> TarifasCliente { get; }
 }

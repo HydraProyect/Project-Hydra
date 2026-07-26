@@ -48,4 +48,18 @@ public class ApplicationUser : IdentityUser<Guid>
     /// que un Administrador le asigna uno.
     /// </summary>
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Tenant al que pertenece este usuario (ver docs/MULTITENANCY.md § 8,
+    /// Tenant Resolution Strategy — se estampa como claim de sesión al
+    /// autenticar, ver TenantClaimsPrincipalFactory). Todo usuario nuevo
+    /// debe crearse con un TenantId explícito (Etapa 3 de
+    /// PLAN-MIGRACION-MULTITENANT.md — cierre). Sin filtro global aplicado
+    /// a esta tabla (a diferencia del resto del dominio): el login necesita
+    /// poder resolver el usuario, y por tanto su tenant, antes de conocerlo.
+    /// <c>NormalizedUserName</c>/<c>NormalizedEmail</c> se mantienen únicos
+    /// globalmente en v1 (no por tenant) — limitación aceptada mientras la
+    /// resolución de tenant sea por claim y no por subdominio.
+    /// </summary>
+    public Guid TenantId { get; set; }
 }
