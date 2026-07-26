@@ -18,4 +18,12 @@ public class MistralOcrOptions
     /// § 4.1) sin tener que fijar una versión numerada a mano.
     /// </summary>
     public string Modelo { get; set; } = "mistral-ocr-latest";
+
+    /// <summary>
+    /// Precio orientativo por 1.000 páginas OCR (USD), usado solo para
+    /// el coste estimado de auditoría (docs/ARQUITECTURA-IA-DOCUMENTAL.md
+    /// § 4.2 — nunca un criterio de enrutado). Tarifa vigente de
+    /// Mistral OCR 4: $4,00/1.000 páginas. Revisar si cambia.
+    /// </summary>
+    public decimal CostoPorMilPaginasOcr { get; set; } = 4.00m;
 }

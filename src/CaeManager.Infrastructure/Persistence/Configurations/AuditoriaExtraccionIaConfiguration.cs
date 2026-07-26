@@ -14,6 +14,7 @@ public class AuditoriaExtraccionIaConfiguration : IEntityTypeConfiguration<Audit
         builder.Property(a => a.HashSha256).IsRequired().HasMaxLength(AuditoriaExtraccionIa.LongitudHash);
         builder.Property(a => a.TipoEsperado).IsRequired().HasMaxLength(AuditoriaExtraccionIa.LongitudMaximaTipoEsperado);
         builder.Property(a => a.ProveedorCodigo).IsRequired().HasMaxLength(AuditoriaExtraccionIa.LongitudMaximaProveedorCodigo);
+        builder.Property(a => a.CosteEstimadoOcr).HasPrecision(10, 6);
         builder.Property(a => a.CosteEstimado).HasPrecision(10, 6);
         builder.Property(a => a.Incidencias).HasMaxLength(AuditoriaExtraccionIa.LongitudMaximaIncidencias);
 
