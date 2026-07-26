@@ -70,13 +70,13 @@ public class AnthropicDocumentAIProvider(
         - Responde únicamente con el objeto JSON.
         """;
 
-    public async Task<Result<string>> ExtraerTextoAsync(byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default)
+    public async Task<Result<TextoExtraccionDto>> ExtraerTextoAsync(byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default)
     {
         var config = opciones.Value;
 
         if (string.IsNullOrWhiteSpace(config.ApiKey))
         {
-            return Result.Fallo<string>(Error.Crear(
+            return Result.Fallo<TextoExtraccionDto>(Error.Crear(
                 "DocumentAIProvider.NoConfigurado", "La lectura automática por IA no está disponible ahora mismo."));
         }
 
@@ -98,9 +98,10 @@ public class AnthropicDocumentAIProvider(
 
         var respuesta = await EnviarAsync(solicitud, "DocumentAIProvider", cancellationToken);
         if (respuesta.EsFallido)
-            return Result.Fallo<string>(respuesta.Error);
+            return Result.Fallo<TextoExtraccionDto>(respuesta.Error);
 
-        return Result.Exito(respuesta.Valor.Texto.Trim());
+        var coste = CalcularCoste(respuesta.Valor.TokensEntrada, respuesta.Valor.TokensSalida);
+        return Result.Exito(new TextoExtraccionDto(respuesta.Valor.Texto.Trim(), coste));
     }
 
     private static bool EsPdf(string nombreArchivo) => nombreArchivo.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
