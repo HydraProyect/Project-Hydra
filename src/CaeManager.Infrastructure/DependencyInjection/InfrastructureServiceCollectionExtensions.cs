@@ -1,10 +1,13 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
@@ -17,10 +20,12 @@ using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Backups;
 using CaeManager.Infrastructure.Conversion;
+using CaeManager.Infrastructure.DocumentosIa;
 using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
+using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using Microsoft.AspNetCore.DataProtection;
@@ -38,11 +43,14 @@ public static class InfrastructureServiceCollectionExtensions
         this IServiceCollection services, IConfiguration configuration, IHostEnvironment entorno)
     {
         services.AddScoped<AuditoriaInterceptor>();
+        services.AddScoped<TenantSelladoInterceptor>();
 
         services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
         {
             options.UseSqlite(configuration.GetConnectionString("CaeManagerDb"));
-            options.AddInterceptors(serviceProvider.GetRequiredService<AuditoriaInterceptor>());
+            options.AddInterceptors(
+                serviceProvider.GetRequiredService<AuditoriaInterceptor>(),
+                serviceProvider.GetRequiredService<TenantSelladoInterceptor>());
         });
 
         services
@@ -56,6 +64,7 @@ public static class InfrastructureServiceCollectionExtensions
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<CaeManagerDbContext>()
             .AddSignInManager<SignInManager<ApplicationUser>>()
+            .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
             .AddDefaultTokenProviders();
 
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
@@ -91,6 +100,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITipoDocumentoRepository, TipoDocumentoRepository>();
         services.AddScoped<ITipoDocumentoCentroRepository, TipoDocumentoCentroRepository>();
         services.AddScoped<IConfiguracionIaDocumentoClienteRepository, ConfiguracionIaDocumentoClienteRepository>();
+        services.AddScoped<IRevisionIaDocumentoRepository, RevisionIaDocumentoRepository>();
+        services.AddScoped<IAprobacionDocumentoRepository, AprobacionDocumentoRepository>();
+        services.AddScoped<IExtraccionIaCacheRepository, ExtraccionIaCacheRepository>();
+        services.AddScoped<IAuditoriaExtraccionIaRepository, AuditoriaExtraccionIaRepository>();
+        services.AddSingleton<IClasificadorDocumentoService, PdfSharpClasificadorDocumentoService>();
+        services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
         services.AddScoped<INotificacionUsuarioRepository, NotificacionUsuarioRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
         services.AddScoped<IAsignacionRepository, AsignacionRepository>();
@@ -98,12 +113,15 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IVisitaTrabajadorRepository, VisitaTrabajadorRepository>();
         services.AddScoped<IVehiculoRepository, VehiculoRepository>();
         services.AddScoped<IParametroSistemaRepository, ParametroSistemaRepository>();
+        services.AddScoped<ITarifaClienteRepository, TarifaClienteRepository>();
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
-        services.AddSingleton<IFileStorageService, DiskFileStorageService>();
+        // Scoped (no Singleton): depende de ITenantActual, que es scoped —
+        // ver docs/MULTITENANCY.md § 4.6.
+        services.AddScoped<IFileStorageService, DiskFileStorageService>();
 
         services.Configure<LibreOfficeConversorWordPdfServiceOptions>(configuration.GetSection(LibreOfficeConversorWordPdfServiceOptions.SeccionConfiguracion));
         services.AddSingleton<IConversorWordPdfService, LibreOfficeConversorWordPdfService>();
@@ -114,6 +132,37 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>();
         services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>();
+        // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
+        // implementación directa de Anthropic aquí — RouterExtraccionMetadatosDocumentoIaService
+        // (Application) la satisface delegando en IDocumentAIRouterService,
+        // registrada en ApplicationServiceCollectionExtensions.
+        //
+        // IDocumentAIProvider: registro por interfaz general (no un typed
+        // client dedicado) — así IEnumerable<IDocumentAIProvider> recoge
+        // todos los proveedores para la Factory (ver
+        // docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2). El ORDEN de estos
+        // registros importa: DocumentAIProviderFactory.ObtenerPorCapacidad
+        // conserva el orden de registro, y DocumentAIRouterService usa el
+        // primero de la lista como proveedor OCR sin reintento (a
+        // diferencia de la extracción estructurada, que sí reintenta con
+        // el segundo si el primero da poca confianza — ver Fase 41). Por
+        // eso Mistral (proveedor OCR especializado, registrado primero) se
+        // usa antes que Anthropic para OCR, mientras que para extracción
+        // estructurada Anthropic sigue siendo el primario (Fase 38-40,
+        // antes de tener claves reales) y Gemini el candidato de
+        // reintento — cambiar cuál es "primario" para estructuración es
+        // una decisión de benchmark, no algo que se cambie por tener una
+        // clave nueva (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1).
+        services.Configure<MistralOcrOptions>(configuration.GetSection(MistralOcrOptions.SeccionConfiguracion));
+        services.AddHttpClient<MistralOcrDocumentAIProvider>();
+        services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<MistralOcrDocumentAIProvider>());
+
+        services.AddHttpClient<AnthropicDocumentAIProvider>();
+        services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<AnthropicDocumentAIProvider>());
+
+        services.Configure<GeminiOptions>(configuration.GetSection(GeminiOptions.SeccionConfiguracion));
+        services.AddHttpClient<GeminiDocumentAIProvider>();
+        services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<GeminiDocumentAIProvider>());
 
         services.Configure<GraphEmailOptions>(configuration.GetSection(GraphEmailOptions.SeccionConfiguracion));
         services.AddHttpClient<IEmailService, GraphEmailService>();

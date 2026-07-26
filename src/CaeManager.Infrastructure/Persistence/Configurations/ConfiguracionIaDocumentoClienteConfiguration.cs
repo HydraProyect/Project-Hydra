@@ -11,6 +11,6 @@ public class ConfiguracionIaDocumentoClienteConfiguration : IEntityTypeConfigura
         builder.ToTable("ConfiguracionesIaDocumentoCliente");
         builder.HasKey(c => c.Id);
 
-        builder.HasIndex(c => new { c.ClienteId, c.TipoDocumentoId }).IsUnique();
+        builder.HasIndex(c => new { c.TenantId, c.ClienteId, c.TipoDocumentoId }).IsUnique();
     }
 }
