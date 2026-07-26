@@ -4,7 +4,7 @@
 
 > **Addendum (2026-07-23)**: la decisión pendiente de § 12 quedó **resuelta — aprobado in-place con `ADR-003-saas-multitenant.md`** (supersede la cláusula fork de ADR-002). En el debate se añadieron dos precisiones que este informe incorpora por referencia a `docs/MULTITENANCY.md`: (1) los catálogos **no** son todos por tenant — clasificación global vs. por-tenant justificada caso a caso en `MULTITENANCY.md` § 7 (matiza el R5 de este informe); (2) la **Tenant Resolution Strategy** (resolución por claim de sesión con fallo cerrado, subdominios como evolución, jobs con ámbito explícito por tenant) está en `MULTITENANCY.md` § 8 y debe estar aprobada antes de iniciar implementación. La fase de consolidación documental (ADR-003, `DOMAIN.md`, `docs/MULTITENANCY.md`, actualización de PROJECT/ROADMAP/CLAUDE/ARCHITECTURE/DATABASE) está completada y pendiente de aprobación final.
 
-**Contexto de partida**: dos escenarios de negocio definen el tenant — (1) una consultora PRL (ej. GESEME) que gestiona la CAE de varias Empresas contratistas (KHS, TOMRA, MATACHANA) frente a sus Clientes finales (Mercadona, Heineken, Coca-Cola, Pepsi), todo dentro de un mismo tenant; (2) venta directa a una contratista (tenant = KHS, con una sola Empresa y sus Clientes). El Tenant es la organización que compra Hydra — **nunca** la entidad `Cliente` del dominio — y es la frontera absoluta de aislamiento.
+**Contexto de partida**: dos escenarios de negocio definen el tenant — (1) una consultora PRL (ej. ArcoSPA) que gestiona la CAE de varias Empresas contratistas (Ibertec S.A., EcoPlant Reciclaje S.L., Techmed Equipos S.A.) frente a sus Clientes finales (Retail Iberia S.A., Bebidas del Norte S.A., Refrescos Levante S.A., Distribuciones Iberia S.L.), todo dentro de un mismo tenant; (2) venta directa a una contratista (tenant = Ibertec S.A., con una sola Empresa y sus Clientes). El Tenant es la organización que compra Hydra — **nunca** la entidad `Cliente` del dominio — y es la frontera absoluta de aislamiento.
 
 ---
 
@@ -23,7 +23,7 @@
 | Centro pertenece a un único Cliente, con `ClienteId` | ✅ Ya es así (FK requerida). Además tiene `EmpresaId` requerida — el Centro es "de un Cliente, operado por una Empresa" | `Centro.cs` |
 | Vista de Cliente por consultas agregadas, no por denormalización | ✅ Alineado con el diseño ya hecho del Context Workspace | `PLAN-CONTEXT-WORKSPACE.md` |
 
-**Conclusión de validación**: no hay que cambiar ninguna relación del dominio para soportar multi-tenant. El trabajo es **añadir la dimensión Tenant encima del modelo existente**, no corregir el modelo. Los dos escenarios de negocio (consultora GESEME / venta directa a KHS) funcionan con el mismo esquema — el escenario 2 es simplemente un tenant con una sola Empresa; no requiere ninguna rama de código especial. Eso es señal de que la frontera está bien elegida.
+**Conclusión de validación**: no hay que cambiar ninguna relación del dominio para soportar multi-tenant. El trabajo es **añadir la dimensión Tenant encima del modelo existente**, no corregir el modelo. Los dos escenarios de negocio (consultora ArcoSPA / venta directa a Ibertec S.A.) funcionan con el mismo esquema — el escenario 2 es simplemente un tenant con una sola Empresa; no requiere ninguna rama de código especial. Eso es señal de que la frontera está bien elegida.
 
 El matiz Subcontrata debe resolverse en el enunciado, no en el código: la frase "Trabajador pertenece únicamente a una Empresa" debe ampliarse a "a una Empresa o a una Subcontrata" en `docs/MULTITENANCY.md` cuando se escriba — el dominio real ya distingue personal propio de personal subcontratado y eso es correcto para CAE.
 
@@ -147,7 +147,7 @@ Resolución del tenant actual: claim `tenant_id` en la cookie/token, poblado al 
 
 ## 11. Estrategia de índices
 
-- Únicos globales → compuestos: `(TenantId, Cif)` en Cliente y Empresa, `(TenantId, RazonSocial)` en Empresa y Subcontrata, `(TenantId, Nombre)` en TipoDocumento, `(TenantId, Dni)` en Trabajador, `(TenantId, NumeroPlaca)` en Vehiculo — los 7 de ADR-001, confirmados hoy en las `*Configuration.cs`. Caso de negocio real: el mismo trabajador (mismo DNI) puede existir legítimamente en dos tenants (KHS como tenant directo y GESEME gestionando a KHS).
+- Únicos globales → compuestos: `(TenantId, Cif)` en Cliente y Empresa, `(TenantId, RazonSocial)` en Empresa y Subcontrata, `(TenantId, Nombre)` en TipoDocumento, `(TenantId, Dni)` en Trabajador, `(TenantId, NumeroPlaca)` en Vehiculo — los 7 de ADR-001, confirmados hoy en las `*Configuration.cs`. Caso de negocio real: el mismo trabajador (mismo DNI) puede existir legítimamente en dos tenants (Ibertec S.A. como tenant directo y ArcoSPA gestionando a Ibertec S.A.).
 - Únicos de unión → se les antepone `TenantId` igualmente (`(TenantId, EmpresaId, ClienteId)`, etc.): redundante en teoría, barato en la práctica, y hace imposible una fila de unión cruzada entre tenants incluso ante un bug del sellado.
 - Identity: `(TenantId, NormalizedUserName)` y `(TenantId, NormalizedEmail)` sustituyen la unicidad global (R4).
 - Con el filtro global inyectando `TenantId = ?` en cada WHERE, poner `TenantId` como **primera** columna de los índices compuestos es lo que mantiene el plan de consulta selectivo — no hacen falta índices sueltos adicionales sobre `TenantId` en tablas que ya tengan compuestos.

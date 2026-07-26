@@ -91,7 +91,7 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
     public async Task El_interceptor_sella_TenantId_del_tenant_actual_sin_que_el_codigo_lo_asigne()
     {
         await using var contextoA = CrearContexto(_tenantA);
-        var cliente = new Cliente("KHS S.A.", "B12345674", esCritico: false);
+        var cliente = new Cliente("Ibertec S.A.", "B12345674", esCritico: false);
         contextoA.Clientes.Add(cliente);
         await contextoA.SaveChangesAsync();
 
