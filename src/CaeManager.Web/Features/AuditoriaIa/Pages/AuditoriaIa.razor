@@ -1,0 +1,88 @@
+@page "/auditoria-ia"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+
+<PageTitle>Auditoría IA — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Auditoría IA Documental</h1>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoSelect Etiqueta="Proveedor" Valor="@(_filtroProveedor ?? string.Empty)" ValorChanged="FiltrarPorProveedorAsync">
+            <option value="">Todos</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="gemini">Gemini</option>
+            <option value="mistral-ocr">Mistral OCR</option>
+            <option value="cache">Caché</option>
+            <option value="ninguno">Sin proveedor (fallo)</option>
+        </CampoSelect>
+    </div>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar la auditoría de IA" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="8" />
+    }
+    else if (_resultado is null || _resultado.Elementos.Count == 0)
+    {
+        <EstadoVacio Titulo="Sin registros de procesamiento IA" Descripcion="Todavía no se ha procesado ningún documento con este filtro." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Tipo esperado</th>
+                    <th>Proveedor</th>
+                    <th>Páginas</th>
+                    <th>Confianza</th>
+                    <th>Coste OCR</th>
+                    <th>Coste extracción</th>
+                    <th>Tiempo (ms)</th>
+                    <th>Incidencias</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var registro in _resultado.Elementos)
+                {
+                    <tr>
+                        <td>@registro.CreadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@registro.TipoEsperado</td>
+                        <td>
+                            <Badge Tono="@BadgeParaProveedor(registro.ProveedorCodigo)">@registro.ProveedorCodigo</Badge>
+                        </td>
+                        <td>@(registro.NumeroPaginas > 0 ? registro.NumeroPaginas.ToString() : "—")</td>
+                        <td>
+                            @if (registro.ProveedorCodigo is not "ninguno" and not "cache")
+                            {
+                                <Badge Tono="@BadgeParaConfianza(registro.ConfianzaGeneral)">@registro.ConfianzaGeneral%</Badge>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </td>
+                        <td>@FormatearCoste(registro.CosteEstimadoOcr)</td>
+                        <td>@FormatearCoste(registro.CosteEstimado)</td>
+                        <td>@registro.TiempoProcesamientoMs</td>
+                        <td class="celda-incidencias">@(registro.Incidencias ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <PaginadorSimple PaginaActual="_resultado.Pagina" TotalPaginas="_resultado.TotalPaginas"
+                          TotalElementos="_resultado.TotalElementos" Etiqueta="registro(s)"
+                          PaginaActualChanged="IrAPaginaAsync" />
+    }
+</div>

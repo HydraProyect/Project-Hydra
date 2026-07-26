@@ -617,6 +617,36 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 
 **Verificado**: build limpio, todos los archivos siguen los patrones del proyecto (CQRS, repositorio, code-behind Blazor, filtro global de tenant). Sin prueba en navegador real (entorno sin dotnet CLI directo).
 
+## Fase 49 — Captura del coste OCR en `AuditoriaExtraccionIa`
+
+✅ Completa (2026-07-26). Cierra la laguna de observabilidad del paso OCR: hasta aquí `CosteEstimado` en la auditoría solo recogía el coste del paso de estructuración (LLM), no el del OCR previo (Mistral OCR 4 es de pago por página).
+
+- **`IDocumentAIProvider.ExtraerTextoAsync`**: tipo de retorno cambiado de `Result<string>` a `Result<TextoExtraccionDto>` — nuevo record `(string Texto, decimal? CosteEstimado = null)`. Transporta el coste del paso OCR hasta el router sin romper la abstracción.
+- **`AuditoriaExtraccionIa`**: nuevo campo `CosteEstimadoOcr` (decimal?, separado de `CosteEstimado` que sigue siendo el coste de estructuración). Migración `20260726204056_AgregarCosteEstimadoOcrAuditoria`.
+- **Tres proveedores actualizados**: `AnthropicDocumentAIProvider` y `GeminiDocumentAIProvider` calculan coste OCR a partir de tokens (igual que hacían para estructuración). `MistralOcrDocumentAIProvider` usa `usage_info.pages_processed * CostoPorMilPaginasOcr / 1000m` (fallback: `paginas.Count` si la API no devuelve `usage_info`).
+- **`DocumentAIRouterService`**: `ObtenerTextoAsync` propaga `CosteEstimadoOcr`; `RegistrarAuditoriaAsync` recibe y graba el coste en los 5 puntos de registro (null para cache/fallos antes del OCR, valor real tras OCR exitoso).
+- Tests actualizados (`AuditoriaExtraccionIaTests`, `DocumentAIRouterServiceTests`): nuevo test `Registra_coste_ocr_en_auditoria_cuando_el_documento_es_escaneado`; asserts de coste OCR añadidos al test existente de documento digital. 134 Domain, 73 Application, 13 Web.Tests, 85/87 IntegrationTests, 8/8 E2E en verde.
+
+## Fase 50 — Pantalla de administración de `AuditoriaExtraccionIa`
+
+✅ Completa (2026-07-26). Petición natural tras implementar la captura de costes: hacer visible el registro de auditoría IA al Administrador.
+
+- **`ObtenerAuditoriaIaQuery`** + `ObtenerAuditoriaIaQueryHandler` + `RegistroAuditoriaIaDto` (`Application/DocumentosIa/Queries/`): paginación de 30 registros, filtro opcional por `ProveedorCodigo`, ordenado por fecha descendente.
+- **`/auditoria-ia`** (nueva página Blazor, `Authorize(Roles = Administrador)`): tabla con columnas Fecha, Tipo esperado, Proveedor (badge por código), Páginas, Confianza (badge por nivel), Coste OCR, Coste extracción, Tiempo (ms), Incidencias. Selector de proveedor (Todos/Anthropic/Gemini/Mistral OCR/Caché/Sin proveedor). `PaginadorSimple` estándar. Manejo de estados cargando/error/vacío con los componentes del Design System.
+- **NavMenu**: enlace "Auditoría IA" bajo el grupo Administración (solo visible para rol Administrador), junto al enlace de Auditoría ya existente.
+- Build limpio, mismos 85/87 tests en verde (2 fallos preexistentes de LibreOffice, no relacionados).
+
+## Fase 50 — Rasterización para el Caso Mixto del Document AI Router
+
+✅ Completa (2026-07-26). Cierra la simplificación documentada desde Fase 3 en § 4.3 de `docs/ARQUITECTURA-IA-DOCUMENTAL.md`: el Caso 4 (documento Mixto) ya no envía el PDF completo a OCR — solo rasteriza y hace OCR en las páginas realmente escaneadas, y extrae texto localmente en las páginas digitales.
+
+- **`IRasterizadorPaginasPdfService`** (`Application/DocumentosIa/Common/`): nueva interfaz que rasteriza índices 0-based específicos de un PDF a PNG en memoria.
+- **`PdfToPngRasterizadorPaginasPdfService`** (`Infrastructure/DocumentosIa/`): implementación con **PDFtoImage 5.2.1** (wrapper de bblanchon.PDFium para Linux + SkiaSharp), 150 DPI. Resuelve la ambigüedad de nombre con `CaeManager.Infrastructure.Conversion` usando `global::PDFtoImage.Conversion`.
+- **`DocumentAIRouterService.ObtenerTextoMixtoAsync`** (nuevo método privado): extrae texto digital de las páginas con `IExtractorTextoDigitalService`; rasteriza las páginas escaneadas; llama al proveedor OCR una vez por página escaneada (página `.png`); combina en orden de página. El coste OCR se acumula sumando el de cada página. Si `indicesEscaneadas` está vacío (Mixto sin páginas escaneadas, caso teórico) toma el camino digital directamente.
+- **Beneficio de coste real**: si un documento de 20 páginas tiene 8 digitales + 12 escaneadas, Mistral OCR se paga solo por 12 páginas en lugar de 20.
+- Tests: 3 nuevos casos — texto combinado en orden correcto, acumulación de coste OCR con 2 páginas escaneadas, y fallo controlado si el rasterizador no puede procesar el PDF. 76/76 Application, 134/134 Domain, 13/13 Web.Tests, 85/87 IntegrationTests, 8/8 E2E en verde (mismos 2 fallos LibreOffice en sandbox local, pasan en CI).
+- **Fuera de alcance, no construido**: paralelización de las llamadas OCR por página (en documentos con muchas páginas escaneadas, las llamadas se hacen en serie — YAGNI hasta que haya evidencia de que es un cuello de botella real).
+
 ## Épico — Plataforma de Integraciones (backlog, sin implementar — 2026-07-23)
 
 **Planteado por el usuario el 2026-07-23**: si la visión del producto se cumple, Hydra no es solo un gestor CAE — es una **plataforma**, y las plataformas ganan valor cuando las integraciones son una capacidad nativa (una capacidad del Tenant), no una colección de conectores desarrollados caso por caso. Proveedores objetivo del ecosistema: **Dokify, 6Conecta/6Coordina, CTAIMA, eCoordina**, plataformas CAE en general, **Microsoft 365** e **IA** (Anthropic/OpenAI). Diseño completo, arquitectura basada en proveedores (`IIntegrationProvider`, no conectores específicos acoplados al dominio) en **`ARQUITECTURA-INTEGRACIONES.md`** — este punto es solo el resumen de backlog. Nada de esto está implementado; existe para que las decisiones de multi-tenant que se están tomando ahora (`ADR-003`) no le cierren puertas.

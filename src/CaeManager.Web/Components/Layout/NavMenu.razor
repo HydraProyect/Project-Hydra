@@ -56,7 +56,7 @@
         <NavLink class="nav-item" href="alertas">
             <Icono Nombre="alertas" /> Alertas
         </NavLink>
-        <AuthorizeView Roles="@RolesDeAdministracionAmpliada">
+        <AuthorizeView Roles="@RolesDeAdministracionAmpliada" Context="authAdminControl">
             <NavLink class="nav-item" href="facturacion">
                 <Icono Nombre="reportes" /> Facturación
             </NavLink>
@@ -108,6 +108,9 @@
         </NavLink>
         <NavLink class="nav-item" href="auditoria">
             <Icono Nombre="auditoria" /> Auditoría
+        </NavLink>
+        <NavLink class="nav-item" href="auditoria-ia">
+            <Icono Nombre="auditoria" /> Auditoría IA
         </NavLink>
         <NavLink class="nav-item" href="importacion">
             <Icono Nombre="importar" /> Importar desde Excel

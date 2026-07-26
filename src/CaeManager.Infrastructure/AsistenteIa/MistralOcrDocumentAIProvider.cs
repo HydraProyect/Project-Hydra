@@ -38,13 +38,13 @@ public class MistralOcrDocumentAIProvider(
 
     public CapacidadesProveedorIa Capacidades => CapacidadesProveedorIa.OcrImagenAEscaneado;
 
-    public async Task<Result<string>> ExtraerTextoAsync(byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default)
+    public async Task<Result<TextoExtraccionDto>> ExtraerTextoAsync(byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default)
     {
         var config = opciones.Value;
 
         if (string.IsNullOrWhiteSpace(config.ApiKey))
         {
-            return Result.Fallo<string>(Error.Crear(
+            return Result.Fallo<TextoExtraccionDto>(Error.Crear(
                 "DocumentAIProvider.NoConfigurado", "La lectura automática por IA no está disponible ahora mismo."));
         }
 
@@ -76,7 +76,7 @@ public class MistralOcrDocumentAIProvider(
             {
                 var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError("La API de Mistral OCR devolvió {StatusCode}: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
-                return Result.Fallo<string>(Error.Crear("DocumentAIProvider.ErrorApi", "No pudimos procesar el documento automáticamente."));
+                return Result.Fallo<TextoExtraccionDto>(Error.Crear("DocumentAIProvider.ErrorApi", "No pudimos procesar el documento automáticamente."));
             }
 
             var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaOcrMistral>(cancellationToken);
@@ -84,15 +84,18 @@ public class MistralOcrDocumentAIProvider(
 
             if (paginas is null || paginas.Count == 0)
             {
-                return Result.Fallo<string>(Error.Crear("DocumentAIProvider.RespuestaVacia", "No pudimos procesar el documento automáticamente."));
+                return Result.Fallo<TextoExtraccionDto>(Error.Crear("DocumentAIProvider.RespuestaVacia", "No pudimos procesar el documento automáticamente."));
             }
 
-            return Result.Exito(string.Join("\n\n", paginas.Select(p => p.Markdown ?? string.Empty)).Trim());
+            var texto = string.Join("\n\n", paginas.Select(p => p.Markdown ?? string.Empty)).Trim();
+            var paginasProcesadas = cuerpo?.UsageInfo?.PaginasProcesadas ?? paginas.Count;
+            var coste = paginasProcesadas / 1000m * config.CostoPorMilPaginasOcr;
+            return Result.Exito(new TextoExtraccionDto(texto, coste));
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al contactar la API de Mistral OCR.");
-            return Result.Fallo<string>(Error.Crear("DocumentAIProvider.ErrorRed", "No pudimos procesar el documento automáticamente."));
+            return Result.Fallo<TextoExtraccionDto>(Error.Crear("DocumentAIProvider.ErrorRed", "No pudimos procesar el documento automáticamente."));
         }
     }
 
@@ -129,7 +132,11 @@ public class MistralOcrDocumentAIProvider(
         [property: JsonPropertyName("type")] string Type,
         [property: JsonPropertyName("url")] string Url);
 
-    private sealed record RespuestaOcrMistral([property: JsonPropertyName("pages")] IReadOnlyList<PaginaMistral>? Pages);
+    private sealed record RespuestaOcrMistral(
+        [property: JsonPropertyName("pages")] IReadOnlyList<PaginaMistral>? Pages,
+        [property: JsonPropertyName("usage_info")] UsoMistral? UsageInfo);
 
     private sealed record PaginaMistral([property: JsonPropertyName("markdown")] string? Markdown);
+
+    private sealed record UsoMistral([property: JsonPropertyName("pages_processed")] int PaginasProcesadas);
 }

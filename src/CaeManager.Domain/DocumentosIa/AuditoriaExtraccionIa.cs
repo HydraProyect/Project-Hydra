@@ -22,6 +22,7 @@ public class AuditoriaExtraccionIa : EntidadConTenant
     public string TipoEsperado { get; private set; } = string.Empty;
     public string ProveedorCodigo { get; private set; } = string.Empty;
     public long TiempoProcesamientoMs { get; private set; }
+    public decimal? CosteEstimadoOcr { get; private set; }
     public decimal? CosteEstimado { get; private set; }
     public int NumeroPaginas { get; private set; }
     public int ConfianzaGeneral { get; private set; }
@@ -34,7 +35,7 @@ public class AuditoriaExtraccionIa : EntidadConTenant
 
     private AuditoriaExtraccionIa(
         string hashSha256, string tipoEsperado, string proveedorCodigo, long tiempoProcesamientoMs,
-        decimal? costeEstimado, int numeroPaginas, int confianzaGeneral, string? incidencias)
+        decimal? costeEstimadoOcr, decimal? costeEstimado, int numeroPaginas, int confianzaGeneral, string? incidencias)
     {
         if (string.IsNullOrWhiteSpace(hashSha256) || hashSha256.Length != LongitudHash)
             throw new ArgumentException($"El hash SHA256 debe tener exactamente {LongitudHash} caracteres.", nameof(hashSha256));
@@ -45,6 +46,7 @@ public class AuditoriaExtraccionIa : EntidadConTenant
         TipoEsperado = tipoEsperado.Length > LongitudMaximaTipoEsperado ? tipoEsperado[..LongitudMaximaTipoEsperado] : tipoEsperado;
         ProveedorCodigo = proveedorCodigo.Length > LongitudMaximaProveedorCodigo ? proveedorCodigo[..LongitudMaximaProveedorCodigo] : proveedorCodigo;
         TiempoProcesamientoMs = tiempoProcesamientoMs;
+        CosteEstimadoOcr = costeEstimadoOcr;
         CosteEstimado = costeEstimado;
         NumeroPaginas = numeroPaginas;
         ConfianzaGeneral = confianzaGeneral;
@@ -53,6 +55,6 @@ public class AuditoriaExtraccionIa : EntidadConTenant
 
     public static AuditoriaExtraccionIa Crear(
         string hashSha256, string tipoEsperado, string proveedorCodigo, long tiempoProcesamientoMs,
-        decimal? costeEstimado, int numeroPaginas, int confianzaGeneral, string? incidencias) =>
-        new(hashSha256, tipoEsperado, proveedorCodigo, tiempoProcesamientoMs, costeEstimado, numeroPaginas, confianzaGeneral, incidencias);
+        decimal? costeEstimadoOcr, decimal? costeEstimado, int numeroPaginas, int confianzaGeneral, string? incidencias) =>
+        new(hashSha256, tipoEsperado, proveedorCodigo, tiempoProcesamientoMs, costeEstimadoOcr, costeEstimado, numeroPaginas, confianzaGeneral, incidencias);
 }
