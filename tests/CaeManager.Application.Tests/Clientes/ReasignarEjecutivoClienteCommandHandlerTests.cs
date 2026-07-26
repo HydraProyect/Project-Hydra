@@ -22,7 +22,7 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
     {
         var gestorAnteriorId = Guid.NewGuid();
         var gestorNuevoId = Guid.NewGuid();
-        var cliente = new Cliente("COBEGA", "B12345674", false, ejecutivoUsuarioId: gestorAnteriorId);
+        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false, ejecutivoUsuarioId: gestorAnteriorId);
 
         var clienteRepositorio = new ClienteRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
@@ -45,7 +45,7 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
     public async Task Avisa_al_nuevo_gestor_de_los_tipos_de_documento_sin_lectura_ia()
     {
         var gestorNuevoId = Guid.NewGuid();
-        var cliente = new Cliente("COBEGA", "B12345674", false);
+        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false);
         var tipoDocumentoId = Guid.NewGuid();
 
         var clienteRepositorio = new ClienteRepositorioFalso();
@@ -70,7 +70,7 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
     [InlineData((string?)null)]
     public async Task Roles_sin_permiso_no_pueden_reasignar(string? rol)
     {
-        var cliente = new Cliente("COBEGA", "B12345674", false);
+        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false);
         var clienteRepositorio = new ClienteRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
         var configuracionIaRepositorio = new ConfiguracionIaDocumentoClienteRepositorioFalso();
@@ -90,7 +90,7 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
     public async Task No_hace_nada_si_el_gestor_no_cambia()
     {
         var gestorId = Guid.NewGuid();
-        var cliente = new Cliente("COBEGA", "B12345674", false, ejecutivoUsuarioId: gestorId);
+        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false, ejecutivoUsuarioId: gestorId);
         var clienteRepositorio = new ClienteRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
         var configuracionIaRepositorio = new ConfiguracionIaDocumentoClienteRepositorioFalso();

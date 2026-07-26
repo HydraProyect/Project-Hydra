@@ -1,0 +1,184 @@
+@*
+    Panel de Trabajador para el Context Workspace. Pestañas: Información,
+    Documentación, Citas, Vehículos, Historial.
+
+    "Citas" no tiene entidad de dominio todavía — se muestra como
+    "Próximamente" en vez de inventar persistencia falsa (decisión
+    explícita del usuario). "Vehículos" muestra los de la Empresa/
+    Subcontrata del trabajador como información contextual — Vehiculo no
+    tiene relación directa con Trabajador en el modelo (misma decisión que
+    ya existía para no conectar Vehiculo con Visita).
+*@
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId
+@using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos
+@using CaeManager.Domain.Documentos
+@using MediatR
+@inject IMediator Mediator
+@inject ContextWorkspaceService WorkspaceService
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="4" />
+}
+else if (_error || _detalle is null)
+{
+    <EstadoVacio Titulo="No pudimos cargar el trabajador" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarCabeceraAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else
+{
+    <div class="workspace-cabecera-entidad">
+        <h2 class="workspace-titulo-entidad">@_detalle.Nombre @_detalle.Apellidos</h2>
+    </div>
+
+    <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del trabajador">
+        @switch (PestanaActiva)
+        {
+            case "informacion":
+                <div class="workspace-grupo-campos">
+                    <CampoInfo Etiqueta="Nombre completo" Valor="@($"{_detalle.Nombre} {_detalle.Apellidos}")" />
+                    <CampoInfo Etiqueta="DNI" Valor="@_detalle.Dni" />
+                    <CampoInfo Etiqueta="Empleador" Valor="@_detalle.EmpleadorNombre" />
+                    <CampoInfo Etiqueta="Email" Valor="@_detalle.Email" />
+                    <CampoInfo Etiqueta="Fecha de nacimiento" Valor="@(_detalle.FechaNacimiento?.ToString("dd/MM/yyyy"))" />
+                    <CampoInfo Etiqueta="Observaciones" Valor="@_detalle.Observaciones" />
+                </div>
+                break;
+
+            case "documentacion":
+                <PestanaDocumentacion Ambito="AmbitoAplicacion.Trabajador" PropietarioId="EntidadId" />
+                break;
+
+            case "citas":
+                <EstadoVacio Titulo="Próximamente" Descripcion="La gestión de citas de un trabajador (reconocimientos médicos, formación, etc.) todavía no está disponible en CAE Manager." />
+                break;
+
+            case "vehiculos":
+                @if (_cargandoVehiculos)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_errorVehiculos)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar los vehículos" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarVehiculosAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (_vehiculos is { Count: 0 })
+                {
+                    <EstadoVacio Titulo="Sin vehículos" Descripcion="El empleador de este trabajador no tiene vehículos registrados." />
+                }
+                else if (_vehiculos is not null)
+                {
+                    <p class="workspace-nota-contextual">Vehículos disponibles de la empresa. La asignación a un trabajador concreto se realiza durante la gestión operativa cuando corresponda.</p>
+                    <ul class="workspace-lista-entidades">
+                        @foreach (var vehiculo in _vehiculos)
+                        {
+                            <FilaEntidadRelacionada
+                                @key="vehiculo.Id"
+                                Titulo="@($"{vehiculo.Nombre} ({vehiculo.NumeroPlaca})")"
+                                Subtitulo="@vehiculo.Modelo"
+                                OnClic="() => AbrirVehiculoAsync(vehiculo)" />
+                        }
+                    </ul>
+                }
+                break;
+
+            case "historial":
+                <PestanaHistorial EntidadTipo="Trabajador" EntidadId="EntidadId" />
+                break;
+        }
+    </Pestanas>
+}
+
+@code {
+    private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
+    [
+        new("informacion", "Información"),
+        new("documentacion", "Documentación"),
+        new("citas", "Citas"),
+        new("vehiculos", "Vehículos"),
+        new("historial", "Historial")
+    ];
+
+    [Parameter, EditorRequired] public Guid EntidadId { get; set; }
+    [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
+
+    private TrabajadorDetalleDto? _detalle;
+    private bool _cargando = true;
+    private bool _error;
+    private Guid _idCargado;
+
+    private IReadOnlyList<VehiculoListaDto>? _vehiculos;
+    private bool _cargandoVehiculos;
+    private bool _errorVehiculos;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EntidadId != _idCargado)
+        {
+            _idCargado = EntidadId;
+            _vehiculos = null;
+            _errorVehiculos = false;
+            await CargarCabeceraAsync();
+        }
+
+        if (PestanaActiva == "vehiculos" && _vehiculos is null && !_errorVehiculos && !_cargandoVehiculos && _detalle is not null)
+            await CargarVehiculosAsync();
+    }
+
+    private async Task CargarCabeceraAsync()
+    {
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            _detalle = await Mediator.Send(new ObtenerTrabajadorPorIdQuery(EntidadId));
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task CargarVehiculosAsync()
+    {
+        var idSolicitado = EntidadId;
+        var empresaId = _detalle!.EmpresaId;
+        var subcontrataId = _detalle.SubcontrataId;
+        _cargandoVehiculos = true;
+        _errorVehiculos = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerVehiculosQuery(
+                Busqueda: null, EmpresaId: empresaId, SubcontrataId: subcontrataId, TamanoPagina: 50));
+            if (idSolicitado == EntidadId)
+                _vehiculos = resultado.Elementos;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorVehiculos = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoVehiculos = false;
+        }
+    }
+
+    private Task AbrirVehiculoAsync(VehiculoListaDto vehiculo) =>
+        WorkspaceService.NavegarAAsync(EntidadWorkspace.Vehiculo, vehiculo.Id, vehiculo.Nombre, "informacion");
+}

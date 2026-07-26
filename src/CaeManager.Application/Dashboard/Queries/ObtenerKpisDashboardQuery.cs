@@ -14,7 +14,8 @@ public record KpisDashboardDto(
     int DocumentosUrgentes,
     int DocumentosProximos,
     int DocumentosVigentes,
-    int VisitasProgramadas);
+    int VisitasProgramadas,
+    int TasaCumplimientoDocumental);
 
 /// <summary>
 /// Los seis KPI del Dashboard (ver DATABASE.md, hoja "Dashboard" del Excel
@@ -61,13 +62,21 @@ public class ObtenerKpisDashboardQueryHandler(IApplicationDbContext dbContext, I
             .Select(f => CalculadoraEstadoDocumento.Calcular(f, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias))
             .ToList();
 
+        var vigentes = estados.Count(e => e == EstadoDocumento.Vigente);
+        var proximos = estados.Count(e => e == EstadoDocumento.Proximo);
+        var urgentes = estados.Count(e => e == EstadoDocumento.Urgente);
+        var vencidos = estados.Count(e => e == EstadoDocumento.Vencido);
+        var totalConVigencia = vigentes + proximos + urgentes + vencidos;
+        var tasa = totalConVigencia == 0 ? 100 : vigentes * 100 / totalConVigencia;
+
         return new KpisDashboardDto(
             TrabajadoresActivos: trabajadoresActivos,
             Centros: centros,
-            DocumentosVencidos: estados.Count(e => e == EstadoDocumento.Vencido),
-            DocumentosUrgentes: estados.Count(e => e == EstadoDocumento.Urgente),
-            DocumentosProximos: estados.Count(e => e == EstadoDocumento.Proximo),
-            DocumentosVigentes: estados.Count(e => e == EstadoDocumento.Vigente),
-            VisitasProgramadas: visitasProgramadas);
+            DocumentosVencidos: vencidos,
+            DocumentosUrgentes: urgentes,
+            DocumentosProximos: proximos,
+            DocumentosVigentes: vigentes,
+            VisitasProgramadas: visitasProgramadas,
+            TasaCumplimientoDocumental: tasa);
     }
 }

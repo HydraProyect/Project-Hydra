@@ -28,6 +28,12 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      # === INSTALACIÓN DE LIBREOFFICE PARA LOS TESTS ===
+      - name: Instalar LibreOffice (Entorno de conversión)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice-writer
+
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
 
@@ -139,6 +145,9 @@ jobs:
   gitleaks:
     name: Escaneo de secretos (gitleaks)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -148,3 +157,4 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

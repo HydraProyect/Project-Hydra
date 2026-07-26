@@ -15,8 +15,8 @@ public class SubcontrataConfiguration : IEntityTypeConfiguration<Subcontrata>
             .IsRequired()
             .HasMaxLength(Subcontrata.LongitudMaximaRazonSocial);
 
-        builder.HasIndex(s => s.RazonSocial).IsUnique();
+        builder.HasIndex(s => new { s.TenantId, s.RazonSocial }).IsUnique();
 
-        builder.HasQueryFilter(s => !s.EstaEliminado);
+        // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }

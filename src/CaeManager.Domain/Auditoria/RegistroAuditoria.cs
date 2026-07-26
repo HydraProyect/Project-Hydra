@@ -8,7 +8,7 @@ namespace CaeManager.Domain.Auditoria;
 /// crea manualmente desde Application (ver ARCHITECTURE.md, "Auditoría y
 /// soft delete").
 /// </summary>
-public class RegistroAuditoria : Entity
+public class RegistroAuditoria : EntidadConTenant
 {
     public string EntidadTipo { get; private set; } = string.Empty;
     public Guid EntidadId { get; private set; }

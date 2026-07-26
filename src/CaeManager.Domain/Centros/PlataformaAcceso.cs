@@ -11,7 +11,7 @@ namespace CaeManager.Domain.Centros;
 /// conoce el cifrado, solo modela el valor en texto plano en memoria durante
 /// el ciclo de vida de la petición.
 /// </summary>
-public class PlataformaAcceso : Entity
+public class PlataformaAcceso : EntidadConTenant
 {
     public const int LongitudMaximaNombrePlataforma = 150;
 

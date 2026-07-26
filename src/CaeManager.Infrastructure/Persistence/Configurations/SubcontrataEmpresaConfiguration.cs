@@ -11,7 +11,7 @@ public class SubcontrataEmpresaConfiguration : IEntityTypeConfiguration<Subcontr
         builder.ToTable("SubcontratasEmpresas");
         builder.HasKey(se => se.Id);
 
-        builder.HasIndex(se => new { se.SubcontrataId, se.EmpresaId }).IsUnique();
+        builder.HasIndex(se => new { se.TenantId, se.SubcontrataId, se.EmpresaId }).IsUnique();
         builder.HasIndex(se => se.EmpresaId);
     }
 }
