@@ -8,7 +8,7 @@ namespace CaeManager.Domain.Subcontratas;
 /// puede tener varias Subcontratas. Mismo patrón que EmpresaCliente. Sin
 /// ciclo de vida propio: desvincular es una baja física, no un soft delete.
 /// </summary>
-public class SubcontrataEmpresa : Entity
+public class SubcontrataEmpresa : EntidadConTenant
 {
     public Guid SubcontrataId { get; private set; }
     public Guid EmpresaId { get; private set; }

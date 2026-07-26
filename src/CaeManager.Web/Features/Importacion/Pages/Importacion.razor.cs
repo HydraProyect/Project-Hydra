@@ -67,7 +67,7 @@ public partial class Importacion : ComponentBase
         }
         catch (Exception)
         {
-            _mensajeError = "No pudimos leer este archivo. Comprueba que sea el Excel del Cuadro de Control CAE.";
+            _mensajeError = "No pudimos leer este archivo. Comprueba que sea un archivo Excel en el formato de importación CAE.";
         }
         finally
         {
