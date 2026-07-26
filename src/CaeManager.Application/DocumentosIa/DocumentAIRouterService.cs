@@ -11,14 +11,9 @@ namespace CaeManager.Application.DocumentosIa;
 
 /// <summary>
 /// Implementa los 4 casos de docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2.3:
-/// Digital → texto local, sin OCR (Caso 1); Escaneado/Imagen/Mixto → OCR
-/// nativo del archivo completo antes de estructurar (Casos 2-4). Con un
-/// único proveedor todo-en-uno registrado hoy (Anthropic), el caso Mixto
-/// se resuelve enviando el documento completo a OCR igual que Escaneado —
-/// el aprovechamiento fino de solo aplicar OCR a las páginas realmente
-/// escaneadas (para ahorrar coste con un proveedor de OCR especializado
-/// como Mistral) exige rasterizar páginas, deliberadamente fuera de
-/// alcance de esta fase (ver § 4.3 del documento de arquitectura).
+/// Digital → texto local, sin OCR (Caso 1); Escaneado/Imagen → OCR del
+/// archivo completo (Casos 2-3); Mixto → texto digital de las páginas con
+/// texto + OCR de las páginas escaneadas (Caso 4, con rasterización).
 ///
 /// Antes de llamar a ningún proveedor comprueba la caché documental por
 /// SHA256 (§ 3) — si ya se procesó exactamente este archivo, reutiliza el
@@ -31,6 +26,7 @@ public class DocumentAIRouterService(
     IClasificadorDocumentoService clasificador,
     IExtractorTextoDigitalService extractorTextoDigital,
     ILocalizadorPaginasRelevantesService localizadorPaginas,
+    IRasterizadorPaginasPdfService rasterizador,
     IDocumentAIProviderFactory proveedores,
     IExtraccionIaCacheRepository cacheRepositorio,
     IAuditoriaExtraccionIaRepository auditoriaRepositorio,
@@ -157,6 +153,10 @@ public class DocumentAIRouterService(
             return Result.Exito(ConstruirTextoDigital(paginas.Valor));
         }
 
+        if (clasificacion.Tipo == TipoContenidoDocumento.Mixto)
+            return await ObtenerTextoMixtoAsync(clasificacion, contenido, cancellationToken);
+
+        // Escaneado / Imagen: el archivo completo va al proveedor de OCR.
         var proveedoresOcr = proveedores.ObtenerPorCapacidad(CapacidadesProveedorIa.OcrImagenAEscaneado);
         if (proveedoresOcr.Count == 0)
         {
@@ -169,6 +169,63 @@ public class DocumentAIRouterService(
             return Result.Fallo<TextoExtraidoDto>(textoOcr.Error);
 
         return Result.Exito(new TextoExtraidoDto(textoOcr.Valor.Texto, null, textoOcr.Valor.CosteEstimado));
+    }
+
+    /// <summary>
+    /// Caso 4 (Mixto): extrae texto de páginas digitales sin coste (OCR = 0)
+    /// y rasteriza + hace OCR solo en las páginas escaneadas — evita pagar
+    /// OCR por páginas que ya tienen texto embebido cuando el proveedor
+    /// factura por página (Mistral OCR).
+    /// </summary>
+    private async Task<Result<TextoExtraidoDto>> ObtenerTextoMixtoAsync(
+        ClasificacionDocumentoDto clasificacion, byte[] contenido, CancellationToken cancellationToken)
+    {
+        var textoPorPagina = extractorTextoDigital.ExtraerTextoPorPagina(contenido);
+        if (textoPorPagina.EsFallido)
+            return Result.Fallo<TextoExtraidoDto>(textoPorPagina.Error);
+
+        var indicesEscaneadas = clasificacion.PaginasConTextoDigital
+            .Select((esDigital, idx) => (esDigital, idx))
+            .Where(p => !p.esDigital)
+            .Select(p => p.idx)
+            .ToList();
+
+        if (indicesEscaneadas.Count == 0)
+            return Result.Exito(ConstruirTextoDigital(textoPorPagina.Valor));
+
+        var proveedoresOcr = proveedores.ObtenerPorCapacidad(CapacidadesProveedorIa.OcrImagenAEscaneado);
+        if (proveedoresOcr.Count == 0)
+        {
+            return Result.Fallo<TextoExtraidoDto>(Error.Crear(
+                "DocumentAIRouter.SinProveedorOcr", "No hay ningún proveedor de OCR disponible para procesar este documento."));
+        }
+
+        var imagenes = rasterizador.RasterizarPaginas(contenido, indicesEscaneadas);
+        if (imagenes.EsFallido)
+            return Result.Fallo<TextoExtraidoDto>(imagenes.Error);
+
+        var proveedorOcr = proveedoresOcr[0];
+        var textosPorIndicePagina = new Dictionary<int, string>(indicesEscaneadas.Count);
+        decimal? costeOcr = null;
+
+        for (var i = 0; i < indicesEscaneadas.Count; i++)
+        {
+            var nombrePagina = $"pagina-{indicesEscaneadas[i] + 1}.png";
+            var ocr = await proveedorOcr.ExtraerTextoAsync(imagenes.Valor[i], nombrePagina, cancellationToken);
+            if (ocr.EsFallido)
+                return Result.Fallo<TextoExtraidoDto>(ocr.Error);
+
+            textosPorIndicePagina[indicesEscaneadas[i]] = ocr.Valor.Texto;
+            if (ocr.Valor.CosteEstimado.HasValue)
+                costeOcr = (costeOcr ?? 0m) + ocr.Valor.CosteEstimado.Value;
+        }
+
+        var partes = Enumerable.Range(0, clasificacion.TotalPaginas)
+            .Select(i => clasificacion.PaginasConTextoDigital[i]
+                ? textoPorPagina.Valor[i]
+                : textosPorIndicePagina[i]);
+
+        return Result.Exito(new TextoExtraidoDto(string.Join("\n\n", partes), null, costeOcr));
     }
 
     /// <summary>Por debajo del umbral, se manda el documento completo — localizar páginas solo compensa en documentos grandes (§ 4.3).</summary>

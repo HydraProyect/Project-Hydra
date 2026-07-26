@@ -636,6 +636,17 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 - **NavMenu**: enlace "Auditoría IA" bajo el grupo Administración (solo visible para rol Administrador), junto al enlace de Auditoría ya existente.
 - Build limpio, mismos 85/87 tests en verde (2 fallos preexistentes de LibreOffice, no relacionados).
 
+## Fase 50 — Rasterización para el Caso Mixto del Document AI Router
+
+✅ Completa (2026-07-26). Cierra la simplificación documentada desde Fase 3 en § 4.3 de `docs/ARQUITECTURA-IA-DOCUMENTAL.md`: el Caso 4 (documento Mixto) ya no envía el PDF completo a OCR — solo rasteriza y hace OCR en las páginas realmente escaneadas, y extrae texto localmente en las páginas digitales.
+
+- **`IRasterizadorPaginasPdfService`** (`Application/DocumentosIa/Common/`): nueva interfaz que rasteriza índices 0-based específicos de un PDF a PNG en memoria.
+- **`PdfToPngRasterizadorPaginasPdfService`** (`Infrastructure/DocumentosIa/`): implementación con **PDFtoImage 5.2.1** (wrapper de bblanchon.PDFium para Linux + SkiaSharp), 150 DPI. Resuelve la ambigüedad de nombre con `CaeManager.Infrastructure.Conversion` usando `global::PDFtoImage.Conversion`.
+- **`DocumentAIRouterService.ObtenerTextoMixtoAsync`** (nuevo método privado): extrae texto digital de las páginas con `IExtractorTextoDigitalService`; rasteriza las páginas escaneadas; llama al proveedor OCR una vez por página escaneada (página `.png`); combina en orden de página. El coste OCR se acumula sumando el de cada página. Si `indicesEscaneadas` está vacío (Mixto sin páginas escaneadas, caso teórico) toma el camino digital directamente.
+- **Beneficio de coste real**: si un documento de 20 páginas tiene 8 digitales + 12 escaneadas, Mistral OCR se paga solo por 12 páginas en lugar de 20.
+- Tests: 3 nuevos casos — texto combinado en orden correcto, acumulación de coste OCR con 2 páginas escaneadas, y fallo controlado si el rasterizador no puede procesar el PDF. 76/76 Application, 134/134 Domain, 13/13 Web.Tests, 85/87 IntegrationTests, 8/8 E2E en verde (mismos 2 fallos LibreOffice en sandbox local, pasan en CI).
+- **Fuera de alcance, no construido**: paralelización de las llamadas OCR por página (en documentos con muchas páginas escaneadas, las llamadas se hacen en serie — YAGNI hasta que haya evidencia de que es un cuello de botella real).
+
 ## Épico — Plataforma de Integraciones (backlog, sin implementar — 2026-07-23)
 
 **Planteado por el usuario el 2026-07-23**: si la visión del producto se cumple, Hydra no es solo un gestor CAE — es una **plataforma**, y las plataformas ganan valor cuando las integraciones son una capacidad nativa (una capacidad del Tenant), no una colección de conectores desarrollados caso por caso. Proveedores objetivo del ecosistema: **Dokify, 6Conecta/6Coordina, CTAIMA, eCoordina**, plataformas CAE en general, **Microsoft 365** e **IA** (Anthropic/OpenAI). Diseño completo, arquitectura basada en proveedores (`IIntegrationProvider`, no conectores específicos acoplados al dominio) en **`ARQUITECTURA-INTEGRACIONES.md`** — este punto es solo el resumen de backlog. Nada de esto está implementado; existe para que las decisiones de multi-tenant que se están tomando ahora (`ADR-003`) no le cierren puertas.

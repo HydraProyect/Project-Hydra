@@ -106,6 +106,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAuditoriaExtraccionIaRepository, AuditoriaExtraccionIaRepository>();
         services.AddSingleton<IClasificadorDocumentoService, PdfSharpClasificadorDocumentoService>();
         services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
+        services.AddSingleton<IRasterizadorPaginasPdfService, PdfToPngRasterizadorPaginasPdfService>();
         services.AddScoped<INotificacionUsuarioRepository, NotificacionUsuarioRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
         services.AddScoped<IAsignacionRepository, AsignacionRepository>();

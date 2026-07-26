@@ -21,6 +21,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.*" />
     <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <PackageReference Include="PDFtoImage" Version="5.2.1" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
   </ItemGroup>
 

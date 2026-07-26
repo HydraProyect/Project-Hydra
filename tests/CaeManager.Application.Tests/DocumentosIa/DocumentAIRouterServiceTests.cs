@@ -16,7 +16,7 @@ public class DocumentAIRouterServiceTests
         Result<ClasificacionDocumentoDto> clasificacion, Result<string> textoDigital, params IDocumentAIProvider[] proveedores) =>
         CrearRouterConDependencias(clasificacion, textoDigital, proveedores).Router;
 
-    private static (DocumentAIRouterService Router, ExtraccionIaCacheRepositorioFalso Cache, AuditoriaExtraccionIaRepositorioFalso Auditoria) CrearRouterConDependencias(
+    private static (DocumentAIRouterService Router, ExtraccionIaCacheRepositorioFalso Cache, AuditoriaExtraccionIaRepositorioFalso Auditoria, RasterizadorPaginasFalso Rasterizador) CrearRouterConDependencias(
         Result<ClasificacionDocumentoDto> clasificacion, Result<string> textoDigital, params IDocumentAIProvider[] proveedores)
     {
         var textoPorPagina = textoDigital.EsExitoso
@@ -25,21 +25,23 @@ public class DocumentAIRouterServiceTests
         return CrearRouterConDependencias(clasificacion, textoPorPagina, proveedores);
     }
 
-    private static (DocumentAIRouterService Router, ExtraccionIaCacheRepositorioFalso Cache, AuditoriaExtraccionIaRepositorioFalso Auditoria) CrearRouterConDependencias(
+    private static (DocumentAIRouterService Router, ExtraccionIaCacheRepositorioFalso Cache, AuditoriaExtraccionIaRepositorioFalso Auditoria, RasterizadorPaginasFalso Rasterizador) CrearRouterConDependencias(
         Result<ClasificacionDocumentoDto> clasificacion, Result<IReadOnlyList<string>> textoPorPagina, params IDocumentAIProvider[] proveedores)
     {
         var cache = new ExtraccionIaCacheRepositorioFalso();
         var auditoria = new AuditoriaExtraccionIaRepositorioFalso();
+        var rasterizador = new RasterizadorPaginasFalso();
         var router = new DocumentAIRouterService(
             new ClasificadorDocumentoServiceFalso(clasificacion),
             new ExtractorTextoDigitalServiceFalso(textoPorPagina),
             new LocalizadorPaginasRelevantesService(),
+            rasterizador,
             new DocumentAIProviderFactory(proveedores),
             cache,
             auditoria,
             new UnitOfWorkFalso(),
             NullLogger<DocumentAIRouterService>.Instance);
-        return (router, cache, auditoria);
+        return (router, cache, auditoria, rasterizador);
     }
 
     private static Result<ClasificacionDocumentoDto> Clasificacion(TipoContenidoDocumento tipo, params bool[] paginas) =>
@@ -185,7 +187,7 @@ public class DocumentAIRouterServiceTests
         var proveedor = new ProveedorIaFalso(
             "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
             resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 95, null, CosteEstimado: 0.02m)));
-        var (router, _, auditoria) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+        var (router, _, auditoria, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
 
         await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
 
@@ -205,7 +207,7 @@ public class DocumentAIRouterServiceTests
             CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada,
             resultadoTexto: Result.Exito(new TextoExtraccionDto("texto ocr", CosteEstimado: 0.008m)),
             resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Nómina", new Dictionary<string, string?>(), 90, null, CosteEstimado: 0.03m)));
-        var (router, _, auditoria) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Escaneado, false), Result.Exito("no se usa"), proveedor);
+        var (router, _, auditoria, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Escaneado, false), Result.Exito("no se usa"), proveedor);
 
         await router.ProcesarAsync([1, 2, 3], "nomina.pdf", "Nómina");
 
@@ -217,7 +219,7 @@ public class DocumentAIRouterServiceTests
     [Fact]
     public async Task Registra_una_auditoria_con_proveedor_ninguno_cuando_falla()
     {
-        var (router, _, auditoria) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"));
 
         await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
 
@@ -232,7 +234,7 @@ public class DocumentAIRouterServiceTests
         var proveedor = new ProveedorIaFalso(
             "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
             resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 95, null, CosteEstimado: 0.02m)));
-        var (router, _, auditoria) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+        var (router, _, auditoria, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
         var contenido = new byte[] { 9, 8, 7 };
 
         var primeraVez = await router.ProcesarAsync(contenido, "documento.pdf", "Póliza de seguro");
@@ -253,12 +255,86 @@ public class DocumentAIRouterServiceTests
         var proveedor = new ProveedorIaFalso(
             "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
             resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 95, null)));
-        var (router, _, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+        var (router, _, _, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
 
         await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
         await router.ProcesarAsync([4, 5, 6], "documento.pdf", "Póliza de seguro");
 
         proveedor.VecesLlamadoParaEstructurado.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Caso_4_mixto_usa_texto_digital_para_paginas_digitales_y_ocr_solo_para_las_escaneadas()
+    {
+        // Documento de 3 páginas: 0=digital, 1=escaneada, 2=digital
+        var proveedor = new ProveedorIaFalso(
+            "mistral-ocr+anthropic",
+            CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoTexto: Result.Exito(new TextoExtraccionDto("texto ocr pagina 1", CosteEstimado: 0.004m)),
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Nómina", new Dictionary<string, string?>(), 88, null)));
+
+        var textoPorPagina = Result.Exito<IReadOnlyList<string>>(["texto digital p0", "ignorado", "texto digital p2"]);
+        var clasificacion = Clasificacion(TipoContenidoDocumento.Mixto, true, false, true);
+        var (router, _, auditoria, rasterizador) = CrearRouterConDependencias(clasificacion, textoPorPagina, proveedor);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "nomina.pdf", "Nómina");
+
+        resultado.EsExitoso.Should().BeTrue();
+        proveedor.VecesLlamadoParaTexto.Should().Be(1, "solo se llama OCR para la página escaneada (índice 1)");
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(1);
+        rasterizador.VecesLlamado.Should().Be(1);
+        rasterizador.UltimosIndicesRasterizados.Should().BeEquivalentTo([1], "solo la página escaneada se rasteriza");
+        proveedor.UltimoTextoRecibidoParaEstructurar.Should().Be("texto digital p0\n\ntexto ocr pagina 1\n\ntexto digital p2");
+        auditoria.Auditorias[0].CosteEstimadoOcr.Should().Be(0.004m);
+    }
+
+    [Fact]
+    public async Task Caso_4_mixto_acumula_coste_ocr_de_todas_las_paginas_escaneadas()
+    {
+        // Documento de 4 páginas: 0=digital, 1=escaneada, 2=escaneada, 3=digital
+        var proveedor = new ProveedorIaFalso(
+            "mistral-ocr+anthropic",
+            CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoTexto: Result.Exito(new TextoExtraccionDto("texto ocr", CosteEstimado: 0.004m)),
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Contrato", new Dictionary<string, string?>(), 90, null)));
+
+        var textoPorPagina = Result.Exito<IReadOnlyList<string>>(["p0", "ignorado", "ignorado", "p3"]);
+        var clasificacion = Clasificacion(TipoContenidoDocumento.Mixto, true, false, false, true);
+        var (router, _, auditoria, rasterizador) = CrearRouterConDependencias(clasificacion, textoPorPagina, proveedor);
+
+        await router.ProcesarAsync([1, 2, 3], "contrato.pdf", "Contrato");
+
+        proveedor.VecesLlamadoParaTexto.Should().Be(2, "dos páginas escaneadas");
+        rasterizador.UltimosIndicesRasterizados.Should().BeEquivalentTo([1, 2]);
+        auditoria.Auditorias[0].CosteEstimadoOcr.Should().Be(0.008m, "0.004 × 2 páginas escaneadas");
+    }
+
+    [Fact]
+    public async Task Caso_4_mixto_falla_de_forma_controlada_si_el_rasterizador_no_puede_procesar_el_archivo()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "mistral-ocr", CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada);
+        var textoPorPagina = Result.Exito<IReadOnlyList<string>>(["p0", "ignorado"]);
+        var clasificacion = Clasificacion(TipoContenidoDocumento.Mixto, true, false);
+
+        var cache = new ExtraccionIaCacheRepositorioFalso();
+        var auditoria = new AuditoriaExtraccionIaRepositorioFalso();
+        var rasterizadorFallido = new RasterizadorPaginasFalso(fallido: true);
+        var router = new DocumentAIRouterService(
+            new ClasificadorDocumentoServiceFalso(clasificacion),
+            new ExtractorTextoDigitalServiceFalso(textoPorPagina),
+            new LocalizadorPaginasRelevantesService(),
+            rasterizadorFallido,
+            new DocumentAIProviderFactory([proveedor]),
+            cache,
+            auditoria,
+            new UnitOfWorkFalso(),
+            NullLogger<DocumentAIRouterService>.Instance);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Certificado");
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Rasterizador.FalloConversion");
     }
 
     [Fact]
@@ -273,7 +349,7 @@ public class DocumentAIRouterServiceTests
         paginas[10] = "número de póliza 555, tomador: Empresa S.L.";
         var clasificacion = Result.Exito(new ClasificacionDocumentoDto(
             TipoContenidoDocumento.Digital, paginas.Count, Enumerable.Repeat(true, paginas.Count).ToList()));
-        var (router, _, auditoria) = CrearRouterConDependencias(clasificacion, Result.Exito<IReadOnlyList<string>>(paginas), proveedor);
+        var (router, _, auditoria, _) = CrearRouterConDependencias(clasificacion, Result.Exito<IReadOnlyList<string>>(paginas), proveedor);
 
         var resultado = await router.ProcesarAsync([1, 2, 3], "poliza.pdf", "Póliza de seguro");
 
