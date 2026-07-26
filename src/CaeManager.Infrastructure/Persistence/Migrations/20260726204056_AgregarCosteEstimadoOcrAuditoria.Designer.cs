@@ -3,6 +3,7 @@ using System;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CaeManager.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260726204056_AgregarCosteEstimadoOcrAuditoria")]
+    partial class AgregarCosteEstimadoOcrAuditoria
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
@@ -1728,52 +1731,6 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("EmpresasClientes", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Facturacion.TarifaCliente", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("ClienteId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Concepto")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreadoEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("EliminadoEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("EliminadoPorUsuarioId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("EstaEliminado")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("MonedaIso")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("PrecioUnitario")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClienteId");
-
-                    b.HasIndex(new[] { "TenantId", "ClienteId", "Concepto" }, "IX_TarifasCliente_TenantId_ClienteId_Concepto")
-                        .IsUnique()
-                        .HasFilter("\"EstaEliminado\" = 0");
-
-                    b.ToTable("TarifasCliente", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Notificaciones.NotificacionUsuario", b =>
