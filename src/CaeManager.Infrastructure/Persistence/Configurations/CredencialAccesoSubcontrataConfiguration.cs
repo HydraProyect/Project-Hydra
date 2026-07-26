@@ -17,6 +17,6 @@ public class CredencialAccesoSubcontrataConfiguration : IEntityTypeConfiguration
         // El cifrado de Usuario/Contrasena se configura en CaeManagerDbContext.OnModelCreating,
         // porque necesita el IDataProtector inyectado en el propio DbContext (mismo patrón que CredencialAccesoEmpresa).
 
-        builder.HasIndex(c => c.SubcontrataId).IsUnique();
+        builder.HasIndex(c => new { c.TenantId, c.SubcontrataId }).IsUnique();
     }
 }

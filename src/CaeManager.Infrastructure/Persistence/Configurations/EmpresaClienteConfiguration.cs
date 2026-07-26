@@ -11,7 +11,7 @@ public class EmpresaClienteConfiguration : IEntityTypeConfiguration<EmpresaClien
         builder.ToTable("EmpresasClientes");
         builder.HasKey(ec => ec.Id);
 
-        builder.HasIndex(ec => new { ec.EmpresaId, ec.ClienteId }).IsUnique();
+        builder.HasIndex(ec => new { ec.TenantId, ec.EmpresaId, ec.ClienteId }).IsUnique();
         builder.HasIndex(ec => ec.ClienteId);
     }
 }
