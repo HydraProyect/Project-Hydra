@@ -56,6 +56,11 @@
         <NavLink class="nav-item" href="alertas">
             <Icono Nombre="alertas" /> Alertas
         </NavLink>
+        <AuthorizeView Roles="@RolesDeAdministracionAmpliada">
+            <NavLink class="nav-item" href="facturacion">
+                <Icono Nombre="reportes" /> Facturación
+            </NavLink>
+        </AuthorizeView>
         <NavLink class="nav-item" href="calendario">
             <Icono Nombre="calendario" /> Calendario
         </NavLink>
