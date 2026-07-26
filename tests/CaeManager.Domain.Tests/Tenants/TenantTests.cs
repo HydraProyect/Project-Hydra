@@ -9,9 +9,9 @@ public class TenantTests
     [Fact]
     public void Crea_un_tenant_activo_por_defecto()
     {
-        var tenant = new Tenant("GESEME");
+        var tenant = new Tenant("ArcoSPA");
 
-        tenant.Nombre.Should().Be("GESEME");
+        tenant.Nombre.Should().Be("ArcoSPA");
         tenant.Estado.Should().Be(EstadoTenant.Activo);
     }
 
@@ -38,15 +38,15 @@ public class TenantTests
     [Fact]
     public void Recorta_espacios_en_blanco_del_nombre()
     {
-        var tenant = new Tenant("  KHS  ");
+        var tenant = new Tenant("  Ibertec  ");
 
-        tenant.Nombre.Should().Be("KHS");
+        tenant.Nombre.Should().Be("Ibertec");
     }
 
     [Fact]
     public void Suspender_cambia_el_estado_a_suspendido()
     {
-        var tenant = new Tenant("KHS");
+        var tenant = new Tenant("Ibertec");
 
         tenant.Suspender();
 
@@ -56,7 +56,7 @@ public class TenantTests
     [Fact]
     public void Reactivar_revierte_la_suspension()
     {
-        var tenant = new Tenant("KHS");
+        var tenant = new Tenant("Ibertec");
         tenant.Suspender();
 
         tenant.Reactivar();
@@ -67,22 +67,22 @@ public class TenantTests
     [Fact]
     public void RenombrarA_actualiza_el_nombre()
     {
-        var tenant = new Tenant("KHS");
+        var tenant = new Tenant("Ibertec");
 
-        tenant.RenombrarA("KHS Group");
+        tenant.RenombrarA("Ibertec Group");
 
-        tenant.Nombre.Should().Be("KHS Group");
+        tenant.Nombre.Should().Be("Ibertec Group");
     }
 
     [Fact]
     public void RenombrarA_no_permite_un_nombre_vacio()
     {
-        var tenant = new Tenant("KHS");
+        var tenant = new Tenant("Ibertec");
 
         var accion = () => tenant.RenombrarA("");
 
         accion.Should().Throw<ArgumentException>();
-        tenant.Nombre.Should().Be("KHS");
+        tenant.Nombre.Should().Be("Ibertec");
     }
 
     [Fact]

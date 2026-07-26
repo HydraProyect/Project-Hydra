@@ -70,14 +70,14 @@ public class MigracionesTests : IAsyncLifetime
     [Fact]
     public async Task Guarda_y_recupera_un_cliente()
     {
-        var cliente = new Cliente("COBEGA (Coca-Cola European Partners)", "B12345674", esCritico: true);
+        var cliente = new Cliente("Cadena Industrial Iberia S.A.", "B12345674", esCritico: true);
         _dbContext.Clientes.Add(cliente);
         await _dbContext.SaveChangesAsync();
 
         var recuperado = await _dbContext.Clientes.FindAsync(cliente.Id);
 
         recuperado.Should().NotBeNull();
-        recuperado!.RazonSocial.Should().Be("COBEGA (Coca-Cola European Partners)");
+        recuperado!.RazonSocial.Should().Be("Cadena Industrial Iberia S.A.");
     }
 
     [Fact]
@@ -127,14 +127,14 @@ public class MigracionesTests : IAsyncLifetime
     [Fact]
     public async Task Guarda_y_recupera_un_tenant()
     {
-        var tenant = new Tenant("GESEME");
+        var tenant = new Tenant("ArcoSPA");
         _dbContext.Tenants.Add(tenant);
         await _dbContext.SaveChangesAsync();
 
         var recuperado = await _dbContext.Tenants.FindAsync(tenant.Id);
 
         recuperado.Should().NotBeNull();
-        recuperado!.Nombre.Should().Be("GESEME");
+        recuperado!.Nombre.Should().Be("ArcoSPA");
         recuperado.Estado.Should().Be(EstadoTenant.Activo);
     }
 
