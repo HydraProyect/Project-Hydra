@@ -13,7 +13,7 @@ CAE Manager (Project Hydra) deja de tratarse como un producto en camino a vender
 
 ## Por qué este cambio no es "menos trabajo de cumplimiento"
 
-Uso interno **no** significa que el RGPD/LOPDGDD dejen de aplicar. La empresa sigue siendo responsable del tratamiento de datos personales —incluida categoría especial de salud— de los trabajadores de sus clientes reales (Cobega, Mahou, Heineken, etc., según el dominio ya modelado). Lo único que desaparece es lo que dependía específicamente de vender el software a terceros como producto: aislamiento entre organizaciones distintas, DPA con clientes externos, términos de uso de un SaaS, alta de tenants con aceptación de contrato. Todo lo demás de la auditoría de cumplimiento sigue vigente sin cambios (retención, derecho al olvido, DPIA, RAT, DPA con subencargados como AWS/Anthropic/Microsoft/Railway, auditoría de accesos de lectura, cifrado en reposo, etc.).
+Uso interno **no** significa que el RGPD/LOPDGDD dejen de aplicar. La empresa sigue siendo responsable del tratamiento de datos personales —incluida categoría especial de salud— de los trabajadores de sus clientes reales (Cadena Industrial Iberia S.A., Bebidas del Norte S.A., etc., según el dominio ya modelado). Lo único que desaparece es lo que dependía específicamente de vender el software a terceros como producto: aislamiento entre organizaciones distintas, DPA con clientes externos, términos de uso de un SaaS, alta de tenants con aceptación de contrato. Todo lo demás de la auditoría de cumplimiento sigue vigente sin cambios (retención, derecho al olvido, DPIA, RAT, DPA con subencargados como AWS/Anthropic/Microsoft/Railway, auditoría de accesos de lectura, cifrado en reposo, etc.).
 
 ---
 

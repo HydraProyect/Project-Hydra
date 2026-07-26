@@ -63,8 +63,8 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     public async Task Detecta_altas_y_bajas_y_avisa_al_gestor_del_cliente()
     {
         var gestorId = Guid.NewGuid();
-        var cliente = new Cliente("COBEGA", "B12345674", false, ejecutivoUsuarioId: gestorId);
-        var empresa = new Empresa("KHS S.A.");
+        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false, ejecutivoUsuarioId: gestorId);
+        var empresa = new Empresa("Ibertec S.A.");
         _dbContext.Clientes.Add(cliente);
         _dbContext.Empresas.Add(empresa);
         _dbContext.EmpresasClientes.Add(new EmpresaCliente(empresa.Id, cliente.Id));
@@ -98,7 +98,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     [Fact]
     public async Task No_hace_nada_si_el_tipo_de_documento_no_tiene_deteccion_activa()
     {
-        var empresa = new Empresa("KHS S.A.");
+        var empresa = new Empresa("Ibertec S.A.");
         _dbContext.Empresas.Add(empresa);
         var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoCertificadoSs, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
@@ -114,7 +114,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     [Fact]
     public async Task No_compara_trabajadores_de_subcontrata()
     {
-        var empresa = new Empresa("KHS S.A.");
+        var empresa = new Empresa("Ibertec S.A.");
         var subcontrata = new Subcontrata("Subcontrata de Limpieza");
         _dbContext.Empresas.Add(empresa);
         _dbContext.Subcontratas.Add(subcontrata);
