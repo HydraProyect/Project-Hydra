@@ -17,6 +17,6 @@ public class CredencialAccesoEmpresaConfiguration : IEntityTypeConfiguration<Cre
         // El cifrado de Usuario/Contrasena se configura en CaeManagerDbContext.OnModelCreating,
         // porque necesita el IDataProtector inyectado en el propio DbContext (mismo patrón que PlataformaAcceso).
 
-        builder.HasIndex(c => c.EmpresaId).IsUnique();
+        builder.HasIndex(c => new { c.TenantId, c.EmpresaId }).IsUnique();
     }
 }

@@ -18,6 +18,6 @@ public class VisitaConfiguration : IEntityTypeConfiguration<Visita>
         builder.HasIndex(v => v.CentroId);
         builder.HasIndex(v => v.FechaFin);
 
-        builder.HasQueryFilter(v => !v.EstaEliminado);
+        // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }

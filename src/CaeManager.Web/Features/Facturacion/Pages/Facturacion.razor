@@ -1,0 +1,240 @@
+@page "/facturacion"
+@rendermode InteractiveServer
+@using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
+@using CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente
+@using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion
+@using CaeManager.Domain.Facturacion
+
+<PageTitle>Facturación — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <h1 class="titulo-pagina">Facturación y costes</h1>
+    <p class="descripcion-pagina">
+        Define las tarifas pactadas con cada cliente para generar el resumen de facturación mensual estimado.
+    </p>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar los datos" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion><Boton OnClick="CargarAsync">Reintentar</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else
+    {
+        <div class="bloque-selector-cliente">
+            <label for="sel-cliente" class="etiqueta-campo">Cliente</label>
+            <select id="sel-cliente" class="campo-texto campo-selector"
+                    @bind="_clienteSeleccionadoId" @bind:after="OnClienteChangedAsync">
+                <option value="@Guid.Empty">— Selecciona un cliente —</option>
+                @foreach (var c in _clientes)
+                {
+                    <option value="@c.Id">@c.RazonSocial</option>
+                }
+            </select>
+        </div>
+
+        @if (_clienteSeleccionadoId != Guid.Empty)
+        {
+            <nav class="pestanas-nav">
+                <button class="@PestanaClase(0)" @onclick="() => CambiarPestana(0)">Tarifas configuradas</button>
+                <button class="@PestanaClase(1)" @onclick="() => CambiarPestana(1)">Resumen mensual</button>
+            </nav>
+
+            @if (_pestanaActiva == 0)
+            {
+                <!-- Sección: gestión de tarifas -->
+                @if (_errorTarifas)
+                {
+                    <p class="aviso-error">No pudimos cargar las tarifas. <button class="enlace-accion" @onclick="CargarTarifasAsync">Reintentar</button></p>
+                }
+                else if (_cargandoTarifas)
+                {
+                    <EstadoCargando Filas="2" />
+                }
+                else
+                {
+                    @if (_tarifas.Count == 0)
+                    {
+                        <EstadoVacio Titulo="Sin tarifas configuradas"
+                                     Descripcion="Añade las tarifas pactadas con este cliente para calcular el resumen de facturación." />
+                    }
+                    else
+                    {
+                        <table class="tabla-datos tabla-facturacion">
+                            <thead>
+                                <tr>
+                                    <th>Concepto</th>
+                                    <th class="col-precio">Precio unitario</th>
+                                    <th class="col-moneda">Moneda</th>
+                                    <th class="col-acciones">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var tarifa in _tarifas)
+                                {
+                                    @if (_tarifaEditandoId == tarifa.Id)
+                                    {
+                                        <tr class="fila-edicion">
+                                            <td>@tarifa.ConceptoNombre</td>
+                                            <td>
+                                                <input type="number" class="campo-texto campo-precio"
+                                                       @bind="_editPrecio" min="0" step="0.01" />
+                                                @if (_editErrores.TryGetValue("precio", out var errPrecio))
+                                                {
+                                                    <span class="error-campo">@errPrecio</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <input type="text" class="campo-texto campo-moneda"
+                                                       @bind="_editMoneda" maxlength="3" placeholder="EUR" />
+                                            </td>
+                                            <td class="col-acciones">
+                                                <Boton OnClick="GuardarEdicionAsync" Tamano="TamanoBoton.Pequeno" Cargando="_guardando">Guardar</Boton>
+                                                <Boton OnClick="CancelarEdicion" Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario">Cancelar</Boton>
+                                            </td>
+                                        </tr>
+                                    }
+                                    else
+                                    {
+                                        <tr>
+                                            <td>@tarifa.ConceptoNombre</td>
+                                            <td class="col-precio">@tarifa.PrecioUnitario.ToString("N2") @tarifa.MonedaIso</td>
+                                            <td class="col-moneda">@tarifa.MonedaIso</td>
+                                            <td class="col-acciones">
+                                                <button class="enlace-accion" @onclick="() => IniciarEdicion(tarifa)">Editar</button>
+                                                <button class="enlace-accion enlace-peligro" @onclick="() => EliminarAsync(tarifa.Id)">Eliminar</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    }
+
+                    @if (_mostrarFormularioNueva)
+                    {
+                        <Tarjeta Titulo="Nueva tarifa">
+                            @if (_nuevaError is not null)
+                            {
+                                <p class="aviso-error">@_nuevaError</p>
+                            }
+                            <div class="rejilla-formulario">
+                                <div class="campo-formulario">
+                                    <label class="etiqueta-campo">Concepto</label>
+                                    <select class="campo-texto" @bind="_nuevaConcepto">
+                                        @foreach (var concepto in _conceptosDisponibles)
+                                        {
+                                            <option value="@concepto">@NombreConcepto(concepto)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="campo-formulario">
+                                    <label class="etiqueta-campo">Precio unitario</label>
+                                    <input type="number" class="campo-texto" @bind="_nuevaPrecio" min="0" step="0.01" />
+                                    @if (_nuevaErrores.TryGetValue("PrecioUnitario", out var errNuevoPrecio))
+                                    {
+                                        <span class="error-campo">@errNuevoPrecio</span>
+                                    }
+                                </div>
+                                <div class="campo-formulario">
+                                    <label class="etiqueta-campo">Moneda (ISO)</label>
+                                    <input type="text" class="campo-texto" @bind="_nuevaMoneda" maxlength="3" placeholder="EUR" />
+                                    @if (_nuevaErrores.TryGetValue("MonedaIso", out var errNuevaMoneda))
+                                    {
+                                        <span class="error-campo">@errNuevaMoneda</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="acciones-formulario">
+                                <Boton OnClick="CrearTarifaAsync" Cargando="_guardando">Guardar tarifa</Boton>
+                                <Boton OnClick="() => _mostrarFormularioNueva = false" Variante="VarianteBoton.Secundario">Cancelar</Boton>
+                            </div>
+                        </Tarjeta>
+                    }
+                    else if (_conceptosDisponibles.Count > 0)
+                    {
+                        <div class="acciones-seccion">
+                            <Boton OnClick="() => _mostrarFormularioNueva = true" Variante="VarianteBoton.Secundario">
+                                + Añadir tarifa
+                            </Boton>
+                        </div>
+                    }
+                }
+            }
+            else
+            {
+                <!-- Sección: resumen mensual -->
+                <div class="filtros-resumen">
+                    <div class="campo-filtro">
+                        <label class="etiqueta-campo">Año</label>
+                        <input type="number" class="campo-texto campo-anyo" @bind="_anyoResumen" min="2020" max="2099" />
+                    </div>
+                    <div class="campo-filtro">
+                        <label class="etiqueta-campo">Mes</label>
+                        <select class="campo-texto" @bind="_mesResumen">
+                            @for (var m = 1; m <= 12; m++)
+                            {
+                                var mes = m;
+                                <option value="@mes">@NombreMes(mes)</option>
+                            }
+                        </select>
+                    </div>
+                    <Boton OnClick="CargarResumenAsync" Cargando="_cargandoResumen">Calcular</Boton>
+                </div>
+
+                @if (_cargandoResumen)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_resumen is not null)
+                {
+                    @if (_resumen.Lineas.Count == 0)
+                    {
+                        <EstadoVacio Titulo="Sin tarifas configuradas"
+                                     Descripcion="Configura las tarifas del cliente en la pestaña 'Tarifas configuradas'." />
+                    }
+                    else
+                    {
+                        <Tarjeta Titulo="@($"Resumen — {_resumen.ClienteNombre} — {NombreMes(_mesResumen)} {_anyoResumen}")">
+                            <table class="tabla-datos tabla-resumen">
+                                <thead>
+                                    <tr>
+                                        <th>Concepto</th>
+                                        <th class="col-numero">Unidades</th>
+                                        <th class="col-numero">Precio unitario</th>
+                                        <th class="col-numero">Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var linea in _resumen.Lineas)
+                                    {
+                                        <tr>
+                                            <td>@linea.ConceptoNombre</td>
+                                            <td class="col-numero">@linea.Unidades</td>
+                                            <td class="col-numero">@linea.PrecioUnitario.ToString("N2") @linea.MonedaIso</td>
+                                            <td class="col-numero">@linea.Subtotal.ToString("N2") @linea.MonedaIso</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr class="fila-total">
+                                        <td colspan="3">Total estimado</td>
+                                        <td class="col-numero total-importe">@_resumen.TotalEstimado.ToString("N2") @_resumen.MonedaIso</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                            <p class="nota-resumen">
+                                * Importes estimados calculados sobre los datos actuales del período.
+                                No constituyen factura ni compromiso contractual.
+                            </p>
+                        </Tarjeta>
+                    }
+                }
+            }
+        }
+    }
+</div>

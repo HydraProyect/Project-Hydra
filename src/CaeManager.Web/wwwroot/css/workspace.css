@@ -1,0 +1,77 @@
+/*
+  Clases compartidas por los paneles de entidad del Context Workspace
+  (Components/Workspace/ContextWorkspace.razor + Features/*/Components/
+  *WorkspacePanel.razor). Global (no aislado a un componente) a propósito,
+  igual que list-page.css — lo consumen 7 componentes distintos.
+*/
+
+.workspace-cabecera-entidad {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.workspace-titulo-entidad {
+    font: var(--font-heading-sm);
+    color: var(--color-text);
+    margin: 0;
+}
+
+.workspace-subtitulo-entidad {
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.workspace-texto-notas {
+    font: var(--font-body-md);
+    color: var(--color-text);
+    white-space: pre-wrap;
+}
+
+.workspace-nota-contextual {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    background-color: var(--color-bg);
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.workspace-grupo-campos {
+    display: flex;
+    flex-direction: column;
+}
+
+.workspace-metrica-inline {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    margin: var(--space-1) 0 0;
+}
+
+.workspace-lista-requisitos {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.workspace-tarjeta-requisito {
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+}
+
+.workspace-tarjeta-requisito-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+}

@@ -7,7 +7,7 @@ namespace CaeManager.Domain.Asignaciones;
 /// directa sobre la matriz de "X" del Excel original, que no guardaba
 /// historial de fechas (ver DATABASE.md).
 /// </summary>
-public class Asignacion : Entity
+public class Asignacion : EntidadConTenant
 {
     public Guid TrabajadorId { get; private set; }
     public Guid CentroId { get; private set; }
