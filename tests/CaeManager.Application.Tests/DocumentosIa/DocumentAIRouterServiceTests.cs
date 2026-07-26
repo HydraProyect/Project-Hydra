@@ -66,7 +66,7 @@ public class DocumentAIRouterServiceTests
     {
         var proveedor = new ProveedorIaFalso(
             "anthropic", CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada,
-            resultadoTexto: Result.Exito("texto vía ocr"));
+            resultadoTexto: Result.Exito(new TextoExtraccionDto("texto vía ocr", CosteEstimado: 0.01m)));
         var router = CrearRouter(Clasificacion(tipo, false), Result.Exito("no debería usarse"), proveedor);
 
         var resultado = await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
@@ -193,7 +193,25 @@ public class DocumentAIRouterServiceTests
         auditoria.Auditorias[0].ProveedorCodigo.Should().Be("anthropic");
         auditoria.Auditorias[0].ConfianzaGeneral.Should().Be(95);
         auditoria.Auditorias[0].CosteEstimado.Should().Be(0.02m);
+        auditoria.Auditorias[0].CosteEstimadoOcr.Should().BeNull("documento digital, no hubo paso OCR");
         auditoria.Auditorias[0].NumeroPaginas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Registra_coste_ocr_en_auditoria_cuando_el_documento_es_escaneado()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "mistral-ocr+anthropic",
+            CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoTexto: Result.Exito(new TextoExtraccionDto("texto ocr", CosteEstimado: 0.008m)),
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Nómina", new Dictionary<string, string?>(), 90, null, CosteEstimado: 0.03m)));
+        var (router, _, auditoria) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Escaneado, false), Result.Exito("no se usa"), proveedor);
+
+        await router.ProcesarAsync([1, 2, 3], "nomina.pdf", "Nómina");
+
+        auditoria.Auditorias.Should().ContainSingle();
+        auditoria.Auditorias[0].CosteEstimadoOcr.Should().Be(0.008m, "el proveedor devolvió coste OCR");
+        auditoria.Auditorias[0].CosteEstimado.Should().Be(0.03m, "el proveedor devolvió coste de estructuración");
     }
 
     [Fact]

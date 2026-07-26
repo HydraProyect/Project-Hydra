@@ -45,8 +45,8 @@ public class DocumentAIRouterService(
 
     private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
 
-    /// <summary>Texto ya listo para estructurar, con una nota opcional (solo informativa, va a auditoría) cuando se descartaron páginas de un documento grande.</summary>
-    private sealed record TextoExtraidoDto(string Texto, string? NotaLocalizacion);
+    /// <summary>Texto ya listo para estructurar, con nota de localización (si se descartaron páginas) y coste OCR (si se usó un proveedor de OCR).</summary>
+    private sealed record TextoExtraidoDto(string Texto, string? NotaLocalizacion, decimal? CosteEstimadoOcr = null);
 
     public async Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
         byte[] contenido, string nombreArchivo, string tipoEsperado, CancellationToken cancellationToken = default)
@@ -61,7 +61,8 @@ public class DocumentAIRouterService(
             if (resultadoCache is not null)
             {
                 await RegistrarAuditoriaAsync(
-                    hash, tipoEsperado, "cache", cronometro.ElapsedMilliseconds, costeEstimado: 0m,
+                    hash, tipoEsperado, "cache", cronometro.ElapsedMilliseconds,
+                    costeEstimadoOcr: null, costeEstimado: 0m,
                     numeroPaginas: 0, resultadoCache.ConfianzaGeneral, "Resultado servido desde caché documental.", cancellationToken);
                 return Result.Exito(resultadoCache);
             }
@@ -71,7 +72,8 @@ public class DocumentAIRouterService(
         if (clasificacion.EsFallido)
         {
             await RegistrarAuditoriaAsync(
-                hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds, null, 0, 0, clasificacion.Error.Mensaje, cancellationToken);
+                hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
+                costeEstimadoOcr: null, costeEstimado: null, 0, 0, clasificacion.Error.Mensaje, cancellationToken);
             return Result.Fallo<ExtraccionEstructuradaDto>(clasificacion.Error);
         }
 
@@ -79,7 +81,8 @@ public class DocumentAIRouterService(
         if (texto.EsFallido)
         {
             await RegistrarAuditoriaAsync(
-                hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds, null, clasificacion.Valor.TotalPaginas, 0, texto.Error.Mensaje, cancellationToken);
+                hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
+                costeEstimadoOcr: null, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, texto.Error.Mensaje, cancellationToken);
             return Result.Fallo<ExtraccionEstructuradaDto>(texto.Error);
         }
 
@@ -88,7 +91,8 @@ public class DocumentAIRouterService(
         {
             const string mensaje = "No hay ningún proveedor de IA disponible para procesar este documento.";
             await RegistrarAuditoriaAsync(
-                hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds, null, clasificacion.Valor.TotalPaginas, 0, mensaje, cancellationToken);
+                hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
+                texto.Valor.CosteEstimadoOcr, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, mensaje, cancellationToken);
             return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIRouter.SinProveedor", mensaje));
         }
 
@@ -100,14 +104,16 @@ public class DocumentAIRouterService(
         if (resultado.EsFallido)
         {
             await RegistrarAuditoriaAsync(
-                hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds, null, clasificacion.Valor.TotalPaginas, 0, resultado.Error.Mensaje, cancellationToken);
+                hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
+                texto.Valor.CosteEstimadoOcr, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, resultado.Error.Mensaje, cancellationToken);
             return resultado;
         }
 
         await GuardarEnCacheAsync(hash, resultado.Valor, cancellationToken);
         var incidencias = CombinarIncidencias(texto.Valor.NotaLocalizacion, resultado.Valor.NotasValidacion);
         await RegistrarAuditoriaAsync(
-            hash, tipoEsperado, proveedorUsado.Codigo, cronometro.ElapsedMilliseconds, resultado.Valor.CosteEstimado,
+            hash, tipoEsperado, proveedorUsado.Codigo, cronometro.ElapsedMilliseconds,
+            texto.Valor.CosteEstimadoOcr, resultado.Valor.CosteEstimado,
             clasificacion.Valor.TotalPaginas, resultado.Valor.ConfianzaGeneral, incidencias, cancellationToken);
 
         return resultado;
@@ -162,7 +168,7 @@ public class DocumentAIRouterService(
         if (textoOcr.EsFallido)
             return Result.Fallo<TextoExtraidoDto>(textoOcr.Error);
 
-        return Result.Exito(new TextoExtraidoDto(textoOcr.Valor, null));
+        return Result.Exito(new TextoExtraidoDto(textoOcr.Valor.Texto, null, textoOcr.Valor.CosteEstimado));
     }
 
     /// <summary>Por debajo del umbral, se manda el documento completo — localizar páginas solo compensa en documentos grandes (§ 4.3).</summary>
@@ -188,11 +194,11 @@ public class DocumentAIRouterService(
     }
 
     private async Task RegistrarAuditoriaAsync(
-        string hash, string tipoEsperado, string proveedorCodigo, long tiempoMs, decimal? costeEstimado,
-        int numeroPaginas, int confianzaGeneral, string? incidencias, CancellationToken cancellationToken)
+        string hash, string tipoEsperado, string proveedorCodigo, long tiempoMs, decimal? costeEstimadoOcr,
+        decimal? costeEstimado, int numeroPaginas, int confianzaGeneral, string? incidencias, CancellationToken cancellationToken)
     {
         auditoriaRepositorio.Agregar(AuditoriaExtraccionIa.Crear(
-            hash, tipoEsperado, proveedorCodigo, tiempoMs, costeEstimado, numeroPaginas, confianzaGeneral, incidencias));
+            hash, tipoEsperado, proveedorCodigo, tiempoMs, costeEstimadoOcr, costeEstimado, numeroPaginas, confianzaGeneral, incidencias));
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

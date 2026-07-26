@@ -617,6 +617,25 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 
 **Verificado**: build limpio, todos los archivos siguen los patrones del proyecto (CQRS, repositorio, code-behind Blazor, filtro global de tenant). Sin prueba en navegador real (entorno sin dotnet CLI directo).
 
+## Fase 49 — Captura del coste OCR en `AuditoriaExtraccionIa`
+
+✅ Completa (2026-07-26). Cierra la laguna de observabilidad del paso OCR: hasta aquí `CosteEstimado` en la auditoría solo recogía el coste del paso de estructuración (LLM), no el del OCR previo (Mistral OCR 4 es de pago por página).
+
+- **`IDocumentAIProvider.ExtraerTextoAsync`**: tipo de retorno cambiado de `Result<string>` a `Result<TextoExtraccionDto>` — nuevo record `(string Texto, decimal? CosteEstimado = null)`. Transporta el coste del paso OCR hasta el router sin romper la abstracción.
+- **`AuditoriaExtraccionIa`**: nuevo campo `CosteEstimadoOcr` (decimal?, separado de `CosteEstimado` que sigue siendo el coste de estructuración). Migración `20260726204056_AgregarCosteEstimadoOcrAuditoria`.
+- **Tres proveedores actualizados**: `AnthropicDocumentAIProvider` y `GeminiDocumentAIProvider` calculan coste OCR a partir de tokens (igual que hacían para estructuración). `MistralOcrDocumentAIProvider` usa `usage_info.pages_processed * CostoPorMilPaginasOcr / 1000m` (fallback: `paginas.Count` si la API no devuelve `usage_info`).
+- **`DocumentAIRouterService`**: `ObtenerTextoAsync` propaga `CosteEstimadoOcr`; `RegistrarAuditoriaAsync` recibe y graba el coste en los 5 puntos de registro (null para cache/fallos antes del OCR, valor real tras OCR exitoso).
+- Tests actualizados (`AuditoriaExtraccionIaTests`, `DocumentAIRouterServiceTests`): nuevo test `Registra_coste_ocr_en_auditoria_cuando_el_documento_es_escaneado`; asserts de coste OCR añadidos al test existente de documento digital. 134 Domain, 73 Application, 13 Web.Tests, 85/87 IntegrationTests, 8/8 E2E en verde.
+
+## Fase 50 — Pantalla de administración de `AuditoriaExtraccionIa`
+
+✅ Completa (2026-07-26). Petición natural tras implementar la captura de costes: hacer visible el registro de auditoría IA al Administrador.
+
+- **`ObtenerAuditoriaIaQuery`** + `ObtenerAuditoriaIaQueryHandler` + `RegistroAuditoriaIaDto` (`Application/DocumentosIa/Queries/`): paginación de 30 registros, filtro opcional por `ProveedorCodigo`, ordenado por fecha descendente.
+- **`/auditoria-ia`** (nueva página Blazor, `Authorize(Roles = Administrador)`): tabla con columnas Fecha, Tipo esperado, Proveedor (badge por código), Páginas, Confianza (badge por nivel), Coste OCR, Coste extracción, Tiempo (ms), Incidencias. Selector de proveedor (Todos/Anthropic/Gemini/Mistral OCR/Caché/Sin proveedor). `PaginadorSimple` estándar. Manejo de estados cargando/error/vacío con los componentes del Design System.
+- **NavMenu**: enlace "Auditoría IA" bajo el grupo Administración (solo visible para rol Administrador), junto al enlace de Auditoría ya existente.
+- Build limpio, mismos 85/87 tests en verde (2 fallos preexistentes de LibreOffice, no relacionados).
+
 ## Épico — Plataforma de Integraciones (backlog, sin implementar — 2026-07-23)
 
 **Planteado por el usuario el 2026-07-23**: si la visión del producto se cumple, Hydra no es solo un gestor CAE — es una **plataforma**, y las plataformas ganan valor cuando las integraciones son una capacidad nativa (una capacidad del Tenant), no una colección de conectores desarrollados caso por caso. Proveedores objetivo del ecosistema: **Dokify, 6Conecta/6Coordina, CTAIMA, eCoordina**, plataformas CAE en general, **Microsoft 365** e **IA** (Anthropic/OpenAI). Diseño completo, arquitectura basada en proveedores (`IIntegrationProvider`, no conectores específicos acoplados al dominio) en **`ARQUITECTURA-INTEGRACIONES.md`** — este punto es solo el resumen de backlog. Nada de esto está implementado; existe para que las decisiones de multi-tenant que se están tomando ahora (`ADR-003`) no le cierren puertas.
