@@ -1,3 +1,4 @@
+using CaeManager.Infrastructure.Persistence.Seed;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -48,7 +49,12 @@ public static class IdentitySeeder
             // No es una contraseña temporal: el despliegue la eligió a
             // propósito (o acepta el default documentado en DEPLOY.md), no
             // hay ningún tercero esperando cambiarla en su primer acceso.
-            DebeCambiarContrasena = false
+            DebeCambiarContrasena = false,
+            // Tenant #1 (ver ADR-003-saas-multitenant.md) — no hay
+            // aprovisionamiento de tenants nuevos todavía (sin self-signup,
+            // ver ADR-001), así que el Administrador inicial siempre
+            // pertenece al tenant por defecto.
+            TenantId = TenantSeedData.IdPorDefecto
         };
 
         var resultado = await userManager.CreateAsync(administrador, contrasena);

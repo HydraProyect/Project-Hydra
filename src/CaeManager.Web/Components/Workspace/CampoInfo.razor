@@ -1,0 +1,24 @@
+@* Fila etiqueta/valor reutilizada por la pestaña "Información" de cada panel del Context Workspace. *@
+<div class="campo-info">
+    <span class="campo-info-etiqueta">@Etiqueta</span>
+    <div class="campo-info-valor">
+        @if (ChildContent is not null)
+        {
+            @ChildContent
+        }
+        else if (!string.IsNullOrWhiteSpace(Valor))
+        {
+            @Valor
+        }
+        else
+        {
+            <span class="campo-info-vacio">—</span>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Etiqueta { get; set; } = string.Empty;
+    [Parameter] public string? Valor { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
