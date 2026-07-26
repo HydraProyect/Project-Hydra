@@ -18,10 +18,10 @@ public class CrearClienteCommandHandlerTests
         var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso());
 
         var resultado = await handler.Handle(
-            new CrearClienteCommand("COBEGA (Coca-Cola European Partners)", CifValido, true, "Notas"), CancellationToken.None);
+            new CrearClienteCommand("Cadena Industrial Iberia S.A.", CifValido, true, "Notas"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        repositorio.Clientes.Should().ContainSingle(c => c.RazonSocial == "COBEGA (Coca-Cola European Partners)");
+        repositorio.Clientes.Should().ContainSingle(c => c.RazonSocial == "Cadena Industrial Iberia S.A.");
         unitOfWork.VecesGuardado.Should().Be(1);
     }
 

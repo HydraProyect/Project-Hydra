@@ -153,7 +153,7 @@ Tres mecanismos, no uno solo (defensa en profundidad):
 
 ## 8. Breadcrumb — comportamiento
 
-`ContextWorkspaceBreadcrumb.razor` pinta `Pila` como una lista de segmentos: `Cliente: COBEGA > Empresa: KHS S.A. > Centro: Planta Sevilla`, el último en negrita/no clicable (es el actual). Comportamiento:
+`ContextWorkspaceBreadcrumb.razor` pinta `Pila` como una lista de segmentos: `Cliente: Cadena Industrial Iberia > Empresa: Ibertec S.A. > Centro: Planta Sur`, el último en negrita/no clicable (es el actual). Comportamiento:
 
 - **Click en un segmento intermedio** → `IrAAsync(indice)`: trunca la pila a ese punto (todo lo posterior se descarta, no se "recuerda" para un forward — mismo comportamiento que un breadcrumb de sistema de archivos, no el de un navegador con forward/back independiente; más simple y predecible).
 - **Botón "← Volver"** (separado del breadcrumb, junto a la cabecera) → `VolverAsync()`: un nivel exacto, equivalente a click en el penúltimo segmento.

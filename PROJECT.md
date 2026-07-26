@@ -2,9 +2,9 @@
 
 ## Qué es
 
-CAE Manager es el software que reemplaza por completo el actual "Cuadro de Control CAE" en Excel: la herramienta con la que un departamento de Prevención de Riesgos Laborales (PRL) coordina la documentación de sus trabajadores frente a los clientes en cuyos centros de trabajo prestan servicio (Coordinación de Actividades Empresariales, CAE).
+CAE Manager es una plataforma SaaS que cubre la necesidad detectada en el mercado español de PRL: los Servicios de Prevención Ajenos (SPA) y coordinadores CAE gestionan hoy la documentación de sus clientes con hojas de cálculo dispersas, sin trazabilidad, sin control de acceso y con cálculos de vigencia frágiles. CAE Manager reemplaza ese flujo con una herramienta centralizada, normalizada y auditable.
 
-El Excel de referencia (`CAE_KHS_Cuadro_de_Control_2.xlsx`) es el documento fuente de este proyecto: define, con datos reales, qué información se gestiona hoy, qué reglas de vigencia aplican y qué fricciones tiene el proceso actual. Todo el modelo de dominio de CAE Manager está validado contra ese archivo (ver `DATABASE.md`).
+El diseño del modelo de dominio parte del análisis de los procesos reales de gestión CAE en empresas del sector industrial español, identificando las fricciones y los problemas de normalización que el uso de hojas de cálculo genera en la práctica (ver `DATABASE.md`).
 
 ## A quién sirve
 
@@ -38,14 +38,14 @@ Cuando dos enfoques compiten, se resuelve en este orden:
 1. **UX nunca se sacrifica por velocidad de desarrollo.**
 2. **Simplicidad y mantenibilidad** por encima de flexibilidad especulativa (YAGNI).
 3. **Consistencia de patrones** por encima de la solución "óptima" puntual — un patrón repetido en 16 módulos vale más que 16 soluciones ligeramente mejores pero distintas entre sí.
-4. Todo mensaje al usuario se escribe pensando en la persona que hoy usa el Excel, no en el desarrollador.
+4. Todo mensaje al usuario se escribe pensando en el coordinador CAE que hoy trabaja con herramientas dispersas, no en el desarrollador.
 
-## Glosario de dominio (validado contra el Excel real)
+## Glosario de dominio
 
 | Término | Significado |
 |---|---|
-| **Cliente** | Empresa titular de uno o más Centros de Trabajo (p. ej. COBEGA, Damm, Heineken, Mahou). No opera el sistema; es el destinatario de la coordinación CAE. |
-| **Centro** (o "centro/plataforma") | Ubicación física de un Cliente donde trabajan nuestros trabajadores. Un Cliente puede tener varios Centros. En el Excel actual esto está mal normalizado (varios centros listados como texto dentro de una fila de cliente); en CAE Manager cada Centro es su propia entidad. |
+| **Cliente** | Empresa titular de uno o más Centros de Trabajo (p. ej. Cadena Industrial Iberia S.A., Bebidas del Norte S.A., Retail Iberia S.A.). No opera el sistema; es el destinatario de la coordinación CAE. |
+| **Centro** (o "centro/plataforma") | Ubicación física de un Cliente donde trabajan nuestros trabajadores. Un Cliente puede tener varios Centros. En la gestión manual habitual esto suele estar mezclado (varios centros listados en texto libre dentro de un mismo registro de cliente); en CAE Manager cada Centro es su propia entidad. |
 | **Plataforma de acceso** | Portal externo (p. ej. CTAIMA CAE) que un Cliente exige usar para acreditar documentación. Tiene URL y credenciales — dato sensible, se cifra en reposo. |
 | **Empresa** | La empresa contratista cuyo personal se coordina (la organización que usa CAE Manager). Puede tener más de una razón social (p. ej. una entidad para personal nacional y otra para personal extranjero). |
 | **Trabajador** | Empleado de una Empresa. Tiene datos personales y una colección de Documentos. |
@@ -64,7 +64,7 @@ El usuario debe poder encontrar cualquier información en menos de tres clics. E
 
 - `ARCHITECTURE.md` — arquitectura técnica, capas, patrones.
 - `DOMAIN.md` — modelo de dominio: agregados, relaciones, invariantes.
-- `DATABASE.md` — modelo de datos, reglas de negocio, mapeo desde el Excel real.
+- `DATABASE.md` — modelo de datos, reglas de negocio, justificación de cada entidad desde la realidad del sector.
 - `docs/MULTITENANCY.md` — normativa multi-tenant (aislamiento, catálogos, resolución de tenant).
 - `DESIGN_SYSTEM.md` — identidad visual, tokens, catálogo de componentes.
 - `UX_PATTERNS.md` — patrones de interacción y microcopy.

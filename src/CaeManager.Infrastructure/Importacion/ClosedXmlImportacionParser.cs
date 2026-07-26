@@ -8,12 +8,12 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Infrastructure.Importacion;
 
 /// <summary>
-/// Lee el "Cuadro de Control CAE" en el formato del Excel real de KHS (ver
-/// ROADMAP.md, Fase 5). El formato de origen es deliberadamente heterogéneo
-/// (columnas agrupadas por tipo de documento, texto libre fusionando
-/// Cliente+Centro, bloques de notas incrustados debajo de tablas) — este
-/// parser no intenta "adivinar" lo ambiguo: lo importa de forma segura con
-/// una simplificación documentada, o lo excluye con un motivo explícito en
+/// Lee el archivo Excel de importación CAE multi-hoja (ver ROADMAP.md,
+/// Fase 5). El formato de origen es deliberadamente heterogéneo (columnas
+/// agrupadas por tipo de documento, texto libre fusionando Cliente+Centro,
+/// bloques de notas incrustados debajo de tablas) — este parser no intenta
+/// "adivinar" lo ambiguo: lo importa de forma segura con una simplificación
+/// documentada, o lo excluye con un motivo explícito en
 /// <see cref="PlanImportacionDto.Advertencias"/>/<see cref="PlanImportacionDto.Omitidos"/>.
 /// Nunca lanza una excepción por una fila individual mal formada — solo por
 /// un archivo que no tiene ninguna de las hojas esperadas.
@@ -22,11 +22,11 @@ public class ClosedXmlImportacionParser(IApplicationDbContext dbContext) : IExce
 {
     private const string HojaCentros = "Centros_Plataformas";
     private const string HojaEmpleados = "Empleados";
-    private const string HojaExtranjeros = "Extranjeros (KHS GmbH)";
+    private const string HojaExtranjeros = "Extranjeros (Ibertec GmbH)";
     private const string HojaAsignaciones = "Asignaciones";
 
-    private const string EmpresaEmpleados = "KHS S.A.";
-    private const string EmpresaExtranjeros = "KHS GmbH";
+    private const string EmpresaEmpleados = "Ibertec S.A.";
+    private const string EmpresaExtranjeros = "Ibertec GmbH";
 
     // Columna del "Fecha" de cada grupo de documento en Empleados/Extranjeros
     // → nombre exacto del TipoDocumento semilla (ver Fase 0 / TipoDocumentoSeedData).
@@ -289,11 +289,11 @@ public class ClosedXmlImportacionParser(IApplicationDbContext dbContext) : IExce
         }
 
         // La hoja Asignaciones usa nombres abreviados de centro en su cabecera,
-        // distintos del nombre completo de Centros_Plataformas (p. ej. "COBEGA"
-        // vs "COBEGA (Coca-Cola European Partners) - Plantas Vallès / Tacoronte").
+        // distintos del nombre completo de Centros_Plataformas (p. ej. "Cadena Iberia"
+        // vs "Cadena Industrial Iberia S.A. - Planta Norte").
         // La propia hoja documenta la correspondencia por POSICIÓN, no por texto
         // ("Las columnas corresponden al mismo orden que la hoja
-        // Centros_Plataformas") — se verificó contra el Excel real de KHS.
+        // Centros_Plataformas") — la correspondencia se valida por conteo.
         if (columnasCentro.Count != nombresCentrosOrdenados.Count)
         {
             omitidos.Add(new ItemImportacionDto(

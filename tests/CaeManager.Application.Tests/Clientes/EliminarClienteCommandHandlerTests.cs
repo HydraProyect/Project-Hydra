@@ -10,7 +10,7 @@ public class EliminarClienteCommandHandlerTests
     [Fact]
     public async Task Marca_el_cliente_como_eliminado_cuando_no_tiene_centros_activos()
     {
-        var cliente = new Cliente("Damm El Prat", "B12345674", true);
+        var cliente = new Cliente("Bebidas del Norte S.A. (Planta El Prat)", "B12345674", true);
         var repositorio = new ClienteRepositorioFalso { TieneCentrosActivos = false };
         repositorio.Agregar(cliente);
         var unitOfWork = new UnitOfWorkFalso();
@@ -25,7 +25,7 @@ public class EliminarClienteCommandHandlerTests
     [Fact]
     public async Task Falla_cuando_el_cliente_tiene_centros_activos()
     {
-        var cliente = new Cliente("Damm El Prat", "B12345674", true);
+        var cliente = new Cliente("Bebidas del Norte S.A. (Planta El Prat)", "B12345674", true);
         var repositorio = new ClienteRepositorioFalso { TieneCentrosActivos = true };
         repositorio.Agregar(cliente);
         var unitOfWork = new UnitOfWorkFalso();
