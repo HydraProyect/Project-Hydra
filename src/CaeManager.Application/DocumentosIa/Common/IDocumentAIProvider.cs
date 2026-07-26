@@ -22,9 +22,11 @@ public interface IDocumentAIProvider
     /// (PDF escaneado o imagen suelta — <paramref name="nombreArchivo"/> es
     /// lo que decide cómo se envía al proveedor, p. ej. como bloque
     /// "document" o "image" en Anthropic). Requiere
-    /// <see cref="CapacidadesProveedorIa.OcrImagenAEscaneado"/>.
+    /// <see cref="CapacidadesProveedorIa.OcrImagenAEscaneado"/>. El coste
+    /// estimado en <see cref="TextoExtraccionDto"/> es null si el proveedor
+    /// no lo puede calcular con los datos de la respuesta.
     /// </summary>
-    Task<Result<string>> ExtraerTextoAsync(byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default);
+    Task<Result<TextoExtraccionDto>> ExtraerTextoAsync(byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default);
 
     /// <summary>Extracción estructurada con confidence score a partir de texto ya disponible (digital o ya pasado por OCR). Requiere <see cref="CapacidadesProveedorIa.ExtraccionEstructurada"/>.</summary>
     Task<Result<ExtraccionEstructuradaDto>> ExtraerEstructuradoAsync(string texto, string tipoEsperado, CancellationToken cancellationToken = default);
@@ -42,10 +44,15 @@ public interface IDocumentAIProvider
 /// <paramref name="CosteEstimado"/> (en USD, null si el proveedor no lo
 /// calcula) es solo un dato de auditoría — nunca un criterio de enrutado
 /// (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2). Cada proveedor lo
-/// calcula con su propia unidad de precio; no hay un campo equivalente
-/// para <see cref="IDocumentAIProvider.ExtraerTextoAsync"/> todavía — el
-/// coste del paso de OCR queda fuera de esta primera versión de auditoría.
+/// calcula con su propia unidad de precio.
 /// </summary>
 public record ExtraccionEstructuradaDto(
     string? TipoDetectado, IReadOnlyDictionary<string, string?> Campos, int ConfianzaGeneral, string? NotasValidacion,
     decimal? CosteEstimado = null);
+
+/// <summary>
+/// Resultado del paso de OCR/lectura nativa de <see cref="IDocumentAIProvider.ExtraerTextoAsync"/>:
+/// el texto plano extraído y el coste estimado del paso (null si el proveedor
+/// no lo calcula). Coste solo para auditoría — ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2.
+/// </summary>
+public record TextoExtraccionDto(string Texto, decimal? CosteEstimado = null);
