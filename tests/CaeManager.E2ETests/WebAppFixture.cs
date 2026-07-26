@@ -13,7 +13,7 @@ namespace CaeManager.E2ETests;
 /// test de la colección "AppCollection" — un solo arranque (migraciones +
 /// siembra de ~1500 filas) para toda la suite, no uno por clase.
 /// </summary>
-public sealed class WebAppFixture : IAsyncLifetime
+public class WebAppFixture : IAsyncLifetime
 {
     private const string ExecutablePathChromium = "/opt/pw-browsers/chromium";
 
@@ -24,6 +24,16 @@ public sealed class WebAppFixture : IAsyncLifetime
     public string BaseUrl { get; private set; } = string.Empty;
 
     public IBrowser Browser { get; private set; } = null!;
+
+    /// <summary>
+    /// Punto de extensión para subclases (ver
+    /// <see cref="WebAppFixtureConSegundoTenant"/>) que necesitan variables
+    /// de entorno adicionales al arrancar el proceso real de
+    /// CaeManager.Web — sin tocar el comportamiento de la fixture
+    /// compartida por "AppCollection".
+    /// </summary>
+    protected virtual IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
+        new Dictionary<string, string>();
 
     public async Task InitializeAsync()
     {
@@ -49,6 +59,9 @@ public sealed class WebAppFixture : IAsyncLifetime
         infoInicio.Environment["ASPNETCORE_URLS"] = BaseUrl;
         infoInicio.Environment["ConnectionStrings__CaeManagerDb"] = $"Data Source={_rutaBaseDatos}";
         infoInicio.Environment["DatosPrueba__Activo"] = "true";
+
+        foreach (var (clave, valor) in VariablesDeEntornoAdicionales())
+            infoInicio.Environment[clave] = valor;
 
         _proceso = Process.Start(infoInicio)
             ?? throw new InvalidOperationException("No se pudo arrancar el proceso de CaeManager.Web.");
@@ -191,3 +204,19 @@ public sealed class WebAppFixture : IAsyncLifetime
 
 [CollectionDefinition("AppCollection")]
 public class AppCollection : ICollectionFixture<WebAppFixture>;
+
+/// <summary>
+/// Arranca CaeManager.Web con un segundo tenant sembrado (ver
+/// SegundoTenantSeeder) para poder verificar el aislamiento multi-tenant
+/// con un navegador real (PLAN-MIGRACION-MULTITENANT.md § 6, Etapa 5). En
+/// una colección propia — no "AppCollection" — para no forzar el sembrado
+/// del segundo tenant en el resto de la suite E2E.
+/// </summary>
+public sealed class WebAppFixtureConSegundoTenant : WebAppFixture
+{
+    protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
+        new Dictionary<string, string> { ["SegundoTenant__Activo"] = "true" };
+}
+
+[CollectionDefinition("AppCollectionMultiTenant")]
+public class AppCollectionMultiTenant : ICollectionFixture<WebAppFixtureConSegundoTenant>;

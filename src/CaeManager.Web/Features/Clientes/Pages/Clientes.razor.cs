@@ -59,7 +59,7 @@ public partial class Clientes : ComponentBase
     protected override async Task OnInitializedAsync()
     {
         // Permite que el buscador global (Ctrl/Cmd+K) navegue aquí con el
-        // filtro ya cargado, p. ej. /clientes?q=COBEGA.
+        // filtro ya cargado, p. ej. /clientes?q=Cadena+Industrial.
         if (!string.IsNullOrWhiteSpace(TerminoBusquedaInicial))
             _busqueda = TerminoBusquedaInicial;
 

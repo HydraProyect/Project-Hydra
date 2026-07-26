@@ -18,9 +18,9 @@ public class EmpresaConfiguration : IEntityTypeConfiguration<Empresa>
         builder.Property(e => e.Cif)
             .HasMaxLength(Empresa.LongitudCif);
 
-        builder.HasIndex(e => e.RazonSocial).IsUnique();
-        builder.HasIndex(e => e.Cif).IsUnique();
+        builder.HasIndex(e => new { e.TenantId, e.RazonSocial }).IsUnique();
+        builder.HasIndex(e => new { e.TenantId, e.Cif }).IsUnique();
 
-        builder.HasQueryFilter(e => !e.EstaEliminado);
+        // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }

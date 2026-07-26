@@ -8,7 +8,7 @@ namespace CaeManager.Domain.Documentos;
 /// Excel original. Es configuración del sistema, editable solo por
 /// Administrador.
 /// </summary>
-public class TipoDocumento : Entity
+public class TipoDocumento : EntidadConTenant
 {
     public const int LongitudMaximaNombre = 150;
     public const int LongitudMaximaNotas = 500;
@@ -69,6 +69,19 @@ public class TipoDocumento : Entity
     /// </summary>
     public bool DeteccionTrabajadoresActiva { get; private set; }
 
+    /// <summary>
+    /// Solo tiene sentido para Ámbito Trabajador: si está activo, cada
+    /// Documento nuevo de este tipo pasa por una verificación IA que lee el
+    /// archivo real y compara tipo/fecha de emisión/firma detectados contra
+    /// lo introducido por el usuario, generando una <see cref="RevisionIaDocumento"/>
+    /// pendiente cuando la confianza es baja o hay una discrepancia — nunca
+    /// corrige nada automáticamente (ver Issue #19). Empieza desactivado a
+    /// propósito, mismo criterio que <see cref="DeteccionTrabajadoresActiva"/>:
+    /// el Administrador lo activa explícitamente solo para los tipos donde
+    /// interesa (p. ej. reconocimiento médico, EPIs).
+    /// </summary>
+    public bool VerificacionIaActiva { get; private set; }
+
     private TipoDocumento()
     {
     }
@@ -118,6 +131,8 @@ public class TipoDocumento : Entity
     public void EstablecerLecturaIaActiva(bool activa) => LecturaIaActiva = activa;
 
     public void EstablecerDeteccionTrabajadoresActiva(bool activa) => DeteccionTrabajadoresActiva = activa;
+
+    public void EstablecerVerificacionIaActiva(bool activa) => VerificacionIaActiva = activa;
 
     private void EstablecerGlosario(string? descripcion, string? criteriosValidacion, string? seSolicitaA, string? observaciones)
     {

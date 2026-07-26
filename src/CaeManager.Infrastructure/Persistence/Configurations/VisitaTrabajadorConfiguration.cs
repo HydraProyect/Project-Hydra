@@ -13,6 +13,6 @@ public class VisitaTrabajadorConfiguration : IEntityTypeConfiguration<VisitaTrab
 
         builder.HasIndex(vt => vt.VisitaId);
         builder.HasIndex(vt => vt.TrabajadorId);
-        builder.HasIndex(vt => new { vt.VisitaId, vt.TrabajadorId }).IsUnique();
+        builder.HasIndex(vt => new { vt.TenantId, vt.VisitaId, vt.TrabajadorId }).IsUnique();
     }
 }

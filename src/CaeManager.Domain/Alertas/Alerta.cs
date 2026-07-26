@@ -3,7 +3,7 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Domain.Alertas;
 
 /// <summary>Notificación generada cuando un Documento entra en umbral de aviso o vence.</summary>
-public class Alerta : Entity
+public class Alerta : EntidadConTenant
 {
     public Guid DocumentoId { get; private set; }
     public NivelAlerta Nivel { get; private set; }

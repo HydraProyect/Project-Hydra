@@ -1,0 +1,27 @@
+.campo-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) 0;
+    border-bottom: var(--border-default);
+}
+
+.campo-info:last-child {
+    border-bottom: none;
+}
+
+.campo-info-etiqueta {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.campo-info-valor {
+    font: var(--font-body-md);
+    color: var(--color-text);
+}
+
+.campo-info-vacio {
+    color: var(--color-text-muted);
+}
