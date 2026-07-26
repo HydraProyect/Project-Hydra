@@ -20,7 +20,7 @@ public class EliminarTarifaClienteCommandHandler(
             return Result.Fallo(Error.Crear("TarifaCliente.NoEncontrada", "La tarifa no existe o no tienes acceso."));
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
-        tarifa.MarcarComoEliminado(usuarioId);
+        tarifa.MarcarComoEliminado(usuarioId ?? Guid.Empty);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();
