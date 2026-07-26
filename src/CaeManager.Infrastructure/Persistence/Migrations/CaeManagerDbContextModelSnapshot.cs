@@ -1726,6 +1726,52 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.ToTable("EmpresasClientes", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Facturacion.TarifaCliente", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Concepto")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MonedaIso")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClienteId");
+
+                    b.HasIndex(new[] { "TenantId", "ClienteId", "Concepto" }, "IX_TarifasCliente_TenantId_ClienteId_Concepto")
+                        .IsUnique()
+                        .HasFilter("\"EstaEliminado\" = 0");
+
+                    b.ToTable("TarifasCliente", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Notificaciones.NotificacionUsuario", b =>
                 {
                     b.Property<Guid>("Id")

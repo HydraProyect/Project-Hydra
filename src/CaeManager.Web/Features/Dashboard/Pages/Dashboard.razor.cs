@@ -1,5 +1,6 @@
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -72,4 +73,11 @@ public partial class Dashboard : ComponentBase
     private int PorcentajeAutomatica => TotalAprobaciones == 0 ? 0 : _estadisticasAprobacion!.Automaticas * 100 / TotalAprobaciones;
 
     private int PorcentajeManual => TotalAprobaciones == 0 ? 0 : 100 - PorcentajeAutomatica;
+
+    private static TonoBadge SlaDocumentalTono(int tasa) => tasa switch
+    {
+        >= 90 => TonoBadge.Exito,
+        >= 70 => TonoBadge.Advertencia,
+        _ => TonoBadge.Peligro
+    };
 }

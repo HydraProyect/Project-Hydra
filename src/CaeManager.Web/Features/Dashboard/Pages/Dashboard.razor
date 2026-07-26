@@ -30,6 +30,8 @@
             <TarjetaMetrica Etiqueta="Próximos (≤30 días)" Valor="@_kpis.DocumentosProximos.ToString()" Tono="TonoBadge.Advertencia" Enlace="/alertas?estado=Proximo" />
             <TarjetaMetrica Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" Tono="TonoBadge.Exito" Enlace="/documentos?estado=Vigente" />
             <TarjetaMetrica Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" Enlace="/visitas" />
+            <TarjetaMetrica Etiqueta="SLA documental" Valor="@($"{_kpis.TasaCumplimientoDocumental}%")"
+                            Tono="@SlaDocumentalTono(_kpis.TasaCumplimientoDocumental)" Enlace="/documentos" />
         </div>
 
         @if (_mostrarDocumentosAtencion && _desglose is not null)
