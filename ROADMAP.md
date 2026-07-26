@@ -574,6 +574,49 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 - **Clave real provisionada** por el usuario; sin verificación end-to-end con una llamada real a la API de Mistral en este entorno (mismo motivo que Gemini, agravado por la incidencia de proxy descrita arriba) — pendiente que el usuario lo pruebe con un documento real.
 - **Fuera de alcance, explícitamente no construido**: `ExtraerEstructuradoAsync` real vía "Document AI" (incompatibilidad de firma, ver arriba); benchmark comparativo real Gemini vs Mistral OCR 4 con documentos de Hydra; activar la capacidad `ExtraccionEstructurada` en Mistral.
 
+## Fase 48 — SLA documental en Dashboard + módulo de Facturación y costes por cliente (2026-07-26)
+
+✅ Completa (2026-07-26). Tres áreas integradas en una sola fase: KPI de SLA documental en el Dashboard, módulo de configuración de tarifas por cliente, y resumen mensual de facturación estimada.
+
+### SLA documental en Dashboard
+
+- **`TasaCumplimientoDocumental`** añadido a `KpisDashboardDto` y calculado en `ObtenerKpisDashboardHandler`: ratio de documentos en estado `Vigente` sobre el total con vigencia activa (Vigente + Próximo + Urgente + Vencido) — los documentos `NoAplica` y sin vigencia no penalizan la tasa. Devuelve 100 cuando no hay documentos con vigencia definida.
+- **Tile "SLA documental"** en `Dashboard.razor`: muestra la tasa como porcentaje con `TonoBadge` semántico — verde ≥ 90 %, naranja ≥ 70 %, rojo < 70 % — helper `SlaDocumentalTono` en `Dashboard.razor.cs`. Enlaza a `/documentos`.
+
+### Módulo de Facturación y costes
+
+**Dominio** (`CaeManager.Domain/Facturacion/`, nuevo):
+- `ConceptoFacturable` (enum): `TrabajadorActivo`, `AltaCentro`, `VisitaTrabajadorExtranjero`, `DocumentoGestionado` — los cuatro conceptos pactables hoy entre consultor y cliente.
+- `TarifaCliente : EntidadBase`: agrega `ClienteId`, `Concepto`, `PrecioUnitario` (decimal), `MonedaIso` (3 chars, "EUR" por defecto); factory `Crear`, método `Actualizar`; invariante: precio ≥ 0.
+- `ITarifaClienteRepository`: `ObtenerPorIdAsync`, `ObtenerPorClienteAsync`, `ExisteParaConceptoAsync` (para el índice único conceptual en capa de aplicación), `Agregar`, `Eliminar`.
+
+**Application** (`CaeManager.Application/Facturacion/`, nuevo):
+- `CrearTarifaClienteCommand` + validador + handler: crea una tarifa para un cliente; devuelve error de negocio si el concepto ya existe para ese cliente.
+- `ActualizarTarifaClienteCommand` + validador + handler: actualiza precio e ISO de una tarifa existente → `Result`.
+- `EliminarTarifaClienteCommand` + handler: soft-delete vía `MarcarComoEliminado(usuarioId)`.
+- `ObtenerTarifasClienteQuery(ClienteId)` → `List<TarifaClienteDto>`: proyección en memoria tras `ToListAsync` (evita fallo de traducción LINQ con el helper de nombre de concepto).
+- `ObtenerResumenFacturacionQuery(ClienteId, Anyo, Mes)` → `ResumenFacturacionDto?`: calcula importes estimados del mes a partir de los datos operativos ya existentes sin tabla de eventos de facturación:
+  - `TrabajadorActivo`: trabajadores únicos en Asignaciones activas en el período para los centros del cliente.
+  - `AltaCentro`: Centros del cliente creados en el período.
+  - `VisitaTrabajadorExtranjero`: trabajadores en Visitas del período cuyos DNI no son NIF/DNI nacional (clasificados en memoria con `ValidadorIdentificacion`, evitando campo de nacionalidad en `Trabajador`).
+  - `DocumentoGestionado`: Documentos creados en el período para trabajadores con Asignación activa.
+
+**Infrastructure** (`CaeManager.Infrastructure/`, modificado/nuevo):
+- `TarifaClienteConfiguration`: tabla `TarifasCliente`, `PrecioUnitario decimal(18,4)`, `MonedaIso maxlength 3`, índice único `(TenantId, ClienteId, Concepto)` filtrado por `EstaEliminado = 0` (permite recrear un concepto tras soft-delete).
+- `TarifaClienteRepository`: patrón estándar del proyecto.
+- Migración `20260726120000_AddTarifasCliente` + snapshot actualizado.
+- DI: `ITarifaClienteRepository → TarifaClienteRepository`.
+
+**Web** (`CaeManager.Web/Features/Facturacion/`, nuevo):
+- `Facturacion.razor` (`@page "/facturacion"`, `InteractiveServer`): selector de cliente → dos pestañas ("Tarifas configuradas" / "Resumen mensual"). Pestaña tarifas: tabla con edición inline por fila + formulario de nueva tarifa en `Tarjeta`; `_conceptosDisponibles` se recalcula para ocultar conceptos ya asignados. Pestaña resumen: filtros año/mes + tabla de líneas con subtotales y fila de total estimado en `tfoot`.
+- `Facturacion.razor.cs`: lógica de estado completa — carga, creación, edición, eliminación, navegación de pestañas, manejo de errores con `ToastService`.
+- `Facturacion.razor.css`: estilos de pestañas, tabla de tarifas, tabla de resumen, formulario en rejilla 3 columnas.
+- `NavMenu.razor`: enlace `/facturacion` dentro del grupo "Control", visible solo para `RolesDeAdministracionAmpliada` (Administrador/DireccionCae), al mismo nivel que el enlace existente de Alertas.
+
+**Limitación conocida y aceptada**: los precios se toman de la tarifa vigente al momento de calcular el resumen — si el precio cambió dentro del mes, el histórico no se conserva (la decisión de no introducir una tabla de eventos de facturación es deliberada: YAGNI hasta que haya un cliente real que lo necesite).
+
+**Verificado**: build limpio, todos los archivos siguen los patrones del proyecto (CQRS, repositorio, code-behind Blazor, filtro global de tenant). Sin prueba en navegador real (entorno sin dotnet CLI directo).
+
 ## Épico — Plataforma de Integraciones (backlog, sin implementar — 2026-07-23)
 
 **Planteado por el usuario el 2026-07-23**: si la visión del producto se cumple, Hydra no es solo un gestor CAE — es una **plataforma**, y las plataformas ganan valor cuando las integraciones son una capacidad nativa (una capacidad del Tenant), no una colección de conectores desarrollados caso por caso. Proveedores objetivo del ecosistema: **Dokify, 6Conecta/6Coordina, CTAIMA, eCoordina**, plataformas CAE en general, **Microsoft 365** e **IA** (Anthropic/OpenAI). Diseño completo, arquitectura basada en proveedores (`IIntegrationProvider`, no conectores específicos acoplados al dominio) en **`ARQUITECTURA-INTEGRACIONES.md`** — este punto es solo el resumen de backlog. Nada de esto está implementado; existe para que las decisiones de multi-tenant que se están tomando ahora (`ADR-003`) no le cierren puertas.
