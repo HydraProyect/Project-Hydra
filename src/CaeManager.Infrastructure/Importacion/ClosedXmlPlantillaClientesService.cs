@@ -6,11 +6,11 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Infrastructure.Importacion;
 
 /// <summary>
-/// Plantilla simplificada de un solo hoja para dar de alta clientes en masa
-/// (ver ROADMAP.md) — a diferencia del Cuadro de Control CAE de KHS
-/// (ClosedXmlImportacionParser), que es multi-hoja y específico de ese
-/// origen. Mismo principio que allí: cada fila es a la vez un Cliente y un
-/// Centro con el mismo nombre (ver Centro.cs).
+/// Plantilla simplificada de una sola hoja para dar de alta clientes en masa
+/// (ver ROADMAP.md) — a diferencia del formato completo multi-hoja de
+/// importación CAE (ClosedXmlImportacionParser). Mismo principio que allí:
+/// cada fila es a la vez un Cliente y un Centro con el mismo nombre
+/// (ver Centro.cs).
 /// </summary>
 public class ClosedXmlPlantillaClientesService(IApplicationDbContext dbContext) : IPlantillaClientesService
 {

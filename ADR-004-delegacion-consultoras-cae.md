@@ -1,6 +1,6 @@
 # ADR-004 — Delegación reversible de gestión CAE a consultoras externas
 
-**Estado**: Propuesta de arquitectura, modelo revisado el 2026-07-25 (tercera vuelta): v1 corrigió la prioridad ("qué se construye primero"), v2 corrigió el enfoque ("jerarquía organizacional, no sesión con varios tenants"), esta reconcilia el vocabulario técnico con `docs/business/UBIQUITOUS_LANGUAGE.md` — ya aprobado en paralelo por otra vía y mergeado a `main` mientras se escribían v1/v2 de este documento (ver § 0). No implementado — este documento es la fase de diseño pedida antes de tocar código (mismo criterio que `PLAN-CONTEXT-WORKSPACE.md`/`ADR-003`). Motivado por el caso real que destraba el primer cliente de Hydra: Geseme necesita operar la CAE de varios clientes (KHS, Tomra, Blasau) sin que cada uno sea un tenant que Geseme "posee".
+**Estado**: Propuesta de arquitectura, modelo revisado el 2026-07-25 (tercera vuelta): v1 corrigió la prioridad ("qué se construye primero"), v2 corrigió el enfoque ("jerarquía organizacional, no sesión con varios tenants"), esta reconcilia el vocabulario técnico con `docs/business/UBIQUITOUS_LANGUAGE.md` — ya aprobado en paralelo por otra vía y mergeado a `main` mientras se escribían v1/v2 de este documento (ver § 0). No implementado — este documento es la fase de diseño pedida antes de tocar código (mismo criterio que `PLAN-CONTEXT-WORKSPACE.md`/`ADR-003`). Motivado por el caso real que destraba el primer cliente de Hydra: ArcoSPA necesita operar la CAE de varios clientes (Ibertec S.A., EcoPlant Reciclaje S.L., Obras Reyval S.A.) sin que cada uno sea un tenant que ArcoSPA "posee".
 
 **Corrección de enfoque respecto a la v1**: no se trata de "un usuario puede entrar en varios tenants" (eso es un detalle de sesión). Es una **jerarquía organizacional transversal** — Hydra vende a dos tipos de cliente a la vez (el que opera su propia CAE, y la consultora que opera la CAE de varios clientes por delegación), y ambos necesitan sus propias vistas agregadas sin que se mezclen con el aislamiento entre tenants. Es, probablemente, uno de los diferenciadores de producto más importantes de Hydra frente a otras plataformas CAE — se diseña como capacidad de negocio, no como ajuste de permisos.
 
@@ -12,17 +12,17 @@ Mientras se escribían las v1/v2 de este documento, otra sesión desarrolló en 
 
 | Este documento decía (v1/v2) | Término correcto (`docs/business/UBIQUITOUS_LANGUAGE.md`) | Estado del término |
 |---|---|---|
-| "el Workspace de la consultora", "Workspace Geseme" | El tenant sin datos operativos de la **Consultora** (Geseme) — no lleva el nombre "Workspace" | `Consultora`: Draft |
+| "el Workspace de la consultora", "Workspace ArcoSPA" | El tenant sin datos operativos de la **Consultora** (ArcoSPA) — no lleva el nombre "Workspace" | `Consultora`: Draft |
 | "tenant activo alcanzado por delegación" | **Delegated Workspace** — el espacio en el que una Consultora opera en nombre de un Cliente Delegante | `Delegated Workspace`: **Approved** |
 | "tenant cliente sin delegación" | **Cliente Directo** — gestiona su propia operación CAE | `Cliente Directo`: **Approved** |
 | "tenant cliente con delegación activa" | **Cliente Delegante** — delega su operación en una Consultora | `Cliente Delegante`: **Approved** |
-| "usuario delegado", "Gestor de Geseme operando sobre KHS" | **Operador Delegado** | `Operador Delegado`: Draft |
+| "usuario delegado", "Gestor de ArcoSPA operando sobre Ibertec  | **Operador Delegado** | `Operador Delegado`: Draft |
 | "Director CAE Externo", "Coordinador", "Gestor CAE" (cargos) | Mismos nombres — ya anticipados como `Draft` en la tabla "Cargos organizativos" de `UBIQUITOUS_LANGUAGE.md`, distintos de los roles de autorización `Administrador`/`Supervisor`/`Ejecutivo CAE`/`Consulta` ya implementados | Cargos: Draft · Roles de autorización: implementados, sin cambios |
 | Modelo de delegación en general | **Delegación** | Draft |
 
 **Qué aporta este documento a esos términos Draft**: `docs/business/UBIQUITOUS_LANGUAGE.md` deja "Delegación"/"Operador Delegado" pendientes de "definir conjuntamente" con `BUSINESS_ARCHITECTURE.md` (vacío todavía). Este ADR **es** ese desarrollo conjunto, visto desde la arquitectura técnica — no lo sustituye, lo alimenta. Graduar `Consultora`/`Operador Delegado`/`Delegación` de `Draft` a `Approved` sigue siendo una decisión del propietario del producto, a registrar en `DECISION_LOG.md` cuando se confirme (no la toma este documento).
 
-**Nota sobre "Cliente" con dos sentidos** (ya documentada en `UBIQUITOUS_LANGUAGE.md`, se hereda aquí sin cambios): "Cliente" es tanto la entidad de dominio CAE (`Cliente.Nombre`, p. ej. Mercadona) como la organización que paga Hydra (p. ej. KHS). Este documento habla siempre del segundo sentido salvo que diga lo contrario explícitamente.
+**Nota sobre "Cliente" con dos sentidos** (ya documentada en `UBIQUITOUS_LANGUAGE.md`, se hereda aquí sin cambios): "Cliente" es tanto la entidad de dominio CAE (`Cliente.Nombre`, p. ej. Retail Iberia S.A.) como la organización que paga Hydra (p. ej. Ibertec S.A. Este documento habla siempre del segundo sentido salvo que diga lo contrario explícitamente.
 
 ---
 
@@ -33,9 +33,9 @@ Mientras se escribían las v1/v2 de este documento, otra sesión desarrolló en 
 ## 2. Los cuatro escenarios de negocio (pedidos por el usuario, 2026-07-25)
 
 1. **Gestión interna** — una pyme (p. ej. Aislamientos Juan) usa Hydra directamente, como **Cliente Directo**. Su tenant, sus datos, sus usuarios. Sin cambios sobre el modelo actual.
-2. **Crecimiento y externalización** — la pyme crece y pasa a ser **Cliente Delegante**: delega la operación completa en una Consultora (Geseme). **No se migra nada, no se crea un tenant nuevo, no se duplica la base de datos** — solo se conceden permisos delegados para que Operadores Delegados de Geseme operen sobre el tenant ya existente del cliente, dentro de un **Delegated Workspace**.
-3. **Modelo híbrido** — el Coordinador CAE interno del Cliente Delegante y los Operadores Delegados de Geseme trabajan **simultáneamente** sobre el mismo tenant, cada uno con su rol/alcance, con trazabilidad de quién hizo qué y desde dónde.
-4. **Internalización** — el Cliente Delegante monta su propio departamento CAE, vuelve a ser Cliente Directo y retira la delegación. Los Operadores Delegados de Geseme pierden acceso, pero **ningún dato desaparece** — todo el histórico (documentos, auditoría, configuración) sigue siendo del cliente, porque siempre vivió en su tenant.
+2. **Crecimiento y externalización** — la pyme crece y pasa a ser **Cliente Delegante**: delega la operación completa en una Consultora (ArcoSPA). **No se migra nada, no se crea un tenant nuevo, no se duplica la base de datos** — solo se conceden permisos delegados para que Operadores Delegados de ArcoSPA operen sobre el tenant ya existente del cliente, dentro de un **Delegated Workspace**.
+3. **Modelo híbrido** — el Coordinador CAE interno del Cliente Delegante y los Operadores Delegados de ArcoSPA trabajan **simultáneamente** sobre el mismo tenant, cada uno con su rol/alcance, con trazabilidad de quién hizo qué y desde dónde.
+4. **Internalización** — el Cliente Delegante monta su propio departamento CAE, vuelve a ser Cliente Directo y retira la delegación. Los Operadores Delegados de ArcoSPA pierden acceso, pero **ningún dato desaparece** — todo el histórico (documentos, auditoría, configuración) sigue siendo del cliente, porque siempre vivió en su tenant.
 
 **Principio fundamental (cita literal del usuario, es la frase que fija el diseño)**: *"La autorización no debe modelarse como una relación de propiedad, sino como una delegación de acceso."* La separación entre **quién es dueño del dato** (siempre el tenant del Cliente) y **quién puede operar sobre él en cada momento** (nativo del tenant, Operador Delegado, o ambos) es un principio arquitectónico, no un detalle de permisos.
 
@@ -44,18 +44,18 @@ Mientras se escribían las v1/v2 de este documento, otra sesión desarrolló en 
 ```
 Hydra (plataforma)
 │
-├── Tenant KHS (Cliente Delegante) ───┐
-├── Tenant Tomra (Cliente Delegante)  │  aislados entre sí — sin cambios,
-├── Tenant Blasau (Cliente Delegante) │  cada uno es dueño de su información
+├── Tenant Ibertec (Cliente Delegante) ───┐
+├── Tenant EcoPlant (Cliente Delegante)  │  aislados entre sí — sin cambios,
+├── Tenant Obras Reyval (Cliente Delegante) │  cada uno es dueño de su información
 │                                     ┘
-└── Consultora Geseme (Tenant sin datos operativos propios)
+└── Consultora ArcoSPA (Tenant sin datos operativos propios)
      ├── Director Consultora
      │    ├── Coordinador Norte
-     │    │    ├── Gestor A ──► Operador Delegado en KHS
-     │    │    └── Gestor B ──► Operador Delegado en KHS, Tomra
+     │    │    ├── Gestor A ──► Operador Delegado en Ibertec
+     │    │    └── Gestor B ──► Operador Delegado en Ibertec  EcoPlant
      │    └── Coordinador Sur
-     │         └── Gestor C ──► Operador Delegado en Blasau
-     └── Clientes autorizados de Geseme: KHS · Tomra · Blasau
+     │         └── Gestor C ──► Operador Delegado en Obras Reyval
+     └── Clientes autorizados de ArcoSPA: Ibertec S.A. · EcoPlant S.L. · Obras Reyval S.A.
           (cada uno, mientras la delegación esté activa, es un Delegated Workspace)
 ```
 
@@ -63,11 +63,11 @@ Tres niveles distintos de información, que **no deben mezclarse**:
 
 | Nivel | Qué contesta | Alcance de datos | Mecanismo |
 |---|---|---|---|
-| **Tenant / Delegated Workspace** | "¿Cuántos documentos vencidos tiene KHS?" | Un único tenant, aislado — con o sin delegación activa, la pregunta se responde igual | Filtro global + `IAlcanceDatosService` — **sin cambios**, § 8 |
-| **Consultora** | "¿Cuántos documentos pendientes gestiona Christopher en total, sumando KHS+Tomra+Blasau? ¿Cuál es la cartera del Coordinador Norte?" | Varios tenants, pero solo los delegados a esa Consultora, y solo agregado — nunca operación | Capa de Reporting transversal — **nueva**, § 7 |
+| **Tenant / Delegated Workspace** | "¿Cuántos documentos vencidos tiene Ibertec " | Un único tenant, aislado — con o sin delegación activa, la pregunta se responde igual | Filtro global + `IAlcanceDatosService` — **sin cambios**, § 8 |
+| **Consultora** | "¿Cuántos documentos pendientes gestiona Christopher en total, sumando Ibertec+EcoPlant+Obras Reyval? ¿Cuál es la cartera del Coordinador Norte?" | Varios tenants, pero solo los delegados a esa Consultora, y solo agregado — nunca operación | Capa de Reporting transversal — **nueva**, § 7 |
 | **Hydra** | "¿Cuántos tenants activos hay? ¿Qué consultoras operan sobre cuántos clientes?" | Toda la plataforma | Fuera de alcance de este documento — administración de plataforma, no de negocio CAE |
 
-El Nivel Tenant nunca sabe que existe el Nivel Consultora (un usuario nativo de KHS no ve nada de Geseme). El Nivel Consultora nunca escribe directamente en varios tenants a la vez (§ 7). El Nivel Hydra no se diseña aquí — se menciona solo para dejar constancia de que existe y de que este documento no lo cubre.
+El Nivel Tenant nunca sabe que existe el Nivel Consultora (un usuario nativo de Ibertec no ve nada de ArcoSPA). El Nivel Consultora nunca escribe directamente en varios tenants a la vez (§ 7). El Nivel Hydra no se diseña aquí — se menciona solo para dejar constancia de que existe y de que este documento no lo cubre.
 
 ## 4. Por qué esto no toca el mecanismo de aislamiento ya auditado
 
@@ -83,27 +83,27 @@ Se evaluaron dos caminos:
 
 | Opción | Descripción | Veredicto |
 |---|---|---|
-| **(a) La Consultora es un `Tenant` más** | Geseme es tenant #N, igual que cualquier otro. Sus usuarios (`christopher@geseme.com`) tienen `ApplicationUser.TenantId = TenantGeseme`. Ese tenant **nunca tiene filas** de `Empresa`/`Centro`/`Documento`/etc. — solo existe para dar de alta a sus propios usuarios y su jerarquía interna (§ 5.2). | **Elegida.** Encaja literalmente con `docs/MULTITENANCY.md` § 1: "el Tenant es la organización que compra y utiliza Hydra" — Geseme compra Hydra igual que KHS, solo que no para almacenar su propia CAE. Reutiliza el 100% de la infraestructura de `Tenant`/`ApplicationUser` ya construida y auditada: cero entidades nuevas para la identidad ni para la jerarquía interna. |
+| **(a) La Consultora es un `Tenant` más** | ArcoSPA es tenant #N, igual que cualquier otro. Sus usuarios (`carlos@arcospa.es`) tienen `ApplicationUser.TenantId = TenantArcoSPA`. Ese tenant **nunca tiene filas** de `Empresa`/`Centro`/`Documento`/etc. — solo existe para dar de alta a sus propios usuarios y su jerarquía interna (§ 5.2). | **Elegida.** Encaja literalmente con `docs/MULTITENANCY.md` § 1: "el Tenant es la organización que compra y utiliza Hydra" — ArcoSPA compra Hydra igual que Ibertec  solo que no para almacenar su propia CAE. Reutiliza el 100% de la infraestructura de `Tenant`/`ApplicationUser` ya construida y auditada: cero entidades nuevas para la identidad ni para la jerarquía interna. |
 | (b) Consultora es un concepto nuevo, fuera del modelo de Tenant | Tabla `Consultora` global, con sus propios usuarios fuera del particionado por tenant. | Descartada: `ApplicationUser` está diseñado 1:1 con `Tenant` (unicidad `(TenantId, NormalizedUserName)`, filtro global). Sacar usuarios de ese modelo es más invasivo que reutilizarlo, y no aporta nada que (a) no dé ya. |
 
-Con (a), la unicidad de login por email global (`docs/MULTITENANCY.md` § 8, limitación v1 ya aceptada) sigue funcionando sin cambios: Christopher tiene **una sola cuenta**, en el tenant de Geseme — nunca una cuenta duplicada por cada Cliente Delegante.
+Con (a), la unicidad de login por email global (`docs/MULTITENANCY.md` § 8, limitación v1 ya aceptada) sigue funcionando sin cambios: Christopher tiene **una sola cuenta**, en el tenant de ArcoSPA — nunca una cuenta duplicada por cada Cliente Delegante.
 
 ### 5.2 Jerarquía interna de la Consultora (Director Consultora → Coordinador → Gestor)
 
-**No es una entidad nueva.** Es el mismo mecanismo que ya existe hoy *dentro* de un tenant para `CoordinadorCae`/`GestorCae` (`ApplicationUser.CoordinadorUsuarioId`, `Cliente.EjecutivoUsuarioId`, resuelto por `AlcanceDatosService.ObtenerClienteIdsParaCoordinadorAsync`), aplicado sin cambios **dentro del tenant Geseme**: Christopher, María y Pedro son `ApplicationUser` del tenant Geseme; el Director Consultora y los Coordinadores son cargos/relaciones de ese mismo tenant (cargo organizativo de negocio, no un rol de autorización nuevo — ver § 0). Esto es una decisión deliberada de reutilización: la jerarquía de mando de la Consultora es información de *identidad y estructura organizativa de Geseme*, no información CAE — vive perfectamente dentro del tenant Geseme sin tocar ninguna `Empresa`/`Centro` ajenos.
+**No es una entidad nueva.** Es el mismo mecanismo que ya existe hoy *dentro* de un tenant para `CoordinadorCae`/`GestorCae` (`ApplicationUser.CoordinadorUsuarioId`, `Cliente.EjecutivoUsuarioId`, resuelto por `AlcanceDatosService.ObtenerClienteIdsParaCoordinadorAsync`), aplicado sin cambios **dentro del tenant ArcoSPA**: Christopher, María y Pedro son `ApplicationUser` del tenant ArcoSPA; el Director Consultora y los Coordinadores son cargos/relaciones de ese mismo tenant (cargo organizativo de negocio, no un rol de autorización nuevo — ver § 0). Esto es una decisión deliberada de reutilización: la jerarquía de mando de la Consultora es información de *identidad y estructura organizativa de ArcoSPA*, no información CAE — vive perfectamente dentro del tenant ArcoSPA sin tocar ninguna `Empresa`/`Centro` ajenos.
 
-Lo único nuevo es **qué hace esa jerarquía cuando mira hacia fuera** — ver § 7 (Reporting transversal): un Coordinador necesita agregar datos operativos de tenants ajenos (KHS, Tomra...) para sus Gestores subordinados, no solo su propia estructura de mando (que ya resuelve el mecanismo existente).
+Lo único nuevo es **qué hace esa jerarquía cuando mira hacia fuera** — ver § 7 (Reporting transversal): un Coordinador necesita agregar datos operativos de tenants ajenos (Ibertec, EcoPlant, ...) para sus Gestores subordinados, no solo su propia estructura de mando (que ya resuelve el mecanismo existente).
 
 ### 5.3 Entidades nuevas — delegación de acceso ("clientes autorizados")
 
 - **`DelegacionTenant`** (catálogo global, mismo tratamiento que `Tenant` — exceptuado del filtro estándar de `TenantId`, ver `docs/MULTITENANCY.md` § 4 excepción 1): `TenantConsultoraId` (FK a `Tenant`), `TenantClienteId` (FK a `Tenant`), `Activa` (bool). Cada fila activa es, en el vocabulario de negocio, un **Delegated Workspace**. **Desactivar, nunca borrar** — Escenario 4 (internalización) es `Activa = false`, no un `DELETE`; conserva el histórico de qué Consultora operó sobre qué tenant y cuándo, ver § 5.5.
-- **`AsignacionOperadorDelegado`** (renombrada desde `AsignacionUsuarioDelegado` de v1/v2 para usar el término de negocio ya aprobado): `DelegacionTenantId` (FK), `UsuarioId` (FK a `ApplicationUser`, Operador Delegado de la Consultora), `Rol` (el rol con el que ese Operador Delegado opera en *ese* Delegated Workspace — un mismo Gestor de Geseme puede tener roles distintos en clientes distintos). Resuelve exactamente el ejemplo del usuario: *"Christopher → KHS y Tomra · María → Blasau · Pedro → KHS"*.
+- **`AsignacionOperadorDelegado`** (renombrada desde `AsignacionUsuarioDelegado` de v1/v2 para usar el término de negocio ya aprobado): `DelegacionTenantId` (FK), `UsuarioId` (FK a `ApplicationUser`, Operador Delegado de la Consultora), `Rol` (el rol con el que ese Operador Delegado opera en *ese* Delegated Workspace — un mismo Gestor de ArcoSPA puede tener roles distintos en clientes distintos). Resuelve exactamente el ejemplo del usuario: *"Christopher → Ibertec y EcoPlant · María → Obras Reyval · Pedro → Ibertec *.
 
 Ninguna de las dos entidades tiene FK hacia `Empresa`/`Centro`/`Trabajador`/`Documento` — son puramente de autorización, nunca de dominio CAE. Es la representación literal de "delegación de acceso, no de propiedad".
 
 ### 5.4 Qué NO cambia
 
-`Empresa`, `Centro`, `Trabajador`, `Vehiculo`, `Documento`, `RequisitoDocumental`... — cero cambios de esquema. Todas sus filas siguen teniendo `TenantId = TenantCliente`, nunca `TenantId = TenantConsultora`. Es la prueba de que el modelo cumple "el cliente es siempre dueño de la información": técnicamente no hay forma de que una fila de KHS termine con `TenantId = Geseme`, el interceptor de sellado sigue sellando contra el **Delegated Workspace activo** de la sesión (§ 6), que para un Operador Delegado de Geseme operando sobre KHS es `TenantClienteId = KHS` — nunca el tenant de Geseme.
+`Empresa`, `Centro`, `Trabajador`, `Vehiculo`, `Documento`, `RequisitoDocumental`... — cero cambios de esquema. Todas sus filas siguen teniendo `TenantId = TenantCliente`, nunca `TenantId = TenantConsultora`. Es la prueba de que el modelo cumple "el cliente es siempre dueño de la información": técnicamente no hay forma de que una fila de Ibertec termine con `TenantId = ArcoSPA`, el interceptor de sellado sigue sellando contra el **Delegated Workspace activo** de la sesión (§ 6), que para un Operador Delegado de ArcoSPA operando sobre Ibertec es `TenantClienteId = Ibertec  — nunca el tenant de ArcoSPA.
 
 ### 5.5 Reversibilidad sin migración (Escenario 4)
 
@@ -116,7 +116,7 @@ Apagar una delegación (`DelegacionTenant.Activa = false`) no mueve ni borra una
 ```
 Identity (usuario autenticado)
    ↓
-Tenant de origen (Consultora Geseme, o el suyo propio si no es Operador Delegado de nadie)
+Tenant de origen (Consultora ArcoSPA, o el suyo propio si no es Operador Delegado de nadie)
    ↓
 Clientes autorizados (DelegacionTenant + AsignacionOperadorDelegado — vacío si el tenant de origen no es una Consultora)
    ↓
@@ -125,7 +125,7 @@ Delegated Workspace activo de la sesión (uno solo, elegido — nunca varios a l
 
 - **Un usuario nunca opera sobre varios tenants simultáneamente.** Si el conjunto de "clientes autorizados" tiene un solo elemento (el caso de hoy, el usuario normal de un Cliente Directo sin delegación: su tenant de origen y su único cliente autorizado son el mismo), no hay selector — comportamiento idéntico al actual, cero cambio de UX para quien no es Operador Delegado.
 - Si tiene **más de uno**, la UI presenta "Mis clientes" (selector, no necesariamente una pantalla de login aparte — puede vivir en la cabecera; **decisión de UI pendiente**, ver § 9) y el usuario elige uno. Ese pasa a ser el **Delegated Workspace activo** — desde ahí, "el sistema funciona exactamente igual que para un usuario interno de ese tenant" (cita literal del usuario): mismas Capas 2-4 de `docs/MULTITENANCY.md` § 6, sin ninguna rama especial.
-- **Cambiar de Delegated Workspace activo a mitad de sesión** (Christopher pasa de operar KHS a operar Tomra sin cerrar sesión) exige que `ITenantActual` deje de depender solo del claim fijo de la cookie de login — se añade una fuente de resolución adicional, con la misma prioridad/patrón que ya se introdujo en la Fase 44 de `ROADMAP.md` para el fallback de `IHttpContextAccessor` en `TenantActual`/`CurrentUserService`: un valor de "Delegated Workspace elegido" con ámbito de circuito/sesión, consultado **antes** que el claim, y **siempre revalidado** contra `DelegacionTenant`/`AsignacionOperadorDelegado` en cada resolución — nunca se confía en un valor elegido una vez y cacheado sin volver a comprobar que la delegación sigue activa (si se desactiva a mitad de sesión, la siguiente resolución debe fallar cerrado, no seguir sirviendo datos del tenant retirado).
+- **Cambiar de Delegated Workspace activo a mitad de sesión** (Christopher pasa de operar Ibertec a operar EcoPlant sin cerrar sesión) exige que `ITenantActual` deje de depender solo del claim fijo de la cookie de login — se añade una fuente de resolución adicional, con la misma prioridad/patrón que ya se introdujo en la Fase 44 de `ROADMAP.md` para el fallback de `IHttpContextAccessor` en `TenantActual`/`CurrentUserService`: un valor de "Delegated Workspace elegido" con ámbito de circuito/sesión, consultado **antes** que el claim, y **siempre revalidado** contra `DelegacionTenant`/`AsignacionOperadorDelegado` en cada resolución — nunca se confía en un valor elegido una vez y cacheado sin volver a comprobar que la delegación sigue activa (si se desactiva a mitad de sesión, la siguiente resolución debe fallar cerrado, no seguir sirviendo datos del tenant retirado).
 - Sigue siendo **fallo cerrado**: si el Delegated Workspace solicitado no está en el conjunto de clientes autorizados resuelto en ese momento, `TenantId` resuelve a `null` — mismo criterio que hoy, nunca "sin filtro".
 - **El Global Query Filter no cambia.** Sigue leyendo un único `TenantId` activo — la novedad entera está en esta cadena de resolución, no en cómo se aplica el filtro.
 
@@ -136,11 +136,11 @@ Delegated Workspace activo de la sesión (uno solo, elegido — nunca varios a l
 Un Coordinador o un Director de Consultora necesitan ver **agregados de productividad entre varios tenants** — algo que ningún tenant/Delegated Workspace individual puede calcular por sí solo:
 
 ```
-Christopher (Gestor)          Coordinador Norte              Director Consultora (Geseme)
-KHS  — 180 pendientes         Gestor A — 276 pendientes      Coordinador Norte — 612 pendientes
-Tomra —  75 pendientes        Gestor B — 336 pendientes      Coordinador Sur   — 298 pendientes
-Blasau—  21 pendientes        ─────────────────              ─────────────────
-─────────────                 Total cartera — 612             Total Geseme — 910
+Christopher (Gestor)          Coordinador Norte              Director Consultora (ArcoSPA)
+Ibertec — 180 pendientes         Gestor A — 276 pendientes      Coordinador Norte — 612 pendientes
+EcoPlant —  75 pendientes        Gestor B — 336 pendientes      Coordinador Sur   — 298 pendientes
+Obras Reyval—  21 pendientes        ─────────────────              ─────────────────
+─────────────                 Total cartera — 612             Total ArcoSPA — 910
 Total — 276 pendientes
 ```
 
@@ -180,7 +180,7 @@ Extiende la tabla de `docs/MULTITENANCY.md` § 6:
 | 3. Cartera | `IAlcanceDatosService` | Qué subconjunto del tenant ve un rol restringido | Existe, sin cambios |
 | 4. Escritura | `AutorizacionEscrituraBehavior` | Qué puede mutar | Existe, sin cambios |
 
-Las Capas 0/0-R deciden **si** se entra o se agrega; las capas 2-4 deciden **qué se ve/hace dentro** de un Delegated Workspace ya activo, exactamente igual para un usuario nativo que para un Operador Delegado — es el Escenario 3 (híbrido) resuelto por construcción: el Coordinador nativo de KHS y el Operador Delegado de Geseme conviven en el mismo tenant, cada uno con su propio rol evaluado normalmente por las Capas 2-3, sin que ninguna de las dos sepa "quién es nativo y quién es delegado" — esa distinción solo importa en la Capa 0.
+Las Capas 0/0-R deciden **si** se entra o se agrega; las capas 2-4 deciden **qué se ve/hace dentro** de un Delegated Workspace ya activo, exactamente igual para un usuario nativo que para un Operador Delegado — es el Escenario 3 (híbrido) resuelto por construcción: el Coordinador nativo de Ibertec y el Operador Delegado de ArcoSPA conviven en el mismo tenant, cada uno con su propio rol evaluado normalmente por las Capas 2-3, sin que ninguna de las dos sepa "quién es nativo y quién es delegado" — esa distinción solo importa en la Capa 0.
 
 ## 9. Auditoría dual
 
@@ -192,16 +192,16 @@ Las Capas 0/0-R deciden **si** se entra o se agrega; las capas 2-4 deciden **qu�
 - **`IAlcanceDatosService`** (cartera por rol): sin cambios — opera siempre dentro del Delegated Workspace ya resuelto, sea nativo o delegado.
 - **Unicidad de login por email global** (`docs/MULTITENANCY.md` § 8, limitación v1): sin cambios — una cuenta por persona, nunca duplicada por Cliente Delegante.
 - **`AmbitoTenantExplicito`** (jobs de fondo, Modo 2 de § 8): sin cambios de contrato — se **reutiliza** como mecanismo del fan-out de § 7.2, no se modifica.
-- **Jerarquía `CoordinadorUsuarioId`/`EjecutivoUsuarioId`** (Fase 31, `AlcanceDatosService`): sin cambios — se reutiliza tal cual dentro del tenant Geseme para la jerarquía de mando de § 5.2.
+- **Jerarquía `CoordinadorUsuarioId`/`EjecutivoUsuarioId`** (Fase 31, `AlcanceDatosService`): sin cambios — se reutiliza tal cual dentro del tenant ArcoSPA para la jerarquía de mando de § 5.2.
 - **Context Workspace** (`PLAN-CONTEXT-WORKSPACE.md`, implementado en `main` — ver `src/CaeManager.Web/Components/Workspace/`): sin relación funcional directa, pero comparte espacio de nombres en inglés ("Workspace") — de ahí la reconciliación de vocabulario de § 0. Ver § 9 de "Qué queda abierto" sobre su interacción con el selector de Delegated Workspace.
 
 ## 11. Qué queda abierto (a resolver antes de implementar, no decisiones tomadas)
 
-1. **UI del selector de Delegated Workspace**: ¿pantalla dedicada tras login, o un control persistente en la cabecera ("Geseme · Cliente activo: KHS ▼")? Y qué pasa con el Context Workspace técnico (`PLAN-CONTEXT-WORKSPACE.md`, ya implementado en `main`) si está abierto al cambiar de Delegated Workspace activo — probablemente se cierra, mismo criterio que su § 8.1 (cambiar de contexto de alto nivel cierra el panel). De cara al usuario, nunca se usa la palabra "tenant" — eso es lenguaje interno.
-2. **Quién puede crear/desactivar una `DelegacionTenant`**: ¿el administrador del Cliente Directo (autoservicio, "delego mi gestión a Geseme") o solo `Administrador`/`DireccionCae` de la plataforma? Tiene implicaciones comerciales (¿es un flujo de venta autoservicio o gestionado por Hydra?) — coordinar con `docs/business/BUSINESS_ARCHITECTURE.md` cuando se desarrolle.
+1. **UI del selector de Delegated Workspace**: ¿pantalla dedicada tras login, o un control persistente en la cabecera ("ArcoSPA · Cliente activo: Ibertec ▼")? Y qué pasa con el Context Workspace técnico (`PLAN-CONTEXT-WORKSPACE.md`, ya implementado en `main`) si está abierto al cambiar de Delegated Workspace activo — probablemente se cierra, mismo criterio que su § 8.1 (cambiar de contexto de alto nivel cierra el panel). De cara al usuario, nunca se usa la palabra "tenant" — eso es lenguaje interno.
+2. **Quién puede crear/desactivar una `DelegacionTenant`**: ¿el administrador del Cliente Directo (autoservicio, "delego mi gestión a ArcoSPA") o solo `Administrador`/`DireccionCae` de la plataforma? Tiene implicaciones comerciales (¿es un flujo de venta autoservicio o gestionado por Hydra?) — coordinar con `docs/business/BUSINESS_ARCHITECTURE.md` cuando se desarrolle.
 3. **Límites de la delegación operativa**: ¿es todo-o-nada dentro del rol asignado (§ 5.3), o puede restringirse más (p. ej. un Operador Delegado nunca puede eliminar un Trabajador, aunque su rol nativo sí podría)? Asumir todo-o-nada hasta que se pida lo contrario (YAGNI).
 4. **Expiración/renovación de delegaciones**: ¿`DelegacionTenant` necesita fecha de fin automática o es puramente manual (on/off)? No especificado.
 5. **Alcance exacto de la Capa de Reporting (§ 7)**: ¿qué KPIs concretos se agregan en v1 (documentos pendientes, ¿algo más)? ¿Hace falta cachear/paginar el fan-out si un Director tiene delegación sobre decenas de tenants, o basta con ejecutarlo en caliente para v1? No especificado, y afecta directamente el rework de Dashboard (§ 7.4).
-6. **Migración de datos existentes**: Geseme como tenant #1 (la organización actual en producción, `ADR-003`) ya tiene datos operativos propios (Empresas, Centros...) — no encaja tal cual en "una Consultora sin datos operativos" de § 5.1. Hace falta decidir si Geseme-tenant-#1 se queda como está (gestionando sus propias `Empresa` puertas adentro, Escenario 1 de `docs/MULTITENANCY.md` § 2, como Cliente Directo de sí misma) y la delegación se usa solo para Clientes Delegantes *nuevos* que se sumen después, o si hay que separar "Geseme como Consultora" de "los datos que Geseme ya tiene cargados" — a confirmar con el usuario antes de tocar el tenant #1 real.
+6. **Migración de datos existentes**: ArcoSPA como tenant #1 (la organización actual en producción, `ADR-003`) ya tiene datos operativos propios (Empresas, Centros...) — no encaja tal cual en "una Consultora sin datos operativos" de § 5.1. Hace falta decidir si ArcoSPA-tenant-#1 se queda como está (gestionando sus propias `Empresa` puertas adentro, Escenario 1 de `docs/MULTITENANCY.md` § 2, como Cliente Directo de sí misma) y la delegación se usa solo para Clientes Delegantes *nuevos* que se sumen después, o si hay que separar "ArcoSPA como Consultora" de "los datos que ArcoSPA ya tiene cargados" — a confirmar con el usuario antes de tocar el tenant #1 real.
 7. **Relación con las condiciones de salida de `ADR-003`**: la migración a PostgreSQL y el DPA/Términos de Uso (pendientes) probablemente necesiten contemplar explícitamente el caso "Cliente Delegante delega su gestión en una Consultora" en el propio DPA — no es solo Hydra-como-encargado-del-cliente, ahora hay una tercera parte (la Consultora) operando sobre los datos del cliente. Revisión legal, no implementación unilateral (regla de `CLAUDE.md`).
 8. **Graduar `Consultora`/`Operador Delegado`/`Delegación` de `Draft` a `Approved`** en `docs/business/UBIQUITOUS_LANGUAGE.md`: este documento provee el desarrollo funcional que esas entradas esperaban — falta la confirmación explícita del propietario del producto y su registro en `DECISION_LOG.md` (regla del propio documento, no se hace unilateralmente aquí).

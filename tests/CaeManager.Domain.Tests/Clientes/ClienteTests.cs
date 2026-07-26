@@ -11,9 +11,9 @@ public class ClienteTests
     [Fact]
     public void Crea_un_cliente_valido()
     {
-        var cliente = new Cliente("COBEGA (Coca-Cola European Partners)", CifValido, esCritico: true);
+        var cliente = new Cliente("Cadena Industrial Iberia S.A.", CifValido, esCritico: true);
 
-        cliente.RazonSocial.Should().Be("COBEGA (Coca-Cola European Partners)");
+        cliente.RazonSocial.Should().Be("Cadena Industrial Iberia S.A.");
         cliente.Cif.Should().Be(CifValido);
         cliente.EsCritico.Should().BeTrue();
         cliente.EstaEliminado.Should().BeFalse();

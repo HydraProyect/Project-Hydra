@@ -6,7 +6,7 @@
 
 Hoy **no existe** ningún patrón master-detail en la aplicación. Las 24 pantallas de negocio siguen todas el mismo patrón: **lista plana (QuickGrid) + Drawer lateral para crear/editar** (ver `UX_PATTERNS.md` § Crear/Editar). La navegación entre entidades relacionadas no existe como tal — se simula con:
 
-- Query strings de filtro (`/centros?q=Mahou`, `/empresas?q=...`) que buscan por texto, no navegan a un detalle real.
+- Query strings de filtro (`/centros?q=Bebidas+Norte`, `/empresas?q=...`) que buscan por texto, no navegan a un detalle real.
 - Un único caso de "ir al recurso relacionado" (`/documentos?documentoId=X`) usado por Dashboard/Alertas/Calendario, que hoy solo resalta una fila en la lista, no abre un detalle.
 - Ningún componente `Tabs`, `Popover` o de "vista de detalle" existe todavía (confirmado en `DESIGN_SYSTEM.md` § Pendientes).
 

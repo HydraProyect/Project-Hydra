@@ -98,7 +98,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     [Fact]
     public Task Aislamiento_Empresa() => VerificarAislamientoAsync(
-        () => new Empresa("KHS S.A."));
+        () => new Empresa("Ibertec S.A."));
 
     [Fact]
     public Task Aislamiento_RequisitoDocumental() => VerificarAislamientoAsync(

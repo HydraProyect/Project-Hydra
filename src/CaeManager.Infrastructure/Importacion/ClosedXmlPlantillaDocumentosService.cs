@@ -6,9 +6,9 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Infrastructure.Importacion;
 
 /// <summary>
-/// Plantilla simplificada de un solo hoja para subir en bloque fechas de
-/// emisión de Documentos (ver ROADMAP.md) — a diferencia del Cuadro de
-/// Control CAE de KHS (ClosedXmlImportacionParser), no da de alta
+/// Plantilla simplificada de una sola hoja para subir en bloque fechas de
+/// emisión de Documentos (ver ROADMAP.md) — a diferencia del formato completo
+/// multi-hoja de importación CAE (ClosedXmlImportacionParser), no da de alta
 /// Trabajadores ni Tipos de Documento: ambos deben existir ya, se rechaza
 /// con motivo explícito si el DNI o el nombre del tipo no coinciden con el
 /// catálogo actual.
