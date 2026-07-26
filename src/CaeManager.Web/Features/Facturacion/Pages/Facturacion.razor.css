@@ -1,0 +1,161 @@
+.descripcion-pagina {
+    color: var(--color-texto-secundario);
+    margin-bottom: var(--espaciado-xl);
+    max-width: 65ch;
+}
+
+.bloque-selector-cliente {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaciado-xs);
+    margin-bottom: var(--espaciado-xl);
+    max-width: 360px;
+}
+
+.campo-selector {
+    width: 100%;
+}
+
+/* Pestañas */
+.pestanas-nav {
+    display: flex;
+    gap: var(--espaciado-xs);
+    border-bottom: 1px solid var(--color-borde);
+    margin-bottom: var(--espaciado-lg);
+}
+
+.pestana-btn {
+    padding: var(--espaciado-sm) var(--espaciado-md);
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--color-texto-secundario);
+    font-size: var(--tipografia-sm);
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.pestana-btn:hover {
+    color: var(--color-texto-principal);
+}
+
+.pestana-activa {
+    color: var(--color-accion-primaria);
+    border-bottom-color: var(--color-accion-primaria);
+}
+
+/* Tabla de tarifas */
+.tabla-facturacion .col-precio {
+    width: 180px;
+    text-align: right;
+}
+
+.tabla-facturacion .col-moneda {
+    width: 80px;
+    text-align: center;
+}
+
+.tabla-facturacion .col-acciones {
+    width: 140px;
+    text-align: right;
+}
+
+.campo-precio {
+    width: 120px;
+}
+
+.campo-moneda {
+    width: 60px;
+    text-align: center;
+}
+
+.fila-edicion {
+    background: var(--color-superficie-secundaria);
+}
+
+/* Formulario nueva tarifa */
+.rejilla-formulario {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--espaciado-md);
+    margin-bottom: var(--espaciado-lg);
+}
+
+@media (max-width: 640px) {
+    .rejilla-formulario {
+        grid-template-columns: 1fr;
+    }
+}
+
+.campo-formulario {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaciado-xs);
+}
+
+.acciones-formulario {
+    display: flex;
+    gap: var(--espaciado-sm);
+}
+
+.acciones-seccion {
+    margin-top: var(--espaciado-lg);
+}
+
+/* Filtros resumen mensual */
+.filtros-resumen {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--espaciado-md);
+    margin-bottom: var(--espaciado-xl);
+    flex-wrap: wrap;
+}
+
+.campo-filtro {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaciado-xs);
+}
+
+.campo-anyo {
+    width: 100px;
+}
+
+/* Tabla resumen mensual */
+.tabla-resumen .col-numero {
+    text-align: right;
+    width: 160px;
+}
+
+.fila-total td {
+    font-weight: 600;
+    border-top: 2px solid var(--color-borde);
+}
+
+.total-importe {
+    color: var(--color-accion-primaria);
+    font-size: var(--tipografia-lg);
+}
+
+.nota-resumen {
+    color: var(--color-texto-secundario);
+    font-size: var(--tipografia-xs);
+    margin-top: var(--espaciado-md);
+}
+
+/* Acciones de fila */
+.enlace-peligro {
+    color: var(--color-peligro);
+}
+
+.enlace-peligro:hover {
+    color: var(--color-peligro-hover, var(--color-peligro));
+}
+
+.aviso-error {
+    color: var(--color-peligro);
+    font-size: var(--tipografia-sm);
+    margin-bottom: var(--espaciado-md);
+}
