@@ -1,6 +1,8 @@
 # Modelo de Datos — CAE Manager
 
-Este modelo está derivado y validado contra `CAE_KHS_Cuadro_de_Control_2.xlsx`, el cuadro de control real que este sistema reemplaza. Cada entidad se justifica con lo que esa hoja de cálculo hace hoy manualmente, corrigiendo sus problemas de normalización conocidos (ver sección final).
+Este modelo está derivado del análisis de los procesos reales de coordinación CAE en el sector industrial español: cómo los SPA y coordinadores CAE gestionan hoy la documentación con hojas de cálculo, qué información manejan, qué reglas de vigencia aplican y qué problemas de normalización genera ese flujo. Cada entidad se justifica desde esa realidad operativa (ver sección final).
+
+> **Nota de vigencia (actualizada 2026-07-25)**: el dominio ha crecido desde la redacción original de este documento — el grafo completo y actualizado (Subcontrata, Vehículo, Visita, tablas de unión N:N, propietario polimórfico de Documento) está en **`DOMAIN.md`**, que es la fuente de verdad conceptual; este archivo conserva el detalle de columnas y la justificación operativa de cada entidad. Correcciones puntuales ya aplicadas abajo: `Trabajador.EmpresaId` es hoy **nullable** (Empresa *o* Subcontrata), y `Documento` tiene propietario polimórfico (no solo Trabajador). Además, la migración multi-tenant de `ADR-003-saas-multitenant.md` **ya está implementada y cerrada** (`PLAN-MIGRACION-MULTITENANT.md`, 5 etapas completadas, registrado en `ROADMAP.md`): las 25 tablas de dominio de este documento (todas salvo `Tenant` misma) tienen `TenantId` (Guid, **NOT NULL**), con filtro global de EF Core, un `SaveChangesInterceptor` que sella el tenant en alta y rechaza escritura cruzada, y los índices únicos que antes eran globales ya son compuestos `(TenantId, campo)` — reglas completas en `docs/MULTITENANCY.md`. Las columnas `TenantId` no se repiten campo a campo en cada tabla de abajo para no duplicar `docs/MULTITENANCY.md`; asúmelas presentes salvo que se indique lo contrario.
 
 ## Diagrama de entidades
 
@@ -21,18 +23,18 @@ erDiagram
 ## Entidades
 
 ### Cliente
-Empresa titular de uno o más Centros de Trabajo. En el Excel es la columna "Cliente / Centro" de `Centros_Plataformas`, hoy fusionada con el centro en una sola fila de texto libre.
+Empresa titular de uno o más Centros de Trabajo. En la gestión manual habitual, cliente y centro suelen mezclarse en una única entrada de texto libre; CAE Manager los normaliza como entidades separadas.
 
 | Campo | Tipo | Notas |
 |---|---|---|
 | Id | Guid | PK |
-| Nombre | string(200) | Ej. "COBEGA (Coca-Cola European Partners)" |
-| EsCritico | bool | Del campo "Crítico" (C/N) del Excel |
+| Nombre | string(200) | Ej. "Cadena Industrial Iberia S.A." |
+| EsCritico | bool | Indica si el cliente es de alta prioridad (C/N) |
 | Notas | string?(2000) | Observaciones generales |
 | EstaEliminado, ... | soft delete | |
 
 ### Centro
-Ubicación física de un Cliente. **Normaliza** el problema del Excel donde un Cliente con varios centros (p. ej. "Mahou - San Miguel: todos los centros: Mahou 2013.0118, Alovera, Burgos, Lleida, Málaga, Penibética, Cervezas Reina 2000") aparece como una sola fila de texto. En CAE Manager, cada centro físico es su propia fila.
+Ubicación física de un Cliente. **Normaliza** el problema habitual en la gestión manual donde un cliente con varios centros (p. ej. "Bebidas del Norte S.A.: todos los centros: Planta Norte, Planta Sur, Almacén Central, Planta Canarias") aparece como una sola entrada de texto. En CAE Manager, cada centro físico es su propia fila.
 
 | Campo | Tipo | Notas |
 |---|---|---|
@@ -42,7 +44,7 @@ Ubicación física de un Cliente. **Normaliza** el problema del Excel donde un C
 | CodigoCentro | string?(50) | Código interno del cliente si existe (ej. "Centro 0026") |
 | Direccion | string?(300) | |
 | Contacto | string?(500) | Nombre/teléfono/email de contacto en el cliente |
-| ContratoVigenteHasta | date? | Del patrón "Caducidad de contrato: 31/12/2026" visto repetidamente en `Requisitos_Centro` |
+| ContratoVigenteHasta | date? | Fecha de caducidad del contrato con el cliente (patrón común en coordinación CAE) |
 | EstaEliminado, ... | soft delete | |
 
 ### PlataformaAcceso
@@ -59,7 +61,7 @@ Portal externo de terceros que un Centro exige usar para acreditar documentació
 | Notas | string?(1000) | |
 
 ### Empresa
-La empresa contratista cuyo personal se coordina — la organización que opera CAE Manager. El Excel real ya tiene dos: "KHS S.A." (personal local) y "KHS GmbH" (personal extranjero), como dos hojas con idéntica estructura. Esto confirma que **Empresa es un discriminador de Trabajador**, no dos módulos distintos.
+La empresa contratista cuyo personal se coordina — la organización que opera CAE Manager. Es habitual que una contratista tenga dos razones sociales (p. ej. "Ibertec S.A." para personal nacional e "Ibertec GmbH" para personal extranjero) con idéntica estructura documental. Esto confirma que **Empresa es un discriminador de Trabajador**, no dos módulos distintos.
 
 | Campo | Tipo | Notas |
 |---|---|---|
@@ -73,10 +75,11 @@ Empleado de una Empresa. Corresponde a una fila de la hoja `Empleados` (o `Extra
 | Campo | Tipo | Notas |
 |---|---|---|
 | Id | Guid | PK |
-| EmpresaId | Guid | FK → Empresa |
+| EmpresaId | Guid? | FK → Empresa — **nullable**: un Trabajador pertenece a una Empresa **o** a una Subcontrata (`SubcontrataId?`), mutuamente excluyentes (ver `DOMAIN.md`) |
+| SubcontrataId | Guid? | FK → Subcontrata (ver arriba) |
 | Nombre | string(100) | |
 | Apellidos | string(150) | |
-| Dni | string(20) | Único |
+| Dni | string(20) | Único por tenant: `(TenantId, Dni)` — `docs/MULTITENANCY.md` § 5 |
 | FechaNacimiento | date? | |
 | Email | string?(200) | |
 | Observaciones | string?(1000) | Del campo "Observaciones / notas especiales" — casos particulares como altas específicas de obra |
@@ -102,7 +105,8 @@ Instancia de un TipoDocumento para un Trabajador. Corresponde a las columnas "Fe
 | Campo | Tipo | Notas |
 |---|---|---|
 | Id | Guid | PK |
-| TrabajadorId | Guid | FK → Trabajador |
+| TrabajadorId | Guid? | Propietario **polimórfico excluyente**: exactamente uno de TrabajadorId / ClienteId / EmpresaId / VehiculoId está poblado (ver `DOMAIN.md`) |
+| ClienteId / EmpresaId / VehiculoId | Guid? | Ver arriba |
 | TipoDocumentoId | Guid | FK → TipoDocumento |
 | FechaEmision | date | |
 | FechaVencimiento | date? | **Calculada**: `FechaEmision + TipoDocumento.VigenciaMeses` si `AplicaVencimientoAutomatico`, si no null. Se persiste (columna calculada o al guardar) para poder indexar/filtrar por vencimiento sin recalcular en cada query. |
@@ -132,9 +136,9 @@ Exigencia adicional de un Centro más allá de la documentación base común. Co
 |---|---|---|
 | Id | Guid | PK |
 | CentroId | Guid | FK → Centro |
-| Descripcion | string(1000) | Ej. "AEAT nominativo A15002637; EPIS anuales; descargar QR" |
+| Descripcion | string(1000) | Ej. "AEAT nominativo; EPIS anuales; descargar QR de acceso" |
 | PeriodicidadEspecial | string?(300) | Ej. "AEAT nominativo: renovar cada 6 meses aunque el certificado tenga validez de 12" — sobrescribe la vigencia por defecto del TipoDocumento para ese centro |
-| BloqueaAcceso | bool | Si true, el sistema debe mostrar advertencia de bloqueo si el requisito no está cumplido (visto literalmente en el Excel: "⛔ Sin ER y permiso de inicio de trabajo vigentes, el sistema BLOQUEA el acceso") |
+| BloqueaAcceso | bool | Si true, el sistema debe mostrar advertencia de bloqueo si el requisito no está cumplido (patrón habitual en CAE: sin ER y permiso de inicio de trabajo vigentes, se bloquea el acceso) |
 | Notas | string?(1000) | |
 
 ### Alerta
@@ -175,17 +179,17 @@ Si el Centro tiene un `RequisitoDocumental` con `PeriodicidadEspecial` para ese 
 
 Esta función vive en `Domain` como lógica pura (sin dependencias), cubierta por pruebas unitarias exhaustivas — es el corazón del producto (KPIs del Dashboard, semáforos de tabla, alertas).
 
-## Problemas de normalización del Excel que este modelo corrige
+## Problemas de normalización de la gestión manual que este modelo corrige
 
 1. **Cliente y Centro fusionados en texto libre** → entidades separadas con relación 1:N real.
-2. **Credenciales de plataformas en texto plano, compartidas en la misma hoja que el resto de datos** → tabla separada, cifrada, con acceso restringido y auditado.
+2. **Credenciales de plataformas en texto plano, compartidas con el resto de datos** → tabla separada, cifrada, con acceso restringido y auditado.
 3. **Sin historial**: cambios se pisan sin dejar rastro → tabla `Auditoria` + soft delete en toda entidad relevante.
-4. **Estado ("VIGENTE"/"VENCIDO") escrito como fórmula frágil por celda** → calculado centralizadamente en Domain a partir de parámetros configurables.
-5. **Requisitos y notas especiales dispersos en comentarios de texto** (ej. "Máximo 11 licencias de trabajador disponibles", "Plataforma pagada solo para 2 trabajadores") → quedan como `Notas`/`Descripcion` en v1 (siguen siendo texto porque son genuinamente heterogéneos), pero ahora estructurados por Centro y consultables, no perdidos en una celda.
+4. **Estado ("VIGENTE"/"VENCIDO") calculado mediante fórmulas frágiles por celda** → calculado centralizadamente en Domain a partir de parámetros configurables.
+5. **Requisitos y notas especiales dispersos en texto libre** (ej. "Máximo de licencias de trabajador disponibles en esta plataforma", "Plataforma pagada solo para N trabajadores") → quedan como `Notas`/`Descripcion` en v1 (siguen siendo texto porque son genuinamente heterogéneos), pero ahora estructurados por Centro y consultables.
 
 ## Convenciones
 
-- PK: `Guid` (`Id`) en todas las entidades — evita colisiones al importar datos de fuentes externas (el importador de Excel) y facilita claves no secuenciales.
+- PK: `Guid` (`Id`) en todas las entidades — evita colisiones al importar datos de fuentes externas y facilita claves no secuenciales.
 - Fechas: `DateOnly` para fechas sin hora (emisión, vencimiento, alta/baja), `DateTime` (UTC) para timestamps de auditoría.
 - Nombres de tabla y columna en español, `PascalCase`, sin abreviaturas (`FechaVencimiento`, no `FechaVenc`).
 - Toda entidad con ciclo de vida de negocio (no catálogos puros) implementa soft delete.

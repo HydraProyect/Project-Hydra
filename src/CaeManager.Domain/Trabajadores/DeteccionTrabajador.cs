@@ -13,7 +13,7 @@ namespace CaeManager.Domain.Trabajadores;
 /// Queda pendiente hasta que un Gestor CAE decide qué hacer (ver
 /// ResolverDeteccionNuevoCommand/ResolverDeteccionAusenteCommand).
 /// </summary>
-public class DeteccionTrabajador : Entity
+public class DeteccionTrabajador : EntidadConTenant
 {
     public const int LongitudMaximaNombre = 100;
     public const int LongitudMaximaApellidos = 150;

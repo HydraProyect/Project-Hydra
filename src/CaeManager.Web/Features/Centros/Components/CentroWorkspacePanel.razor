@@ -1,0 +1,384 @@
+@*
+    Panel de Centro para el Context Workspace. Pestañas: Información,
+    Requisitos del Centro (la petición original decía "Formularios" — se
+    interpreta como Requisitos del Centro, apoyada en la entidad
+    RequisitoDocumental que ya existía en el modelo sin ninguna Query hasta
+    ahora), Trabajadores, Vehículos, Plataforma, Historial.
+*@
+@using CaeManager.Application.Centros.Queries.ObtenerCentroPorId
+@using CaeManager.Application.Centros.Queries.ObtenerPlataformaAccesoDeCentro
+@using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro
+@using CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeCentro
+@using CaeManager.Application.RequisitosDocumentales.Queries.ObtenerRequisitosDocumentalesDeCentro
+@using MediatR
+@inject IMediator Mediator
+@inject ContextWorkspaceService WorkspaceService
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="4" />
+}
+else if (_error || _detalle is null)
+{
+    <EstadoVacio Titulo="No pudimos cargar el centro" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarCabeceraAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else
+{
+    <div class="workspace-cabecera-entidad">
+        <h2 class="workspace-titulo-entidad">@_detalle.Nombre</h2>
+    </div>
+
+    <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del centro">
+        @switch (PestanaActiva)
+        {
+            case "informacion":
+                <div class="workspace-grupo-campos">
+                    <CampoInfo Etiqueta="Cliente" Valor="@_detalle.ClienteRazonSocial" />
+                    <CampoInfo Etiqueta="Empresa" Valor="@_detalle.EmpresaRazonSocial" />
+                    <CampoInfo Etiqueta="Código de centro" Valor="@_detalle.CodigoCentro" />
+                    <CampoInfo Etiqueta="Dirección" Valor="@_detalle.Direccion" />
+                    <CampoInfo Etiqueta="Contacto" Valor="@_detalle.Contacto" />
+                    <CampoInfo Etiqueta="Contrato vigente hasta" Valor="@(_detalle.ContratoVigenteHasta?.ToString("dd/MM/yyyy"))" />
+                </div>
+                break;
+
+            case "requisitos":
+                @if (_cargandoRequisitos)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_errorRequisitos)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar los requisitos" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarRequisitosAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (_requisitos is { Count: 0 })
+                {
+                    <EstadoVacio Titulo="Sin requisitos adicionales" Descripcion="Este centro no tiene ningún Requisito Documental registrado más allá de la documentación base." />
+                }
+                else if (_requisitos is not null)
+                {
+                    <ul class="workspace-lista-requisitos">
+                        @foreach (var requisito in _requisitos)
+                        {
+                            <li class="workspace-tarjeta-requisito" @key="requisito.Id">
+                                <div class="workspace-tarjeta-requisito-cabecera">
+                                    <span>@requisito.Descripcion</span>
+                                    @if (requisito.BloqueaAcceso)
+                                    {
+                                        <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(requisito.PeriodicidadEspecial))
+                                {
+                                    <p class="workspace-metrica-inline">Periodicidad especial: @requisito.PeriodicidadEspecial</p>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(requisito.Notas))
+                                {
+                                    <p class="workspace-metrica-inline">@requisito.Notas</p>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+                break;
+
+            case "trabajadores":
+                @if (_cargandoTrabajadores)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_errorTrabajadores)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar los trabajadores" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarTrabajadoresAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (_trabajadores is { Count: 0 })
+                {
+                    <EstadoVacio Titulo="Sin trabajadores asignados" Descripcion="Ningún trabajador tiene una asignación activa en este centro." />
+                }
+                else if (_trabajadores is not null)
+                {
+                    <ul class="workspace-lista-entidades">
+                        @foreach (var trabajador in _trabajadores)
+                        {
+                            <FilaEntidadRelacionada
+                                @key="trabajador.TrabajadorId"
+                                Titulo="@trabajador.Nombre"
+                                Subtitulo="@($"{trabajador.EmpleadorNombre} · desde {trabajador.FechaAlta:dd/MM/yyyy}")"
+                                OnClic="() => AbrirTrabajadorAsync(trabajador)" />
+                        }
+                    </ul>
+                }
+                break;
+
+            case "vehiculos":
+                @if (_cargandoVehiculos)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_errorVehiculos)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar los vehículos" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarVehiculosAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (_vehiculos is { Count: 0 })
+                {
+                    <EstadoVacio Titulo="Sin vehículos con actividad" Descripcion="Ninguna Empresa/Subcontrata con trabajadores activos en este centro tiene vehículos registrados." />
+                }
+                else if (_vehiculos is not null)
+                {
+                    <p class="workspace-nota-contextual">Vehículos disponibles de las empresas/subcontratas con actividad en este centro. La asignación a un trabajador o centro concreto se gestiona de forma operativa, no está modelada todavía.</p>
+                    <ul class="workspace-lista-entidades">
+                        @foreach (var vehiculo in _vehiculos)
+                        {
+                            <FilaEntidadRelacionada
+                                @key="vehiculo.Id"
+                                Titulo="@($"{vehiculo.Nombre} ({vehiculo.NumeroPlaca})")"
+                                Subtitulo="@vehiculo.EmpleadorNombre"
+                                OnClic="() => AbrirVehiculoAsync(vehiculo)" />
+                        }
+                    </ul>
+                }
+                break;
+
+            case "plataforma":
+                @if (_cargandoPlataforma)
+                {
+                    <EstadoCargando Filas="2" />
+                }
+                else if (_errorPlataforma)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar la plataforma" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarPlataformaAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (_plataforma is null)
+                {
+                    <EstadoVacio Titulo="Sin plataforma de acceso" Descripcion="Este centro no exige ningún portal externo para acreditar documentación." />
+                }
+                else
+                {
+                    <div class="workspace-grupo-campos">
+                        <CampoInfo Etiqueta="Plataforma" Valor="@_plataforma.NombrePlataforma" />
+                        <CampoInfo Etiqueta="URL de acceso" Valor="@_plataforma.UrlAcceso" />
+                        <CampoInfo Etiqueta="Notas" Valor="@_plataforma.Notas" />
+                        <CampoInfo Etiqueta="Credenciales">
+                            <Badge Tono="@(_plataforma.TieneCredenciales ? TonoBadge.Exito : TonoBadge.Neutro)">
+                                @(_plataforma.TieneCredenciales ? "Configuradas" : "Sin configurar")
+                            </Badge>
+                        </CampoInfo>
+                    </div>
+                    <p class="workspace-nota-contextual">El usuario y la contraseña se gestionan desde el formulario de edición del Centro — aquí solo se muestra si están configuradas, nunca su valor.</p>
+                }
+                break;
+
+            case "historial":
+                <PestanaHistorial EntidadTipo="Centro" EntidadId="EntidadId" />
+                break;
+        }
+    </Pestanas>
+}
+
+@code {
+    private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
+    [
+        new("informacion", "Información"),
+        new("requisitos", "Requisitos del Centro"),
+        new("trabajadores", "Trabajadores"),
+        new("vehiculos", "Vehículos"),
+        new("plataforma", "Plataforma"),
+        new("historial", "Historial")
+    ];
+
+    [Parameter, EditorRequired] public Guid EntidadId { get; set; }
+    [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
+
+    private CentroDetalleDto? _detalle;
+    private bool _cargando = true;
+    private bool _error;
+    private Guid _idCargado;
+
+    private IReadOnlyList<RequisitoDocumentalDto>? _requisitos;
+    private bool _cargandoRequisitos;
+    private bool _errorRequisitos;
+    private IReadOnlyList<TrabajadorAsignadoDto>? _trabajadores;
+    private bool _cargandoTrabajadores;
+    private bool _errorTrabajadores;
+    private IReadOnlyList<VehiculoConActividadDto>? _vehiculos;
+    private bool _cargandoVehiculos;
+    private bool _errorVehiculos;
+    private PlataformaAccesoResumenDto? _plataforma;
+    private bool _plataformaCargada;
+    private bool _cargandoPlataforma;
+    private bool _errorPlataforma;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EntidadId != _idCargado)
+        {
+            _idCargado = EntidadId;
+            _requisitos = null;
+            _errorRequisitos = false;
+            _trabajadores = null;
+            _errorTrabajadores = false;
+            _vehiculos = null;
+            _errorVehiculos = false;
+            _plataformaCargada = false;
+            _errorPlataforma = false;
+            await CargarCabeceraAsync();
+        }
+
+        if (PestanaActiva == "requisitos" && _requisitos is null && !_errorRequisitos && !_cargandoRequisitos)
+            await CargarRequisitosAsync();
+
+        if (PestanaActiva == "trabajadores" && _trabajadores is null && !_errorTrabajadores && !_cargandoTrabajadores)
+            await CargarTrabajadoresAsync();
+
+        if (PestanaActiva == "vehiculos" && _vehiculos is null && !_errorVehiculos && !_cargandoVehiculos)
+            await CargarVehiculosAsync();
+
+        if (PestanaActiva == "plataforma" && !_plataformaCargada && !_errorPlataforma && !_cargandoPlataforma)
+            await CargarPlataformaAsync();
+    }
+
+    private async Task CargarCabeceraAsync()
+    {
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            _detalle = await Mediator.Send(new ObtenerCentroPorIdQuery(EntidadId));
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task CargarRequisitosAsync()
+    {
+        var idSolicitado = EntidadId;
+        _cargandoRequisitos = true;
+        _errorRequisitos = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerRequisitosDocumentalesDeCentroQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _requisitos = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorRequisitos = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoRequisitos = false;
+        }
+    }
+
+    private async Task CargarTrabajadoresAsync()
+    {
+        var idSolicitado = EntidadId;
+        _cargandoTrabajadores = true;
+        _errorTrabajadores = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerTrabajadoresAsignadosDeCentroQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _trabajadores = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorTrabajadores = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoTrabajadores = false;
+        }
+    }
+
+    private async Task CargarVehiculosAsync()
+    {
+        var idSolicitado = EntidadId;
+        _cargandoVehiculos = true;
+        _errorVehiculos = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerVehiculosConActividadDeCentroQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _vehiculos = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorVehiculos = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoVehiculos = false;
+        }
+    }
+
+    private async Task CargarPlataformaAsync()
+    {
+        var idSolicitado = EntidadId;
+        _cargandoPlataforma = true;
+        _errorPlataforma = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerPlataformaAccesoDeCentroQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+            {
+                _plataforma = resultado;
+                _plataformaCargada = true;
+            }
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorPlataforma = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoPlataforma = false;
+        }
+    }
+
+    private Task AbrirTrabajadorAsync(TrabajadorAsignadoDto trabajador) =>
+        WorkspaceService.NavegarAAsync(EntidadWorkspace.Trabajador, trabajador.TrabajadorId, trabajador.Nombre, "informacion");
+
+    private Task AbrirVehiculoAsync(VehiculoConActividadDto vehiculo) =>
+        WorkspaceService.NavegarAAsync(EntidadWorkspace.Vehiculo, vehiculo.Id, vehiculo.Nombre, "informacion");
+}

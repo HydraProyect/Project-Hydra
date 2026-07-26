@@ -34,6 +34,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentoId");
@@ -56,6 +59,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("FechaBaja")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("TrabajadorId")
                         .HasColumnType("TEXT");
 
@@ -63,7 +69,7 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CentroId");
 
-                    b.HasIndex("TrabajadorId", "CentroId", "FechaAlta")
+                    b.HasIndex("TenantId", "TrabajadorId", "CentroId", "FechaAlta")
                         .IsUnique();
 
                     b.ToTable("Asignaciones", (string)null);
@@ -95,6 +101,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("FechaUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("UsuarioId")
@@ -153,6 +162,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ClienteId");
@@ -182,6 +194,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<string>("Notas")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("UrlAcceso")
                         .HasColumnType("TEXT");
 
@@ -190,7 +205,7 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CentroId")
+                    b.HasIndex("TenantId", "CentroId")
                         .IsUnique();
 
                     b.ToTable("PlataformasAcceso", (string)null);
@@ -234,14 +249,17 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.HasKey("Id");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
 
-                    b.HasIndex("Cif")
-                        .IsUnique();
+                    b.HasKey("Id");
 
                     b.HasIndex("EjecutivoUsuarioId");
 
                     b.HasIndex("RazonSocial");
+
+                    b.HasIndex("TenantId", "Cif")
+                        .IsUnique();
 
                     b.ToTable("Clientes", (string)null);
                 });
@@ -250,6 +268,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("UmbralAmbarDias")
@@ -266,9 +287,39 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000001"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             UmbralAmbarDias = 30,
                             UmbralRojoDias = 15
                         });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.AprobacionDocumento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ConfianzaGeneral")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreadaEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AprobacionesDocumento");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.ConfiguracionIaDocumentoCliente", b =>
@@ -283,12 +334,15 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ClienteId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("TipoDocumentoId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ClienteId", "TipoDocumentoId")
+                    b.HasIndex("TenantId", "ClienteId", "TipoDocumentoId")
                         .IsUnique();
 
                     b.ToTable("ConfiguracionesIaDocumentoCliente", (string)null);
@@ -332,6 +386,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("FechaVencimiento")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("TipoDocumentoId")
                         .HasColumnType("TEXT");
 
@@ -354,6 +411,52 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.HasIndex("VehiculoId", "TipoDocumentoId");
 
                     b.ToTable("Documentos", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.RevisionIaDocumento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ConfianzaGeneral")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreadaEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("FechaEmisionDetectada")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("FechaVencimientoDetectada")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Resuelta")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("TieneFirmaDetectada")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TipoDetectado")
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentoId", "Resuelta");
+
+                    b.ToTable("RevisionesIaDocumento", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.TipoDocumento", b =>
@@ -407,12 +510,18 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("VerificacionIaActiva")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("VigenciaMeses")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Nombre")
+                    b.HasIndex("TenantId", "Nombre")
                         .IsUnique();
 
                     b.ToTable("TiposDocumento", (string)null);
@@ -429,6 +538,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             Nombre = "Apto médico laboral",
                             Notas = "Renovación anual estándar.",
                             Orden = 1,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
                             VigenciaMeses = 12
                         },
                         new
@@ -442,6 +553,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             Nombre = "EPIS (firma)",
                             Notas = "Se firman cada año según nota de origen.",
                             Orden = 2,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
                             VigenciaMeses = 12
                         },
                         new
@@ -455,6 +568,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             Nombre = "Reciclaje 4h",
                             Notas = "Cada 4 años, según Dpto. Formación.",
                             Orden = 3,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
                             VigenciaMeses = 48
                         },
                         new
@@ -468,6 +583,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             Nombre = "Formación Art. 19",
                             Notas = "Recordatorio cada 3 años.",
                             Orden = 4,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
                             VigenciaMeses = 36
                         },
                         new
@@ -480,7 +597,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Formación 60h (base convenio)",
                             Notas = "Formación base, no consta caducidad.",
-                            Orden = 5
+                            Orden = 5,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -492,7 +611,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Formación 20h",
                             Notas = "Mismo curso de convenio que 60h/6h, no consta caducidad.",
-                            Orden = 6
+                            Orden = 6,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -504,7 +625,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Formación 6h",
                             Notas = "Mismo curso de convenio que 60h/20h, no consta caducidad.",
-                            Orden = 7
+                            Orden = 7,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -516,7 +639,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Información Art. 18",
                             Notas = "No consta periodicidad de renovación.",
-                            Orden = 8
+                            Orden = 8,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -528,7 +653,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Carretillas elevadoras",
                             Notas = "Configurable si el convenio interno define vigencia.",
-                            Orden = 9
+                            Orden = 9,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -540,7 +667,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "PEMP (plataformas elevadoras)",
                             Notas = "Configurable si el convenio interno define vigencia.",
-                            Orden = 10
+                            Orden = 10,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -552,7 +681,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "LOTO (4h)",
                             Notas = "Configurable si el convenio interno define vigencia.",
-                            Orden = 11
+                            Orden = 11,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -564,7 +695,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Seguridad alimentaria",
                             Notas = "Configurable si el convenio interno define vigencia.",
-                            Orden = 12
+                            Orden = 12,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -576,7 +709,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Primeros auxilios",
                             Notas = "Se recomienda revisar cada 2 años; sin dato oficial de origen.",
-                            Orden = 13
+                            Orden = 13,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -588,7 +723,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Espacios confinados",
                             Notas = "Configurable si el convenio interno define vigencia.",
-                            Orden = 14
+                            Orden = 14,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -600,7 +737,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Trabajos en altura (8h)",
                             Notas = "Configurable si el convenio interno define vigencia.",
-                            Orden = 15
+                            Orden = 15,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -612,7 +751,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Contrato de Trabajo",
                             Notas = "Vigente mientras dure la relación laboral — sin fecha de caducidad propia.",
-                            Orden = 16
+                            Orden = 16,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -624,7 +765,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Alta en Seguridad Social",
                             Notas = "Vigente mientras continúe contratado — sin fecha de caducidad propia.",
-                            Orden = 17
+                            Orden = 17,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -636,7 +779,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Formación Riesgos Específicos",
                             Notas = "Vigente hasta cambio de puesto o de riesgos — vencimiento manual.",
-                            Orden = 18
+                            Orden = 18,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -648,7 +793,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Formación EPIs",
                             Notas = "Distinto de \"EPIS (firma)\" (la entrega/firma de recepción) — esta es la formación de uso.",
-                            Orden = 19
+                            Orden = 19,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -660,7 +807,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Permiso de conducir",
                             Notas = "Vigencia según DGT, muy variable — vencimiento manual.",
-                            Orden = 20
+                            Orden = 20,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -673,6 +822,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             Nombre = "Riesgo Eléctrico",
                             Notas = "Renovación cada 3 años, criterio habitual del sector.",
                             Orden = 21,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
                             VigenciaMeses = 36
                         },
                         new
@@ -685,7 +836,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Manipulación Manual de Cargas",
                             Notas = "Vigencia según política de cada empresa — vencimiento manual.",
-                            Orden = 22
+                            Orden = 22,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -697,7 +850,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Manipulación de Productos Químicos",
                             Notas = "Vigencia según la actividad — vencimiento manual.",
-                            Orden = 23
+                            Orden = 23,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -710,6 +865,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             Nombre = "ADR",
                             Notas = "Renovación cada 5 años (transporte de mercancías peligrosas).",
                             Orden = 24,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
                             VigenciaMeses = 60
                         },
                         new
@@ -722,7 +879,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Soldadura",
                             Notas = "Vigencia según política de cada empresa — vencimiento manual.",
-                            Orden = 25
+                            Orden = 25,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -734,7 +893,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Operador de Puente Grúa",
                             Notas = "Vigencia según política de cada empresa — vencimiento manual.",
-                            Orden = 26
+                            Orden = 26,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -746,7 +907,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Operador de Grúa Torre",
                             Notas = "Vigencia según normativa aplicable — vencimiento manual.",
-                            Orden = 27
+                            Orden = 27,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -758,7 +921,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Operador de Grúa Móvil",
                             Notas = "Vigencia según normativa aplicable — vencimiento manual.",
-                            Orden = 28
+                            Orden = 28,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -770,7 +935,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Operador de Dumper",
                             Notas = "Vigencia según política de cada empresa — vencimiento manual.",
-                            Orden = 29
+                            Orden = 29,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -782,7 +949,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Operador de Retroexcavadora",
                             Notas = "Vigencia según política de cada empresa — vencimiento manual.",
-                            Orden = 30
+                            Orden = 30,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -794,7 +963,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Operador de Minicargadora",
                             Notas = "Vigencia según política de cada empresa — vencimiento manual.",
-                            Orden = 31
+                            Orden = 31,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -806,7 +977,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Operador de Manipulador Telescópico",
                             Notas = "Vigencia según política de cada empresa — vencimiento manual.",
-                            Orden = 32
+                            Orden = 32,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -818,7 +991,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Permiso de residencia",
                             Notas = "Solo aplica a trabajadores extranjeros de fuera de la UE — vencimiento manual.",
-                            Orden = 33
+                            Orden = 33,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -830,7 +1005,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Permiso de trabajo",
                             Notas = "Solo aplica a trabajadores extranjeros de fuera de la UE — vencimiento manual.",
-                            Orden = 34
+                            Orden = 34,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -842,7 +1019,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Certificado de Registro de Ciudadano de la UE",
                             Notas = "Solo aplica a trabajadores extranjeros de la UE — vencimiento manual.",
-                            Orden = 35
+                            Orden = 35,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -854,7 +1033,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Certificado A1 de Seguridad Social",
                             Notas = "Trabajadores desplazados temporalmente desde otro país de la UE — vigencia ligada a la duración del desplazamiento.",
-                            Orden = 36
+                            Orden = 36,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -867,6 +1048,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             Nombre = "Certificado de estar al corriente con la Seguridad Social",
                             Notas = "Mensual.",
                             Orden = 16,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
                             VigenciaMeses = 1
                         },
                         new
@@ -879,7 +1062,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Certificado de estar al corriente con Hacienda",
                             Notas = "Vigencia variable (1, 3, 6 o 12 meses según lo que exija el cliente) — la fecha de vencimiento se introduce a mano al subir el documento.",
-                            Orden = 17
+                            Orden = 17,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -892,6 +1077,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             Nombre = "ITA",
                             Notas = "Mensual.",
                             Orden = 18,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
                             VigenciaMeses = 1
                         },
                         new
@@ -905,6 +1092,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             Nombre = "RLC/TC1",
                             Notas = "Mensual — el documento de un periodo (p. ej. 01/05) vence 3 meses después (01/08), porque tarda en emitirse con la fecha del periodo ya pasada.",
                             Orden = 19,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
                             VigenciaMeses = 3
                         },
                         new
@@ -918,6 +1107,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             Nombre = "Recibo de pago RLC/TC1",
                             Notas = "Mismo criterio de vigencia que el RLC/TC1.",
                             Orden = 20,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
                             VigenciaMeses = 3
                         },
                         new
@@ -931,6 +1122,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             Nombre = "RLC/TC1 + Recibo de pago",
                             Notas = "Variante combinada — mismo criterio de vigencia que el RLC/TC1.",
                             Orden = 21,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
                             VigenciaMeses = 3
                         },
                         new
@@ -944,6 +1137,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             Nombre = "RNT/TC2",
                             Notas = "Mismo criterio que el RLC/TC1.",
                             Orden = 22,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false,
                             VigenciaMeses = 3
                         },
                         new
@@ -956,7 +1151,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Mutua",
                             Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
-                            Orden = 23
+                            Orden = 23,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -968,7 +1165,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Seguro de Responsabilidad Civil + recibo de pago",
                             Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
-                            Orden = 24
+                            Orden = 24,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -980,7 +1179,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "SPA (Servicio de Prevención Ajeno)",
                             Notas = "Debe venir acompañado de un certificado de pago que indica la fecha fin de validez — se introduce esa fecha manualmente.",
-                            Orden = 25
+                            Orden = 25,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -992,7 +1193,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "EVR (Evaluación de Riesgos Laborales)",
                             Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
-                            Orden = 26
+                            Orden = 26,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1004,7 +1207,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "PAP (Planificación de la Actividad Preventiva)",
                             Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
-                            Orden = 27
+                            Orden = 27,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1016,7 +1221,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Tarjeta CIF",
                             Notas = "Opcional — no obligatorio para todos los clientes.",
-                            Orden = 28
+                            Orden = 28,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1028,7 +1235,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Plan de Prevención",
                             Notas = "Vigente con revisiones — vencimiento manual.",
-                            Orden = 29
+                            Orden = 29,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1040,7 +1249,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Designación de Recursos Preventivos",
                             Notas = "Vigente hasta modificación — vencimiento manual.",
-                            Orden = 30
+                            Orden = 30,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1052,7 +1263,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Procedimiento de Coordinación de Actividades Empresariales",
                             Notas = "Vigente hasta revisión — vencimiento manual.",
-                            Orden = 31
+                            Orden = 31,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1064,7 +1277,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Política Preventiva",
                             Notas = "Vigente hasta revisión — vencimiento manual.",
-                            Orden = 32
+                            Orden = 32,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1076,7 +1291,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Organigrama Preventivo",
                             Notas = "Vigente hasta cambios — vencimiento manual.",
-                            Orden = 33
+                            Orden = 33,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1088,7 +1305,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Modalidad Preventiva",
                             Notas = "Vigente hasta cambios — vencimiento manual.",
-                            Orden = 34
+                            Orden = 34,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1100,7 +1319,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Escritura de Constitución",
                             Notas = "Documento permanente — algunos clientes lo piden, no todos.",
-                            Orden = 35
+                            Orden = 35,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1112,7 +1333,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Poder del Representante Legal",
                             Notas = "Vigente hasta modificación — vencimiento manual.",
-                            Orden = 36
+                            Orden = 36,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1124,7 +1347,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "ISO 45001",
                             Notas = "Certificación opcional — vigencia según auditoría del organismo certificador.",
-                            Orden = 37
+                            Orden = 37,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1136,7 +1361,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "ISO 9001",
                             Notas = "Certificación opcional — vigencia según auditoría del organismo certificador.",
-                            Orden = 38
+                            Orden = 38,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1148,7 +1375,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "ISO 14001",
                             Notas = "Certificación opcional — vigencia según auditoría del organismo certificador.",
-                            Orden = 39
+                            Orden = 39,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1160,7 +1389,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Declaración Responsable CAE",
                             Notas = "Vigencia según lo que exija cada cliente — vencimiento manual.",
-                            Orden = 40
+                            Orden = 40,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1172,7 +1403,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Relación de Maquinaria",
                             Notas = "Listado actualizable de la maquinaria de la empresa.",
-                            Orden = 41
+                            Orden = 41,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1184,7 +1417,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "VAT europeo",
                             Notas = "Solo aplica a empresas extranjeras de la UE.",
-                            Orden = 42
+                            Orden = 42,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1196,7 +1431,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Documento acreditativo de empresa extranjera",
                             Notas = "Solo aplica a empresas extranjeras.",
-                            Orden = 43
+                            Orden = 43,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1208,7 +1445,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Traducción jurada",
                             Notas = "Solo si el cliente la solicita explícitamente para documentación de una empresa extranjera.",
-                            Orden = 44
+                            Orden = 44,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1220,7 +1459,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Comunicación de desplazamiento",
                             Notas = "Solo aplica cuando hay un desplazamiento temporal de trabajadores desde otro país de la UE.",
-                            Orden = 45
+                            Orden = 45,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1232,7 +1473,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "ITC",
                             Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
-                            Orden = 1
+                            Orden = 1,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1244,7 +1487,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Ficha técnica",
                             Notas = "No caduca por sí sola, pero se pide como documento adjunto del vehículo.",
-                            Orden = 2
+                            Orden = 2,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1256,7 +1501,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Seguro",
                             Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
-                            Orden = 3
+                            Orden = 3,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         },
                         new
                         {
@@ -1268,7 +1515,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                             LecturaIaActiva = true,
                             Nombre = "Autorización de circulación",
                             Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
-                            Orden = 4
+                            Orden = 4,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         });
                 });
 
@@ -1281,6 +1530,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CentroId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("TipoDocumentoId")
                         .HasColumnType("TEXT");
 
@@ -1288,10 +1540,90 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CentroId");
 
-                    b.HasIndex("TipoDocumentoId", "CentroId")
+                    b.HasIndex("TenantId", "TipoDocumentoId", "CentroId")
                         .IsUnique();
 
                     b.ToTable("TiposDocumentoCentros", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.DocumentosIa.AuditoriaExtraccionIa", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ConfianzaGeneral")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("CosteEstimado")
+                        .HasPrecision(10, 6)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreadaEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("HashSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Incidencias")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("NumeroPaginas")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ProveedorCodigo")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("TiempoProcesamientoMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TipoEsperado")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreadaEnUtc");
+
+                    b.ToTable("AuditoriasExtraccionIa", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.DocumentosIa.ExtraccionIaCache", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreadaEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExtraccionJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("HashSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "HashSha256")
+                        .IsUnique();
+
+                    b.ToTable("ExtraccionesIaCache", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Empresas.CredencialAccesoEmpresa", b =>
@@ -1310,6 +1642,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("EmpresaId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("UrlAcceso")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
@@ -1319,7 +1654,7 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EmpresaId")
+                    b.HasIndex("TenantId", "EmpresaId")
                         .IsUnique();
 
                     b.ToTable("CredencialesAccesoEmpresa", (string)null);
@@ -1352,12 +1687,15 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("Cif")
+                    b.HasIndex("TenantId", "Cif")
                         .IsUnique();
 
-                    b.HasIndex("RazonSocial")
+                    b.HasIndex("TenantId", "RazonSocial")
                         .IsUnique();
 
                     b.ToTable("Empresas", (string)null);
@@ -1375,14 +1713,63 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("EmpresaId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ClienteId");
 
-                    b.HasIndex("EmpresaId", "ClienteId")
+                    b.HasIndex("TenantId", "EmpresaId", "ClienteId")
                         .IsUnique();
 
                     b.ToTable("EmpresasClientes", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Facturacion.TarifaCliente", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Concepto")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MonedaIso")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClienteId");
+
+                    b.HasIndex(new[] { "TenantId", "ClienteId", "Concepto" }, "IX_TarifasCliente_TenantId_ClienteId_Concepto")
+                        .IsUnique()
+                        .HasFilter("\"EstaEliminado\" = 0");
+
+                    b.ToTable("TarifasCliente", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Notificaciones.NotificacionUsuario", b =>
@@ -1400,6 +1787,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<string>("Mensaje")
                         .IsRequired()
                         .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TextoAccion")
@@ -1460,6 +1850,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CentroId");
@@ -1483,6 +1876,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SubcontrataId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("UrlAcceso")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
@@ -1492,7 +1888,7 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SubcontrataId")
+                    b.HasIndex("TenantId", "SubcontrataId")
                         .IsUnique();
 
                     b.ToTable("CredencialesAccesoSubcontrata", (string)null);
@@ -1521,9 +1917,12 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("RazonSocial")
+                    b.HasIndex("TenantId", "RazonSocial")
                         .IsUnique();
 
                     b.ToTable("Subcontratas", (string)null);
@@ -1541,11 +1940,14 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SubcontrataId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ClienteId");
 
-                    b.HasIndex("SubcontrataId", "ClienteId")
+                    b.HasIndex("TenantId", "SubcontrataId", "ClienteId")
                         .IsUnique();
 
                     b.ToTable("SubcontratasClientes", (string)null);
@@ -1563,14 +1965,49 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SubcontrataId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EmpresaId");
 
-                    b.HasIndex("SubcontrataId", "EmpresaId")
+                    b.HasIndex("TenantId", "SubcontrataId", "EmpresaId")
                         .IsUnique();
 
                     b.ToTable("SubcontratasEmpresas", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Tenants.Tenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Tenants", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000001"),
+                            CreadoEnUtc = new DateTime(2026, 7, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Estado = "Activo",
+                            Nombre = "Organización principal"
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Trabajadores.DeteccionTrabajador", b =>
@@ -1608,6 +2045,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("Resuelta")
                         .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Tipo")
                         .HasColumnType("INTEGER");
@@ -1674,14 +2114,17 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("SubcontrataId")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("Id");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
 
-                    b.HasIndex("Dni")
-                        .IsUnique();
+                    b.HasKey("Id");
 
                     b.HasIndex("EmpresaId");
 
                     b.HasIndex("SubcontrataId");
+
+                    b.HasIndex("TenantId", "Dni")
+                        .IsUnique();
 
                     b.ToTable("Trabajadores", (string)null);
                 });
@@ -1725,14 +2168,17 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("SubcontrataId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EmpresaId");
 
-                    b.HasIndex("NumeroPlaca")
-                        .IsUnique();
-
                     b.HasIndex("SubcontrataId");
+
+                    b.HasIndex("TenantId", "NumeroPlaca")
+                        .IsUnique();
 
                     b.ToTable("Vehiculos", (string)null);
                 });
@@ -1771,6 +2217,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<bool>("NotificadoCliente")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CentroId");
@@ -1786,6 +2235,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("TrabajadorId")
                         .HasColumnType("TEXT");
 
@@ -1798,7 +2250,7 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("VisitaId");
 
-                    b.HasIndex("VisitaId", "TrabajadorId")
+                    b.HasIndex("TenantId", "VisitaId", "TrabajadorId")
                         .IsUnique();
 
                     b.ToTable("VisitasTrabajadores", (string)null);
@@ -1868,6 +2320,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("Tema")
                         .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("INTEGER");
