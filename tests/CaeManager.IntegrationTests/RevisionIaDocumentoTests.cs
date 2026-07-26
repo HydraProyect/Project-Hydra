@@ -41,7 +41,7 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
         _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
         await _dbContext.Database.MigrateAsync();
 
-        var empresa = new Empresa("KHS S.A.");
+        var empresa = new Empresa("Ibertec S.A.");
         _dbContext.Empresas.Add(empresa);
 
         _trabajadorVisible = Trabajador.DeEmpresa(empresa.Id, "Alvaro", "Sanchez Martin", "77189989B");

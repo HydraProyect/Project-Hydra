@@ -39,7 +39,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
         await _dbContext.Database.MigrateAsync();
 
-        _empresa = new Empresa("KHS S.A.");
+        _empresa = new Empresa("Ibertec S.A.");
         _dbContext.Empresas.Add(_empresa);
 
         _tipoApto = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador);

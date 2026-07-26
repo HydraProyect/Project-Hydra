@@ -47,11 +47,11 @@ public class AlcancePorIdTests : IAsyncLifetime
         _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
         await _dbContext.Database.MigrateAsync();
 
-        _clienteVisible = new Cliente("COBEGA (Coca-Cola European Partners)", "B12345674", esCritico: true);
+        _clienteVisible = new Cliente("Cadena Industrial Iberia S.A.", "B12345674", esCritico: true);
         _clienteAjeno = new Cliente("Otro cliente, de otra cartera", "P1234567D", esCritico: false);
         _dbContext.Clientes.AddRange(_clienteVisible, _clienteAjeno);
 
-        var empresa = new Empresa("KHS S.A.");
+        var empresa = new Empresa("Ibertec S.A.");
         _dbContext.Empresas.Add(empresa);
 
         var centroVisible = new Centro(_clienteVisible.Id, empresa.Id, "Planta Sevilla");
