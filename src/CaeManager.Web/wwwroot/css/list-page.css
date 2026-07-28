@@ -136,9 +136,6 @@
     color: var(--color-text-muted);
     background-color: var(--color-neutral-50);
     border-bottom: var(--border-default);
-    position: sticky;
-    top: 0;
-    z-index: 1;
 }
 
 .tabla-datos td {
