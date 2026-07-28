@@ -1,9 +1,13 @@
+using System.Runtime.Versioning;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Common;
 using PDFtoImage;
 
 namespace CaeManager.Infrastructure.DocumentosIa;
 
+[SupportedOSPlatform("linux")]
+[SupportedOSPlatform("macos")]
+[SupportedOSPlatform("windows")]
 public class PdfToPngRasterizadorPaginasPdfService : IRasterizadorPaginasPdfService
 {
     private static readonly RenderOptions OpcionesRender = new(Dpi: 150);

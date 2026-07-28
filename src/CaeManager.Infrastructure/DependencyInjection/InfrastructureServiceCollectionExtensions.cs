@@ -106,7 +106,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAuditoriaExtraccionIaRepository, AuditoriaExtraccionIaRepository>();
         services.AddSingleton<IClasificadorDocumentoService, PdfSharpClasificadorDocumentoService>();
         services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
+#pragma warning disable CA1416
         services.AddSingleton<IRasterizadorPaginasPdfService, PdfToPngRasterizadorPaginasPdfService>();
+#pragma warning restore CA1416
         services.AddScoped<INotificacionUsuarioRepository, NotificacionUsuarioRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
         services.AddScoped<IAsignacionRepository, AsignacionRepository>();
