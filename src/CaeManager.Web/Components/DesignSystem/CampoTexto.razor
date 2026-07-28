@@ -7,7 +7,7 @@
     <input id="@_id"
            type="@Type"
            class="campo-input @(TieneError ? "campo-input-error" : null)"
-           value="@Valor"
+           value="@_valorMostrado"
            placeholder="@Placeholder"
            disabled="@Deshabilitado"
            @oninput="ManejarCambioAsync"
@@ -24,6 +24,8 @@
     private readonly string _id = $"campo-{Guid.NewGuid():N}";
     private CancellationTokenSource? _debounceCts;
     private string _ultimoValor = string.Empty;
+    private string _valorMostrado = string.Empty;
+    private string _ultimoValorNotificado = string.Empty;
 
     [Parameter] public string? Etiqueta { get; set; }
     [Parameter] public string Valor { get; set; } = string.Empty;
@@ -36,14 +38,29 @@
     private bool TieneError => !string.IsNullOrWhiteSpace(MensajeError);
 
     /// <summary>
-    /// Espera una pausa al escribir antes de notificar al padre — evitar
-    /// el round-trip a cada tecla evita que la respuesta de una tecla
-    /// anterior llegue tarde (bajo latencia de red real) y "corrija"
-    /// visualmente lo que el usuario ya escribió después.
+    /// El valor mostrado en el input solo se resincroniza con el
+    /// parámetro Valor cuando este cambia por una razón ajena a nuestro
+    /// propio debounce (p. ej. el padre limpia el filtro) — si se
+    /// resincronizara en cada render, un re-render disparado mientras el
+    /// debounce todavía está pendiente (p. ej. al cancelarse el delay de
+    /// una tecla anterior por escritura rápida) reescribiría el input con
+    /// el valor todavía viejo del padre y borraría lo que el usuario
+    /// acaba de teclear.
     /// </summary>
+    protected override void OnParametersSet()
+    {
+        if (Valor != _ultimoValorNotificado)
+        {
+            _valorMostrado = Valor;
+            _ultimoValor = Valor;
+            _ultimoValorNotificado = Valor;
+        }
+    }
+
     private async Task ManejarCambioAsync(ChangeEventArgs e)
     {
         _ultimoValor = e.Value?.ToString() ?? string.Empty;
+        _valorMostrado = _ultimoValor;
 
         _debounceCts?.Cancel();
         _debounceCts?.Dispose();
@@ -59,6 +76,7 @@
             return;
         }
 
+        _ultimoValorNotificado = _ultimoValor;
         await ValorChanged.InvokeAsync(_ultimoValor);
     }
 
@@ -71,6 +89,7 @@
     private async Task ManejarBlurAsync()
     {
         _debounceCts?.Cancel();
+        _ultimoValorNotificado = _ultimoValor;
         await ValorChanged.InvokeAsync(_ultimoValor);
     }
 
