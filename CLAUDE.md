@@ -41,3 +41,18 @@ Cuando la tarea toque más que una feature aislada (multi-tenant, integraciones,
 - Antes de cerrar cualquier fase/tarea de producto: verificación end-to-end en navegador (no solo tests), siguiendo el patrón de todas las fases de `ROADMAP.md`.
 - No implementes nada de cumplimiento normativo (retención, derecho al olvido, DPIA, DPA, términos de uso) sin confirmar primero con el usuario — son decisiones con componente legal, no solo técnico.
 - No mezcles refactors independientes en un mismo cambio (ej.: unificación de las 3 clases de credenciales, Context Workspace y multi-tenant son trabajos separados).
+
+## Disciplina de tokens (aplica a toda sesión, no solo a cambios de arquitectura)
+
+Este repo tiene muchos documentos normativos largos (`ROADMAP.md`, `docs/business/`, ADRs). Leer de más es el mayor costo de tokens aquí — la sección anterior ya dice qué leer *según la tarea*; esto es *cómo* leerlo y cómo trabajar el código.
+
+- **Lee solo lo que la tarea exige.** No abras los ~15 documentos de la lista "por si acaso" — usa la tabla de arriba para identificar los 2-3 relevantes. Dentro de un doc largo, usa grep/búsqueda por sección en vez de verlo entero (`ROADMAP.md` y `docs/business/` ya lo piden explícitamente).
+- **No releas un documento ya leído en esta sesión**, salvo que haya podido cambiar (ej. tras editar `docs/MULTITENANCY.md` en el mismo hilo).
+- **Edición quirúrgica, no reescritura.** Reemplazo parcial (Edit) sobre archivos existentes; `Write` completo solo si el cambio es >80% del archivo. No "limpies" código alrededor del cambio pedido.
+- **No narres el plan antes de ejecutar.** El usuario ve los tool calls; no hace falta un preview en texto de "voy a leer X, luego editar Y".
+- **Respuestas cortas.** Sin preámbulo, sin resumen final, sin repetir lo que pidió el usuario. Si ya editaste un archivo o creaste uno, no lo copies entero en la respuesta — el diff ya lo muestra.
+- **Paraleliza lecturas independientes** (ej. `DOMAIN.md` + `ARCHITECTURE.md` + `DATABASE.md` para una feature nueva) en vez de una por una.
+- **Cero relleno conversacional** ("Excelente pregunta", "Perfecto", etc.) — directo al trabajo.
+- **Sin abstracciones no pedidas.** Esto es consistente con YAGNI (`PROJECT.md`): no agregues helpers, capas o validación especulativa que no pidió la tarea, aunque "se vea más limpio".
+- **Valida antes de decir "hecho"**: build/tests como mínimo; la verificación end-to-end en navegador solo aplica al cerrar fase/tarea de producto (ya está arriba), no a cada micro-cambio.
+- **Si el usuario da una instrucción directa, ejecútala.** Si hay un riesgo real (seguridad, pérdida de datos, o choca con una regla ya establecida arriba —p.ej. tocar `TenantId` sin filtro, o SQL crudo—), dilo en una frase y procede según lo que decida el usuario.
