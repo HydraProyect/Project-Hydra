@@ -31,6 +31,14 @@ public partial class Dashboard : ComponentBase
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
+    /// <summary>Saludo según la hora del servidor — sustituye el título estático "Dashboard" (ver DESIGN_SYSTEM.md, cabecera con jerarquía).</summary>
+    private static string Saludo => DateTime.Now.Hour switch
+    {
+        < 12 => "Buenos días",
+        < 20 => "Buenas tardes",
+        _ => "Buenas noches"
+    };
+
     private void IrADocumento(Guid documentoId) => NavigationManager.NavigateTo($"/documentos?documentoId={documentoId}");
 
     private void IrACentro(string centroNombre) => NavigationManager.NavigateTo($"/centros?q={Uri.EscapeDataString(centroNombre)}");

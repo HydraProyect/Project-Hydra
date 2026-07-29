@@ -81,7 +81,7 @@
 }
 
 .glosario-tipo-documento {
-    background-color: var(--color-neutral-50);
+    background-color: var(--color-surface-hover);
     border: var(--border-default);
     border-radius: var(--radius-sm);
     padding: var(--space-3);
@@ -134,7 +134,7 @@
     letter-spacing: 0.04em;
     font-size: 0.6875rem;
     color: var(--color-text-muted);
-    background-color: var(--color-neutral-50);
+    background-color: var(--color-surface-hover);
     border-bottom: var(--border-default);
 }
 
@@ -163,7 +163,7 @@
 
 .fila-previsualizacion td {
     padding: var(--space-4);
-    background-color: var(--color-neutral-50);
+    background-color: var(--color-surface-hover);
 }
 
 .previsualizacion-documento {
