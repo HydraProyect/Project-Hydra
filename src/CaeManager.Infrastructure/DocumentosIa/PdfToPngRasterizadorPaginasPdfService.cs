@@ -1,13 +1,9 @@
-using System.Runtime.Versioning;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Common;
 using PDFtoImage;
 
 namespace CaeManager.Infrastructure.DocumentosIa;
 
-[SupportedOSPlatform("windows")]
-[SupportedOSPlatform("linux")]
-[SupportedOSPlatform("macos")]
 public class PdfToPngRasterizadorPaginasPdfService : IRasterizadorPaginasPdfService
 {
     private static readonly RenderOptions OpcionesRender = new(Dpi: 150);
@@ -16,6 +12,10 @@ public class PdfToPngRasterizadorPaginasPdfService : IRasterizadorPaginasPdfServ
     {
         if (indicesPaginas.Count == 0)
             return Result.Exito<IReadOnlyList<byte[]>>(Array.Empty<byte[]>());
+
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+            return Result.Fallo<IReadOnlyList<byte[]>>(
+                Error.Crear("Rasterizador.PlataformaNoSoportada", "La rasterización de PDF no está soportada en esta plataforma."));
 
         try
         {
