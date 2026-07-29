@@ -16,34 +16,38 @@ Referencia de mezcla: ~60% identidad corporativa de ProjectHydra (profesional, h
 
 ### Color
 
-Paleta neutra + un acento de marca primario + un acento secundario + colores semánticos para los semáforos de vigencia documental (el patrón visual más importante del producto, dado que todo el negocio gira en torno a vigente/próximo/urgente/vencido).
+Identidad propia (ver Historial — realineación 2026-07, salida de la paleta heredada de una marca externa): CAE Manager habla de seguridad, control, cumplimiento y documentación crítica, no de creatividad ni de SaaS genérico. Inspiración: ingeniería, acero, planos, documentación técnica — nunca fintech, nunca salud, nunca marketing. Paleta neutra cálida + acento primario (azul acero) + secundario (slate) + un acento puntual (cobre) + colores semánticos para los semáforos de vigencia documental (el patrón visual más importante del producto, dado que todo el negocio gira en torno a vigente/próximo/urgente/vencido — **estos tres no forman parte de la identidad libre, su mapeo verde/ámbar/rojo es fijo**).
 
 ```
-color.primary.50   #EBF3FE
-color.primary.100  #CEE0FD
-color.primary.300  #91B9FB
-color.primary.500  #0A63F6   ← acento de marca (acciones primarias, foco, enlaces) — modo claro
-color.primary.600  #0850C4   ← hover — modo claro
-color.primary.700  #073E97   ← activo/pressed — modo claro
+color.primary.50   #EEF5FF
+color.primary.100  #DCEBFF
+color.primary.300  #8EC0FF
+color.primary.500  #2F6FDD   ← acento de marca — azul acero, no azul SaaS brillante — modo claro
+color.primary.600  #235BC2   ← hover — modo claro
+color.primary.700  #1E4A9E   ← activo/pressed — modo claro
 
-color.primary.500  #5B93FF   ← acento de marca — modo oscuro (más claro que en modo día: el navy #0A63F6 pierde contraste sobre fondo oscuro)
-color.primary.600  #7BA8FF   ← hover — modo oscuro (se aclara, no se oscurece: oscurecer más reduce visibilidad contra un fondo ya oscuro)
-color.primary.700  #9CBEFF   ← activo/pressed — modo oscuro
+color.primary.500  #5CA2F4   ← acento de marca — modo oscuro (más claro que en modo día: el acero #2F6FDD pierde contraste sobre fondo oscuro)
+color.primary.600  #8EC0FF   ← hover — modo oscuro (se aclara, no se oscurece: oscurecer más reduce visibilidad contra un fondo ya oscuro)
+color.primary.700  #BDD9FF   ← activo/pressed — modo oscuro
 
-color.secondary.50   #EAFAFB
-color.secondary.100  #C7EFF2
-color.secondary.300  #7DD9E1
-color.secondary.500  #2FB8C6  ← acento secundario (usos puntuales, nunca sustituye al primario)
-color.secondary.600  #229CA9
+color.secondary.50   #F1F4F7
+color.secondary.100  #E3E8EE
+color.secondary.300  #AEB9C7
+color.secondary.500  #475569  ← acento secundario — slate profundo (usos puntuales, nunca sustituye al primario)
+color.secondary.600  #35404F
+
+color.accent.50   #FBF1E7
+color.accent.500  #C97B2A   ← cobre — únicamente detalles puntuales (subrayado, ícono destacado). Nunca color de acción ni de estado.
+color.accent.600  #A9631E
 
 color.neutral.0    #FFFFFF   ← superficie
-color.neutral.50   #F8FAFC   ← fondo de página
-color.neutral.100  #F1F5F9
-color.neutral.200  #E5E7EB   ← borde
-color.neutral.300  #D1D5DB
-color.neutral.500  #6B7280   ← texto secundario
-color.neutral.700  #374151
-color.neutral.900  #1F2937   ← texto principal
+color.neutral.50   #FAFBFC   ← fondo de página (cálido, no gris de librería genérica)
+color.neutral.100  #F4F6F8
+color.neutral.200  #E8EDF2   ← borde
+color.neutral.300  #D5DCE5
+color.neutral.500  #738196   ← texto secundario
+color.neutral.700  #404D60
+color.neutral.900  #161E27   ← texto principal
 
 color.success.500  #22C55E   ← VIGENTE
 color.warning.500  #F59E0B   ← PRÓXIMO (ámbar, ≤30 días)
@@ -52,11 +56,12 @@ color.info.500      = color.secondary.500 (reutilizado; el brief no define un co
 ```
 
 Reglas:
-- El color de semáforo (`success` / `warning` / `danger`) se usa **exclusivamente** para estado de vigencia documental y sus KPIs asociados en Dashboard — nunca como color decorativo en otro contexto, para que el usuario lo reconozca instantáneamente en cualquier pantalla.
+- El color de semáforo (`success` / `warning` / `danger`) se usa **exclusivamente** para estado de vigencia documental y sus KPIs asociados en Dashboard — nunca como color decorativo en otro contexto, para que el usuario lo reconozca instantáneamente en cualquier pantalla. Es la única parte de la paleta que no se toca en un rediseño de identidad.
 - El azul primario se reserva para acciones e interacción (botones primarios, enlaces, foco, estado activo de navegación) — nunca para grandes bloques de color sólido decorativo.
-- Blanco/neutro es el fondo dominante de la interfaz. Nunca a rendition de color como único portador de información (ver Accesibilidad).
+- El cobre (`accent`) es exclusivamente para detalles puntuales de bajo tráfico visual — nunca botones, nunca estados, nunca un segundo color de acción compitiendo con el primario.
+- Blanco/neutro cálido es el fondo dominante de la interfaz. Nunca a rendition de color como único portador de información (ver Accesibilidad).
 
-Modo oscuro: cada token tiene su contraparte `dark` (se define en CSS con `prefers-color-scheme`); no se documentan valores duplicados aquí, se derivan del mismo sistema de tokens — ver `tokens.css`.
+Modo oscuro: **identidad propia, no una inversión automática del claro** — fondo `#0E141B` con 3 escalones de superficie (`#17212C` / `#202B36` / borde `#293644`), nunca negro puro. Cada token tiene su contraparte `dark` (se define en CSS con `prefers-color-scheme` + `[data-theme='oscuro']`); no se documentan valores duplicados aquí, se derivan del mismo sistema de tokens — ver `tokens.css`.
 
 ### Tipografía
 
@@ -90,17 +95,17 @@ Layouts respiran: ante la duda entre aumentar o comprimir espaciado, se aumenta.
 ### Radius, borde, elevación
 
 ```
-radius.sm        10px   — chips, elementos pequeños
-radius.md         14px  — botones, inputs
-radius.card-sm    18px  — tarjetas pequeñas / KPI
-radius.lg         24px  — tarjetas principales, diálogos, drawers
+radius.sm        6px    — chips, elementos pequeños
+radius.md         10px  — botones, inputs
+radius.card-sm    12px  — tarjetas pequeñas / KPI
+radius.lg         16px  — tarjetas principales, diálogos, drawers
 radius.full       9999px — avatares, pills, badges
 
 border.default  1px solid color.neutral.200
 border.focus    2px solid color.primary.500 (siempre visible; nunca el único indicador — se refuerza con un glow sutil)
 
-shadow.card     0 8px 30px rgba(15,23,42,.05)   — casi invisible, crea profundidad sin llamar la atención
-shadow.overlay  0 20px 60px rgba(15,23,42,.14)  — modales/drawers, algo más presente
+shadow.card     0 4px 14px rgba(22,30,39,.07)   — casi invisible, crea profundidad sin llamar la atención
+shadow.overlay  0 20px 50px rgba(22,30,39,.16)  — modales/drawers, algo más presente
 ```
 
 Nunca esquinas totalmente rectas en componentes interactivos o contenedores de contenido.
@@ -203,3 +208,4 @@ mobile   <768px      — navegación por drawer, tablas → tarjetas apiladas
 - **2026-07 — Realineación de identidad ProjectHydra.** Se actualizó la paleta de color (primario navy `#0D4E89` + secundario teal `#2FB8C6`, reemplazando el azul genérico anterior), la escala tipográfica (H1–H4/Body/Small/Caption explícitos), el sistema de radios (reestructurado en 5 niveles: `sm`/`md`/`card-sm`/`lg`/`full`, antes 3 niveles), sombras (más suaves y extendidas, `0 8px 30px` en vez de sombras de doble capa más duras) y se añadió un token de `motion` explícito. Se introdujo el primer set de iconos outline (`Icono.razor`) — hasta entonces la navegación no tenía iconos. Los **nombres** de las variables CSS existentes se mantuvieron estables (más de 50 archivos ya las consumían); solo cambiaron sus valores, más la incorporación de tokens nuevos donde el spec de marca no mapeaba 1:1 con el sistema anterior. Ver `ROADMAP.md` para el detalle de qué se retocó pantalla por pantalla y qué queda pendiente (Chips, Tooltips, Tabs, Breadcrumbs, Charts, selector de tema).
 - **2026-07 — Look más premium: paleta real de ProjectHydra.com + catálogo de micro-interacciones.** `color.primary.500` pasa de `#0D4E89` a `#0A63F6` (modo claro) / `#5B93FF` (modo oscuro, nuevo — antes el primario no tenía variante de tema oscuro) — tomado de la identidad real de ProjectHydra.com, no de una elección genérica. La escala de `radius` sube un escalón completo (`sm` 8→10px, `md` 12→14px, `card-sm` 16→18px, `lg` 20→24px) para el look "fluido" pedido. Se añadió la sección "Micro-interacciones (catálogo de animación)" arriba con 5 patrones implementados (botón spring+ripple, revelado escalonado, toast con barra de progreso, command palette con navegación por teclado, radios más pronunciados) y 2 pendientes de confirmación explícita por chocar con la filosofía "color con intención, nunca decorativo" del documento (gradiente de fondo animado, glow de texto). Partió de un CLAUDE.md/brief de diseño que originalmente venía con stack Next.js/Supabase/Prisma/cmdk — no aplica a este repo (ASP.NET Core/Blazor Server); se tradujo la intención visual a los tokens y componentes Razor reales, y no se integraron los modelos `Entidad`/`Documento`/`SearchController` de ese prototipo porque este repo ya tiene equivalentes más completos (Cliente/Empresa/Subcontrata/Centro/Trabajador/Documento + `BuscarGlobalQuery`).
 - **2026-07 — Cierre del catálogo de micro-interacciones: gradient mesh, glow y ripple con posición real.** El usuario confirmó los 2 puntos que habían quedado pendientes de confirmación explícita: gradiente animado sí, pero acotado a las tarjetas KPI destacadas del Dashboard (no al resto de la app); glow de texto sí, pero "muy sutil solo en hover de enlaces" (no en títulos). Ambos implementados con `color-mix()` sobre los tokens existentes en vez de valores nuevos hardcodeados — ver detalle en el catálogo de arriba. El usuario también subió `commandpalette.js`/`READMEintegracionblazor.md` del prototipo de referencia, que reveló que el patrón correcto para el ripple con posición real de clic es un único listener JS delegado en `document` (no JS interop por instancia de Blazor) — se creó `wwwroot/js/microinteracciones.js` con ese patrón, sustituyendo el ripple centrado CSS-only de la ronda anterior. El widget de notificaciones diarias queda explícitamente fuera de esta ronda ("no por ahora... pendiente de definir bien") y pasa al backlog de `ROADMAP.md` como feature de producto pendiente de definición, no como ajuste visual.
+- **2026-07 — Identidad propia, salida de la paleta heredada de ProjectHydra; jerarquía visual del Dashboard.** El usuario encargó una auditoría de diseño externa (agente GPT, con el briefing y las capturas reales del sistema como contexto) y decidió aplicar el bloque de tokens/paleta y la reorganización del Dashboard; **no** aplicó la propuesta de fusionar Empresas+Centros ni de sustituir el Drawer por un "Workspace" de pantalla — eso colisiona con `ContextWorkspace.razor` (`src/CaeManager.Web/Components/Workspace/`) y con las decisiones ya cerradas en `PLAN-CONTEXT-WORKSPACE.md` (2026-07-25), que tiene una divergencia doc/código pendiente de auditar (ver `ROADMAP.md`) — no es terreno para tocar sin esa auditoría previa. Cambios aplicados: paleta nueva y propia (`color.primary` azul acero `#2F6FDD`, `color.secondary` slate `#475569`, nuevo `color.accent` cobre `#C97B2A` para detalles puntuales, neutros más cálidos) — el mapeo semántico del semáforo (`success`/`warning`/`danger`) no cambió, sigue siendo la única parte no negociable de la paleta. Modo oscuro reconstruido como identidad propia en vez de inversión del claro (fondo `#0E141B`, 3 escalones de superficie, nunca negro puro). `radius` baja un escalón completo en sentido contrario a la ronda anterior (`sm` 10→6px, `md` 14→10px, `card-sm` 18→12px, `lg` 24→16px) — la identidad de "ingeniería/documentación" pedía menos redondeo, no más. Sombras más contenidas (`shadow.card` de `0 8px 30px .05` a `0 4px 14px .07`). Dashboard reorganizado en dos niveles de KPI (crítico: vencidos/urgentes/próximos/SLA, con el tratamiento visual completo — degradado, borde de color, revelado escalonado — vs. secundario/discreto: trabajadores/centros/vigentes/visitas, sin degradado ni borde de color, valor más pequeño — nuevo parámetro `Discreta` en `TarjetaMetrica.razor`) y con "Documentos que requieren atención" promovido a sección propia justo debajo de los KPI críticos, antes que los gráficos/desgloses secundarios (antes competían en la misma rejilla) — la cabecera pasa de un título estático "Dashboard" a un saludo según la hora del día. Tipografía, espaciado y motion no se tocaron en esta ronda (el diagnóstico externo los daba por correctos).
