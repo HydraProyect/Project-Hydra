@@ -13,6 +13,10 @@ public class PdfToPngRasterizadorPaginasPdfService : IRasterizadorPaginasPdfServ
         if (indicesPaginas.Count == 0)
             return Result.Exito<IReadOnlyList<byte[]>>(Array.Empty<byte[]>());
 
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+            return Result.Fallo<IReadOnlyList<byte[]>>(
+                Error.Crear("Rasterizador.PlataformaNoSoportada", "La rasterización de PDF no está soportada en esta plataforma."));
+
         try
         {
             var resultado = new List<byte[]>(indicesPaginas.Count);
