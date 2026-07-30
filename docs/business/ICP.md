@@ -18,6 +18,21 @@
 - Cuánto se les cobra → `PRICING.md`.
 - El modelado técnico de estos dos escenarios como tenants aislados (ya cubierto en detalle en `docs/MULTITENANCY.md` § 2, desde el ángulo de aislamiento de datos, no de cualificación comercial).
 
+## Afinado de perfil de entrada (Draft, 2026-07)
+
+- **Perfil validado con tracción real**: SPA de banda "Tier 2" (orden de magnitud 10-25 M€ de
+  facturación, tomando como referencia al Cliente Fundador GESEME), no contratista directa.
+- **Señal de cualificación de lead identificada**: dolor de **capacidad no absorbida** — SPA que
+  ha rechazado o no ha podido aceptar un cliente de gran volumen por falta de capacidad de
+  gestión manual, sin recurrir a ampliar plantilla.
+- **Segmento de posicionamiento diferenciado**: SPAs que compiten por calidad de trato humano y
+  rechazan explícitamente sustituir gestores por IA. Para este segmento, el mensaje de encaje es
+  "multiplicador de capacidad del gestor", no "automatización que reemplaza personas" — ver
+  principio de diseño en `PRODUCT_STRATEGY.md`.
+
+*Draft — un solo caso validado; hipótesis pendiente de confirmarse con más clientes antes de
+generalizarse como criterio de cualificación.*
+
 ## Documentos relacionados
 
 - `PROJECT.md` § "A quién sirve" y § "El problema que resolvemos" — descripción de producto de estos mismos perfiles.
