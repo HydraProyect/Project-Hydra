@@ -1,0 +1,129 @@
+@page "/evaluaciones"
+@rendermode InteractiveServer
+@using CaeManager.Application.Evaluaciones.Commands.CrearEvaluacion
+@using CaeManager.Application.Evaluaciones.Commands.EditarEvaluacion
+@using CaeManager.Application.Evaluaciones.Commands.EliminarEvaluacion
+@using CaeManager.Application.Evaluaciones.Queries.ObtenerEvaluacionPorId
+@using CaeManager.Application.Evaluaciones.Queries.ObtenerEvaluaciones
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Application.Common
+@using FluentValidation
+@using MediatR
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject ICurrentUserService CurrentUserService
+
+<PageTitle>Evaluaciones — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Evaluaciones de riesgo</h1>
+        <div class="acciones-cabecera">
+            <Boton OnClick="AbrirCrearAsync">+ Nueva evaluación</Boton>
+        </div>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoTexto Placeholder="Buscar por centro o trabajador…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las evaluaciones" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+            <QuickGrid @ref="_grid" TGridItem="EvaluacionListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
+                <PropertyColumn Property="@(e => e.CentroNombre)" Title="Centro" Sortable="true" />
+                <TemplateColumn Title="Trabajador">@(context.TrabajadorNombre ?? "—")</TemplateColumn>
+                <TemplateColumn Title="Fecha">@context.Fecha.ToString("dd/MM/yyyy")</TemplateColumn>
+                <TemplateColumn Title="Puntuación" Align="Align.Center">
+                    <Badge Tono="@PuntuacionTono(context.Puntuacion)">@context.Puntuacion / 100</Badge>
+                </TemplateColumn>
+                <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
+                        Editar
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
+                        Eliminar
+                    </Boton>
+                </TemplateColumn>
+            </QuickGrid>
+
+            <div class="paginador">
+                <Paginator State="_paginacion" />
+            </div>
+        </div>
+
+        @if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio Titulo="Todavía no hay evaluaciones" Descripcion="Crea la primera evaluación de riesgo para un centro.">
+                <Accion>
+                    <Boton OnClick="AbrirCrearAsync">+ Nueva evaluación</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+    }
+</div>
+
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nueva evaluación" : "Editar evaluación")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        @if (_editandoId is null)
+        {
+            <CampoSelect Etiqueta="Centro" Valor="@_centroId" ValorChanged="v => _centroId = v">
+                <option value="">Selecciona un centro…</option>
+                @foreach (var centro in _centrosDisponibles)
+                {
+                    <option value="@centro.Id">@centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)</option>
+                }
+            </CampoSelect>
+        }
+        else
+        {
+            <div class="campo">
+                <label>Centro</label>
+                <p class="texto-vacio-seccion">@_centroNombreEnEdicion</p>
+            </div>
+        }
+
+        <CampoSelect Etiqueta="Trabajador (opcional)" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
+            <option value="">Ninguno — evaluación general del centro</option>
+            @foreach (var trabajador in _trabajadoresDisponibles)
+            {
+                <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+            }
+        </CampoSelect>
+
+        <CampoTexto Etiqueta="Fecha" Type="date" Valor="@_fecha" ValorChanged="v => _fecha = v" />
+        <CampoTexto Etiqueta="Puntuación (0-100)" Type="number" Valor="@_puntuacion" ValorChanged="v => _puntuacion = v" MensajeError="@ObtenerError(nameof(CrearEvaluacionCommand.Puntuacion))" />
+        <CampoTextarea Etiqueta="Observaciones" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+            Guardar
+        </Boton>
+    </Pie>
+</Drawer>
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarVisible"
+    VisibleChanged="v => _confirmarEliminarVisible = v"
+    Titulo="@($"¿Eliminar la evaluación de {_centroAEliminar}?")"
+    Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
+    EnProgreso="_eliminando"
+    OnConfirmar="ConfirmarEliminarAsync" />
