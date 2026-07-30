@@ -62,12 +62,27 @@
                     <tbody>
                         @foreach (var cliente in _kpis.ClientesConMasRiesgo)
                         {
-                            <tr class="fila-clicable" @onclick="() => VerCliente(cliente.TenantId)">
+                            <tr>
                                 <td>@cliente.Nombre</td>
                                 <td><Badge Tono="TonoBadge.Peligro">@cliente.DocumentosVencidos</Badge></td>
                                 <td><Badge Tono="TonoBadge.Advertencia">@cliente.DocumentosUrgentes</Badge></td>
                                 <td><Badge Tono="@SlaDocumentalTono(cliente.TasaCumplimientoDocumental)">@cliente.TasaCumplimientoDocumental%</Badge></td>
-                                <td class="celda-accion-cliente">Ver como este cliente →</td>
+                                <td>
+                                    @* Mismo patrón que SelectorClienteActivo: cambiar de cliente
+                                       activo escribe una cookie de servidor, así que va por POST
+                                       con antiforgery (M-8) y no por navegación GET. Por eso la
+                                       acción vive en un botón y no en un @onclick de la fila: un
+                                       <form> no puede envolver un <tr>. *@
+                                    <form method="post" action="/cuenta/cliente-activo">
+                                        @if (_token is not null)
+                                        {
+                                            <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+                                        }
+                                        <input type="hidden" name="returnUrl" value="/" />
+                                        <input type="hidden" name="tenantId" value="@cliente.TenantId" />
+                                        <button type="submit" class="accion-ver-cliente">Ver como este cliente →</button>
+                                    </form>
+                                </td>
                             </tr>
                         }
                     </tbody>
