@@ -1,6 +1,6 @@
 # Arquitectura — Plataforma de Integraciones (Integration Platform)
 
-**Estado**: Diseño arquitectónico para el backlog. **No implementado.** Ningún adaptador concreto (Dokify, 6Coordina, CTAIMA, eCoordina, Microsoft 365, Anthropic, OpenAI...), ninguna migración EF Core, ninguna UI. El objetivo de este documento es que las decisiones que **sí** se están tomando ahora mismo (multi-tenancy, `ADR-003`) no cierren puertas a este ecosistema futuro.
+**Estado**: Diseño arquitectónico para el backlog. **No implementado**, con una excepción: § 12 (Comunicaciones — bandeja de correo compartida) tiene una primera pieza en construcción, ver esa sección para el alcance exacto. Para el resto — ningún adaptador concreto (Dokify, 6Coordina, CTAIMA, eCoordina, Anthropic, OpenAI...), ninguna migración EF Core adicional, ninguna UI adicional. El objetivo de este documento es que las decisiones que **sí** se están tomando ahora mismo (multi-tenancy, `ADR-003`) no cierren puertas a este ecosistema futuro.
 
 ## Aviso sobre el documento de referencia aportado
 
@@ -11,7 +11,7 @@ El material de referencia (`HYDRA_INTEGRACIONES_PRESUPUESTO_NEGOCIO`) describe u
 1. **Dominio** — qué representa el negocio (§ 3).
 2. **Arquitectura** — cómo se organiza el sistema (§ 4-6).
 3. **Plataforma** — multi-tenancy, integraciones, IA, observabilidad como capacidades transversales (§ 2, § 7, § 8).
-4. **Implementación** — código (explícitamente fuera de alcance de este documento, § 12).
+4. **Implementación** — código (explícitamente fuera de alcance de este documento, § 13, salvo la excepción de § 12).
 
 Mientras las decisiones se tomen en ese orden, incorporar una capacidad nueva (un proveedor, un tipo de sincronización, un canal de observabilidad) no debería obligar a reabrir las anteriores.
 
@@ -174,8 +174,54 @@ Ver `docs/INTEGRATION_GUIDELINES.md` (documento nuevo, no de arquitectura — gu
 | Cuarta clase de credenciales cifradas duplicando concepto | Señalado como deuda (§ 3), no se resuelve aquí |
 | Un proveedor con límites de tasa agresivos degrada la experiencia de otros tenants | Rate limiting por conexión (Polly), no global |
 | Orquestador u orígenes de eventos acoplándose "por comodidad" a un módulo concreto con el tiempo | La regla de § 6.5 (publicar, nunca invocar directamente) se añade al checklist de revisión de código junto al resto de reglas de `CLAUDE.md` |
-| Construir conectores/capacidades especulativas antes de tener un proveedor real priorizado | No se construye ningún adaptador concreto todavía (§ 12) — YAGNI |
+| Construir conectores/capacidades especulativas antes de tener un proveedor real priorizado | No se construye ningún adaptador concreto todavía, salvo la excepción de § 12 (Comunicaciones) — YAGNI |
 
-## 12. Qué NO se construye ahora
+## 12. Adenda — Comunicaciones: bandeja de correo compartida (sustituye Outlook para el trato con clientes)
+
+**Estado**: primera pieza real de este documento con implementación en curso — el resto del documento (§1-11, §13) sigue siendo diseño de backlog sin construir. Contexto de negocio: cada Tenant (Cliente Directo o Consultora) ya opera hoy un buzón corporativo propio tipo `CAE.IBEROTEC@ArcoSPA.com` para hablar con sus clientes/trabajadores/subcontratas; el objetivo es traer esa conversación dentro de Hydra en una bandeja tipo Zendesk/Front, sin salir de la app.
+
+### 12.1 Por qué es un Domain Module, no una extensión del kernel
+
+Una conversación de correo tiene estado de negocio (Abierta/Pendiente/Resuelta/Cerrada), se asigna a un Ejecutivo CAE y cuelga de `Cliente` — no es infraestructura pura. Vive como módulo de dominio nuevo (`src/CaeManager.Domain/Comunicaciones/`), construido **sobre** dos capacidades de plataforma ya existentes/diseñadas, sin inventar un tercer mecanismo:
+
+- **Notifications** (`docs/PLATFORM.md` § 4) generalizada de "envío unidireccional" (`IEmailService.EnviarAsync`, hoy fire-and-forget) a canal bidireccional real.
+- **Integrations** (§ 3 de este documento) — reutiliza `ConexionIntegracion`/`CredencialIntegracion` en vez de inventar una cuarta clase de credenciales (deuda ya señalada en § 3).
+
+### 12.2 Extensión necesaria al modelo de § 3: `ConexionIntegracion` deja de ser solo "por tenant"
+
+El buzón real no es 1:1 con el Tenant — es 1:1 con el **Cliente** (una Consultora gestiona varios Clientes Delegantes, cada uno con su propio buzón de marca, ej. Iberotec tiene el suyo dentro del dominio de ArcoSPA). Esto obliga a un cambio real sobre § 3, no solo a una tabla nueva:
+
+- `ConexionIntegracion.ClienteId` (**nuevo, nullable**): `null` cuando el buzón es del propio Tenant (caso Cliente Directo, donde Tenant y Cliente prácticamente coinciden); poblado cuando es el buzón específico de un Cliente Delegante dentro de una Consultora. La unicidad `(TenantId, Nombre)` ya definida en § 3 sigue siendo la que distingue conexiones — se añade `ClienteId` como filtro adicional al resolver "qué buzón usar para responder a esta conversación", no como una unicidad nueva.
+- Nueva capacidad en `CapacidadesIntegracion` (§ 3.1): `CorreoBidireccional = 1 << 9` — envía, recibe y mantiene threading real. La declara `VersionApiProveedor` de `microsoft365`.
+- Proveedor `microsoft365` (ya listado como ejemplo en § 3) implementa `IIntegrationProvider` reutilizando el patrón ya anticipado en § 5 (`MicrosoftGraphIntegrationProvider`, "reutiliza patrón ya existente de `GraphEmailService`") — pero el envío usa los endpoints `/messages/{id}/reply` / `/createReply` de Graph (preservan `conversationId` automáticamente), nunca `sendMail` para una respuesta — reconstruir threading a mano con `In-Reply-To`/`References` es innecesario y frágil cuando Graph ya lo resuelve.
+- El dominio propio de Hydra (`Graph__BuzonRemitente` de `DEPLOY.md`) sigue existiendo sin cambios, exclusivo de notificaciones transaccionales de plataforma (alta/baja de usuario, cambio de contraseña) — nunca se mezcla con los buzones de cliente de este módulo.
+
+### 12.3 Modelo de dominio (`src/CaeManager.Domain/Comunicaciones/`)
+
+| Entidad | Clasificación | Descripción |
+|---|---|---|
+| `ConversacionCorreo` (agregado raíz) | Por tenant | `TenantId`, `ClienteId?` (null = sin resolver, ver § 13.4), `ConexionIntegracionId?` (qué buzón la atiende), `Asunto`, `Estado` (Abierta/Pendiente/Resuelta/Cerrada), `EjecutivoAsignadoId?`, `Etiquetas`, `FechaUltimoMensajeUtc`, `HiloExternoId` (conversationId de Graph — clave para threading) |
+| `ParticipanteConversacion` (entidad hija) | Por tenant | `ConversacionCorreoId`, `Email`, `Rol` (De/Para/Cc), `TipoOrigen` (UsuarioCliente/Trabajador/Subcontrata/Empresa/Centro/Desconocido), `EntidadRelacionadaId?` (apunta a `Trabajador`/`Subcontrata`/`Empresa`/`Centro` según `TipoOrigen` — nullable y polimórfico por tipo, no una FK única). Es lo que permite que un hilo con el trabajador, la subcontrata y el centro de la visita en copia siga siendo una sola `ConversacionCorreo`. |
+| `MensajeCorreo` (entidad hija) | Por tenant | `ConversacionCorreoId`, `Direccion` (Entrante/Saliente), `RemitenteEmail`, `CuerpoHtml`, `FechaUtc`, `MensajeExternoId` (Message-ID de Graph, idempotencia ante reintentos de webhook) |
+| `AdjuntoMensajeCorreo` | Por tenant | Reutiliza `IFileStorageService` ya existente — no un storage paralelo |
+| `MacroRespuesta` | Por tenant | `TenantId`, `ClienteId?` (null = macro genérica del tenant; poblado = específica de ese cliente), `Titulo`, `CuerpoHtml`, variables de sustitución simples (contacto/cliente/centro) |
+
+Todas llevan `TenantId` NOT NULL, soft delete (`EntidadBase`) y quedan cubiertas por `AuditoriaInterceptor` — misma regla que el resto del módulo de Integraciones (§ 3).
+
+### 12.4 Resolución de remitente desconocido — pipeline, nunca una asignación automática ciega
+
+1. Dominio del email del remitente contra dominios ya registrados de un `Cliente`/`TenantId` conocido → auto-asocia `ConversacionCorreo.ClienteId` sin intervención humana.
+2. Si no matchea ningún dominio conocido: se reutiliza el mismo patrón ya existente en el proyecto para IA de apoyo (`IExtraccionTrabajadoresIaService`, generalizable al `IAIProvider` esbozado en `docs/PLATFORM.md` § 4) para leer el cuerpo y **sugerir** un `Cliente` candidato — la IA propone, nunca decide ni asigna directamente (mismo criterio que la detección de altas/bajas de trabajadores).
+3. Cae siempre en una cola de triage (`ClienteId = null`, visible para el rol `Supervisor` existente — no se crea un rol de autorización nuevo) hasta que una persona confirma el cliente y, con eso, la conversación puede asignarse a un Ejecutivo CAE concreto.
+
+### 12.5 Visibilidad
+
+Reutiliza `IAlcanceDatosService` por cartera, ya existente (`DOMAIN.md`/`ARCHITECTURE.md`) — sin mecanismo de autorización nuevo. Una Consultora ve todas las conversaciones de todos sus Clientes Delegantes (acceso completo dentro de su alcance); un Cliente Delegante ve las suyas.
+
+### 12.6 Alcance de la primera implementación (vertical slice)
+
+Para poder validar el flujo end-to-end sin depender todavía de credenciales reales de Graph por cliente (eso es un proyecto de integración aparte, con alta en Entra ID por cada buzón de cliente): la primera pieza construye el modelo de dominio completo, las pantallas de la bandeja (§ diseño ya aprobado en conversación previa) y **datos de prueba sembrados** (mismo patrón que `DatosPrueba__Activo` de `DEPLOY.md`) en vez de la ingesta real por Graph. El adaptador `MicrosoftGraphIntegrationProvider` con `CorreoBidireccional` real (webhooks entrantes, OAuth por buzón de cliente) queda como siguiente iteración, una vez validado el modelo con el equipo.
+
+## 13. Qué NO se construye ahora
 
 Ningún adaptador concreto, ninguna entidad de Domain, ninguna migración EF Core, ninguna pantalla, ningún handler de eventos real. Este documento existe para que el multi-tenant (`ADR-003`, en fase de aprobación) no tome ninguna decisión que cierre esta puerta — se construye cuando el aislamiento multi-tenant esté implementado y exista al menos un proveedor real priorizado con caso de uso confirmado por el negocio.
