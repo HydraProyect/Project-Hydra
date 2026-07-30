@@ -1,0 +1,139 @@
+using System.Text.RegularExpressions;
+using CaeManager.Application.Common;
+using CaeManager.Domain.Comunicaciones;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
+
+namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
+
+/// <summary>
+/// Filtros de la bandeja compartida (ver ARQUITECTURA-INTEGRACIONES.md § 12.6,
+/// pantalla "Bandeja"). <see cref="Anio"/>/<see cref="Mes"/> van juntos (mes
+/// concreto de un año) porque la pantalla ofrece un único selector de mes, no
+/// un rango de fechas libre. <see cref="SoloAsignadasAMi"/> usa
+/// <see cref="ICurrentUserService"/> para resolver "a mí" — no recibe el
+/// usuario como parámetro para que el Command no pueda usarse para consultar
+/// la bandeja de otro usuario.
+/// </summary>
+public record ObtenerConversacionesQuery(
+    EstadoConversacion? Estado = null,
+    int? Anio = null,
+    int? Mes = null,
+    Guid? ClienteId = null,
+    bool SoloAsignadasAMi = false,
+    bool SoloSinAsignar = false,
+    string? Busqueda = null)
+    : IRequest<IReadOnlyList<ConversacionListaDto>>;
+
+public record ConversacionListaDto(
+    Guid Id,
+    Guid? ClienteId,
+    string? ClienteRazonSocial,
+    string Asunto,
+    EstadoConversacion Estado,
+    Guid? EjecutivoAsignadoId,
+    string RemitentePrincipal,
+    string PreviewUltimoMensaje,
+    DateTime FechaUltimoMensajeUtc,
+    int TotalMensajes);
+
+public class ObtenerConversacionesQueryHandler(
+    IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
+    : IRequestHandler<ObtenerConversacionesQuery, IReadOnlyList<ConversacionListaDto>>
+{
+    private const int LongitudPreview = 140;
+
+    public async Task<IReadOnlyList<ConversacionListaDto>> Handle(
+        ObtenerConversacionesQuery request, CancellationToken cancellationToken)
+    {
+        var consulta = dbContext.ConversacionesCorreo.AsQueryable();
+
+        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        if (clienteIdsVisibles is not null)
+            // La cola de triage (ClienteId null) queda siempre visible — nadie
+            // puede restringirla a una cartera concreta porque, por definición,
+            // todavía no tiene cliente resuelto (ver § 12.4).
+            consulta = consulta.Where(c => c.ClienteId == null || clienteIdsVisibles.Contains(c.ClienteId!.Value));
+
+        if (request.Estado is not null)
+            consulta = consulta.Where(c => c.Estado == request.Estado);
+
+        if (request.Anio is not null && request.Mes is not null)
+            consulta = consulta.Where(c =>
+                c.FechaUltimoMensajeUtc.Year == request.Anio && c.FechaUltimoMensajeUtc.Month == request.Mes);
+
+        if (request.ClienteId is not null)
+            consulta = consulta.Where(c => c.ClienteId == request.ClienteId);
+
+        if (request.SoloSinAsignar)
+            consulta = consulta.Where(c => c.EjecutivoAsignadoId == null);
+
+        if (request.SoloAsignadasAMi)
+        {
+            var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+            consulta = consulta.Where(c => c.EjecutivoAsignadoId == usuarioId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Busqueda))
+        {
+            var busqueda = request.Busqueda.ToUpper();
+            consulta = consulta.Where(c => c.Asunto.ToUpper().Contains(busqueda));
+        }
+
+        var conversaciones = await (
+            from c in consulta
+            join cliente in dbContext.Clientes on c.ClienteId equals cliente.Id into clientesUnidos
+            from cliente in clientesUnidos.DefaultIfEmpty()
+            orderby c.FechaUltimoMensajeUtc descending
+            select new
+            {
+                c.Id,
+                c.ClienteId,
+                ClienteRazonSocial = cliente != null ? cliente.RazonSocial : null,
+                c.Asunto,
+                c.Estado,
+                c.EjecutivoAsignadoId,
+                c.FechaUltimoMensajeUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        if (conversaciones.Count == 0) return [];
+
+        var conversacionIds = conversaciones.Select(c => c.Id).ToList();
+
+        var mensajes = await dbContext.MensajesCorreo
+            .Where(m => conversacionIds.Contains(m.ConversacionCorreoId))
+            .Select(m => new { m.ConversacionCorreoId, m.CuerpoHtml, m.FechaUtc })
+            .ToListAsync(cancellationToken);
+
+        var remitentes = await dbContext.ParticipantesConversacion
+            .Where(p => conversacionIds.Contains(p.ConversacionCorreoId) && p.Rol == RolParticipante.De)
+            .Select(p => new { p.ConversacionCorreoId, p.Email })
+            .ToListAsync(cancellationToken);
+
+        var mensajesPorConversacion = mensajes.GroupBy(m => m.ConversacionCorreoId).ToDictionary(g => g.Key, g => g.ToList());
+        var remitentesPorConversacion = remitentes.GroupBy(p => p.ConversacionCorreoId).ToDictionary(g => g.Key, g => g.First().Email);
+
+        return conversaciones.Select(c =>
+        {
+            var mensajesDeConversacion = mensajesPorConversacion.GetValueOrDefault(c.Id, []);
+            var ultimoMensaje = mensajesDeConversacion.OrderByDescending(m => m.FechaUtc).FirstOrDefault();
+
+            return new ConversacionListaDto(
+                c.Id, c.ClienteId, c.ClienteRazonSocial, c.Asunto, c.Estado, c.EjecutivoAsignadoId,
+                remitentesPorConversacion.GetValueOrDefault(c.Id) ?? "Remitente desconocido",
+                TruncarParaPreview(ultimoMensaje?.CuerpoHtml),
+                c.FechaUltimoMensajeUtc, mensajesDeConversacion.Count);
+        }).ToList();
+    }
+
+    private static string TruncarParaPreview(string? cuerpoHtml)
+    {
+        if (string.IsNullOrWhiteSpace(cuerpoHtml)) return string.Empty;
+
+        var textoPlano = Regex.Replace(cuerpoHtml, "<.*?>", " ");
+        textoPlano = Regex.Replace(textoPlano, "\\s+", " ").Trim();
+
+        return textoPlano.Length > LongitudPreview ? textoPlano[..LongitudPreview] + "…" : textoPlano;
+    }
+}

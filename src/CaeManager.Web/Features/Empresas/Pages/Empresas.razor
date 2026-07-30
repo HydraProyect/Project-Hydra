@@ -115,6 +115,7 @@
                 <CampoTexto Etiqueta="Contraseña" Type="password" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
                 <BotonCopiar Valor="@_credencialContrasena" Etiqueta="la contraseña" />
             </div>
+            <CampoTextarea Etiqueta="Notas" Valor="@_credencialNotas" ValorChanged="v => _credencialNotas = v" Filas="3" />
 
             <div class="acciones-formulario">
                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoCredenciales" OnClick="GuardarCredencialesAsync">

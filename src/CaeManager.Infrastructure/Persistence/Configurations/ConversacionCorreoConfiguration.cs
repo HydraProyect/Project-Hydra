@@ -1,0 +1,40 @@
+using CaeManager.Domain.Comunicaciones;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace CaeManager.Infrastructure.Persistence.Configurations;
+
+public class ConversacionCorreoConfiguration : IEntityTypeConfiguration<ConversacionCorreo>
+{
+    public void Configure(EntityTypeBuilder<ConversacionCorreo> builder)
+    {
+        builder.ToTable("ConversacionesCorreo");
+        builder.HasKey(c => c.Id);
+
+        builder.Property(c => c.Asunto).IsRequired().HasMaxLength(ConversacionCorreo.LongitudMaximaAsunto);
+        builder.Property(c => c.Etiquetas).HasMaxLength(ConversacionCorreo.LongitudMaximaEtiquetas);
+
+        builder.HasIndex(c => new { c.TenantId, c.Estado });
+        builder.HasIndex(c => new { c.TenantId, c.ClienteId });
+        builder.HasIndex(c => c.FechaUltimoMensajeUtc);
+
+        // Mensajes/Participantes son colecciones de solo lectura respaldadas
+        // por un campo privado (ver ConversacionCorreo) — se le dice a EF Core
+        // que lea/escriba directamente el campo, sin pasar por la propiedad
+        // pública (que no expone Add). Mismo patrón estándar de EF Core para
+        // agregados DDD con colecciones encapsuladas.
+        builder.HasMany(c => c.Mensajes)
+            .WithOne()
+            .HasForeignKey(m => m.ConversacionCorreoId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(c => c.Mensajes).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasMany(c => c.Participantes)
+            .WithOne()
+            .HasForeignKey(p => p.ConversacionCorreoId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(c => c.Participantes).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
+    }
+}
