@@ -17,6 +17,11 @@
         <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
             <Icono Nombre="dashboard" /> Dashboard
         </NavLink>
+        <AuthorizeView Roles="@RolesDeCartera" Context="authCartera">
+            <NavLink class="nav-item" href="vision-cartera">
+                <Icono Nombre="cartera" /> Visión de cartera
+            </NavLink>
+        </AuthorizeView>
 
         <span class="nav-grupo-titulo">Negocio</span>
         <NavLink class="nav-item" href="clientes">
@@ -135,4 +140,8 @@
 
     private const string RolesDeAdministracionAmpliada =
         $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}";
+
+    private const string RolesDeCartera =
+        $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
+        $"{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}";
 }
