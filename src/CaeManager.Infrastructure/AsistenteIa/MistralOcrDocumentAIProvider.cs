@@ -12,22 +12,16 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 
 /// <summary>
 /// Tercer <see cref="IDocumentAIProvider"/> real (ver
-/// docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1) — declara solo
-/// <see cref="CapacidadesProveedorIa.OcrImagenAEscaneado"/>, siguiendo el
-/// reparto de capacidades documentado (Mistral = OCR, Gemini =
-/// estructuración) hasta que exista un benchmark real que diga lo
-/// contrario. Mismo patrón "inerte por defecto" que
-/// <see cref="AnthropicDocumentAIProvider"/>/<see cref="GeminiDocumentAIProvider"/>:
-/// sin <see cref="MistralOcrOptions.ApiKey"/>, cada método falla con un
-/// error controlado, nunca lanza.
-///
-/// <c>ExtraerEstructuradoAsync</c> NO implementa la función "Document AI"
-/// de Mistral (extracción estructurada por esquema JSON, parámetro
-/// <c>document_annotation_format</c>) — el contrato HTTP ya está verificado
-/// (ver nota de Fase 47 en ROADMAP.md), pero la incompatibilidad es de
-/// firma: Mistral Document AI opera sobre el documento original en bruto,
-/// mientras que <c>ExtraerEstructuradoAsync</c> recibe texto pre-extraído.
-/// Devuelve un fallo controlado explícito.
+/// docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1) — declara
+/// <see cref="CapacidadesProveedorIa.OcrImagenAEscaneado"/> y
+/// <see cref="CapacidadesProveedorIa.ExtraccionEstructurada"/>. OCR vía
+/// la API <c>/v1/ocr</c> de Mistral; estructuración vía
+/// <c>/v1/chat/completions</c> con el modelo configurado en
+/// <see cref="MistralOcrOptions.ModeloChat"/> (por defecto
+/// <c>mistral-small-latest</c>) — mismo enfoque texto→JSON que Anthropic
+/// y Gemini, sin necesidad de enviar el documento en bruto. Mismo patrón
+/// "inerte por defecto": sin <see cref="MistralOcrOptions.ApiKey"/>,
+/// cada método falla con un error controlado, nunca lanza.
 /// </summary>
 public class MistralOcrDocumentAIProvider(
     HttpClient httpClient,
@@ -36,7 +30,41 @@ public class MistralOcrDocumentAIProvider(
 {
     public string Codigo => "mistral-ocr";
 
-    public CapacidadesProveedorIa Capacidades => CapacidadesProveedorIa.OcrImagenAEscaneado;
+    public CapacidadesProveedorIa Capacidades =>
+        CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada;
+
+    private const string SystemPromptEstructurado =
+        """
+        Eres un especialista en Coordinación de Actividades Empresariales
+        (CAE) y Prevención de Riesgos Laborales (PRL) en España, actuando
+        como sistema de extracción de datos, no como asistente conversacional.
+
+        Se te proporciona el texto de un documento (ya extraído, digital o
+        vía OCR) y el tipo de documento que se espera que sea.
+
+        Tu única tarea es devolver un objeto JSON estricto, sin ningún texto
+        adicional, sin explicaciones, sin bloques de código markdown — solo
+        el objeto JSON, con exactamente estos campos:
+
+        {"tipoDetectado": "...", "campos": {"fechaEmision": "YYYY-MM-DD" o ausente, "fechaVencimiento": "YYYY-MM-DD" o ausente, "tieneFirma": "true"/"false" o ausente, "nombreDeCampo": "valor", ...}, "confianzaGeneral": 0-100, "notasValidacion": "..." o null}
+
+        Reglas:
+        - "fechaEmision"/"fechaVencimiento" (si aparecen explícitas, formato
+          ISO YYYY-MM-DD) y "tieneFirma" ("true" si detectas una firma
+          física/digital/electrónica, "false" si claramente no hay ninguna)
+          son campos comunes a casi cualquier documento CAE — inclúyelos
+          cuando puedas determinarlos.
+        - Además de esos tres, "campos" contiene todos los demás datos
+          relevantes que puedas extraer con certeza razonable (importes,
+          números de referencia, partes implicadas, coberturas, etc.), como
+          pares clave/valor de texto — usa nombres de campo descriptivos en
+          minúscula.
+        - No inventes información. Si un dato no puede extraerse con
+          certeza, no lo incluyas en "campos" y explica el motivo en
+          "notasValidacion".
+        - confianzaGeneral: tu nivel de confianza global en esta extracción, 0-100.
+        - Responde únicamente con el objeto JSON.
+        """;
 
     public async Task<Result<TextoExtraccionDto>> ExtraerTextoAsync(byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default)
     {
@@ -99,11 +127,96 @@ public class MistralOcrDocumentAIProvider(
         }
     }
 
-    /// <summary>Ver el comentario de clase: Mistral Document AI opera sobre el documento original en bruto, no sobre texto pre-extraído — la incompatibilidad es de firma, no de contrato HTTP. No se activa (§ Capacidades); devuelve un fallo explícito si algo llegara a invocarla igualmente.</summary>
-    public Task<Result<ExtraccionEstructuradaDto>> ExtraerEstructuradoAsync(
-        string texto, string tipoEsperado, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear(
-            "DocumentAIProvider.NoSoportado", "Este proveedor no realiza extracción estructurada todavía.")));
+    public async Task<Result<ExtraccionEstructuradaDto>> ExtraerEstructuradoAsync(
+        string texto, string tipoEsperado, CancellationToken cancellationToken = default)
+    {
+        var config = opciones.Value;
+
+        if (string.IsNullOrWhiteSpace(config.ApiKey))
+        {
+            return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear(
+                "DocumentAIProvider.NoConfigurado", "La extracción automática por IA no está disponible ahora mismo."));
+        }
+
+        var solicitud = new SolicitudChatMistral(
+            config.ModeloChat,
+            [
+                new MensajeMistral("system", SystemPromptEstructurado),
+                new MensajeMistral("user", $"Tipo de documento esperado: \"{tipoEsperado}\".\n\nTexto del documento:\n{texto}")
+            ],
+            config.MaxTokensRespuestaChat);
+
+        using var peticion = new HttpRequestMessage(HttpMethod.Post, "https://api.mistral.ai/v1/chat/completions")
+        {
+            Content = JsonContent.Create(solicitud)
+        };
+        peticion.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.ApiKey);
+
+        try
+        {
+            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+
+            if (!respuesta.IsSuccessStatusCode)
+            {
+                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
+                logger.LogError("La API de Mistral chat devolvió {StatusCode}: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIProvider.ErrorApi", "No pudimos procesar el documento automáticamente."));
+            }
+
+            var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaChatMistral>(cancellationToken);
+            var textoRespuesta = cuerpo?.Choices?.FirstOrDefault()?.Message?.Content;
+
+            if (string.IsNullOrWhiteSpace(textoRespuesta))
+            {
+                return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIProvider.RespuestaVacia", "No pudimos procesar el documento automáticamente."));
+            }
+
+            var coste = (cuerpo?.Usage?.TokensEntrada ?? 0) / 1_000_000m * config.CostoPorMillonTokensEntradaChat
+                      + (cuerpo?.Usage?.TokensSalida ?? 0) / 1_000_000m * config.CostoPorMillonTokensSalidaChat;
+
+            return ParsearEstructurado(textoRespuesta, coste);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "Fallo de red al contactar la API de Mistral chat.");
+            return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIProvider.ErrorRed", "No pudimos procesar el documento automáticamente."));
+        }
+    }
+
+    private Result<ExtraccionEstructuradaDto> ParsearEstructurado(string texto, decimal costeEstimado)
+    {
+        var inicio = texto.IndexOf('{');
+        var fin = texto.LastIndexOf('}');
+
+        if (inicio < 0 || fin < inicio)
+        {
+            logger.LogWarning("La respuesta de extracción estructurada de Mistral no contenía un objeto JSON reconocible.");
+            return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear(
+                "DocumentAIProvider.RespuestaInvalida", "No pudimos interpretar el resultado de la extracción automática."));
+        }
+
+        var json = texto[inicio..(fin + 1)];
+
+        try
+        {
+            var extraido = JsonSerializer.Deserialize<ExtraccionEstructuradaJson>(json, JsonOpciones);
+            if (extraido is null)
+            {
+                return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear(
+                    "DocumentAIProvider.RespuestaInvalida", "No pudimos interpretar el resultado de la extracción automática."));
+            }
+
+            var confianza = Math.Clamp(extraido.ConfianzaGeneral, 0, 100);
+            var campos = (extraido.Campos ?? new Dictionary<string, string?>()) as IReadOnlyDictionary<string, string?>;
+            return Result.Exito(new ExtraccionEstructuradaDto(extraido.TipoDetectado, campos, confianza, extraido.NotasValidacion, costeEstimado));
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "No se pudo deserializar el resultado de la extracción estructurada de Mistral.");
+            return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear(
+                "DocumentAIProvider.RespuestaInvalida", "No pudimos interpretar el resultado de la extracción automática."));
+        }
+    }
 
     private static string DetectarTipoImagen(byte[] contenido)
     {
@@ -113,6 +226,31 @@ public class MistralOcrDocumentAIProvider(
             return "image/jpeg";
         return "image/jpeg";
     }
+
+    private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
+
+    private sealed record ExtraccionEstructuradaJson(
+        string? TipoDetectado, Dictionary<string, string?>? Campos, int ConfianzaGeneral, string? NotasValidacion);
+
+    private sealed record SolicitudChatMistral(
+        [property: JsonPropertyName("model")] string Model,
+        [property: JsonPropertyName("messages")] IReadOnlyList<MensajeMistral> Messages,
+        [property: JsonPropertyName("max_tokens")] int MaxTokens);
+
+    private sealed record MensajeMistral(
+        [property: JsonPropertyName("role")] string Role,
+        [property: JsonPropertyName("content")] string Content);
+
+    private sealed record RespuestaChatMistral(
+        [property: JsonPropertyName("choices")] IReadOnlyList<OpcionChatMistral>? Choices,
+        [property: JsonPropertyName("usage")] UsoChatMistral? Usage);
+
+    private sealed record OpcionChatMistral(
+        [property: JsonPropertyName("message")] MensajeMistral? Message);
+
+    private sealed record UsoChatMistral(
+        [property: JsonPropertyName("prompt_tokens")] int TokensEntrada,
+        [property: JsonPropertyName("completion_tokens")] int TokensSalida);
 
     private sealed record SolicitudOcrMistral(
         [property: JsonPropertyName("model")] string Model,
