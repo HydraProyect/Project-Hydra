@@ -1,5 +1,7 @@
 @page "/comunicaciones/macros"
 @rendermode InteractiveServer
+@* Ver Bandeja.razor: mismo criterio de rol para todo el módulo. *@
+@attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
 @using CaeManager.Application.Common
 @using CaeManager.Application.Comunicaciones.Commands.CrearMacro
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros

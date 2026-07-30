@@ -32,9 +32,13 @@ public record ConversacionDetalleDto(
     IReadOnlyList<ParticipanteDetalleDto> Participantes);
 
 public class ObtenerConversacionPorIdQueryHandler(
-    IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml)
+    IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
+    ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerConversacionPorIdQuery, ConversacionDetalleDto?>
 {
+    // Ver ObtenerConversacionesQueryHandler: mismo literal, mismo motivo.
+    private const string RolCliente = "Cliente";
+
     public async Task<ConversacionDetalleDto?> Handle(ObtenerConversacionPorIdQuery request, CancellationToken cancellationToken)
     {
         var conversacion = await (
@@ -57,8 +61,19 @@ public class ObtenerConversacionPorIdQueryHandler(
 
         if (conversacion is null) return null;
 
-        if (conversacion.ClienteId is not null && !await alcanceDatos.ClienteVisibleAsync(conversacion.ClienteId.Value, cancellationToken))
+        if (conversacion.ClienteId is not null)
+        {
+            if (!await alcanceDatos.ClienteVisibleAsync(conversacion.ClienteId.Value, cancellationToken))
+                return null;
+        }
+        // Un hilo sin cliente resuelto es de la cola de triage: mismo criterio
+        // que la lista (ObtenerConversacionesQueryHandler), porque si no,
+        // acotar solo el listado dejaba el hilo accesible a quien tuviera el
+        // Guid.
+        else if (await currentUserService.ObtenerRolActualAsync() == RolCliente)
+        {
             return null;
+        }
 
         // Se materializa antes de proyectar al DTO porque el saneado corre en
         // memoria: no hay forma de traducir el sanitizador a SQL.
