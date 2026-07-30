@@ -151,9 +151,14 @@ public class CaeManagerDbContext(
         // cada *Configuration.cs) — ver docs/MULTITENANCY.md § 4.2: EF Core
         // solo admite un HasQueryFilter por entidad, así que ponerlo en un
         // único lugar evita que un segundo HasQueryFilter futuro reemplace
-        // silenciosamente este sin que nadie lo note. Los 9 agregados con
-        // soft delete combinan ambos filtros; los 16 restantes (tablas de
+        // silenciosamente este sin que nadie lo note. Los 13 agregados con
+        // soft delete combinan ambos filtros; los 21 restantes (tablas de
         // unión/satélite sin ciclo de vida propio) solo llevan el de tenant.
+        // Las dos listas cubren las 34 entidades que heredan de
+        // EntidadConTenant/EntidadBase, sin excepción: es la invariante que
+        // enuncia docs/MULTITENANCY.md ("ninguna tabla sin filtro global") y
+        // la cubre AislamientoPorAgregadoTests. Toda entidad nueva añade aquí
+        // su línea y allí su test.
         // AspNetUsers queda deliberadamente sin filtro — el login necesita
         // poder resolver el usuario (y por tanto su tenant) antes de
         // conocerlo, ver TenantClaimsPrincipalFactory.
@@ -169,6 +174,7 @@ public class CaeManagerDbContext(
         builder.Entity<Proyecto>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
         builder.Entity<Evaluacion>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
         builder.Entity<Incidencia>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<TarifaCliente>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
 
         builder.Entity<Alerta>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<Asignacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
@@ -190,5 +196,6 @@ public class CaeManagerDbContext(
         builder.Entity<VisitaTrabajador>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<RevisionIaDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<ProyectoTecnico>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<AprobacionDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
     }
 }
