@@ -40,6 +40,7 @@ public partial class Trabajadores : ComponentBase
     private string _fechaNacimiento = string.Empty;
     private string _email = string.Empty;
     private string _observaciones = string.Empty;
+    private string _alias = string.Empty;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -147,6 +148,7 @@ public partial class Trabajadores : ComponentBase
         _dni = string.Empty;
         _nombre = string.Empty;
         _apellidos = string.Empty;
+        _alias = string.Empty;
         _fechaNacimiento = string.Empty;
         _email = string.Empty;
         _observaciones = string.Empty;
@@ -184,6 +186,7 @@ public partial class Trabajadores : ComponentBase
         _dni = trabajador.Dni;
         _nombre = trabajador.Nombre;
         _apellidos = trabajador.Apellidos;
+        _alias = trabajador.Alias ?? string.Empty;
         _fechaNacimiento = trabajador.FechaNacimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
         _email = trabajador.Email ?? string.Empty;
         _observaciones = trabajador.Observaciones ?? string.Empty;
@@ -208,6 +211,7 @@ public partial class Trabajadores : ComponentBase
         {
             var email = string.IsNullOrWhiteSpace(_email) ? null : _email;
             var observaciones = string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones;
+            var alias = string.IsNullOrWhiteSpace(_alias) ? null : _alias;
             var fechaNacimiento = DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : (DateOnly?)null;
 
             string? mensajeError;
@@ -237,13 +241,13 @@ public partial class Trabajadores : ComponentBase
                 }
 
                 var resultado = await Mediator.Send(
-                    new CrearTrabajadorCommand(empresaId, subcontrataId, _nombre, _apellidos, _dni, fechaNacimiento, email, observaciones));
+                    new CrearTrabajadorCommand(empresaId, subcontrataId, _nombre, _apellidos, _dni, fechaNacimiento, email, observaciones, alias));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
             else
             {
                 var resultado = await Mediator.Send(
-                    new EditarTrabajadorCommand(_editandoId.Value, _nombre, _apellidos, fechaNacimiento, email, observaciones));
+                    new EditarTrabajadorCommand(_editandoId.Value, _nombre, _apellidos, fechaNacimiento, email, observaciones, alias));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 

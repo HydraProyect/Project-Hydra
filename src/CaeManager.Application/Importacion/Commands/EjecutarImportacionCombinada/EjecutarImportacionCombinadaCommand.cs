@@ -241,7 +241,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
                 if (fechaNacimiento != existente.FechaNacimiento || email != existente.Email)
                 {
-                    existente.Actualizar(existente.Nombre, existente.Apellidos, fechaNacimiento, email, existente.Observaciones);
+                    existente.Actualizar(existente.Nombre, existente.Apellidos, fechaNacimiento, email, existente.Observaciones, existente.Alias);
                     trabajadoresActualizados++;
                 }
 
