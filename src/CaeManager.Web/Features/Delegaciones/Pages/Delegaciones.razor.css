@@ -1,0 +1,45 @@
+.descripcion-delegaciones {
+    max-width: 70ch;
+    margin-bottom: var(--space-5);
+    color: var(--color-text-secondary);
+    font: var(--font-body-sm);
+}
+
+.tarjeta-delegacion {
+    margin-bottom: var(--space-4);
+}
+
+.delegacion-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+}
+
+.delegacion-titulo {
+    margin: 0;
+    font: var(--font-heading-sm);
+}
+
+.delegacion-fecha {
+    color: var(--color-text-secondary);
+    font: var(--font-body-sm);
+}
+
+.delegacion-acciones {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.delegacion-sin-operadores {
+    color: var(--color-text-secondary);
+    font: var(--font-body-sm);
+}
+
+.aviso-revocacion {
+    color: var(--color-text-secondary);
+    font: var(--font-body-sm);
+}
