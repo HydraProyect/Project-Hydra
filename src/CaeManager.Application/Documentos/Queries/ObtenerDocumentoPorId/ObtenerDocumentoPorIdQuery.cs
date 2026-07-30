@@ -36,6 +36,7 @@ public class ObtenerDocumentoPorIdQueryHandler(IApplicationDbContext dbContext, 
                 d.ClienteId,
                 d.EmpresaId,
                 d.VehiculoId,
+                d.ProyectoId,
                 d.TipoDocumentoId,
                 d.FechaEmision,
                 d.FechaVencimiento,
@@ -51,13 +52,19 @@ public class ObtenerDocumentoPorIdQueryHandler(IApplicationDbContext dbContext, 
         // excluyentes (ver Fase 29 de ROADMAP.md), así que solo una aplica.
         // Documento de Trabajador es el caso más sensible: incluye archivos de
         // vigilancia de la salud (categoría especial Art. 9 RGPD).
+        var proyectoClienteId = documento.ProyectoId is { } proyectoIdVisibilidad
+            ? await dbContext.Proyectos.Where(p => p.Id == proyectoIdVisibilidad).Select(p => (Guid?)p.ClienteId).FirstOrDefaultAsync(cancellationToken)
+            : null;
+
         var visible = documento.TrabajadorId is { } trabajadorId
             ? await alcanceDatos.TrabajadorVisibleAsync(trabajadorId, cancellationToken)
             : documento.ClienteId is { } clienteId
                 ? await alcanceDatos.ClienteVisibleAsync(clienteId, cancellationToken)
                 : documento.VehiculoId is { } vehiculoId
                     ? await alcanceDatos.VehiculoVisibleAsync(vehiculoId, cancellationToken)
-                    : await alcanceDatos.EmpresaVisibleAsync(documento.EmpresaId!.Value, cancellationToken);
+                    : proyectoClienteId is { } clienteIdDeProyecto
+                        ? await alcanceDatos.ClienteVisibleAsync(clienteIdDeProyecto, cancellationToken)
+                        : await alcanceDatos.EmpresaVisibleAsync(documento.EmpresaId!.Value, cancellationToken);
 
         if (!visible) return null;
 
@@ -91,10 +98,15 @@ public class ObtenerDocumentoPorIdQueryHandler(IApplicationDbContext dbContext, 
                         .Where(v => v.Id == documento.VehiculoId)
                         .Select(v => v.Nombre + " (" + v.NumeroPlaca + ")")
                         .FirstAsync(cancellationToken))
-                    : (AmbitoAplicacion.Empresa, await dbContext.Empresas
-                        .Where(e => e.Id == documento.EmpresaId)
-                        .Select(e => e.RazonSocial)
-                        .FirstAsync(cancellationToken));
+                    : documento.ProyectoId is not null
+                        ? (AmbitoAplicacion.Proyecto, await dbContext.Proyectos
+                            .Where(p => p.Id == documento.ProyectoId)
+                            .Select(p => p.Nombre)
+                            .FirstAsync(cancellationToken))
+                        : (AmbitoAplicacion.Empresa, await dbContext.Empresas
+                            .Where(e => e.Id == documento.EmpresaId)
+                            .Select(e => e.RazonSocial)
+                            .FirstAsync(cancellationToken));
 
         return new DocumentoDetalleDto(
             documento.Id, ambito, propietarioNombre, tipoDocumento.Nombre,

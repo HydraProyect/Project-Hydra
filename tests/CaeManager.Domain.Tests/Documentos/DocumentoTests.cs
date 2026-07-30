@@ -62,6 +62,29 @@ public class DocumentoTests
     }
 
     [Fact]
+    public void DeProyecto_asigna_solo_ProyectoId()
+    {
+        var proyectoId = Guid.NewGuid();
+
+        var documento = Documento.DeProyecto(proyectoId, Guid.NewGuid(), Hoy, null);
+
+        documento.ProyectoId.Should().Be(proyectoId);
+        documento.TrabajadorId.Should().BeNull();
+        documento.ClienteId.Should().BeNull();
+        documento.EmpresaId.Should().BeNull();
+        documento.VehiculoId.Should().BeNull();
+        documento.Ambito.Should().Be(AmbitoAplicacion.Proyecto);
+    }
+
+    [Fact]
+    public void No_permite_crear_un_documento_de_proyecto_sin_proyecto()
+    {
+        var accion = () => Documento.DeProyecto(Guid.Empty, Guid.NewGuid(), Hoy, null);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
     public void No_permite_crear_un_documento_de_vehiculo_sin_vehiculo()
     {
         var accion = () => Documento.DeVehiculo(Guid.Empty, Guid.NewGuid(), Hoy, null);
