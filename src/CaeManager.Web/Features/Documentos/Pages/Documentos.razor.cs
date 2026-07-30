@@ -100,15 +100,24 @@ public partial class Documentos : ComponentBase
     private bool _procesandoConfirmacionVigencia;
 
     /// <summary>
+    /// El alias (nombre con el que el trabajador firma o está dado de alta
+    /// en plataformas externas) se incluye en el texto buscable para que
+    /// escribirlo también lo encuentre — la identidad real para el
+    /// pre-relleno automático siempre se verifica por DNI, nunca por este
+    /// texto (ver DetectarCamposDocumentoQuery).
+    /// </summary>
+    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => _trabajadoresDisponibles
+        .Select(t => new OpcionBuscable(
+            t.Id.ToString(),
+            string.IsNullOrWhiteSpace(t.Alias) ? $"{t.NombreCompleto} ({t.Dni})" : $"{t.NombreCompleto} — {t.Alias} ({t.Dni})"))
+        .ToList();
+
+    /// <summary>
     /// Solo los tipos de documento sin vencimiento automático piden una
     /// fecha de vencimiento a mano — los automáticos la calculan siempre a
     /// partir de la vigencia en meses, así que no tiene sentido mostrarles
     /// el campo ni el botón de copiar.
     /// </summary>
-    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => _trabajadoresDisponibles
-        .Select(t => new OpcionBuscable(t.Id.ToString(), $"{t.NombreCompleto} ({t.Dni})"))
-        .ToList();
-
     private bool RequiereVencimientoManual =>
         _editandoId is null
             ? _tiposDisponibles.FirstOrDefault(t => t.Id.ToString() == _tipoDocumentoId) is { AplicaVencimientoAutomatico: false }
