@@ -6,6 +6,8 @@ using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Xunit;
 
 namespace CaeManager.IntegrationTests;
@@ -36,6 +38,10 @@ public class MigracionesTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _dbContext.DisposeAsync();
+        // Microsoft.Data.Sqlite devuelve la conexión a su pool al disponer el
+        // contexto, y ese handle sigue abierto: en Windows impide borrar el
+        // archivo y hacía fallar el teardown (no el cuerpo) del test.
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
     }
 
@@ -151,6 +157,57 @@ public class MigracionesTests : IAsyncLifetime
         var recuperado = await _dbContext.Clientes.FindAsync(cliente.Id);
 
         recuperado!.TenantId.Should().Be(TenantSeedData.IdPorDefecto);
+    }
+
+    // --- Descubrimiento de migraciones ---
+
+    [Fact]
+    public void EF_descubre_todas_las_clases_Migration_del_ensamblado()
+    {
+        // AddTarifasCliente se saltaba en silencio: es una migración escrita a
+        // mano (sin .Designer.cs) y le faltaban los atributos [DbContext] y
+        // [Migration], que es donde EF Core lee el identificador. Sin ellos la
+        // clase existe, compila y no la aplica nadie — la tabla TarifasCliente
+        // no llegaba a crearse nunca y el módulo de Facturación fallaba al
+        // usarla. No hay error ni aviso: por eso hace falta este test.
+        var clasesMigracion = typeof(CaeManagerDbContext).Assembly
+            .GetTypes()
+            .Where(t => typeof(Migration).IsAssignableFrom(t) && t is { IsAbstract: false, IsGenericType: false })
+            .Select(t => t.Name)
+            .OrderBy(n => n)
+            .ToList();
+
+        var descubiertas = _dbContext.GetService<IMigrationsAssembly>().Migrations.Values
+            .Select(t => t.Name)
+            .OrderBy(n => n)
+            .ToList();
+
+        clasesMigracion.Should().NotBeEmpty("el ensamblado debe tener migraciones");
+        descubiertas.Should().BeEquivalentTo(
+            clasesMigracion,
+            "toda clase Migration del ensamblado debe ser descubierta por EF; si falta alguna, "
+            + "probablemente sea manual y le falten los atributos [DbContext]/[Migration]");
+    }
+
+    [Fact]
+    public async Task Las_tablas_de_las_migraciones_manuales_existen_tras_migrar()
+    {
+        // Comprobación de resultado, no de metadatos: las dos migraciones
+        // escritas a mano (AddTarifasCliente, AddProyectos) son las que se
+        // saltan sin ruido si pierden los atributos.
+        var tablas = new List<string>();
+
+        await _dbContext.Database.OpenConnectionAsync();
+        await using (var comando = _dbContext.Database.GetDbConnection().CreateCommand())
+        {
+            comando.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table';";
+            await using var lector = await comando.ExecuteReaderAsync();
+            while (await lector.ReadAsync())
+                tablas.Add(lector.GetString(0));
+        }
+
+        tablas.Should().Contain("TarifasCliente");
+        tablas.Should().Contain("Proyectos");
     }
 
     [Fact]
