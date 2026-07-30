@@ -213,6 +213,10 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 
+// Antes de todo lo que produce respuesta (páginas, endpoints y estáticos):
+// las cabeceras han de ir en cualquier respuesta, incluidas las de error.
+app.UseCabecerasSeguridad();
+
 app.UseRequestLocalization(new RequestLocalizationOptions()
     .SetDefaultCulture(culturaEspanola.Name)
     .AddSupportedCultures(culturaEspanola.Name)
