@@ -1,0 +1,318 @@
+.bandeja-contenedor {
+    max-width: none;
+}
+
+.bandeja-layout {
+    display: grid;
+    grid-template-columns: 340px minmax(0, 1fr);
+    gap: var(--space-6);
+    align-items: start;
+    height: calc(100vh - 220px);
+    min-height: 480px;
+}
+
+.bandeja-layout:has(.bandeja-cliente) {
+    grid-template-columns: 340px minmax(0, 1fr) 320px;
+}
+
+.bandeja-columna {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* --- Columna de filtros / lista --- */
+
+.bandeja-filtros {
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-surface);
+    overflow: hidden;
+}
+
+.bandeja-filtros-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-bottom: var(--border-default);
+}
+
+.bandeja-filtros-form .campo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.bandeja-filtros-form .campo label {
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+.bandeja-filtros-form .campo-input {
+    min-height: 44px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-md);
+    border: var(--border-default);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+}
+
+.bandeja-toggles {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.bandeja-lista {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-2) 0;
+}
+
+.bandeja-grupo-cabecera {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: var(--font-label-md);
+    color: var(--color-text);
+    text-align: left;
+}
+
+.bandeja-grupo-cabecera:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.bandeja-grupo-filas {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.bandeja-fila {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+    border-top: var(--border-default);
+    cursor: pointer;
+}
+
+.bandeja-fila:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.bandeja-fila-activa {
+    background-color: var(--color-primary-50);
+}
+
+.bandeja-fila-linea1,
+.bandeja-fila-linea3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.bandeja-fila-remitente {
+    font: var(--font-label-md);
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bandeja-fila-fecha {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+.bandeja-fila-asunto {
+    font: var(--font-body-md);
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bandeja-fila-preview {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* --- Columna central --- */
+
+.bandeja-centro {
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-surface);
+    overflow: hidden;
+}
+
+.bandeja-centro-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border-bottom: var(--border-default);
+    flex-wrap: wrap;
+}
+
+.bandeja-centro-titulo h2 {
+    font: var(--font-heading-sm);
+}
+
+.bandeja-centro-subtitulo {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.bandeja-centro-acciones {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.bandeja-mensajes {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.bandeja-mensaje {
+    max-width: 70%;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-card-sm);
+    border: var(--border-default);
+}
+
+.bandeja-mensaje-entrante {
+    align-self: flex-start;
+    background-color: var(--color-surface);
+}
+
+.bandeja-mensaje-saliente {
+    align-self: flex-end;
+    background-color: var(--color-secondary-50);
+    border-color: var(--color-secondary-100);
+}
+
+.bandeja-mensaje-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.bandeja-mensaje-remitente {
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+.bandeja-mensaje-fecha {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    margin-left: auto;
+}
+
+.bandeja-mensaje-cuerpo {
+    font: var(--font-body-md);
+    color: var(--color-text);
+    word-break: break-word;
+}
+
+.bandeja-triage-banner {
+    padding: var(--space-4);
+    border-top: var(--border-default);
+    background-color: var(--color-info-50);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.bandeja-triage-acciones {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-3);
+}
+
+.bandeja-triage-acciones .campo {
+    flex: 1;
+}
+
+.bandeja-respuesta {
+    padding: var(--space-4);
+    border-top: var(--border-default);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.bandeja-respuesta-acciones {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* --- Columna cliente --- */
+
+.bandeja-cliente {
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-surface);
+    padding: var(--space-4);
+    overflow-y: auto;
+}
+
+.bandeja-cliente-datos {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-1) var(--space-3);
+    margin: var(--space-3) 0;
+}
+
+.bandeja-cliente-datos dt {
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+}
+
+.bandeja-cliente-datos dd {
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-text);
+}
+
+.bandeja-cliente-notas {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 1200px) {
+    .bandeja-layout,
+    .bandeja-layout:has(.bandeja-cliente) {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .bandeja-columna {
+        height: auto;
+        max-height: 70vh;
+    }
+}
