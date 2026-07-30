@@ -572,7 +572,7 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 - **Orden de registro en DI, cambiado deliberadamente**: `MistralOcrDocumentAIProvider` se registra *antes* que `AnthropicDocumentAIProvider` — importa porque `DocumentAIRouterService.ObtenerTextoAsync` no reintenta en el paso de OCR (a diferencia del paso de estructuración, que sí compara dos candidatos — Fase 41): usa directamente el primero de la lista. Con Mistral registrado primero, pasa a ser el proveedor de OCR real usado en cuanto tenga clave (Anthropic queda como respaldo de OCR, ya no como primario) — sin este cambio de orden, Mistral quedaría registrado pero nunca se llamaría. Para estructuración, el orden Anthropic→Gemini no cambia (seguir usando Anthropic como primario ahí sigue siendo una decisión pendiente de benchmark, no algo que deba cambiar solo por tener una clave nueva de un proveedor de OCR).
 - `dotnet build -warnaserror`/`dotnet format --verify-no-changes` limpios. Mismo criterio que Fase 46: sin tests HTTP dedicados (no hay mocking de `HttpMessageHandler` en este proyecto para ningún `IDocumentAIProvider` concreto). 134 Domain, 72 Application, 13 Web.Tests, 87/89 IntegrationTests, 8/8 E2E en verde (mismos 2 fallos preexistentes de LibreOffice).
 - **Clave real provisionada** por el usuario; sin verificación end-to-end con una llamada real a la API de Mistral en este entorno (mismo motivo que Gemini, agravado por la incidencia de proxy descrita arriba) — pendiente que el usuario lo pruebe con un documento real.
-- **Fuera de alcance, explícitamente no construido**: `ExtraerEstructuradoAsync` real vía "Document AI" (incompatibilidad de firma, ver arriba); benchmark comparativo real Gemini vs Mistral OCR 4 con documentos de Hydra; activar la capacidad `ExtraccionEstructurada` en Mistral.
+- **Fuera de alcance, explícitamente no construido en esta fase**: benchmark comparativo real Gemini vs Mistral OCR 4 con documentos de Hydra (pendiente de pruebas con clave real). `ExtraerEstructuradoAsync` vía chat completions implementado en Fase 52.
 
 ## Fase 48 — SLA documental en Dashboard + módulo de Facturación y costes por cliente (2026-07-26)
 
@@ -636,7 +636,7 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 - **NavMenu**: enlace "Auditoría IA" bajo el grupo Administración (solo visible para rol Administrador), junto al enlace de Auditoría ya existente.
 - Build limpio, mismos 85/87 tests en verde (2 fallos preexistentes de LibreOffice, no relacionados).
 
-## Fase 50 — Rasterización para el Caso Mixto del Document AI Router
+## Fase 51 — Rasterización para el Caso Mixto del Document AI Router
 
 ✅ Completa (2026-07-26). Cierra la simplificación documentada desde Fase 3 en § 4.3 de `docs/ARQUITECTURA-IA-DOCUMENTAL.md`: el Caso 4 (documento Mixto) ya no envía el PDF completo a OCR — solo rasteriza y hace OCR en las páginas realmente escaneadas, y extrae texto localmente en las páginas digitales.
 
@@ -646,6 +646,15 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 - **Beneficio de coste real**: si un documento de 20 páginas tiene 8 digitales + 12 escaneadas, Mistral OCR se paga solo por 12 páginas en lugar de 20.
 - Tests: 3 nuevos casos — texto combinado en orden correcto, acumulación de coste OCR con 2 páginas escaneadas, y fallo controlado si el rasterizador no puede procesar el PDF. 76/76 Application, 134/134 Domain, 13/13 Web.Tests, 85/87 IntegrationTests, 8/8 E2E en verde (mismos 2 fallos LibreOffice en sandbox local, pasan en CI).
 - **Fuera de alcance, no construido**: paralelización de las llamadas OCR por página (en documentos con muchas páginas escaneadas, las llamadas se hacen en serie — YAGNI hasta que haya evidencia de que es un cuello de botella real).
+
+## Fase 52 — `ExtraerEstructuradoAsync` real en `MistralOcrDocumentAIProvider` (2026-07-30)
+
+✅ Completa (2026-07-30). Cierra la limitación de firma documentada en Fase 47: `ExtraerEstructuradoAsync` ya no devuelve un fallo controlado — usa el API de chat completions de Mistral (`/v1/chat/completions`) con el texto pre-extraído, el mismo enfoque que Anthropic y Gemini, sin necesidad de reenviar el documento en bruto.
+
+- **`MistralOcrOptions`**: añadidos `ModeloChat` (default `mistral-small-latest`), `MaxTokensRespuestaChat` (1024), `CostoPorMillonTokensEntradaChat` ($0,20/1M) y `CostoPorMillonTokensSalidaChat` ($0,60/1M). El campo `Modelo` existente sigue siendo solo para OCR (`mistral-ocr-latest`).
+- **`MistralOcrDocumentAIProvider`**: `Capacidades` pasa a declarar `OcrImagenAEscaneado | ExtraccionEstructurada`. `ExtraerEstructuradoAsync` implementado con el mismo `SystemPromptEstructurado` que Anthropic/Gemini (prompt CAE/PRL → JSON con `tipoDetectado`/`campos`/`confianzaGeneral`/`notasValidacion`), `ParsearEstructurado` con la misma red de seguridad (extrae primer `{...}` del texto en caso de que el modelo envuelva el JSON en markdown). Coste estimado calculado a partir de `usage.prompt_tokens`/`completion_tokens`.
+- Nuevo proveedor de chat: `SolicitudChatMistral` + `MensajeMistral` + `RespuestaChatMistral` + `OpcionChatMistral` + `UsoChatMistral` — records privados en el mismo archivo, sin dependencias externas nuevas.
+- Build limpio, 76/76 tests Application en verde. Sin tests HTTP dedicados (patrón establecido del proyecto). Pendiente: prueba E2E con clave real en Railway.
 
 ## Épico — Plataforma de Integraciones (backlog, sin implementar — 2026-07-23)
 
