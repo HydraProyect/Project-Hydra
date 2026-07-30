@@ -1,29 +1,65 @@
-.rejilla-kpis {
+/*
+  Jerarquía del Dashboard en dos niveles (ver DESIGN_SYSTEM.md, rediseño de
+  jerarquía visual): .rejilla-kpis-criticos es la primera cosa que se lee —
+  documentos que exigen acción y el SLA — con el tratamiento "premium"
+  completo (degradado, borde de color, número grande). .rejilla-kpis-secundarios
+  es información de contexto (trabajadores activos, centros, visitas...) que
+  no requiere ninguna decisión hoy, así que se apoya menos para no competir
+  visualmente con lo que sí la requiere.
+*/
+.dashboard-cabecera {
+    margin-bottom: var(--space-8);
+}
+
+.dashboard-kicker {
+    display: block;
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: var(--space-1);
+}
+
+.dashboard-subtitulo {
+    font: var(--font-heading-sm);
+    color: var(--color-text-muted);
+    margin: var(--space-8) 0 var(--space-3);
+}
+
+.dashboard-subtitulo:first-child {
+    margin-top: 0;
+}
+
+.rejilla-kpis-criticos {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: var(--space-4);
+}
+
+.rejilla-kpis-secundarios {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-3);
 }
 
 /*
   Revelado escalonado de las tarjetas KPI (ver .stagger-item en
   list-page.css) — TarjetaMetrica es un componente hijo, así que hace
   falta ::deep para que el aislamiento de CSS de Blazor alcance su
-  elemento raíz.
+  elemento raíz. Solo en el nivel crítico: el secundario es deliberadamente
+  más silencioso, incluida su entrada.
 */
-.rejilla-kpis ::deep .tarjeta-metrica {
+.rejilla-kpis-criticos ::deep .tarjeta-metrica {
     animation: revelar-escalonado var(--transition-slow) ease-out backwards;
 }
 
-.rejilla-kpis ::deep .tarjeta-metrica:nth-child(1) { animation-delay: 0ms; }
-.rejilla-kpis ::deep .tarjeta-metrica:nth-child(2) { animation-delay: 40ms; }
-.rejilla-kpis ::deep .tarjeta-metrica:nth-child(3) { animation-delay: 80ms; }
-.rejilla-kpis ::deep .tarjeta-metrica:nth-child(4) { animation-delay: 120ms; }
-.rejilla-kpis ::deep .tarjeta-metrica:nth-child(5) { animation-delay: 160ms; }
-.rejilla-kpis ::deep .tarjeta-metrica:nth-child(6) { animation-delay: 200ms; }
-.rejilla-kpis ::deep .tarjeta-metrica:nth-child(7) { animation-delay: 240ms; }
+.rejilla-kpis-criticos ::deep .tarjeta-metrica:nth-child(1) { animation-delay: 0ms; }
+.rejilla-kpis-criticos ::deep .tarjeta-metrica:nth-child(2) { animation-delay: 40ms; }
+.rejilla-kpis-criticos ::deep .tarjeta-metrica:nth-child(3) { animation-delay: 80ms; }
+.rejilla-kpis-criticos ::deep .tarjeta-metrica:nth-child(4) { animation-delay: 120ms; }
 
 @media (prefers-reduced-motion: reduce) {
-    .rejilla-kpis ::deep .tarjeta-metrica {
+    .rejilla-kpis-criticos ::deep .tarjeta-metrica {
         animation: none;
     }
 }
@@ -36,13 +72,13 @@
   el borde de color semántico (vencido/urgente/próximo/vigente), que sigue
   siendo el portador principal de significado.
 */
-.rejilla-kpis ::deep .tarjeta-metrica {
+.rejilla-kpis-criticos ::deep .tarjeta-metrica {
     position: relative;
     overflow: hidden;
     isolation: isolate;
 }
 
-.rejilla-kpis ::deep .tarjeta-metrica::before {
+.rejilla-kpis-criticos ::deep .tarjeta-metrica::before {
     content: '';
     position: absolute;
     inset: -50%;
@@ -54,8 +90,8 @@
     pointer-events: none;
 }
 
-.rejilla-kpis ::deep .tarjeta-metrica-etiqueta,
-.rejilla-kpis ::deep .tarjeta-metrica-valor {
+.rejilla-kpis-criticos ::deep .tarjeta-metrica-etiqueta,
+.rejilla-kpis-criticos ::deep .tarjeta-metrica-valor {
     position: relative;
     z-index: 1;
 }
@@ -66,7 +102,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .rejilla-kpis ::deep .tarjeta-metrica::before {
+    .rejilla-kpis-criticos ::deep .tarjeta-metrica::before {
         animation: none;
     }
 }

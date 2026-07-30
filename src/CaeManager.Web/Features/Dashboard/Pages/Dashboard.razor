@@ -6,7 +6,10 @@
 <PageTitle>Dashboard — CAE Manager</PageTitle>
 
 <div class="contenedor-pagina">
-    <h1 class="titulo-pagina">Dashboard</h1>
+    <div class="dashboard-cabecera">
+        <span class="dashboard-kicker">Dashboard</span>
+        <h1 class="titulo-pagina">@Saludo</h1>
+    </div>
 
     @if (_error)
     {
@@ -22,16 +25,55 @@
     }
     else
     {
-        <div class="rejilla-kpis">
-            <TarjetaMetrica Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" Enlace="/trabajadores" />
-            <TarjetaMetrica Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" Enlace="/centros" />
+        <div class="rejilla-kpis-criticos">
             <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()" Tono="TonoBadge.Peligro" Enlace="/alertas?estado=Vencido" />
             <TarjetaMetrica Etiqueta="Urgentes (≤15 días)" Valor="@_kpis.DocumentosUrgentes.ToString()" Tono="TonoBadge.Peligro" Enlace="/alertas?estado=Urgente" />
             <TarjetaMetrica Etiqueta="Próximos (≤30 días)" Valor="@_kpis.DocumentosProximos.ToString()" Tono="TonoBadge.Advertencia" Enlace="/alertas?estado=Proximo" />
-            <TarjetaMetrica Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" Tono="TonoBadge.Exito" Enlace="/documentos?estado=Vigente" />
-            <TarjetaMetrica Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" Enlace="/visitas" />
             <TarjetaMetrica Etiqueta="SLA documental" Valor="@($"{_kpis.TasaCumplimientoDocumental}%")"
                             Tono="@SlaDocumentalTono(_kpis.TasaCumplimientoDocumental)" Enlace="/documentos" />
+        </div>
+
+        @if (_mostrarDocumentosAtencion && _desglose is not null)
+        {
+            <Tarjeta Titulo="Documentos que requieren atención">
+                @if (_desglose.DocumentosAtencion.Count == 0)
+                {
+                    <p class="texto-vacio-seccion">No hay documentos urgentes ni vencidos ahora mismo.</p>
+                }
+                else
+                {
+                    <table class="tabla-datos">
+                        <thead>
+                            <tr>
+                                <th>Estado</th>
+                                <th>Trabajador</th>
+                                <th>Tipo de documento</th>
+                                <th>Vencimiento</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var documento in _desglose.DocumentosAtencion)
+                            {
+                                <tr class="fila-clicable" @onclick="() => IrADocumento(documento.DocumentoId)">
+                                    <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
+                                    <td>@documento.TrabajadorNombre</td>
+                                    <td>@documento.TipoDocumentoNombre</td>
+                                    <td>@(documento.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <a class="enlace-ver-todas" href="/alertas">Ver todas las alertas →</a>
+                }
+            </Tarjeta>
+        }
+
+        <h2 class="dashboard-subtitulo">Actividad general</h2>
+        <div class="rejilla-kpis-secundarios">
+            <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" Enlace="/trabajadores" />
+            <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" Enlace="/centros" />
+            <TarjetaMetrica Discreta="true" Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" Enlace="/documentos?estado=Vigente" />
+            <TarjetaMetrica Discreta="true" Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" Enlace="/visitas" />
         </div>
 
         @if (_mostrarDocumentosAtencion && _desglose is not null)
@@ -69,38 +111,6 @@
                         }
                     </Tarjeta>
                 }
-
-                <Tarjeta Titulo="Documentos que requieren atención">
-                    @if (_desglose.DocumentosAtencion.Count == 0)
-                    {
-                        <p class="texto-vacio-seccion">No hay documentos urgentes ni vencidos ahora mismo.</p>
-                    }
-                    else
-                    {
-                        <table class="tabla-datos">
-                            <thead>
-                                <tr>
-                                    <th>Estado</th>
-                                    <th>Trabajador</th>
-                                    <th>Tipo de documento</th>
-                                    <th>Vencimiento</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var documento in _desglose.DocumentosAtencion)
-                                {
-                                    <tr class="fila-clicable" @onclick="() => IrADocumento(documento.DocumentoId)">
-                                        <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
-                                        <td>@documento.TrabajadorNombre</td>
-                                        <td>@documento.TipoDocumentoNombre</td>
-                                        <td>@(documento.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                        <a class="enlace-ver-todas" href="/alertas">Ver todas las alertas →</a>
-                    }
-                </Tarjeta>
 
                 @if (_mostrarCentrosEnRiesgo)
                 {
