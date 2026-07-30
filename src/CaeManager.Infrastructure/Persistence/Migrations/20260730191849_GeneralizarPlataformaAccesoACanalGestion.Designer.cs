@@ -3,6 +3,7 @@ using System;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CaeManager.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260730191849_GeneralizarPlataformaAccesoACanalGestion")]
+    partial class GeneralizarPlataformaAccesoACanalGestion
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
@@ -398,9 +401,6 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("FechaVencimiento")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("ProyectoId")
-                        .HasColumnType("TEXT");
-
                     b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
@@ -420,8 +420,6 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.HasIndex("ClienteId", "TipoDocumentoId");
 
                     b.HasIndex("EmpresaId", "TipoDocumentoId");
-
-                    b.HasIndex("ProyectoId", "TipoDocumentoId");
 
                     b.HasIndex("TrabajadorId", "TipoDocumentoId");
 
@@ -1940,93 +1938,6 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.HasIndex("UsuarioDestinatarioId", "Leida");
 
                     b.ToTable("NotificacionesUsuario", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Proyectos.Proyecto", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("CentroId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("ClienteId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreadoEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("EliminadoEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("EliminadoPorUsuarioId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("EstaEliminado")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateOnly?>("FechaCierreReal")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateOnly?>("FechaFinPrevista")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateOnly>("FechaInicio")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Notas")
-                        .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CentroId");
-
-                    b.HasIndex(new[] { "TenantId", "ClienteId", "Nombre" }, "IX_Proyectos_TenantId_ClienteId_Nombre")
-                        .IsUnique()
-                        .HasFilter("\"EstaEliminado\" = 0");
-
-                    b.ToTable("Proyectos", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Proyectos.ProyectoTecnico", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateOnly>("FechaAlta")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateOnly?>("FechaBaja")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("ProyectoId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TrabajadorId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TrabajadorId");
-
-                    b.HasIndex(new[] { "TenantId", "ProyectoId", "TrabajadorId", "FechaAlta" }, "IX_ProyectosTecnicos_TenantId_ProyectoId_TrabajadorId_FechaAlta")
-                        .IsUnique();
-
-                    b.ToTable("ProyectosTecnicos", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.RequisitosDocumentales.RequisitoDocumental", b =>

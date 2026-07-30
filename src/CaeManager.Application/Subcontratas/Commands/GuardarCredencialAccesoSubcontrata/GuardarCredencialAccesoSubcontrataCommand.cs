@@ -11,7 +11,7 @@ namespace CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSu
 /// un juego de credenciales — mismo patrón que GuardarCredencialAccesoEmpresaCommand.
 /// </summary>
 public record GuardarCredencialAccesoSubcontrataCommand(
-    Guid SubcontrataId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena) : IRequest<Result>;
+    Guid SubcontrataId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : IRequest<Result>;
 
 public class GuardarCredencialAccesoSubcontrataCommandValidator : AbstractValidator<GuardarCredencialAccesoSubcontrataCommand>
 {
@@ -22,6 +22,7 @@ public class GuardarCredencialAccesoSubcontrataCommandValidator : AbstractValida
         RuleFor(c => c.CampoEmpresa).MaximumLength(CredencialAccesoSubcontrata.LongitudMaximaCampoEmpresa);
         RuleFor(c => c.Usuario).MaximumLength(CredencialAccesoSubcontrata.LongitudMaximaUsuario);
         RuleFor(c => c.Contrasena).MaximumLength(CredencialAccesoSubcontrata.LongitudMaximaContrasena);
+        RuleFor(c => c.Notas).MaximumLength(CredencialAccesoSubcontrata.LongitudMaximaNotas);
     }
 }
 
@@ -40,12 +41,12 @@ public class GuardarCredencialAccesoSubcontrataCommandHandler(
         if (credencial is null)
         {
             credencial = new CredencialAccesoSubcontrata(
-                request.SubcontrataId, request.UrlAcceso, request.CampoEmpresa, request.Usuario, request.Contrasena);
+                request.SubcontrataId, request.UrlAcceso, request.CampoEmpresa, request.Usuario, request.Contrasena, request.Notas);
             credencialRepositorio.Agregar(credencial);
         }
         else
         {
-            credencial.Actualizar(request.UrlAcceso, request.CampoEmpresa, request.Usuario, request.Contrasena);
+            credencial.Actualizar(request.UrlAcceso, request.CampoEmpresa, request.Usuario, request.Contrasena, request.Notas);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

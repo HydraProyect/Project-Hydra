@@ -36,7 +36,7 @@ public class CaeManagerDbContext(
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options), IApplicationDbContext, IUnitOfWork
 {
     private readonly IDataProtector _protectorCredenciales =
-        dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1");
+        dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
     private readonly IDataProtector _protectorCredencialesEmpresa =
         dataProtectionProvider.CreateProtector("CaeManager.CredencialAccesoEmpresa.Credenciales.v1");
     private readonly IDataProtector _protectorCredencialesSubcontrata =
@@ -44,8 +44,8 @@ public class CaeManagerDbContext(
 
     public DbSet<Cliente> Clientes => Set<Cliente>();
     public DbSet<Centro> Centros => Set<Centro>();
-    public DbSet<PlataformaAcceso> PlataformasAcceso => Set<PlataformaAcceso>();
-    IQueryable<PlataformaAcceso> IApplicationDbContext.PlataformasAcceso => PlataformasAcceso;
+    public DbSet<CanalGestionDocumental> CanalesGestionDocumental => Set<CanalGestionDocumental>();
+    IQueryable<CanalGestionDocumental> IApplicationDbContext.CanalesGestionDocumental => CanalesGestionDocumental;
     public DbSet<Empresa> Empresas => Set<Empresa>();
     public DbSet<EmpresaCliente> EmpresasClientes => Set<EmpresaCliente>();
     public DbSet<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Set<CredencialAccesoEmpresa>();
@@ -128,8 +128,8 @@ public class CaeManagerDbContext(
             valorPlano => valorPlano == null ? null : _protectorCredenciales.Protect(valorPlano),
             valorCifrado => valorCifrado == null ? null : _protectorCredenciales.Unprotect(valorCifrado));
 
-        builder.Entity<PlataformaAcceso>().Property(p => p.Usuario).HasConversion(conversorCredenciales);
-        builder.Entity<PlataformaAcceso>().Property(p => p.Contrasena).HasConversion(conversorCredenciales);
+        builder.Entity<CanalGestionDocumental>().Property(c => c.Usuario).HasConversion(conversorCredenciales);
+        builder.Entity<CanalGestionDocumental>().Property(c => c.Contrasena).HasConversion(conversorCredenciales);
 
         var conversorCredencialesEmpresa = new ValueConverter<string?, string?>(
             valorPlano => valorPlano == null ? null : _protectorCredencialesEmpresa.Protect(valorPlano),
@@ -173,7 +173,7 @@ public class CaeManagerDbContext(
         builder.Entity<Alerta>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<Asignacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<RegistroAuditoria>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<PlataformaAcceso>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<CanalGestionDocumental>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<ParametroSistema>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<ConfiguracionIaDocumentoCliente>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<TipoDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
