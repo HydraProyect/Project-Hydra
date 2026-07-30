@@ -723,6 +723,69 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 - Tests: 134/134 Domain, 76/76 Application, 13/13 Web.Tests (Integration/E2E no re-ejecutados en esta fase — sin cambios en Infrastructure).
 - **Fuera de alcance, no construido**: "Mis tareas" y "Actividad reciente" del mockup (no existen como concepto en el dominio — YAGNI, no se inventan); campana de notificaciones; menús "Plataformas"/"Integraciones"/"Informes" del mockup (Integraciones sigue en backlog sin un proveedor real, ver `ARQUITECTURA-INTEGRACIONES.md`); catálogo de KPIs seleccionables/filtro de periodo (eso es el "Backlog — Rework de Dashboard" de más abajo, deliberadamente no absorbido aquí).
 
+## Épico — Migración masiva de datos vía ZIP + DIE (backlog, sin implementar — 2026-07-30)
+
+**Planteado por el usuario el 2026-07-30**: para captar clientes con documentación ya existente (consultoras de PRL, empresas que migran desde Excel/carpetas/otra plataforma CAE) hace falta un importador masivo de **documentos reales** (PDF/DOCX/imágenes en un ZIP con subcarpetas), no solo de filas estructuradas — el importador combinado ya existente (`AnalizarPlantillaCombinadaQuery`/`EjecutarImportacionCombinadaCommand`, ver más abajo en este documento) resuelve Cliente/Empresa/Centro/Trabajador desde un Excel de columnas fijas, pero no lee el contenido de archivos. Diseño validado contra un ZIP de muestra real aportado por el usuario (`Consultora panchitos/IBEROJET/...` — estructura real, contenido de archivos vacío/maqueta). Nada de esto está implementado — es el resumen de diseño acordado, análogo a `ARQUITECTURA-INTEGRACIONES.md` para el épico de Integraciones.
+
+### Convención de carpetas observada (y decisiones de mapeo)
+
+```
+<Consultora o lote>/              → nombre del lote, NO se modela como entidad
+  <Empresa>/                      → Empresa (debe existir o resolverse en la cola; nunca auto-alta)
+    Clientes/<Cliente>/           → documentos de la relación Empresa↔Cliente
+      Formulario especifico.pdf   → Documento.DeEmpresa + TipoDocumento propio por Cliente
+                                     (p. ej. "Formulario específico — BIG COLA"), vinculado a
+                                     los Centros de ese Cliente vía TipoDocumentoCentro (mecanismo
+                                     YA EXISTENTE, no requiere AmbitoAplicacion.Cliente nuevo).
+                                     El TipoDocumento se crea la primera vez que aparece un Cliente
+                                     nuevo bajo Clientes/ — con confirmación en la cola, nunca en
+                                     silencio.
+    Documentos Empresa/<Categoria>/[<Subtipo>/]archivo.pdf
+                                   → Documento.DeEmpresa; TipoDocumento se resuelve por coincidencia
+                                     de nombre (mismo patrón que DetectarCamposDocumentoQuery,
+                                     Fase 54) contra el catálogo ya sembrado (Certificado SS, ITA,
+                                     RLC/TC1, RNT/TC2, Mutua, RC, SPA, EVR, PAP... casi 1:1 con las
+                                     carpetas observadas).
+    Documentos trabajadores/<NombreTrabajador>/archivo.pdf
+                                   → Documento.DeTrabajador; el Trabajador se resuelve SOLO por
+                                     DNI/NIE/pasaporte extraído del contenido del archivo (nunca por
+                                     el nombre de carpeta, que no lleva DNI) — sin match, a la cola.
+    <Old/AAOLD/aa old/aaaold>/ (dentro de cualquier carpeta de tipo)
+                                   → documentación vencida a conservar por auditoría (mínimo 5 años).
+                                     Se crea el Documento real con sus fechas reales (queda "Vencido"
+                                     por CalculadoraEstadoDocumento) y se marca soft-delete
+                                     (MarcarComoEliminado) inmediatamente — reutiliza el historial de
+                                     Auditoría que YA EXISTE para documentos eliminados, sin
+                                     necesidad de un concepto de versionado nuevo (confirmado: no hay
+                                     índice único que impida varios Documento para el mismo par
+                                     entidad+TipoDocumento).
+    Plantillas/ (o similar)        → se ignoran, no son documentos reales (plantillas en blanco).
+    Archivos sueltos a nivel Empresa (docx/xlsx fuera de cualquier carpeta de tipo):
+      "Ficha informativa del cliente.docx" → datos de contacto/adquisición (contacto, teléfono,
+        CIF, razón social) en prosa libre — FUERA del pipeline DIE en v1, listado como "no
+        procesado, revisar a mano" (no es un documento de cumplimiento CAE).
+      "Plataformas CAE <Empresa>.xlsx" → tabla estructurada (plataforma/canal de gestión, URL,
+        credenciales, centros, observaciones, subcontratas, o gestión por email con contacto) —
+        NO pasa por DIE; se procesa como una plantilla estructurada aparte (fila → Centro o
+        Subcontrata ↔ Canal de gestión), mismo patrón Analizar+Ejecutar que el importador
+        combinado ya existente. Requiere la Fase de dominio de abajo antes de poder mapear filas.
+```
+
+### Decisiones ya cerradas con el usuario
+
+- **Nunca auto-alta de Cliente/Empresa** a partir de lo detectado — si el CIF/nombre no coincide con nada existente, va a una cola de revisión manual. Un Trabajador nuevo bajo una Empresa ya confirmada sí puede auto-crearse (mismo riesgo que el alta normal de Documento, Fase 54).
+- El emparejamiento de identidad (Trabajador) es **siempre por documento de identidad**, nunca por nombre de carpeta — mismo criterio que `DetectarCamposDocumentoQuery`.
+- Se monta infraestructura de **background jobs** como capacidad de plataforma nueva (primer caso real que la justifica — hoy solo existe un `BackgroundService` puntual para backups, ver `docs/PLATFORM.md`).
+- Nueva entidad de dominio **"Canal de gestión documental"** que generaliza `PlataformaAcceso` (hoy 1:1 con Centro, solo pensado para login usuario/contraseña) para cubrir también la gestión por email (destinatarios, nombre de contacto, observaciones de requerimiento) — sustituye el 1:1 actual, misma pantalla para ambos casos. Diseño de esta entidad y su migración pendiente de detallar en la Fase de Dominio de abajo.
+
+### Fases propuestas (sin empezar — a validar el orden antes de tocar código)
+
+1. **Dominio**: generalizar `PlataformaAcceso` → `CanalGestionDocumental` (Plataforma | Email); añadir `Notas` a `CredencialAccesoEmpresa`/`CredencialAccesoSubcontrata` (hoy no lo tienen, a diferencia de `PlataformaAcceso`).
+2. **Plataforma**: infraestructura de background jobs (cola de trabajos + estado consultable desde la UI) — decisión técnica pendiente: solución ligera propia (tabla + `BackgroundService` worker, sin dependencias nuevas) vs. Hangfire (dashboard/reintentos de fábrica, pero añade una dependencia y su propio almacenamiento).
+3. **Implementación — importador estructurado**: plantilla "Plataformas CAE" (Excel), reutilizando el patrón `AnalizarPlantillaCombinadaQuery`/`EjecutarImportacionCombinadaCommand` con una forma de fila nueva.
+4. **Implementación — importador masivo de documentos**: subida de ZIP → job en background → recorre el árbol de carpetas → por archivo, clasifica vía `IDocumentAIRouterService` (ya existe, se reutiliza) → intenta emparejar Empresa (debe existir)/Cliente/Trabajador → aplica las reglas especiales de arriba (Old→auditoría, Plantillas→ignorar, sueltos no-documentales→cola de "revisar a mano") → todo lo ambiguo o sin match a la cola de revisión.
+5. **Implementación — UI**: pantalla de "Cola de revisión de importación masiva" (gestor confirma/corrige Empresa/Cliente/Trabajador/TipoDocumento inferido antes de comprometer, con confianza visible por ítem).
+
 ## Épico — Plataforma de Integraciones (backlog, sin implementar — 2026-07-23)
 
 **Planteado por el usuario el 2026-07-23**: si la visión del producto se cumple, Hydra no es solo un gestor CAE — es una **plataforma**, y las plataformas ganan valor cuando las integraciones son una capacidad nativa (una capacidad del Tenant), no una colección de conectores desarrollados caso por caso. Proveedores objetivo del ecosistema: **Dokify, 6Conecta/6Coordina, CTAIMA, eCoordina**, plataformas CAE en general, **Microsoft 365** e **IA** (Anthropic/OpenAI). Diseño completo, arquitectura basada en proveedores (`IIntegrationProvider`, no conectores específicos acoplados al dominio) en **`ARQUITECTURA-INTEGRACIONES.md`** — este punto es solo el resumen de backlog. Nada de esto está implementado; existe para que las decisiones de multi-tenant que se están tomando ahora (`ADR-003`) no le cierren puertas.
