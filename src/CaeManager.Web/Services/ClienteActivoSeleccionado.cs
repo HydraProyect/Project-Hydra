@@ -8,7 +8,7 @@ namespace CaeManager.Web.Services;
 /// Lee el Delegated Workspace activo desde una cookie en vez de guardarlo
 /// solo en memoria — necesario porque cambiar de cliente activo requiere un
 /// reload completo del navegador (ver <c>SelectorClienteActivo.razor.cs</c>
-/// y el endpoint <c>/cuenta/cliente-activo/{tenantId}</c>): un valor
+/// y el endpoint <c>/cuenta/cliente-activo</c>): un valor
 /// puramente en memoria vive en el scope de DI del circuito de Blazor
 /// Server, y ese scope se destruye por completo en cada reload — con solo
 /// memoria, la elección nunca sobreviviría al propio mecanismo que la
@@ -66,7 +66,7 @@ public class ClienteActivoSeleccionado(
 
     /// <summary>
     /// Emite el token para la cookie. Solo debe llamarlo el endpoint
-    /// <c>/cuenta/cliente-activo/{tenantId}</c>, y solo después de haber
+    /// <c>/cuenta/cliente-activo</c>, y solo después de haber
     /// comprobado que <paramref name="usuarioId"/> tiene delegación activa
     /// sobre <paramref name="tenantId"/>.
     /// </summary>
