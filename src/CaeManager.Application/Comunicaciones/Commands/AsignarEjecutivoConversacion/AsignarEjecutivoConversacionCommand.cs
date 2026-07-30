@@ -23,13 +23,17 @@ public class AsignarEjecutivoConversacionCommandValidator : AbstractValidator<As
 /// que el id viene de un selector poblado con UserManager antes de llamar a
 /// este Command.
 /// </summary>
-public class AsignarEjecutivoConversacionCommandHandler(IConversacionCorreoRepository repositorio, IUnitOfWork unitOfWork)
+public class AsignarEjecutivoConversacionCommandHandler(
+    IConversacionCorreoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<AsignarEjecutivoConversacionCommand, Result>
 {
     public async Task<Result> Handle(AsignarEjecutivoConversacionCommand request, CancellationToken cancellationToken)
     {
         var conversacion = await repositorio.ObtenerPorIdAsync(request.ConversacionId, cancellationToken);
-        if (conversacion is null)
+        // El repositorio ya filtra por tenant; esto cierra el alcance dentro
+        // del tenant (hallazgo N-3): un gestor con el Guid de una conversación
+        // que ya no está en su cartera podía reasignarla.
+        if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
             return Result.Fallo(Error.Crear("ConversacionCorreo.NoEncontrada", "No encontramos esta conversación."));
 
         conversacion.Asignar(request.EjecutivoId);
