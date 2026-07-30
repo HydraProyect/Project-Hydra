@@ -1,10 +1,14 @@
 .drawer-superposicion {
     position: fixed;
     inset: 0;
-    background-color: rgba(15, 23, 42, 0.5);
+    background-color: rgba(15, 23, 42, 0.45);
     display: flex;
     justify-content: flex-end;
-    z-index: 1100;
+    /* Por debajo de Modal (1050): un Drawer que abre un Modal de confirmación
+       encima (p. ej. eliminar desde el drawer de edición) debe quedar
+       tapado, no competir en el mismo plano — ver especificación de stacking
+       del patrón de modales/drawers. */
+    z-index: 1040;
 }
 
 .drawer-panel {
