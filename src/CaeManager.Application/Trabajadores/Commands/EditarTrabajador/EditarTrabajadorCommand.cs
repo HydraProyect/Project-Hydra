@@ -12,7 +12,8 @@ public record EditarTrabajadorCommand(
     string Apellidos,
     DateOnly? FechaNacimiento,
     string? Email,
-    string? Observaciones) : IRequest<Result>;
+    string? Observaciones,
+    string? Alias = null) : IRequest<Result>;
 
 public class EditarTrabajadorCommandValidator : AbstractValidator<EditarTrabajadorCommand>
 {
@@ -34,6 +35,7 @@ public class EditarTrabajadorCommandValidator : AbstractValidator<EditarTrabajad
             .When(c => !string.IsNullOrWhiteSpace(c.Email));
 
         RuleFor(c => c.Observaciones).MaximumLength(Trabajador.LongitudMaximaObservaciones);
+        RuleFor(c => c.Alias).MaximumLength(Trabajador.LongitudMaximaAlias);
     }
 }
 
@@ -46,7 +48,7 @@ public class EditarTrabajadorCommandHandler(ITrabajadorRepository repositorio, I
         if (trabajador is null)
             return Result.Fallo(Error.Crear("Trabajador.NoEncontrado", "No encontramos este trabajador."));
 
-        trabajador.Actualizar(request.Nombre, request.Apellidos, request.FechaNacimiento, request.Email, request.Observaciones);
+        trabajador.Actualizar(request.Nombre, request.Apellidos, request.FechaNacimiento, request.Email, request.Observaciones, request.Alias);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

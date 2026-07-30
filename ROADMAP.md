@@ -668,9 +668,62 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
   - **Consumo de estos campos**: hoy nada los lee todavía — ni `VerificacionIaDocumentoService` (que solo mira confianza/fecha/firma) ni ningún otro servicio. Falta diseñar dónde vive la comparación (CIF extraído vs `Cliente.Cif`, trabajador extraído vs `Trabajador` existente) y qué pasa con `RevisionIaDocumento` cuando hay discrepancia — pendiente de decisión de dominio.
   - **Modales de alta rápida con pre-relleno** (Subcontrata, Trabajador extranjero) y **reanudación del flujo de subida de Documento** tras alta — feature de UI de los módulos Documentos/Trabajadores/Subcontratas, no de IA documental.
   - **"Piedra de Rosetta" por centro/plataforma**: mecanismo para nutrir de contexto la extracción según el centro/plataforma de origen del documento — ambigüedad de diseño sin resolver (¿catálogo de formato esperado? ¿few-shot desde correcciones manuales? ¿solo auditoría filtrable?); además colisiona con `ARQUITECTURA-INTEGRACIONES.md` (concepto de "plataforma" ahí ya es `ProveedorIntegracion`) — requiere pasar primero por Dominio→Arquitectura antes de tocar código.
-  - **Módulo de Proyectos**: gestión de documentación de requerimiento para obras/instalaciones nuevas (distinta de la documentación de acceso de mantenimiento tradicional), con proyectos activos por periodo definido o indefinido por cliente/centro, con implicación directa en Facturación (Fase 48). Es un módulo de negocio nuevo (como Facturación), no Document Intelligence Engine — necesita su propia fase de Dominio→Arquitectura→Implementación en un chat/rama aparte.
+  - **Módulo de Proyectos**: gestión de documentación de requerimiento para obras/instalaciones nuevas (distinta de la documentación de acceso de mantenimiento tradicional), con proyectos activos por periodo definido o indefinido por cliente/centro, con implicación directa en Facturación (Fase 48). Es un módulo de negocio nuevo (como Facturación), no Document Intelligence Engine — necesita su propia fase de Dominio→Arquitectura→Implementación en un chat/rama aparte. ✅ Implementado en Fase 58.
 
-## Fase 54 — Módulo de Proyectos (2026-07-30)
+## Fase 54 — Pre-relleno automático y buscador de Trabajador en el alta de Documento (2026-07-30)
+
+✅ Completa. Petición del usuario: el alta de Documento de Trabajador dejaba subir el archivo sin ningún Trabajador ni TipoDocumento preseleccionado, obligando a elegir ambos a mano aunque el propio archivo ya trajera esa información; además el selector de Trabajador era un `<select>` plano, inmanejable con muchos trabajadores (no dejaba escribir para filtrar).
+
+- **`DetectarCamposDocumentoQuery`** (`CaeManager.Application.Documentos.Queries.DetectarCamposDocumento`): nuevo, se dispara al terminar de subir el archivo en el alta (ambito Trabajador, solo en creación — no en renovación, donde Trabajador/TipoDocumento ya están fijados). Llama a `IDocumentAIRouterService.ProcesarAsync` con un tipo esperado genérico (todavía no hay TipoDocumento elegido) y, si `confianzaGeneral >= 70`, intenta resolver una sugerencia:
+  - `TipoDocumentoId`: busca por coincidencia de nombre (`tipoDetectado` contra `TipoDocumento.Nombre`, ambos sentidos, case-insensitive) dentro de los tipos de ámbito Trabajador — solo sugiere si hay **una única** coincidencia, nunca ante ambigüedad.
+  - `TrabajadorId`: compara el nuevo campo `documentoIdentidadTrabajador` (Fase 53) contra el `Dni` de los Trabajadores existentes, normalizando ambos (solo alfanuméricos, mayúsculas) antes de comparar.
+  - Es puramente sugerencia — nunca corrige ni bloquea: si no hay match fiable, el alta sigue siendo 100% manual como antes (mismo criterio "mejor esfuerzo" que `VerificacionIaDocumentoService`/`DeteccionTrabajadoresService`).
+- **`Documentos.razor.cs`**: `DetectarCamposAsync` envuelve la llamada en try/catch (nunca bloquea el alta si la IA falla), muestra un toast informativo solo si hubo alguna sugerencia aplicada, y reutiliza el flag `_subiendoArchivo` para mantener "Guardar" deshabilitado mientras dura la detección.
+- **`CampoBuscarSelect`** (Design System, nuevo): `<input type="text" list="...">` + `<datalist>` — combobox con filtrado nativo del navegador según se escribe, sin ninguna librería JS. Mismo patrón anti-clobber que `CampoTexto` (`_ultimoValorNotificado`): solo resincroniza el texto visible con el Id recibido por parámetro cuando ese Id no vino de su propio evento, para no borrar lo que el usuario está escribiendo a mitad de una coincidencia parcial ni al recibir una sugerencia automática desde fuera. Debounce de 150 ms (más corto que los 300 ms de `CampoTexto` porque aquí el filtrado visible ya es instantáneo del lado del navegador — el debounce solo ahorra round-trips de Blazor Server al confirmar la coincidencia exacta). Usado en el selector de Trabajador de Documentos; no se tocaron Cliente/Empresa/Vehículo (no reportado, YAGNI).
+- Build limpio, `dotnet format --verify-no-changes` sin cambios, 76/76 tests Application y 13/13 bUnit en verde (no había tests de bUnit existentes sobre la pantalla de Documentos).
+- **Pendiente de verificación end-to-end en navegador** (no se pudo probar en este entorno sin claves de IA activas ni datos reales) — antes de dar la fase por cerrada del todo, confirmar en Railway: (a) que la detección realmente sugiere Trabajador/TipoDocumento con un PDF real de prueba, (b) que el buscador de Trabajador filtra correctamente con el volumen real de trabajadores.
+
+## Fase 55 — Alias/nombre secundario en Trabajador (2026-07-30)
+
+✅ Completa. Petición del usuario: un trabajador puede figurar en plataformas externas o firmar documentos con un nombre distinto al legal (ejemplo dado: "Francisco Villa" firma como "Pancho Villa"). La identidad real para cualquier verificación automática **siempre** se comprueba por DNI/NIE/pasaporte — el alias es solo para que las búsquedas por nombre también lo encuentren, nunca un segundo criterio de identidad.
+
+- **`Trabajador.Alias`** (Domain, nuevo): `string?` opcional, `LongitudMaximaAlias = 150`, mismo patrón de encapsulación que el resto de propiedades (`EstablecerAlias`, sin validación de formato — es texto libre). Añadido a `DeEmpresa`/`DeSubcontrata` (parámetro opcional final, no rompe llamadas existentes) y a `Actualizar` (parámetro nuevo, sí obligatorio ahí — todos los llamadores existentes actualizados, incluida `EjecutarImportacionCombinadaCommand` que ahora preserva el alias ya guardado al actualizar por importación).
+- **Migración `AgregarAliasATrabajador`**: columna `TEXT NULL`, sin índice (no es campo de identidad, no necesita unicidad).
+- **`CrearTrabajadorCommand`/`EditarTrabajadorCommand`**: nuevo parámetro opcional `Alias`, validado solo en longitud (sin regla de formato, a diferencia del Dni).
+- **Búsqueda por Alias**: `ObtenerTrabajadoresQuery` (listado `/trabajadores`) ahora también compara `Alias` en el filtro de texto libre. `TrabajadorSelectorDto`/`ObtenerTrabajadoresParaSelectorQuery` exponen `Alias`, y `Documentos.razor.cs` (`OpcionesTrabajadores`, Fase 54) lo añade al texto buscable del `CampoBuscarSelect` de Trabajador — escribir "Pancho Villa" ahora encuentra a "Francisco Villa" si ese es su alias.
+- **UI**: campo "Alias / nombre con el que firma (opcional)" en el alta/edición de Trabajador, y fila "Alias" en la pestaña Información de `TrabajadorWorkspacePanel` (oculta con "—" si no tiene).
+- **Deliberadamente sin tocar**: `DetectarCamposDocumentoQuery` (Fase 54) sigue emparejando el trabajador **solo por DNI normalizado** — no se añadió coincidencia por nombre/alias a esa detección automática, siguiendo explícitamente el criterio del usuario ("debe coincidir siempre" vía documento de identidad, nunca por nombre).
+- Build limpio, migración generada y revisada, 134/134 tests Domain, 76/76 Application, 13/13 bUnit en verde. `dotnet format --verify-no-changes` sin cambios. (2 tests de `LibreOfficeConversorWordPdfServiceTests` fallan en este entorno — no relacionados con este cambio, ver conversión Word→PDF de Fase 16, no investigado aquí.)
+
+## Fase 56 — ADR-004 Capa 0: delegación de gestión CAE a consultoras + módulos Evaluaciones/Incidencias (2026-07-30)
+
+✅ Completa. Pedido explícito del usuario: construir primero el selector "Cliente activo" en back (base para operar sobre un tenant distinto sin fricción), y añadir dos módulos nuevos al menú. Alcance acordado con el usuario (`AskUserQuestion`): solo Capa 0 de `ADR-004-delegacion-consultoras-cae.md` (delegación + selector), sin la Capa de Reporting transversal (§ 7, sigue en backlog); etiqueta del selector "Cliente activo" (nunca "tenant"); los datos de prueba del tenant #1 se restructuran (eran datos de prueba, no reales); "Evaluaciones"/"Incidencias" se definen como evaluación de riesgo laboral e incidencias operativas (accidentes/incumplimientos).
+
+- **`DelegacionTenant` + `AsignacionOperadorDelegado`** (`Domain/Tenants`): catálogo global (sin `TenantId`, sin `HasQueryFilter`, mismo tratamiento que `Tenant`). Autorizan a un usuario a operar un tenant ajeno como Delegated Workspace.
+- **Cuarto modo de Tenant Resolution Strategy** (`docs/MULTITENANCY.md` § 8): cookie httpOnly `cae_cliente_activo` + endpoint `GET /cuenta/cliente-activo/{tenantId}` (revalida la asignación server-side, `LocalRedirect`), consultada por `TenantActual.TenantId` entre `AmbitoTenantExplicito` y el claim de sesión. Dos intentos previos descartados en el propio desarrollo: estado en memoria + navegación sin `forceLoad` (Blazor Server no reejecuta `OnInitializedAsync` en la misma ruta) y `@key` en `AuthorizeRouteView` (no forzó remount de forma fiable) — la cookie + `forceLoad:true` es lo que sobrevive a la recreación completa del circuito.
+- **`SelectorClienteActivo.razor`** en `MainLayout`: lista los tenants autorizados del usuario (origen + delegados), etiqueta "Cliente activo".
+- **Datos de prueba restructurados** (`DelegacionDemoSeeder`, sustituye la siembra directa en el tenant #1): el tenant #1 ("Organización principal") queda sin datos operativos propios (Consultora, ADR-004 § 5.1); un tenant nuevo "Ibertec S.A. (Cliente Delegante demo)" concentra los 200 clientes/220 empresas/500 trabajadores/985 documentos/18 usuarios de prueba, enlazado al tenant #1 por una `DelegacionTenant` activa y una `AsignacionOperadorDelegado` (admin inicial, rol GestorCae).
+- **Nuevo agregado `Evaluacion`** (`Domain/Evaluaciones`): evaluación de riesgo laboral de un Centro, `TrabajadorId?` opcional, `Puntuacion` (0-100), `Observaciones?`. CRUD completo (Commands/Queries/página `/evaluaciones`), badge de color según puntuación.
+- **Nuevo agregado `Incidencia`** (`Domain/Incidencias`): incidencia operativa de un Centro — `TipoIncidencia` (Accidente/Incumplimiento), `GravedadIncidencia` (Leve/Grave/MuyGrave), ciclo de vida propio `Resuelta`/`ResueltaEnUtc?` independiente del soft delete. CRUD completo + acción "Marcar resuelta"/"Reabrir" (página `/incidencias`).
+- Verificado en navegador real (Playwright): login, tenant #1 con dashboard en cero, cambio de "Cliente activo" a Ibertec con recarga inmediata de KPIs reales (500 trabajadores, 264 centros, 985 documentos), alta de Evaluación e Incidencia en Ibertec, y confirmación de aislamiento — el tenant #1 sigue vacío en ambos módulos nuevos tras el cambio.
+- Tests: 134/134 Domain, 76/76 Application, 13/13 Web.Tests, 85/87 IntegrationTests (mismos 2 fallos preexistentes de LibreOffice/Java en el sandbox, no relacionados con este cambio).
+- **Fuera de alcance en esta fase, resuelto en Fase 57**: Capa de Reporting transversal de `ADR-004` § 7 (comparativas de cartera entre tenants para Coordinador/Director).
+- **Sigue fuera de alcance, no construido**: expiración/renovación de delegaciones; autoservicio de creación de `DelegacionTenant` desde UI (hoy solo vía seed de demo); DPA/Términos de Uso que contemplen la delegación (revisión legal, `ADR-004` § 12.7).
+
+## Fase 57 — Visión de cartera (Capa de Reporting de ADR-004) + realineación visual de tokens + Asistente IA como panel lateral (2026-07-30)
+
+✅ Completa. Continuación directa de la Fase 56: el usuario pidió aplicar un nuevo mockup de diseño (paleta/tipografía/espaciado/radios/sombras, dos dashboards — visión global y visión por Cliente activo — y un Asistente IA como panel lateral abatible) y decidió explícitamente, vía `AskUserQuestion`, construir ya la Capa de Reporting transversal que la Fase 56 había dejado pendiente (en vez de seguir esperando), mantener la etiqueta "Cliente activo" (nunca "Workspace (Tenant)" del mockup), tratar el Asistente IA existente como ajuste visual (no una feature nueva) y **no** renombrar los tokens de diseño al esquema del mockup (`--surface-*`) — solo actualizar valores bajo los nombres ya establecidos.
+
+- **`ObtenerKpisGlobalesQuery`** (`Application/Dashboard/Queries`): implementa el patrón que `ADR-004` § 7 y el backlog de Fase 56 dejaban previsto — obtiene los Clientes autorizados del usuario (`ObtenerClientesAutorizadosQuery`, origen + Delegated Workspaces) y ejecuta `ObtenerKpisDashboardQuery` una vez por Cliente dentro de `AmbitoTenantExplicito.Establecer(tenantId)`, agregando en memoria (sumas + promedio de SLA) — nunca una query que cruce el filtro global de tenant.
+- **Página "Visión de cartera"** (`/vision-cartera`, roles Administrador/DireccionCae/CoordinadorCae): mismos KPI críticos que el Dashboard de un solo Cliente más una tabla "Clientes con más riesgo" ordenada por vencidos/urgentes, con acción "Ver como este cliente" que reutiliza el endpoint de cambio de Cliente activo de la Fase 56. Para un usuario sin ningún Delegated Workspace, la página muestra un estado vacío explicando que la vista es para cartera, no un dashboard duplicado.
+- Extraídas a `wwwroot/css/dashboard.css` (global) las reglas de cabecera/rejillas de KPI que antes vivían aisladas en `Dashboard.razor.css` — necesario porque el aislamiento de CSS de Blazor no cruza entre componentes y la nueva página las reutiliza tal cual.
+- **Tokens de diseño** (`tokens.css`): valores de la rampa `--color-primary-*` realineados al mockup (toda la rampa se desplaza un escalón — el antiguo 500 pasa a ser 400 — con `--color-primary-200/700` nuevos); pasos `-400/-600/-800` añadidos a `--color-neutral-*` (incluidos en el mockup, mismos valores que los pasos ya existentes); `-700` añadido a `--color-success/warning/danger`; nombres de variable sin cambios (decisión explícita del usuario). Modo oscuro/claro manual actualizados en consecuencia.
+- **Asistente IA** (`AsistenteIa.razor`/`.razor.css`): pasa de tarjeta flotante `position: fixed` en la esquina a panel lateral abatible de altura completa anclado a la derecha, con superposición y el mismo guardia de "clic fuera" que `Drawer.razor` (evita cerrarse al seleccionar texto de una respuesta). `z-index: 1030` — un escalón por debajo de Drawer (1040)/Modal (1050), nunca al revés. Responsive: `max-width: 100%` bajo 480px, igual que Drawer.
+- Verificado en navegador real (Playwright): Dashboard y menú con la paleta nueva, Visión de cartera agregando correctamente 2 Clientes (25 vencidos + 26 urgentes de Ibertec, SLA promedio 80% = media de 61%/100%), "Ver como este cliente" cambiando el Cliente activo y aterrizando en su Dashboard con los KPI reales. El botón del Asistente IA solo se renderiza con `Anthropic:ApiKey` configurada (no disponible en este sandbox) — el cambio de panel se verificó por build + revisión de código, no en vivo.
+- Tests: 134/134 Domain, 76/76 Application, 13/13 Web.Tests (Integration/E2E no re-ejecutados en esta fase — sin cambios en Infrastructure).
+- **Fuera de alcance, no construido**: "Mis tareas" y "Actividad reciente" del mockup (no existen como concepto en el dominio — YAGNI, no se inventan); campana de notificaciones; menús "Plataformas"/"Integraciones"/"Informes" del mockup (Integraciones sigue en backlog sin un proveedor real, ver `ARQUITECTURA-INTEGRACIONES.md`); catálogo de KPIs seleccionables/filtro de periodo (eso es el "Backlog — Rework de Dashboard" de más abajo, deliberadamente no absorbido aquí).
+
+## Fase 58 — Módulo de Proyectos (2026-07-30)
 
 ✅ Completa (2026-07-30). Petición del usuario en chat aparte (explícitamente fuera de alcance de Document Intelligence Engine, ver Fase 53): gestión de documentación de requerimiento para instalaciones/obras nuevas por Cliente/Centro, con implicación directa en Facturación (Fase 48). Módulo de negocio nuevo, mismo tamaño que Facturación — recorrido Dominio→Arquitectura→Implementación completo antes de codificar.
 
@@ -691,7 +744,70 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 
 **Fuera de alcance de esta fase, explícitamente no construido**: catálogo de tipos de documento exigidos por proyecto (`TipoDocumentoCentro`-like N:N) — no se pidió y hubiera sido especulativo (YAGNI); integración de Proyecto en el Context Workspace (`PLAN-CONTEXT-WORKSPACE.md`, diseño todavía en debate) — se usó una página independiente en su lugar, mismo criterio que Facturación.
 
-**Verificado**: revisión manual de consistencia con los patrones existentes (Facturación, Documento polimórfico, Asignación). Tests de Domain nuevos (`ProyectoTests`, `ProyectoTecnicoTests`, casos `DeProyecto` en `DocumentoTests`). **Sin build/ejecución de tests ni prueba en navegador real** — entorno sin `dotnet` CLI disponible en esta sesión (mismo motivo documentado en Fase 48); pendiente de verificar en un entorno con `dotnet` antes de cerrar la fase en producción.
+**Verificado**: revisión manual de consistencia con los patrones existentes (Facturación, Documento polimórfico, Asignación) más CI en verde (build, Domain/Application/IntegrationTests, bUnit, E2E Playwright, detección de migraciones olvidadas) tras corregir en la propia PR dos fallos que solo CI pudo revelar — `using` faltante y, sobre todo, la migración `AddProyectos` sin los atributos `[DbContext]`/`[Migration]` (normalmente generados por `dotnet ef migrations add`, no disponible en el entorno de desarrollo): sin ellos EF Core no la descubre en runtime y `Database.Migrate()` la salta en silencio, aunque el chequeo de "migraciones olvidadas" (que compara contra el snapshot, no contra lo aplicado) pase igual. Tests de Domain nuevos (`ProyectoTests`, `ProyectoTecnicoTests`, casos `DeProyecto` en `DocumentoTests`). **Nota para revisión futura**: la migración `AddTarifasCliente` de Fase 48 tiene el mismo patrón sin `Designer.cs` — probablemente el mismo bug late ahí sin manifestarse porque nada en Integration/E2E toca la tabla `TarifasCliente` todavía.
+
+## Épico — Migración masiva de datos vía ZIP + DIE (backlog, sin implementar — 2026-07-30)
+
+**Planteado por el usuario el 2026-07-30**: para captar clientes con documentación ya existente (consultoras de PRL, empresas que migran desde Excel/carpetas/otra plataforma CAE) hace falta un importador masivo de **documentos reales** (PDF/DOCX/imágenes en un ZIP con subcarpetas), no solo de filas estructuradas — el importador combinado ya existente (`AnalizarPlantillaCombinadaQuery`/`EjecutarImportacionCombinadaCommand`, ver más abajo en este documento) resuelve Cliente/Empresa/Centro/Trabajador desde un Excel de columnas fijas, pero no lee el contenido de archivos. Diseño validado contra un ZIP de muestra real aportado por el usuario (`Consultora panchitos/IBEROJET/...` — estructura real, contenido de archivos vacío/maqueta). Nada de esto está implementado — es el resumen de diseño acordado, análogo a `ARQUITECTURA-INTEGRACIONES.md` para el épico de Integraciones.
+
+### Convención de carpetas observada (y decisiones de mapeo)
+
+```
+<Consultora o lote>/              → nombre del lote, NO se modela como entidad
+  <Empresa>/                      → Empresa (debe existir o resolverse en la cola; nunca auto-alta)
+    Clientes/<Cliente>/           → documentos de la relación Empresa↔Cliente
+      Formulario especifico.pdf   → Documento.DeEmpresa + TipoDocumento propio por Cliente
+                                     (p. ej. "Formulario específico — BIG COLA"), vinculado a
+                                     los Centros de ese Cliente vía TipoDocumentoCentro (mecanismo
+                                     YA EXISTENTE, no requiere AmbitoAplicacion.Cliente nuevo).
+                                     El TipoDocumento se crea la primera vez que aparece un Cliente
+                                     nuevo bajo Clientes/ — con confirmación en la cola, nunca en
+                                     silencio.
+    Documentos Empresa/<Categoria>/[<Subtipo>/]archivo.pdf
+                                   → Documento.DeEmpresa; TipoDocumento se resuelve por coincidencia
+                                     de nombre (mismo patrón que DetectarCamposDocumentoQuery,
+                                     Fase 54) contra el catálogo ya sembrado (Certificado SS, ITA,
+                                     RLC/TC1, RNT/TC2, Mutua, RC, SPA, EVR, PAP... casi 1:1 con las
+                                     carpetas observadas).
+    Documentos trabajadores/<NombreTrabajador>/archivo.pdf
+                                   → Documento.DeTrabajador; el Trabajador se resuelve SOLO por
+                                     DNI/NIE/pasaporte extraído del contenido del archivo (nunca por
+                                     el nombre de carpeta, que no lleva DNI) — sin match, a la cola.
+    <Old/AAOLD/aa old/aaaold>/ (dentro de cualquier carpeta de tipo)
+                                   → documentación vencida a conservar por auditoría (mínimo 5 años).
+                                     Se crea el Documento real con sus fechas reales (queda "Vencido"
+                                     por CalculadoraEstadoDocumento) y se marca soft-delete
+                                     (MarcarComoEliminado) inmediatamente — reutiliza el historial de
+                                     Auditoría que YA EXISTE para documentos eliminados, sin
+                                     necesidad de un concepto de versionado nuevo (confirmado: no hay
+                                     índice único que impida varios Documento para el mismo par
+                                     entidad+TipoDocumento).
+    Plantillas/ (o similar)        → se ignoran, no son documentos reales (plantillas en blanco).
+    Archivos sueltos a nivel Empresa (docx/xlsx fuera de cualquier carpeta de tipo):
+      "Ficha informativa del cliente.docx" → datos de contacto/adquisición (contacto, teléfono,
+        CIF, razón social) en prosa libre — FUERA del pipeline DIE en v1, listado como "no
+        procesado, revisar a mano" (no es un documento de cumplimiento CAE).
+      "Plataformas CAE <Empresa>.xlsx" → tabla estructurada (plataforma/canal de gestión, URL,
+        credenciales, centros, observaciones, subcontratas, o gestión por email con contacto) —
+        NO pasa por DIE; se procesa como una plantilla estructurada aparte (fila → Centro o
+        Subcontrata ↔ Canal de gestión), mismo patrón Analizar+Ejecutar que el importador
+        combinado ya existente. Requiere la Fase de dominio de abajo antes de poder mapear filas.
+```
+
+### Decisiones ya cerradas con el usuario
+
+- **Nunca auto-alta de Cliente/Empresa** a partir de lo detectado — si el CIF/nombre no coincide con nada existente, va a una cola de revisión manual. Un Trabajador nuevo bajo una Empresa ya confirmada sí puede auto-crearse (mismo riesgo que el alta normal de Documento, Fase 54).
+- El emparejamiento de identidad (Trabajador) es **siempre por documento de identidad**, nunca por nombre de carpeta — mismo criterio que `DetectarCamposDocumentoQuery`.
+- Se monta infraestructura de **background jobs** como capacidad de plataforma nueva (primer caso real que la justifica — hoy solo existe un `BackgroundService` puntual para backups, ver `docs/PLATFORM.md`).
+- Nueva entidad de dominio **"Canal de gestión documental"** que generaliza `PlataformaAcceso` (hoy 1:1 con Centro, solo pensado para login usuario/contraseña) para cubrir también la gestión por email (destinatarios, nombre de contacto, observaciones de requerimiento) — sustituye el 1:1 actual, misma pantalla para ambos casos. Diseño de esta entidad y su migración pendiente de detallar en la Fase de Dominio de abajo.
+
+### Fases propuestas (sin empezar — a validar el orden antes de tocar código)
+
+1. **Dominio**: generalizar `PlataformaAcceso` → `CanalGestionDocumental` (Plataforma | Email); añadir `Notas` a `CredencialAccesoEmpresa`/`CredencialAccesoSubcontrata` (hoy no lo tienen, a diferencia de `PlataformaAcceso`).
+2. **Plataforma**: infraestructura de background jobs (cola de trabajos + estado consultable desde la UI) — decisión técnica pendiente: solución ligera propia (tabla + `BackgroundService` worker, sin dependencias nuevas) vs. Hangfire (dashboard/reintentos de fábrica, pero añade una dependencia y su propio almacenamiento).
+3. **Implementación — importador estructurado**: plantilla "Plataformas CAE" (Excel), reutilizando el patrón `AnalizarPlantillaCombinadaQuery`/`EjecutarImportacionCombinadaCommand` con una forma de fila nueva.
+4. **Implementación — importador masivo de documentos**: subida de ZIP → job en background → recorre el árbol de carpetas → por archivo, clasifica vía `IDocumentAIRouterService` (ya existe, se reutiliza) → intenta emparejar Empresa (debe existir)/Cliente/Trabajador → aplica las reglas especiales de arriba (Old→auditoría, Plantillas→ignorar, sueltos no-documentales→cola de "revisar a mano") → todo lo ambiguo o sin match a la cola de revisión.
+5. **Implementación — UI**: pantalla de "Cola de revisión de importación masiva" (gestor confirma/corrige Empresa/Cliente/Trabajador/TipoDocumento inferido antes de comprometer, con confianza visible por ítem).
 
 ## Épico — Plataforma de Integraciones (backlog, sin implementar — 2026-07-23)
 
@@ -707,17 +823,9 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 
 **Riesgos y decisiones ya señaladas en `ARQUITECTURA-INTEGRACIONES.md`**: `CredencialIntegracion` sería la 4ª clase de credenciales cifradas (junto a `PlataformaAcceso`/`CredencialAccesoEmpresa`/`CredencialAccesoSubcontrata`, ya identificadas como deuda en `DOMAIN.md`) — no se unifican en este épico, es una decisión aparte (regla de `CLAUDE.md`: no mezclar refactors independientes). El catálogo de proveedores es global; la conexión configurada por cada tenant es por-tenant, mismo criterio de clasificación que `TipoDocumento`/`ParametroSistema`.
 
-## Backlog — Delegación reversible de gestión CAE a consultoras externas (diseño cerrado, sin implementar — 2026-07-25)
+## Backlog — ADR-004 § 12: puntos abiertos que sobreviven a la Capa de Reporting (Fase 57)
 
-**Bloqueante real para el primer cliente comercial**: ArcoSPA Prevención S.L. (Consultora, tenant #1) necesita que sus Operadores Delegados operen sobre los tenants de sus Clientes Delegantes (Ibertec S.A., EcoPlant Reciclaje S.L., Obras Reyval S.A., ...) sin poseerlos, y que sus mandos (Coordinador, Director Consultora) vean el rendimiento agregado de su equipo entre esos tenants — hoy la Tenant Resolution Strategy (`docs/MULTITENANCY.md` § 8) resuelve exactamente un tenant por sesión, sin ningún modo de cruzar esa frontera ni de agregar entre tenants. Diseño completo cerrado con el usuario en **`ADR-004-delegacion-consultoras-cae.md`** (tercera vuelta: v1 corrigió la prioridad, v2 corrigió el enfoque — **jerarquía organizacional transversal**, Nivel Tenant / Nivel Consultora / Nivel Hydra, sin mezclarse —, v3 reconcilió el vocabulario con `docs/business/UBIQUITOUS_LANGUAGE.md`, ya aprobado en paralelo por otra sesión — **Delegated Workspace**, **Cliente Directo**/**Cliente Delegante**, **Operador Delegado**, nunca "Workspace" a secas, que ya nombra el Context Workspace técnico):
-
-- La Consultora es un `Tenant` sin datos operativos propios (solo identidad de sus usuarios y su jerarquía interna Director Consultora→Coordinador→Gestor, reutilizando `CoordinadorUsuarioId` tal cual, sin tabla nueva).
-- `DelegacionTenant` + `AsignacionOperadorDelegado` ("clientes autorizados") autorizan a Operadores Delegados concretos a resolver como **Delegated Workspace** activo un tenant ajeno — uno a la vez, nunca varios simultáneos, revalidado en cada resolución. El filtro global/interceptor de sellado ya auditados **no cambian**.
-- **Capa de Reporting transversal nueva** (la pieza que le faltaba a la v1 del diseño): las comparativas de cartera de un Coordinador/Director se resuelven ejecutando la misma Query de un solo tenant N veces (una por Delegated Workspace, vía `AmbitoTenantExplicito`) y agregando en memoria — nunca una query que cruce la frontera. Es el cimiento de datos del "Backlog — Rework de Dashboard" de más abajo (comparativas Coordinador vs Coordinador / Gestor vs Gestor) — mismo trabajo, no dos.
-
-Cuatro escenarios de negocio cubiertos (gestión interna → externalización → modelo híbrido → internalización), todos reversibles sin migrar ni duplicar datos — el cliente es siempre dueño de su información.
-
-⬜ **No implementado**. Quedan 8 puntos abiertos antes de poder construirlo (`ADR-004` § 11): UI del selector de Delegated Workspace y su interacción con `PLAN-CONTEXT-WORKSPACE.md`; quién puede crear/desactivar una delegación; si es todo-o-nada dentro del rol o admite restricciones más finas; expiración/renovación; alcance exacto de la Capa de Reporting (qué KPIs, si hace falta caché para muchos tenants delegados); cómo encaja ArcoSPA-tenant-#1 (que ya tiene datos operativos propios reales) con el modelo "Consultora sin datos propios", antes de tocar el tenant real de producción; contemplar la delegación en el DPA/Términos de Uso de `ADR-003` (ahora hay una tercera parte operando sobre los datos del cliente — revisión legal, no implementación unilateral); y graduar `Consultora`/`Operador Delegado`/`Delegación` de `Draft` a `Approved` en `docs/business/UBIQUITOUS_LANGUAGE.md` (confirmación del propietario del producto, registrada en `DECISION_LOG.md`).
+**La Capa de Reporting transversal de `ADR-004` § 7 ya está implementada — ver Fase 57 ("Visión de cartera").** Lo que ese trabajo dejó explícitamente sin resolver, y sigue en backlog: alcance de KPIs más allá de lo que ya cubre `ObtenerKpisDashboardQuery` (hoy Visión de cartera muestra exactamente los mismos KPI que el Dashboard de un Cliente, agregados — no hay todavía un catálogo de KPI distinto para la vista de cartera); caché si el número de Delegated Workspace por usuario crece mucho (hoy N queries secuenciales, aceptable para el volumen actual); quién puede crear/desactivar una `DelegacionTenant` desde autoservicio (hoy solo existe la de demo del seed); si la delegación es todo-o-nada dentro del rol o admite restricciones más finas; expiración/renovación; contemplar la delegación en el DPA/Términos de Uso de `ADR-003` (revisión legal, no implementación unilateral); y graduar `Consultora`/`Operador Delegado`/`Delegación` de `Draft` a `Approved` en `docs/business/UBIQUITOUS_LANGUAGE.md`.
 
 ## Backlog — Rework de Dashboard: configurable por rol + comparativas (pedido 2026-07-25, sin diseñar)
 

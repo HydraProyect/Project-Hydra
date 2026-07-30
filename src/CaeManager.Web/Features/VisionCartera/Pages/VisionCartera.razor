@@ -1,0 +1,78 @@
+@page "/vision-cartera"
+@rendermode InteractiveServer
+@using CaeManager.Application.Dashboard.Queries
+
+<PageTitle>Visión de cartera — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="dashboard-cabecera">
+        <span class="dashboard-kicker">Visión de cartera</span>
+        <h1 class="titulo-pagina">Todos tus clientes de un vistazo</h1>
+    </div>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar la visión de cartera" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_kpis is null)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else if (_kpis.TotalClientes <= 1)
+    {
+        <EstadoVacio Titulo="Todavía no operas ningún cliente delegado" Descripcion="Esta vista agrega datos entre varios clientes. Cuando tengas al menos un Delegated Workspace activo, aparecerá aquí." />
+    }
+    else
+    {
+        <div class="rejilla-kpis-criticos">
+            <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()" Tono="TonoBadge.Peligro" />
+            <TarjetaMetrica Etiqueta="Urgentes (≤15 días)" Valor="@_kpis.DocumentosUrgentes.ToString()" Tono="TonoBadge.Peligro" />
+            <TarjetaMetrica Etiqueta="Próximos (≤30 días)" Valor="@_kpis.DocumentosProximos.ToString()" Tono="TonoBadge.Advertencia" />
+            <TarjetaMetrica Etiqueta="SLA documental promedio" Valor="@($"{_kpis.TasaCumplimientoDocumentalPromedio}%")" Tono="@SlaDocumentalTono(_kpis.TasaCumplimientoDocumentalPromedio)" />
+        </div>
+
+        <h2 class="dashboard-subtitulo">Actividad general</h2>
+        <div class="rejilla-kpis-secundarios">
+            <TarjetaMetrica Discreta="true" Etiqueta="Clientes" Valor="@_kpis.TotalClientes.ToString()" />
+            <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" />
+            <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" />
+        </div>
+
+        <Tarjeta Titulo="Clientes con más riesgo" Class="tarjeta-clientes-riesgo">
+            @if (_kpis.ClientesConMasRiesgo.All(c => c.DocumentosVencidos == 0 && c.DocumentosUrgentes == 0))
+            {
+                <p class="texto-vacio-seccion">Ningún cliente tiene documentación urgente o vencida.</p>
+            }
+            else
+            {
+                <table class="tabla-datos">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Vencidos</th>
+                            <th>Urgentes</th>
+                            <th>SLA documental</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cliente in _kpis.ClientesConMasRiesgo)
+                        {
+                            <tr class="fila-clicable" @onclick="() => VerCliente(cliente.TenantId)">
+                                <td>@cliente.Nombre</td>
+                                <td><Badge Tono="TonoBadge.Peligro">@cliente.DocumentosVencidos</Badge></td>
+                                <td><Badge Tono="TonoBadge.Advertencia">@cliente.DocumentosUrgentes</Badge></td>
+                                <td><Badge Tono="@SlaDocumentalTono(cliente.TasaCumplimientoDocumental)">@cliente.TasaCumplimientoDocumental%</Badge></td>
+                                <td class="celda-accion-cliente">Ver como este cliente →</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </Tarjeta>
+    }
+</div>

@@ -25,6 +25,14 @@ public partial class AsistenteIa : ComponentBase, IDisposable
     private string? _mensajeError;
     private readonly List<MensajeChatDto> _historial = [];
 
+    /// <summary>
+    /// Mismo guardia que Drawer.razor: true solo si el mousedown que originó
+    /// el clic en curso empezó en la superposición (no en el panel), para no
+    /// cerrar el panel cuando el usuario selecciona texto de una respuesta y
+    /// suelta el clic fuera del panel.
+    /// </summary>
+    private bool _mouseDownEnSuperposicion;
+
     protected override void OnInitialized() => AsistenteIaService.SolicitudAbrir += Abrir;
 
     private void Abrir()
@@ -34,6 +42,11 @@ public partial class AsistenteIa : ComponentBase, IDisposable
     }
 
     private void Cerrar() => _visible = false;
+
+    private void ManejarClicSuperposicion()
+    {
+        if (_mouseDownEnSuperposicion) Cerrar();
+    }
 
     private async Task EnviarAsync()
     {
