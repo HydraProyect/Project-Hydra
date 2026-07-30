@@ -10,10 +10,10 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Documentos.Commands.CrearDocumento;
 
 /// <summary>
-/// Exactamente uno de TrabajadorId/ClienteId/EmpresaId/VehiculoId debe venir
+/// Exactamente uno de TrabajadorId/ClienteId/EmpresaId/VehiculoId/ProyectoId debe venir
 /// informado — el propietario del Documento (ver <see cref="Documento.DeTrabajador"/>/
 /// <see cref="Documento.DeCliente"/>/<see cref="Documento.DeEmpresa"/>/
-/// <see cref="Documento.DeVehiculo"/>), y debe coincidir con el
+/// <see cref="Documento.DeVehiculo"/>/<see cref="Documento.DeProyecto"/>), y debe coincidir con el
 /// <see cref="AmbitoAplicacion"/> del TipoDocumento elegido.
 /// FechaVencimientoManual solo se usa cuando el TipoDocumento no
 /// tiene vencimiento automático (AplicaVencimientoAutomatico = false) — en
@@ -22,7 +22,7 @@ namespace CaeManager.Application.Documentos.Commands.CrearDocumento;
 /// se recalcula siempre a partir de la vigencia en meses.
 /// </summary>
 public record CrearDocumentoCommand(
-    Guid? TrabajadorId, Guid? ClienteId, Guid? EmpresaId, Guid? VehiculoId, Guid TipoDocumentoId, DateOnly FechaEmision,
+    Guid? TrabajadorId, Guid? ClienteId, Guid? EmpresaId, Guid? VehiculoId, Guid? ProyectoId, Guid TipoDocumentoId, DateOnly FechaEmision,
     DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios)
     : IRequest<Result<Guid>>;
 
@@ -31,8 +31,8 @@ public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCo
     public CrearDocumentoCommandValidator()
     {
         RuleFor(c => c)
-            .Must(c => new[] { c.TrabajadorId, c.ClienteId, c.EmpresaId, c.VehiculoId }.Count(id => id is not null) == 1)
-            .WithMessage("Selecciona un trabajador, un cliente, una empresa o un vehículo (exactamente uno).");
+            .Must(c => new[] { c.TrabajadorId, c.ClienteId, c.EmpresaId, c.VehiculoId, c.ProyectoId }.Count(id => id is not null) == 1)
+            .WithMessage("Selecciona un trabajador, un cliente, una empresa, un vehículo o un proyecto (exactamente uno).");
 
         RuleFor(c => c.TipoDocumentoId).NotEmpty().WithMessage("Selecciona un tipo de documento.");
         RuleFor(c => c.FechaEmision)
@@ -58,6 +58,7 @@ public class CrearDocumentoCommandHandler(
         var ambitoSolicitado = request.TrabajadorId is not null ? AmbitoAplicacion.Trabajador
             : request.ClienteId is not null ? AmbitoAplicacion.Cliente
             : request.VehiculoId is not null ? AmbitoAplicacion.Vehiculo
+            : request.ProyectoId is not null ? AmbitoAplicacion.Proyecto
             : AmbitoAplicacion.Empresa;
 
         if (tipoDocumento.AmbitoAplicacion != ambitoSolicitado)
@@ -79,6 +80,9 @@ public class CrearDocumentoCommandHandler(
                 request.ArchivoUrl, request.Comentarios),
             AmbitoAplicacion.Vehiculo => Documento.DeVehiculo(
                 request.VehiculoId!.Value, request.TipoDocumentoId, request.FechaEmision, fechaVencimiento,
+                request.ArchivoUrl, request.Comentarios),
+            AmbitoAplicacion.Proyecto => Documento.DeProyecto(
+                request.ProyectoId!.Value, request.TipoDocumentoId, request.FechaEmision, fechaVencimiento,
                 request.ArchivoUrl, request.Comentarios),
             _ => Documento.DeEmpresa(
                 request.EmpresaId!.Value, request.TipoDocumentoId, request.FechaEmision, fechaVencimiento,
@@ -110,6 +114,7 @@ public class CrearDocumentoCommandHandler(
         AmbitoAplicacion.Trabajador => "Trabajador",
         AmbitoAplicacion.Cliente => "Cliente",
         AmbitoAplicacion.Vehiculo => "Vehículo",
+        AmbitoAplicacion.Proyecto => "Proyecto",
         _ => "Empresa"
     };
 }

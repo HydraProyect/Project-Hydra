@@ -42,6 +42,9 @@ public class ObtenerTarifasClienteQueryHandler(IApplicationDbContext dbContext)
         ConceptoFacturable.AltaCentro => "Alta de centro",
         ConceptoFacturable.VisitaTrabajadorExtranjero => "Visita de trabajador extranjero",
         ConceptoFacturable.DocumentoGestionado => "Documento gestionado",
+        ConceptoFacturable.TecnicoAsignadoProyecto => "Técnico asignado a proyecto",
+        ConceptoFacturable.GestionProyectoRealizada => "Gestión de proyecto realizada",
+        ConceptoFacturable.DiaProyectoAbierto => "Día de proyecto abierto",
         _ => concepto.ToString()
     };
 }
