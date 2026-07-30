@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Web.Services;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Web.Features.Tenants;
@@ -18,9 +20,15 @@ public static class ClienteActivoEndpoints
 {
     public static IEndpointRouteBuilder MapClienteActivoEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/cuenta/cliente-activo/{tenantId:guid}", async (
-            Guid tenantId, string returnUrl, HttpContext httpContext,
+        // POST, no GET: cambia estado del lado del servidor (escribe/borra la
+        // cookie de workspace activo), así que no puede viajar en una URL que
+        // alguien pueda hacer seguir a un usuario con un enlace. Al aceptar
+        // formulario, UseAntiforgery valida el token automáticamente y una
+        // navegación de nivel superior provocada desde fuera ya no basta.
+        endpoints.MapPost("/cuenta/cliente-activo", async (
+            [FromForm] Guid tenantId, [FromForm] string? returnUrl, HttpContext httpContext,
             IApplicationDbContext dbContext, ICurrentUserService currentUserService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken cancellationToken) =>
         {
             var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
@@ -50,7 +58,14 @@ public static class ClienteActivoEndpoints
             }
             else
             {
-                httpContext.Response.Cookies.Append(ClienteActivoSeleccionado.NombreCookie, tenantId.ToString(), new CookieOptions
+                // Token protegido y ligado a este usuario, no el GUID en
+                // claro: esta autorización se comprueba al escribir, y el
+                // sellado criptográfico es lo que hace que siga valiendo al
+                // leer. Sin él, la comprobación de arriba era trivialmente
+                // esquivable escribiendo la cookie a mano (C-1).
+                var token = ClienteActivoSeleccionado.Proteger(dataProtectionProvider, usuarioId.Value, tenantId);
+
+                httpContext.Response.Cookies.Append(ClienteActivoSeleccionado.NombreCookie, token, new CookieOptions
                 {
                     HttpOnly = true,
                     // Igual que la política por defecto de la cookie de Identity
@@ -60,7 +75,9 @@ public static class ClienteActivoEndpoints
                     // IsHttps refleje el esquema original, no el interno.
                     Secure = httpContext.Request.IsHttps,
                     SameSite = SameSiteMode.Lax,
-                    MaxAge = TimeSpan.FromHours(12),
+                    // Misma vigencia que la del propio token, que es la que
+                    // de verdad se comprueba en servidor al descifrarlo.
+                    MaxAge = ClienteActivoSeleccionado.Vigencia,
                 });
             }
 
