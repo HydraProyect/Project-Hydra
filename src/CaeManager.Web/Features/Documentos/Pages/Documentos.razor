@@ -140,13 +140,16 @@
 
             @if (_ambitoAplicacion == nameof(AmbitoAplicacion.Trabajador))
             {
-                <CampoSelect Etiqueta="Trabajador" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
-                    <option value="">Selecciona un trabajador…</option>
-                    @foreach (var trabajador in _trabajadoresDisponibles)
-                    {
-                        <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
-                    }
-                </CampoSelect>
+                <CampoBuscarSelect
+                    Etiqueta="Trabajador"
+                    Marcador="Escribe un nombre o DNI para buscar…"
+                    Valor="@_trabajadorId"
+                    ValorChanged="v => _trabajadorId = v"
+                    Opciones="@OpcionesTrabajadores" />
+                @if (_detectandoCampos)
+                {
+                    <span class="detalle-tecnico">Leyendo el archivo para sugerir trabajador y tipo de documento…</span>
+                }
             }
             else if (_ambitoAplicacion == nameof(AmbitoAplicacion.Cliente))
             {

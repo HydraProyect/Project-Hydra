@@ -18,6 +18,24 @@
 - A quién vendemos → `ICP.md`.
 - Cómo se comunica la ventaja competitiva al mercado → `GO_TO_MARKET.md`.
 
+## Primeros datos de mercado y reencuadre de categoría (Draft, 2026-07)
+
+- **Precio de mercado verificado**: Twind — 100 € de despliegue + 300 €/mes (dato de cliente:
+  GESEME). Primer precio real obtenido; pendiente de ampliar con más comparables (Nalanda,
+  Dokify, CTAIMA, 6conecta, otros) antes de tratarlo como benchmark consolidado.
+- **Reencuadre de categoría (hipótesis)**: en su Fase 1 (ver `PRODUCT_STRATEGY.md`), Hydra no
+  compite frontalmente con las plataformas Inbound — son capas complementarias. Las Inbound
+  resuelven la relación documental con una planta/cliente concreto; Hydra resuelve la operación
+  interna del SPA (orden, vigencias, ausencia de Excel/correo/carpetas). La comparación
+  económica relevante en Fase 1 es frente al coste de gestión manual, no frente a estas
+  plataformas — ver `UNIT_ECONOMICS.md` y la comparativa de `PRICING.md`.
+- **Pendiente de investigación**: alcance exacto del contrato de GESEME con Twind (nº de
+  centros/clientes cubiertos, módulos incluidos) — insumo directo para calibrar la tarifa
+  comercial de referencia en `PRICING.md`.
+
+*Draft — no sustituye el desarrollo completo pendiente de este documento (competidores directos
+e indirectos, ventajas y debilidades frente a cada uno).*
+
 ## Documentos relacionados
 
 - `GO_TO_MARKET.md` — cómo se traduce este análisis en posicionamiento de mercado.
