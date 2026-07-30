@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
@@ -201,6 +202,17 @@ public static class DatosPruebaSeeder
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // --- Documentos (1-3 por Trabajador, repartidos entre vigente/próximo/urgente/vencido) ---
+        // El Id de TipoDocumentoSeedData.Datos es fijo para las filas del
+        // tenant #1 (HasData de migración) — este seeder puede correr sellado
+        // a un tenant distinto (ver DelegacionDemoSeeder), que tiene su
+        // propia copia del catálogo con Ids nuevos. Se resuelve por Nombre
+        // contra las filas reales del tenant ambiente en vez de asumir el Id
+        // fijo, o los Documento generados aquí referenciarían un
+        // TipoDocumentoId invisible bajo el filtro de tenant del ambiente
+        // actual.
+        var tiposDocumentoPorNombre = await dbContext.TiposDocumento
+            .ToDictionaryAsync(t => t.Nombre, t => t.Id, cancellationToken);
+
         var documentos = new List<Documento>();
         foreach (var trabajador in trabajadores)
         {
@@ -218,7 +230,7 @@ public static class DatosPruebaSeeder
                 var fechaEmision = fechaVencimiento?.AddMonths(-(tipoDocumento.VigenciaMeses ?? 12)) ?? hoy.AddDays(-aleatorio.Next(30, 400));
                 if (fechaEmision > hoy) fechaEmision = hoy;
 
-                documentos.Add(Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, fechaEmision, fechaVencimiento));
+                documentos.Add(Documento.DeTrabajador(trabajador.Id, tiposDocumentoPorNombre[tipoDocumento.Nombre], fechaEmision, fechaVencimiento));
             }
         }
         dbContext.Documentos.AddRange(documentos);
@@ -251,7 +263,15 @@ public static class DatosPruebaSeeder
                     // con ContrasenaUsuariosPrueba — nunca deben quedar
                     // atrapados en la pantalla de cambio de contraseña.
                     DebeCambiarContrasena = false,
-                    TenantId = TenantSeedData.IdPorDefecto
+                    // Antes hardcodeado al tenant #1 — asumía que este
+                    // seeder siempre corría para el tenant por defecto.
+                    // Desde que DelegacionDemoSeeder lo invoca sellado al
+                    // tenant Cliente Delegante de demo (ver ADR-004 § 5.1),
+                    // estos usuarios de prueba deben quedar en ESE tenant,
+                    // no en el #1 — si no, inician sesión viendo el tenant
+                    // Consultora vacío en vez de los datos que se acaban de
+                    // sembrar para ellos.
+                    TenantId = AmbitoTenantExplicito.TenantIdActual ?? TenantSeedData.IdPorDefecto
                 };
 
                 var resultado = await userManager.CreateAsync(usuario, ContrasenaUsuariosPrueba);

@@ -8,7 +8,9 @@ using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.RequisitosDocumentales;
@@ -75,6 +77,10 @@ public class CaeManagerDbContext(
     public DbSet<TarifaCliente> TarifasCliente => Set<TarifaCliente>();
     public DbSet<Proyecto> Proyectos => Set<Proyecto>();
     public DbSet<ProyectoTecnico> ProyectosTecnicos => Set<ProyectoTecnico>();
+    public DbSet<DelegacionTenant> DelegacionesTenant => Set<DelegacionTenant>();
+    public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();
+    public DbSet<Evaluacion> Evaluaciones => Set<Evaluacion>();
+    public DbSet<Incidencia> Incidencias => Set<Incidencia>();
 
     IQueryable<Cliente> IApplicationDbContext.Clientes => Clientes;
     IQueryable<Empresa> IApplicationDbContext.Empresas => Empresas;
@@ -106,6 +112,10 @@ public class CaeManagerDbContext(
     IQueryable<TarifaCliente> IApplicationDbContext.TarifasCliente => TarifasCliente;
     IQueryable<Proyecto> IApplicationDbContext.Proyectos => Proyectos;
     IQueryable<ProyectoTecnico> IApplicationDbContext.ProyectosTecnicos => ProyectosTecnicos;
+    IQueryable<DelegacionTenant> IApplicationDbContext.DelegacionesTenant => DelegacionesTenant;
+    IQueryable<AsignacionOperadorDelegado> IApplicationDbContext.AsignacionesOperadorDelegado => AsignacionesOperadorDelegado;
+    IQueryable<Evaluacion> IApplicationDbContext.Evaluaciones => Evaluaciones;
+    IQueryable<Incidencia> IApplicationDbContext.Incidencias => Incidencias;
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -157,6 +167,8 @@ public class CaeManagerDbContext(
         builder.Entity<Vehiculo>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
         builder.Entity<Visita>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
         builder.Entity<Proyecto>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Evaluacion>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<Incidencia>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
 
         builder.Entity<Alerta>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<Asignacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);

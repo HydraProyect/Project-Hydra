@@ -17,8 +17,41 @@ public static class Ayudas
 
     public const string ContrasenaUsuariosPrueba = "Prueba#2026";
 
+    /// <summary>
+    /// Nombre del tenant Cliente Delegante que DelegacionDemoSeeder siembra
+    /// para el Administrador inicial (ver esa clase en
+    /// CaeManager.Infrastructure.Persistence.Seed) — duplicado aquí en vez de
+    /// referenciado porque este proyecto de test no referencia Infrastructure
+    /// (mismo criterio que EmailAdministradorSegundoTenant); si cambia allí,
+    /// este test debe actualizarse también.
+    /// </summary>
+    public const string NombreClienteDelegadoDemo = "Ibertec S.A. (Cliente Delegante demo)";
+
     public static string EmailPrueba(string rolEnMinusculas, int numero) =>
         $"prueba.{rolEnMinusculas}{numero}@caemanager.local";
+
+    /// <summary>
+    /// Cambia el "Cliente activo" (ver SelectorClienteActivo.razor) al
+    /// Cliente Delegante indicado por nombre — navegando directamente al
+    /// endpoint GET /cuenta/cliente-activo/{tenantId} en vez de interactuar
+    /// con el &lt;select&gt; vía SelectOptionAsync: el cambio real lo dispara
+    /// un evento "change" de Blazor Server que depende de que el circuito ya
+    /// esté interactivo (viaje de ida y vuelta por SignalR), lo que resultó
+    /// intermitente en la práctica — a veces el evento nunca llega a
+    /// dispararse desde Playwright y el "Cliente activo" no cambia sin dar
+    /// ningún error visible. El id del tenant se lee directamente del atributo
+    /// "value" de la &lt;option&gt; ya renderizada en el HTML servido (no
+    /// hace falta que el circuito esté interactivo para eso), y se navega
+    /// con GotoAsync — una petición HTTP real, sin depender de SignalR.
+    /// </summary>
+    public static async Task CambiarClienteActivoAsync(IPage page, string baseUrl, string nombreCliente)
+    {
+        var opcion = page.Locator(".selector-cliente-activo option", new PageLocatorOptions { HasText = nombreCliente });
+        var tenantId = await opcion.GetAttributeAsync("value");
+
+        await page.GotoAsync($"{baseUrl}/cuenta/cliente-activo/{tenantId}?returnUrl=%2F");
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+    }
 
     public static async Task IniciarSesionAsync(IPage page, string baseUrl, string email, string password)
     {
