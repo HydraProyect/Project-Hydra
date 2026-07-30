@@ -15,7 +15,7 @@ public class ResponderConversacionCommandHandlerTests
         var repositorio = new ConversacionCorreoRepositorioFalso();
         repositorio.Agregar(conversacion);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new ResponderConversacionCommandHandler(repositorio, unitOfWork);
+        var handler = new ResponderConversacionCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new ResponderConversacionCommand(conversacion.Id, "<p>Ya está todo en regla.</p>"), CancellationToken.None);
@@ -31,7 +31,7 @@ public class ResponderConversacionCommandHandlerTests
     {
         var repositorio = new ConversacionCorreoRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new ResponderConversacionCommandHandler(repositorio, unitOfWork);
+        var handler = new ResponderConversacionCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new ResponderConversacionCommand(Guid.NewGuid(), "<p>Hola</p>"), CancellationToken.None);
