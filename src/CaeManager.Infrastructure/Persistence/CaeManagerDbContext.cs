@@ -4,6 +4,7 @@ using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
@@ -36,7 +37,7 @@ public class CaeManagerDbContext(
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options), IApplicationDbContext, IUnitOfWork
 {
     private readonly IDataProtector _protectorCredenciales =
-        dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1");
+        dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
     private readonly IDataProtector _protectorCredencialesEmpresa =
         dataProtectionProvider.CreateProtector("CaeManager.CredencialAccesoEmpresa.Credenciales.v1");
     private readonly IDataProtector _protectorCredencialesSubcontrata =
@@ -44,8 +45,8 @@ public class CaeManagerDbContext(
 
     public DbSet<Cliente> Clientes => Set<Cliente>();
     public DbSet<Centro> Centros => Set<Centro>();
-    public DbSet<PlataformaAcceso> PlataformasAcceso => Set<PlataformaAcceso>();
-    IQueryable<PlataformaAcceso> IApplicationDbContext.PlataformasAcceso => PlataformasAcceso;
+    public DbSet<CanalGestionDocumental> CanalesGestionDocumental => Set<CanalGestionDocumental>();
+    IQueryable<CanalGestionDocumental> IApplicationDbContext.CanalesGestionDocumental => CanalesGestionDocumental;
     public DbSet<Empresa> Empresas => Set<Empresa>();
     public DbSet<EmpresaCliente> EmpresasClientes => Set<EmpresaCliente>();
     public DbSet<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Set<CredencialAccesoEmpresa>();
@@ -81,6 +82,10 @@ public class CaeManagerDbContext(
     public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();
     public DbSet<Evaluacion> Evaluaciones => Set<Evaluacion>();
     public DbSet<Incidencia> Incidencias => Set<Incidencia>();
+    public DbSet<ConversacionCorreo> ConversacionesCorreo => Set<ConversacionCorreo>();
+    public DbSet<MensajeCorreo> MensajesCorreo => Set<MensajeCorreo>();
+    public DbSet<ParticipanteConversacion> ParticipantesConversacion => Set<ParticipanteConversacion>();
+    public DbSet<MacroRespuesta> MacrosRespuesta => Set<MacroRespuesta>();
 
     IQueryable<Cliente> IApplicationDbContext.Clientes => Clientes;
     IQueryable<Empresa> IApplicationDbContext.Empresas => Empresas;
@@ -116,6 +121,10 @@ public class CaeManagerDbContext(
     IQueryable<AsignacionOperadorDelegado> IApplicationDbContext.AsignacionesOperadorDelegado => AsignacionesOperadorDelegado;
     IQueryable<Evaluacion> IApplicationDbContext.Evaluaciones => Evaluaciones;
     IQueryable<Incidencia> IApplicationDbContext.Incidencias => Incidencias;
+    IQueryable<ConversacionCorreo> IApplicationDbContext.ConversacionesCorreo => ConversacionesCorreo;
+    IQueryable<MensajeCorreo> IApplicationDbContext.MensajesCorreo => MensajesCorreo;
+    IQueryable<ParticipanteConversacion> IApplicationDbContext.ParticipantesConversacion => ParticipantesConversacion;
+    IQueryable<MacroRespuesta> IApplicationDbContext.MacrosRespuesta => MacrosRespuesta;
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -128,8 +137,8 @@ public class CaeManagerDbContext(
             valorPlano => valorPlano == null ? null : _protectorCredenciales.Protect(valorPlano),
             valorCifrado => valorCifrado == null ? null : _protectorCredenciales.Unprotect(valorCifrado));
 
-        builder.Entity<PlataformaAcceso>().Property(p => p.Usuario).HasConversion(conversorCredenciales);
-        builder.Entity<PlataformaAcceso>().Property(p => p.Contrasena).HasConversion(conversorCredenciales);
+        builder.Entity<CanalGestionDocumental>().Property(c => c.Usuario).HasConversion(conversorCredenciales);
+        builder.Entity<CanalGestionDocumental>().Property(c => c.Contrasena).HasConversion(conversorCredenciales);
 
         var conversorCredencialesEmpresa = new ValueConverter<string?, string?>(
             valorPlano => valorPlano == null ? null : _protectorCredencialesEmpresa.Protect(valorPlano),
@@ -151,10 +160,10 @@ public class CaeManagerDbContext(
         // cada *Configuration.cs) — ver docs/MULTITENANCY.md § 4.2: EF Core
         // solo admite un HasQueryFilter por entidad, así que ponerlo en un
         // único lugar evita que un segundo HasQueryFilter futuro reemplace
-        // silenciosamente este sin que nadie lo note. Los 13 agregados con
-        // soft delete combinan ambos filtros; los 21 restantes (tablas de
+        // silenciosamente este sin que nadie lo note. Los 15 agregados con
+        // soft delete combinan ambos filtros; los 23 restantes (tablas de
         // unión/satélite sin ciclo de vida propio) solo llevan el de tenant.
-        // Las dos listas cubren las 34 entidades que heredan de
+        // Las dos listas cubren las 38 entidades que heredan de
         // EntidadConTenant/EntidadBase, sin excepción: es la invariante que
         // enuncia docs/MULTITENANCY.md ("ninguna tabla sin filtro global") y
         // la cubre AislamientoPorAgregadoTests. Toda entidad nueva añade aquí
@@ -175,11 +184,13 @@ public class CaeManagerDbContext(
         builder.Entity<Evaluacion>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
         builder.Entity<Incidencia>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
         builder.Entity<TarifaCliente>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<ConversacionCorreo>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<MacroRespuesta>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
 
         builder.Entity<Alerta>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<Asignacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<RegistroAuditoria>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<PlataformaAcceso>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<CanalGestionDocumental>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<ParametroSistema>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<ConfiguracionIaDocumentoCliente>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<TipoDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
@@ -197,5 +208,7 @@ public class CaeManagerDbContext(
         builder.Entity<RevisionIaDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<ProyectoTecnico>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<AprobacionDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<MensajeCorreo>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<ParticipanteConversacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
     }
 }
