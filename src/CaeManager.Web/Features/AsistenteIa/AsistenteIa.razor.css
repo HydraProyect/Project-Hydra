@@ -1,33 +1,52 @@
-.asistente-panel {
+/*
+  Panel lateral abatible (no la tarjeta flotante bottom-right anterior) —
+  mismo patrón visual y stacking que Drawer.razor.css (superposición +
+  panel de altura completa anclado a la derecha), para que abrir el
+  Asistente se sienta consistente con el resto de paneles deslizantes de la
+  app. z-index 1030: un escalón por debajo de Drawer (1040) y Modal (1050)
+  — si el usuario abre un Drawer/Modal mientras el Asistente está abierto,
+  ese contenido transaccional debe quedar por encima, nunca al revés.
+*/
+.asistente-superposicion {
     position: fixed;
-    right: var(--space-6);
-    bottom: calc(56px + var(--space-6) + var(--space-3));
-    z-index: 41;
-    width: min(440px, calc(100vw - 2 * var(--space-4)));
-    height: min(520px, calc(100vh - 120px));
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.45);
+    display: flex;
+    justify-content: flex-end;
+    z-index: 1030;
+}
+
+.asistente-panel {
     background-color: var(--color-surface);
-    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-overlay);
+    width: 100%;
+    max-width: 440px;
+    height: 100vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    animation: entrar-desde-abajo 0.15s ease-out;
+    animation: entrar-desde-derecha 0.2s ease-out;
 }
 
-@keyframes entrar-desde-abajo {
+@keyframes entrar-desde-derecha {
     from {
-        opacity: 0;
-        transform: translateY(12px);
+        transform: translateX(100%);
     }
     to {
-        opacity: 1;
-        transform: translateY(0);
+        transform: translateX(0);
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .asistente-panel {
         animation: none;
+    }
+}
+
+/* Móvil: el panel ocupa todo el ancho (igual que Drawer en viewports estrechos) — no tiene sentido un max-width de escritorio en una pantalla de 360px. */
+@media (max-width: 480px) {
+    .asistente-panel {
+        max-width: 100%;
     }
 }
 
