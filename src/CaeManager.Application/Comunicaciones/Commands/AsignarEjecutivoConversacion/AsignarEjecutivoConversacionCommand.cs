@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
 using MediatR;
 
