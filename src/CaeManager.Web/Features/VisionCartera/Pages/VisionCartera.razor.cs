@@ -2,18 +2,24 @@ using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 
 namespace CaeManager.Web.Features.VisionCartera.Pages;
 
 public partial class VisionCartera : ComponentBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
-    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
 
     private KpisGlobalesDto? _kpis;
     private bool _error;
+    private AntiforgeryRequestToken? _token;
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    protected override Task OnInitializedAsync()
+    {
+        _token = AntiforgeryStateProvider.GetAntiforgeryToken();
+        return CargarAsync();
+    }
 
     private async Task CargarAsync()
     {
@@ -29,12 +35,6 @@ public partial class VisionCartera : ComponentBase
         {
             _error = true;
         }
-    }
-
-    private void VerCliente(Guid tenantId)
-    {
-        var returnUrl = Uri.EscapeDataString("/");
-        NavigationManager.NavigateTo($"/cuenta/cliente-activo/{tenantId}?returnUrl={returnUrl}", forceLoad: true);
     }
 
     private static TonoBadge SlaDocumentalTono(int tasa) => tasa switch
