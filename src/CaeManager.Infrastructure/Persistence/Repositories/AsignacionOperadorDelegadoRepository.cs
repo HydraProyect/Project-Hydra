@@ -13,4 +13,6 @@ public class AsignacionOperadorDelegadoRepository(CaeManagerDbContext dbContext)
             a => a.DelegacionTenantId == delegacionTenantId && a.UsuarioId == usuarioId, cancellationToken);
 
     public void Agregar(AsignacionOperadorDelegado asignacion) => dbContext.AsignacionesOperadorDelegado.Add(asignacion);
+
+    public void Eliminar(AsignacionOperadorDelegado asignacion) => dbContext.AsignacionesOperadorDelegado.Remove(asignacion);
 }
