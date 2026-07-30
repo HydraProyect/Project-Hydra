@@ -135,8 +135,8 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
         () => new RegistroAuditoria("Cliente", Guid.NewGuid(), "Creado", null, "{}", null));
 
     [Fact]
-    public Task Aislamiento_PlataformaAcceso() => VerificarAislamientoAsync(
-        () => new PlataformaAcceso(Guid.NewGuid(), "CTAIMA CAE", null, null, null));
+    public Task Aislamiento_CanalGestionDocumental() => VerificarAislamientoAsync(
+        () => CanalGestionDocumental.DePlataforma(Guid.NewGuid(), "CTAIMA CAE", null, null, null));
 
     [Fact]
     public Task Aislamiento_ParametroSistema() => VerificarAislamientoAsync(
