@@ -1,0 +1,118 @@
+@page "/comunicaciones/macros"
+@rendermode InteractiveServer
+@using CaeManager.Application.Common
+@using CaeManager.Application.Comunicaciones.Commands.CrearMacro
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject ICurrentUserService CurrentUserService
+
+<PageTitle>Macros — Comunicaciones — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Macros de respuesta</h1>
+        <div class="acciones-cabecera">
+            <a class="enlace-exportar" href="/comunicaciones">Volver a la bandeja</a>
+            <Boton OnClick="AbrirCrear">+ Nueva macro</Boton>
+        </div>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoSelect Etiqueta="Cliente" Valor="@_clienteFiltro" ValorChanged="FiltrarPorClienteAsync">
+            <option value="">Macros genéricas</option>
+            @foreach (var cliente in _clientesSelector)
+            {
+                <option value="@cliente.Id">@cliente.RazonSocial</option>
+            }
+        </CampoSelect>
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las macros" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="5" />
+    }
+    else if (_macros.Count == 0)
+    {
+        <EstadoVacio Titulo="Aún no hay macros" Descripcion="Crea la primera plantilla de respuesta para agilizar la bandeja.">
+            <Accion>
+                <Boton OnClick="AbrirCrear">+ Nueva macro</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Título</th>
+                    <th>Cliente</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var macro in _macros)
+                {
+                    <tr>
+                        <td>@macro.Titulo</td>
+                        <td>@(macro.ClienteRazonSocial ?? "Genérica")</td>
+                        <td>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditar(macro)">
+                                Editar
+                            </Boton>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(macro.Id, macro.Titulo)">
+                                Eliminar
+                            </Boton>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nueva macro" : "Editar macro")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        <CampoSelect Etiqueta="Cliente (opcional)" Valor="@_clienteIdFormulario" ValorChanged="v => _clienteIdFormulario = v">
+            <option value="">Genérica (todos los clientes)</option>
+            @foreach (var cliente in _clientesSelector)
+            {
+                <option value="@cliente.Id">@cliente.RazonSocial</option>
+            }
+        </CampoSelect>
+
+        <CampoTexto Etiqueta="Título" Valor="@_titulo" ValorChanged="v => _titulo = v" MensajeError="@ObtenerError(nameof(CrearMacroCommand.Titulo))" />
+
+        <CampoTextarea Etiqueta="Contenido" Valor="@_cuerpo" ValorChanged="v => _cuerpo = v" Filas="6" MensajeError="@ObtenerError(nameof(CrearMacroCommand.CuerpoHtml))" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+            Guardar
+        </Boton>
+    </Pie>
+</Drawer>
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarVisible"
+    VisibleChanged="v => _confirmarEliminarVisible = v"
+    Titulo="@($"¿Eliminar la macro «{_tituloAEliminar}»?")"
+    Mensaje="Se ocultará de la bandeja. Podrás recuperarla desde Auditoría."
+    EnProgreso="_eliminando"
+    OnConfirmar="ConfirmarEliminarAsync" />
