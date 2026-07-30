@@ -17,4 +17,13 @@ public interface ICurrentUserService
     /// ningún rol asignado.
     /// </summary>
     Task<string?> ObtenerRolActualAsync();
+
+    /// <summary>
+    /// Tenant de origen del usuario (el claim de sesión, ver
+    /// docs/MULTITENANCY.md § 8) — a diferencia de <c>ITenantActual.TenantId</c>,
+    /// nunca refleja un Delegated Workspace elegido (ADR-004 § 6); es
+    /// siempre el tenant al que pertenece la cuenta. Null en las mismas
+    /// condiciones que <see cref="ObtenerUsuarioActualIdAsync"/>.
+    /// </summary>
+    Task<Guid?> ObtenerTenantOrigenIdAsync();
 }
