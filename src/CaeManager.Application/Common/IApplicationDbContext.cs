@@ -10,6 +10,7 @@ using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Notificaciones;
+using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
@@ -57,6 +58,8 @@ public interface IApplicationDbContext
     IQueryable<PlataformaAcceso> PlataformasAcceso { get; }
     IQueryable<Tenant> Tenants { get; }
     IQueryable<TarifaCliente> TarifasCliente { get; }
+    IQueryable<Proyecto> Proyectos { get; }
+    IQueryable<ProyectoTecnico> ProyectosTecnicos { get; }
     IQueryable<DelegacionTenant> DelegacionesTenant { get; }
     IQueryable<AsignacionOperadorDelegado> AsignacionesOperadorDelegado { get; }
     IQueryable<Evaluacion> Evaluaciones { get; }

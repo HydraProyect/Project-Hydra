@@ -6,6 +6,7 @@ using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Proyectos.Queries.ObtenerProyectosParaSelector;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
@@ -62,6 +63,7 @@ public partial class Documentos : ComponentBase
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
     private IReadOnlyList<VehiculoSelectorDto> _vehiculosDisponibles = [];
+    private IReadOnlyList<ProyectoSelectorDto> _proyectosDisponibles = [];
     private IReadOnlyList<TipoDocumentoListaDto> _tiposDisponibles = [];
 
     private bool _drawerVisible;
@@ -71,6 +73,7 @@ public partial class Documentos : ComponentBase
     private string _clienteId = string.Empty;
     private string _empresaId = string.Empty;
     private string _vehiculoId = string.Empty;
+    private string _proyectoId = string.Empty;
     private string _propietarioNombreSoloLectura = string.Empty;
     private string _tipoDocumentoId = string.Empty;
     private string _tipoDocumentoNombreSoloLectura = string.Empty;
@@ -205,6 +208,7 @@ public partial class Documentos : ComponentBase
         _clienteId = string.Empty;
         _empresaId = string.Empty;
         _vehiculoId = string.Empty;
+        _proyectoId = string.Empty;
         _tipoDocumentoId = string.Empty;
         _fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = null;
@@ -227,6 +231,7 @@ public partial class Documentos : ComponentBase
         _clienteId = string.Empty;
         _empresaId = string.Empty;
         _vehiculoId = string.Empty;
+        _proyectoId = string.Empty;
 
         var ambito = Enum.Parse<AmbitoAplicacion>(valor);
 
@@ -236,6 +241,8 @@ public partial class Documentos : ComponentBase
             _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
         else if (ambito == AmbitoAplicacion.Vehiculo && _vehiculosDisponibles.Count == 0)
             _vehiculosDisponibles = await Mediator.Send(new ObtenerVehiculosParaSelectorQuery());
+        else if (ambito == AmbitoAplicacion.Proyecto && _proyectosDisponibles.Count == 0)
+            _proyectosDisponibles = await Mediator.Send(new ObtenerProyectosParaSelectorQuery());
 
         _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: ambito));
         CambiarTipoDocumento(string.Empty);
@@ -465,6 +472,7 @@ public partial class Documentos : ComponentBase
                     AmbitoAplicacion.Trabajador => _trabajadorId,
                     AmbitoAplicacion.Cliente => _clienteId,
                     AmbitoAplicacion.Vehiculo => _vehiculoId,
+                    AmbitoAplicacion.Proyecto => _proyectoId,
                     _ => _empresaId
                 };
 
@@ -475,6 +483,7 @@ public partial class Documentos : ComponentBase
                         AmbitoAplicacion.Trabajador => "Selecciona un trabajador.",
                         AmbitoAplicacion.Cliente => "Selecciona un cliente.",
                         AmbitoAplicacion.Vehiculo => "Selecciona un vehículo.",
+                        AmbitoAplicacion.Proyecto => "Selecciona un proyecto.",
                         _ => "Selecciona una empresa."
                     };
                     return;
@@ -491,6 +500,7 @@ public partial class Documentos : ComponentBase
                     ClienteId: ambito == AmbitoAplicacion.Cliente ? idPropietario : null,
                     EmpresaId: ambito == AmbitoAplicacion.Empresa ? idPropietario : null,
                     VehiculoId: ambito == AmbitoAplicacion.Vehiculo ? idPropietario : null,
+                    ProyectoId: ambito == AmbitoAplicacion.Proyecto ? idPropietario : null,
                     TipoDocumentoId: tipoDocumentoId,
                     FechaEmision: fechaEmision,
                     FechaVencimientoManual: fechaVencimientoManual,
