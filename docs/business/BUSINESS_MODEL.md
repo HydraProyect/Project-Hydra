@@ -19,6 +19,22 @@
 - Métricas de rentabilidad (CAC, LTV, churn) → `UNIT_ECONOMICS.md`.
 - El modelo técnico de aislamiento multi-tenant que hace posible vender a distintos tenants → `docs/MULTITENANCY.md`.
 
+## Hipótesis de segmento de entrada y métrica de valor (Draft, 2026-07)
+
+- **Segmento de entrada validado con tracción real**: SPA/Consultora de PRL (no contratista
+  directa), con un Cliente Fundador real (GESEME) en proceso de contratación. Rompe la hipótesis
+  de secuencia de segmentos anterior, que estaba sin datos — se confirma "consultoras primero".
+- **Métrica de valor candidata para el pricing**: trabajadores activos monitorizados y/o
+  clientes gestionados, en sustitución de una tarifa plana sin límite superior (descartada
+  explícitamente por riesgo de coste no acotado frente al crecimiento del cliente).
+- **Hipótesis de reencuadre competitivo**: las plataformas Inbound (CTAIMA, Nalanda, Dokify,
+  6conecta, Twind...) no son solo comparables de integración futura — son simultáneamente
+  clientes potenciales de integración, competidores potenciales de producto propio, y
+  adversarios técnicos frente a cualquier automatización de subida (Fase 2 de
+  `PRODUCT_STRATEGY.md`). Relación de coopetición, no solo de integración técnica.
+
+*Draft — pendiente de desarrollo completo y confirmación explícita antes de Approved.*
+
 ## Documentos relacionados
 
 - `ICP.md` — a quién se dirige este modelo de negocio.
