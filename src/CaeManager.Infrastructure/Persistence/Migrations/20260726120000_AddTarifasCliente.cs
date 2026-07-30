@@ -8,6 +8,11 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CaeManager.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
+    // Sin estos dos atributos EF Core no descubre la clase como migración y
+    // la salta en silencio: la tabla TarifasCliente no llegaba a crearse
+    // nunca. Las migraciones escritas a mano (esta y AddProyectos) no llevan
+    // .Designer.cs, que es donde el scaffolding los pone normalmente, así que
+    // van aquí — mismo patrón que 20260730120000_AddProyectos.
     [DbContext(typeof(CaeManagerDbContext))]
     [Migration("20260726120000_AddTarifasCliente")]
     public partial class AddTarifasCliente : Migration

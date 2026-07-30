@@ -50,6 +50,10 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     public Task DisposeAsync()
     {
         _dbContext.Dispose();
+        // Microsoft.Data.Sqlite devuelve la conexión a su pool al disponer el
+        // contexto, y ese handle sigue abierto: en Windows impide borrar el
+        // archivo y hacía fallar el teardown (no el cuerpo) del test.
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         File.Delete(_rutaBaseDatos);
         return Task.CompletedTask;
     }
