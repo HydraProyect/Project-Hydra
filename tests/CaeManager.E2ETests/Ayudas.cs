@@ -32,24 +32,24 @@ public static class Ayudas
 
     /// <summary>
     /// Cambia el "Cliente activo" (ver SelectorClienteActivo.razor) al
-    /// Cliente Delegante indicado por nombre — navegando directamente al
-    /// endpoint GET /cuenta/cliente-activo/{tenantId} en vez de interactuar
-    /// con el &lt;select&gt; vía SelectOptionAsync: el cambio real lo dispara
-    /// un evento "change" de Blazor Server que depende de que el circuito ya
-    /// esté interactivo (viaje de ida y vuelta por SignalR), lo que resultó
-    /// intermitente en la práctica — a veces el evento nunca llega a
-    /// dispararse desde Playwright y el "Cliente activo" no cambia sin dar
-    /// ningún error visible. El id del tenant se lee directamente del atributo
-    /// "value" de la &lt;option&gt; ya renderizada en el HTML servido (no
-    /// hace falta que el circuito esté interactivo para eso), y se navega
-    /// con GotoAsync — una petición HTTP real, sin depender de SignalR.
+    /// Cliente Delegante indicado por nombre, usando el &lt;select&gt; real de
+    /// la interfaz.
+    ///
+    /// Antes esto navegaba a mano al endpoint, saltándose el selector: el
+    /// cambio lo disparaba un @onchange de Blazor que exigía tener el circuito
+    /// ya interactivo (ida y vuelta por SignalR) y resultó intermitente — a
+    /// veces el evento no llegaba a dispararse desde Playwright y el cliente
+    /// activo no cambiaba sin dar ningún error visible. Desde el arreglo de
+    /// M-8 el selector es un &lt;form&gt; HTML que hace POST, así que el envío
+    /// lo hace el navegador sin depender de SignalR y se puede ejercitar la
+    /// interfaz de verdad — que además es lo que hace el usuario.
     /// </summary>
     public static async Task CambiarClienteActivoAsync(IPage page, string baseUrl, string nombreCliente)
     {
         var opcion = page.Locator(".selector-cliente-activo option", new PageLocatorOptions { HasText = nombreCliente });
         var tenantId = await opcion.GetAttributeAsync("value");
 
-        await page.GotoAsync($"{baseUrl}/cuenta/cliente-activo/{tenantId}?returnUrl=%2F");
+        await page.SelectOptionAsync(".selector-cliente-activo", new SelectOptionValue { Value = tenantId });
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
     }
 

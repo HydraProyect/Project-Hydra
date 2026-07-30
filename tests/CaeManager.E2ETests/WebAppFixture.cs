@@ -17,6 +17,9 @@ public class WebAppFixture : IAsyncLifetime
 {
     private const string ExecutablePathChromium = "/opt/pw-browsers/chromium";
 
+    private static readonly Lock CandadoInstalacion = new();
+    private static bool _navegadoresInstalados;
+
     private Process? _proceso;
     private IPlaywright? _playwright;
     private string? _rutaBaseDatos;
@@ -77,17 +80,68 @@ public class WebAppFixture : IAsyncLifetime
         await EsperarArranqueAsync();
 
         _playwright = await Playwright.CreateAsync();
-        Browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+        Browser = await LanzarChromiumAsync();
+    }
+
+    /// <summary>
+    /// Lanza Chromium y, si no está instalado, lo instala y reintenta una vez.
+    ///
+    /// En CI los navegadores los pone un paso explícito del workflow
+    /// (ver ci.yml, "Instalar navegadores de Playwright"), así que este camino
+    /// no se usa allí. Existe para la máquina de un desarrollador recién
+    /// clonada: sin esto, <c>dotnet test</c> da 8 rojos con un
+    /// "Executable doesn't exist at ..." que no dice qué hacer.
+    /// </summary>
+    private async Task<IBrowser> LanzarChromiumAsync()
+    {
+        // ExecutablePathChromium solo existe en el sandbox de este entorno de
+        // desarrollo — en CI (y en cualquier otra máquina) el Chromium real
+        // vive donde lo puso "playwright install", la caché estándar de
+        // Playwright. Se usa el path fijo solo si de verdad está ahí; si no,
+        // se deja sin ExecutablePath para que Playwright resuelva el suyo.
+        var opciones = new BrowserTypeLaunchOptions
         {
-            // ExecutablePathChromium solo existe en el sandbox de este
-            // entorno de desarrollo — en CI (y en cualquier otra máquina)
-            // el Chromium real vive donde lo puso "playwright install"
-            // (ver ci.yml), la caché estándar de Playwright. Se usa el path
-            // fijo solo si de verdad está ahí; si no, se deja sin
-            // ExecutablePath para que Playwright resuelva el suyo.
             ExecutablePath = File.Exists(ExecutablePathChromium) ? ExecutablePathChromium : null,
             Headless = true,
-        });
+        };
+
+        try
+        {
+            return await _playwright!.Chromium.LaunchAsync(opciones);
+        }
+        catch (PlaywrightException ex) when (ex.Message.Contains("Executable doesn't exist", StringComparison.Ordinal))
+        {
+            InstalarNavegadores();
+            return await _playwright!.Chromium.LaunchAsync(opciones);
+        }
+    }
+
+    private static void InstalarNavegadores()
+    {
+        // Serializado: WebAppFixtureConSegundoTenant es otra fixture que puede
+        // inicializarse en paralelo con esta, y dos instalaciones simultáneas
+        // sobre la misma caché se pisarían.
+        lock (CandadoInstalacion)
+        {
+            // Otra fixture pudo instalarlos mientras esperábamos el candado:
+            // las dos fallan al lanzar antes de que ninguna llegue a instalar.
+            if (_navegadoresInstalados) return;
+
+            Console.WriteLine(
+                "Navegadores de Playwright no encontrados. Descargando chromium (~300 MB, solo la primera vez)...");
+
+            // Mismo instalador que invoca playwright.ps1, pero en proceso: no
+            // depende de que exista pwsh en la máquina. Sin --with-deps a
+            // propósito — eso necesita sudo en Linux y en CI ya se hace aparte.
+            var codigoSalida = Microsoft.Playwright.Program.Main(["install", "chromium"]);
+
+            if (codigoSalida != 0)
+                throw new InvalidOperationException(
+                    $"La instalación automática de los navegadores de Playwright falló (código {codigoSalida}). "
+                    + "Instálalos a mano con: pwsh tests/CaeManager.E2ETests/bin/Debug/net10.0/playwright.ps1 install chromium");
+
+            _navegadoresInstalados = true;
+        }
     }
 
     public async Task DisposeAsync()
@@ -115,9 +169,29 @@ public class WebAppFixture : IAsyncLifetime
         if (_rutaBaseDatos is null) return;
 
         foreach (var sufijo in new[] { string.Empty, "-shm", "-wal" })
+            await BorrarConReintentosAsync(_rutaBaseDatos + sufijo);
+    }
+
+    /// <summary>
+    /// Aunque el proceso hijo ya haya salido, Windows puede tardar un instante
+    /// en soltar el handle del fichero, y entonces <c>File.Delete</c> lanza
+    /// IOException. Fallar la limpieza de un temporal no debe tumbar una suite
+    /// que ha pasado: se reintenta un poco y, si aun así no se puede, se deja
+    /// el fichero al sistema (está en la carpeta de temporales).
+    /// </summary>
+    private static async Task BorrarConReintentosAsync(string ruta)
+    {
+        for (var intento = 0; intento < 10; intento++)
         {
-            var ruta = _rutaBaseDatos + sufijo;
-            if (File.Exists(ruta)) File.Delete(ruta);
+            try
+            {
+                if (File.Exists(ruta)) File.Delete(ruta);
+                return;
+            }
+            catch (IOException)
+            {
+                await Task.Delay(100);
+            }
         }
     }
 
