@@ -6,8 +6,9 @@
     ahora), Trabajadores, Vehículos, Plataforma, Historial.
 *@
 @using CaeManager.Application.Centros.Queries.ObtenerCentroPorId
-@using CaeManager.Application.Centros.Queries.ObtenerPlataformaAccesoDeCentro
+@using CaeManager.Application.Centros.Queries.ObtenerCanalGestionDeCentro
 @using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro
+@using CaeManager.Domain.Centros
 @using CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeCentro
 @using CaeManager.Application.RequisitosDocumentales.Queries.ObtenerRequisitosDocumentalesDeCentro
 @using MediatR
@@ -168,23 +169,31 @@ else
                         </Accion>
                     </EstadoVacio>
                 }
-                else if (_plataforma is null)
+                else if (_canal is null)
                 {
-                    <EstadoVacio Titulo="Sin plataforma de acceso" Descripcion="Este centro no exige ningún portal externo para acreditar documentación." />
+                    <EstadoVacio Titulo="Sin canal de gestión" Descripcion="Este centro no tiene ningún portal externo ni gestión por correo registrado para acreditar documentación." />
                 }
-                else
+                else if (_canal.Tipo == TipoCanalGestion.Plataforma)
                 {
                     <div class="workspace-grupo-campos">
-                        <CampoInfo Etiqueta="Plataforma" Valor="@_plataforma.NombrePlataforma" />
-                        <CampoInfo Etiqueta="URL de acceso" Valor="@_plataforma.UrlAcceso" />
-                        <CampoInfo Etiqueta="Notas" Valor="@_plataforma.Notas" />
+                        <CampoInfo Etiqueta="Plataforma" Valor="@_canal.NombrePlataforma" />
+                        <CampoInfo Etiqueta="URL de acceso" Valor="@_canal.UrlAcceso" />
+                        <CampoInfo Etiqueta="Notas" Valor="@_canal.Notas" />
                         <CampoInfo Etiqueta="Credenciales">
-                            <Badge Tono="@(_plataforma.TieneCredenciales ? TonoBadge.Exito : TonoBadge.Neutro)">
-                                @(_plataforma.TieneCredenciales ? "Configuradas" : "Sin configurar")
+                            <Badge Tono="@(_canal.TieneCredenciales ? TonoBadge.Exito : TonoBadge.Neutro)">
+                                @(_canal.TieneCredenciales ? "Configuradas" : "Sin configurar")
                             </Badge>
                         </CampoInfo>
                     </div>
                     <p class="workspace-nota-contextual">El usuario y la contraseña se gestionan desde el formulario de edición del Centro — aquí solo se muestra si están configuradas, nunca su valor.</p>
+                }
+                else
+                {
+                    <div class="workspace-grupo-campos">
+                        <CampoInfo Etiqueta="Gestión por correo" Valor="@_canal.EmailsDestinatarios" />
+                        <CampoInfo Etiqueta="Contacto" Valor="@_canal.NombreContacto" />
+                        <CampoInfo Etiqueta="Notas" Valor="@_canal.Notas" />
+                    </div>
                 }
                 break;
 
@@ -224,7 +233,7 @@ else
     private IReadOnlyList<VehiculoConActividadDto>? _vehiculos;
     private bool _cargandoVehiculos;
     private bool _errorVehiculos;
-    private PlataformaAccesoResumenDto? _plataforma;
+    private CanalGestionResumenDto? _canal;
     private bool _plataformaCargada;
     private bool _cargandoPlataforma;
     private bool _errorPlataforma;
@@ -357,10 +366,10 @@ else
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerPlataformaAccesoDeCentroQuery(idSolicitado));
+            var resultado = await Mediator.Send(new ObtenerCanalGestionDeCentroQuery(idSolicitado));
             if (idSolicitado == EntidadId)
             {
-                _plataforma = resultado;
+                _canal = resultado;
                 _plataformaCargada = true;
             }
         }
