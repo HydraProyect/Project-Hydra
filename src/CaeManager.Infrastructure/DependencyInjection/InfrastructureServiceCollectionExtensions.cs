@@ -24,6 +24,7 @@ using CaeManager.Infrastructure.AsistenteIa;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Backups;
+using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Conversion;
 using CaeManager.Infrastructure.DocumentosIa;
 using CaeManager.Infrastructure.Email;
@@ -131,6 +132,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
+        services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
         // Scoped (no Singleton): depende de ITenantActual, que es scoped —
