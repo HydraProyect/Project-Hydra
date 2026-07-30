@@ -12,10 +12,12 @@
      genérico (ver DESIGN_SYSTEM.md § Historial — realineación 2026-07). */
   --color-primary-50: #eef5ff;
   --color-primary-100: #dcebff;
-  --color-primary-300: #8ec0ff;
-  --color-primary-500: #2f6fdd;
-  --color-primary-600: #235bc2;
-  --color-primary-700: #1e4a9e;
+  --color-primary-200: #bdd9ff;
+  --color-primary-300: #5ca2f4;
+  --color-primary-400: #2f6fdd;
+  --color-primary-500: #235bc2;
+  --color-primary-600: #1e4a9e;
+  --color-primary-700: #163a7d;
 
   /* Color — secundario: slate profundo, refuerza el acero sin competir con él */
   --color-secondary-50: #f1f4f7;
@@ -37,17 +39,23 @@
   --color-neutral-100: #f4f6f8;
   --color-neutral-200: #e8edf2;
   --color-neutral-300: #d5dce5;
+  --color-neutral-400: #a9b4c2;
   --color-neutral-500: #738196;
+  --color-neutral-600: #556274;
   --color-neutral-700: #404d60;
+  --color-neutral-800: #2a3441;
   --color-neutral-900: #161e27;
 
   /* Color — semántico (semáforo de vigencia documental) */
-  --color-success-50: #eafbf1;
+  --color-success-50: #eefdf3;
   --color-success-500: #22c55e;
+  --color-success-700: #15803d;
   --color-warning-50: #fff8eb;
   --color-warning-500: #f59e0b;
-  --color-danger-50: #fef0f0;
+  --color-warning-700: #b45309;
+  --color-danger-50: #fef2f2;
   --color-danger-500: #ef4444;
+  --color-danger-700: #991b1b;
   --color-info-50: var(--color-secondary-50);
   --color-info-500: var(--color-secondary-500);
 
@@ -137,13 +145,14 @@
     --color-secondary-50: #1d2733;
     --color-accent-50: #2a1f14;
 
-    /* Más claro que en modo día — el acero #2f6fdd pierde contraste sobre
-       fondo oscuro; se sube dos escalones de la misma familia en vez de
-       aclarar el valor de día con un filtro. Hover/activo se aclaran en vez
-       de oscurecerse (oscurecer reduce visibilidad contra un fondo ya oscuro). */
-    --color-primary-500: #5ca2f4;
-    --color-primary-600: #8ec0ff;
-    --color-primary-700: #bdd9ff;
+    /* Más claro que en modo día — el acero #235bc2 pierde contraste sobre
+       fondo oscuro; se sube dos escalones de la misma familia (reutilizando
+       los pasos 300/200/100 de la rampa de día) en vez de aclarar el valor
+       de día con un filtro. Hover/activo se aclaran en vez de oscurecerse
+       (oscurecer reduce visibilidad contra un fondo ya oscuro). */
+    --color-primary-500: var(--color-primary-300);
+    --color-primary-600: var(--color-primary-200);
+    --color-primary-700: var(--color-primary-100);
 
     --shadow-card: 0 4px 14px rgba(0, 0, 0, 0.35);
     --shadow-overlay: 0 20px 50px rgba(0, 0, 0, 0.5);
@@ -173,9 +182,9 @@
   --color-secondary-50: #1d2733;
   --color-accent-50: #2a1f14;
 
-  --color-primary-500: #5ca2f4;
-  --color-primary-600: #8ec0ff;
-  --color-primary-700: #bdd9ff;
+  --color-primary-500: var(--color-primary-300);
+  --color-primary-600: var(--color-primary-200);
+  --color-primary-700: var(--color-primary-100);
 
   --shadow-card: 0 4px 14px rgba(0, 0, 0, 0.35);
   --shadow-overlay: 0 20px 50px rgba(0, 0, 0, 0.5);
@@ -189,15 +198,15 @@
   --color-text-muted: var(--color-neutral-500);
   --color-border: var(--color-neutral-200);
 
-  --color-success-50: #eafbf1;
+  --color-success-50: #eefdf3;
   --color-warning-50: #fff8eb;
-  --color-danger-50: #fef0f0;
+  --color-danger-50: #fef2f2;
   --color-secondary-50: #f1f4f7;
   --color-accent-50: #fbf1e7;
 
-  --color-primary-500: #2f6fdd;
-  --color-primary-600: #235bc2;
-  --color-primary-700: #1e4a9e;
+  --color-primary-500: #235bc2;
+  --color-primary-600: #1e4a9e;
+  --color-primary-700: #163a7d;
 
   --shadow-card: 0 4px 14px rgba(22, 30, 39, 0.07);
   --shadow-overlay: 0 20px 50px rgba(22, 30, 39, 0.16);
