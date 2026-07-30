@@ -50,7 +50,7 @@ public class AnthropicDocumentAIProvider(
         adicional, sin explicaciones, sin bloques de código markdown — solo
         el objeto JSON, con exactamente estos campos:
 
-        {"tipoDetectado": "...", "campos": {"fechaEmision": "YYYY-MM-DD" o ausente, "fechaVencimiento": "YYYY-MM-DD" o ausente, "tieneFirma": "true"/"false" o ausente, "nombreDeCampo": "valor", ...}, "confianzaGeneral": 0-100, "notasValidacion": "..." o null}
+        {"tipoDetectado": "...", "campos": {"fechaEmision": "YYYY-MM-DD" o ausente, "fechaVencimiento": "YYYY-MM-DD" o ausente, "tieneFirma": "true"/"false" o ausente, "nombreDocumento": "..." o ausente, "nombreEmpresa": "..." o ausente, "cifEmpresa": "..." o ausente, "rolEmpresa": "principal"/"subcontratada" o ausente, "nombreTrabajador": "..." o ausente, "documentoIdentidadTrabajador": "..." o ausente, "tipoCertificacion": "..." o ausente, "articuloLey": "..." o ausente, "especificoPuestoTrabajo": "true"/"false" o ausente, "nombreDeCampo": "valor", ...}, "confianzaGeneral": 0-100, "notasValidacion": "..." o null}
 
         Reglas:
         - "fechaEmision"/"fechaVencimiento" (si aparecen explícitas, formato
@@ -58,10 +58,39 @@ public class AnthropicDocumentAIProvider(
           física/digital/electrónica, "false" si claramente no hay ninguna)
           son campos comunes a casi cualquier documento CAE — inclúyelos
           cuando puedas determinarlos.
-        - Además de esos tres, "campos" contiene todos los demás datos
-          relevantes que puedas extraer con certeza razonable (importes,
-          números de referencia, partes implicadas, coberturas, etc.), como
-          pares clave/valor de texto — usa nombres de campo descriptivos en
+        - Si el documento no indica una fecha de vencimiento explícita pero
+          sí establece un periodo de vigencia contado desde la fecha de
+          emisión (p. ej. "válido por 2 años"), calcula "fechaVencimiento"
+          sumando ese periodo a "fechaEmision" — nunca inventes un periodo
+          que no esté indicado en el texto.
+        - "nombreDocumento": el título o denominación del documento tal
+          como aparece en él (p. ej. "Certificado de formación en trabajos
+          en altura"), no el nombre de archivo.
+        - "nombreEmpresa"/"cifEmpresa": nombre y CIF de la empresa a la que
+          pertenece o que emite el documento, si aparece. "rolEmpresa":
+          "principal" si el documento identifica a esa empresa como el
+          cliente/contratista principal que encarga el trabajo,
+          "subcontratada" si la identifica como subcontrata que presta el
+          servicio — solo si el documento distingue explícitamente ese rol.
+        - "nombreTrabajador"/"documentoIdentidadTrabajador": nombre
+          completo y número de documento de identidad (DNI, NIE o
+          pasaporte, tal cual aparece, sin normalizar el formato) del
+          trabajador al que se refiere el documento, si aplica.
+        - "tipoCertificacion": solo si el documento es una certificación o
+          acreditación de formación (p. ej. "trabajo en altura", "espacios
+          confinados", "plataformas elevadoras"), indica de qué tipo.
+        - "articuloLey": artículo o normativa concreta (ley, real decreto,
+          convenio) que el documento cubre o justifica, si se menciona
+          explícitamente.
+        - "especificoPuestoTrabajo": "true" si el documento de formación en
+          riesgos laborales está redactado específicamente para el puesto
+          de trabajo del técnico al que se refiere (no una formación
+          genérica), "false" si es genérica o no se puede determinar el
+          puesto concreto.
+        - Además de los anteriores, "campos" contiene todos los demás
+          datos relevantes que puedas extraer con certeza razonable
+          (importes, números de referencia, coberturas, etc.), como pares
+          clave/valor de texto — usa nombres de campo descriptivos en
           minúscula.
         - No inventes información. Si un dato no puede extraerse con
           certeza, no lo incluyas en "campos" y explica el motivo en
