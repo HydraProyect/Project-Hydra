@@ -46,6 +46,7 @@ public partial class Empresas : ComponentBase
     private string _credencialCampoEmpresa = string.Empty;
     private string _credencialUsuario = string.Empty;
     private string _credencialContrasena = string.Empty;
+    private string _credencialNotas = string.Empty;
     private bool _guardandoCredenciales;
     private string? _mensajeErrorCredenciales;
 
@@ -119,6 +120,7 @@ public partial class Empresas : ComponentBase
         _credencialCampoEmpresa = string.Empty;
         _credencialUsuario = string.Empty;
         _credencialContrasena = string.Empty;
+        _credencialNotas = string.Empty;
         _mensajeErrorCredenciales = null;
         _drawerVisible = true;
     }
@@ -147,6 +149,7 @@ public partial class Empresas : ComponentBase
         _credencialCampoEmpresa = credencial?.CampoEmpresa ?? string.Empty;
         _credencialUsuario = credencial?.Usuario ?? string.Empty;
         _credencialContrasena = credencial?.Contrasena ?? string.Empty;
+        _credencialNotas = credencial?.Notas ?? string.Empty;
         _mensajeErrorCredenciales = null;
 
         _drawerVisible = true;
@@ -165,9 +168,10 @@ public partial class Empresas : ComponentBase
             var campoEmpresa = string.IsNullOrWhiteSpace(_credencialCampoEmpresa) ? null : _credencialCampoEmpresa;
             var usuario = string.IsNullOrWhiteSpace(_credencialUsuario) ? null : _credencialUsuario;
             var contrasena = string.IsNullOrWhiteSpace(_credencialContrasena) ? null : _credencialContrasena;
+            var notas = string.IsNullOrWhiteSpace(_credencialNotas) ? null : _credencialNotas;
 
             var resultado = await Mediator.Send(
-                new GuardarCredencialAccesoEmpresaCommand(_editandoId.Value, urlAcceso, campoEmpresa, usuario, contrasena));
+                new GuardarCredencialAccesoEmpresaCommand(_editandoId.Value, urlAcceso, campoEmpresa, usuario, contrasena, notas));
 
             if (resultado.EsFallido)
             {

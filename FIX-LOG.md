@@ -314,3 +314,18 @@ TOTAL                357/357  ✅
 Eso ejercita de extremo a extremo justo lo que quedaba por confirmar de C-1: que el token protegido se emite, sobrevive al reload y se lee de vuelta para resolver el tenant delegado. Y desde § 15 pasa además por el `<select>` real y por el POST con antiforgery, no por una navegación fabricada por el test. Pasa en verde.
 
 **Matiz honesto**: esto verifica el camino legítimo. El camino del ataque (cookie fabricada, manipulada, de otro usuario o de otro llavero) está cubierto por los tests de `SecuestroTenantPorCookieTests`, no por el navegador.
+
+---
+
+# 20. Merge con `main` (PR #43)
+
+`main` avanzó mientras esto estaba en curso (PRs #40 y #42), con dos solapamientos directos:
+
+- **`AddTarifasCliente`**: `cc0c55b` ya había añadido los atributos `[DbContext]`/`[Migration]` — el mismo defecto que documenta § 9, arreglado por otra vía en paralelo. Conflicto resuelto conservando los atributos una sola vez y el comentario que explica por qué son imprescindibles.
+- **`CaeManagerDbContext`**: conflicto en la lista de filtros globales, aditivo por ambos lados. `main` añadió las 4 entidades del módulo Comunicaciones (Fase 59) y renombró `PlataformaAcceso` a `CanalGestionDocumental`; esta rama añadía `TarifaCliente` y `AprobacionDocumento`. Resuelto conservando ambos lados.
+
+**El recuento cambia: 34 → 38 entidades** (15 con soft delete + 23 solo tenant). Los números de las secciones anteriores son el estado de entonces; el vigente es 38. Actualizados los comentarios de `CaeManagerDbContext`, el docstring de `AislamientoPorAgregadoTests` y `ARCHITECTURE.md` — este último redactado ya sin cifra fija ("todas, sin excepciones"), porque el número envejece a cada módulo nuevo y la regla no.
+
+**Hueco encontrado al recontar**: las 4 entidades de Comunicaciones traían su filtro global pero **llegaron sin test de aislamiento**, incumpliendo la regla de `docs/MULTITENANCY.md` § 9 que § 12 acababa de dejar al día. Añadidos los 4. `MensajeCorreo` y `ParticipanteConversacion` tienen clave foránea real a `ConversacionCorreo`, así que no admiten un `Guid` inventado: el helper `VerificarAislamientoAsync` acepta ahora un sembrador opcional de dependencias. Lo descubrí porque los tests fallaron con `FOREIGN KEY constraint failed`.
+
+**Verificación tras el merge**: **365/365 ✅** (los 357 previos + 4 de Comunicaciones + 4 que venían de `main`), `dotnet build -warnaserror` y `dotnet format` limpios.

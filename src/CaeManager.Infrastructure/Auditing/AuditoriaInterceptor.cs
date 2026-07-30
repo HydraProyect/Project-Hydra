@@ -13,7 +13,7 @@ namespace CaeManager.Infrastructure.Auditing;
 /// <summary>
 /// Registra en RegistroAuditoria cada alta/modificación/baja de una entidad
 /// de dominio (ver ARCHITECTURE.md, "Auditoría y soft delete"). Excluye
-/// explícitamente los campos cifrados de PlataformaAcceso,
+/// explícitamente los campos cifrados de CanalGestionDocumental,
 /// CredencialAccesoEmpresa y CredencialAccesoSubcontrata: nunca deben quedar
 /// en texto plano en el historial (ver DATABASE.md).
 /// </summary>
@@ -21,7 +21,7 @@ public class AuditoriaInterceptor(ICurrentUserService currentUserService) : Save
 {
     private static readonly Dictionary<Type, HashSet<string>> PropiedadesSensiblesPorTipo = new()
     {
-        [typeof(PlataformaAcceso)] = [nameof(PlataformaAcceso.Usuario), nameof(PlataformaAcceso.Contrasena)],
+        [typeof(CanalGestionDocumental)] = [nameof(CanalGestionDocumental.Usuario), nameof(CanalGestionDocumental.Contrasena)],
         [typeof(CredencialAccesoEmpresa)] = [nameof(CredencialAccesoEmpresa.Usuario), nameof(CredencialAccesoEmpresa.Contrasena)],
         [typeof(CredencialAccesoSubcontrata)] = [nameof(CredencialAccesoSubcontrata.Usuario), nameof(CredencialAccesoSubcontrata.Contrasena)]
     };

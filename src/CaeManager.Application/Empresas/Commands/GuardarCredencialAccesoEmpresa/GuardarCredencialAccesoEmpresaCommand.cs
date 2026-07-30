@@ -13,7 +13,7 @@ namespace CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpres
 /// actualiza según exista o no ya un registro para esa Empresa.
 /// </summary>
 public record GuardarCredencialAccesoEmpresaCommand(
-    Guid EmpresaId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena) : IRequest<Result>;
+    Guid EmpresaId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : IRequest<Result>;
 
 public class GuardarCredencialAccesoEmpresaCommandValidator : AbstractValidator<GuardarCredencialAccesoEmpresaCommand>
 {
@@ -24,6 +24,7 @@ public class GuardarCredencialAccesoEmpresaCommandValidator : AbstractValidator<
         RuleFor(c => c.CampoEmpresa).MaximumLength(CredencialAccesoEmpresa.LongitudMaximaCampoEmpresa);
         RuleFor(c => c.Usuario).MaximumLength(CredencialAccesoEmpresa.LongitudMaximaUsuario);
         RuleFor(c => c.Contrasena).MaximumLength(CredencialAccesoEmpresa.LongitudMaximaContrasena);
+        RuleFor(c => c.Notas).MaximumLength(CredencialAccesoEmpresa.LongitudMaximaNotas);
     }
 }
 
@@ -42,12 +43,12 @@ public class GuardarCredencialAccesoEmpresaCommandHandler(
         if (credencial is null)
         {
             credencial = new CredencialAccesoEmpresa(
-                request.EmpresaId, request.UrlAcceso, request.CampoEmpresa, request.Usuario, request.Contrasena);
+                request.EmpresaId, request.UrlAcceso, request.CampoEmpresa, request.Usuario, request.Contrasena, request.Notas);
             credencialRepositorio.Agregar(credencial);
         }
         else
         {
-            credencial.Actualizar(request.UrlAcceso, request.CampoEmpresa, request.Usuario, request.Contrasena);
+            credencial.Actualizar(request.UrlAcceso, request.CampoEmpresa, request.Usuario, request.Contrasena, request.Notas);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
