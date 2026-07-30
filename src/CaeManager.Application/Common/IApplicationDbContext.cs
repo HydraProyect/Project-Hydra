@@ -37,6 +37,7 @@ public interface IApplicationDbContext
     IQueryable<SubcontrataEmpresa> SubcontratasEmpresas { get; }
     IQueryable<CredencialAccesoSubcontrata> CredencialesAccesoSubcontrata { get; }
     IQueryable<Centro> Centros { get; }
+    IQueryable<CanalGestionDocumental> CanalesGestionDocumental { get; }
     IQueryable<Trabajador> Trabajadores { get; }
     IQueryable<DeteccionTrabajador> DeteccionesTrabajador { get; }
     IQueryable<TipoDocumento> TiposDocumento { get; }
@@ -55,7 +56,6 @@ public interface IApplicationDbContext
     IQueryable<ParametroSistema> ParametrosSistema { get; }
     IQueryable<RegistroAuditoria> RegistrosAuditoria { get; }
     IQueryable<RequisitoDocumental> RequisitosDocumentales { get; }
-    IQueryable<PlataformaAcceso> PlataformasAcceso { get; }
     IQueryable<Tenant> Tenants { get; }
     IQueryable<TarifaCliente> TarifasCliente { get; }
     IQueryable<Proyecto> Proyectos { get; }

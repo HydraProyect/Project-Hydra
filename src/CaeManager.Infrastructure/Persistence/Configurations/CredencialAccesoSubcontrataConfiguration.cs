@@ -13,6 +13,7 @@ public class CredencialAccesoSubcontrataConfiguration : IEntityTypeConfiguration
 
         builder.Property(c => c.UrlAcceso).HasMaxLength(CredencialAccesoSubcontrata.LongitudMaximaUrlAcceso);
         builder.Property(c => c.CampoEmpresa).HasMaxLength(CredencialAccesoSubcontrata.LongitudMaximaCampoEmpresa);
+        builder.Property(c => c.Notas).HasMaxLength(CredencialAccesoSubcontrata.LongitudMaximaNotas);
 
         // El cifrado de Usuario/Contrasena se configura en CaeManagerDbContext.OnModelCreating,
         // porque necesita el IDataProtector inyectado en el propio DbContext (mismo patrón que CredencialAccesoEmpresa).
