@@ -78,6 +78,12 @@ public class ObtenerResumenFacturacionQueryHandler(IApplicationDbContext dbConte
                     await ContarVisitasExtranjeroAsync(centroIds, periodoInicioFecha, periodoFinFecha, cancellationToken),
                 ConceptoFacturable.DocumentoGestionado =>
                     await ContarDocumentosGestionadosAsync(centroIds, periodoInicioFecha, periodoFinFecha, periodoInicio, periodoFin, cancellationToken),
+                ConceptoFacturable.TecnicoAsignadoProyecto =>
+                    await ContarTecnicosAsignadosProyectoAsync(request.ClienteId, periodoInicioFecha, periodoFinFecha, cancellationToken),
+                ConceptoFacturable.GestionProyectoRealizada =>
+                    await ContarGestionesProyectoAsync(request.ClienteId, periodoInicio, periodoFin, cancellationToken),
+                ConceptoFacturable.DiaProyectoAbierto =>
+                    await ContarDiasProyectoAbiertoAsync(request.ClienteId, periodoInicioFecha, periodoFinFecha, cancellationToken),
                 _ => 0
             };
 
@@ -160,5 +166,69 @@ public class ObtenerResumenFacturacionQueryHandler(IApplicationDbContext dbConte
                      && d.CreadoEnUtc >= inicio
                      && d.CreadoEnUtc < fin)
             .CountAsync(ct);
+    }
+
+    /// <summary>Técnicos únicos con alta en algún Proyecto del cliente, activa en algún punto del período — factura la obra, no la gestión CAE tradicional.</summary>
+    private async Task<int> ContarTecnicosAsignadosProyectoAsync(Guid clienteId, DateOnly inicio, DateOnly fin, CancellationToken ct)
+    {
+        var proyectoIds = await dbContext.Proyectos
+            .Where(p => p.ClienteId == clienteId)
+            .Select(p => p.Id)
+            .ToListAsync(ct);
+
+        if (proyectoIds.Count == 0) return 0;
+
+        return await dbContext.ProyectosTecnicos
+            .Where(pt => proyectoIds.Contains(pt.ProyectoId)
+                      && pt.FechaAlta <= fin
+                      && (pt.FechaBaja == null || pt.FechaBaja >= inicio))
+            .Select(pt => pt.TrabajadorId)
+            .Distinct()
+            .CountAsync(ct);
+    }
+
+    private async Task<int> ContarGestionesProyectoAsync(Guid clienteId, DateTime inicio, DateTime fin, CancellationToken ct)
+    {
+        var proyectoIds = await dbContext.Proyectos
+            .Where(p => p.ClienteId == clienteId)
+            .Select(p => p.Id)
+            .ToListAsync(ct);
+
+        if (proyectoIds.Count == 0) return 0;
+
+        return await dbContext.Documentos
+            .Where(d => d.ProyectoId != null
+                     && proyectoIds.Contains(d.ProyectoId!.Value)
+                     && d.CreadoEnUtc >= inicio
+                     && d.CreadoEnUtc < fin)
+            .CountAsync(ct);
+    }
+
+    /// <summary>
+    /// Suma, para cada Proyecto del cliente, los días de intersección entre
+    /// su periodo abierto (FechaInicio–FechaCierreReal, o "hoy" si sigue
+    /// abierto) y el período de facturación consultado.
+    /// </summary>
+    private async Task<int> ContarDiasProyectoAbiertoAsync(Guid clienteId, DateOnly inicio, DateOnly fin, CancellationToken ct)
+    {
+        var proyectos = await dbContext.Proyectos
+            .Where(p => p.ClienteId == clienteId)
+            .Select(p => new { p.FechaInicio, p.FechaCierreReal })
+            .ToListAsync(ct);
+
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var dias = 0;
+
+        foreach (var proyecto in proyectos)
+        {
+            var aperturaFin = proyecto.FechaCierreReal ?? hoy;
+            var desde = proyecto.FechaInicio > inicio ? proyecto.FechaInicio : inicio;
+            var hasta = aperturaFin < fin ? aperturaFin : fin;
+
+            if (hasta >= desde)
+                dias += hasta.DayNumber - desde.DayNumber + 1;
+        }
+
+        return dias;
     }
 }
