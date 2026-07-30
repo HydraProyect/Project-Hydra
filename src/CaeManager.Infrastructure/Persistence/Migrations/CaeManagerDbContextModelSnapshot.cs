@@ -386,6 +386,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("FechaVencimiento")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("ProyectoId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
@@ -405,6 +408,8 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.HasIndex("ClienteId", "TipoDocumentoId");
 
                     b.HasIndex("EmpresaId", "TipoDocumentoId");
+
+                    b.HasIndex("ProyectoId", "TipoDocumentoId");
 
                     b.HasIndex("TrabajadorId", "TipoDocumentoId");
 
@@ -1919,6 +1924,93 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.HasIndex("UsuarioDestinatarioId", "Leida");
 
                     b.ToTable("NotificacionesUsuario", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Proyectos.Proyecto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("FechaCierreReal")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("FechaFinPrevista")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("FechaInicio")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CentroId");
+
+                    b.HasIndex(new[] { "TenantId", "ClienteId", "Nombre" }, "IX_Proyectos_TenantId_ClienteId_Nombre")
+                        .IsUnique()
+                        .HasFilter("\"EstaEliminado\" = 0");
+
+                    b.ToTable("Proyectos", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Proyectos.ProyectoTecnico", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("FechaAlta")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("FechaBaja")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ProyectoId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TrabajadorId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TrabajadorId");
+
+                    b.HasIndex(new[] { "TenantId", "ProyectoId", "TrabajadorId", "FechaAlta" }, "IX_ProyectosTecnicos_TenantId_ProyectoId_TrabajadorId_FechaAlta")
+                        .IsUnique();
+
+                    b.ToTable("ProyectosTecnicos", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.RequisitosDocumentales.RequisitoDocumental", b =>
