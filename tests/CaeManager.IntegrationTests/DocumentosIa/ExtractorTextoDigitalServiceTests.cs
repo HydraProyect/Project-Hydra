@@ -1,6 +1,7 @@
 using CaeManager.Infrastructure.DocumentosIa;
 using CaeManager.Web.Reportes;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using PdfSharp.Drawing;
 using PdfSharp.Fonts;
 using PdfSharp.Pdf;
@@ -20,7 +21,8 @@ public class ExtractorTextoDigitalServiceTests
         GlobalFontSettings.FontResolver ??= new EmbeddedFontResolver();
     }
 
-    private readonly PdfSharpExtractorTextoDigitalService _servicio = new();
+    private readonly PdfSharpExtractorTextoDigitalService _servicio =
+        new(NullLogger<PdfSharpExtractorTextoDigitalService>.Instance);
 
     [Fact]
     public void Extrae_el_texto_real_de_un_pdf_digital()
