@@ -31,6 +31,10 @@ erDiagram
     VEHICULO ||--o{ DOCUMENTO : "propietario (VehiculoId?)"
     DOCUMENTO ||--o{ ALERTA : "genera"
     DOCUMENTO ||--o{ DETECCION_TRABAJADOR : "IA detecta altas/bajas"
+    CENTRO ||--o{ EVALUACION : "evaluada (CentroId)"
+    TRABAJADOR ||--o{ EVALUACION : "opcional (TrabajadorId?)"
+    CENTRO ||--o{ INCIDENCIA : "registra (CentroId)"
+    TRABAJADOR ||--o{ INCIDENCIA : "opcional (TrabajadorId?)"
 ```
 
 ## Conceptos y reglas estructurales
@@ -46,10 +50,12 @@ erDiagram
 - **TipoDocumento**: catálogo documental (configurable por tenant, ver `docs/MULTITENANCY.md` § 7) con vigencia en meses, obligatoriedad, y flags de IA (`LecturaIaActiva`, `DeteccionTrabajadoresActiva`).
 - **Alerta / NotificacionUsuario / DeteccionTrabajador / RegistroAuditoria**: derivados operativos (avisos de vencimiento, notificaciones persistentes por usuario, altas/bajas detectadas por IA en documentos, auditoría de cambios).
 - **ParametroSistema**: umbrales de alerta (ámbar/rojo). Hoy singleton; pasa a una fila por tenant.
+- **Evaluación**: evaluación de riesgo laboral de un Centro (`CentroId` obligatorio), opcionalmente referida a un Trabajador concreto (`TrabajadorId?`). `Puntuacion` (0-100) + `Observaciones?` (máx. 2000 car.).
+- **Incidencia**: incidencia operativa de un Centro (accidente o incumplimiento — `TipoIncidencia`), con `GravedadIncidencia` (Leve/Grave/MuyGrave), opcionalmente referida a un Trabajador (`TrabajadorId?`). Ciclo de vida propio: `Resuelta`/`ResueltaEnUtc?` (`MarcarResuelta()`/`Reabrir()`), independiente del soft delete de `EntidadBase`.
 
 ## Agregados raíz
 
-Con repositorio propio (nunca `IRepository<T>` genérico): `Cliente`, `Empresa`, `Subcontrata`, `Centro`, `Trabajador`, `Vehiculo`, `Documento`, `TipoDocumento`, `Asignacion`, `Visita`, `Alerta`, `NotificacionUsuario`, `ParametroSistema`, `RegistroAuditoria` — y `Tenant` (nuevo, ver ADR-003). Las tablas de unión y satélites 1:1 se gestionan a través de su raíz.
+Con repositorio propio (nunca `IRepository<T>` genérico): `Cliente`, `Empresa`, `Subcontrata`, `Centro`, `Trabajador`, `Vehiculo`, `Documento`, `TipoDocumento`, `Asignacion`, `Visita`, `Alerta`, `NotificacionUsuario`, `ParametroSistema`, `RegistroAuditoria`, `Evaluacion`, `Incidencia` — y `Tenant` (ver ADR-003). `DelegacionTenant`/`AsignacionOperadorDelegado` (ADR-004, Capa 0) son catálogo global sin `TenantId`, mismo tratamiento que `Tenant` — no son agregados de dominio CAE. Las tablas de unión y satélites 1:1 se gestionan a través de su raíz.
 
 ## Regla de negocio central
 

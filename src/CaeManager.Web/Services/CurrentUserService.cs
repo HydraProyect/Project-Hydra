@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CaeManager.Application.Common;
+using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Components.Authorization;
 
 namespace CaeManager.Web.Services;
@@ -21,6 +22,13 @@ public class CurrentUserService(
     {
         var usuario = await ObtenerUsuarioAsync();
         return usuario?.FindFirst(ClaimTypes.Role)?.Value;
+    }
+
+    public async Task<Guid?> ObtenerTenantOrigenIdAsync()
+    {
+        var usuario = await ObtenerUsuarioAsync();
+        var valorClaim = usuario?.FindFirst(TenantClaimsPrincipalFactory.TipoClaimTenantId)?.Value;
+        return Guid.TryParse(valorClaim, out var tenantId) ? tenantId : null;
     }
 
     // Dentro de un circuito de Blazor, AuthenticationStateProvider ya trae el

@@ -38,7 +38,12 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
 
             var drawer = paginaA.Locator(".drawer-panel");
             await Ayudas.NavegarYEsperarAsync(paginaA, $"{fixture.BaseUrl}/clientes");
-            await paginaA.GetByText("+ Nuevo cliente").ClickAsync();
+
+            // .First: el tenant A (Administrador, Consultora sin datos
+            // operativos propios — ver ADR-004 § 5.1) arranca con la lista
+            // de Clientes vacía, así que "+ Nuevo cliente" aparece tanto en
+            // la cabecera como en el EstadoVacio.
+            await paginaA.GetByText("+ Nuevo cliente").First.ClickAsync();
             await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
             await drawer.GetByLabel("CIF", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_999_903));
             await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
@@ -69,11 +74,13 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
     [Fact]
     public async Task El_listado_de_clientes_del_tenant_B_no_contiene_los_datos_de_prueba_sembrados_para_el_tenant_A()
     {
-        // DatosPruebaSeeder siembra ~200 Clientes exclusivamente en el
-        // tenant por defecto (tenant A) — el tenant B solo tiene los
-        // Clientes que se creen explícitamente en sus propios tests. Si el
-        // filtro global de EF Core fallara, este listado mostraría cientos
-        // de filas en vez de estar vacío.
+        // DelegacionDemoSeeder siembra ~200 Clientes en un tenant Cliente
+        // Delegante propio (ver ADR-004 § 5.1 — el tenant por defecto/A no
+        // tiene datos operativos propios) — el tenant B solo tiene los
+        // Clientes que se creen explícitamente en sus propios tests, sea
+        // cual sea el tenant de origen de esos datos. Si el filtro global
+        // de EF Core fallara, este listado mostraría filas ajenas en vez de
+        // estar vacío.
         await using var contextoB = await fixture.Browser.NewContextAsync();
         var paginaB = await contextoB.NewPageAsync();
         await Ayudas.IniciarSesionAsync(paginaB, fixture.BaseUrl, EmailAdministradorSegundoTenant, ContrasenaAdministradorSegundoTenant);
@@ -82,7 +89,7 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
 
         // Clientes.razor muestra el estado vacío ("Aún no hay clientes") cuando
         // el total de elementos es 0 (ver Clientes.razor.cs) — si el filtro
-        // global fallara y se filtraran los ~200 Clientes del tenant A, este
+        // global fallara y se filtraran Clientes ajenos a este tenant, este
         // estado vacío nunca aparecería.
         await paginaB.GetByText("Aún no hay clientes").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
     }

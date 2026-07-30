@@ -12,6 +12,7 @@ using CaeManager.Web.Features.Auditoria;
 using CaeManager.Web.Features.BusquedaGlobal;
 using CaeManager.Web.Features.Clientes;
 using CaeManager.Web.Features.Documentos;
+using CaeManager.Web.Features.Tenants;
 using CaeManager.Web.Reportes;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -95,6 +96,7 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.ClienteActivoSeleccionado>();
 builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<BusquedaGlobalService>();
@@ -178,15 +180,19 @@ using (var scope = app.Services.CreateScope())
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     // Sin sesión de usuario en el arranque no hay tenant que resolver por
-    // claim — la siembra (Administrador inicial + datos de prueba) se
-    // ejecuta explícitamente como tenant #1 (ver AmbitoTenantExplicito,
-    // docs/MULTITENANCY.md § 8.4). Sin esto, TenantSelladoInterceptor
-    // rechazaría cualquier entidad de dominio que DatosPruebaSeeder cree.
+    // claim — la siembra del Administrador inicial se ejecuta explícitamente
+    // como tenant #1 (ver AmbitoTenantExplicito, docs/MULTITENANCY.md § 8.4).
     using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
     {
         await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration);
-        await DatosPruebaSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
     }
+
+    // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
+    // escenario de demo de ADR-004-delegacion-consultoras-cae.md, el tenant
+    // #1 juega el papel de Consultora (sin datos operativos propios, § 5.1)
+    // — DelegacionDemoSeeder los siembra en un tenant Cliente Delegante
+    // nuevo y establece su propio AmbitoTenantExplicito internamente.
+    await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
 
     // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
     // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
@@ -228,6 +234,7 @@ app.MapClientesEndpoints();
 app.MapDocumentosEndpoints();
 app.MapReportesEndpoints();
 app.MapAuditoriaEndpoints();
+app.MapClienteActivoEndpoints();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

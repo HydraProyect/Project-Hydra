@@ -12,6 +12,7 @@
             <AuthorizeView>
                 <Authorized>
                     <div class="menu-usuario">
+                        <SelectorClienteActivo @rendermode="InteractiveServer" />
                         <SelectorTema @rendermode="InteractiveServer" />
                         <span class="menu-usuario-nombre">@context.User.Identity?.Name</span>
                         <form method="post" action="/cuenta/cerrar-sesion">
