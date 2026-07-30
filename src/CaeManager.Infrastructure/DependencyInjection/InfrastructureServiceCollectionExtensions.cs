@@ -11,6 +11,7 @@ using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Incidencias;
+using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
@@ -118,6 +119,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IVehiculoRepository, VehiculoRepository>();
         services.AddScoped<IParametroSistemaRepository, ParametroSistemaRepository>();
         services.AddScoped<ITarifaClienteRepository, TarifaClienteRepository>();
+        services.AddScoped<IProyectoRepository, ProyectoRepository>();
+        services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
         services.AddScoped<IEvaluacionRepository, EvaluacionRepository>();

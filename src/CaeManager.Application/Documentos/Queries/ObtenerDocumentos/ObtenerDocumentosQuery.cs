@@ -116,7 +116,26 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
                 documento.ArchivoUrl
             };
 
-        var consulta = deTrabajador.Concat(deCliente).Concat(deEmpresa).Concat(deVehiculo);
+        var deProyecto =
+            from documento in dbContext.Documentos
+            where documento.ProyectoId != null
+            join proyecto in dbContext.Proyectos on documento.ProyectoId!.Value equals proyecto.Id
+            where clienteIdsVisibles == null || clienteIdsVisibles.Contains(proyecto.ClienteId)
+            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            select new
+            {
+                documento.Id,
+                Ambito = AmbitoAplicacion.Proyecto,
+                TrabajadorId = (Guid?)null,
+                PropietarioId = (Guid?)documento.ProyectoId,
+                PropietarioNombre = proyecto.Nombre,
+                TipoDocumentoNombre = tipoDocumento.Nombre,
+                documento.FechaEmision,
+                documento.FechaVencimiento,
+                documento.ArchivoUrl
+            };
+
+        var consulta = deTrabajador.Concat(deCliente).Concat(deEmpresa).Concat(deVehiculo).Concat(deProyecto);
 
         if (request.TrabajadorId is not null)
             consulta = consulta.Where(x => x.TrabajadorId == request.TrabajadorId);

@@ -1,0 +1,298 @@
+@page "/proyectos"
+@rendermode InteractiveServer
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
+@using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
+@using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId
+@using CaeManager.Application.Proyectos.Queries.ObtenerProyectos
+@using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Domain.Documentos
+
+<PageTitle>Proyectos — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Proyectos</h1>
+    </div>
+    <p class="descripcion-pagina">
+        Documentación de requerimiento para instalaciones y obras nuevas — distinta de la documentación de acceso de mantenimiento tradicional.
+    </p>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar los datos" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion><Boton OnClick="CargarAsync">Reintentar</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else
+    {
+        <div class="bloque-selector-cliente">
+            <CampoSelect Etiqueta="Cliente" Valor="@_clienteSeleccionadoId.ToString()" ValorChanged="OnClienteSeleccionadoAsync">
+                <option value="@Guid.Empty">— Selecciona un cliente —</option>
+                @foreach (var c in _clientes)
+                {
+                    <option value="@c.Id">@c.RazonSocial</option>
+                }
+            </CampoSelect>
+        </div>
+
+        @if (_clienteSeleccionadoId != Guid.Empty)
+        {
+            <div class="acciones-seccion">
+                <Boton OnClick="AbrirNuevoProyecto">+ Nuevo proyecto</Boton>
+            </div>
+
+            @if (_cargandoProyectos)
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (_proyectos.Count == 0)
+            {
+                <EstadoVacio Titulo="Sin proyectos" Descripcion="Este cliente todavía no tiene ningún proyecto de obra/instalación." />
+            }
+            else
+            {
+                <table class="tabla-datos tabla-proyectos">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Centro</th>
+                            <th>Inicio</th>
+                            <th>Fin previsto</th>
+                            <th>Estado</th>
+                            <th class="col-acciones">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var proyecto in _proyectos)
+                        {
+                            <tr class="@(_proyectoSeleccionadoId == proyecto.Id ? "fila-seleccionada" : "")">
+                                <td><button class="enlace-accion" @onclick="() => SeleccionarProyectoAsync(proyecto.Id)">@proyecto.Nombre</button></td>
+                                <td>@proyecto.CentroNombre</td>
+                                <td>@proyecto.FechaInicio.ToString("dd/MM/yyyy")</td>
+                                <td>@(proyecto.FechaFinPrevista?.ToString("dd/MM/yyyy") ?? "Indefinido")</td>
+                                <td>
+                                    @if (proyecto.EstaAbierto)
+                                    {
+                                        <Badge Tono="TonoBadge.Exito">Abierto</Badge>
+                                    }
+                                    else
+                                    {
+                                        <Badge Tono="TonoBadge.Neutro">Cerrado</Badge>
+                                    }
+                                </td>
+                                <td class="col-acciones">
+                                    @if (proyecto.EstaAbierto)
+                                    {
+                                        <button class="enlace-accion" @onclick="() => AbrirCerrarConfirm(proyecto.Id)">Cerrar</button>
+                                    }
+                                    <button class="enlace-accion enlace-peligro" @onclick="() => AbrirEliminar(proyecto.Id, proyecto.Nombre)">Eliminar</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (_proyectoSeleccionadoId is not null)
+            {
+                <Tarjeta Titulo="Detalle del proyecto">
+                    @if (_cargandoDetalle)
+                    {
+                        <EstadoCargando Filas="3" />
+                    }
+                    else if (_detalle is null)
+                    {
+                        <p class="aviso-error">No pudimos cargar este proyecto.</p>
+                    }
+                    else
+                    {
+                        <Pestanas Definiciones="_pestanasDetalle" PestanaActiva="_pestanaDetalle" PestanaActivaChanged="CambiarPestanaDetalleAsync" EtiquetaGrupo="Secciones del proyecto">
+                            @if (_pestanaDetalle == "informacion")
+                            {
+                                @if (!_editandoInfo)
+                                {
+                                    <div class="workspace-grupo-campos">
+                                        <CampoInfo Etiqueta="Nombre" Valor="@_detalle.Nombre" />
+                                        <CampoInfo Etiqueta="Cliente" Valor="@_detalle.ClienteRazonSocial" />
+                                        <CampoInfo Etiqueta="Centro" Valor="@_detalle.CentroNombre" />
+                                        <CampoInfo Etiqueta="Inicio" Valor="@_detalle.FechaInicio.ToString("dd/MM/yyyy")" />
+                                        <CampoInfo Etiqueta="Fin previsto" Valor="@(_detalle.FechaFinPrevista?.ToString("dd/MM/yyyy") ?? "Indefinido")" />
+                                        <CampoInfo Etiqueta="Estado" Valor="@(_detalle.EstaAbierto ? "Abierto" : $"Cerrado ({_detalle.FechaCierreReal:dd/MM/yyyy})")" />
+                                        <CampoInfo Etiqueta="Técnicos activos" Valor="@_detalle.TecnicosActivos.ToString()" />
+                                        <CampoInfo Etiqueta="Documentos gestionados" Valor="@_detalle.DocumentosGestionados.ToString()" />
+                                        @if (!string.IsNullOrWhiteSpace(_detalle.Notas))
+                                        {
+                                            <CampoInfo Etiqueta="Notas" Valor="@_detalle.Notas" />
+                                        }
+                                    </div>
+                                    <div class="acciones-formulario">
+                                        <Boton OnClick="IniciarEdicionInfo" Variante="VarianteBoton.Secundario">Editar</Boton>
+                                    </div>
+                                }
+                                else
+                                {
+                                    @if (_editError is not null)
+                                    {
+                                        <p class="aviso-error">@_editError</p>
+                                    }
+                                    <div class="rejilla-formulario">
+                                        <CampoTexto Etiqueta="Nombre" Valor="@_editNombre" ValorChanged="v => _editNombre = v"
+                                                    MensajeError="@(_editErrores.GetValueOrDefault("Nombre"))" />
+                                        <CampoTexto Etiqueta="Fin previsto (opcional)" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v" />
+                                        <CampoTexto Etiqueta="Notas" Valor="@_editNotas" ValorChanged="v => _editNotas = v" />
+                                    </div>
+                                    <div class="acciones-formulario">
+                                        <Boton OnClick="GuardarEdicionInfoAsync" Cargando="_guardando">Guardar</Boton>
+                                        <Boton OnClick="CancelarEdicionInfo" Variante="VarianteBoton.Secundario">Cancelar</Boton>
+                                    </div>
+                                }
+                            }
+                            else if (_pestanaDetalle == "tecnicos")
+                            {
+                                @if (_cargandoTecnicos)
+                                {
+                                    <EstadoCargando Filas="2" />
+                                }
+                                else if (_tecnicos.Count == 0)
+                                {
+                                    <EstadoVacio Titulo="Sin técnicos asignados" Descripcion="Asigna los técnicos que trabajan en esta obra para poder facturarlos por proyecto." />
+                                }
+                                else
+                                {
+                                    <table class="tabla-datos tabla-tecnicos">
+                                        <thead>
+                                            <tr>
+                                                <th>Técnico</th>
+                                                <th>DNI</th>
+                                                <th>Alta</th>
+                                                <th>Baja</th>
+                                                <th class="col-acciones">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var tecnico in _tecnicos)
+                                            {
+                                                <tr>
+                                                    <td>@tecnico.TrabajadorNombreCompleto</td>
+                                                    <td>@tecnico.TrabajadorDni</td>
+                                                    <td>@tecnico.FechaAlta.ToString("dd/MM/yyyy")</td>
+                                                    <td>@(tecnico.FechaBaja?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                                    <td class="col-acciones">
+                                                        @if (tecnico.EstaActivo)
+                                                        {
+                                                            <button class="enlace-accion enlace-peligro" @onclick="() => DesasignarTecnicoAsync(tecnico.Id)">Dar de baja</button>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+
+                                @if (_mostrarFormularioTecnico)
+                                {
+                                    @if (_errorTecnico is not null)
+                                    {
+                                        <p class="aviso-error">@_errorTecnico</p>
+                                    }
+                                    <div class="rejilla-formulario">
+                                        <CampoSelect Etiqueta="Técnico" Valor="@_nuevoTecnicoTrabajadorId" ValorChanged="v => _nuevoTecnicoTrabajadorId = v">
+                                            <option value="">Selecciona un técnico…</option>
+                                            @foreach (var trabajador in _trabajadoresDisponibles)
+                                            {
+                                                <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+                                            }
+                                        </CampoSelect>
+                                        <CampoTexto Etiqueta="Fecha de alta" Type="date" Valor="@_nuevoTecnicoFechaAlta" ValorChanged="v => _nuevoTecnicoFechaAlta = v" />
+                                    </div>
+                                    <div class="acciones-formulario">
+                                        <Boton OnClick="AsignarTecnicoAsync" Cargando="_guardando">Asignar</Boton>
+                                        <Boton OnClick="() => _mostrarFormularioTecnico = false" Variante="VarianteBoton.Secundario">Cancelar</Boton>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="acciones-seccion">
+                                        <Boton OnClick="AbrirFormularioTecnicoAsync" Variante="VarianteBoton.Secundario">+ Asignar técnico</Boton>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <PestanaDocumentacion Ambito="AmbitoAplicacion.Proyecto" PropietarioId="_detalle.Id" />
+                                <p class="texto-vacio-seccion">Para adjuntar un documento nuevo, ve a Documentos y selecciona ámbito "Proyecto".</p>
+                            }
+                        </Pestanas>
+                    }
+                </Tarjeta>
+            }
+        }
+    }
+</div>
+
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nuevo proyecto" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        <CampoSelect Etiqueta="Centro" Valor="@_nuevoCentroId" ValorChanged="v => _nuevoCentroId = v">
+            <option value="">Selecciona un centro…</option>
+            @foreach (var centro in _centrosDisponibles)
+            {
+                <option value="@centro.Id">@centro.Nombre</option>
+            }
+        </CampoSelect>
+
+        <CampoTexto Etiqueta="Nombre del proyecto" Valor="@_nuevoNombre" ValorChanged="v => _nuevoNombre = v"
+                    MensajeError="@(_erroresCampo.GetValueOrDefault("Nombre"))" />
+
+        <CampoTexto Etiqueta="Fecha de inicio" Type="date" Valor="@_nuevaFechaInicio" ValorChanged="v => _nuevaFechaInicio = v" />
+
+        <CampoTexto Etiqueta="Fin previsto (opcional — indefinido si se deja vacío)" Type="date" Valor="@_nuevaFechaFinPrevista" ValorChanged="v => _nuevaFechaFinPrevista = v" />
+
+        <CampoTexto Etiqueta="Notas" Valor="@_nuevasNotas" ValorChanged="v => _nuevasNotas = v" />
+    </ChildContent>
+    <Pie>
+        <Boton OnClick="CrearProyectoAsync" Cargando="_guardando">Crear proyecto</Boton>
+        <Boton OnClick="() => CerrarDrawerAsync(false)" Variante="VarianteBoton.Secundario">Cancelar</Boton>
+    </Pie>
+</Drawer>
+
+<Modal Visible="_mostrarCerrarConfirm" VisibleChanged="v => _mostrarCerrarConfirm = v" Titulo="Cerrar proyecto" CerrarAlHacerClicFuera="!_guardando">
+    <ChildContent>
+        <p>Tras cerrarlo, este proyecto dejará de contar como abierto para la facturación por días. Puedes seguir consultando sus técnicos y documentos.</p>
+        <CampoTexto Etiqueta="Fecha de cierre" Type="date" Valor="@_fechaCierre" ValorChanged="v => _fechaCierre = v" />
+        @if (_errorCierre is not null)
+        {
+            <p class="aviso-error">@_errorCierre</p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _mostrarCerrarConfirm = false">Cancelar</Boton>
+        <Boton Cargando="_guardando" OnClick="ConfirmarCerrarAsync">Cerrar proyecto</Boton>
+    </Pie>
+</Modal>
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarVisible"
+    VisibleChanged="v => _confirmarEliminarVisible = v"
+    Titulo="¿Eliminar este proyecto?"
+    Mensaje="@($"El proyecto {_nombreAEliminar} se ocultará de las listas activas. Podrás recuperarlo desde Auditoría.")"
+    EnProgreso="_eliminando"
+    OnConfirmar="ConfirmarEliminarAsync" />
+
+@code {
+    private static readonly IReadOnlyList<PestanaDefinicion> _pestanasDetalle =
+    [
+        new("informacion", "Información"),
+        new("tecnicos", "Técnicos"),
+        new("documentos", "Documentos")
+    ];
+}
