@@ -19,6 +19,31 @@
 - Hitos comerciales con fecha concreta → `ROADMAP_BUSINESS.md`.
 - Análisis de competidores → `COMPETITOR_ANALYSIS.md` (se usa como insumo, no se desarrolla aquí).
 
+## Guion de objeciones validado en campo (Draft, 2026-07)
+
+Primer guion de objeciones comerciales, surgido de la preparación y ejecución de la reunión de
+propuesta al Cliente Fundador (GESEME). Candidato a reutilizarse y refinarse con los siguientes
+prospectos:
+
+- **"Queremos comprarlo / desarrollo interno"**: se responde mostrando el coste real de
+  mantener software internamente (ver comparativa en `PRICING.md`/`UNIT_ECONOMICS.md`), no
+  negando la petición. La objeción de fondo suele ser miedo a la dependencia de un proveedor
+  unipersonal — se resuelve con garantías de continuidad (`DATA_OWNERSHIP.md`), no con venta del
+  código.
+- **"¿Y si el fundador se va de su empleo actual?"**: se responde separando la continuidad del
+  servicio (estructura empresarial) de la relación laboral personal del fundador.
+- **"Es caro / ¿por qué no gratis?"**: se responde mostrando la tarifa comercial de referencia
+  frente a la tarifa de Cliente Fundador como intercambio (caso de éxito y referencia), no como
+  regalo.
+- **"Queremos exclusividad territorial"**: se descarta explícitamente por poner en riesgo la
+  viabilidad del proveedor; se ofrece en su lugar prioridad de roadmap y acceso anticipado a
+  módulos.
+- **Caso de cliente de gran volumen no absorbido por falta de capacidad**: se usa como argumento
+  de capacidad de crecimiento (ver `ICP.md`), nunca como garantía contractual — su cumplimiento
+  depende de decisiones comerciales internas del cliente, ajenas al control del proveedor.
+
+*Draft — guion de trabajo, no política de venta formalmente aprobada.*
+
 ## Documentos relacionados
 
 - `ICP.md` — a quién se dirige esta estrategia.
