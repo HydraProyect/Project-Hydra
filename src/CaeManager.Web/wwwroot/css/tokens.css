@@ -62,9 +62,9 @@
   /* Tipografía */
   --font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-heading-xl: 700 2.25rem/2.75rem var(--font-family);   /* H1 36/44 */
-  --font-heading-lg: 700 1.875rem/2.375rem var(--font-family); /* H2 30/38 */
-  --font-heading-md: 600 1.5rem/2rem var(--font-family);       /* H3 24/32 */
-  --font-heading-sm: 600 1.25rem/1.75rem var(--font-family);   /* H4 20/28 */
+  --font-heading-lg: 700 1.75rem/2.25rem var(--font-family);   /* H2 28/36 */
+  --font-heading-md: 600 1.375rem/1.875rem var(--font-family); /* H3 22/30 */
+  --font-heading-sm: 600 1.125rem/1.625rem var(--font-family); /* H4 18/26 */
   --font-body-lg: 400 1rem/1.5rem var(--font-family);          /* Body 16/24 */
   --font-body-md: 400 0.875rem/1.25rem var(--font-family);     /* Small 14/20 */
   --font-body-sm: 500 0.75rem/1rem var(--font-family);         /* Caption 12/16 */
@@ -100,7 +100,7 @@
   --radius-sm: 6px;       /* chips, elementos pequeños */
   --radius-md: 10px;      /* botones, inputs */
   --radius-card-sm: 12px; /* tarjetas pequeñas / KPI */
-  --radius-lg: 16px;      /* tarjetas principales, diálogos, drawers */
+  --radius-lg: 14px;      /* tarjetas principales, diálogos, drawers */
   --radius-full: 9999px;  /* badges, pills, avatares */
 
   --border-default: 1px solid var(--color-border);
