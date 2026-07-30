@@ -1,11 +1,11 @@
 .modal-superposicion {
     position: fixed;
     inset: 0;
-    background-color: rgba(15, 23, 42, 0.5);
+    background-color: rgba(15, 23, 42, 0.45);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1100;
+    z-index: 1050;
     padding: var(--space-4);
 }
 
@@ -14,10 +14,21 @@
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-overlay);
     width: 100%;
-    max-width: 520px;
     max-height: 90vh;
     display: flex;
     flex-direction: column;
+}
+
+.modal-contenido-pequeno {
+    max-width: 420px;
+}
+
+.modal-contenido-mediano {
+    max-width: 520px;
+}
+
+.modal-contenido-grande {
+    max-width: 720px;
 }
 
 .modal-header {
