@@ -12,8 +12,11 @@
     <!-- AngleSharp 1.4.0 llega de forma transitiva vía bunit y tiene una
          vulnerabilidad moderada conocida (GHSA-pgww-w46g-26qg) — se fija
          explícitamente a una versión parcheada en vez de silenciar el
-         aviso, porque bunit 2.7.2 sigue funcionando bien contra ella. -->
-    <PackageReference Include="AngleSharp" Version="1.5.2" />
+         aviso, porque bunit 2.7.2 sigue funcionando bien contra ella.
+         1.6.0 (no 1.5.2) porque HtmlSanitizer, que Infrastructure usa para
+         sanear el HTML de correo, exige >= 1.6.0 y la degradación rompe la
+         restauración de este proyecto. -->
+    <PackageReference Include="AngleSharp" Version="1.6.0" />
     <PackageReference Include="FluentAssertions" Version="6.*" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />

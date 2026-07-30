@@ -38,3 +38,13 @@ document.addEventListener('click', function (evento) {
     onda.addEventListener('animationend', quitar, { once: true });
     setTimeout(quitar, 650);
 });
+
+// Envío automático de los <form> que hacen las veces de selector (hoy solo
+// SelectorClienteActivo). Antes era un onchange="this.form.submit()" en el
+// marcado; con la CSP de UseCabecerasSeguridad, que no admite
+// 'unsafe-inline' en script-src, un manejador inline ya no se ejecutaría.
+// Mismo patrón delegado que el ripple de arriba, por el mismo motivo.
+document.addEventListener('change', function (evento) {
+    const control = evento.target.closest('[data-enviar-al-cambiar]');
+    if (control && control.form) control.form.requestSubmit();
+});
