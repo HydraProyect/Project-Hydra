@@ -1,0 +1,137 @@
+@page "/delegaciones"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+
+<PageTitle>Delegaciones — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <h1 class="titulo-pagina">Delegaciones</h1>
+
+    <p class="descripcion-delegaciones">
+        Una delegación autoriza a una consultora a gestionar la CAE de un cliente sin ser dueña de
+        sus datos. Revocarla corta el acceso de inmediato y no borra ni mueve ninguna información:
+        los datos nunca dejaron de ser del cliente. Se conserva el registro de la delegación
+        revocada para saber quién operó y cuándo, y para poder reactivarla.
+    </p>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las delegaciones" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_delegaciones.Count == 0)
+    {
+        <EstadoVacio Titulo="No hay ninguna delegación"
+                     Descripcion="Tu organización no gestiona la CAE de otra ni ha delegado la suya en nadie." />
+    }
+    else
+    {
+        @foreach (var delegacion in _delegaciones)
+        {
+            <Tarjeta Class="tarjeta-delegacion">
+                <div class="delegacion-cabecera">
+                    <div>
+                        <h2 class="delegacion-titulo">
+                            @if (delegacion.SomosLaConsultora)
+                            {
+                                <text>Gestionamos a @delegacion.ClienteNombre</text>
+                            }
+                            else
+                            {
+                                <text>@delegacion.ConsultoraNombre nos gestiona</text>
+                            }
+                        </h2>
+                        <span class="delegacion-fecha">Desde @delegacion.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</span>
+                    </div>
+
+                    <div class="delegacion-acciones">
+                        <Badge Tono="@(delegacion.Activa ? TonoBadge.Exito : TonoBadge.Neutro)">
+                            @(delegacion.Activa ? "Activa" : "Revocada")
+                        </Badge>
+
+                        @if (delegacion.Activa)
+                        {
+                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
+                                   OnClick="() => _delegacionARevocar = delegacion">
+                                Revocar acceso
+                            </Boton>
+                        }
+                        else
+                        {
+                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                                   OnClick="() => ReactivarAsync(delegacion)" Cargando="@(_procesandoId == delegacion.Id)">
+                                Reactivar
+                            </Boton>
+                        }
+                    </div>
+                </div>
+
+                @if (delegacion.Operadores.Count == 0)
+                {
+                    <p class="delegacion-sin-operadores">Sin operadores autorizados todavía.</p>
+                }
+                else
+                {
+                    <table class="tabla-datos">
+                        <thead>
+                            <tr>
+                                <th>Operador</th>
+                                <th>Rol en este cliente</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var operador in delegacion.Operadores)
+                            {
+                                <tr>
+                                    <td>@NombreDeUsuario(operador.UsuarioId)</td>
+                                    <td>@CaeManager.Infrastructure.Identity.Roles.NombreVisible(operador.Rol)</td>
+                                    <td>
+                                        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Fantasma"
+                                               OnClick="() => RetirarOperadorAsync(operador)"
+                                               Cargando="@(_procesandoId == operador.AsignacionId)">
+                                            Retirar
+                                        </Boton>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </Tarjeta>
+        }
+    }
+</div>
+
+<Modal Visible="_delegacionARevocar is not null" VisibleChanged="v => { if (!v) _delegacionARevocar = null; }"
+       Titulo="Revocar el acceso" CerrarAlHacerClicFuera="!_revocando">
+    <ChildContent>
+        @if (_delegacionARevocar is not null)
+        {
+            <p>
+                @if (_delegacionARevocar.SomosLaConsultora)
+                {
+                    <text>Dejaréis de poder acceder a los datos de <strong>@_delegacionARevocar.ClienteNombre</strong>.</text>
+                }
+                else
+                {
+                    <text><strong>@_delegacionARevocar.ConsultoraNombre</strong> dejará de poder acceder a vuestros datos.</text>
+                }
+            </p>
+            <p class="aviso-revocacion">
+                No se borra ningún dato y la delegación se puede reactivar más adelante.
+            </p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_revocando" OnClick="() => _delegacionARevocar = null">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Destructivo" Cargando="_revocando" OnClick="RevocarAsync">Revocar acceso</Boton>
+    </Pie>
+</Modal>
