@@ -1,7 +1,7 @@
 @if (Visible)
 {
     <div class="modal-superposicion" @onclick="ManejarClicSuperposicionAsync">
-        <div class="modal-contenido" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId">
+        <div class="modal-contenido modal-contenido-@Ancho.ToString().ToLowerInvariant()" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId">
             <div class="modal-header">
                 <h2 id="@_tituloId">@Titulo</h2>
                 <button type="button" class="modal-cerrar" aria-label="Cerrar" @onclick="CerrarAsync">×</button>
@@ -26,6 +26,9 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public RenderFragment? Pie { get; set; }
     [Parameter] public bool CerrarAlHacerClicFuera { get; set; } = true;
+
+    /// <summary>Mediano (520px) es el default histórico — ver <see cref="AnchoModal"/>.</summary>
+    [Parameter] public AnchoModal Ancho { get; set; } = AnchoModal.Mediano;
 
     private Task CerrarAsync() => VisibleChanged.InvokeAsync(false);
 
