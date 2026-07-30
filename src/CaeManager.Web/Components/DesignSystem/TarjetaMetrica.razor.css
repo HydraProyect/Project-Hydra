@@ -37,6 +37,22 @@
     border-left-color: var(--color-info-500);
 }
 
+/*
+  Variante discreta: KPIs informativos (no una señal que requiera acción),
+  se apoyan menos — sin borde de color semántico ni degradado (ver
+  Dashboard.razor.css, el degradado solo se aplica a .tarjeta-metrica que no
+  sea discreta), valor a tamaño de subtítulo en vez de H1.
+*/
+.tarjeta-metrica-discreta {
+    border-left-color: transparent;
+    box-shadow: none;
+    background-color: var(--color-surface-hover);
+}
+
+.tarjeta-metrica-discreta .tarjeta-metrica-valor {
+    font: var(--font-heading-sm);
+}
+
 .tarjeta-metrica-clicable {
     text-decoration: none;
     color: inherit;
