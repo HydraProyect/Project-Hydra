@@ -6,8 +6,13 @@ using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Evaluaciones;
+using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Notificaciones;
+using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
@@ -24,10 +29,19 @@ namespace CaeManager.IntegrationTests.Tenants;
 
 /// <summary>
 /// Cierre de la Etapa 5 de PLAN-MIGRACION-MULTITENANT.md: test de
-/// aislamiento por cada uno de los 25 tipos de entidad expuestos en
-/// <c>IApplicationDbContext</c> (regla de docs/MULTITENANCY.md § 9 —
-/// "los tests de aislamiento se escriben por agregado... toda entidad
-/// nueva añade el suyo"). <see cref="AislamientoMultiTenantTests"/> ya
+/// aislamiento por cada uno de los <b>34</b> tipos que heredan de
+/// <c>EntidadConTenant</c>/<c>EntidadBase</c> — uno por cada línea de
+/// <c>HasQueryFilter</c> de <c>CaeManagerDbContext</c>, sin excepciones
+/// (regla de docs/MULTITENANCY.md § 9 — "los tests de aislamiento se
+/// escriben por agregado... toda entidad nueva añade el suyo").
+///
+/// El fichero nació cubriendo 25 y se quedó atrás según crecía el modelo:
+/// llegó a faltar el test de 9 entidades, dos de las cuales (TarifaCliente y
+/// AprobacionDocumento) resultaron no tener siquiera el filtro — hallazgos
+/// A-1 y M-1 de INFORME-AUDITORIA-TECNICA.md. Si añades una entidad con
+/// TenantId, añade aquí su test.
+///
+/// <see cref="AislamientoMultiTenantTests"/> ya
 /// prueba con más profundidad de escenario (fallo cerrado, rechazo de
 /// modificación cruzada, índice único) sobre dos entidades representativas
 /// (Cliente/Alerta); este archivo cierra la cobertura completa de las 25,
@@ -47,6 +61,10 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     public Task DisposeAsync()
     {
+        // Microsoft.Data.Sqlite devuelve la conexión a su pool al disponer el
+        // contexto, y ese handle sigue abierto: en Windows impide borrar el
+        // archivo y hacía fallar el teardown (no el cuerpo) del test.
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
         return Task.CompletedTask;
     }
@@ -82,7 +100,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
         visibleParaA.Should().NotBeNull($"el propio tenant que creó la fila de {typeof(TEntidad).Name} debe poder verla");
     }
 
-    // --- 9 agregados con soft delete (EntidadBase) ---
+    // --- agregados con soft delete (EntidadBase) ---
 
     [Fact]
     public Task Aislamiento_Cliente() => VerificarAislamientoAsync(
@@ -120,7 +138,29 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     public Task Aislamiento_Visita() => VerificarAislamientoAsync(
         () => new Visita(Guid.NewGuid(), new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 2), null));
 
-    // --- 16 tablas de unión/satélite (EntidadConTenant directa, sin soft delete) ---
+    [Fact]
+    public Task Aislamiento_Proyecto() => VerificarAislamientoAsync(
+        () => Proyecto.Crear(Guid.NewGuid(), Guid.NewGuid(), "Parada técnica 2026", new DateOnly(2026, 1, 1), null, null));
+
+    [Fact]
+    public Task Aislamiento_Evaluacion() => VerificarAislamientoAsync(
+        () => new Evaluacion(Guid.NewGuid(), null, new DateOnly(2026, 1, 1), 80, null));
+
+    [Fact]
+    public Task Aislamiento_Incidencia() => VerificarAislamientoAsync(
+        () => new Incidencia(Guid.NewGuid(), null, TipoIncidencia.Accidente, GravedadIncidencia.Leve,
+            new DateOnly(2026, 1, 1), "Descripción de prueba"));
+
+    // Hallazgo A-1 de INFORME-AUDITORIA-TECNICA.md: TarifaCliente heredaba de
+    // EntidadBase pero se quedó sin HasQueryFilter, así que
+    // ObtenerTarifasClienteQuery devolvía tarifas de cualquier tenant (y
+    // también las borradas lógicamente). Divulgación cruzada de precios
+    // comerciales entre consultoras.
+    [Fact]
+    public Task Aislamiento_TarifaCliente() => VerificarAislamientoAsync(
+        () => TarifaCliente.Crear(Guid.NewGuid(), ConceptoFacturable.TrabajadorActivo, 12.50m, "EUR"));
+
+    // --- tablas de unión/satélite (EntidadConTenant directa, sin soft delete) ---
 
     [Fact]
     public Task Aislamiento_Alerta() => VerificarAislamientoAsync(
@@ -185,4 +225,28 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     [Fact]
     public Task Aislamiento_VisitaTrabajador() => VerificarAislamientoAsync(
         () => new VisitaTrabajador(Guid.NewGuid(), Guid.NewGuid()));
+
+    [Fact]
+    public Task Aislamiento_ExtraccionIaCache() => VerificarAislamientoAsync(
+        () => ExtraccionIaCache.Crear(new string('a', 64), "{}"));
+
+    [Fact]
+    public Task Aislamiento_AuditoriaExtraccionIa() => VerificarAislamientoAsync(
+        () => AuditoriaExtraccionIa.Crear(new string('b', 64), "Apto médico", "anthropic", 1200, null, null, 1, 95, null));
+
+    [Fact]
+    public Task Aislamiento_RevisionIaDocumento() => VerificarAislamientoAsync(
+        () => RevisionIaDocumento.Crear(Guid.NewGuid(), 40, "Apto médico", null, null, null, "Confianza insuficiente"));
+
+    [Fact]
+    public Task Aislamiento_ProyectoTecnico() => VerificarAislamientoAsync(
+        () => new ProyectoTecnico(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1)));
+
+    // Hallazgo M-1: AprobacionDocumento tampoco tenía filtro. No fugaba
+    // todavía porque su único lector hace join contra Documentos (que sí está
+    // filtrado), pero la invariante estaba rota y cualquier consulta futura
+    // que leyera la tabla directamente habría cruzado tenants en silencio.
+    [Fact]
+    public Task Aislamiento_AprobacionDocumento() => VerificarAislamientoAsync(
+        () => AprobacionDocumento.CrearAutomatica(Guid.NewGuid(), 95));
 }

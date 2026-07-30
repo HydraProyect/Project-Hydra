@@ -20,6 +20,18 @@ public class ObtenerTarifasClienteQueryHandler(IApplicationDbContext dbContext)
 {
     public async Task<List<TarifaClienteDto>> Handle(ObtenerTarifasClienteQuery request, CancellationToken cancellationToken)
     {
+        // Cargar antes el Cliente (filtrado por tenant) en vez de fiarse solo
+        // del ClienteId recibido — mismo criterio que ObtenerResumenFacturacion
+        // y la regla de CLAUDE.md: un Id ajeno debe resultar "no encontrado".
+        // El filtro global de TarifaCliente ya aísla por tenant; esto lo
+        // refuerza en el handler para no depender de una sola capa en datos
+        // comercialmente sensibles.
+        var clienteExiste = await dbContext.Clientes
+            .AnyAsync(c => c.Id == request.ClienteId, cancellationToken);
+
+        if (!clienteExiste)
+            return [];
+
         var tarifas = await dbContext.TarifasCliente
             .Where(t => t.ClienteId == request.ClienteId)
             .OrderBy(t => t.Concepto)
