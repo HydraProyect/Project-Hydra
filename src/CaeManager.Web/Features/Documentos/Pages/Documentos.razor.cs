@@ -2,6 +2,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
+using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
@@ -86,6 +87,7 @@ public partial class Documentos : ComponentBase
     private string? _glosarioObservaciones;
     private string? _archivoUrl;
     private bool _subiendoArchivo;
+    private bool _detectandoCampos;
     private string _comentarios = string.Empty;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
@@ -99,6 +101,19 @@ public partial class Documentos : ComponentBase
 
     private bool _confirmarVigenciaAnteriorVisible;
     private bool _procesandoConfirmacionVigencia;
+
+    /// <summary>
+    /// El alias (nombre con el que el trabajador firma o está dado de alta
+    /// en plataformas externas) se incluye en el texto buscable para que
+    /// escribirlo también lo encuentre — la identidad real para el
+    /// pre-relleno automático siempre se verifica por DNI, nunca por este
+    /// texto (ver DetectarCamposDocumentoQuery).
+    /// </summary>
+    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => _trabajadoresDisponibles
+        .Select(t => new OpcionBuscable(
+            t.Id.ToString(),
+            string.IsNullOrWhiteSpace(t.Alias) ? $"{t.NombreCompleto} ({t.Dni})" : $"{t.NombreCompleto} — {t.Alias} ({t.Dni})"))
+        .ToList();
 
     /// <summary>
     /// Solo los tipos de documento sin vencimiento automático piden una
@@ -328,6 +343,9 @@ public partial class Documentos : ComponentBase
 
             using var flujoPdf = new MemoryStream(pdfUnificado);
             _archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
+
+            if (_editandoId is null && _ambitoAplicacion == nameof(AmbitoAplicacion.Trabajador))
+                await DetectarCamposAsync(pdfUnificado);
         }
         catch (Exception ex)
         {
@@ -337,6 +355,58 @@ public partial class Documentos : ComponentBase
         finally
         {
             _subiendoArchivo = false;
+        }
+    }
+
+    /// <summary>
+    /// Mejor esfuerzo, mismo criterio que la detección de trabajadores/
+    /// verificación IA de <see cref="CrearDocumentoCommand"/>: si la IA no
+    /// está disponible o no encuentra una sugerencia fiable, el alta
+    /// manual sigue funcionando exactamente igual que antes — nunca se
+    /// bloquea ni se fuerza la selección, solo se ahorra el trabajo cuando
+    /// hay una coincidencia clara. El usuario conserva ambos campos
+    /// editables y puede corregir la sugerencia antes de guardar.
+    /// </summary>
+    private async Task DetectarCamposAsync(byte[] contenidoPdf)
+    {
+        _detectandoCampos = true;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(
+                new DetectarCamposDocumentoQuery(contenidoPdf, "documento.pdf", AmbitoAplicacion.Trabajador));
+
+            if (resultado.EsFallido)
+                return;
+
+            var deteccion = resultado.Valor;
+            var huboSugerencia = false;
+
+            if (deteccion.TipoDocumentoId is { } tipoDetectadoId
+                && _tiposDisponibles.Any(t => t.Id == tipoDetectadoId))
+            {
+                CambiarTipoDocumento(tipoDetectadoId.ToString());
+                huboSugerencia = true;
+            }
+
+            if (deteccion.TrabajadorId is { } trabajadorDetectadoId
+                && _trabajadoresDisponibles.Any(t => t.Id == trabajadorDetectadoId))
+            {
+                _trabajadorId = trabajadorDetectadoId.ToString();
+                huboSugerencia = true;
+            }
+
+            if (huboSugerencia)
+                ToastService.Mostrar("Detectamos automáticamente el trabajador y/o el tipo de documento — revisa antes de guardar.", TonoToast.Info);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "No se pudo completar la detección automática de campos al subir un Documento.");
+        }
+        finally
+        {
+            _detectandoCampos = false;
         }
     }
 

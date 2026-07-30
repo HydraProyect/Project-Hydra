@@ -1,0 +1,83 @@
+@implements IDisposable
+<div class="campo">
+    @if (!string.IsNullOrWhiteSpace(Etiqueta))
+    {
+        <label for="@_id">@Etiqueta</label>
+    }
+    <input id="@_id"
+           type="text"
+           class="campo-input"
+           list="@_listaId"
+           value="@_texto"
+           placeholder="@Marcador"
+           disabled="@Deshabilitado"
+           autocomplete="off"
+           @oninput="ManejarEscrituraAsync" />
+    <datalist id="@_listaId">
+        @foreach (var opcion in Opciones)
+        {
+            <option value="@opcion.Texto"></option>
+        }
+    </datalist>
+</div>
+
+@code {
+    private readonly string _id = $"campo-buscar-{Guid.NewGuid():N}";
+    private readonly string _listaId = $"campo-buscar-lista-{Guid.NewGuid():N}";
+    private string _texto = string.Empty;
+    private string _ultimoValorNotificado = string.Empty;
+    private CancellationTokenSource? _debounceCts;
+
+    [Parameter] public string? Etiqueta { get; set; }
+    [Parameter] public string Valor { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValorChanged { get; set; }
+    [Parameter] public bool Deshabilitado { get; set; }
+    [Parameter] public string? Marcador { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<OpcionBuscable> Opciones { get; set; } = [];
+
+    /// <summary>
+    /// Mismo patrón que <c>CampoTexto</c>: solo se resincroniza el texto
+    /// visible con el Id recibido por parámetro cuando ese Id no vino de
+    /// nuestro propio evento (p. ej. lo fija el padre tras una detección
+    /// automática, o al reabrir el formulario) — si se resincronizara en
+    /// cada render, se borraría lo que el usuario está escribiendo antes
+    /// de que su texto llegue a coincidir con una opción del datalist.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        if (Valor == _ultimoValorNotificado)
+            return;
+
+        _ultimoValorNotificado = Valor;
+        _texto = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto ?? string.Empty;
+    }
+
+    private async Task ManejarEscrituraAsync(ChangeEventArgs e)
+    {
+        _texto = e.Value?.ToString() ?? string.Empty;
+
+        _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _debounceCts = cts;
+
+        try
+        {
+            await Task.Delay(150, cts.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        var coincidencia = Opciones.FirstOrDefault(o => o.Texto == _texto);
+        _ultimoValorNotificado = coincidencia?.Id ?? string.Empty;
+        await ValorChanged.InvokeAsync(_ultimoValorNotificado);
+    }
+
+    public void Dispose()
+    {
+        _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
+    }
+}

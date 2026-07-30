@@ -1,0 +1,122 @@
+/*
+  Cabecera y rejillas de KPI compartidas entre Dashboard (vista de un solo
+  Cliente) y Visión de cartera (vista agregada, ver ROADMAP.md Fase 51,
+  Capa de Reporting). Vive en un stylesheet global — no en el .razor.css
+  aislado de un componente — precisamente porque dos páginas distintas la
+  consumen; el aislamiento de CSS de Blazor (los atributos b-xxxx) no
+  alcanza entre componentes, así que una regla en Dashboard.razor.css nunca
+  llegaría a VisionCartera.razor. Jerarquía en dos niveles (ver
+  DESIGN_SYSTEM.md, rediseño de jerarquía visual): .rejilla-kpis-criticos es
+  la primera cosa que se lee — con el tratamiento "premium" completo
+  (degradado, borde de color, número grande) — y .rejilla-kpis-secundarios
+  es contexto que no requiere ninguna decisión hoy.
+*/
+.dashboard-cabecera {
+    margin-bottom: var(--space-8);
+}
+
+.dashboard-kicker {
+    display: block;
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: var(--space-1);
+}
+
+.dashboard-subtitulo {
+    font: var(--font-heading-sm);
+    color: var(--color-text-muted);
+    margin: var(--space-8) 0 var(--space-3);
+}
+
+.dashboard-subtitulo:first-child {
+    margin-top: 0;
+}
+
+.rejilla-kpis-criticos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--space-4);
+}
+
+.rejilla-kpis-secundarios {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-3);
+}
+
+/* Revelado escalonado de las tarjetas KPI (ver .stagger-item en list-page.css) — solo en el nivel crítico. */
+.rejilla-kpis-criticos .tarjeta-metrica {
+    animation: revelar-escalonado var(--transition-slow) ease-out backwards;
+}
+
+.rejilla-kpis-criticos .tarjeta-metrica:nth-child(1) { animation-delay: 0ms; }
+.rejilla-kpis-criticos .tarjeta-metrica:nth-child(2) { animation-delay: 40ms; }
+.rejilla-kpis-criticos .tarjeta-metrica:nth-child(3) { animation-delay: 80ms; }
+.rejilla-kpis-criticos .tarjeta-metrica:nth-child(4) { animation-delay: 120ms; }
+
+@media (prefers-reduced-motion: reduce) {
+    .rejilla-kpis-criticos .tarjeta-metrica {
+        animation: none;
+    }
+}
+
+/*
+  Gradient mesh muy sutil, solo en las tarjetas KPI críticas (no en
+  TarjetaMetrica en general — se usa también en resúmenes de importación,
+  donde este efecto diluiría el "destacado" en vez de reforzarlo).
+*/
+.rejilla-kpis-criticos .tarjeta-metrica {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.rejilla-kpis-criticos .tarjeta-metrica::before {
+    content: '';
+    position: absolute;
+    inset: -50%;
+    z-index: 0;
+    background:
+        radial-gradient(circle at 15% 20%, color-mix(in srgb, var(--color-primary-500) 10%, transparent) 0%, transparent 55%),
+        radial-gradient(circle at 85% 75%, color-mix(in srgb, var(--color-secondary-500) 8%, transparent) 0%, transparent 55%);
+    animation: flotar-gradiente 16s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.rejilla-kpis-criticos .tarjeta-metrica-etiqueta,
+.rejilla-kpis-criticos .tarjeta-metrica-valor {
+    position: relative;
+    z-index: 1;
+}
+
+@keyframes flotar-gradiente {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(3%, -3%) scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rejilla-kpis-criticos .tarjeta-metrica::before {
+        animation: none;
+    }
+}
+
+.rejilla-desglose {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--space-4);
+    margin-top: var(--space-5);
+    align-items: start;
+}
+
+.enlace-ver-todas {
+    display: inline-block;
+    margin-top: var(--space-3);
+    font: var(--font-body-sm);
+}
+
+/* Filas de los "boxes" de desglose que llevan a la pantalla filtrada correspondiente. */
+.fila-clicable {
+    cursor: pointer;
+}

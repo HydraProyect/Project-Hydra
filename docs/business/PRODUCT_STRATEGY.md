@@ -17,6 +17,39 @@
 - El backlog conceptual del kernel de plataforma en sí → `docs/PLATFORM.md` § 1 (este documento prioriza el backlog de negocio; `PLATFORM.md` describe el backlog conceptual, sin priorizar, desde el ángulo de arquitectura).
 - Calendario concreto de ejecución → `ROADMAP_BUSINESS.md`.
 
+## Secuencia de producto — Fase 1 / Fase 2 (Draft, 2026-07)
+
+Hipótesis de secuencia surgida de la validación con el Cliente Fundador (GESEME):
+
+- **Fase 1 — "Registro"**: core de gestión y orden documental. Alta y gestión de clientes,
+  empresas, trabajadores, subcontratas, centros y vehículos; documentación de empresa, de
+  trabajador y ciclo mensual recurrente con control de vigencias; visitas programadas; alertas
+  de caducidad. Sin conectores ni agentes hacia plataformas Inbound de terceros.
+- **Fase 2 — "Orquestador"**: conectores/agentes de subida automática hacia plataformas Inbound
+  (CTAIMA, Nalanda, Dokify, etc.). Diferida deliberadamente. Motivo: probable conflicto con
+  condiciones de uso de esas plataformas (riesgo legal y de continuidad — bloqueo por detección
+  de automatización) y coste de mantenimiento de conectores contra sistemas de terceros
+  adversarios. No tiene fecha comprometida y no debe presentarse como tal a clientes.
+- **MVP2 (siguiente hito tras Fase 1)**: centralización de mensajería de coordinación —
+  ingesta de correo con threading (agrupado de hilos multi-participante y multi-dominio vía
+  cabeceras `Message-ID`/`In-Reply-To`/`References`) y vinculación de cada hilo a la entidad CAE
+  correspondiente (cliente, trabajador, expediente). SLA, KPIs y cuadros de mando quedan pospuestos
+  a un MVP3 posterior.
+
+**Principio de diseño (Draft)**: la plataforma no sustituye al gestor — elimina el trabajo que
+no es atención (buscar, renombrar, archivar, vigilar caducidades) para que el mismo equipo
+atienda a más clientes con la misma calidad de trato. Surge de conversación directa con un
+Cliente Fundador que rechaza explícitamente la sustitución de gestores por IA como parte de su
+posicionamiento de calidad de servicio. Candidato a informar tanto el desarrollo de producto
+como el mensaje de `GO_TO_MARKET.md`.
+
+**Estado real del desarrollo (nota operativa, julio 2026)**: en producción — alta y gestión de
+cliente, empresa, trabajador, subcontrata, centro, vehículo, documentación, visitas programadas
+y alertas. En despliegue — perfil de consultor para gestión multi-tenant.
+
+*Todo lo anterior es Draft: hipótesis de trabajo pendiente de confirmación explícita del
+propietario del producto antes de pasar a Approved.*
+
 ## Documentos relacionados
 
 - `docs/PLATFORM.md` § 1 — backlog conceptual de módulos de dominio futuros, sin priorizar.
