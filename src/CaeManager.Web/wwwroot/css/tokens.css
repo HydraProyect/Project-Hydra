@@ -8,30 +8,38 @@
 */
 
 :root {
-  /* Color — primario (ProjectHydra, tomado de la identidad real de ProjectHydra.com) */
-  --color-primary-50: #ebf3fe;
-  --color-primary-100: #cee0fd;
-  --color-primary-300: #91b9fb;
-  --color-primary-500: #0a63f6;
-  --color-primary-600: #0850c4;
-  --color-primary-700: #073e97;
+  /* Color — primario, identidad propia CAE Manager: azul acero, no azul SaaS
+     genérico (ver DESIGN_SYSTEM.md § Historial — realineación 2026-07). */
+  --color-primary-50: #eef5ff;
+  --color-primary-100: #dcebff;
+  --color-primary-300: #8ec0ff;
+  --color-primary-500: #2f6fdd;
+  --color-primary-600: #235bc2;
+  --color-primary-700: #1e4a9e;
 
-  /* Color — secundario (acento teal ProjectHydra) */
-  --color-secondary-50: #eafafb;
-  --color-secondary-100: #c7eff2;
-  --color-secondary-300: #7dd9e1;
-  --color-secondary-500: #2fb8c6;
-  --color-secondary-600: #229ca9;
+  /* Color — secundario: slate profundo, refuerza el acero sin competir con él */
+  --color-secondary-50: #f1f4f7;
+  --color-secondary-100: #e3e8ee;
+  --color-secondary-300: #aeb9c7;
+  --color-secondary-500: #475569;
+  --color-secondary-600: #35404f;
 
-  /* Color — neutro */
+  /* Color — acento (cobre): únicamente detalles puntuales (p. ej. un
+     subrayado, un ícono destacado). Nunca sustituye al semáforo de estado ni
+     se usa como color de acción — ver DESIGN_SYSTEM.md "color con intención". */
+  --color-accent-50: #fbf1e7;
+  --color-accent-500: #c97b2a;
+  --color-accent-600: #a9631e;
+
+  /* Color — neutro, más cálido que un gris de librería genérica */
   --color-neutral-0: #ffffff;
-  --color-neutral-50: #f8fafc;
-  --color-neutral-100: #f1f5f9;
-  --color-neutral-200: #e5e7eb;
-  --color-neutral-300: #d1d5db;
-  --color-neutral-500: #6b7280;
-  --color-neutral-700: #374151;
-  --color-neutral-900: #1f2937;
+  --color-neutral-50: #fafbfc;
+  --color-neutral-100: #f4f6f8;
+  --color-neutral-200: #e8edf2;
+  --color-neutral-300: #d5dce5;
+  --color-neutral-500: #738196;
+  --color-neutral-700: #404d60;
+  --color-neutral-900: #161e27;
 
   /* Color — semántico (semáforo de vigencia documental) */
   --color-success-50: #eafbf1;
@@ -54,9 +62,9 @@
   /* Tipografía */
   --font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-heading-xl: 700 2.25rem/2.75rem var(--font-family);   /* H1 36/44 */
-  --font-heading-lg: 700 1.875rem/2.375rem var(--font-family); /* H2 30/38 */
-  --font-heading-md: 600 1.5rem/2rem var(--font-family);       /* H3 24/32 */
-  --font-heading-sm: 600 1.25rem/1.75rem var(--font-family);   /* H4 20/28 */
+  --font-heading-lg: 700 1.75rem/2.25rem var(--font-family);   /* H2 28/36 */
+  --font-heading-md: 600 1.375rem/1.875rem var(--font-family); /* H3 22/30 */
+  --font-heading-sm: 600 1.125rem/1.625rem var(--font-family); /* H4 18/26 */
   --font-body-lg: 400 1rem/1.5rem var(--font-family);          /* Body 16/24 */
   --font-body-md: 400 0.875rem/1.25rem var(--font-family);     /* Small 14/20 */
   --font-body-sm: 500 0.75rem/1rem var(--font-family);         /* Caption 12/16 */
@@ -86,18 +94,20 @@
   --space-16: 4rem;     /* 64px */
   --space-24: 6rem;     /* 96px */
 
-  /* Radius / borde / elevación — look "fluido", nunca esquinas planas */
-  --radius-sm: 10px;      /* chips, elementos pequeños */
-  --radius-md: 14px;      /* botones, inputs */
-  --radius-card-sm: 18px; /* tarjetas pequeñas / KPI */
-  --radius-lg: 24px;      /* tarjetas principales, diálogos, drawers */
+  /* Radius / borde / elevación — más contenido que el look "burbuja" anterior;
+     nunca esquinas totalmente planas en elementos interactivos, pero la
+     identidad de ingeniería/documentación pide menos redondeo, no más. */
+  --radius-sm: 6px;       /* chips, elementos pequeños */
+  --radius-md: 10px;      /* botones, inputs */
+  --radius-card-sm: 12px; /* tarjetas pequeñas / KPI */
+  --radius-lg: 14px;      /* tarjetas principales, diálogos, drawers */
   --radius-full: 9999px;  /* badges, pills, avatares */
 
   --border-default: 1px solid var(--color-border);
   --border-focus: 2px solid var(--color-primary-500);
 
-  --shadow-card: 0 8px 30px rgba(15, 23, 42, 0.05);
-  --shadow-overlay: 0 20px 60px rgba(15, 23, 42, 0.14);
+  --shadow-card: 0 4px 14px rgba(22, 30, 39, 0.07);
+  --shadow-overlay: 0 20px 50px rgba(22, 30, 39, 0.16);
 
   /* Motion — sutil, nunca decorativa (ver DESIGN_SYSTEM.md) */
   --transition-fast: 150ms ease;
@@ -111,29 +121,32 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: #0b1220;
-    --color-surface: #111827;
-    --color-surface-hover: #1a2333;
-    --color-text: #f1f5f9;
-    --color-text-muted: #94a3b8;
-    --color-border: #263041;
+    /* Identidad propia en oscuro, no una inversión automática del claro —
+       ver DESIGN_SYSTEM.md § Historial. Nunca negro puro: la base es un
+       azul-carbón (acero visto de noche), con 3 escalones de superficie. */
+    --color-bg: #0e141b;
+    --color-surface: #17212c;
+    --color-surface-hover: #202b36;
+    --color-text: #e7eaee;
+    --color-text-muted: #8592a3;
+    --color-border: #293644;
 
     --color-success-50: #052e1a;
     --color-warning-50: #3a2405;
     --color-danger-50: #3a0a0a;
-    --color-secondary-50: #04292c;
+    --color-secondary-50: #1d2733;
+    --color-accent-50: #2a1f14;
 
-    /* Azul más claro que en modo día — el navy #0a63f6 pierde contraste
-       sobre fondo oscuro; #5b93ff es el valor confirmado para modo oscuro
-       en la identidad de ProjectHydra.com. Hover/activo se aclaran en vez de
-       oscurecerse (patrón estándar en temas oscuros: oscurecer reduce
-       visibilidad contra un fondo ya oscuro). */
-    --color-primary-500: #5b93ff;
-    --color-primary-600: #7ba8ff;
-    --color-primary-700: #9cbeff;
+    /* Más claro que en modo día — el acero #2f6fdd pierde contraste sobre
+       fondo oscuro; se sube dos escalones de la misma familia en vez de
+       aclarar el valor de día con un filtro. Hover/activo se aclaran en vez
+       de oscurecerse (oscurecer reduce visibilidad contra un fondo ya oscuro). */
+    --color-primary-500: #5ca2f4;
+    --color-primary-600: #8ec0ff;
+    --color-primary-700: #bdd9ff;
 
-    --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.35);
-    --shadow-overlay: 0 20px 60px rgba(0, 0, 0, 0.5);
+    --shadow-card: 0 4px 14px rgba(0, 0, 0, 0.35);
+    --shadow-overlay: 0 20px 50px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -147,24 +160,25 @@
   sentidos (Oscuro con SO en claro, y Claro con SO en oscuro).
 */
 :root[data-theme='oscuro'] {
-  --color-bg: #0b1220;
-  --color-surface: #111827;
-  --color-surface-hover: #1a2333;
-  --color-text: #f1f5f9;
-  --color-text-muted: #94a3b8;
-  --color-border: #263041;
+  --color-bg: #0e141b;
+  --color-surface: #17212c;
+  --color-surface-hover: #202b36;
+  --color-text: #e7eaee;
+  --color-text-muted: #8592a3;
+  --color-border: #293644;
 
   --color-success-50: #052e1a;
   --color-warning-50: #3a2405;
   --color-danger-50: #3a0a0a;
-  --color-secondary-50: #04292c;
+  --color-secondary-50: #1d2733;
+  --color-accent-50: #2a1f14;
 
-  --color-primary-500: #5b93ff;
-  --color-primary-600: #7ba8ff;
-  --color-primary-700: #9cbeff;
+  --color-primary-500: #5ca2f4;
+  --color-primary-600: #8ec0ff;
+  --color-primary-700: #bdd9ff;
 
-  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.35);
-  --shadow-overlay: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 4px 14px rgba(0, 0, 0, 0.35);
+  --shadow-overlay: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
 :root[data-theme='claro'] {
@@ -178,12 +192,13 @@
   --color-success-50: #eafbf1;
   --color-warning-50: #fff8eb;
   --color-danger-50: #fef0f0;
-  --color-secondary-50: #eafafb;
+  --color-secondary-50: #f1f4f7;
+  --color-accent-50: #fbf1e7;
 
-  --color-primary-500: #0a63f6;
-  --color-primary-600: #0850c4;
-  --color-primary-700: #073e97;
+  --color-primary-500: #2f6fdd;
+  --color-primary-600: #235bc2;
+  --color-primary-700: #1e4a9e;
 
-  --shadow-card: 0 8px 30px rgba(15, 23, 42, 0.05);
-  --shadow-overlay: 0 20px 60px rgba(15, 23, 42, 0.14);
+  --shadow-card: 0 4px 14px rgba(22, 30, 39, 0.07);
+  --shadow-overlay: 0 20px 50px rgba(22, 30, 39, 0.16);
 }
