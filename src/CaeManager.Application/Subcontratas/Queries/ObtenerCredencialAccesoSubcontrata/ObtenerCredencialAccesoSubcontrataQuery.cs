@@ -6,7 +6,7 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSub
 
 public record ObtenerCredencialAccesoSubcontrataQuery(Guid SubcontrataId) : IRequest<CredencialAccesoSubcontrataDto?>;
 
-public record CredencialAccesoSubcontrataDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena);
+public record CredencialAccesoSubcontrataDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas);
 
 public class ObtenerCredencialAccesoSubcontrataQueryHandler(IApplicationDbContext dbContext)
     : IRequestHandler<ObtenerCredencialAccesoSubcontrataQuery, CredencialAccesoSubcontrataDto?>
@@ -14,6 +14,6 @@ public class ObtenerCredencialAccesoSubcontrataQueryHandler(IApplicationDbContex
     public Task<CredencialAccesoSubcontrataDto?> Handle(ObtenerCredencialAccesoSubcontrataQuery request, CancellationToken cancellationToken) =>
         dbContext.CredencialesAccesoSubcontrata
             .Where(c => c.SubcontrataId == request.SubcontrataId)
-            .Select(c => new CredencialAccesoSubcontrataDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Contrasena))
+            .Select(c => new CredencialAccesoSubcontrataDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Contrasena, c.Notas))
             .FirstOrDefaultAsync(cancellationToken);
 }
