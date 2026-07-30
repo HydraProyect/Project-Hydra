@@ -6,7 +6,7 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSel
 
 public record ObtenerTrabajadoresParaSelectorQuery : IRequest<IReadOnlyList<TrabajadorSelectorDto>>;
 
-public record TrabajadorSelectorDto(Guid Id, string NombreCompleto, string Dni);
+public record TrabajadorSelectorDto(Guid Id, string NombreCompleto, string Dni, string? Alias);
 
 public class ObtenerTrabajadoresParaSelectorQueryHandler(IApplicationDbContext dbContext)
     : IRequestHandler<ObtenerTrabajadoresParaSelectorQuery, IReadOnlyList<TrabajadorSelectorDto>>
@@ -15,6 +15,6 @@ public class ObtenerTrabajadoresParaSelectorQueryHandler(IApplicationDbContext d
         ObtenerTrabajadoresParaSelectorQuery request, CancellationToken cancellationToken) =>
         await dbContext.Trabajadores
             .OrderBy(t => t.Apellidos).ThenBy(t => t.Nombre)
-            .Select(t => new TrabajadorSelectorDto(t.Id, t.Nombre + " " + t.Apellidos, t.Dni))
+            .Select(t => new TrabajadorSelectorDto(t.Id, t.Nombre + " " + t.Apellidos, t.Dni, t.Alias))
             .ToListAsync(cancellationToken);
 }
