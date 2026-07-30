@@ -157,8 +157,13 @@ public partial class Documentos : ComponentBase
 
             return GridItemsProviderResult.From(resultado.Elementos.ToList(), resultado.TotalElementos);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // _errorCarga solo pinta un aviso genérico en la rejilla; sin este
+            // log, un fallo al cargar la pantalla más usada del producto no
+            // deja ningún rastro que permita diagnosticarlo después.
+            Logger.LogError(ex, "Error al cargar la rejilla de documentos (StartIndex {StartIndex}).", request.StartIndex);
+
             _errorCarga = true;
             return GridItemsProviderResult.From(new List<DocumentoListaDto>(), 0);
         }
