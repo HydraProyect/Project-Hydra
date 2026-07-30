@@ -3,6 +3,7 @@ using System;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CaeManager.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260730181523_AgregarAliasATrabajador")]
+    partial class AgregarAliasATrabajador
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
@@ -1730,52 +1733,6 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.ToTable("EmpresasClientes", (string)null);
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Evaluaciones.Evaluacion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("CentroId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreadoEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("EliminadoEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("EliminadoPorUsuarioId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("EstaEliminado")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateOnly>("Fecha")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Observaciones")
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Puntuacion")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("TrabajadorId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CentroId");
-
-                    b.HasIndex("TrabajadorId");
-
-                    b.ToTable("Evaluaciones", (string)null);
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Facturacion.TarifaCliente", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1820,64 +1777,6 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasFilter("\"EstaEliminado\" = 0");
 
                     b.ToTable("TarifasCliente", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Incidencias.Incidencia", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("CentroId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreadoEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Descripcion")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("EliminadoEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("EliminadoPorUsuarioId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("EstaEliminado")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateOnly>("FechaOcurrencia")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Gravedad")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("Resuelta")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("ResueltaEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Tipo")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("TrabajadorId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CentroId");
-
-                    b.HasIndex("TrabajadorId");
-
-                    b.ToTable("Incidencias", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Notificaciones.NotificacionUsuario", b =>
@@ -2084,61 +1983,6 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("SubcontratasEmpresas", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Tenants.AsignacionOperadorDelegado", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreadoEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("DelegacionTenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Rol")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("UsuarioId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UsuarioId");
-
-                    b.HasIndex("DelegacionTenantId", "UsuarioId")
-                        .IsUnique();
-
-                    b.ToTable("AsignacionesOperadorDelegado", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Tenants.DelegacionTenant", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("Activa")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreadoEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantClienteId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantConsultoraId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantConsultoraId", "TenantClienteId", "Activa");
-
-                    b.ToTable("DelegacionesTenant", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Tenants.Tenant", b =>
