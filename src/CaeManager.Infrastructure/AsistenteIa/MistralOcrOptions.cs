@@ -26,4 +26,15 @@ public class MistralOcrOptions
     /// Mistral OCR 4: $4,00/1.000 páginas. Revisar si cambia.
     /// </summary>
     public decimal CostoPorMilPaginasOcr { get; set; } = 4.00m;
+
+    /// <summary>Modelo de chat usado para extracción estructurada (chat completions, no OCR).</summary>
+    public string ModeloChat { get; set; } = "mistral-small-latest";
+
+    public int MaxTokensRespuestaChat { get; set; } = 1024;
+
+    /// <summary>Tarifa vigente de mistral-small-latest: $0,20/1M tokens entrada. Revisar si cambia.</summary>
+    public decimal CostoPorMillonTokensEntradaChat { get; set; } = 0.20m;
+
+    /// <summary>Tarifa vigente de mistral-small-latest: $0,60/1M tokens salida. Revisar si cambia.</summary>
+    public decimal CostoPorMillonTokensSalidaChat { get; set; } = 0.60m;
 }
