@@ -1,4 +1,6 @@
 using System;
+using CaeManager.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,6 +8,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CaeManager.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(CaeManagerDbContext))]
+    [Migration("20260726120000_AddTarifasCliente")]
     public partial class AddTarifasCliente : Migration
     {
         /// <inheritdoc />
