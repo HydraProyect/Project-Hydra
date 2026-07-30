@@ -1,13 +1,16 @@
+@{
+    var claseTono = Discreta ? "tarjeta-metrica-discreta" : $"tarjeta-metrica-{Tono.ToString().ToLowerInvariant()}";
+}
 @if (Enlace is not null)
 {
-    <a href="@Enlace" class="tarjeta-metrica tarjeta-metrica-@Tono.ToString().ToLowerInvariant() tarjeta-metrica-clicable">
+    <a href="@Enlace" class="tarjeta-metrica @claseTono tarjeta-metrica-clicable">
         <span class="tarjeta-metrica-etiqueta">@Etiqueta</span>
         <span class="tarjeta-metrica-valor">@Valor</span>
     </a>
 }
 else
 {
-    <div class="tarjeta-metrica tarjeta-metrica-@Tono.ToString().ToLowerInvariant()">
+    <div class="tarjeta-metrica @claseTono">
         <span class="tarjeta-metrica-etiqueta">@Etiqueta</span>
         <span class="tarjeta-metrica-valor">@Valor</span>
     </div>
@@ -25,4 +28,13 @@ else
     /// tiene sentido que sea clicable.
     /// </summary>
     [Parameter] public string? Enlace { get; set; }
+
+    /// <summary>
+    /// Variante de menor peso visual (sin degradado, sin borde de color, valor
+    /// más pequeño) para KPIs informativos que no requieren atención — evita
+    /// que todo el Dashboard compita con el mismo peso visual (ver
+    /// DESIGN_SYSTEM.md, jerarquía Dashboard). El tono semántico (borde de
+    /// color) se reserva así para los KPIs que sí son una señal de estado.
+    /// </summary>
+    [Parameter] public bool Discreta { get; set; }
 }
