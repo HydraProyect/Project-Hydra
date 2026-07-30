@@ -46,6 +46,7 @@
             <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
             <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
             <option value="@nameof(AmbitoAplicacion.Vehiculo)">Vehículo</option>
+            <option value="@nameof(AmbitoAplicacion.Proyecto)">Proyecto</option>
         </CampoSelect>
         <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync">
             <option value="">Todos</option>
@@ -134,6 +135,7 @@
                 <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
                 <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
                 <option value="@nameof(AmbitoAplicacion.Vehiculo)">Vehículo</option>
+                <option value="@nameof(AmbitoAplicacion.Proyecto)">Proyecto</option>
             </CampoSelect>
 
             @if (_ambitoAplicacion == nameof(AmbitoAplicacion.Trabajador))
@@ -166,13 +168,23 @@
                     }
                 </CampoSelect>
             }
-            else
+            else if (_ambitoAplicacion == nameof(AmbitoAplicacion.Vehiculo))
             {
                 <CampoSelect Etiqueta="Vehículo" Valor="@_vehiculoId" ValorChanged="v => _vehiculoId = v">
                     <option value="">Selecciona un vehículo…</option>
                     @foreach (var vehiculo in _vehiculosDisponibles)
                     {
                         <option value="@vehiculo.Id">@vehiculo.Nombre (@vehiculo.NumeroPlaca)</option>
+                    }
+                </CampoSelect>
+            }
+            else
+            {
+                <CampoSelect Etiqueta="Proyecto" Valor="@_proyectoId" ValorChanged="v => _proyectoId = v">
+                    <option value="">Selecciona un proyecto…</option>
+                    @foreach (var proyecto in _proyectosDisponibles)
+                    {
+                        <option value="@proyecto.Id">@proyecto.Nombre (@proyecto.ClienteRazonSocial — @proyecto.CentroNombre)</option>
                     }
                 </CampoSelect>
             }

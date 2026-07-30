@@ -3,13 +3,15 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Domain.Documentos;
 
 /// <summary>
-/// Instancia de un TipoDocumento asociada a un Trabajador, un Cliente o una
-/// Empresa (nunca más de uno — ver <see cref="DeTrabajador"/>/
-/// <see cref="DeCliente"/>/<see cref="DeEmpresa"/>), según el
+/// Instancia de un TipoDocumento asociada a un Trabajador, un Cliente, una
+/// Empresa, un Vehículo o un Proyecto (nunca más de uno — ver
+/// <see cref="DeTrabajador"/>/<see cref="DeCliente"/>/<see cref="DeEmpresa"/>/
+/// <see cref="DeVehiculo"/>/<see cref="DeProyecto"/>), según el
 /// <see cref="Documentos.AmbitoAplicacion"/> de su TipoDocumento — p. ej. RLC/ITA/RNT
 /// son documentos de Cliente, un formulario de higiene personalizado puede
-/// ser de Empresa, y la mayoría (apto médico, EPIS, formación...) son de
-/// Trabajador.
+/// ser de Empresa, la mayoría (apto médico, EPIS, formación...) son de
+/// Trabajador, y la documentación de requerimiento de una obra nueva
+/// (licencias, certificados de instalación) es de Proyecto.
 /// </summary>
 public class Documento : EntidadBase
 {
@@ -20,6 +22,7 @@ public class Documento : EntidadBase
     public Guid? ClienteId { get; private set; }
     public Guid? EmpresaId { get; private set; }
     public Guid? VehiculoId { get; private set; }
+    public Guid? ProyectoId { get; private set; }
     public Guid TipoDocumentoId { get; private set; }
     public DateOnly FechaEmision { get; private set; }
     public DateOnly? FechaVencimiento { get; private set; }
@@ -30,6 +33,7 @@ public class Documento : EntidadBase
         TrabajadorId is not null ? AmbitoAplicacion.Trabajador
         : ClienteId is not null ? AmbitoAplicacion.Cliente
         : VehiculoId is not null ? AmbitoAplicacion.Vehiculo
+        : ProyectoId is not null ? AmbitoAplicacion.Proyecto
         : AmbitoAplicacion.Empresa;
 
     private Documento()
@@ -41,6 +45,7 @@ public class Documento : EntidadBase
         Guid? clienteId,
         Guid? empresaId,
         Guid? vehiculoId,
+        Guid? proyectoId,
         Guid tipoDocumentoId,
         DateOnly fechaEmision,
         DateOnly? fechaVencimiento,
@@ -54,6 +59,7 @@ public class Documento : EntidadBase
         ClienteId = clienteId;
         EmpresaId = empresaId;
         VehiculoId = vehiculoId;
+        ProyectoId = proyectoId;
         TipoDocumentoId = tipoDocumentoId;
         Renovar(fechaEmision, fechaVencimiento);
         ArchivoUrl = archivoUrl;
@@ -71,7 +77,7 @@ public class Documento : EntidadBase
         if (trabajadorId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un trabajador.", nameof(trabajadorId));
 
-        return new Documento(trabajadorId, null, null, null, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
+        return new Documento(trabajadorId, null, null, null, null, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
     }
 
     public static Documento DeCliente(
@@ -85,7 +91,7 @@ public class Documento : EntidadBase
         if (clienteId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un cliente.", nameof(clienteId));
 
-        return new Documento(null, clienteId, null, null, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
+        return new Documento(null, clienteId, null, null, null, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
     }
 
     public static Documento DeEmpresa(
@@ -99,7 +105,7 @@ public class Documento : EntidadBase
         if (empresaId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a una empresa.", nameof(empresaId));
 
-        return new Documento(null, null, empresaId, null, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
+        return new Documento(null, null, empresaId, null, null, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
     }
 
     public static Documento DeVehiculo(
@@ -113,7 +119,21 @@ public class Documento : EntidadBase
         if (vehiculoId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un vehículo.", nameof(vehiculoId));
 
-        return new Documento(null, null, null, vehiculoId, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
+        return new Documento(null, null, null, vehiculoId, null, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
+    }
+
+    public static Documento DeProyecto(
+        Guid proyectoId,
+        Guid tipoDocumentoId,
+        DateOnly fechaEmision,
+        DateOnly? fechaVencimiento,
+        string? archivoUrl = null,
+        string? comentarios = null)
+    {
+        if (proyectoId == Guid.Empty)
+            throw new ArgumentException("El documento debe pertenecer a un proyecto.", nameof(proyectoId));
+
+        return new Documento(null, null, null, null, proyectoId, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
     }
 
     /// <summary>

@@ -1,0 +1,59 @@
+.descripcion-pagina {
+    color: var(--color-texto-secundario);
+    margin-bottom: var(--espaciado-xl);
+    max-width: 65ch;
+}
+
+.bloque-selector-cliente {
+    max-width: 360px;
+    margin-bottom: var(--espaciado-xl);
+}
+
+.acciones-seccion {
+    margin-bottom: var(--espaciado-lg);
+}
+
+/* Tabla de proyectos */
+.tabla-proyectos .col-acciones,
+.tabla-tecnicos .col-acciones {
+    width: 160px;
+    text-align: right;
+}
+
+.fila-seleccionada td {
+    background: var(--color-superficie-secundaria);
+}
+
+/* Formularios (nuevo proyecto, edición, alta de técnico) */
+.rejilla-formulario {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--espaciado-md);
+    margin-bottom: var(--espaciado-lg);
+}
+
+@media (max-width: 640px) {
+    .rejilla-formulario {
+        grid-template-columns: 1fr;
+    }
+}
+
+.acciones-formulario {
+    display: flex;
+    gap: var(--espaciado-sm);
+    margin-top: var(--espaciado-sm);
+}
+
+.enlace-peligro {
+    color: var(--color-peligro);
+}
+
+.enlace-peligro:hover {
+    color: var(--color-peligro-hover, var(--color-peligro));
+}
+
+.aviso-error {
+    color: var(--color-peligro);
+    font-size: var(--tipografia-sm);
+    margin-bottom: var(--espaciado-md);
+}
