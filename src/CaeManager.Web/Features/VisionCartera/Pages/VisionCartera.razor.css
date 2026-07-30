@@ -1,0 +1,9 @@
+.celda-accion-cliente {
+    color: var(--color-primary-500);
+    font: var(--font-body-sm);
+    white-space: nowrap;
+}
+
+.tarjeta-clientes-riesgo {
+    margin-top: var(--space-5);
+}

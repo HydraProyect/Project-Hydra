@@ -20,6 +20,13 @@ namespace CaeManager.Web.Services;
 /// autenticado por ninguna de las dos vías se resuelve a <c>null</c> — el
 /// filtro global interpreta eso como "sin tenant, sin datos" (fallo cerrado).
 ///
+/// Entre el ámbito explícito y el claim se consulta
+/// <see cref="IClienteActivoSeleccionado"/> — el Delegated Workspace elegido
+/// por el usuario en la sesión (ADR-004 § 6, cuarto modo de la Tenant
+/// Resolution Strategy). Vacío para cualquier usuario que no sea Operador
+/// Delegado de nadie, así que el comportamiento no cambia para el caso de
+/// hoy.
+///
 /// <see cref="ITenantActual.TenantId"/> es síncrono porque EF Core necesita
 /// evaluarlo dentro de un <c>HasQueryFilter</c>; tanto
 /// <c>AuthenticationStateProvider.GetAuthenticationStateAsync()</c> en
@@ -30,7 +37,9 @@ namespace CaeManager.Web.Services;
 /// es seguro.
 /// </summary>
 public class TenantActual(
-    AuthenticationStateProvider authenticationStateProvider, IHttpContextAccessor httpContextAccessor) : ITenantActual
+    AuthenticationStateProvider authenticationStateProvider,
+    IHttpContextAccessor httpContextAccessor,
+    IClienteActivoSeleccionado clienteActivoSeleccionado) : ITenantActual
 {
     private Guid? _tenantId;
     private bool _resuelto;
@@ -41,6 +50,9 @@ public class TenantActual(
         {
             if (AmbitoTenantExplicito.TenantIdActual is { } tenantIdExplicito)
                 return tenantIdExplicito;
+
+            if (clienteActivoSeleccionado.TenantIdSeleccionado is { } tenantIdDelegado)
+                return tenantIdDelegado;
 
             if (!_resuelto)
             {
