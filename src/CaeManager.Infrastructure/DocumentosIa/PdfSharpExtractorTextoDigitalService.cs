@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
+using Microsoft.Extensions.Logging;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.Content;
 using PdfSharp.Pdf.Content.Objects;
@@ -19,7 +20,8 @@ namespace CaeManager.Infrastructure.DocumentosIa;
 /// PdfPig/iText, pero basta para alimentar un modelo de IA tolerante a
 /// pequeños artefactos, no para una copia exacta carácter a carácter.
 /// </summary>
-public class PdfSharpExtractorTextoDigitalService : IExtractorTextoDigitalService
+public class PdfSharpExtractorTextoDigitalService(
+    ILogger<PdfSharpExtractorTextoDigitalService> logger) : IExtractorTextoDigitalService
 {
     private static readonly HashSet<string> OperadoresDeTexto = new(StringComparer.Ordinal) { "Tj", "TJ" };
 
@@ -36,8 +38,13 @@ public class PdfSharpExtractorTextoDigitalService : IExtractorTextoDigitalServic
 
             return Result.Exito(paginas);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // Mismo motivo que en PdfSharpClasificadorDocumentoService: el
+            // microcopy del Result no sirve para diagnosticar, y esta es la
+            // única oportunidad de saber por qué falló la extracción.
+            logger.LogError(ex, "No se pudo extraer el texto digital del PDF ({Bytes} bytes).", contenidoPdf.Length);
+
             return Result.Fallo<IReadOnlyList<string>>(Error.Crear(
                 "ExtractorTextoDigital.ArchivoInvalido", "No pudimos leer el texto de este archivo."));
         }

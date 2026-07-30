@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
+using Microsoft.Extensions.Logging;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.Content;
 using PdfSharp.Pdf.Content.Objects;
@@ -17,7 +18,8 @@ namespace CaeManager.Infrastructure.DocumentosIa;
 /// algún operador de mostrar texto (Tj/TJ/'/") en su secuencia de contenido,
 /// sin necesitar una API de extracción de texto dedicada.
 /// </summary>
-public class PdfSharpClasificadorDocumentoService : IClasificadorDocumentoService
+public class PdfSharpClasificadorDocumentoService(
+    ILogger<PdfSharpClasificadorDocumentoService> logger) : IClasificadorDocumentoService
 {
     private static readonly string[] ExtensionesImagen = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".heic", ".bmp", ".gif"];
     private static readonly HashSet<string> OperadoresDeTexto = new(StringComparer.Ordinal) { "Tj", "TJ", "'", "\"" };
@@ -45,8 +47,14 @@ public class PdfSharpClasificadorDocumentoService : IClasificadorDocumentoServic
             return Task.FromResult(Result.Exito(
                 new ClasificacionDocumentoDto(tipo, paginasConTexto.Count, paginasConTexto)));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // El Result que devolvemos lleva microcopy para el usuario, que a
+            // propósito no dice nada técnico. Sin registrar la excepción aquí
+            // se pierde el único rastro de por qué un PDF concreto no se pudo
+            // clasificar (PDF cifrado, corrupto, formato no soportado...).
+            logger.LogError(ex, "No se pudo clasificar el archivo {NombreArchivo}.", nombreArchivo);
+
             return Task.FromResult(Result.Fallo<ClasificacionDocumentoDto>(Error.Crear(
                 "ClasificacionDocumento.ArchivoInvalido", "No pudimos leer este archivo para clasificarlo.")));
         }

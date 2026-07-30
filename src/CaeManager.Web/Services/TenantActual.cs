@@ -20,12 +20,21 @@ namespace CaeManager.Web.Services;
 /// autenticado por ninguna de las dos vías se resuelve a <c>null</c> — el
 /// filtro global interpreta eso como "sin tenant, sin datos" (fallo cerrado).
 ///
-/// Entre el ámbito explícito y el claim se consulta
-/// <see cref="IClienteActivoSeleccionado"/> — el Delegated Workspace elegido
-/// por el usuario en la sesión (ADR-004 § 6, cuarto modo de la Tenant
-/// Resolution Strategy). Vacío para cualquier usuario que no sea Operador
-/// Delegado de nadie, así que el comportamiento no cambia para el caso de
-/// hoy.
+/// El claim firmado es la base, y solo <b>sobre</b> él se aplica el
+/// Delegated Workspace elegido en la sesión (<see cref="IClienteActivoSeleccionado"/>
+/// — ADR-004 § 6, cuarto modo de la Tenant Resolution Strategy). Vacío para
+/// cualquier usuario que no sea Operador Delegado de nadie, así que el
+/// comportamiento no cambia para el caso de hoy.
+///
+/// El orden importa y es deliberado: primero se exige un claim firmado de
+/// sesión, y solo si existe se consulta la selección. Así la selección puede
+/// <i>cambiar</i> el tenant de un usuario ya autenticado, pero nunca
+/// <i>crear</i> un contexto de tenant donde no había ninguno — una petición
+/// sin sesión válida resuelve a null por mucho que traiga cookie (fallo
+/// cerrado). La selección aporta además su propia garantía: viaja en un token
+/// protegido y ligado al usuario, no en un GUID en claro que cualquiera
+/// pudiera escribir a mano (ver <see cref="ClienteActivoSeleccionado"/> y el
+/// hallazgo C-1 de INFORME-AUDITORIA-TECNICA.md).
 ///
 /// <see cref="ITenantActual.TenantId"/> es síncrono porque EF Core necesita
 /// evaluarlo dentro de un <c>HasQueryFilter</c>; tanto
@@ -51,16 +60,16 @@ public class TenantActual(
             if (AmbitoTenantExplicito.TenantIdActual is { } tenantIdExplicito)
                 return tenantIdExplicito;
 
-            if (clienteActivoSeleccionado.TenantIdSeleccionado is { } tenantIdDelegado)
-                return tenantIdDelegado;
-
             if (!_resuelto)
             {
                 _tenantId = ResolverAsync().GetAwaiter().GetResult();
                 _resuelto = true;
             }
 
-            return _tenantId;
+            if (_tenantId is null)
+                return null;
+
+            return clienteActivoSeleccionado.TenantIdSeleccionado ?? _tenantId;
         }
     }
 

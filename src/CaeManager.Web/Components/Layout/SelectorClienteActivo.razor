@@ -3,13 +3,34 @@
     cuando el usuario tiene más de un cliente autorizado (Operador Delegado
     de al menos una Consultora) — para cualquier otro usuario, cero cambio
     de UX. Nunca se usa la palabra "tenant" de cara al usuario.
+
+    Es un <form> HTML corriente que hace POST, no un @onchange de Blazor:
+    cambiar de workspace escribe una cookie en el servidor y necesita token
+    antiforgery (hallazgo M-8). De paso deja de depender de que el circuito
+    de Blazor esté interactivo — el submit lo hace el navegador, sin viaje
+    por SignalR.
 *@
 @if (_clientes is { Count: > 1 })
 {
-    <select class="selector-cliente-activo" value="@_tenantIdActivo" @onchange="CambiarCliente" aria-label="Cliente activo">
-        @foreach (var cliente in _clientes)
+    <form method="post" action="/cuenta/cliente-activo">
+        @if (_token is not null)
         {
-            <option value="@cliente.TenantId">@cliente.Nombre</option>
+            <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
         }
-    </select>
+        <input type="hidden" name="returnUrl" value="@_returnUrl" />
+
+        @* onchange inline en vez de interop de JS: no hay CSP que lo impida
+           y evita arrastrar un fichero .js solo para un submit. *@
+        <select class="selector-cliente-activo" name="tenantId"
+                onchange="this.form.submit()" aria-label="Cliente activo">
+            @foreach (var cliente in _clientes)
+            {
+                <option value="@cliente.TenantId" selected="@(cliente.TenantId == _tenantIdActivo)">@cliente.Nombre</option>
+            }
+        </select>
+
+        @* Sin JS el <select> no se autoenvía: este botón mantiene el selector
+           utilizable en ese caso. Oculto cuando hay JS, que es lo normal. *@
+        <noscript><button type="submit">Cambiar</button></noscript>
+    </form>
 }
