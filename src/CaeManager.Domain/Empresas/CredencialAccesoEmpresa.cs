@@ -24,27 +24,29 @@ public class CredencialAccesoEmpresa : EntidadConTenant
     public const int LongitudMaximaCampoEmpresa = 200;
     public const int LongitudMaximaUsuario = 200;
     public const int LongitudMaximaContrasena = 500;
+    public const int LongitudMaximaNotas = 1000;
 
     public Guid EmpresaId { get; private set; }
     public string? UrlAcceso { get; private set; }
     public string? CampoEmpresa { get; private set; }
     public string? Usuario { get; private set; }
     public string? Contrasena { get; private set; }
+    public string? Notas { get; private set; }
 
     private CredencialAccesoEmpresa()
     {
     }
 
-    public CredencialAccesoEmpresa(Guid empresaId, string? urlAcceso, string? campoEmpresa, string? usuario, string? contrasena)
+    public CredencialAccesoEmpresa(Guid empresaId, string? urlAcceso, string? campoEmpresa, string? usuario, string? contrasena, string? notas = null)
     {
         if (empresaId == Guid.Empty)
             throw new ArgumentException("Las credenciales deben pertenecer a una empresa.", nameof(empresaId));
 
         EmpresaId = empresaId;
-        Actualizar(urlAcceso, campoEmpresa, usuario, contrasena);
+        Actualizar(urlAcceso, campoEmpresa, usuario, contrasena, notas);
     }
 
-    public void Actualizar(string? urlAcceso, string? campoEmpresa, string? usuario, string? contrasena)
+    public void Actualizar(string? urlAcceso, string? campoEmpresa, string? usuario, string? contrasena, string? notas)
     {
         if (urlAcceso?.Length > LongitudMaximaUrlAcceso)
             throw new ArgumentException($"La URL no puede superar {LongitudMaximaUrlAcceso} caracteres.", nameof(urlAcceso));
@@ -54,10 +56,13 @@ public class CredencialAccesoEmpresa : EntidadConTenant
             throw new ArgumentException($"El usuario no puede superar {LongitudMaximaUsuario} caracteres.", nameof(usuario));
         if (contrasena?.Length > LongitudMaximaContrasena)
             throw new ArgumentException($"La contraseña no puede superar {LongitudMaximaContrasena} caracteres.", nameof(contrasena));
+        if (notas?.Length > LongitudMaximaNotas)
+            throw new ArgumentException($"Las notas no pueden superar {LongitudMaximaNotas} caracteres.", nameof(notas));
 
         UrlAcceso = urlAcceso;
         CampoEmpresa = campoEmpresa;
         Usuario = usuario;
         Contrasena = contrasena;
+        Notas = notas;
     }
 }

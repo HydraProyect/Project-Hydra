@@ -118,6 +118,55 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.ToTable("RegistrosAuditoria", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Centros.CanalGestionDocumental", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Contrasena")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EmailsDestinatarios")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NombreContacto")
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NombrePlataforma")
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UrlAcceso")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Usuario")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CentroId")
+                        .IsUnique();
+
+                    b.ToTable("CanalesGestionDocumental", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Centros.Centro", b =>
                 {
                     b.Property<Guid>("Id")
@@ -174,43 +223,6 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.ToTable("Centros", (string)null);
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Centros.PlataformaAcceso", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("CentroId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Contrasena")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("NombrePlataforma")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Notas")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UrlAcceso")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Usuario")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "CentroId")
-                        .IsUnique();
-
-                    b.ToTable("PlataformasAcceso", (string)null);
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Clientes.Cliente", b =>
                 {
                     b.Property<Guid>("Id")
@@ -262,6 +274,168 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Clientes", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ConversacionCorreo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Asunto")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ClienteId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EjecutivoAsignadoId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Etiquetas")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("FechaUltimoMensajeUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FechaUltimoMensajeUtc");
+
+                    b.HasIndex("TenantId", "Estado");
+
+                    b.HasIndex("TenantId", "ClienteId");
+
+                    b.ToTable("ConversacionesCorreo", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.MacroRespuesta", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ClienteId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CuerpoHtml")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ClienteId");
+
+                    b.ToTable("MacrosRespuesta", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.MensajeCorreo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ConversacionCorreoId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CuerpoHtml")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Direccion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("FechaUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RemitenteEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversacionCorreoId");
+
+                    b.HasIndex("FechaUtc");
+
+                    b.ToTable("MensajesCorreo", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ParticipanteConversacion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ConversacionCorreoId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("EntidadRelacionadaId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Rol")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TipoOrigen")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversacionCorreoId");
+
+                    b.ToTable("ParticipantesConversacion", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Configuracion.ParametroSistema", b =>
@@ -1651,6 +1825,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("EmpresaId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Notas")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
@@ -2071,6 +2249,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Contrasena")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("SubcontrataId")
@@ -2772,6 +2954,24 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.MensajeCorreo", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Comunicaciones.ConversacionCorreo", null)
+                        .WithMany("Mensajes")
+                        .HasForeignKey("ConversacionCorreoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ParticipanteConversacion", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Comunicaciones.ConversacionCorreo", null)
+                        .WithMany("Participantes")
+                        .HasForeignKey("ConversacionCorreoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
@@ -2821,6 +3021,15 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ConversacionCorreo", b =>
+                {
+                    b.Navigation("Mensajes")
+                        .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+                    b.Navigation("Participantes")
+                        .UsePropertyAccessMode(PropertyAccessMode.Field);
                 });
 #pragma warning restore 612, 618
         }
