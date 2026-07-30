@@ -18,6 +18,27 @@
 - Base legal, categorías de datos personales y de salud tratados, subencargados → `RGPD-TRATAMIENTO-DATOS.md`.
 - La redacción final del DPA y los Términos de Uso — son documentos legales independientes que requieren revisión legal antes de cualquier implementación (regla ya establecida en `CLAUDE.md`).
 
+## Arquitectura de correo y garantías de continuidad (Draft, 2026-07)
+
+- **Identidad emisora de correo (decisión de diseño)**: la comunicación operativa CAE sale
+  siempre desde el buzón del propio SPA (conexión OAuth a su Microsoft 365 vía Graph API), nunca
+  desde un dominio propio de Hydra. Hydra es la interfaz sobre el correo del cliente, no el
+  remitente — evita erosión de entregabilidad/reputación del cliente y mantiene sus
+  comunicaciones dentro de su propio tenant.
+- **Implicación de cumplimiento**: conectar el buzón de un cliente vía OAuth es acceso a datos
+  personales a escala. Refuerza — no sustituye — la necesidad de DPA antes de producción ya
+  prevista como condición de salida en `ADR-003-saas-multitenant.md`.
+- **Garantías de continuidad ofrecidas al Cliente Fundador**: portabilidad total de datos
+  exportable en cualquier momento; posibilidad de depósito de código en escrow, liberable solo
+  si la sociedad cesa actividad — presentada como concesión reservada (no ofrecida por defecto,
+  solo si el cliente la solicita).
+- **Decisión de infraestructura con impacto directo en este documento**: alojamiento de
+  producción en la Unión Europea (proveedor tipo Hetzner/OVH u equivalente) como argumento de
+  confianza y simplificación del DPA. Entornos de desarrollo/pruebas pueden seguir en
+  proveedores no-UE (p. ej. Railway) sin este requisito.
+
+*Draft — pendiente de desarrollo completo de este documento y de redacción legal del DPA.*
+
 ## Documentos relacionados
 
 - `RGPD-TRATAMIENTO-DATOS.md` — tratamiento de datos personales, base legal, subencargados.
