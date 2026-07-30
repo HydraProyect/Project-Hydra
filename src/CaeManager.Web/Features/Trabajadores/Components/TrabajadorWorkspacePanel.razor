@@ -40,6 +40,7 @@ else
             case "informacion":
                 <div class="workspace-grupo-campos">
                     <CampoInfo Etiqueta="Nombre completo" Valor="@($"{_detalle.Nombre} {_detalle.Apellidos}")" />
+                    <CampoInfo Etiqueta="Alias" Valor="@_detalle.Alias" />
                     <CampoInfo Etiqueta="DNI" Valor="@_detalle.Dni" />
                     <CampoInfo Etiqueta="Empleador" Valor="@_detalle.EmpleadorNombre" />
                     <CampoInfo Etiqueta="Email" Valor="@_detalle.Email" />
