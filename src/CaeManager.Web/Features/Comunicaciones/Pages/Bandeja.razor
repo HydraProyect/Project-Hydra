@@ -29,10 +29,7 @@
                     <option value="@nameof(EstadoConversacion.Cerrada)">Cerrada</option>
                 </CampoSelect>
 
-                <div class="campo">
-                    <label for="bandeja-mes">Mes</label>
-                    <input id="bandeja-mes" type="month" class="campo-input" @bind="_mesFiltro" @bind:after="AplicarFiltrosAsync" />
-                </div>
+                <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
 
                 <CampoSelect Etiqueta="Cliente" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
                     <option value="">Todos los clientes</option>
@@ -76,9 +73,7 @@
                 }
                 else
                 {
-                    @{
-                        var triage = ConversacionesTriage();
-                    }
+                    var triage = ConversacionesTriage();
                     @if (triage.Count > 0)
                     {
                         <div class="bandeja-grupo">
