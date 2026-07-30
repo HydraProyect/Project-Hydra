@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Infrastructure.DocumentosIa;
 using CaeManager.Web.Reportes;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using PdfSharp.Drawing;
 using PdfSharp.Fonts;
 using PdfSharp.Pdf;
@@ -28,7 +29,8 @@ public class ClasificadorDocumentoServiceTests
         GlobalFontSettings.FontResolver ??= new EmbeddedFontResolver();
     }
 
-    private readonly PdfSharpClasificadorDocumentoService _servicio = new();
+    private readonly PdfSharpClasificadorDocumentoService _servicio =
+        new(NullLogger<PdfSharpClasificadorDocumentoService>.Instance);
 
     [Fact]
     public async Task Clasifica_como_digital_un_pdf_con_texto_real_en_todas_las_paginas()
