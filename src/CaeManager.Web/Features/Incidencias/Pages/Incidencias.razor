@@ -1,0 +1,153 @@
+@page "/incidencias"
+@rendermode InteractiveServer
+@using CaeManager.Application.Incidencias.Commands.CrearIncidencia
+@using CaeManager.Application.Incidencias.Commands.EditarIncidencia
+@using CaeManager.Application.Incidencias.Commands.EliminarIncidencia
+@using CaeManager.Application.Incidencias.Commands.MarcarResueltaIncidencia
+@using CaeManager.Application.Incidencias.Queries.ObtenerIncidenciaPorId
+@using CaeManager.Application.Incidencias.Queries.ObtenerIncidencias
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Application.Common
+@using CaeManager.Domain.Incidencias
+@using FluentValidation
+@using MediatR
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject ICurrentUserService CurrentUserService
+
+<PageTitle>Incidencias — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Incidencias</h1>
+        <div class="acciones-cabecera">
+            <Boton OnClick="AbrirCrearAsync">+ Nueva incidencia</Boton>
+        </div>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoTexto Placeholder="Buscar por centro, trabajador o descripción…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <label class="filtro-critico">
+            <input type="checkbox" @bind="_soloSinResolver" @bind:after="RecargarAsync" /> Solo sin resolver
+        </label>
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las incidencias" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+            <QuickGrid @ref="_grid" TGridItem="IncidenciaListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
+                <PropertyColumn Property="@(i => i.CentroNombre)" Title="Centro" Sortable="true" />
+                <TemplateColumn Title="Trabajador">@(context.TrabajadorNombre ?? "—")</TemplateColumn>
+                <TemplateColumn Title="Tipo">@ObtenerEtiquetaTipo(context.Tipo)</TemplateColumn>
+                <TemplateColumn Title="Gravedad" Align="Align.Center">
+                    <Badge Tono="@GravedadTono(context.Gravedad)">@ObtenerEtiquetaGravedad(context.Gravedad)</Badge>
+                </TemplateColumn>
+                <TemplateColumn Title="Fecha">@context.FechaOcurrencia.ToString("dd/MM/yyyy")</TemplateColumn>
+                <TemplateColumn Title="Estado" Align="Align.Center">
+                    <Badge Tono="@(context.Resuelta ? TonoBadge.Exito : TonoBadge.Advertencia)">
+                        @(context.Resuelta ? "Resuelta" : "Sin resolver")
+                    </Badge>
+                </TemplateColumn>
+                <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarResueltaAsync(context.Id, !context.Resuelta)">
+                        @(context.Resuelta ? "Reabrir" : "Marcar resuelta")
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
+                        Editar
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
+                        Eliminar
+                    </Boton>
+                </TemplateColumn>
+            </QuickGrid>
+
+            <div class="paginador">
+                <Paginator State="_paginacion" />
+            </div>
+        </div>
+
+        @if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio Titulo="Todavía no hay incidencias" Descripcion="Registra la primera incidencia operativa de un centro.">
+                <Accion>
+                    <Boton OnClick="AbrirCrearAsync">+ Nueva incidencia</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+    }
+</div>
+
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nueva incidencia" : "Editar incidencia")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        @if (_editandoId is null)
+        {
+            <CampoSelect Etiqueta="Centro" Valor="@_centroId" ValorChanged="v => _centroId = v">
+                <option value="">Selecciona un centro…</option>
+                @foreach (var centro in _centrosDisponibles)
+                {
+                    <option value="@centro.Id">@centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)</option>
+                }
+            </CampoSelect>
+        }
+        else
+        {
+            <div class="campo">
+                <label>Centro</label>
+                <p class="texto-vacio-seccion">@_centroNombreEnEdicion</p>
+            </div>
+        }
+
+        <CampoSelect Etiqueta="Trabajador (opcional)" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
+            <option value="">Ninguno — incidencia general del centro</option>
+            @foreach (var trabajador in _trabajadoresDisponibles)
+            {
+                <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+            }
+        </CampoSelect>
+
+        <CampoSelect Etiqueta="Tipo" Valor="@_tipo" ValorChanged="v => _tipo = v">
+            <option value="@nameof(TipoIncidencia.Accidente)">Accidente</option>
+            <option value="@nameof(TipoIncidencia.Incumplimiento)">Incumplimiento</option>
+        </CampoSelect>
+
+        <CampoSelect Etiqueta="Gravedad" Valor="@_gravedad" ValorChanged="v => _gravedad = v">
+            <option value="@nameof(GravedadIncidencia.Leve)">Leve</option>
+            <option value="@nameof(GravedadIncidencia.Grave)">Grave</option>
+            <option value="@nameof(GravedadIncidencia.MuyGrave)">Muy grave</option>
+        </CampoSelect>
+
+        <CampoTexto Etiqueta="Fecha de ocurrencia" Type="date" Valor="@_fechaOcurrencia" ValorChanged="v => _fechaOcurrencia = v" />
+        <CampoTextarea Etiqueta="Descripción" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="4" MensajeError="@ObtenerError(nameof(CrearIncidenciaCommand.Descripcion))" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+            Guardar
+        </Boton>
+    </Pie>
+</Drawer>
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarVisible"
+    VisibleChanged="v => _confirmarEliminarVisible = v"
+    Titulo="@($"¿Eliminar la incidencia de {_centroAEliminar}?")"
+    Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
+    EnProgreso="_eliminando"
+    OnConfirmar="ConfirmarEliminarAsync" />
