@@ -18,6 +18,7 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
         builder.HasIndex(d => new { d.ClienteId, d.TipoDocumentoId });
         builder.HasIndex(d => new { d.EmpresaId, d.TipoDocumentoId });
         builder.HasIndex(d => new { d.VehiculoId, d.TipoDocumentoId });
+        builder.HasIndex(d => new { d.ProyectoId, d.TipoDocumentoId });
         builder.HasIndex(d => d.FechaVencimiento);
 
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.

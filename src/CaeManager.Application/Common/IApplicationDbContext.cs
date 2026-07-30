@@ -8,6 +8,7 @@ using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Notificaciones;
+using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
@@ -55,4 +56,6 @@ public interface IApplicationDbContext
     IQueryable<PlataformaAcceso> PlataformasAcceso { get; }
     IQueryable<Tenant> Tenants { get; }
     IQueryable<TarifaCliente> TarifasCliente { get; }
+    IQueryable<Proyecto> Proyectos { get; }
+    IQueryable<ProyectoTecnico> ProyectosTecnicos { get; }
 }
