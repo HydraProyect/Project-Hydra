@@ -94,8 +94,13 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         await page.GetByText("+ Nuevo documento").First.ClickAsync();
 
         // Ámbito por defecto ya es Trabajador (ver Documentos.razor.cs, _ambitoAplicacion).
+        // El selector de Trabajador es un CampoBuscarSelect (input + datalist,
+        // no un <select> — ver Documentos.razor.cs, OpcionesTrabajadores):
+        // se escribe el texto exacto de la opción y se espera su debounce de
+        // 150ms más el viaje de ida y vuelta a Blazor Server antes de seguir.
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
-            .SelectOptionAsync(new SelectOptionValue { Label = $"{nombreTrabajador} {apellidosTrabajador} ({dniTrabajador})" });
+            .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({dniTrabajador})");
+        await page.WaitForTimeoutAsync(500);
 
         // "Formación 60h (base convenio)" no tiene vencimiento automático (ver
         // TipoDocumentoSeedData) — habilita el campo de fecha de vencimiento
