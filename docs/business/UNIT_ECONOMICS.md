@@ -19,6 +19,40 @@
 - Estrategia de captación de clientes → `GO_TO_MARKET.md`.
 - Costes de infraestructura técnica en detalle de implementación → documentación técnica (`ARCHITECTURE.md`, `DEPLOY.md`).
 
+## Estructura de costes y margen — banda de 50 clientes (Draft, 2026-07)
+
+**Modelo de volumen documental estimado** (pendiente de validar con medición real del piloto):
+~400-1.000 documentos/mes a procesar en Fase 1 de `PRODUCT_STRATEGY.md`; ~3.000-11.000
+subidas/mes equivalentes si se activara la Fase 2 (dimensiona el problema que resuelve el
+producto, no un compromiso de construir conectores).
+
+**Coste de servir** (escala con el nº de tenants — banda de 50 clientes):
+
+| Partida | €/mes |
+|---|---|
+| Hosting UE (VPS + PostgreSQL + backups + S3) | 40-60 |
+| OCR/clasificación IA en producción (pago por uso) | 5-15 |
+| Email transaccional, dominio, monitorización | 10-15 |
+| **Subtotal** | **~55-90** |
+
+**Coste de estructura** (fijo, amortizado entre todos los clientes presentes y futuros — no
+escala por cliente):
+
+| Partida | €/mes |
+|---|---|
+| Herramientas de desarrollo (Claude Code Max) | 100 |
+| Electricidad marginal del desarrollo | ~10 |
+| Amortización de equipo | ~40 |
+| **Subtotal** | **~150** |
+
+**Margen resultante**: sobre la tarifa de Cliente Fundador (450 €/mes), margen neto ≈50%
+(~210-245 €/mes). Decisión adoptada: no contratar una segunda suscripción de modelo de IA
+(GPT) en paralelo a las herramientas de desarrollo — evaluado como duplicación de coste sin
+caso de uso definido; cualquier necesidad puntual de comparación de modelos se cubre por API
+de pago por uso.
+
+*Draft — cifras estimadas, a sustituir por medición real del primer piloto (GESEME).*
+
 ## Documentos relacionados
 
 - `PRICING.md` — tarifas sobre las que se calculan estas métricas.
