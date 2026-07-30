@@ -24,7 +24,13 @@ public class RegresionesTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByText("+ Nuevo cliente").ClickAsync();
+
+        // .First: desde que el tenant del Administrador (Consultora, ver
+        // ADR-004 § 5.1) no tiene datos operativos propios, la lista de
+        // Clientes arranca vacía y el botón "+ Nuevo cliente" aparece dos
+        // veces — en la cabecera y en el EstadoVacio — ambos abren el mismo
+        // drawer, así que cualquiera de los dos sirve para este test.
+        await page.GetByText("+ Nuevo cliente").First.ClickAsync();
 
         var panel = page.Locator(".drawer-panel");
         var superposicion = page.Locator(".drawer-superposicion");
