@@ -1,0 +1,44 @@
+@*
+    Fila de la lista de conversaciones de la bandeja (ver Bandeja.razor) —
+    componente aparte en vez de una plantilla inline porque se repite en dos
+    secciones (Triage y agrupado por Cliente).
+*@
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
+@using CaeManager.Domain.Comunicaciones
+
+<li class="bandeja-fila @(Activa ? "bandeja-fila-activa" : null)" @onclick="() => OnSeleccionar.InvokeAsync(Conversacion.Id)">
+    <div class="bandeja-fila-linea1">
+        <span class="bandeja-fila-remitente">@Conversacion.RemitentePrincipal</span>
+        <span class="bandeja-fila-fecha">@FormatearFechaRelativa(Conversacion.FechaUltimoMensajeUtc)</span>
+    </div>
+    <div class="bandeja-fila-asunto">@Conversacion.Asunto</div>
+    <div class="bandeja-fila-linea3">
+        <Badge Tono="TonoBadgeDeEstado(Conversacion.Estado)">@Conversacion.Estado</Badge>
+        <span class="bandeja-fila-preview">@Conversacion.PreviewUltimoMensaje</span>
+    </div>
+</li>
+
+@code {
+    [Parameter, EditorRequired] public ConversacionListaDto Conversacion { get; set; } = default!;
+    [Parameter] public bool Activa { get; set; }
+    [Parameter] public EventCallback<Guid> OnSeleccionar { get; set; }
+
+    private static TonoBadge TonoBadgeDeEstado(EstadoConversacion estado) => estado switch
+    {
+        EstadoConversacion.Abierta => TonoBadge.Info,
+        EstadoConversacion.Pendiente => TonoBadge.Info,
+        _ => TonoBadge.Neutro
+    };
+
+    private static string FormatearFechaRelativa(DateTime fechaUtc)
+    {
+        var transcurrido = DateTime.UtcNow - fechaUtc;
+
+        if (transcurrido.TotalMinutes < 1) return "ahora";
+        if (transcurrido.TotalMinutes < 60) return $"hace {(int)transcurrido.TotalMinutes} min";
+        if (transcurrido.TotalHours < 24) return $"hace {(int)transcurrido.TotalHours} h";
+        if (transcurrido.TotalDays < 30) return $"hace {(int)transcurrido.TotalDays} d";
+
+        return fechaUtc.ToString("dd/MM/yyyy");
+    }
+}

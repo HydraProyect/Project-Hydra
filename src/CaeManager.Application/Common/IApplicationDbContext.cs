@@ -2,6 +2,7 @@ using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
@@ -64,4 +65,8 @@ public interface IApplicationDbContext
     IQueryable<AsignacionOperadorDelegado> AsignacionesOperadorDelegado { get; }
     IQueryable<Evaluacion> Evaluaciones { get; }
     IQueryable<Incidencia> Incidencias { get; }
+    IQueryable<ConversacionCorreo> ConversacionesCorreo { get; }
+    IQueryable<MensajeCorreo> MensajesCorreo { get; }
+    IQueryable<ParticipanteConversacion> ParticipantesConversacion { get; }
+    IQueryable<MacroRespuesta> MacrosRespuesta { get; }
 }
