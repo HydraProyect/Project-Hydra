@@ -37,7 +37,8 @@ public class ObtenerTrabajadoresQueryHandler(IApplicationDbContext dbContext, IA
             consulta = consulta.Where(x =>
                 x.trabajador.Nombre.ToUpper().Contains(busqueda) ||
                 x.trabajador.Apellidos.ToUpper().Contains(busqueda) ||
-                x.trabajador.Dni.ToUpper().Contains(busqueda));
+                x.trabajador.Dni.ToUpper().Contains(busqueda) ||
+                (x.trabajador.Alias != null && x.trabajador.Alias.ToUpper().Contains(busqueda)));
         }
 
         if (request.EmpresaId is not null)

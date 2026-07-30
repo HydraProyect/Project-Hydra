@@ -13,6 +13,7 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
 
         builder.Property(t => t.Nombre).IsRequired().HasMaxLength(Trabajador.LongitudMaximaNombre);
         builder.Property(t => t.Apellidos).IsRequired().HasMaxLength(Trabajador.LongitudMaximaApellidos);
+        builder.Property(t => t.Alias).HasMaxLength(Trabajador.LongitudMaximaAlias);
         builder.Property(t => t.Dni).IsRequired().HasMaxLength(Trabajador.LongitudMaximaDni);
         builder.Property(t => t.Email).HasMaxLength(Trabajador.LongitudMaximaEmail);
         builder.Property(t => t.Observaciones).HasMaxLength(Trabajador.LongitudMaximaObservaciones);
