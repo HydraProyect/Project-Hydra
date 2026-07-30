@@ -11,6 +11,7 @@ public class Trabajador : EntidadBase
 {
     public const int LongitudMaximaNombre = 100;
     public const int LongitudMaximaApellidos = 150;
+    public const int LongitudMaximaAlias = 150;
     public const int LongitudMaximaEmail = 200;
     public const int LongitudMaximaObservaciones = 1000;
     public const int LongitudMinimaDni = 5;
@@ -20,6 +21,16 @@ public class Trabajador : EntidadBase
     public Guid? SubcontrataId { get; private set; }
     public string Nombre { get; private set; } = string.Empty;
     public string Apellidos { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// Nombre alternativo con el que el trabajador firma o está dado de
+    /// alta en plataformas externas (p. ej. "Francisco Villa" que firma
+    /// como "Pancho Villa") — solo para que las búsquedas por nombre lo
+    /// encuentren también; nunca se usa para verificar identidad, eso lo
+    /// hace siempre el <see cref="Dni"/>.
+    /// </summary>
+    public string? Alias { get; private set; }
+
     public string Dni { get; private set; } = string.Empty;
     public DateOnly? FechaNacimiento { get; private set; }
     public string? Email { get; private set; }
@@ -38,6 +49,7 @@ public class Trabajador : EntidadBase
         Guid? subcontrataId,
         string nombre,
         string apellidos,
+        string? alias,
         string dni,
         DateOnly? fechaNacimiento,
         string? email,
@@ -47,6 +59,7 @@ public class Trabajador : EntidadBase
         SubcontrataId = subcontrataId;
         EstablecerNombre(nombre);
         EstablecerApellidos(apellidos);
+        EstablecerAlias(alias);
         EstablecerDni(dni);
         FechaNacimiento = fechaNacimiento;
         Email = email;
@@ -60,12 +73,13 @@ public class Trabajador : EntidadBase
         string dni,
         DateOnly? fechaNacimiento = null,
         string? email = null,
-        string? observaciones = null)
+        string? observaciones = null,
+        string? alias = null)
     {
         if (empresaId == Guid.Empty)
             throw new ArgumentException("El trabajador debe pertenecer a una empresa.", nameof(empresaId));
 
-        return new Trabajador(empresaId, null, nombre, apellidos, dni, fechaNacimiento, email, observaciones);
+        return new Trabajador(empresaId, null, nombre, apellidos, alias, dni, fechaNacimiento, email, observaciones);
     }
 
     public static Trabajador DeSubcontrata(
@@ -75,12 +89,13 @@ public class Trabajador : EntidadBase
         string dni,
         DateOnly? fechaNacimiento = null,
         string? email = null,
-        string? observaciones = null)
+        string? observaciones = null,
+        string? alias = null)
     {
         if (subcontrataId == Guid.Empty)
             throw new ArgumentException("El trabajador debe pertenecer a una subcontrata.", nameof(subcontrataId));
 
-        return new Trabajador(null, subcontrataId, nombre, apellidos, dni, fechaNacimiento, email, observaciones);
+        return new Trabajador(null, subcontrataId, nombre, apellidos, alias, dni, fechaNacimiento, email, observaciones);
     }
 
     public void Actualizar(
@@ -88,10 +103,12 @@ public class Trabajador : EntidadBase
         string apellidos,
         DateOnly? fechaNacimiento,
         string? email,
-        string? observaciones)
+        string? observaciones,
+        string? alias)
     {
         EstablecerNombre(nombre);
         EstablecerApellidos(apellidos);
+        EstablecerAlias(alias);
         FechaNacimiento = fechaNacimiento;
         Email = email;
         Observaciones = observaciones;
@@ -110,6 +127,8 @@ public class Trabajador : EntidadBase
             throw new ArgumentException("Los apellidos son obligatorios.", nameof(apellidos));
         Apellidos = apellidos.Trim();
     }
+
+    private void EstablecerAlias(string? alias) => Alias = string.IsNullOrWhiteSpace(alias) ? null : alias.Trim();
 
     /// <summary>
     /// Acepta DNI, NIE, número de soporte TIE o cualquier otro documento
