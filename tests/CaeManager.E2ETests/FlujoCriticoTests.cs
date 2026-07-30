@@ -36,7 +36,12 @@ public class FlujoCriticoTests(WebAppFixture fixture)
 
         // --- Crear Cliente ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByText("+ Nuevo cliente").ClickAsync();
+
+        // .First: el tenant del Administrador (Consultora, ver ADR-004 § 5.1)
+        // no tiene datos operativos propios, así que la lista arranca vacía
+        // y "+ Nuevo cliente" aparece tanto en la cabecera como en el
+        // EstadoVacio — cualquiera de los dos abre el mismo drawer.
+        await page.GetByText("+ Nuevo cliente").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await drawer.GetByLabel("CIF", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_999_901));
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
@@ -44,7 +49,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
 
         // --- Crear Empresa asociada al Cliente ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByText("+ Nueva empresa").ClickAsync();
+        await page.GetByText("+ Nueva empresa").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
         await drawer.GetByLabel("CIF", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_999_902));
 
@@ -68,7 +73,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
 
         // --- Crear Trabajador de esa Empresa ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await page.GetByText("+ Nuevo trabajador").ClickAsync();
+        await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
 
         // El radio "Empresa" ya viene marcado por defecto (ver Trabajadores.razor.cs, _tipoEmpleador = "empresa").
         // GetByLabel("Empresa") es ambiguo dentro del drawer: además del
@@ -86,7 +91,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
 
         // --- Subir Documento del Trabajador con vencimiento a 10 días (Urgente: umbral rojo = 15 días) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-        await page.GetByText("+ Nuevo documento").ClickAsync();
+        await page.GetByText("+ Nuevo documento").First.ClickAsync();
 
         // Ámbito por defecto ya es Trabajador (ver Documentos.razor.cs, _ambitoAplicacion).
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })

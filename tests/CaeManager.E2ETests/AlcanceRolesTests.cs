@@ -44,6 +44,14 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         var page = await contexto.NewPageAsync();
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+
+        // El tenant de origen del Administrador (Consultora, ADR-004 § 5.1)
+        // no tiene datos operativos propios — los ~200 Clientes sembrados de
+        // prueba viven en su Delegated Workspace (ver DelegacionDemoSeeder).
+        // Sin este cambio de "Cliente activo" el test comprobaría el tenant
+        // equivocado.
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
+
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
         var contador = page.GetByText(PatronContadorElementos()).First;
