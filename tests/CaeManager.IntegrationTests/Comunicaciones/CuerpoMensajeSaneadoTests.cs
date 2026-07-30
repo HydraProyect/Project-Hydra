@@ -60,7 +60,8 @@ public class CuerpoMensajeSaneadoTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            contexto, new AlcanceDatosServiceFalso(), new GanssSanitizadorHtmlService());
+            contexto, new AlcanceDatosServiceFalso(), new GanssSanitizadorHtmlService(),
+            new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(_conversacionId), CancellationToken.None);
 
