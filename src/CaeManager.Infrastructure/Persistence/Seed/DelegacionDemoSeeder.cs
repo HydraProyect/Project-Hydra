@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Configuracion;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -76,6 +77,21 @@ public static class DelegacionDemoSeeder
                 // ParametroSistemaSeedData.
                 dbContext.ParametrosSistema.Add(new ParametroSistema(
                     ParametroSistemaSeedData.UmbralAmbarDias, ParametroSistemaSeedData.UmbralRojoDias));
+
+                // Mismo motivo: el catálogo de TipoDocumento también tiene
+                // HasData solo para el tenant #1 (ver TipoDocumentoConfiguration
+                // y el comentario de TipoDocumentoSeedData.ComoFilasParaMigracion,
+                // "un tenant nuevo recibirá su propia copia editable al
+                // aprovisionarse", docs/MULTITENANCY.md § 7) — sin esto, los
+                // Documento que DatosPruebaSeeder genera más abajo referencian
+                // un TipoDocumentoId que solo existe bajo el tenant #1, y el
+                // filtro global de tenant lo esconde: la lista de Documentos
+                // de este tenant aparecería vacía pese a que el Dashboard sí
+                // cuenta filas (ese conteo no necesita el join a TiposDocumento).
+                // Ids nuevos a propósito — el Id de TipoDocumentoSeedData es
+                // fijo para las filas del tenant #1, no reutilizable aquí.
+                dbContext.TiposDocumento.AddRange(TipoDocumentoSeedData.Datos.Select(t => new TipoDocumento(
+                    t.Nombre, t.VigenciaMeses, t.AplicaVencimiento, t.Orden, t.Ambito, t.EsObligatorio, t.Notas)));
 
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
