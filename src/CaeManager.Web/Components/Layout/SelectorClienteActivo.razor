@@ -1,0 +1,15 @@
+@*
+    ADR-004-delegacion-consultoras-cae.md § 6 y § 12.1: solo se muestra
+    cuando el usuario tiene más de un cliente autorizado (Operador Delegado
+    de al menos una Consultora) — para cualquier otro usuario, cero cambio
+    de UX. Nunca se usa la palabra "tenant" de cara al usuario.
+*@
+@if (_clientes is { Count: > 1 })
+{
+    <select class="selector-cliente-activo" value="@_tenantIdActivo" @onchange="CambiarCliente" aria-label="Cliente activo">
+        @foreach (var cliente in _clientes)
+        {
+            <option value="@cliente.TenantId">@cliente.Nombre</option>
+        }
+    </select>
+}

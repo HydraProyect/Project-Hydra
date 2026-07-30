@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Services;
 using FluentAssertions;
@@ -24,7 +25,7 @@ public class TenantActualTests
     {
         var authStateProvider = new AuthenticationStateProviderFalso(UsuarioAutenticadoCon(TenantIdDeEjemplo));
         var httpContextAccessor = new HttpContextAccessorFalso(null);
-        var tenantActual = new TenantActual(authStateProvider, httpContextAccessor);
+        var tenantActual = new TenantActual(authStateProvider, httpContextAccessor, new ClienteActivoSeleccionadoFalso());
 
         tenantActual.TenantId.Should().Be(TenantIdDeEjemplo);
     }
@@ -34,7 +35,7 @@ public class TenantActualTests
     {
         var authStateProvider = new AuthenticationStateProviderFalso(lanzarInvalidOperationException: true);
         var httpContextAccessor = new HttpContextAccessorFalso(UsuarioAutenticadoCon(TenantIdDeEjemplo));
-        var tenantActual = new TenantActual(authStateProvider, httpContextAccessor);
+        var tenantActual = new TenantActual(authStateProvider, httpContextAccessor, new ClienteActivoSeleccionadoFalso());
 
         tenantActual.TenantId.Should().Be(TenantIdDeEjemplo);
     }
@@ -44,7 +45,7 @@ public class TenantActualTests
     {
         var authStateProvider = new AuthenticationStateProviderFalso(lanzarInvalidOperationException: true);
         var httpContextAccessor = new HttpContextAccessorFalso(null);
-        var tenantActual = new TenantActual(authStateProvider, httpContextAccessor);
+        var tenantActual = new TenantActual(authStateProvider, httpContextAccessor, new ClienteActivoSeleccionadoFalso());
 
         tenantActual.TenantId.Should().BeNull();
     }
@@ -83,5 +84,10 @@ public class TenantActualTests
             get => usuario is null ? null : new DefaultHttpContext { User = usuario };
             set => throw new NotSupportedException();
         }
+    }
+
+    private sealed class ClienteActivoSeleccionadoFalso : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
     }
 }
