@@ -3,6 +3,7 @@ using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
@@ -115,6 +116,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IVehiculoRepository, VehiculoRepository>();
         services.AddScoped<IParametroSistemaRepository, ParametroSistemaRepository>();
         services.AddScoped<ITarifaClienteRepository, TarifaClienteRepository>();
+        services.AddScoped<IConversacionCorreoRepository, ConversacionCorreoRepository>();
+        services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();

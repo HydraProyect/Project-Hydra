@@ -186,6 +186,7 @@ using (var scope = app.Services.CreateScope())
     {
         await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration);
         await DatosPruebaSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
+        await ComunicacionesDatosPruebaSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
     }
 
     // Segundo tenant, exclusivamente para verificación E2E multi-tenant con

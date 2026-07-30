@@ -4,6 +4,7 @@ using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
@@ -72,6 +73,10 @@ public class CaeManagerDbContext(
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<TarifaCliente> TarifasCliente => Set<TarifaCliente>();
+    public DbSet<ConversacionCorreo> ConversacionesCorreo => Set<ConversacionCorreo>();
+    public DbSet<MensajeCorreo> MensajesCorreo => Set<MensajeCorreo>();
+    public DbSet<ParticipanteConversacion> ParticipantesConversacion => Set<ParticipanteConversacion>();
+    public DbSet<MacroRespuesta> MacrosRespuesta => Set<MacroRespuesta>();
 
     IQueryable<Cliente> IApplicationDbContext.Clientes => Clientes;
     IQueryable<Empresa> IApplicationDbContext.Empresas => Empresas;
@@ -101,6 +106,10 @@ public class CaeManagerDbContext(
     IQueryable<RegistroAuditoria> IApplicationDbContext.RegistrosAuditoria => RegistrosAuditoria;
     IQueryable<Tenant> IApplicationDbContext.Tenants => Tenants;
     IQueryable<TarifaCliente> IApplicationDbContext.TarifasCliente => TarifasCliente;
+    IQueryable<ConversacionCorreo> IApplicationDbContext.ConversacionesCorreo => ConversacionesCorreo;
+    IQueryable<MensajeCorreo> IApplicationDbContext.MensajesCorreo => MensajesCorreo;
+    IQueryable<ParticipanteConversacion> IApplicationDbContext.ParticipantesConversacion => ParticipantesConversacion;
+    IQueryable<MacroRespuesta> IApplicationDbContext.MacrosRespuesta => MacrosRespuesta;
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -151,6 +160,8 @@ public class CaeManagerDbContext(
         builder.Entity<Trabajador>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
         builder.Entity<Vehiculo>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
         builder.Entity<Visita>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<ConversacionCorreo>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<MacroRespuesta>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
 
         builder.Entity<Alerta>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<Asignacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
@@ -171,5 +182,7 @@ public class CaeManagerDbContext(
         builder.Entity<AuditoriaExtraccionIa>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<VisitaTrabajador>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<RevisionIaDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<MensajeCorreo>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<ParticipanteConversacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
     }
 }
