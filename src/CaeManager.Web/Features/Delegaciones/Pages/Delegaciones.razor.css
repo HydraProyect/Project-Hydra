@@ -39,6 +39,15 @@
     font: var(--font-body-sm);
 }
 
+.aviso-workspace-ajeno {
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-4);
+    border-left: 3px solid var(--color-warning-500);
+    background: var(--color-surface-hover);
+    color: var(--color-text-secondary);
+    font: var(--font-body-sm);
+}
+
 .aviso-revocacion {
     color: var(--color-text-secondary);
     font: var(--font-body-sm);

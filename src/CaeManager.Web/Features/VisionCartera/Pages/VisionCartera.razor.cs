@@ -10,6 +10,7 @@ public partial class VisionCartera : ComponentBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
+    [Inject] private ILogger<VisionCartera> Logger { get; set; } = default!;
 
     private KpisGlobalesDto? _kpis;
     private bool _error;
@@ -31,8 +32,9 @@ public partial class VisionCartera : ComponentBase
         {
             _kpis = await Mediator.Send(new ObtenerKpisGlobalesQuery());
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Error al cargar los KPIs globales de la visión de cartera.");
             _error = true;
         }
     }

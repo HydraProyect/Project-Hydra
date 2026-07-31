@@ -190,6 +190,8 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
 
     private sealed class AlmacenamientoFalso : IFileStorageService
     {
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
         public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
             Task.FromResult("falso.pdf");
 

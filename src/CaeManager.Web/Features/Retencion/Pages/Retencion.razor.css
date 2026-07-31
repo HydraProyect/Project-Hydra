@@ -1,0 +1,31 @@
+.retencion-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    justify-content: space-between;
+}
+
+.descripcion-retencion {
+    max-width: 75ch;
+    margin-bottom: var(--space-5);
+    color: var(--color-text-secondary);
+    font: var(--font-body-sm);
+}
+
+.celda-acciones-purga {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+/* Lo ya ejecutado o descartado se conserva como registro, pero no compite
+   visualmente con lo que sigue pendiente de decidir. */
+.fila-resuelta {
+    opacity: 0.6;
+}
+
+.aviso-purga {
+    color: var(--color-text-secondary);
+    font: var(--font-body-sm);
+}

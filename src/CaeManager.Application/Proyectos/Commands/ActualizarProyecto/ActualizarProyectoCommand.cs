@@ -6,7 +6,8 @@ using MediatR;
 
 namespace CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
 
-public record ActualizarProyectoCommand(Guid Id, string Nombre, DateOnly? FechaFinPrevista, string? Notas)
+public record ActualizarProyectoCommand(
+    Guid Id, string Nombre, DateOnly? FechaFinPrevista, string? Notas, Guid Version = default)
     : IRequest<Result>;
 
 public class ActualizarProyectoCommandValidator : AbstractValidator<ActualizarProyectoCommand>
@@ -27,6 +28,9 @@ public class ActualizarProyectoCommandHandler(IProyectoRepository repositorio, I
         var proyecto = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (proyecto is null)
             return Result.Fallo(Error.Crear("Proyecto.NoEncontrado", "El proyecto no existe o no tienes acceso."));
+
+        if (ConcurrenciaOptimista.Verificar(proyecto, request.Version, "este proyecto") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         if (!string.Equals(proyecto.Nombre, request.Nombre.Trim(), StringComparison.Ordinal)
             && await repositorio.ExisteNombreParaClienteAsync(proyecto.ClienteId, request.Nombre, proyecto.Id, cancellationToken))

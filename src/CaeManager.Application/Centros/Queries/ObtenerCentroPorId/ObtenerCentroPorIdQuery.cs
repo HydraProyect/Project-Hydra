@@ -16,7 +16,8 @@ public record CentroDetalleDto(
     string? CodigoCentro,
     string? Direccion,
     string? Contacto,
-    DateOnly? ContratoVigenteHasta);
+    DateOnly? ContratoVigenteHasta,
+    Guid Version);
 
 public class ObtenerCentroPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCentroPorIdQuery, CentroDetalleDto?>
@@ -32,7 +33,7 @@ public class ObtenerCentroPorIdQueryHandler(IApplicationDbContext dbContext, IAl
             where centro.Id == request.Id
             select new CentroDetalleDto(
                 centro.Id, centro.ClienteId, cliente.RazonSocial, centro.EmpresaId, empresa.RazonSocial, centro.Nombre,
-                centro.CodigoCentro, centro.Direccion, centro.Contacto, centro.ContratoVigenteHasta))
+                centro.CodigoCentro, centro.Direccion, centro.Contacto, centro.ContratoVigenteHasta, centro.Version))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

@@ -14,6 +14,18 @@
         revocada para saber quién operó y cuándo, y para poder reactivarla.
     </p>
 
+    @if (OperandoWorkspaceAjeno)
+    {
+        @* Sin esto, los botones se veían y fallaban con "tu rol no permite…",
+           que no explica el motivo real: las delegaciones se gestionan desde
+           la propia organización porque los comandos deciden con el tenant de
+           origen. *@
+        <div class="aviso-workspace-ajeno">
+            Estás viendo esta pantalla mientras operas el cliente activo de otra organización.
+            Para gestionar delegaciones, vuelve a tu organización desde el selector de la cabecera.
+        </div>
+    }
+
     @if (_error)
     {
         <EstadoVacio Titulo="No pudimos cargar las delegaciones" Descripcion="Intenta nuevamente en unos segundos.">
@@ -49,29 +61,88 @@
                             }
                         </h2>
                         <span class="delegacion-fecha">Desde @delegacion.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</span>
+
+                        @if (delegacion.EsSoporte && delegacion.AccesoVigente)
+                        {
+                            <p class="delegacion-motivo">
+                                <strong>Motivo:</strong> @delegacion.MotivoActivacion
+                                @if (delegacion.ExpiraEnUtc is { } expira)
+                                {
+                                    <text> · hasta el @expira.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</text>
+                                }
+                            </p>
+                        }
                     </div>
 
                     <div class="delegacion-acciones">
-                        <Badge Tono="@(delegacion.Activa ? TonoBadge.Exito : TonoBadge.Neutro)">
-                            @(delegacion.Activa ? "Activa" : "Revocada")
-                        </Badge>
-
-                        @if (delegacion.Activa)
+                        @if (OperandoWorkspaceAjeno)
                         {
-                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
-                                   OnClick="() => _delegacionARevocar = delegacion">
-                                Revocar acceso
-                            </Boton>
+                            @* Solo lectura: las acciones viven en la organización propia. *@
+                            <Badge Tono="TonoBadge.Neutro">@(delegacion.EsSoporte ? "Soporte" : "Comercial")</Badge>
+                            <Badge Tono="@(delegacion.AccesoVigente ? TonoBadge.Exito : TonoBadge.Neutro)">
+                                @(delegacion.AccesoVigente ? "Acceso abierto" : "Sin acceso")
+                            </Badge>
+                        }
+                        else if (delegacion.EsSoporte)
+                        {
+                            @* Una delegación de soporte apagada no está "revocada":
+                               está aprovisionada y sin abrir, que es su estado normal
+                               en reposo. Y se abre con motivo y ventana, nunca con el
+                               "Reactivar" de una comercial. *@
+                            <Badge Tono="TonoBadge.Neutro">Soporte</Badge>
+
+                            @if (delegacion.AccesoVigente)
+                            {
+                                <Badge Tono="TonoBadge.Advertencia">Acceso abierto</Badge>
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
+                                       OnClick="() => CerrarAccesoSoporteAsync(delegacion)"
+                                       Cargando="@(_procesandoId == delegacion.Id)">
+                                    Cerrar acceso
+                                </Boton>
+                            }
+                            else
+                            {
+                                <Badge Tono="TonoBadge.Neutro">@(delegacion.VentanaCaducada ? "Ventana caducada" : "Sin abrir")</Badge>
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                                       OnClick="() => AbrirFormularioSoporte(delegacion)">
+                                    Abrir acceso
+                                </Boton>
+                            }
                         }
                         else
                         {
-                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
-                                   OnClick="() => ReactivarAsync(delegacion)" Cargando="@(_procesandoId == delegacion.Id)">
-                                Reactivar
-                            </Boton>
+                            <Badge Tono="@(delegacion.Activa ? TonoBadge.Exito : TonoBadge.Neutro)">
+                                @(delegacion.Activa ? "Activa" : "Revocada")
+                            </Badge>
+
+                            @if (delegacion.Activa)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
+                                       OnClick="() => _delegacionARevocar = delegacion">
+                                    Revocar acceso
+                                </Boton>
+                            }
+                            else
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                                       OnClick="() => ReactivarAsync(delegacion)" Cargando="@(_procesandoId == delegacion.Id)">
+                                    Reactivar
+                                </Boton>
+                            }
                         }
                     </div>
                 </div>
+
+                @if (delegacion.EsSoporte)
+                {
+                    @* Disponible también para el cliente visitado, no solo para
+                       Hydra: el registro es suyo y la transparencia es el
+                       sentido de tenerlo. *@
+                    <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Fantasma"
+                           OnClick="() => VerActividadAsync(delegacion)">
+                        Ver actividad registrada
+                    </Boton>
+                }
 
                 @if (delegacion.Operadores.Count == 0)
                 {
@@ -94,11 +165,16 @@
                                     <td>@NombreDeUsuario(operador.UsuarioId)</td>
                                     <td>@CaeManager.Infrastructure.Identity.Roles.NombreVisible(operador.Rol)</td>
                                     <td>
-                                        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Fantasma"
-                                               OnClick="() => RetirarOperadorAsync(operador)"
-                                               Cargando="@(_procesandoId == operador.AsignacionId)">
-                                            Retirar
-                                        </Boton>
+                                        @* Igual que el resto de acciones: retirar a un operador
+                                           se decide desde la organización propia. *@
+                                        @if (!OperandoWorkspaceAjeno)
+                                        {
+                                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Fantasma"
+                                                   OnClick="() => RetirarOperadorAsync(operador)"
+                                                   Cargando="@(_procesandoId == operador.AsignacionId)">
+                                                Retirar
+                                            </Boton>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -109,6 +185,82 @@
         }
     }
 </div>
+
+<Drawer Visible="_verActividadDe is not null" VisibleChanged="v => { if (!v) _verActividadDe = null; }"
+        Titulo="Actividad de soporte registrada">
+    @if (_cargandoActividad)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_actividad.Count == 0)
+    {
+        <EstadoVacio Titulo="Sin actividad registrada"
+                     Descripcion="No se ha abierto ningún acceso de soporte sobre esta organización todavía." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Cuándo</th>
+                    <th>Qué</th>
+                    <th>Detalle</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var registro in _actividad)
+                {
+                    <tr>
+                        <td class="celda-momento">@registro.OcurridaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                        <td>@DescribirTipo(registro.Tipo)</td>
+                        <td class="celda-detalle">@registro.Detalle</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</Drawer>
+
+@* Abrir acceso de soporte: motivo y ventana son obligatorios porque es Hydra
+   entrando en datos de los que responde el cliente. Ese par es lo que permite
+   responder después "entramos del día X al Y por la incidencia Z". *@
+<Modal Visible="_delegacionSoporteAAbrir is not null" VisibleChanged="v => { if (!v) _delegacionSoporteAAbrir = null; }"
+       Titulo="Abrir acceso de soporte" CerrarAlHacerClicFuera="!_abriendoSoporte">
+    <ChildContent>
+        @if (_delegacionSoporteAAbrir is not null)
+        {
+            <p>
+                Vas a poder entrar en los datos de <strong>@_delegacionSoporteAAbrir.ClienteNombre</strong>.
+                Queda registrado en su propio historial: el cliente puede consultar qué se hizo.
+            </p>
+
+            <CampoTexto Etiqueta="Motivo" Valor="@_motivoSoporte" ValorChanged="v => _motivoSoporte = v"
+                        Placeholder="Incidencia #442: no carga el listado de documentos" />
+
+            <CampoTexto Etiqueta="Días de acceso" Type="number" Valor="@_diasSoporte"
+                        ValorChanged="v => _diasSoporte = v" />
+
+            @* Solo lectura por defecto: basta para reproducir casi cualquier
+               incidencia y es lo que menos expone. Escribir en datos reales de
+               un cliente para diagnosticar es una decisión aparte. *@
+            <CampoSelect Etiqueta="Permisos" Valor="@_rolSoporte" ValorChanged="v => _rolSoporte = v">
+                <option value="Consulta">Solo lectura</option>
+                <option value="GestorCae">Gestor CAE (puede modificar)</option>
+                <option value="CoordinadorCae">Coordinador CAE (puede modificar)</option>
+            </CampoSelect>
+
+            @if (_errorSoporte is not null)
+            {
+                <p class="aviso-error">@_errorSoporte</p>
+            }
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_abriendoSoporte"
+               OnClick="() => _delegacionSoporteAAbrir = null">Cancelar</Boton>
+        <Boton Cargando="_abriendoSoporte" OnClick="AbrirAccesoSoporteAsync">Abrir acceso</Boton>
+    </Pie>
+</Modal>
 
 <Modal Visible="_delegacionARevocar is not null" VisibleChanged="v => { if (!v) _delegacionARevocar = null; }"
        Titulo="Revocar el acceso" CerrarAlHacerClicFuera="!_revocando">
