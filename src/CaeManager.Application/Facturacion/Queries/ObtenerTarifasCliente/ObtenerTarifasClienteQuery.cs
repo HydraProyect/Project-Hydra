@@ -13,7 +13,8 @@ public record TarifaClienteDto(
     ConceptoFacturable Concepto,
     string ConceptoNombre,
     decimal PrecioUnitario,
-    string MonedaIso);
+    string MonedaIso,
+    Guid Version);
 
 public class ObtenerTarifasClienteQueryHandler(IApplicationDbContext dbContext)
     : IRequestHandler<ObtenerTarifasClienteQuery, List<TarifaClienteDto>>
@@ -44,7 +45,8 @@ public class ObtenerTarifasClienteQueryHandler(IApplicationDbContext dbContext)
                 t.Concepto,
                 NombreConcepto(t.Concepto),
                 t.PrecioUnitario,
-                t.MonedaIso))
+                t.MonedaIso,
+                t.Version))
             .ToList();
     }
 

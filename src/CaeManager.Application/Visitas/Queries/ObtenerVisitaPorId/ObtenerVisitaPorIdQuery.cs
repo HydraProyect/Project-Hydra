@@ -16,7 +16,8 @@ public record VisitaDetalleDto(
     DateOnly FechaFin,
     IReadOnlyList<Guid> TrabajadorIds,
     bool NotificadoCliente,
-    string? Notas);
+    string? Notas,
+    Guid Version);
 
 public class ObtenerVisitaPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVisitaPorIdQuery, VisitaDetalleDto?>
@@ -39,7 +40,8 @@ public class ObtenerVisitaPorIdQueryHandler(IApplicationDbContext dbContext, IAl
                 v.FechaInicio,
                 v.FechaFin,
                 v.NotificadoCliente,
-                v.Notas
+                v.Notas,
+                v.Version
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -53,6 +55,6 @@ public class ObtenerVisitaPorIdQueryHandler(IApplicationDbContext dbContext, IAl
 
         return new VisitaDetalleDto(
             visita.Id, visita.CentroId, visita.CentroNombre, visita.ClienteRazonSocial, visita.EmpresaRazonSocial,
-            visita.FechaInicio, visita.FechaFin, trabajadorIds, visita.NotificadoCliente, visita.Notas);
+            visita.FechaInicio, visita.FechaFin, trabajadorIds, visita.NotificadoCliente, visita.Notas, visita.Version);
     }
 }
