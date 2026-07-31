@@ -81,6 +81,7 @@ public class CaeManagerDbContext(
     public DbSet<ProyectoTecnico> ProyectosTecnicos => Set<ProyectoTecnico>();
     public DbSet<DelegacionTenant> DelegacionesTenant => Set<DelegacionTenant>();
     public DbSet<CaeManager.Domain.Soporte.RegistroActividadSoporte> RegistrosActividadSoporte => Set<CaeManager.Domain.Soporte.RegistroActividadSoporte>();
+    public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
     public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();
     public DbSet<Evaluacion> Evaluaciones => Set<Evaluacion>();
     public DbSet<Incidencia> Incidencias => Set<Incidencia>();
@@ -214,6 +215,7 @@ public class CaeManagerDbContext(
         builder.Entity<MensajeCorreo>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<ParticipanteConversacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<CaeManager.Domain.Soporte.RegistroActividadSoporte>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<CaeManager.Domain.Retencion.SolicitudPurga>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
 
         // Concurrencia optimista sobre todo agregado con ciclo de vida
         // propio. Se recorre el modelo en vez de enumerar las 15 entidades
