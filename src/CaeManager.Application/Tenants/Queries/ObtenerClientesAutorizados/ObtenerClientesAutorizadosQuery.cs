@@ -29,6 +29,7 @@ public class ObtenerClientesAutorizadosQueryHandler(IApplicationDbContext dbCont
         if (usuarioId is null || tenantOrigenId is null)
             return [];
 
+        var ahora = DateTime.UtcNow;
         var resultado = new List<ClienteAutorizadoDto>();
 
         var tenantOrigen = await dbContext.Tenants
@@ -43,7 +44,12 @@ public class ObtenerClientesAutorizadosQueryHandler(IApplicationDbContext dbCont
             from asignacion in dbContext.AsignacionesOperadorDelegado
             join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
             join tenant in dbContext.Tenants on delegacion.TenantClienteId equals tenant.Id
+            // Activa Y no caducada: una ventana de soporte vencida deja de
+            // conceder acceso sin que nadie la toque (ver
+            // DelegacionTenant.EstaVigente — aquí va escrita a mano porque el
+            // método de dominio no se traduce a SQL).
             where asignacion.UsuarioId == usuarioId.Value && delegacion.Activa
+                  && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > ahora)
             orderby tenant.Nombre
             select new ClienteAutorizadoDto(tenant.Id, tenant.Nombre, false))
             .ToListAsync(cancellationToken);

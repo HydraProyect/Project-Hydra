@@ -62,6 +62,10 @@ public interface IApplicationDbContext
     IQueryable<Proyecto> Proyectos { get; }
     IQueryable<ProyectoTecnico> ProyectosTecnicos { get; }
     IQueryable<DelegacionTenant> DelegacionesTenant { get; }
+
+    IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> RegistrosActividadSoporte { get; }
+
+    IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga { get; }
     IQueryable<AsignacionOperadorDelegado> AsignacionesOperadorDelegado { get; }
     IQueryable<Evaluacion> Evaluaciones { get; }
     IQueryable<Incidencia> Incidencias { get; }

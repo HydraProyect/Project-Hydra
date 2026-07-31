@@ -11,6 +11,8 @@ namespace CaeManager.Web.Features.Comunicaciones.Pages;
 
 public partial class Macros : ComponentBase
 {
+    [Inject] private ILogger<Macros> Logger { get; set; } = default!;
+
     private string _clienteFiltro = string.Empty;
     private IReadOnlyList<ClienteSelectorDto> _clientesSelector = [];
     private IReadOnlyList<MacroListaDto> _macros = [];
@@ -20,6 +22,9 @@ public partial class Macros : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    // Version del registro tal como se abrio: vuelve en el Command para
+    // detectar que otra persona guardo mientras el formulario estaba abierto.
+    private Guid _versionEditando;
     private string _titulo = string.Empty;
     private string _cuerpo = string.Empty;
     private string _clienteIdFormulario = string.Empty;
@@ -49,8 +54,9 @@ public partial class Macros : ComponentBase
             var clienteId = Guid.TryParse(_clienteFiltro, out var id) ? id : (Guid?)null;
             _macros = await Mediator.Send(new ObtenerMacrosQuery(clienteId));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Error al cargar las macros de respuesta.");
             _errorCarga = true;
         }
         finally
@@ -80,6 +86,7 @@ public partial class Macros : ComponentBase
     private void AbrirEditar(MacroListaDto macro)
     {
         _editandoId = macro.Id;
+        _versionEditando = macro.Version;
         _titulo = macro.Titulo;
         _cuerpo = macro.CuerpoHtml;
         _clienteIdFormulario = macro.ClienteId?.ToString() ?? string.Empty;
@@ -112,7 +119,7 @@ public partial class Macros : ComponentBase
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarMacroCommand(_editandoId.Value, _titulo, _cuerpo, clienteId));
+                var resultado = await Mediator.Send(new EditarMacroCommand(_editandoId.Value, _titulo, _cuerpo, clienteId, _versionEditando));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 
@@ -132,8 +139,9 @@ public partial class Macros : ComponentBase
                 .GroupBy(e => e.PropertyName)
                 .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Error al guardar la macro {MacroId} (null si es alta).", _editandoId);
             _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
         }
         finally
@@ -157,8 +165,18 @@ public partial class Macros : ComponentBase
 
         try
         {
+            // Guid.Empty no: atribuía el borrado a un usuario inexistente en
+            // vez de fallar, y eso deja una pista falsa en la auditoría —
+            // justo lo contrario de para qué existe (hallazgo N-13 de
+            // INFORME-AUDITORIA-2.md).
             var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarMacroCommand(_idAEliminar, usuarioId ?? Guid.Empty));
+            if (usuarioId is null)
+            {
+                ToastService.Mostrar("Tu sesión ha caducado. Vuelve a iniciar sesión.", TonoToast.Error);
+                return;
+            }
+
+            var resultado = await Mediator.Send(new EliminarMacroCommand(_idAEliminar, usuarioId.Value));
 
             if (resultado.EsFallido)
             {
@@ -171,8 +189,9 @@ public partial class Macros : ComponentBase
                 await CargarAsync();
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Error al eliminar la macro {MacroId}.", _idAEliminar);
             ToastService.Mostrar("No pudimos eliminar la macro. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         finally

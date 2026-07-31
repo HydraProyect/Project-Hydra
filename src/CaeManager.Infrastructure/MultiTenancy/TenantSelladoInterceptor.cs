@@ -30,6 +30,24 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
         return base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 
+    /// <summary>
+    /// La versión síncrona también sella (hallazgo N-15 de
+    /// INFORME-AUDITORIA-2.md). Hoy no hay ningún <c>SaveChanges()</c>
+    /// síncrono en el código, así que sobrescribir solo la asíncrona era
+    /// inocuo — pero el día que aparezca uno, saltarse el sellado no daría
+    /// ningún error: guardaría la fila con <c>TenantId</c> vacío o permitiría
+    /// modificar la de otro tenant, en silencio. Un agujero que se abre por
+    /// omisión no debería depender de que nadie escriba una línea corriente.
+    /// </summary>
+    public override InterceptionResult<int> SavingChanges(
+        DbContextEventData eventData, InterceptionResult<int> result)
+    {
+        if (eventData.Context is DbContext context)
+            SellarYValidar(context);
+
+        return base.SavingChanges(eventData, result);
+    }
+
     private void SellarYValidar(DbContext context)
     {
         var tenantId = tenantActual.TenantId;

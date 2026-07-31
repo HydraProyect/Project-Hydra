@@ -72,7 +72,9 @@ public class CurrentUserService(
             from asignacion in dbContext.AsignacionesOperadorDelegado
             join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
             where asignacion.UsuarioId == usuarioId.Value
+                  // Activa y no caducada — ver DelegacionTenant.EstaVigente.
                   && delegacion.Activa
+                  && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
                   && delegacion.TenantClienteId == tenantSeleccionado
             select asignacion.Rol)
             .FirstOrDefaultAsync();

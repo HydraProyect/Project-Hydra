@@ -214,6 +214,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ClienteId");
@@ -264,6 +268,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EjecutivoUsuarioId");
@@ -302,10 +310,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("EliminadoPorUsuarioId")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("Estado")
+                    b.Property<bool>("EstaEliminado")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("EstaEliminado")
+                    b.Property<int>("Estado")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Etiquetas")
@@ -318,13 +326,17 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("FechaUltimoMensajeUtc");
 
-                    b.HasIndex("TenantId", "Estado");
-
                     b.HasIndex("TenantId", "ClienteId");
+
+                    b.HasIndex("TenantId", "Estado");
 
                     b.ToTable("ConversacionesCorreo", (string)null);
                 });
@@ -360,6 +372,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<string>("Titulo")
                         .IsRequired()
                         .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -528,6 +544,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("AnonimizadoEnUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ArchivoUrl")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
@@ -573,6 +592,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("VehiculoId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -1877,6 +1900,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "Cif")
@@ -1950,6 +1977,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("TrabajadorId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CentroId");
@@ -1992,6 +2023,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -2052,6 +2087,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("TrabajadorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -2149,11 +2188,15 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CentroId");
 
-                    b.HasIndex(new[] { "TenantId", "ClienteId", "Nombre" }, "IX_Proyectos_TenantId_ClienteId_Nombre")
+                    b.HasIndex("TenantId", "ClienteId", "Nombre")
                         .IsUnique()
                         .HasFilter("\"EstaEliminado\" = 0");
 
@@ -2185,7 +2228,7 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TrabajadorId");
 
-                    b.HasIndex(new[] { "TenantId", "ProyectoId", "TrabajadorId", "FechaAlta" }, "IX_ProyectosTecnicos_TenantId_ProyectoId_TrabajadorId_FechaAlta")
+                    b.HasIndex("TenantId", "ProyectoId", "TrabajadorId", "FechaAlta")
                         .IsUnique();
 
                     b.ToTable("ProyectosTecnicos", (string)null);
@@ -2231,11 +2274,100 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CentroId");
 
                     b.ToTable("RequisitosDocumentales", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Retencion.SolicitudPurga", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("AutorizadaPorUsuarioId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("AvisadaAlTenantEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DetectadaEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EjecutadaEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("FechaCorte")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("FechaEjecucionProgramada")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RegistrosAfectados")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TipoDato")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TipoDato", "Estado");
+
+                    b.ToTable("SolicitudesPurga", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Soporte.RegistroActividadSoporte", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("DelegacionTenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Detalle")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("OcurridaEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UsuarioSoporteId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DelegacionTenantId", "OcurridaEnUtc");
+
+                    b.ToTable("RegistrosActividadSoporte", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Subcontratas.CredencialAccesoSubcontrata", b =>
@@ -2300,6 +2432,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -2399,7 +2535,22 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<bool>("Activa")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("ActivadaEnUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ExpiraEnUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MotivoActivacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Proposito")
+                        .IsRequired()
+                        .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantClienteId")
@@ -2424,6 +2575,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("EsPlataforma")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Estado")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -2442,6 +2596,7 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000001"),
                             CreadoEnUtc = new DateTime(2026, 7, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            EsPlataforma = true,
                             Estado = "Activo",
                             Nombre = "Organización principal"
                         });
@@ -2511,6 +2666,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("AnonimizadoEnUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Apellidos")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -2556,6 +2714,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -2612,6 +2774,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EmpresaId");
@@ -2659,6 +2825,10 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -3025,11 +3195,9 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ConversacionCorreo", b =>
                 {
-                    b.Navigation("Mensajes")
-                        .UsePropertyAccessMode(PropertyAccessMode.Field);
+                    b.Navigation("Mensajes");
 
-                    b.Navigation("Participantes")
-                        .UsePropertyAccessMode(PropertyAccessMode.Field);
+                    b.Navigation("Participantes");
                 });
 #pragma warning restore 612, 618
         }

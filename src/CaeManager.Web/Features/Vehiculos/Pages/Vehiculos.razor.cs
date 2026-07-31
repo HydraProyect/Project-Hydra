@@ -29,6 +29,9 @@ public partial class Vehiculos : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    // Version del registro tal como se abrio: vuelve en el Command para
+    // detectar que otra persona guardo mientras el formulario estaba abierto.
+    private Guid _versionEditando;
     private string _tipoEmpleador = "empresa";
     private string _empresaId = string.Empty;
     private string _subcontrataId = string.Empty;
@@ -170,6 +173,7 @@ public partial class Vehiculos : ComponentBase
         }
 
         _editandoId = vehiculo.Id;
+        _versionEditando = vehiculo.Version;
         _tipoEmpleador = vehiculo.SubcontrataId is not null ? "subcontrata" : "empresa";
         _empresaId = vehiculo.EmpresaId?.ToString() ?? string.Empty;
         _subcontrataId = vehiculo.SubcontrataId?.ToString() ?? string.Empty;
@@ -229,7 +233,7 @@ public partial class Vehiculos : ComponentBase
             else
             {
                 var resultado = await Mediator.Send(
-                    new EditarVehiculoCommand(_editandoId.Value, _nombre, _modelo, _numeroPlaca));
+                    new EditarVehiculoCommand(_editandoId.Value, _nombre, _modelo, _numeroPlaca, _versionEditando));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 
