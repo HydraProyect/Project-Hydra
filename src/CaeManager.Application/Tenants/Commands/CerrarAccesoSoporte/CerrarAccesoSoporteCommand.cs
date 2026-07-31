@@ -26,6 +26,7 @@ public class CerrarAccesoSoporteCommandValidator : AbstractValidator<CerrarAcces
 
 public class CerrarAccesoSoporteCommandHandler(
     IDelegacionTenantRepository repositorio,
+    IAsignacionOperadorDelegadoRepository asignacionRepositorio,
     IApplicationDbContext dbContext,
     IRegistroActividadSoporteRepository registroRepositorio,
     ICurrentUserService currentUserService,
@@ -51,6 +52,16 @@ public class CerrarAccesoSoporteCommandHandler(
             return Result.Fallo(Error.Crear("Soporte.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
 
         delegacion.Desactivar();
+
+        // Se retira también la asignación del operador. Desactivar la
+        // delegación ya corta el acceso, pero dejar la autorización personal
+        // viva haría que reabrir la ventana concediera de nuevo el rol
+        // anterior sin que nadie lo eligiera.
+        var asignacion = await asignacionRepositorio
+            .ObtenerPorDelegacionYUsuarioAsync(delegacion.Id, usuarioId.Value, cancellationToken);
+
+        if (asignacion is not null)
+            asignacionRepositorio.Eliminar(asignacion);
 
         using (AmbitoTenantExplicito.Establecer(delegacion.TenantClienteId))
         {
