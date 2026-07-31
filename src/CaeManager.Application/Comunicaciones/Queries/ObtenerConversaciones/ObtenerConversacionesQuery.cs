@@ -43,6 +43,11 @@ public class ObtenerConversacionesQueryHandler(
 {
     private const int LongitudPreview = 140;
 
+    // Mismo literal repetido que en AutorizacionEscrituraBehavior y por el
+    // mismo motivo: Application no puede referenciar Infrastructure.Identity.Roles
+    // sin invertir la dependencia entre capas.
+    private const string RolCliente = "Cliente";
+
     public async Task<IReadOnlyList<ConversacionListaDto>> Handle(
         ObtenerConversacionesQuery request, CancellationToken cancellationToken)
     {
@@ -50,10 +55,24 @@ public class ObtenerConversacionesQueryHandler(
 
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
         if (clienteIdsVisibles is not null)
-            // La cola de triage (ClienteId null) queda siempre visible — nadie
-            // puede restringirla a una cartera concreta porque, por definición,
-            // todavía no tiene cliente resuelto (ver § 12.4).
-            consulta = consulta.Where(c => c.ClienteId == null || clienteIdsVisibles.Contains(c.ClienteId!.Value));
+        {
+            // La cola de triage (ClienteId null) queda visible pese a la
+            // cartera: por definición todavía no tiene cliente resuelto, así
+            // que no se puede acotar a una (ver § 12.4). Pero eso es cierto
+            // solo para los roles de gestión CAE — al rol Cliente, un contacto
+            // de una empresa cliente externa, le daba acceso de lectura al
+            // correo sin triar de las demás (hallazgo N-2 de
+            // INFORME-AUDITORIA-2.md).
+            //
+            // La comprobación se repite aquí y en [Authorize] de Bandeja.razor
+            // a propósito: la página cierra la puerta de entrada, esto cierra
+            // el dato para cualquier otra UI o API que llegue después.
+            var rol = await currentUserService.ObtenerRolActualAsync();
+
+            consulta = rol == RolCliente
+                ? consulta.Where(c => c.ClienteId != null && clienteIdsVisibles.Contains(c.ClienteId!.Value))
+                : consulta.Where(c => c.ClienteId == null || clienteIdsVisibles.Contains(c.ClienteId!.Value));
+        }
 
         if (request.Estado is not null)
             consulta = consulta.Where(c => c.Estado == request.Estado);
