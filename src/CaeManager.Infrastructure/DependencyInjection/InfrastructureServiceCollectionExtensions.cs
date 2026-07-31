@@ -187,6 +187,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<BackupsOptions>(configuration.GetSection(BackupsOptions.SeccionConfiguracion));
         services.AddHostedService<BackupHostedService>();
 
+        // Política de retención RGPD: los plazos son decisión legal y viven en
+        // configuración, no en el código (ver RetencionDatosOptions).
+        services.Configure<RetencionDatosOptions>(
+            configuration.GetSection(RetencionDatosOptions.SeccionConfiguracion));
+
         // La cola es singleton porque la comparten el productor (los Commands,
         // scoped) y el consumidor (el hosted service, singleton). Se registra
         // la clase concreta además de la interfaz: el procesador necesita su
