@@ -42,7 +42,10 @@ public static class ClienteActivoEndpoints
             var autorizado = tenantId == tenantOrigenId.Value || await (
                 from asignacion in dbContext.AsignacionesOperadorDelegado
                 join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
-                where asignacion.UsuarioId == usuarioId.Value && delegacion.Activa && delegacion.TenantClienteId == tenantId
+                // Activa y no caducada — ver DelegacionTenant.EstaVigente.
+                where asignacion.UsuarioId == usuarioId.Value && delegacion.Activa
+                      && delegacion.TenantClienteId == tenantId
+                      && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
                 select delegacion.Id)
                 .AnyAsync(cancellationToken);
 

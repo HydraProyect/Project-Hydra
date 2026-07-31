@@ -1,0 +1,164 @@
+using CaeManager.Application.Common;
+using CaeManager.Domain.Common;
+using CaeManager.Domain.Retencion;
+using FluentValidation;
+using MediatR;
+using Microsoft.Extensions.Options;
+
+namespace CaeManager.Application.Retencion.Commands;
+
+/// <summary>
+/// Lanza el barrido que busca datos con el plazo cumplido. Es manual y no
+/// automático a propósito: la primera vez que el sistema propone destruir
+/// datos conviene que sea porque alguien lo pidió, no porque saltó un
+/// temporizador de madrugada. Convertirlo en periódico es añadir un
+/// BackgroundService que llame a este mismo Command.
+/// </summary>
+public record BuscarDatosPurgablesCommand : IRequest<Result<int>>;
+
+public class BuscarDatosPurgablesCommandHandler(
+    DeteccionPurgaService deteccion, IOptions<RetencionDatosOptions> opciones)
+    : IRequestHandler<BuscarDatosPurgablesCommand, Result<int>>
+{
+    public async Task<Result<int>> Handle(BuscarDatosPurgablesCommand request, CancellationToken cancellationToken)
+    {
+        if (!opciones.Value.Activa)
+            return Result.Fallo<int>(Error.Crear(
+                "Retencion.Desactivada",
+                "La política de retención está desactivada. Actívala en la configuración antes de buscar datos purgables."));
+
+        var creadas = await deteccion.DetectarAsync(DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+
+        return Result.Exito(creadas);
+    }
+}
+
+/// <summary>Deja constancia de que se avisó al tenant antes de destruir nada.</summary>
+public record MarcarTenantAvisadoCommand(Guid SolicitudId) : IRequest<Result>;
+
+public class MarcarTenantAvisadoCommandHandler(ISolicitudPurgaRepository repositorio, IUnitOfWork unitOfWork)
+    : IRequestHandler<MarcarTenantAvisadoCommand, Result>
+{
+    public async Task<Result> Handle(MarcarTenantAvisadoCommand request, CancellationToken cancellationToken)
+    {
+        var solicitud = await repositorio.ObtenerPorIdAsync(request.SolicitudId, cancellationToken);
+        if (solicitud is null)
+            return Result.Fallo(Error.Crear("SolicitudPurga.NoEncontrada", "No encontramos esa solicitud."));
+
+        solicitud.MarcarTenantAvisado();
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result.Exito();
+    }
+}
+
+/// <summary>
+/// Autoriza la destrucción y fija cuándo puede ejecutarse. Es el único camino
+/// hacia la ejecución.
+/// </summary>
+public record ProgramarPurgaCommand(Guid SolicitudId, DateOnly FechaEjecucion) : IRequest<Result>;
+
+public class ProgramarPurgaCommandValidator : AbstractValidator<ProgramarPurgaCommand>
+{
+    public ProgramarPurgaCommandValidator()
+    {
+        RuleFor(c => c.SolicitudId).NotEmpty();
+    }
+}
+
+public class ProgramarPurgaCommandHandler(
+    ISolicitudPurgaRepository repositorio, ICurrentUserService currentUserService, IUnitOfWork unitOfWork)
+    : IRequestHandler<ProgramarPurgaCommand, Result>
+{
+    public async Task<Result> Handle(ProgramarPurgaCommand request, CancellationToken cancellationToken)
+    {
+        var solicitud = await repositorio.ObtenerPorIdAsync(request.SolicitudId, cancellationToken);
+        if (solicitud is null)
+            return Result.Fallo(Error.Crear("SolicitudPurga.NoEncontrada", "No encontramos esa solicitud."));
+
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo(Error.Crear("Retencion.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
+
+        try
+        {
+            // La atribución no es un adorno: destruir datos personales tiene
+            // que quedar imputado a una persona concreta.
+            solicitud.Programar(request.FechaEjecucion, usuarioId.Value, DateOnly.FromDateTime(DateTime.UtcNow));
+        }
+        catch (ArgumentException ex)
+        {
+            return Result.Fallo(Error.Crear("SolicitudPurga.FechaNoValida", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result.Fallo(Error.Crear("SolicitudPurga.EstadoNoValido", ex.Message));
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return Result.Exito();
+    }
+}
+
+/// <summary>Descarta la propuesta — el caso del tenant que pide conservar sus datos más tiempo.</summary>
+public record CancelarPurgaCommand(Guid SolicitudId, string Motivo) : IRequest<Result>;
+
+public class CancelarPurgaCommandValidator : AbstractValidator<CancelarPurgaCommand>
+{
+    public CancelarPurgaCommandValidator()
+    {
+        RuleFor(c => c.SolicitudId).NotEmpty();
+        RuleFor(c => c.Motivo)
+            .NotEmpty().WithMessage("Indica por qué se descarta esta purga.")
+            .MaximumLength(SolicitudPurga.LongitudMaximaMotivo);
+    }
+}
+
+public class CancelarPurgaCommandHandler(ISolicitudPurgaRepository repositorio, IUnitOfWork unitOfWork)
+    : IRequestHandler<CancelarPurgaCommand, Result>
+{
+    public async Task<Result> Handle(CancelarPurgaCommand request, CancellationToken cancellationToken)
+    {
+        var solicitud = await repositorio.ObtenerPorIdAsync(request.SolicitudId, cancellationToken);
+        if (solicitud is null)
+            return Result.Fallo(Error.Crear("SolicitudPurga.NoEncontrada", "No encontramos esa solicitud."));
+
+        try
+        {
+            solicitud.Cancelar(request.Motivo);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result.Fallo(Error.Crear("SolicitudPurga.EstadoNoValido", ex.Message));
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return Result.Exito();
+    }
+}
+
+/// <summary>
+/// Ejecuta una purga cuya fecha ya llegó. Sigue siendo una acción explícita
+/// aunque esté autorizada: es irreversible, y que la fecha llegue no es razón
+/// para que ocurra sin que nadie mire.
+/// </summary>
+public record EjecutarPurgaCommand(Guid SolicitudId) : IRequest<Result<int>>;
+
+public class EjecutarPurgaCommandHandler(EjecucionPurgaService ejecucion)
+    : IRequestHandler<EjecutarPurgaCommand, Result<int>>
+{
+    public async Task<Result<int>> Handle(EjecutarPurgaCommand request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var afectados = await ejecucion.EjecutarAsync(
+                request.SolicitudId, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+
+            return Result.Exito(afectados);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result.Fallo<int>(Error.Crear("SolicitudPurga.NoEjecutable", ex.Message));
+        }
+    }
+}

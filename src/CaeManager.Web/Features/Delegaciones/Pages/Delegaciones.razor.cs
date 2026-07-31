@@ -1,9 +1,15 @@
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
+using CaeManager.Application.Tenants.Commands.CerrarAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDelegado;
+using CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
+using CaeManager.Domain.Soporte;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
@@ -27,6 +33,16 @@ public partial class Delegaciones : ComponentBase
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private ILogger<Delegaciones> Logger { get; set; } = default!;
+    [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
+
+    /// <summary>
+    /// Gestionar delegaciones se hace desde la propia organización, nunca
+    /// operando el workspace de otra: los comandos deciden con el tenant de
+    /// origen, así que desde aquí fallarían — y con un mensaje sobre el rol
+    /// que no explica el motivo real.
+    /// </summary>
+    private bool OperandoWorkspaceAjeno => ClienteActivoSeleccionado.TenantIdSeleccionado is not null;
 
     private IReadOnlyList<DelegacionDto> _delegaciones = [];
     private readonly Dictionary<Guid, string> _nombresPorUsuarioId = [];
@@ -36,6 +52,17 @@ public partial class Delegaciones : ComponentBase
     private DelegacionDto? _delegacionARevocar;
     private bool _revocando;
     private Guid? _procesandoId;
+
+    private DelegacionDto? _verActividadDe;
+    private IReadOnlyList<ActividadSoporteDto> _actividad = [];
+    private bool _cargandoActividad;
+
+    private DelegacionDto? _delegacionSoporteAAbrir;
+    private string _motivoSoporte = string.Empty;
+    private string _diasSoporte = "7";
+    private string _rolSoporte = RolesSoporte.SoloLectura;
+    private bool _abriendoSoporte;
+    private string? _errorSoporte;
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
@@ -50,8 +77,9 @@ public partial class Delegaciones : ComponentBase
             _delegaciones = await Mediator.Send(new ObtenerDelegacionesQuery());
             await CargarNombresDeOperadoresAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Error al cargar las delegaciones del tenant de origen.");
             _error = true;
         }
         finally
@@ -106,6 +134,110 @@ public partial class Delegaciones : ComponentBase
         finally
         {
             _revocando = false;
+        }
+    }
+
+    private async Task VerActividadAsync(DelegacionDto delegacion)
+    {
+        _verActividadDe = delegacion;
+        _actividad = [];
+        _cargandoActividad = true;
+        StateHasChanged();
+
+        try
+        {
+            _actividad = await Mediator.Send(new ObtenerActividadSoporteQuery(delegacion.Id));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al cargar la actividad de soporte de la delegación {DelegacionId}.", delegacion.Id);
+            ToastService.Mostrar("No pudimos cargar la actividad registrada.", TonoToast.Error);
+        }
+        finally
+        {
+            _cargandoActividad = false;
+        }
+    }
+
+    private static string DescribirTipo(TipoActividadSoporte tipo) => tipo switch
+    {
+        TipoActividadSoporte.AccesoConcedido => "Acceso concedido",
+        TipoActividadSoporte.WorkspaceActivado => "Entró en la organización",
+        TipoActividadSoporte.Navegacion => "Navegó a",
+        TipoActividadSoporte.Interaccion => "Pulsó",
+        TipoActividadSoporte.AccesoRevocado => "Acceso cerrado",
+        _ => tipo.ToString()
+    };
+
+    private void AbrirFormularioSoporte(DelegacionDto delegacion)
+    {
+        _delegacionSoporteAAbrir = delegacion;
+        _motivoSoporte = string.Empty;
+        _diasSoporte = "7";
+        _rolSoporte = RolesSoporte.SoloLectura;
+        _errorSoporte = null;
+    }
+
+    private async Task AbrirAccesoSoporteAsync()
+    {
+        if (_delegacionSoporteAAbrir is null) return;
+
+        _abriendoSoporte = true;
+        _errorSoporte = null;
+        StateHasChanged();
+
+        try
+        {
+            if (!int.TryParse(_diasSoporte, out var dias))
+            {
+                _errorSoporte = "Indica los días de acceso como un número.";
+                return;
+            }
+
+            var resultado = await Mediator.Send(
+                new AbrirAccesoSoporteCommand(_delegacionSoporteAAbrir.Id, _motivoSoporte, dias, _rolSoporte));
+
+            if (resultado.EsFallido)
+            {
+                _errorSoporte = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Acceso de soporte abierto.", TonoToast.Exito);
+            _delegacionSoporteAAbrir = null;
+            await CargarAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _errorSoporte = string.Join(" ", ex.Errors.Select(e => e.ErrorMessage));
+        }
+        finally
+        {
+            _abriendoSoporte = false;
+        }
+    }
+
+    private async Task CerrarAccesoSoporteAsync(DelegacionDto delegacion)
+    {
+        _procesandoId = delegacion.Id;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(new CerrarAccesoSoporteCommand(delegacion.Id));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar("Acceso de soporte cerrado.", TonoToast.Exito);
+            await CargarAsync();
+        }
+        finally
+        {
+            _procesandoId = null;
         }
     }
 

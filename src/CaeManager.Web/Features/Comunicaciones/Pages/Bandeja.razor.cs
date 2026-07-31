@@ -10,8 +10,8 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Infrastructure.Autorizacion;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Comunicaciones.Pages;
 
@@ -19,7 +19,8 @@ public record EjecutivoSelectorDto(Guid Id, string NombreCompleto);
 
 public partial class Bandeja : ComponentBase
 {
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
+    [Inject] private ILogger<Bandeja> Logger { get; set; } = default!;
 
     // --- Filtros ---
     private string _estadoFiltro = string.Empty;
@@ -58,9 +59,11 @@ public partial class Bandeja : ComponentBase
     {
         _clientesSelector = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
 
-        var gestores = await UserManager.GetUsersInRoleAsync(Roles.GestorCae);
+        // Acotado al tenant activo: GetUsersInRoleAsync devuelve los gestores
+        // de todas las organizaciones (AspNetUsers no tiene filtro global),
+        // así que el selector listaba nombres de empleados de otros tenants.
+        var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae);
         _ejecutivosDisponibles = gestores
-            .OrderBy(u => u.NombreCompleto)
             .Select(u => new EjecutivoSelectorDto(u.Id, u.NombreCompleto))
             .ToList();
 
@@ -95,8 +98,12 @@ public partial class Bandeja : ComponentBase
                 SoloSinAsignar: _soloSinAsignar,
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // _errorCargaLista solo pinta un aviso genérico: sin este log, un
+            // fallo al cargar la bandeja no deja ningún rastro que permita
+            // diagnosticarlo después.
+            Logger.LogError(ex, "Error al cargar la lista de conversaciones de la bandeja.");
             _errorCargaLista = true;
         }
         finally
@@ -168,8 +175,9 @@ public partial class Bandeja : ComponentBase
                 _macrosDisponibles = [];
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Error al abrir la conversación {ConversacionId}.", id);
             ToastService.Mostrar("No pudimos abrir esta conversación. Intenta nuevamente.", TonoToast.Error);
         }
         finally
@@ -211,8 +219,9 @@ public partial class Bandeja : ComponentBase
             await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
             await CargarListaAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Error al responder en la conversación {ConversacionId}.", _conversacionSeleccionadaId);
             ToastService.Mostrar("No pudimos enviar la respuesta. Intenta nuevamente.", TonoToast.Error);
         }
         finally

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Tenants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,7 +32,22 @@ public record DelegacionDto(
     bool Activa,
     bool SomosLaConsultora,
     DateTime CreadoEnUtc,
-    IReadOnlyList<OperadorDelegadoDto> Operadores);
+    IReadOnlyList<OperadorDelegadoDto> Operadores,
+    PropositoDelegacion Proposito,
+    string? MotivoActivacion,
+    DateTime? ExpiraEnUtc)
+{
+    /// <summary>
+    /// Una delegación de soporte apagada no está "revocada": está
+    /// aprovisionada y sin abrir, que es su estado normal en reposo.
+    /// Distinguirlo importa porque el botón que corresponde es otro.
+    /// </summary>
+    public bool EsSoporte => Proposito == PropositoDelegacion.Soporte;
+
+    public bool VentanaCaducada => ExpiraEnUtc is { } expira && expira <= DateTime.UtcNow;
+
+    public bool AccesoVigente => Activa && !VentanaCaducada;
+}
 
 public class ObtenerDelegacionesQueryHandler(IApplicationDbContext dbContext, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerDelegacionesQuery, IReadOnlyList<DelegacionDto>>
@@ -56,7 +72,10 @@ public class ObtenerDelegacionesQueryHandler(IApplicationDbContext dbContext, IC
                 delegacion.TenantClienteId,
                 ClienteNombre = cliente.Nombre,
                 delegacion.Activa,
-                delegacion.CreadoEnUtc
+                delegacion.CreadoEnUtc,
+                delegacion.Proposito,
+                delegacion.MotivoActivacion,
+                delegacion.ExpiraEnUtc
             })
             .ToListAsync(cancellationToken);
 
@@ -80,6 +99,7 @@ public class ObtenerDelegacionesQueryHandler(IApplicationDbContext dbContext, IC
         return delegaciones.Select(d => new DelegacionDto(
             d.Id, d.TenantConsultoraId, d.ConsultoraNombre, d.TenantClienteId, d.ClienteNombre,
             d.Activa, d.TenantConsultoraId == tenantOrigenId.Value, d.CreadoEnUtc,
-            operadoresPorDelegacion.GetValueOrDefault(d.Id, []))).ToList();
+            operadoresPorDelegacion.GetValueOrDefault(d.Id, []),
+            d.Proposito, d.MotivoActivacion, d.ExpiraEnUtc)).ToList();
     }
 }

@@ -30,6 +30,9 @@ public partial class Trabajadores : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    // Version del registro tal como se abrio: vuelve en el Command para
+    // detectar que otra persona guardo mientras el formulario estaba abierto.
+    private Guid _versionEditando;
     private string _tipoEmpleador = "empresa";
     private string _empresaId = string.Empty;
     private string _subcontrataId = string.Empty;
@@ -179,6 +182,7 @@ public partial class Trabajadores : ComponentBase
         }
 
         _editandoId = trabajador.Id;
+        _versionEditando = trabajador.Version;
         _tipoEmpleador = trabajador.SubcontrataId is not null ? "subcontrata" : "empresa";
         _empresaId = trabajador.EmpresaId?.ToString() ?? string.Empty;
         _subcontrataId = trabajador.SubcontrataId?.ToString() ?? string.Empty;
@@ -247,7 +251,7 @@ public partial class Trabajadores : ComponentBase
             else
             {
                 var resultado = await Mediator.Send(
-                    new EditarTrabajadorCommand(_editandoId.Value, _nombre, _apellidos, fechaNacimiento, email, observaciones, alias));
+                    new EditarTrabajadorCommand(_editandoId.Value, _nombre, _apellidos, fechaNacimiento, email, observaciones, alias, _versionEditando));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 

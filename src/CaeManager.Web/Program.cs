@@ -98,6 +98,9 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.ClienteActivoSeleccionado>();
 builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>();
+// Scoped: cachea por circuito si la sesión es de soporte, para que registrar
+// una interacción no cueste una consulta (ver TrazaSoporteService).
+builder.Services.AddScoped<CaeManager.Web.Services.TrazaSoporteService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<BusquedaGlobalService>();
 builder.Services.AddScoped<AsistenteIaService>();
@@ -198,6 +201,13 @@ using (var scope = app.Services.CreateScope())
     // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
     // que SegundoTenant:Activo esté configurado explícitamente.
     await SegundoTenantSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
+
+    // Al final a propósito: aprovisiona la delegación de soporte —apagada—
+    // de todo tenant que exista, incluidos los que acaben de sembrarse.
+    // Idempotente, así que cubre también los tenants creados en arranques
+    // anteriores. Aprovisionar no concede acceso: abrirlo exige motivo y
+    // ventana (ver DelegacionesSoporteSeeder).
+    await DelegacionesSoporteSeeder.SeedAsync(dbContext, logger);
 }
 
 // Registrado antes del manejo de excepciones para envolverlo por completo:

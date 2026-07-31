@@ -163,6 +163,43 @@ public class Documento : EntidadBase
 
     public void ActualizarComentarios(string? comentarios) => Comentarios = comentarios;
 
+    /// <summary>
+    /// Cuándo se purgó el contenido, o null si sigue completo.
+    /// </summary>
+    public DateTime? AnonimizadoEnUtc { get; private set; }
+
+    public bool EstaAnonimizado => AnonimizadoEnUtc is not null;
+
+    /// <summary>
+    /// Suprime el contenido personal del documento cumplido su plazo
+    /// (RGPD-TRATAMIENTO-DATOS.md § 5).
+    ///
+    /// Aquí la anonimización no es solo limpiar campos: <b>el dato personal
+    /// está dentro del PDF</b> —un reconocimiento médico, un DNI escaneado—,
+    /// así que suprimirlo de verdad exige borrar el archivo del
+    /// almacenamiento. Esta operación solo suelta la referencia; quien la
+    /// invoca es responsable de borrar el fichero, y por eso devuelve la ruta
+    /// que había: sin ella, el archivo quedaría huérfano en disco y la
+    /// supresión sería aparente.
+    ///
+    /// Lo que se conserva son las fechas y el tipo, que es lo que sostiene el
+    /// histórico de cumplimiento CAE sin identificar a nadie.
+    ///
+    /// Idempotente: repetirlo devuelve null porque ya no hay archivo.
+    /// </summary>
+    public string? Anonimizar(DateTime ahoraUtc)
+    {
+        if (EstaAnonimizado) return null;
+
+        var archivoAsuprimir = ArchivoUrl;
+
+        ArchivoUrl = null;
+        Comentarios = null;
+        AnonimizadoEnUtc = ahoraUtc;
+
+        return archivoAsuprimir;
+    }
+
     public EstadoDocumento CalcularEstado(DateOnly hoy, int umbralAmbarDias, int umbralRojoDias) =>
         CalculadoraEstadoDocumento.Calcular(FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias);
 }

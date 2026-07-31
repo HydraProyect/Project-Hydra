@@ -30,6 +30,9 @@ public partial class Incidencias : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    // Version del registro tal como se abrio: vuelve en el Command para
+    // detectar que otra persona guardo mientras el formulario estaba abierto.
+    private Guid _versionEditando;
     private string _centroId = string.Empty;
     private string _centroNombreEnEdicion = string.Empty;
     private string _trabajadorId = string.Empty;
@@ -148,6 +151,7 @@ public partial class Incidencias : ComponentBase
         }
 
         _editandoId = incidencia.Id;
+        _versionEditando = incidencia.Version;
         _centroId = incidencia.CentroId.ToString();
         _centroNombreEnEdicion = incidencia.CentroNombre;
         _trabajadorId = incidencia.TrabajadorId?.ToString() ?? string.Empty;
@@ -208,7 +212,7 @@ public partial class Incidencias : ComponentBase
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarIncidenciaCommand(_editandoId.Value, trabajadorId, tipo, gravedad, fechaOcurrencia, _descripcion));
+                var resultado = await Mediator.Send(new EditarIncidenciaCommand(_editandoId.Value, trabajadorId, tipo, gravedad, fechaOcurrencia, _descripcion, _versionEditando));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 
