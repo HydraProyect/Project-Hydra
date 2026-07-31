@@ -13,6 +13,7 @@ using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Proyectos;
+using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
@@ -162,6 +163,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
+        services.AddScoped<IRegistroActividadSoporteRepository, RegistroActividadSoporteRepository>();
         services.AddScoped<IEvaluacionRepository, EvaluacionRepository>();
         services.AddScoped<IIncidenciaRepository, IncidenciaRepository>();
         services.AddScoped<IConversacionCorreoRepository, ConversacionCorreoRepository>();

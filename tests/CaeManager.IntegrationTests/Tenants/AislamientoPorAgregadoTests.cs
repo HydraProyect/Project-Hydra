@@ -15,6 +15,7 @@ using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.RequisitosDocumentales;
+using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
@@ -292,6 +293,17 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
                 RolParticipante.Para, TipoParticipanteOrigen.Trabajador),
             async contexto => conversacionId = await SembrarConversacionAsync(contexto));
     }
+
+    /// <summary>
+    /// El registro de actividad de soporte pertenece al tenant <b>visitado</b>,
+    /// no al de Hydra: es el cliente quien debe poder consultar qué se hizo en
+    /// sus datos. Por eso lleva filtro global como todo lo demás, y por eso un
+    /// tenant no puede ver las visitas de soporte a otro.
+    /// </summary>
+    [Fact]
+    public Task Aislamiento_RegistroActividadSoporte() => VerificarAislamientoAsync(
+        () => new RegistroActividadSoporte(
+            Guid.NewGuid(), Guid.NewGuid(), TipoActividadSoporte.Navegacion, "/documentos"));
 
     private static async Task<Guid> SembrarConversacionAsync(CaeManagerDbContext contexto)
     {

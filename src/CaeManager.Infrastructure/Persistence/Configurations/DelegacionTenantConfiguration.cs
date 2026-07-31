@@ -15,6 +15,12 @@ public class DelegacionTenantConfiguration : IEntityTypeConfiguration<Delegacion
         builder.Property(d => d.TenantClienteId).IsRequired();
         builder.Property(d => d.Activa).IsRequired();
 
+        // Se guarda el nombre del enum, no su número: un valor intercalado en
+        // el futuro no debe reinterpretar filas existentes — y aquí eso
+        // convertiría una delegación comercial en una de soporte.
+        builder.Property(d => d.Proposito).IsRequired().HasConversion<string>().HasMaxLength(20);
+        builder.Property(d => d.MotivoActivacion).HasMaxLength(500);
+
         // Un mismo par Consultora/Cliente no puede tener dos delegaciones
         // activas simultáneas — desactivar la anterior antes de crear otra.
         builder.HasIndex(d => new { d.TenantConsultoraId, d.TenantClienteId, d.Activa });
