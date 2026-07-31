@@ -23,9 +23,13 @@ using Microsoft.AspNetCore.Authentication;
 using CaeManager.Infrastructure.AsistenteIa;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
+using Amazon;
+using Amazon.KeyManagementService;
 using CaeManager.Infrastructure.Backups;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Conversion;
+using CaeManager.Infrastructure.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using CaeManager.Infrastructure.DocumentosIa;
 using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.FileStorage;
@@ -92,9 +96,38 @@ public static class InfrastructureServiceCollectionExtensions
             ? rutaClavesDataProtection
             : Path.Combine(entorno.ContentRootPath, rutaClavesDataProtection);
 
-        services.AddDataProtection()
+        var constructorDataProtection = services.AddDataProtection()
             .SetApplicationName("CaeManager")
             .PersistKeysToFileSystem(new DirectoryInfo(rutaClavesAbsoluta));
+
+        // Cifrado en reposo de esas claves con AWS KMS. Ver
+        // DataProtectionKmsOptions: sin esto, las claves viajan en claro en el
+        // mismo backup que la base de datos que protegen.
+        var opcionesKms = new DataProtectionKmsOptions();
+        configuration.GetSection(DataProtectionKmsOptions.SeccionConfiguracion).Bind(opcionesKms);
+        services.Configure<DataProtectionKmsOptions>(
+            configuration.GetSection(DataProtectionKmsOptions.SeccionConfiguracion));
+
+        if (opcionesKms.EstaConfigurado)
+        {
+            services.AddSingleton<IAmazonKeyManagementService>(_ => new AmazonKeyManagementServiceClient(
+                opcionesKms.AccessKeyId, opcionesKms.SecretAccessKey, RegionEndpoint.GetBySystemName(opcionesKms.Region)));
+
+            constructorDataProtection.Services.Configure<KeyManagementOptions>(opciones =>
+                opciones.XmlEncryptor = new KmsXmlEncryptor(
+                    new AmazonKeyManagementServiceClient(
+                        opcionesKms.AccessKeyId, opcionesKms.SecretAccessKey, RegionEndpoint.GetBySystemName(opcionesKms.Region)),
+                    opcionesKms.KeyId!));
+        }
+        else
+        {
+            // Ruidoso a propósito: un despliegue que cree estar cifrando y no
+            // lo esté es peor que uno que sepa que no lo está. Se registra al
+            // construir el contenedor, así que sale en el arranque.
+            Console.WriteLine(
+                "[AVISO] DataProtection:Kms no está configurado — las claves de Data Protection se guardan SIN CIFRAR. " +
+                "Con Backups activo viajan en claro junto a la base de datos que protegen (ver RUNBOOK-CLAVES.md).");
+        }
 
         services.AddScoped<IClienteRepository, ClienteRepository>();
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
