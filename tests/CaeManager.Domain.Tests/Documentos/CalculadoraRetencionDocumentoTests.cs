@@ -130,6 +130,38 @@ public class CalculadoraRetencionDocumentoTests
     }
 
     [Fact]
+    public void Un_trabajador_de_baja_cuenta_cinco_anios_desde_la_baja()
+    {
+        var baja = new DateOnly(2026, 3, 10);
+
+        var fechaPurga = CalculadoraRetencionDocumento.CalcularFechaPurgaTrabajador(baja, CincoAnios);
+
+        fechaPurga.Should().Be(new DateOnly(2031, 3, 10));
+    }
+
+    [Fact]
+    public void Un_trabajador_de_alta_no_tiene_fecha_de_purga()
+    {
+        // Mientras dure la relación se conserva: no hay hito del que contar.
+        CalculadoraRetencionDocumento.CalcularFechaPurgaTrabajador(fechaBaja: null, CincoAnios)
+            .Should().BeNull();
+
+        CalculadoraRetencionDocumento.PuedePurgarseTrabajador(null, new DateOnly(2099, 1, 1), CincoAnios)
+            .Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(2031, 3, 9, false)]
+    [InlineData(2031, 3, 10, true)]
+    public void El_trabajador_solo_se_purga_cumplido_el_plazo(int anio, int mes, int dia, bool esperado)
+    {
+        var baja = new DateOnly(2026, 3, 10);
+
+        CalculadoraRetencionDocumento.PuedePurgarseTrabajador(baja, new DateOnly(anio, mes, dia), CincoAnios)
+            .Should().Be(esperado);
+    }
+
+    [Fact]
     public void Un_plazo_de_retencion_no_positivo_es_un_error_de_configuracion()
     {
         // Un cero aquí purgaría todo el histórico de golpe: mejor que
