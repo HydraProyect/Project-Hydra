@@ -64,10 +64,8 @@ public class EditarClienteCommandHandler(IClienteRepository repositorio, IUnitOf
         if (cliente is null)
             return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
 
-        if (request.Version != Guid.Empty && cliente.Version != request.Version)
-            return Result.Fallo(Error.Crear(
-                "Concurrencia.Conflicto",
-                "Otra persona modificó este cliente mientras lo editabas. Vuelve a abrirlo para ver los cambios y aplica los tuyos de nuevo."));
+        if (ConcurrenciaOptimista.Verificar(cliente, request.Version, "este cliente") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Cliente.RazonSocialDuplicada", "Ya existe un cliente con esta razón social."));

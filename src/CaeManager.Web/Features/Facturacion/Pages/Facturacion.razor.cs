@@ -44,6 +44,9 @@ public partial class Facturacion : ComponentBase
 
     // Edición inline
     private Guid _tarifaEditandoId = Guid.Empty;
+    // Versión de la tarifa tal como se abrió: vuelve en el Command para
+    // detectar que otra persona guardó mientras el formulario estaba abierto.
+    private Guid _versionEditando;
     private decimal _editPrecio;
     private string _editMoneda = "EUR";
     private Dictionary<string, string> _editErrores = new();
@@ -163,6 +166,7 @@ public partial class Facturacion : ComponentBase
     private void IniciarEdicion(TarifaClienteDto tarifa)
     {
         _tarifaEditandoId = tarifa.Id;
+        _versionEditando = tarifa.Version;
         _editPrecio = tarifa.PrecioUnitario;
         _editMoneda = tarifa.MonedaIso;
         _editErrores = new();
@@ -183,7 +187,7 @@ public partial class Facturacion : ComponentBase
         try
         {
             var resultado = await Mediator.Send(
-                new ActualizarTarifaClienteCommand(_tarifaEditandoId, _editPrecio, _editMoneda));
+                new ActualizarTarifaClienteCommand(_tarifaEditandoId, _editPrecio, _editMoneda, _versionEditando));
 
             if (resultado.EsFallido)
             {

@@ -7,7 +7,8 @@ using MediatR;
 
 namespace CaeManager.Application.Comunicaciones.Commands.EditarMacro;
 
-public record EditarMacroCommand(Guid Id, string Titulo, string CuerpoHtml, Guid? ClienteId) : IRequest<Result>;
+public record EditarMacroCommand(
+    Guid Id, string Titulo, string CuerpoHtml, Guid? ClienteId, Guid Version = default) : IRequest<Result>;
 
 public class EditarMacroCommandValidator : AbstractValidator<EditarMacroCommand>
 {
@@ -33,6 +34,9 @@ public class EditarMacroCommandHandler(
         // si no, se podía mover una plantilla a la cartera de otro.
         if (macro is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(macro.ClienteId, cancellationToken))
             return Result.Fallo(Error.Crear("MacroRespuesta.NoEncontrada", "No encontramos esta macro."));
+
+        if (ConcurrenciaOptimista.Verificar(macro, request.Version, "esta macro") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         if (request.ClienteId is not null)
         {
