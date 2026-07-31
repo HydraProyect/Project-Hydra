@@ -187,6 +187,14 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<BackupsOptions>(configuration.GetSection(BackupsOptions.SeccionConfiguracion));
         services.AddHostedService<BackupHostedService>();
 
+        // La cola es singleton porque la comparten el productor (los Commands,
+        // scoped) y el consumidor (el hosted service, singleton). Se registra
+        // la clase concreta además de la interfaz: el procesador necesita su
+        // lector, que no forma parte del contrato de encolado.
+        services.AddSingleton<ColaAnalisisDocumentoEnMemoria>();
+        services.AddSingleton<IColaAnalisisDocumento>(sp => sp.GetRequiredService<ColaAnalisisDocumentoEnMemoria>());
+        services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
+
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>();
         services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>();
