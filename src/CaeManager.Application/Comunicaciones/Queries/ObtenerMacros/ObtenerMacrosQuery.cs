@@ -18,14 +18,22 @@ public record ObtenerMacrosQuery(Guid? ClienteId = null) : IRequest<IReadOnlyLis
 
 public record MacroListaDto(Guid Id, Guid? ClienteId, string? ClienteRazonSocial, string Titulo, string CuerpoHtml);
 
-public class ObtenerMacrosQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerMacrosQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerMacrosQuery, IReadOnlyList<MacroListaDto>>
 {
     public async Task<IReadOnlyList<MacroListaDto>> Handle(ObtenerMacrosQuery request, CancellationToken cancellationToken)
     {
-        var consulta = request.ClienteId is null
+        // Un ClienteId fuera de la cartera se trata como si no se hubiera
+        // pedido ninguno: se devuelven solo las macros genéricas, en vez de
+        // las plantillas de un cliente ajeno (hallazgo N-3). No es un error
+        // para no confirmar que ese cliente existe.
+        var clienteId = await alcanceDatos.ClienteOpcionalVisibleAsync(request.ClienteId, cancellationToken)
+            ? request.ClienteId
+            : null;
+
+        var consulta = clienteId is null
             ? dbContext.MacrosRespuesta.Where(m => m.ClienteId == null)
-            : dbContext.MacrosRespuesta.Where(m => m.ClienteId == null || m.ClienteId == request.ClienteId);
+            : dbContext.MacrosRespuesta.Where(m => m.ClienteId == null || m.ClienteId == clienteId);
 
         return await (
             from macro in consulta

@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using CaeManager.Application.Common;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -16,7 +18,7 @@ public class CurrentUserServiceTests
     {
         var authStateProvider = new AuthenticationStateProviderFalso(UsuarioAutenticadoCon(UsuarioIdDeEjemplo, "Administrador"));
         var httpContextAccessor = new HttpContextAccessorFalso(null);
-        var servicio = new CurrentUserService(authStateProvider, httpContextAccessor);
+        var servicio = CrearServicio(authStateProvider, httpContextAccessor);
 
         (await servicio.ObtenerUsuarioActualIdAsync()).Should().Be(UsuarioIdDeEjemplo);
         (await servicio.ObtenerRolActualAsync()).Should().Be("Administrador");
@@ -27,7 +29,7 @@ public class CurrentUserServiceTests
     {
         var authStateProvider = new AuthenticationStateProviderFalso(lanzarInvalidOperationException: true);
         var httpContextAccessor = new HttpContextAccessorFalso(UsuarioAutenticadoCon(UsuarioIdDeEjemplo, "Administrador"));
-        var servicio = new CurrentUserService(authStateProvider, httpContextAccessor);
+        var servicio = CrearServicio(authStateProvider, httpContextAccessor);
 
         (await servicio.ObtenerUsuarioActualIdAsync()).Should().Be(UsuarioIdDeEjemplo);
         (await servicio.ObtenerRolActualAsync()).Should().Be("Administrador");
@@ -38,10 +40,27 @@ public class CurrentUserServiceTests
     {
         var authStateProvider = new AuthenticationStateProviderFalso(lanzarInvalidOperationException: true);
         var httpContextAccessor = new HttpContextAccessorFalso(null);
-        var servicio = new CurrentUserService(authStateProvider, httpContextAccessor);
+        var servicio = CrearServicio(authStateProvider, httpContextAccessor);
 
         (await servicio.ObtenerUsuarioActualIdAsync()).Should().BeNull();
         (await servicio.ObtenerRolActualAsync()).Should().BeNull();
+    }
+
+    /// <summary>
+    /// Sin Delegated Workspace seleccionado, que es el caso de todo usuario
+    /// que no es Operador Delegado: <c>ObtenerRolActualAsync</c> devuelve el
+    /// claim sin resolver nada del contenedor ni tocar la base de datos, por
+    /// eso basta un proveedor vacío (ver CurrentUserService). El camino
+    /// delegado se cubre en CaeManager.IntegrationTests, con contexto real.
+    /// </summary>
+    private static CurrentUserService CrearServicio(
+        AuthenticationStateProvider authStateProvider, IHttpContextAccessor httpContextAccessor) =>
+        new(authStateProvider, httpContextAccessor, new ClienteActivoSeleccionadoFalso(),
+            new ServiceCollection().BuildServiceProvider());
+
+    private sealed class ClienteActivoSeleccionadoFalso : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
     }
 
     private static ClaimsPrincipal UsuarioAutenticadoCon(Guid usuarioId, string rol)
