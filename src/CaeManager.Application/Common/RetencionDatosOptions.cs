@@ -43,10 +43,16 @@ public class RetencionDatosOptions
     public CriterioInicioRetencion CriterioInicio { get; set; } = CriterioInicioRetencion.EventoMasTemprano;
 
     /// <summary>
-    /// Retención del Trabajador como entidad. Sin valor por defecto a
-    /// propósito: sigue sin decidirse (RGPD-TRATAMIENTO-DATOS.md § 5) y
-    /// afecta a datos de salud, así que el mecanismo no debe inventarse uno.
-    /// Null significa "no purgar trabajadores".
+    /// Plazo para Trabajadores dados de baja y su información asociada. Cinco
+    /// años contados <b>desde el día de la baja</b>, decidido por el
+    /// propietario del producto (2026-07-31) y configurable como el resto.
+    ///
+    /// A diferencia del Documento, aquí no hay dos eventos que comparar: la
+    /// baja es el único hito, así que <see cref="CriterioInicio"/> no aplica.
+    ///
+    /// Null desactiva la purga de trabajadores sin tocar la de documentos —
+    /// útil si la revisión legal pide separar ambos plazos, dado que esta
+    /// categoría incluye datos de salud.
     /// </summary>
-    public int? AniosRetencionTrabajadores { get; set; }
+    public int? AniosRetencionTrabajadores { get; set; } = 5;
 }
