@@ -6,6 +6,9 @@ public interface IAsignacionOperadorDelegadoRepository
 
     Task<bool> ExisteAsync(Guid delegacionTenantId, Guid usuarioId, CancellationToken cancellationToken = default);
 
+    Task<AsignacionOperadorDelegado?> ObtenerPorDelegacionYUsuarioAsync(
+        Guid delegacionTenantId, Guid usuarioId, CancellationToken cancellationToken = default);
+
     void Agregar(AsignacionOperadorDelegado asignacion);
 
     /// <summary>

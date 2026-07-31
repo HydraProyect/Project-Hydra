@@ -27,6 +27,11 @@ public class AsignacionOperadorDelegadoRepositorioFalso : IAsignacionOperadorDel
     public Task<bool> ExisteAsync(Guid delegacionTenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Asignaciones.Any(a => a.DelegacionTenantId == delegacionTenantId && a.UsuarioId == usuarioId));
 
+    public Task<AsignacionOperadorDelegado?> ObtenerPorDelegacionYUsuarioAsync(
+        Guid delegacionTenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Asignaciones.FirstOrDefault(
+            a => a.DelegacionTenantId == delegacionTenantId && a.UsuarioId == usuarioId));
+
     public void Agregar(AsignacionOperadorDelegado asignacion) => Asignaciones.Add(asignacion);
 
     public void Eliminar(AsignacionOperadorDelegado asignacion) => Asignaciones.Remove(asignacion);

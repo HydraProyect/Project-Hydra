@@ -16,7 +16,29 @@ namespace CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 /// responde el cliente. Ese par es lo que permite responder después "entramos
 /// del día X al Y por la incidencia Z".
 /// </summary>
-public record AbrirAccesoSoporteCommand(Guid DelegacionTenantId, string Motivo, int DiasDeVentana) : IRequest<Result>;
+/// <summary>
+/// <paramref name="Rol"/> es con qué permisos se entra en el tenant del
+/// cliente. <c>Consulta</c> —solo lectura— es lo que basta para reproducir la
+/// mayoría de incidencias y lo que menos expone; los de escritura solo cuando
+/// haga falta reproducir una acción, porque escribir en datos reales de un
+/// cliente para diagnosticar es delicado.
+/// </summary>
+public record AbrirAccesoSoporteCommand(
+    Guid DelegacionTenantId, string Motivo, int DiasDeVentana, string Rol = RolesSoporte.SoloLectura) : IRequest<Result>;
+
+/// <summary>
+/// Roles con los que puede entrar soporte. Coinciden con los que admite
+/// <c>CrearAsignacionOperadorDelegadoCommandValidator</c>: Administrador y
+/// DireccionCae quedan fuera a propósito — se opera dentro del alcance del
+/// workspace, nunca con privilegios de administración sobre la organización
+/// del cliente.
+/// </summary>
+public static class RolesSoporte
+{
+    public const string SoloLectura = "Consulta";
+
+    public static readonly string[] Admitidos = [SoloLectura, "GestorCae", "CoordinadorCae"];
+}
 
 public class AbrirAccesoSoporteCommandValidator : AbstractValidator<AbrirAccesoSoporteCommand>
 {
@@ -37,11 +59,16 @@ public class AbrirAccesoSoporteCommandValidator : AbstractValidator<AbrirAccesoS
         RuleFor(c => c.DiasDeVentana)
             .InclusiveBetween(1, MaximoDiasDeVentana)
             .WithMessage($"La ventana de acceso debe estar entre 1 y {MaximoDiasDeVentana} días.");
+
+        RuleFor(c => c.Rol)
+            .Must(rol => RolesSoporte.Admitidos.Contains(rol))
+            .WithMessage("Ese rol no está disponible para un acceso de soporte.");
     }
 }
 
 public class AbrirAccesoSoporteCommandHandler(
     IDelegacionTenantRepository repositorio,
+    IAsignacionOperadorDelegadoRepository asignacionRepositorio,
     IApplicationDbContext dbContext,
     IRegistroActividadSoporteRepository registroRepositorio,
     ICurrentUserService currentUserService,
@@ -71,6 +98,22 @@ public class AbrirAccesoSoporteCommandHandler(
 
         var ahora = DateTime.UtcNow;
         delegacion.ActivarParaSoporte(request.Motivo, ahora.AddDays(request.DiasDeVentana), ahora);
+
+        // Quien abre la ventana es quien va a entrar, así que se asigna aquí
+        // mismo: abrir el acceso sin operador asignado dejaría la delegación
+        // viva pero inservible, y obligaría a un segundo paso que nadie
+        // entendería.
+        //
+        // Se rehace la asignación en vez de conservar la anterior porque el
+        // rol puede cambiar entre visitas: una vez basta con leer y la
+        // siguiente hace falta reproducir una acción.
+        var asignacionPrevia = await asignacionRepositorio
+            .ObtenerPorDelegacionYUsuarioAsync(delegacion.Id, usuarioId.Value, cancellationToken);
+
+        if (asignacionPrevia is not null)
+            asignacionRepositorio.Eliminar(asignacionPrevia);
+
+        asignacionRepositorio.Agregar(new AsignacionOperadorDelegado(delegacion.Id, usuarioId.Value, request.Rol));
 
         // El registro pertenece al tenant VISITADO, no al de plataforma: es el
         // cliente quien debe poder consultar qué se hizo en sus datos. Sin

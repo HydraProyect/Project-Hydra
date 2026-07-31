@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CerrarAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
@@ -31,6 +32,15 @@ public partial class Delegaciones : ComponentBase
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Delegaciones> Logger { get; set; } = default!;
+    [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
+
+    /// <summary>
+    /// Gestionar delegaciones se hace desde la propia organización, nunca
+    /// operando el workspace de otra: los comandos deciden con el tenant de
+    /// origen, así que desde aquí fallarían — y con un mensaje sobre el rol
+    /// que no explica el motivo real.
+    /// </summary>
+    private bool OperandoWorkspaceAjeno => ClienteActivoSeleccionado.TenantIdSeleccionado is not null;
 
     private IReadOnlyList<DelegacionDto> _delegaciones = [];
     private readonly Dictionary<Guid, string> _nombresPorUsuarioId = [];
@@ -44,6 +54,7 @@ public partial class Delegaciones : ComponentBase
     private DelegacionDto? _delegacionSoporteAAbrir;
     private string _motivoSoporte = string.Empty;
     private string _diasSoporte = "7";
+    private string _rolSoporte = RolesSoporte.SoloLectura;
     private bool _abriendoSoporte;
     private string? _errorSoporte;
 
@@ -125,6 +136,7 @@ public partial class Delegaciones : ComponentBase
         _delegacionSoporteAAbrir = delegacion;
         _motivoSoporte = string.Empty;
         _diasSoporte = "7";
+        _rolSoporte = RolesSoporte.SoloLectura;
         _errorSoporte = null;
     }
 
@@ -145,7 +157,7 @@ public partial class Delegaciones : ComponentBase
             }
 
             var resultado = await Mediator.Send(
-                new AbrirAccesoSoporteCommand(_delegacionSoporteAAbrir.Id, _motivoSoporte, dias));
+                new AbrirAccesoSoporteCommand(_delegacionSoporteAAbrir.Id, _motivoSoporte, dias, _rolSoporte));
 
             if (resultado.EsFallido)
             {
