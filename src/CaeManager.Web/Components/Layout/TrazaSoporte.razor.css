@@ -1,0 +1,11 @@
+/* Franja permanente durante una sesión de soporte. Deliberadamente visible y
+   no un badge discreto: quien opera datos de otra organización tiene que
+   verlo sin buscarlo, y saber que queda registrado. */
+.aviso-sesion-soporte {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-warning-500);
+    color: #1a1206;
+    font: var(--font-body-sm);
+    font-weight: 600;
+    text-align: center;
+}
