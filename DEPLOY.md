@@ -41,6 +41,12 @@ En la pestaña **Variables** del servicio, añade:
 | `Backups__Aws__BucketName` | nombre del bucket S3 | |
 | `Backups__Aws__Region` | región del bucket, p. ej. `eu-south-2` | |
 | `Backups__IntervaloHoras` | `24` (opcional, es el valor por defecto) | Cada cuánto corre el backup |
+| `DataProtection__Kms__Activo` | `true` (opcional, por defecto `false`) | Cifra las claves de Data Protection con AWS KMS antes de escribirlas al volumen — sin esto viajan **en claro** dentro del mismo backup que la base de datos que protegen (`RUNBOOK-CLAVES.md` § KMS) |
+| `DataProtection__Kms__KeyId` | ARN o alias de la clave, p. ej. `alias/caemanager-dataprotection` | Clave simétrica de cifrado/descifrado, en la misma región que el bucket |
+| `DataProtection__Kms__AccessKeyId` / `DataProtection__Kms__SecretAccessKey` | credenciales de un usuario IAM **distinto** del de backups, con permiso solo de `kms:Encrypt`/`kms:Decrypt` sobre esa clave | Separarlo del de backups es lo que hace que filtrar las credenciales de S3 no dé también la llave de lo que hay dentro |
+| `DataProtection__Kms__Region` | región de la clave, p. ej. `eu-south-2` | Debe coincidir con la región donde se creó la clave |
+
+Las cuatro variables de `DataProtection__Kms__*` van juntas: si falta cualquiera, el cifrado queda apagado y el arranque lo advierte por log. Con todas puestas, el arranque hace un cifrado/descifrado de prueba y deja dicho si la clave responde — busca `cifrado con AWS KMS operativo` en el log del despliegue.
 
 Producción y staging pueden usar las mismas variables de `Backups__Aws__*` (mismo bucket) sin pisarse los backups entre sí — cada uno sube a su propia carpeta dentro del bucket, identificada automáticamente por el nombre del servicio en Railway.
 
