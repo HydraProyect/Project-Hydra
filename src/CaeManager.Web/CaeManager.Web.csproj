@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CaeManager.Application\CaeManager.Application.csproj" />
     <ProjectReference Include="..\CaeManager.Infrastructure\CaeManager.Infrastructure.csproj" />
+    <ProjectReference Include="..\CaeManager.Migrations.PostgreSQL\CaeManager.Migrations.PostgreSQL.csproj" />
   </ItemGroup>
 
   <ItemGroup>

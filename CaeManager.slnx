@@ -3,6 +3,7 @@
     <Project Path="src/CaeManager.Application/CaeManager.Application.csproj" />
     <Project Path="src/CaeManager.Domain/CaeManager.Domain.csproj" />
     <Project Path="src/CaeManager.Infrastructure/CaeManager.Infrastructure.csproj" />
+    <Project Path="src/CaeManager.Migrations.PostgreSQL/CaeManager.Migrations.PostgreSQL.csproj" />
     <Project Path="src/CaeManager.Web/CaeManager.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
