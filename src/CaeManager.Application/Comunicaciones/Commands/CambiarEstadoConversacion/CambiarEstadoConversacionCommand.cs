@@ -17,13 +17,15 @@ public class CambiarEstadoConversacionCommandValidator : AbstractValidator<Cambi
     }
 }
 
-public class CambiarEstadoConversacionCommandHandler(IConversacionCorreoRepository repositorio, IUnitOfWork unitOfWork)
+public class CambiarEstadoConversacionCommandHandler(
+    IConversacionCorreoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<CambiarEstadoConversacionCommand, Result>
 {
     public async Task<Result> Handle(CambiarEstadoConversacionCommand request, CancellationToken cancellationToken)
     {
         var conversacion = await repositorio.ObtenerPorIdAsync(request.ConversacionId, cancellationToken);
-        if (conversacion is null)
+        // Ver AsignarEjecutivoConversacionCommandHandler (hallazgo N-3).
+        if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
             return Result.Fallo(Error.Crear("ConversacionCorreo.NoEncontrada", "No encontramos esta conversación."));
 
         conversacion.CambiarEstado(request.NuevoEstado);

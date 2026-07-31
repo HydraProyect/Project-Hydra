@@ -1,5 +1,10 @@
 @page "/comunicaciones"
 @rendermode InteractiveServer
+@* Mismos roles que el menú completo de NavMenu: la bandeja es una pantalla de
+   gestión CAE y el rol Cliente no entra. Que el menú le oculte el enlace no
+   basta — decide qué pestañas existen, no qué puede pedirse por URL
+   (hallazgo N-2 de INFORME-AUDITORIA-2.md). *@
+@attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
 @using CaeManager.Domain.Comunicaciones
@@ -173,6 +178,11 @@
                                 }
                                 <span class="bandeja-mensaje-fecha">@FormatearFechaRelativa(mensaje.FechaUtc)</span>
                             </div>
+                            @* MarkupString solo es admisible aquí porque el cuerpo llega
+                               ya saneado desde ObtenerConversacionPorIdQuery — ver
+                               MensajeDetalleDto. No saneamos en la vista a propósito: si
+                               mañana hay otra pantalla o una API, la protección tiene que
+                               venir de la capa por la que pasan todas. *@
                             <div class="bandeja-mensaje-cuerpo">@((MarkupString)mensaje.CuerpoHtml)</div>
                         </div>
                     }
