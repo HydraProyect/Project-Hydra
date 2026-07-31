@@ -133,6 +133,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
         services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
+        // La clase concreta se registra además de la interfaz: las páginas de
+        // administración necesitan sus listados, y los Commands solo la
+        // comprobación de IDirectorioUsuariosService.
+        services.AddScoped<DirectorioUsuariosTenant>();
+        services.AddScoped<IDirectorioUsuariosService>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
         // Scoped (no Singleton): depende de ITenantActual, que es scoped —
