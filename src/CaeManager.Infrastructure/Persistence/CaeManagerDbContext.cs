@@ -122,6 +122,7 @@ public class CaeManagerDbContext(
     IQueryable<ProyectoTecnico> IApplicationDbContext.ProyectosTecnicos => ProyectosTecnicos;
     IQueryable<DelegacionTenant> IApplicationDbContext.DelegacionesTenant => DelegacionesTenant;
     IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> IApplicationDbContext.RegistrosActividadSoporte => RegistrosActividadSoporte;
+    IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IApplicationDbContext.SolicitudesPurga => SolicitudesPurga;
     IQueryable<AsignacionOperadorDelegado> IApplicationDbContext.AsignacionesOperadorDelegado => AsignacionesOperadorDelegado;
     IQueryable<Evaluacion> IApplicationDbContext.Evaluaciones => Evaluaciones;
     IQueryable<Incidencia> IApplicationDbContext.Incidencias => Incidencias;
