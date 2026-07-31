@@ -49,26 +49,66 @@
                             }
                         </h2>
                         <span class="delegacion-fecha">Desde @delegacion.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</span>
+
+                        @if (delegacion.EsSoporte && delegacion.AccesoVigente)
+                        {
+                            <p class="delegacion-motivo">
+                                <strong>Motivo:</strong> @delegacion.MotivoActivacion
+                                @if (delegacion.ExpiraEnUtc is { } expira)
+                                {
+                                    <text> · hasta el @expira.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</text>
+                                }
+                            </p>
+                        }
                     </div>
 
                     <div class="delegacion-acciones">
-                        <Badge Tono="@(delegacion.Activa ? TonoBadge.Exito : TonoBadge.Neutro)">
-                            @(delegacion.Activa ? "Activa" : "Revocada")
-                        </Badge>
-
-                        @if (delegacion.Activa)
+                        @if (delegacion.EsSoporte)
                         {
-                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
-                                   OnClick="() => _delegacionARevocar = delegacion">
-                                Revocar acceso
-                            </Boton>
+                            @* Una delegación de soporte apagada no está "revocada":
+                               está aprovisionada y sin abrir, que es su estado normal
+                               en reposo. Y se abre con motivo y ventana, nunca con el
+                               "Reactivar" de una comercial. *@
+                            <Badge Tono="TonoBadge.Neutro">Soporte</Badge>
+
+                            @if (delegacion.AccesoVigente)
+                            {
+                                <Badge Tono="TonoBadge.Advertencia">Acceso abierto</Badge>
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
+                                       OnClick="() => CerrarAccesoSoporteAsync(delegacion)"
+                                       Cargando="@(_procesandoId == delegacion.Id)">
+                                    Cerrar acceso
+                                </Boton>
+                            }
+                            else
+                            {
+                                <Badge Tono="TonoBadge.Neutro">@(delegacion.VentanaCaducada ? "Ventana caducada" : "Sin abrir")</Badge>
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                                       OnClick="() => AbrirFormularioSoporte(delegacion)">
+                                    Abrir acceso
+                                </Boton>
+                            }
                         }
                         else
                         {
-                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
-                                   OnClick="() => ReactivarAsync(delegacion)" Cargando="@(_procesandoId == delegacion.Id)">
-                                Reactivar
-                            </Boton>
+                            <Badge Tono="@(delegacion.Activa ? TonoBadge.Exito : TonoBadge.Neutro)">
+                                @(delegacion.Activa ? "Activa" : "Revocada")
+                            </Badge>
+
+                            @if (delegacion.Activa)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
+                                       OnClick="() => _delegacionARevocar = delegacion">
+                                    Revocar acceso
+                                </Boton>
+                            }
+                            else
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                                       OnClick="() => ReactivarAsync(delegacion)" Cargando="@(_procesandoId == delegacion.Id)">
+                                    Reactivar
+                                </Boton>
+                            }
                         }
                     </div>
                 </div>
@@ -109,6 +149,38 @@
         }
     }
 </div>
+
+@* Abrir acceso de soporte: motivo y ventana son obligatorios porque es Hydra
+   entrando en datos de los que responde el cliente. Ese par es lo que permite
+   responder después "entramos del día X al Y por la incidencia Z". *@
+<Modal Visible="_delegacionSoporteAAbrir is not null" VisibleChanged="v => { if (!v) _delegacionSoporteAAbrir = null; }"
+       Titulo="Abrir acceso de soporte" CerrarAlHacerClicFuera="!_abriendoSoporte">
+    <ChildContent>
+        @if (_delegacionSoporteAAbrir is not null)
+        {
+            <p>
+                Vas a poder entrar en los datos de <strong>@_delegacionSoporteAAbrir.ClienteNombre</strong>.
+                Queda registrado en su propio historial: el cliente puede consultar qué se hizo.
+            </p>
+
+            <CampoTexto Etiqueta="Motivo" Valor="@_motivoSoporte" ValorChanged="v => _motivoSoporte = v"
+                        Placeholder="Incidencia #442: no carga el listado de documentos" />
+
+            <CampoTexto Etiqueta="Días de acceso" Type="number" Valor="@_diasSoporte"
+                        ValorChanged="v => _diasSoporte = v" />
+
+            @if (_errorSoporte is not null)
+            {
+                <p class="aviso-error">@_errorSoporte</p>
+            }
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_abriendoSoporte"
+               OnClick="() => _delegacionSoporteAAbrir = null">Cancelar</Boton>
+        <Boton Cargando="_abriendoSoporte" OnClick="AbrirAccesoSoporteAsync">Abrir acceso</Boton>
+    </Pie>
+</Modal>
 
 <Modal Visible="_delegacionARevocar is not null" VisibleChanged="v => { if (!v) _delegacionARevocar = null; }"
        Titulo="Revocar el acceso" CerrarAlHacerClicFuera="!_revocando">
