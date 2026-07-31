@@ -90,7 +90,21 @@ public class DelegacionTenant : Entity
         MotivoActivacion = null;
     }
 
-    public void Reactivar() => Activa = true;
+    /// <summary>
+    /// Reactiva una delegación comercial. <b>No sirve para una de soporte</b>:
+    /// esa se abre con <see cref="ActivarParaSoporte"/>, que exige motivo y
+    /// ventana. Sin este bloqueo, la reactivación normal sería una puerta
+    /// trasera que concede acceso permanente a los datos de un cliente
+    /// saltándose el control entero.
+    /// </summary>
+    public void Reactivar()
+    {
+        if (Proposito is PropositoDelegacion.Soporte)
+            throw new InvalidOperationException(
+                "Una delegación de soporte se abre con motivo y ventana, no reactivándola sin más.");
+
+        Activa = true;
+    }
 
     /// <summary>
     /// Abre una ventana de acceso de soporte: exige decir por qué y hasta
