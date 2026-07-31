@@ -27,6 +27,7 @@ public partial class Delegaciones : ComponentBase
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private ILogger<Delegaciones> Logger { get; set; } = default!;
 
     private IReadOnlyList<DelegacionDto> _delegaciones = [];
     private readonly Dictionary<Guid, string> _nombresPorUsuarioId = [];
@@ -50,8 +51,9 @@ public partial class Delegaciones : ComponentBase
             _delegaciones = await Mediator.Send(new ObtenerDelegacionesQuery());
             await CargarNombresDeOperadoresAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Error al cargar las delegaciones del tenant de origen.");
             _error = true;
         }
         finally
