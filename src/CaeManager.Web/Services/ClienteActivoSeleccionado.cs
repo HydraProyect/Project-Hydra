@@ -58,8 +58,18 @@ public class ClienteActivoSeleccionado(
     /// Vigencia del token en servidor. Coincide con el <c>MaxAge</c> de la
     /// cookie, pero esa es una indicación al navegador que un atacante ignora
     /// reenviando el valor; esta la comprueba el servidor al descifrar.
+    ///
+    /// Una jornada, no las 12 h de antes: es la ventana en la que el valor
+    /// sigue sirviendo si se extrae del navegador, y no hay ningún flujo
+    /// legítimo que necesite operar el mismo workspace delegado más allá de
+    /// un día de trabajo. Lo que cierra la revocación no es esto sino
+    /// <see cref="RevalidacionClienteActivoMiddleware"/>, que comprueba la
+    /// delegación viva en cada petición (hallazgo N-6 de
+    /// INFORME-AUDITORIA-2.md); acortarla a minutos habría obligado a
+    /// reelegir cliente a mitad de jornada sin cerrar nada que el middleware
+    /// no cierre ya.
     /// </summary>
-    public static readonly TimeSpan Vigencia = TimeSpan.FromHours(12);
+    public static readonly TimeSpan Vigencia = TimeSpan.FromHours(8);
 
     private Guid? _tenantIdSeleccionado;
     private bool _leidoDeCookie;
@@ -85,6 +95,20 @@ public class ClienteActivoSeleccionado(
 
             return _tenantIdSeleccionado;
         }
+    }
+
+    /// <summary>
+    /// Descarta la selección para el resto de esta petición. Lo llama
+    /// <see cref="RevalidacionClienteActivoMiddleware"/> cuando comprueba que
+    /// la delegación ya no está viva: borrar la cookie de la respuesta no
+    /// basta, porque <c>Request.Cookies</c> sigue trayéndola en la petición
+    /// que se está sirviendo y el tenant se resolvería una vez más al
+    /// workspace retirado.
+    /// </summary>
+    public void Invalidar()
+    {
+        _tenantIdSeleccionado = null;
+        _leidoDeCookie = true;
     }
 
     private Guid? LeerDeCookie()

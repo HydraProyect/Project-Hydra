@@ -226,6 +226,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
+// Después de UseAuthentication (hace falta el usuario resuelto) y antes de
+// que nada resuelva el tenant.
+app.UseRevalidacionClienteActivo();
+
 // Los archivos estáticos (JS/CSS) no son sensibles y nunca deben exigir
 // sesión iniciada — dejarlos detrás de la FallbackPolicy generaba una
 // carrera real: en una navegación fresca, blazor.web.js y nuestros propios

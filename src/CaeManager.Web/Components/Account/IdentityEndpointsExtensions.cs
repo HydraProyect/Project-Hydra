@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 
@@ -13,9 +14,19 @@ public static class IdentityEndpointsExtensions
 
     public static IEndpointRouteBuilder MapIdentityEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/cuenta/cerrar-sesion", async (SignInManager<ApplicationUser> signInManager) =>
+        endpoints.MapPost("/cuenta/cerrar-sesion", async (
+            SignInManager<ApplicationUser> signInManager, HttpContext httpContext) =>
         {
             await signInManager.SignOutAsync();
+
+            // La cookie de Delegated Workspace no la borra SignOutAsync: es
+            // nuestra, no de Identity. Sin esto sobrevivía al cierre de
+            // sesión y al volver a entrar se reanudaba el workspace anterior
+            // —incluido uno cuya delegación se hubiera revocado entretanto—
+            // en lugar de empezar en el tenant de origen (hallazgo N-6 de
+            // INFORME-AUDITORIA-2.md).
+            httpContext.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
+
             return Results.LocalRedirect("/cuenta/iniciar-sesion");
         });
 
