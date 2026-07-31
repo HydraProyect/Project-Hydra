@@ -35,9 +35,12 @@ Registro factual de qué datos personales trata la aplicación, dónde viven, qu
 
 ## 5. Retención
 
-- **Documentos: 5 años**, decidido por el usuario (2026-07-18) — implementación del mecanismo real todavía pendiente, ver [Issue #10](https://github.com/christopherjp1-jpg/Project-Hydra/issues/10) para los puntos abiertos (desde qué fecha se cuenta, y si aplica igual a los tres ámbitos de Documento).
-- **Trabajador como entidad completa**: sin decidir todavía, ver el mismo Issue #10.
-- Hoy, técnicamente, nada se purga — el soft-delete (`EstaEliminado`) oculta filas pero las mantiene indefinidamente en la base de datos. Ver [Issue #11](https://github.com/christopherjp1-jpg/Project-Hydra/issues/11) para el mecanismo real de purga (derecho al olvido).
+- **Documentos: 5 años**, decidido por el usuario (2026-07-18), por coincidir con la prescripción de responsabilidades en el orden social.
+- **Desde qué fecha se cuenta**: decidido por el usuario (2026-07-31) — desde el **evento más temprano** entre el fin de vigencia del documento y el cese de la relación (baja del trabajador, cierre del proyecto, fin de relación con la empresa). Razonamiento: un documento subido el último día de su vigencia hay que conservarlo su plazo desde ahí, y contar desde la emisión haría que dos documentos con la misma vigencia se purgasen en momentos distintos según cuándo se hubieran subido. **Los documentos sin fecha de vencimiento cuentan desde la emisión**, que es lo que evita tener documentos perpetuos.
+- **Trabajador como entidad completa**: **sigue sin decidir**. Afecta a datos de salud (reconocimientos médicos), que exigen tratamiento específico y previsiblemente bloqueo mientras persista cualquier responsabilidad por daños profesionales. `RetencionDatosOptions.AniosRetencionTrabajadores` es null por defecto: sin decisión, no se purga ningún Trabajador.
+- **Qué significa purgar**: **anonimización**, no borrado físico — decidido por el usuario (2026-07-31). Rompe de forma irreversible el vínculo con la persona física y conserva el histórico de auditoría CAE, que deja de ser dato personal.
+- **Estado de la implementación**: el **cálculo** está implementado y cubierto por tests (`CalculadoraRetencionDocumento`, lógica pura en Domain), y los plazos y el criterio son configurables fuera del código (`RetencionDatos` en la configuración). **La ejecución de la purga/anonimización todavía no está construida**, y la política está **apagada por defecto** (`RetencionDatos:Activa = false`): hoy, técnicamente, sigue sin purgarse nada — el soft-delete (`EstaEliminado`) oculta filas pero las mantiene indefinidamente. Ver [Issue #11](https://github.com/christopherjp1-jpg/Project-Hydra/issues/11).
+- Los plazos y criterios de este apartado **no sustituyen una revisión por un asesor legal** (ver encabezado de este documento): están recogidos como decisión del propietario del producto, no como dictamen jurídico.
 
 ## 6. Subencargados del tratamiento
 
