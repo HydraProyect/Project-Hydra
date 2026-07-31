@@ -32,6 +32,11 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             Nombre = TenantSeedData.NombrePorDefecto,
             Estado = EstadoTenant.Activo,
             CreadoEnUtc = new DateTime(2026, 7, 23, 0, 0, 0, DateTimeKind.Utc),
+            // El tenant #1 es desde el que se opera Hydra, así que es también
+            // el de plataforma: el único que puede recibir delegaciones de
+            // soporte sobre los demás (ver Tenant.EsPlataforma). Se marca aquí
+            // y no se deduce del Id, que es público y determinista.
+            EsPlataforma = true,
         });
     }
 }
