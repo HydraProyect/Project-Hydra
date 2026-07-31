@@ -33,6 +33,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Interceptors;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -50,13 +51,16 @@ public static class InfrastructureServiceCollectionExtensions
     {
         services.AddScoped<AuditoriaInterceptor>();
         services.AddScoped<TenantSelladoInterceptor>();
+        // Sin estado y sin dependencias: una sola instancia sirve.
+        services.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 
         services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
         {
             options.UseSqlite(configuration.GetConnectionString("CaeManagerDb"));
             options.AddInterceptors(
                 serviceProvider.GetRequiredService<AuditoriaInterceptor>(),
-                serviceProvider.GetRequiredService<TenantSelladoInterceptor>());
+                serviceProvider.GetRequiredService<TenantSelladoInterceptor>(),
+                serviceProvider.GetRequiredService<ConcurrenciaOptimistaInterceptor>());
         });
 
         services
