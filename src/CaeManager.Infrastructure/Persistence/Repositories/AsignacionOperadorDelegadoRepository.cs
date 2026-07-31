@@ -12,6 +12,11 @@ public class AsignacionOperadorDelegadoRepository(CaeManagerDbContext dbContext)
         dbContext.AsignacionesOperadorDelegado.AnyAsync(
             a => a.DelegacionTenantId == delegacionTenantId && a.UsuarioId == usuarioId, cancellationToken);
 
+    public Task<AsignacionOperadorDelegado?> ObtenerPorDelegacionYUsuarioAsync(
+        Guid delegacionTenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+        dbContext.AsignacionesOperadorDelegado.FirstOrDefaultAsync(
+            a => a.DelegacionTenantId == delegacionTenantId && a.UsuarioId == usuarioId, cancellationToken);
+
     public void Agregar(AsignacionOperadorDelegado asignacion) => dbContext.AsignacionesOperadorDelegado.Add(asignacion);
 
     public void Eliminar(AsignacionOperadorDelegado asignacion) => dbContext.AsignacionesOperadorDelegado.Remove(asignacion);
