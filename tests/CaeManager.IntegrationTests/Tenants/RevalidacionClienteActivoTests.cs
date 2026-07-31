@@ -99,6 +99,32 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Una_ventana_de_soporte_caducada_corta_el_acceso_sin_que_nadie_la_revoque()
+    {
+        // La delegación sigue con Activa = true: lo que venció es la ventana.
+        // Si la caducidad no se comprobara en cada petición, el operador de
+        // soporte conservaría el acceso hasta que alguien se acordara de
+        // cerrarlo a mano — que es justo lo que la ventana evita.
+        await using (var contextoVencer = CrearContexto())
+        {
+            // Se sitúa la caducidad en el pasado, que es lo que habría hecho
+            // el paso del tiempo sobre una ventana abierta.
+            var delegacion = await contextoVencer.DelegacionesTenant.FirstAsync(d => d.Id == _delegacionId);
+            contextoVencer.Entry(delegacion).Property(nameof(DelegacionTenant.ExpiraEnUtc))
+                .CurrentValue = DateTime.UtcNow.AddMinutes(-1);
+            await contextoVencer.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto();
+        var (httpContext, seleccion) = PrepararPeticionConTokenValido();
+
+        await EjecutarMiddlewareAsync(httpContext, seleccion, contexto);
+
+        seleccion.TenantIdSeleccionado.Should().BeNull();
+        CabeceraDeBorradoDeCookie(httpContext).Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task Sin_cookie_de_seleccion_el_middleware_no_consulta_nada()
     {
         // El caso de todo usuario que no es Operador Delegado: coste cero.
