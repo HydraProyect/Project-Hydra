@@ -6,7 +6,8 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 
 public record ObtenerEmpresaPorIdQuery(Guid Id) : IRequest<EmpresaDetalleDto?>;
 
-public record EmpresaDetalleDto(Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, IReadOnlyList<Guid> ClienteIds);
+public record EmpresaDetalleDto(
+    Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, IReadOnlyList<Guid> ClienteIds, Guid Version);
 
 public class ObtenerEmpresaPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerEmpresaPorIdQuery, EmpresaDetalleDto?>
@@ -17,7 +18,7 @@ public class ObtenerEmpresaPorIdQueryHandler(IApplicationDbContext dbContext, IA
 
         var empresa = await dbContext.Empresas
             .Where(e => e.Id == request.Id)
-            .Select(e => new { e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc })
+            .Select(e => new { e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc, e.Version })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (empresa is null) return null;
@@ -27,6 +28,7 @@ public class ObtenerEmpresaPorIdQueryHandler(IApplicationDbContext dbContext, IA
             .Select(ec => ec.ClienteId)
             .ToListAsync(cancellationToken);
 
-        return new EmpresaDetalleDto(empresa.Id, empresa.RazonSocial, empresa.Cif, empresa.CreadoEnUtc, clienteIds);
+        return new EmpresaDetalleDto(
+            empresa.Id, empresa.RazonSocial, empresa.Cif, empresa.CreadoEnUtc, clienteIds, empresa.Version);
     }
 }

@@ -22,6 +22,9 @@ public partial class Macros : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    // Version del registro tal como se abrio: vuelve en el Command para
+    // detectar que otra persona guardo mientras el formulario estaba abierto.
+    private Guid _versionEditando;
     private string _titulo = string.Empty;
     private string _cuerpo = string.Empty;
     private string _clienteIdFormulario = string.Empty;
@@ -83,6 +86,7 @@ public partial class Macros : ComponentBase
     private void AbrirEditar(MacroListaDto macro)
     {
         _editandoId = macro.Id;
+        _versionEditando = macro.Version;
         _titulo = macro.Titulo;
         _cuerpo = macro.CuerpoHtml;
         _clienteIdFormulario = macro.ClienteId?.ToString() ?? string.Empty;
@@ -115,7 +119,7 @@ public partial class Macros : ComponentBase
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarMacroCommand(_editandoId.Value, _titulo, _cuerpo, clienteId));
+                var resultado = await Mediator.Send(new EditarMacroCommand(_editandoId.Value, _titulo, _cuerpo, clienteId, _versionEditando));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 

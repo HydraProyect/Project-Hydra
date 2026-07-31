@@ -6,7 +6,8 @@ using MediatR;
 
 namespace CaeManager.Application.Facturacion.Commands.ActualizarTarifaCliente;
 
-public record ActualizarTarifaClienteCommand(Guid Id, decimal PrecioUnitario, string MonedaIso)
+public record ActualizarTarifaClienteCommand(
+    Guid Id, decimal PrecioUnitario, string MonedaIso, Guid Version = default)
     : IRequest<Result>;
 
 public class ActualizarTarifaClienteCommandValidator : AbstractValidator<ActualizarTarifaClienteCommand>
@@ -33,6 +34,9 @@ public class ActualizarTarifaClienteCommandHandler(
         var tarifa = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (tarifa is null)
             return Result.Fallo(Error.Crear("TarifaCliente.NoEncontrada", "La tarifa no existe o no tienes acceso."));
+
+        if (ConcurrenciaOptimista.Verificar(tarifa, request.Version, "esta tarifa") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         tarifa.Actualizar(request.PrecioUnitario, request.MonedaIso);
         await unitOfWork.SaveChangesAsync(cancellationToken);

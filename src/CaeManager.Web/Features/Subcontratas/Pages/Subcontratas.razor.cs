@@ -35,6 +35,9 @@ public partial class Subcontratas : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    // Version del registro tal como se abrio: vuelve en el Command para
+    // detectar que otra persona guardo mientras el formulario estaba abierto.
+    private Guid _versionEditando;
     private string _razonSocial = string.Empty;
     private HashSet<Guid> _clienteIdsSeleccionados = [];
     private HashSet<Guid> _empresaIdsSeleccionados = [];
@@ -145,6 +148,7 @@ public partial class Subcontratas : ComponentBase
         }
 
         _editandoId = subcontrata.Id;
+        _versionEditando = subcontrata.Version;
         _razonSocial = subcontrata.RazonSocial;
         _clienteIdsSeleccionados = subcontrata.ClienteIds.ToHashSet();
         _empresaIdsSeleccionados = subcontrata.EmpresaIds.ToHashSet();
@@ -248,7 +252,7 @@ public partial class Subcontratas : ComponentBase
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarSubcontrataCommand(_editandoId!.Value, _razonSocial, clienteIds, empresaIds));
+                var resultado = await Mediator.Send(new EditarSubcontrataCommand(_editandoId!.Value, _razonSocial, clienteIds, empresaIds, _versionEditando));
                 if (resultado.EsFallido)
                 {
                     _mensajeErrorFormulario = resultado.Error.Mensaje;

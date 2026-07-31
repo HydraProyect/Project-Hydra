@@ -16,7 +16,8 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 /// </summary>
 public record ObtenerMacrosQuery(Guid? ClienteId = null) : IRequest<IReadOnlyList<MacroListaDto>>;
 
-public record MacroListaDto(Guid Id, Guid? ClienteId, string? ClienteRazonSocial, string Titulo, string CuerpoHtml);
+public record MacroListaDto(
+    Guid Id, Guid? ClienteId, string? ClienteRazonSocial, string Titulo, string CuerpoHtml, Guid Version);
 
 public class ObtenerMacrosQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerMacrosQuery, IReadOnlyList<MacroListaDto>>
@@ -40,7 +41,9 @@ public class ObtenerMacrosQueryHandler(IApplicationDbContext dbContext, IAlcance
             join cliente in dbContext.Clientes on macro.ClienteId equals cliente.Id into clientesUnidos
             from cliente in clientesUnidos.DefaultIfEmpty()
             orderby macro.Titulo
-            select new MacroListaDto(macro.Id, macro.ClienteId, cliente != null ? cliente.RazonSocial : null, macro.Titulo, macro.CuerpoHtml))
+            select new MacroListaDto(
+                macro.Id, macro.ClienteId, cliente != null ? cliente.RazonSocial : null, macro.Titulo, macro.CuerpoHtml,
+                macro.Version))
             .ToListAsync(cancellationToken);
     }
 }
