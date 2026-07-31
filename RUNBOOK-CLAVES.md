@@ -23,7 +23,69 @@ Esto **no** afecta a las contraseñas de los propios usuarios de CAE Manager (es
 - **Implementado (2026-07-18)**: `BackupHostedService` (`src/CaeManager.Infrastructure/Backups/`) sube automáticamente `CaeManager.db` + `dataprotection-keys/` **juntos, en la misma operación**, a un bucket de S3 — cada `Backups:IntervaloHoras` (24h por defecto) y una vez más al arrancar el proceso. La base de datos se respalda con `SqliteConnection.BackupDatabase` (el mecanismo online de SQLite, no bloquea escrituras mientras corre) y las claves se comprimen en un `.zip`. Apagado por defecto (`Backups:Activo=false`, mismo patrón que `DatosPrueba:Activo`) — no intenta nada sin cuenta de AWS configurada. Variables necesarias en Railway: `Backups__Activo=true`, `Backups__Aws__AccessKeyId`, `Backups__Aws__SecretAccessKey`, `Backups__Aws__BucketName`, `Backups__Aws__Region` (ver `DEPLOY.md`).
   - Producción y staging pueden compartir el mismo bucket/credenciales sin pisarse — cada backup se sube bajo un prefijo `{RAILWAY_SERVICE_NAME}/{fecha-hora}/`, tomado automáticamente de la variable que Railway ya inyecta por servicio.
   - Retención: el bucket tiene versionado activado (recomendado al crearlo) para poder recuperar una versión anterior si un backup corrupto sobrescribe uno bueno. Para borrar automáticamente backups viejos, configura una **Lifecycle rule** en el propio bucket de S3 (consola de AWS → el bucket → pestaña *Management* → *Create lifecycle rule* → expirar objetos con más de N días) — no hay borrado automático implementado en la app a propósito, para no arriesgarse a borrar algo que todavía hiciera falta por un bug.
-- Alternativa más robusta a mediano plazo, todavía sin implementar: `ProtectKeysWithCertificate` o un almacén gestionado (Azure Key Vault, AWS KMS) en vez de archivos en el volumen — elimina el riesgo de raíz porque las claves dejan de vivir junto a los datos que protegen. Ver también `ROADMAP.md` → "Iniciativa de hardening" § 4.
+- **Implementado (2026-07-31)**: cifrado de las propias claves con **AWS KMS** — ver la sección siguiente. Elimina el riesgo de raíz del backup: las claves siguen viviendo en el volumen, pero ya no en claro, y la clave maestra que las abre nunca sale de AWS.
+
+## KMS — cifrado en reposo de las claves de Data Protection
+
+Sin esto, `dataprotection-keys/` viaja **en claro dentro del mismo backup** que la base de datos que protege. Quien consiguiera ese archivo tendría a la vez el candado y la llave: las credenciales de portales externos de Empresas y Subcontratas quedarían legibles. Con KMS, el backup por sí solo ya no descifra nada.
+
+### Alta de la clave (una vez)
+
+1. **Consola de AWS → KMS → Customer managed keys → Create key**, en la región del bucket de backups (`eu-south-2` / Europa-España, para no sacar datos de España — `RGPD-TRATAMIENTO-DATOS.md` § 6).
+2. Tipo **Symmetric**, uso **Encrypt and decrypt** (los valores por defecto).
+3. Alias: `caemanager-dataprotection`. Se usa como `alias/caemanager-dataprotection` — mejor que el ARN, porque sobrevive a una sustitución de clave.
+4. **IAM → Users → Create user**, distinto del usuario de backups. Sin acceso a consola, solo clave de acceso programático. Política en línea, acotada a esa clave:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["kms:Encrypt", "kms:Decrypt", "kms:DescribeKey"],
+    "Resource": "arn:aws:kms:eu-south-2:TU_CUENTA:key/EL_ID_DE_LA_CLAVE"
+  }]
+}
+```
+
+   Separar este usuario del de backups es lo que hace que filtrar las credenciales de S3 no entregue también la llave de lo que hay dentro. Sin `kms:*` fuera de esa clave y sin `kms:ScheduleKeyDeletion`: la aplicación nunca necesita poder borrar la clave, y un usuario que no puede borrarla tampoco puede destruir los datos por accidente.
+
+5. **Habilita la rotación automática** en la clave (pestaña *Key rotation*). KMS guarda el material anterior, así que lo cifrado antes se sigue descifrando — el `KmsXmlDecryptor` no necesita saber qué versión cifró cada cosa.
+
+### Puesta en marcha
+
+Las cuatro variables van a **Railway → servicio → Variables** (nunca al repositorio):
+
+```
+DataProtection__Kms__Activo=true
+DataProtection__Kms__KeyId=alias/caemanager-dataprotection
+DataProtection__Kms__Region=eu-south-2
+DataProtection__Kms__AccessKeyId=...
+DataProtection__Kms__SecretAccessKey=...
+```
+
+En local, con `dotnet user-secrets` (nunca en `appsettings.json`, que sí se versiona):
+
+```bash
+dotnet user-secrets set "DataProtection:Kms:SecretAccessKey" "..." --project src/CaeManager.Web
+```
+
+### Verificación
+
+El arranque hace un cifrado y descifrado de prueba contra la clave y lo deja escrito en el log:
+
+- `Data Protection: cifrado con AWS KMS operativo` → funciona.
+- `KMS está activado pero la clave ... no responde` → revisa credenciales, región y permisos. La aplicación **arranca igual**: negarse a arrancar convertiría una incidencia pasajera de AWS en una caída del producto, y con la configuración mal puesta va a fallar igualmente al primer uso real de la clave.
+
+Si falta cualquiera de las cuatro variables, el cifrado queda apagado y el arranque lo advierte — un despliegue que crea estar cifrando y no lo esté es peor que uno que sepa que no lo está.
+
+### Lo que activar KMS **no** arregla
+
+Data Protection cifra cada clave cuando la crea; **no vuelve atrás a cifrar las que ya existen**. Es decir:
+
+- Las claves que ya están en el volumen siguen en claro, y son justamente las que descifran las credenciales guardadas hasta hoy.
+- Los backups anteriores a la activación siguen conteniendo esas claves en claro. Rotar la clave de KMS no los cambia.
+
+Cerrar eso del todo es una migración aparte: activar KMS, forzar la creación de una clave nueva (que ya nace cifrada), volver a guardar las credenciales existentes para que se cifren con ella, y solo entonces retirar las claves antiguas del volumen y purgar los backups viejos. Hasta que eso se haga, lo correcto es asumir que **las credenciales de portales externos anteriores a la activación siguen expuestas** en cualquier copia antigua del backup.
 
 ## Recuperación — desde un backup en S3
 

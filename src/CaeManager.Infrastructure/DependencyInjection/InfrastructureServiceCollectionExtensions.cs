@@ -119,6 +119,11 @@ public static class InfrastructureServiceCollectionExtensions
                     new AmazonKeyManagementServiceClient(
                         opcionesKms.AccessKeyId, opcionesKms.SecretAccessKey, RegionEndpoint.GetBySystemName(opcionesKms.Region)),
                     opcionesKms.KeyId!));
+
+            // Deja dicho en el arranque si el cifrado está realmente operativo:
+            // una credencial mal copiada no se notaría hasta la siguiente
+            // rotación de clave o al abrir una credencial guardada.
+            services.AddHostedService<VerificacionKmsHostedService>();
         }
         else
         {

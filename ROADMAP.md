@@ -854,6 +854,42 @@ Con esta fase se completa el backlog post-lanzamiento acordado con el usuario.
 
 **Nota de verificación**: no se pudo verificar en navegador el camino de purga con datos realmente purgables (los datos de prueba son de este año y el tenant de plataforma no tiene datos operativos); queda cubierto por tests. Ver también el detalle en `RGPD-TRATAMIENTO-DATOS.md` § 5.
 
+## Backlog — Capacidad: qué se rompe primero y en qué orden (analizado 2026-08-01, sin implementar)
+
+Análisis pedido por el usuario ("¿qué pasa si nos hacen 200 request por segundo?"). **La unidad no aplica tal cual**: esto es Blazor Server, y salvo la carga inicial de página el usuario no hace peticiones HTTP — mantiene un circuito SignalR abierto por sesión. Lo que hay que dimensionar son *circuitos concurrentes* y *escrituras por segundo*, no req/s. 200 cargas de página nuevas por segundo y 200 interacciones por segundo repartidas entre usuarios ya conectados son escenarios con techos completamente distintos.
+
+Los límites reales, por orden de aparición:
+
+1. **Una sola réplica, y no por casualidad** (`DEPLOY.md` § 115). Tres cosas atan el proceso a su máquina: SQLite es un archivo en el volumen, los PDFs son archivos en el volumen, y los circuitos de Blazor son estado en memoria del proceso. No hay "subir réplicas" como salida rápida — ver la sección siguiente.
+2. **SQLite sin WAL.** No hay ninguna `PRAGMA journal_mode=WAL` en el código: se usa el modo por defecto (rollback journal), donde un escritor bloquea a los lectores del archivo entero. Las escrituras se serializan y las lecturas esperan detrás. Activar WAL es de las intervenciones más baratas que quedan (los lectores dejan de bloquearse con el escritor) y **no espera a PostgreSQL**.
+3. **Cola de análisis IA sin límite** (`ColaAnalisisDocumentoEnMemoria`: `Channel.CreateUnbounded`, `SingleReader = true`). Una punta de subidas encola sin techo —la memoria crece hasta donde llegue— y se procesa de uno en uno. Además vive en memoria: un redespliegue pierde todo lo encolado sin dejar rastro para el usuario que subió el documento.
+4. **Conversión de Word serializada globalmente** (`LibreOfficeConversorWordPdfService`, `SemaphoreSlim(1,1)`): un `.docx` de un tenant hace esperar a los de todos los demás, y cada conversión levanta un proceso `soffice`.
+5. **Sin rate limiting en ningún sitio** — no hay `AddRateLimiter` en `Program.cs`. El login y la subida de archivos están abiertos al ritmo que quiera el cliente. Es tanto un problema de capacidad como de seguridad (fuerza bruta).
+6. **Todo comparte el mismo volumen**: base de datos, PDFs subidos, claves de Data Protection y los logs de Serilog con rotación diaria. Bajo carga, escribir logs compite por I/O con escribir en la base de datos.
+
+**Qué es barato y no depende de la migración**: WAL + `busy_timeout` explícito, acotar la cola de IA con una política de rechazo consciente, rate limiting en login y subida, y límites de circuito de Blazor (retención de circuitos desconectados, lotes de render sin confirmar). **Qué no tiene arreglo barato**: todo lo demás es la migración a PostgreSQL y la salida del estado del proceso.
+
+**Sin medir todavía**: no hay ninguna prueba de carga ejecutada contra el sistema, así que cualquier cifra concreta de "aguanta N usuarios" sería inventada. Lo de arriba es análisis de código, no medición.
+
+## Backlog — Migración a PostgreSQL: qué hace falta para empezar (2026-08-01, sin implementar)
+
+Condición de salida a producción pendiente de `ADR-003`. El trabajo real no es cambiar el proveedor de EF Core —eso es una tarde— sino lo que arrastra:
+
+1. **Decidir dónde vive** y con qué residencia de datos. Railway Postgres es lo inmediato; una instancia gestionada en `eu-south-2` mantiene la coherencia con el bucket de backups y la clave de KMS, y con lo que dice `RGPD-TRATAMIENTO-DATOS.md` § 6. Es decisión de producto, no técnica.
+2. **Rehacer el juego de migraciones.** El historial actual está generado contra SQLite y no es reutilizable tal cual. Lo limpio es una línea base nueva para PostgreSQL, no traducir 30 migraciones.
+3. **Auditar el mapeo de tipos**, que es donde estarán los fallos de verdad:
+   - `DateTime` → Npgsql exige `Kind = Utc` para `timestamptz`; lo que salga de SQLite viene con `Kind = Unspecified`.
+   - Búsquedas: hay ~108 `Contains` y ~45 `ToLower()/ToUpper()` en las Queries. SQLite y PostgreSQL no tratan igual mayúsculas ni acentos, y `lower()` sobre una columna impide usar el índice. Hay que revisarlo consulta a consulta, no de golpe.
+   - Decimales de Facturación (`TarifaCliente.PrecioUnitario`, `decimal(18,4)`): SQLite es de tipado dinámico y PostgreSQL no. Cualquier redondeo que hoy pase inadvertido aflora aquí — y es dinero.
+   - `DateOnly` (83 usos en dominio) mapea nativo a `date`, sin problema esperado.
+4. **La concurrencia optimista ya es portable**: el token `Guid Version` de la Fase 60 se eligió precisamente para no depender de `rowversion` ni de `xmin`. No hay trabajo aquí.
+5. **Los tests de integración corren hoy contra SQLite.** Si no se llevan a PostgreSQL (Testcontainers o una instancia de CI), seguirán validando un motor que ya no es el de producción — y son 169. Es la decisión con más coste oculto de toda la lista.
+6. **Reescribir el backup.** `BackupHostedService` usa `SqliteConnection.BackupDatabase`, que deja de existir como mecanismo: hay que pasar a `pg_dump` o a los snapshots del proveedor, **y mantener la propiedad de que la base de datos y las claves de Data Protection se copian juntas** (`RUNBOOK-CLAVES.md`). Esto no está en ninguna lista y es trabajo real.
+7. **Migrar los datos existentes** del tenant #1 más las tablas de Identity, verificando que ninguna fila llega sin `TenantId`, y con ventana de parada y camino de vuelta escritos antes de tocar nada.
+8. **Añadir `EnableRetryOnFailure`**: contra un servidor de red hay errores transitorios que con un archivo local no existían.
+
+Sólo **después** de esto tiene sentido escalar a más de una réplica, y eso abre su propia lista: backplane de SignalR o sesiones pegajosas para los circuitos, almacenamiento de archivos fuera del disco local (S3), llavero de Data Protection compartido, y elección de líder para los `BackgroundService` — hoy `BackupHostedService` y `ProcesadorAnalisisDocumentoHostedService` corren en proceso, así que con dos réplicas habría dos backups compitiendo y dos colas de IA en memorias distintas.
+
 ## Épico — Plataforma de Integraciones (backlog, sin implementar — 2026-07-23)
 
 **Planteado por el usuario el 2026-07-23**: si la visión del producto se cumple, Hydra no es solo un gestor CAE — es una **plataforma**, y las plataformas ganan valor cuando las integraciones son una capacidad nativa (una capacidad del Tenant), no una colección de conectores desarrollados caso por caso. Proveedores objetivo del ecosistema: **Dokify, 6Conecta/6Coordina, CTAIMA, eCoordina**, plataformas CAE en general, **Microsoft 365** e **IA** (Anthropic/OpenAI). Diseño completo, arquitectura basada en proveedores (`IIntegrationProvider`, no conectores específicos acoplados al dominio) en **`ARQUITECTURA-INTEGRACIONES.md`** — este punto es solo el resumen de backlog. Nada de esto está implementado; existe para que las decisiones de multi-tenant que se están tomando ahora (`ADR-003`) no le cierren puertas.
