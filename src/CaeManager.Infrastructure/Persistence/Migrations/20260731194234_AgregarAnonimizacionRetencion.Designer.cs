@@ -3,6 +3,7 @@ using System;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CaeManager.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260731194234_AgregarAnonimizacionRetencion")]
+    partial class AgregarAnonimizacionRetencion
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
@@ -2283,57 +2286,6 @@ namespace CaeManager.Infrastructure.Persistence.Migrations
                     b.HasIndex("CentroId");
 
                     b.ToTable("RequisitosDocumentales", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Retencion.SolicitudPurga", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("AutorizadaPorUsuarioId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("AvisadaAlTenantEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("DetectadaEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("EjecutadaEnUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateOnly>("FechaCorte")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateOnly?>("FechaEjecucionProgramada")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Motivo")
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("RegistrosAfectados")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("TipoDato")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TipoDato", "Estado");
-
-                    b.ToTable("SolicitudesPurga", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Soporte.RegistroActividadSoporte", b =>
