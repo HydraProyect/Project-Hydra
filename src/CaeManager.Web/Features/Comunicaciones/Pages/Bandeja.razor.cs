@@ -20,6 +20,7 @@ public record EjecutivoSelectorDto(Guid Id, string NombreCompleto);
 public partial class Bandeja : ComponentBase
 {
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private ILogger<Bandeja> Logger { get; set; } = default!;
 
     // --- Filtros ---
     private string _estadoFiltro = string.Empty;
@@ -95,8 +96,12 @@ public partial class Bandeja : ComponentBase
                 SoloSinAsignar: _soloSinAsignar,
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // _errorCargaLista solo pinta un aviso genérico: sin este log, un
+            // fallo al cargar la bandeja no deja ningún rastro que permita
+            // diagnosticarlo después.
+            Logger.LogError(ex, "Error al cargar la lista de conversaciones de la bandeja.");
             _errorCargaLista = true;
         }
         finally
@@ -168,8 +173,9 @@ public partial class Bandeja : ComponentBase
                 _macrosDisponibles = [];
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Error al abrir la conversación {ConversacionId}.", id);
             ToastService.Mostrar("No pudimos abrir esta conversación. Intenta nuevamente.", TonoToast.Error);
         }
         finally
@@ -211,8 +217,9 @@ public partial class Bandeja : ComponentBase
             await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
             await CargarListaAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Error al responder en la conversación {ConversacionId}.", _conversacionSeleccionadaId);
             ToastService.Mostrar("No pudimos enviar la respuesta. Intenta nuevamente.", TonoToast.Error);
         }
         finally
