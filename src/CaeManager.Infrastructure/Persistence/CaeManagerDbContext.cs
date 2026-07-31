@@ -80,6 +80,7 @@ public class CaeManagerDbContext(
     public DbSet<Proyecto> Proyectos => Set<Proyecto>();
     public DbSet<ProyectoTecnico> ProyectosTecnicos => Set<ProyectoTecnico>();
     public DbSet<DelegacionTenant> DelegacionesTenant => Set<DelegacionTenant>();
+    public DbSet<CaeManager.Domain.Soporte.RegistroActividadSoporte> RegistrosActividadSoporte => Set<CaeManager.Domain.Soporte.RegistroActividadSoporte>();
     public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();
     public DbSet<Evaluacion> Evaluaciones => Set<Evaluacion>();
     public DbSet<Incidencia> Incidencias => Set<Incidencia>();
@@ -119,6 +120,7 @@ public class CaeManagerDbContext(
     IQueryable<Proyecto> IApplicationDbContext.Proyectos => Proyectos;
     IQueryable<ProyectoTecnico> IApplicationDbContext.ProyectosTecnicos => ProyectosTecnicos;
     IQueryable<DelegacionTenant> IApplicationDbContext.DelegacionesTenant => DelegacionesTenant;
+    IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> IApplicationDbContext.RegistrosActividadSoporte => RegistrosActividadSoporte;
     IQueryable<AsignacionOperadorDelegado> IApplicationDbContext.AsignacionesOperadorDelegado => AsignacionesOperadorDelegado;
     IQueryable<Evaluacion> IApplicationDbContext.Evaluaciones => Evaluaciones;
     IQueryable<Incidencia> IApplicationDbContext.Incidencias => Incidencias;
@@ -211,6 +213,7 @@ public class CaeManagerDbContext(
         builder.Entity<AprobacionDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<MensajeCorreo>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<ParticipanteConversacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<CaeManager.Domain.Soporte.RegistroActividadSoporte>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
 
         // Concurrencia optimista sobre todo agregado con ciclo de vida
         // propio. Se recorre el modelo en vez de enumerar las 15 entidades
