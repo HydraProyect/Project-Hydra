@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Alertas;
 using CaeManager.Domain.Asignaciones;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
@@ -210,5 +211,23 @@ public class CaeManagerDbContext(
         builder.Entity<AprobacionDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<MensajeCorreo>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<ParticipanteConversacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+
+        // Concurrencia optimista sobre todo agregado con ciclo de vida
+        // propio. Se recorre el modelo en vez de enumerar las 15 entidades
+        // una a una a propósito: así una entidad nueva que herede de
+        // EntidadBase queda protegida sin que nadie tenga que acordarse —
+        // justo lo contrario de lo que pasó con los filtros globales, donde
+        // olvidar una línea costó el hallazgo A-1.
+        //
+        // El valor lo renueva ConcurrenciaOptimistaInterceptor en cada
+        // modificación; marcar la propiedad aquí es lo que hace que EF la
+        // incluya en el WHERE del UPDATE.
+        foreach (var tipoEntidad in builder.Model.GetEntityTypes()
+                     .Where(t => typeof(EntidadBase).IsAssignableFrom(t.ClrType)))
+        {
+            builder.Entity(tipoEntidad.ClrType)
+                .Property(nameof(EntidadBase.Version))
+                .IsConcurrencyToken();
+        }
     }
 }
