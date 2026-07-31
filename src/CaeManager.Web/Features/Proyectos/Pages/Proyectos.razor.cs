@@ -260,7 +260,8 @@ public partial class Proyectos : ComponentBase
             DateOnly? fechaFinPrevista = DateOnly.TryParse(_editFechaFinPrevista, out var fv) ? fv : null;
             var notas = string.IsNullOrWhiteSpace(_editNotas) ? null : _editNotas;
 
-            var resultado = await Mediator.Send(new ActualizarProyectoCommand(_detalle.Id, _editNombre, fechaFinPrevista, notas));
+            var resultado = await Mediator.Send(
+                new ActualizarProyectoCommand(_detalle.Id, _editNombre, fechaFinPrevista, notas, _detalle.Version));
 
             if (resultado.EsFallido)
             {

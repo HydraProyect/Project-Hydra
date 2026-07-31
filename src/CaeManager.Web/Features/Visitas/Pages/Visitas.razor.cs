@@ -33,6 +33,9 @@ public partial class Visitas : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    // Version del registro tal como se abrio: vuelve en el Command para
+    // detectar que otra persona guardo mientras el formulario estaba abierto.
+    private Guid _versionEditando;
     private string _centroId = string.Empty;
     private string _centroNombreEnEdicion = string.Empty;
     private string _fechaInicio = string.Empty;
@@ -135,6 +138,7 @@ public partial class Visitas : ComponentBase
         }
 
         _editandoId = visita.Id;
+        _versionEditando = visita.Version;
         _centroId = visita.CentroId.ToString();
         _centroNombreEnEdicion = $"{visita.CentroNombre} ({visita.ClienteRazonSocial} — {visita.EmpresaRazonSocial})";
         _fechaInicio = visita.FechaInicio.ToString("yyyy-MM-dd");
@@ -192,7 +196,7 @@ public partial class Visitas : ComponentBase
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarVisitaCommand(_editandoId.Value, fechaInicio, fechaFin, trabajadorIds, notas));
+                var resultado = await Mediator.Send(new EditarVisitaCommand(_editandoId.Value, fechaInicio, fechaFin, trabajadorIds, notas, _versionEditando));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 

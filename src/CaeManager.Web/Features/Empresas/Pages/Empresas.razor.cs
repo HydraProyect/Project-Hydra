@@ -30,6 +30,9 @@ public partial class Empresas : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    // Version del registro tal como se abrio: vuelve en el Command para
+    // detectar que otra persona guardo mientras el formulario estaba abierto.
+    private Guid _versionEditando;
     private string _razonSocial = string.Empty;
     private string _cif = string.Empty;
     private HashSet<Guid> _clienteIdsSeleccionados = [];
@@ -138,6 +141,7 @@ public partial class Empresas : ComponentBase
         }
 
         _editandoId = empresa.Id;
+        _versionEditando = empresa.Version;
         _razonSocial = empresa.RazonSocial;
         _cif = empresa.Cif ?? string.Empty;
         _clienteIdsSeleccionados = empresa.ClienteIds.ToHashSet();
@@ -233,7 +237,7 @@ public partial class Empresas : ComponentBase
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarEmpresaCommand(_editandoId!.Value, _razonSocial, cif, clienteIds));
+                var resultado = await Mediator.Send(new EditarEmpresaCommand(_editandoId!.Value, _razonSocial, cif, clienteIds, _versionEditando));
                 if (resultado.EsFallido)
                 {
                     _mensajeErrorFormulario = resultado.Error.Mensaje;

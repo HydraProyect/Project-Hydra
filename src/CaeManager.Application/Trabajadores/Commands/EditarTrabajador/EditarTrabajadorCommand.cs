@@ -13,7 +13,8 @@ public record EditarTrabajadorCommand(
     DateOnly? FechaNacimiento,
     string? Email,
     string? Observaciones,
-    string? Alias = null) : IRequest<Result>;
+    string? Alias = null,
+    Guid Version = default) : IRequest<Result>;
 
 public class EditarTrabajadorCommandValidator : AbstractValidator<EditarTrabajadorCommand>
 {
@@ -47,6 +48,9 @@ public class EditarTrabajadorCommandHandler(ITrabajadorRepository repositorio, I
         var trabajador = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (trabajador is null)
             return Result.Fallo(Error.Crear("Trabajador.NoEncontrado", "No encontramos este trabajador."));
+
+        if (ConcurrenciaOptimista.Verificar(trabajador, request.Version, "este trabajador") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         trabajador.Actualizar(request.Nombre, request.Apellidos, request.FechaNacimiento, request.Email, request.Observaciones, request.Alias);
         await unitOfWork.SaveChangesAsync(cancellationToken);

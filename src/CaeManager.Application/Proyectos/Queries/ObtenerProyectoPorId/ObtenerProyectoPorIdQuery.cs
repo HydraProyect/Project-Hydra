@@ -19,7 +19,8 @@ public record ProyectoDetalleDto(
     bool EstaAbierto,
     string? Notas,
     int TecnicosActivos,
-    int DocumentosGestionados);
+    int DocumentosGestionados,
+    Guid Version);
 
 public class ObtenerProyectoPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerProyectoPorIdQuery, ProyectoDetalleDto?>
@@ -46,6 +47,6 @@ public class ObtenerProyectoPorIdQueryHandler(IApplicationDbContext dbContext, I
         return new ProyectoDetalleDto(
             proyecto.Id, proyecto.ClienteId, clienteRazonSocial, proyecto.CentroId, centroNombre, proyecto.Nombre,
             proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, proyecto.FechaCierreReal == null,
-            proyecto.Notas, tecnicosActivos, documentosGestionados);
+            proyecto.Notas, tecnicosActivos, documentosGestionados, proyecto.Version);
     }
 }

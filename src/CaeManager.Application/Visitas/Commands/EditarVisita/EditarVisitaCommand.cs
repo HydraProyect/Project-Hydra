@@ -7,7 +7,8 @@ using MediatR;
 namespace CaeManager.Application.Visitas.Commands.EditarVisita;
 
 public record EditarVisitaCommand(
-    Guid Id, DateOnly FechaInicio, DateOnly FechaFin, IReadOnlyList<Guid> TrabajadorIds, string? Notas)
+    Guid Id, DateOnly FechaInicio, DateOnly FechaFin, IReadOnlyList<Guid> TrabajadorIds, string? Notas,
+    Guid Version = default)
     : IRequest<Result>;
 
 public class EditarVisitaCommandValidator : AbstractValidator<EditarVisitaCommand>
@@ -38,6 +39,9 @@ public class EditarVisitaCommandHandler(
         var visita = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (visita is null)
             return Result.Fallo(Error.Crear("Visita.NoEncontrada", "No encontramos esta visita."));
+
+        if (ConcurrenciaOptimista.Verificar(visita, request.Version, "esta visita") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         visita.Actualizar(request.FechaInicio, request.FechaFin, request.Notas);
 
