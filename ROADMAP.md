@@ -875,8 +875,8 @@ Los límites reales, por orden de aparición:
 
 Condición de salida a producción pendiente de `ADR-003`. El trabajo real no es cambiar el proveedor de EF Core —eso es una tarde— sino lo que arrastra:
 
-1. **Decidir dónde vive** y con qué residencia de datos. Railway Postgres es lo inmediato; una instancia gestionada en `eu-south-2` mantiene la coherencia con el bucket de backups y la clave de KMS, y con lo que dice `RGPD-TRATAMIENTO-DATOS.md` § 6. Es decisión de producto, no técnica.
-2. **Rehacer el juego de migraciones.** El historial actual está generado contra SQLite y no es reutilizable tal cual. Lo limpio es una línea base nueva para PostgreSQL, no traducir 30 migraciones.
+1. ~~Decidir dónde vive~~ — **decidido por el usuario (2026-08-01): Railway Postgres** en producción, y PostgreSQL instalado en local para verificar durante la construcción (no hay Docker en la máquina de desarrollo, así que Testcontainers queda descartado). **Pendiente de comprobar**: en qué región lo despliega Railway; si sale de la UE hay que revisarlo contra `RGPD-TRATAMIENTO-DATOS.md` § 6 antes del corte.
+2. **Rehacer el juego de migraciones.** El historial actual está generado contra SQLite y no es reutilizable tal cual. Lo limpio es una línea base nueva para PostgreSQL, no traducir 30 migraciones. El ensamblado `CaeManager.Migrations.PostgreSQL` ya existe y está vacío (`b971eed`); el motor se elige con `Database:Proveedor` y por defecto sigue siendo SQLite.
 3. **Auditar el mapeo de tipos**, que es donde estarán los fallos de verdad:
    - `DateTime` → Npgsql exige `Kind = Utc` para `timestamptz`; lo que salga de SQLite viene con `Kind = Unspecified`.
    - Búsquedas: hay ~108 `Contains` y ~45 `ToLower()/ToUpper()` en las Queries. SQLite y PostgreSQL no tratan igual mayúsculas ni acentos, y `lower()` sobre una columna impide usar el índice. Hay que revisarlo consulta a consulta, no de golpe.
