@@ -102,6 +102,28 @@ public static class CalculadoraRetencionDocumento
     }
 
     /// <summary>
+    /// Plazo de un Trabajador dado de baja, contado desde el día de la baja
+    /// (decisión del propietario del producto, 2026-07-31).
+    ///
+    /// No usa <see cref="CriterioInicioRetencion"/> porque aquí no hay dos
+    /// eventos que comparar: la baja es el único hito. Un trabajador todavía
+    /// de alta (<paramref name="fechaBaja"/> null) no tiene fecha de purga —
+    /// se conserva mientras dure la relación.
+    /// </summary>
+    public static DateOnly? CalcularFechaPurgaTrabajador(DateOnly? fechaBaja, int aniosRetencion)
+    {
+        if (aniosRetencion <= 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(aniosRetencion), "El plazo de retención debe ser de al menos un año.");
+
+        return fechaBaja?.AddYears(aniosRetencion);
+    }
+
+    /// <summary>Si un Trabajador dado de baja ya cumplió su plazo. Falla cerrado, igual que el de Documentos.</summary>
+    public static bool PuedePurgarseTrabajador(DateOnly? fechaBaja, DateOnly hoy, int aniosRetencion) =>
+        CalcularFechaPurgaTrabajador(fechaBaja, aniosRetencion) is { } fecha && hoy >= fecha;
+
+    /// <summary>
     /// Si el documento ya cumplió su plazo a fecha <paramref name="hoy"/>.
     /// Falla cerrado: mientras no se pueda determinar la fecha de purga,
     /// devuelve false y el documento se conserva.
