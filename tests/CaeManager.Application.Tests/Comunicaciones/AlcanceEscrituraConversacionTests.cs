@@ -60,7 +60,8 @@ public class AlcanceEscrituraConversacionTests
     public async Task No_se_puede_reasignar_el_hilo_de_un_cliente_fuera_de_la_cartera()
     {
         var (conversacion, repositorio, unitOfWork) = Preparar();
-        var handler = new AsignarEjecutivoConversacionCommandHandler(repositorio, AlcanceSinElClienteAjeno(), unitOfWork);
+        var handler = new AsignarEjecutivoConversacionCommandHandler(
+            repositorio, AlcanceSinElClienteAjeno(), new DirectorioUsuariosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new AsignarEjecutivoConversacionCommand(conversacion.Id, Guid.NewGuid()), CancellationToken.None);
@@ -68,6 +69,52 @@ public class AlcanceEscrituraConversacionTests
         resultado.EsFallido.Should().BeTrue();
         conversacion.EjecutivoAsignadoId.Should().BeNull();
         unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task No_se_puede_asignar_la_conversacion_a_un_usuario_de_otra_organizacion()
+    {
+        // Hallazgo N-10: se justificaba no validar el Guid con "Web ya valida
+        // que viene de un selector". Un selector no es una frontera de
+        // autorización.
+        var conversacion = new ConversacionCorreo("Consulta", clienteId: ClienteAjeno);
+        var repositorio = new ConversacionCorreoRepositorioFalso();
+        repositorio.Agregar(conversacion);
+        var unitOfWork = new UnitOfWorkFalso();
+
+        var handler = new AsignarEjecutivoConversacionCommandHandler(
+            repositorio,
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [ClienteAjeno]),
+            new DirectorioUsuariosServiceFalso(esVisible: false),
+            unitOfWork);
+
+        var resultado = await handler.Handle(
+            new AsignarEjecutivoConversacionCommand(conversacion.Id, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        conversacion.EjecutivoAsignadoId.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Desasignar_el_ejecutivo_sigue_siendo_posible()
+    {
+        // null no es un usuario que validar: es "quitar el asignado".
+        var conversacion = new ConversacionCorreo("Consulta", clienteId: ClienteAjeno);
+        var repositorio = new ConversacionCorreoRepositorioFalso();
+        repositorio.Agregar(conversacion);
+        var unitOfWork = new UnitOfWorkFalso();
+
+        var handler = new AsignarEjecutivoConversacionCommandHandler(
+            repositorio,
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [ClienteAjeno]),
+            new DirectorioUsuariosServiceFalso(esVisible: false),
+            unitOfWork);
+
+        var resultado = await handler.Handle(
+            new AsignarEjecutivoConversacionCommand(conversacion.Id, null), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
     }
 
     [Fact]

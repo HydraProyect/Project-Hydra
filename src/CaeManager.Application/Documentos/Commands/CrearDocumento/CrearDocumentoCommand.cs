@@ -44,7 +44,7 @@ public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCo
 
 public class CrearDocumentoCommandHandler(
     IDocumentoRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork,
-    IDeteccionTrabajadoresService deteccionTrabajadores, IVerificacionIaDocumentoService verificacionIa)
+    IColaAnalisisDocumento colaAnalisis, ITenantActual tenantActual, ICurrentUserService currentUserService)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDocumentoCommand request, CancellationToken cancellationToken)
@@ -92,19 +92,43 @@ public class CrearDocumentoCommandHandler(
         repositorio.Agregar(documento);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Mejor esfuerzo: la detección de altas/bajas de personal (Fase 36)
-        // nunca debe impedir que la subida del propio Documento se dé por
-        // completada, así que un fallo aquí solo se registra en el log
-        // (dentro del propio servicio) y no se propaga.
-        if (ambitoSolicitado == AmbitoAplicacion.Empresa && tipoDocumento.DeteccionTrabajadoresActiva && !string.IsNullOrWhiteSpace(request.ArchivoUrl))
-            await deteccionTrabajadores.ProcesarDocumentoAsync(documento.Id, cancellationToken);
+        // Los dos análisis pesados se encolan en vez de ejecutarse aquí: son
+        // llamadas a un modelo externo, con su latencia, y hacerlas dentro del
+        // Command dejaba el circuito de Blazor bloqueado mientras el usuario
+        // esperaba a que "terminara de subir" algo que en realidad ya estaba
+        // guardado.
+        //
+        // No cambia ninguna garantía: ambos ya eran mejor esfuerzo — un fallo
+        // solo se registraba en el log y nunca impedía dar la subida por
+        // completada. Lo que cambia es quién espera. Al terminar, el
+        // procesador avisa por la campana.
+        //
+        // El tenant y el usuario se resuelven aquí, todavía dentro del
+        // circuito, y viajan en el encargo: fuera de él no hay claim de sesión
+        // que leer (ver EncargoAnalisisDocumento).
+        var necesitaDeteccion = ambitoSolicitado == AmbitoAplicacion.Empresa
+            && tipoDocumento.DeteccionTrabajadoresActiva && !string.IsNullOrWhiteSpace(request.ArchivoUrl);
+        var necesitaVerificacion = ambitoSolicitado == AmbitoAplicacion.Trabajador
+            && tipoDocumento.VerificacionIaActiva && !string.IsNullOrWhiteSpace(request.ArchivoUrl);
 
-        // Mejor esfuerzo, mismo criterio que la detección de trabajadores de
-        // arriba: la verificación IA con confidence score (ver Issue #19)
-        // nunca debe impedir que la subida del propio Documento se dé por
-        // completada.
-        if (ambitoSolicitado == AmbitoAplicacion.Trabajador && tipoDocumento.VerificacionIaActiva && !string.IsNullOrWhiteSpace(request.ArchivoUrl))
-            await verificacionIa.ProcesarDocumentoAsync(documento.Id, cancellationToken);
+        if (necesitaDeteccion || necesitaVerificacion)
+        {
+            var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+
+            // Sin tenant resuelto no hay forma de que el procesador encuentre
+            // el documento, así que no se encola nada: fallo cerrado y
+            // silencioso, igual que antes lo era un fallo del análisis.
+            if (tenantActual.TenantId is { } tenantId)
+            {
+                if (necesitaDeteccion)
+                    colaAnalisis.Encolar(new EncargoAnalisisDocumento(
+                        documento.Id, tenantId, usuarioId, TipoAnalisisDocumento.DeteccionTrabajadores));
+
+                if (necesitaVerificacion)
+                    colaAnalisis.Encolar(new EncargoAnalisisDocumento(
+                        documento.Id, tenantId, usuarioId, TipoAnalisisDocumento.VerificacionIa));
+            }
+        }
 
         return Result.Exito(documento.Id);
     }

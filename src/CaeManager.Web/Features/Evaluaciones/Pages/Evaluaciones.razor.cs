@@ -27,6 +27,9 @@ public partial class Evaluaciones : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    // Version del registro tal como se abrio: vuelve en el Command para
+    // detectar que otra persona guardo mientras el formulario estaba abierto.
+    private Guid _versionEditando;
     private string _centroId = string.Empty;
     private string _centroNombreEnEdicion = string.Empty;
     private string _trabajadorId = string.Empty;
@@ -126,6 +129,7 @@ public partial class Evaluaciones : ComponentBase
         }
 
         _editandoId = evaluacion.Id;
+        _versionEditando = evaluacion.Version;
         _centroId = evaluacion.CentroId.ToString();
         _centroNombreEnEdicion = evaluacion.CentroNombre;
         _trabajadorId = evaluacion.TrabajadorId?.ToString() ?? string.Empty;
@@ -180,7 +184,7 @@ public partial class Evaluaciones : ComponentBase
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarEvaluacionCommand(_editandoId.Value, trabajadorId, fecha, puntuacion, observaciones));
+                var resultado = await Mediator.Send(new EditarEvaluacionCommand(_editandoId.Value, trabajadorId, fecha, puntuacion, observaciones, _versionEditando));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 

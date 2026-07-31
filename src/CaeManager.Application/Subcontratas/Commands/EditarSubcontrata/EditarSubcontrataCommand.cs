@@ -7,7 +7,8 @@ using MediatR;
 namespace CaeManager.Application.Subcontratas.Commands.EditarSubcontrata;
 
 public record EditarSubcontrataCommand(
-    Guid Id, string RazonSocial, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds) : IRequest<Result>;
+    Guid Id, string RazonSocial, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds,
+    Guid Version = default) : IRequest<Result>;
 
 public class EditarSubcontrataCommandValidator : AbstractValidator<EditarSubcontrataCommand>
 {
@@ -34,6 +35,9 @@ public class EditarSubcontrataCommandHandler(
         var subcontrata = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (subcontrata is null)
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
+
+        if (ConcurrenciaOptimista.Verificar(subcontrata, request.Version, "esta subcontrata") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.RazonSocialDuplicada", "Ya existe una subcontrata con esta razón social."));

@@ -1,0 +1,164 @@
+@page "/retencion"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@using CaeManager.Domain.Retencion
+
+<PageTitle>Retención de datos — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="retencion-cabecera">
+        <h1 class="titulo-pagina">Retención de datos</h1>
+        <Boton OnClick="BuscarAsync" Cargando="_buscando">Buscar datos que hayan cumplido plazo</Boton>
+    </div>
+
+    <p class="descripcion-retencion">
+        Cuando un dato cumple su plazo de conservación, el sistema <strong>propone</strong> destruirlo — nunca lo
+        hace por su cuenta. Así hay margen para avisar a la organización afectada por si su política interna
+        exige conservarlo más años. Destruir es anonimizar: se rompe el vínculo con la persona y se conserva el
+        histórico, que ya no es dato personal.
+    </p>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las solicitudes" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion><Boton OnClick="CargarAsync">Reintentar</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_solicitudes.Count == 0)
+    {
+        <EstadoVacio Titulo="Nada pendiente de purgar"
+                     Descripcion="Ningún dato ha cumplido todavía su plazo de conservación, o la política está desactivada." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Qué</th>
+                    <th>Registros</th>
+                    <th>Cumplieron plazo antes de</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var solicitud in _solicitudes)
+                {
+                    <tr class="@(solicitud.EstaResuelta ? "fila-resuelta" : null)">
+                        <td>@DescribirTipo(solicitud.TipoDato)</td>
+                        <td>@solicitud.RegistrosAfectados</td>
+                        <td>@solicitud.FechaCorte.ToString("dd/MM/yyyy")</td>
+                        <td>
+                            <Badge Tono="@TonoDeEstado(solicitud.Estado)">@DescribirEstado(solicitud)</Badge>
+                        </td>
+                        <td class="celda-acciones-purga">
+                            @if (solicitud.Estado == EstadoSolicitudPurga.PendienteDeRevision)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Fantasma"
+                                       OnClick="() => MarcarAvisadoAsync(solicitud)">
+                                    He avisado a la organización
+                                </Boton>
+                            }
+
+                            @if (!solicitud.EstaResuelta && solicitud.Estado != EstadoSolicitudPurga.Programada)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                                       OnClick="() => AbrirProgramar(solicitud)">
+                                    Autorizar
+                                </Boton>
+                            }
+
+                            @if (solicitud.PuedeEjecutarseHoy)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
+                                       OnClick="() => AbrirEjecutar(solicitud)">
+                                    Ejecutar ahora
+                                </Boton>
+                            }
+
+                            @if (!solicitud.EstaResuelta)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Fantasma"
+                                       OnClick="() => AbrirCancelar(solicitud)">
+                                    Descartar
+                                </Boton>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<Modal Visible="_aProgramar is not null" VisibleChanged="v => { if (!v) _aProgramar = null; }"
+       Titulo="Autorizar la destrucción" CerrarAlHacerClicFuera="!_procesando">
+    <ChildContent>
+        @if (_aProgramar is not null)
+        {
+            <p>
+                Autorizas destruir <strong>@_aProgramar.RegistrosAfectados registro(s)</strong> de
+                @DescribirTipo(_aProgramar.TipoDato). Queda atribuido a tu usuario.
+            </p>
+            <p class="aviso-purga">
+                Nada se destruye hasta la fecha que indiques, y puedes descartarlo hasta entonces.
+            </p>
+
+            <CampoTexto Etiqueta="Fecha de ejecución" Type="date" Valor="@_fechaEjecucion"
+                        ValorChanged="v => _fechaEjecucion = v" />
+
+            @if (_errorFormulario is not null)
+            {
+                <p class="aviso-error">@_errorFormulario</p>
+            }
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesando" OnClick="() => _aProgramar = null">Cancelar</Boton>
+        <Boton Cargando="_procesando" OnClick="ProgramarAsync">Autorizar</Boton>
+    </Pie>
+</Modal>
+
+<Modal Visible="_aCancelar is not null" VisibleChanged="v => { if (!v) _aCancelar = null; }"
+       Titulo="Descartar la propuesta" CerrarAlHacerClicFuera="!_procesando">
+    <ChildContent>
+        <p>La propuesta se archiva y esos datos se conservan. Puede volver a proponerse en un barrido posterior.</p>
+
+        <CampoTexto Etiqueta="Motivo" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v"
+                    Placeholder="La organización conserva estos documentos 10 años por política interna" />
+
+        @if (_errorFormulario is not null)
+        {
+            <p class="aviso-error">@_errorFormulario</p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesando" OnClick="() => _aCancelar = null">Volver</Boton>
+        <Boton Cargando="_procesando" OnClick="CancelarAsync">Descartar</Boton>
+    </Pie>
+</Modal>
+
+<Modal Visible="_aEjecutar is not null" VisibleChanged="v => { if (!v) _aEjecutar = null; }"
+       Titulo="Ejecutar la destrucción" CerrarAlHacerClicFuera="!_procesando">
+    <ChildContent>
+        @if (_aEjecutar is not null)
+        {
+            <p>
+                Se van a anonimizar <strong>@_aEjecutar.RegistrosAfectados registro(s)</strong> y a borrar sus
+                archivos asociados.
+            </p>
+            <p class="aviso-purga">
+                <strong>Esto no se puede deshacer.</strong> Los datos personales dejarán de existir; el histórico
+                se conserva sin ellos.
+            </p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesando" OnClick="() => _aEjecutar = null">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Destructivo" Cargando="_procesando" OnClick="EjecutarAsync">Destruir definitivamente</Boton>
+    </Pie>
+</Modal>

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Alertas;
 using CaeManager.Domain.Asignaciones;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
@@ -79,6 +80,8 @@ public class CaeManagerDbContext(
     public DbSet<Proyecto> Proyectos => Set<Proyecto>();
     public DbSet<ProyectoTecnico> ProyectosTecnicos => Set<ProyectoTecnico>();
     public DbSet<DelegacionTenant> DelegacionesTenant => Set<DelegacionTenant>();
+    public DbSet<CaeManager.Domain.Soporte.RegistroActividadSoporte> RegistrosActividadSoporte => Set<CaeManager.Domain.Soporte.RegistroActividadSoporte>();
+    public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
     public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();
     public DbSet<Evaluacion> Evaluaciones => Set<Evaluacion>();
     public DbSet<Incidencia> Incidencias => Set<Incidencia>();
@@ -118,6 +121,8 @@ public class CaeManagerDbContext(
     IQueryable<Proyecto> IApplicationDbContext.Proyectos => Proyectos;
     IQueryable<ProyectoTecnico> IApplicationDbContext.ProyectosTecnicos => ProyectosTecnicos;
     IQueryable<DelegacionTenant> IApplicationDbContext.DelegacionesTenant => DelegacionesTenant;
+    IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> IApplicationDbContext.RegistrosActividadSoporte => RegistrosActividadSoporte;
+    IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IApplicationDbContext.SolicitudesPurga => SolicitudesPurga;
     IQueryable<AsignacionOperadorDelegado> IApplicationDbContext.AsignacionesOperadorDelegado => AsignacionesOperadorDelegado;
     IQueryable<Evaluacion> IApplicationDbContext.Evaluaciones => Evaluaciones;
     IQueryable<Incidencia> IApplicationDbContext.Incidencias => Incidencias;
@@ -210,5 +215,25 @@ public class CaeManagerDbContext(
         builder.Entity<AprobacionDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<MensajeCorreo>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<ParticipanteConversacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<CaeManager.Domain.Soporte.RegistroActividadSoporte>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<CaeManager.Domain.Retencion.SolicitudPurga>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+
+        // Concurrencia optimista sobre todo agregado con ciclo de vida
+        // propio. Se recorre el modelo en vez de enumerar las 15 entidades
+        // una a una a propósito: así una entidad nueva que herede de
+        // EntidadBase queda protegida sin que nadie tenga que acordarse —
+        // justo lo contrario de lo que pasó con los filtros globales, donde
+        // olvidar una línea costó el hallazgo A-1.
+        //
+        // El valor lo renueva ConcurrenciaOptimistaInterceptor en cada
+        // modificación; marcar la propiedad aquí es lo que hace que EF la
+        // incluya en el WHERE del UPDATE.
+        foreach (var tipoEntidad in builder.Model.GetEntityTypes()
+                     .Where(t => typeof(EntidadBase).IsAssignableFrom(t.ClrType)))
+        {
+            builder.Entity(tipoEntidad.ClrType)
+                .Property(nameof(EntidadBase.Version))
+                .IsConcurrencyToken();
+        }
     }
 }
