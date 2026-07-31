@@ -133,6 +133,17 @@
                     </div>
                 </div>
 
+                @if (delegacion.EsSoporte)
+                {
+                    @* Disponible también para el cliente visitado, no solo para
+                       Hydra: el registro es suyo y la transparencia es el
+                       sentido de tenerlo. *@
+                    <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Fantasma"
+                           OnClick="() => VerActividadAsync(delegacion)">
+                        Ver actividad registrada
+                    </Boton>
+                }
+
                 @if (delegacion.Operadores.Count == 0)
                 {
                     <p class="delegacion-sin-operadores">Sin operadores autorizados todavía.</p>
@@ -174,6 +185,41 @@
         }
     }
 </div>
+
+<Drawer Visible="_verActividadDe is not null" VisibleChanged="v => { if (!v) _verActividadDe = null; }"
+        Titulo="Actividad de soporte registrada">
+    @if (_cargandoActividad)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_actividad.Count == 0)
+    {
+        <EstadoVacio Titulo="Sin actividad registrada"
+                     Descripcion="No se ha abierto ningún acceso de soporte sobre esta organización todavía." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Cuándo</th>
+                    <th>Qué</th>
+                    <th>Detalle</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var registro in _actividad)
+                {
+                    <tr>
+                        <td class="celda-momento">@registro.OcurridaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                        <td>@DescribirTipo(registro.Tipo)</td>
+                        <td class="celda-detalle">@registro.Detalle</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</Drawer>
 
 @* Abrir acceso de soporte: motivo y ventana son obligatorios porque es Hydra
    entrando en datos de los que responde el cliente. Ese par es lo que permite

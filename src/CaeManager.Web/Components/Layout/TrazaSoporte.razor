@@ -1,0 +1,19 @@
+@implements IAsyncDisposable
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject CaeManager.Web.Services.TrazaSoporteService Traza
+
+@*
+    Sin marcado propio salvo el aviso: este componente existe para registrar,
+    no para pintar. Va en MainLayout para estar presente en toda la aplicación.
+
+    El aviso no es decorativo — es lo que hace honesta la sesión: quien opera
+    el tenant de un cliente debe ver que está dentro de datos ajenos y que
+    queda registrado. Sin él, es fácil olvidar en qué organización estás.
+*@
+@if (_esSesionDeSoporte)
+{
+    <div class="aviso-sesion-soporte" role="status">
+        Sesión de soporte — estás operando datos de otra organización y tu actividad queda registrada.
+    </div>
+}

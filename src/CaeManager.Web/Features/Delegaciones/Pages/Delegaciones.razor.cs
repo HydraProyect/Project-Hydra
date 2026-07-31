@@ -4,7 +4,9 @@ using CaeManager.Application.Tenants.Commands.CerrarAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDelegado;
+using CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
+using CaeManager.Domain.Soporte;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
@@ -50,6 +52,10 @@ public partial class Delegaciones : ComponentBase
     private DelegacionDto? _delegacionARevocar;
     private bool _revocando;
     private Guid? _procesandoId;
+
+    private DelegacionDto? _verActividadDe;
+    private IReadOnlyList<ActividadSoporteDto> _actividad = [];
+    private bool _cargandoActividad;
 
     private DelegacionDto? _delegacionSoporteAAbrir;
     private string _motivoSoporte = string.Empty;
@@ -130,6 +136,38 @@ public partial class Delegaciones : ComponentBase
             _revocando = false;
         }
     }
+
+    private async Task VerActividadAsync(DelegacionDto delegacion)
+    {
+        _verActividadDe = delegacion;
+        _actividad = [];
+        _cargandoActividad = true;
+        StateHasChanged();
+
+        try
+        {
+            _actividad = await Mediator.Send(new ObtenerActividadSoporteQuery(delegacion.Id));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al cargar la actividad de soporte de la delegación {DelegacionId}.", delegacion.Id);
+            ToastService.Mostrar("No pudimos cargar la actividad registrada.", TonoToast.Error);
+        }
+        finally
+        {
+            _cargandoActividad = false;
+        }
+    }
+
+    private static string DescribirTipo(TipoActividadSoporte tipo) => tipo switch
+    {
+        TipoActividadSoporte.AccesoConcedido => "Acceso concedido",
+        TipoActividadSoporte.WorkspaceActivado => "Entró en la organización",
+        TipoActividadSoporte.Navegacion => "Navegó a",
+        TipoActividadSoporte.Interaccion => "Pulsó",
+        TipoActividadSoporte.AccesoRevocado => "Acceso cerrado",
+        _ => tipo.ToString()
+    };
 
     private void AbrirFormularioSoporte(DelegacionDto delegacion)
     {

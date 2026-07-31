@@ -26,6 +26,12 @@
             </AuthorizeView>
         </header>
 
+        @* Dentro del layout y no junto a @Body: la sesión de soporte tiene
+           que anunciarse en todas las pantallas, no solo en la primera.
+           Necesita su propio @rendermode por lo que explica el comentario de
+           más abajo. *@
+        <TrazaSoporte @rendermode="InteractiveServer" />
+
         <main class="contenido">
             @Body
         </main>
