@@ -22,16 +22,38 @@ public class Tenant : Entity
     public EstadoTenant Estado { get; private set; }
     public DateTime CreadoEnUtc { get; private set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// El tenant desde el que se opera Hydra como producto: el único que
+    /// puede recibir delegaciones de soporte sobre cualquier otro.
+    ///
+    /// Es un marcador explícito y no "el tenant con Id …0001" a propósito: ese
+    /// Id es determinista y público en el código (hallazgo N-14 de
+    /// INFORME-AUDITORIA-2.md), y hacer depender de adivinarlo un privilegio
+    /// que cruza la frontera entre organizaciones sería exactamente el tipo de
+    /// autorización implícita que este sistema evita en todo lo demás.
+    /// </summary>
+    public bool EsPlataforma { get; private set; }
+
     private Tenant()
     {
         // Requerido por EF Core.
     }
 
-    public Tenant(string nombre)
+    public Tenant(string nombre, bool esPlataforma = false)
     {
         EstablecerNombre(nombre);
         Estado = EstadoTenant.Activo;
+        EsPlataforma = esPlataforma;
     }
+
+    /// <summary>
+    /// Marca este tenant como el de la plataforma. Operación aparte y no un
+    /// setter porque conceder o retirar este marcador cambia quién puede
+    /// entrar en los datos de todos los demás.
+    /// </summary>
+    public void MarcarComoPlataforma() => EsPlataforma = true;
+
+    public void DejarDeSerPlataforma() => EsPlataforma = false;
 
     public void Suspender() => Estado = EstadoTenant.Suspendido;
 
