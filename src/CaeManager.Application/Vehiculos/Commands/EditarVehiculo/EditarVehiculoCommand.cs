@@ -6,7 +6,8 @@ using MediatR;
 
 namespace CaeManager.Application.Vehiculos.Commands.EditarVehiculo;
 
-public record EditarVehiculoCommand(Guid Id, string Nombre, string Modelo, string NumeroPlaca) : IRequest<Result>;
+public record EditarVehiculoCommand(
+    Guid Id, string Nombre, string Modelo, string NumeroPlaca, Guid Version = default) : IRequest<Result>;
 
 public class EditarVehiculoCommandValidator : AbstractValidator<EditarVehiculoCommand>
 {
@@ -36,6 +37,9 @@ public class EditarVehiculoCommandHandler(IVehiculoRepository repositorio, IUnit
         var vehiculo = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (vehiculo is null)
             return Result.Fallo(Error.Crear("Vehiculo.NoEncontrado", "No encontramos este vehículo."));
+
+        if (ConcurrenciaOptimista.Verificar(vehiculo, request.Version, "este vehículo") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         if (await repositorio.ExisteConMatriculaAsync(request.NumeroPlaca, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Vehiculo.MatriculaDuplicada", "Ya existe un vehículo con este número de placa."));

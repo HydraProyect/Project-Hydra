@@ -8,7 +8,7 @@ namespace CaeManager.Application.Incidencias.Commands.EditarIncidencia;
 
 public record EditarIncidenciaCommand(
     Guid Id, Guid? TrabajadorId, TipoIncidencia Tipo, GravedadIncidencia Gravedad,
-    DateOnly FechaOcurrencia, string Descripcion) : IRequest<Result>;
+    DateOnly FechaOcurrencia, string Descripcion, Guid Version = default) : IRequest<Result>;
 
 public class EditarIncidenciaCommandValidator : AbstractValidator<EditarIncidenciaCommand>
 {
@@ -29,6 +29,9 @@ public class EditarIncidenciaCommandHandler(IIncidenciaRepository repositorio, I
         var incidencia = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (incidencia is null)
             return Result.Fallo(Error.Crear("Incidencia.NoEncontrada", "No encontramos esta incidencia."));
+
+        if (ConcurrenciaOptimista.Verificar(incidencia, request.Version, "esta incidencia") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         try
         {

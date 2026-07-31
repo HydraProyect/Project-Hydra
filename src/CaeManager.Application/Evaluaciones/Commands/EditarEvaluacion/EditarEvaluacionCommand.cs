@@ -7,7 +7,8 @@ using MediatR;
 namespace CaeManager.Application.Evaluaciones.Commands.EditarEvaluacion;
 
 public record EditarEvaluacionCommand(
-    Guid Id, Guid? TrabajadorId, DateOnly Fecha, int Puntuacion, string? Observaciones) : IRequest<Result>;
+    Guid Id, Guid? TrabajadorId, DateOnly Fecha, int Puntuacion, string? Observaciones,
+    Guid Version = default) : IRequest<Result>;
 
 public class EditarEvaluacionCommandValidator : AbstractValidator<EditarEvaluacionCommand>
 {
@@ -27,6 +28,9 @@ public class EditarEvaluacionCommandHandler(IEvaluacionRepository repositorio, I
         var evaluacion = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (evaluacion is null)
             return Result.Fallo(Error.Crear("Evaluacion.NoEncontrada", "No encontramos esta evaluación."));
+
+        if (ConcurrenciaOptimista.Verificar(evaluacion, request.Version, "esta evaluación") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         try
         {

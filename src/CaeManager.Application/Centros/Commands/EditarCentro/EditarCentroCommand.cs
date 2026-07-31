@@ -12,7 +12,8 @@ public record EditarCentroCommand(
     string? CodigoCentro,
     string? Direccion,
     string? Contacto,
-    DateOnly? ContratoVigenteHasta) : IRequest<Result>;
+    DateOnly? ContratoVigenteHasta,
+    Guid Version = default) : IRequest<Result>;
 
 public class EditarCentroCommandValidator : AbstractValidator<EditarCentroCommand>
 {
@@ -38,6 +39,9 @@ public class EditarCentroCommandHandler(ICentroRepository repositorio, IUnitOfWo
         var centro = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (centro is null)
             return Result.Fallo(Error.Crear("Centro.NoEncontrado", "No encontramos este centro."));
+
+        if (ConcurrenciaOptimista.Verificar(centro, request.Version, "este centro") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         if (await repositorio.ExisteConNombreEnClienteAsync(centro.ClienteId, request.Nombre, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Centro.NombreDuplicado", "Este cliente ya tiene un centro con este nombre."));

@@ -17,7 +17,8 @@ public record TrabajadorDetalleDto(
     DateOnly? FechaNacimiento,
     string? Email,
     string? Observaciones,
-    string? Alias);
+    string? Alias,
+    Guid Version);
 
 public class ObtenerTrabajadorPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTrabajadorPorIdQuery, TrabajadorDetalleDto?>
@@ -39,7 +40,8 @@ public class ObtenerTrabajadorPorIdQueryHandler(IApplicationDbContext dbContext,
                 t.FechaNacimiento,
                 t.Email,
                 t.Observaciones,
-                t.Alias
+                t.Alias,
+                t.Version
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -51,6 +53,7 @@ public class ObtenerTrabajadorPorIdQueryHandler(IApplicationDbContext dbContext,
 
         return new TrabajadorDetalleDto(
             trabajador.Id, trabajador.EmpresaId, trabajador.SubcontrataId, empleadorNombre, trabajador.Nombre, trabajador.Apellidos,
-            trabajador.Dni, trabajador.FechaNacimiento, trabajador.Email, trabajador.Observaciones, trabajador.Alias);
+            trabajador.Dni, trabajador.FechaNacimiento, trabajador.Email, trabajador.Observaciones, trabajador.Alias,
+            trabajador.Version);
     }
 }

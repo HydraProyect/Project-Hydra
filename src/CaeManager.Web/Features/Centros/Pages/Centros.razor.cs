@@ -27,6 +27,9 @@ public partial class Centros : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    // Version del registro tal como se abrio: vuelve en el Command para
+    // detectar que otra persona guardo mientras el formulario estaba abierto.
+    private Guid _versionEditando;
     private string _clienteId = string.Empty;
     private string _clienteNombreSoloLectura = string.Empty;
     private string _empresaId = string.Empty;
@@ -131,6 +134,7 @@ public partial class Centros : ComponentBase
         }
 
         _editandoId = centro.Id;
+        _versionEditando = centro.Version;
         _clienteId = centro.ClienteId.ToString();
         _clienteNombreSoloLectura = centro.ClienteRazonSocial;
         _empresaId = centro.EmpresaId.ToString();
@@ -187,7 +191,7 @@ public partial class Centros : ComponentBase
             else
             {
                 var resultado = await Mediator.Send(
-                    new EditarCentroCommand(_editandoId.Value, _nombre, codigoCentro, direccion, contacto, contratoVigenteHasta));
+                    new EditarCentroCommand(_editandoId.Value, _nombre, codigoCentro, direccion, contacto, contratoVigenteHasta, _versionEditando));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 
