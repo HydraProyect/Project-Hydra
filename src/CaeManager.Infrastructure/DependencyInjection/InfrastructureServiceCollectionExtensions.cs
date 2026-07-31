@@ -59,9 +59,33 @@ public static class InfrastructureServiceCollectionExtensions
         // Sin estado y sin dependencias: una sola instancia sirve.
         services.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 
+        // Motor elegido por configuración mientras dura la migración a
+        // PostgreSQL — ver ProveedorBaseDatos para por qué esto es transitorio.
+        var proveedor = LeerProveedor(configuration);
+
         services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
         {
-            options.UseSqlite(configuration.GetConnectionString("CaeManagerDb"));
+            var cadena = configuration.GetConnectionString("CaeManagerDb");
+
+            if (proveedor == ProveedorBaseDatos.PostgreSql)
+            {
+                options.UseNpgsql(cadena, npgsql =>
+                {
+                    // Las migraciones de PostgreSQL viven en su propio ensamblado:
+                    // EF Core descubre las migraciones escaneando el ensamblado
+                    // entero, así que dos juegos en el mismo sitio se pisarían.
+                    npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL");
+
+                    // Contra un servidor de red hay errores transitorios que con
+                    // un archivo local sencillamente no existían.
+                    npgsql.EnableRetryOnFailure();
+                });
+            }
+            else
+            {
+                options.UseSqlite(cadena);
+            }
+
             options.AddInterceptors(
                 serviceProvider.GetRequiredService<AuditoriaInterceptor>(),
                 serviceProvider.GetRequiredService<TenantSelladoInterceptor>(),
@@ -253,5 +277,27 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPlantillaCombinadaService, ClosedXmlPlantillaCombinadaService>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Lee <c>Database:Proveedor</c>. Por defecto SQLite: un despliegue que no
+    /// diga nada tiene que seguir arrancando exactamente como hasta ahora.
+    /// Un valor escrito mal no cae de vuelta en silencio a SQLite — apuntar sin
+    /// querer a otro motor que el previsto es la clase de error que acaba
+    /// creando una base de datos vacía en paralelo a la de verdad.
+    /// </summary>
+    private static ProveedorBaseDatos LeerProveedor(IConfiguration configuration)
+    {
+        var valor = configuration["Database:Proveedor"];
+
+        if (string.IsNullOrWhiteSpace(valor))
+            return ProveedorBaseDatos.Sqlite;
+
+        if (!Enum.TryParse<ProveedorBaseDatos>(valor, ignoreCase: true, out var proveedor))
+            throw new InvalidOperationException(
+                $"Database:Proveedor tiene el valor '{valor}', que no es válido. " +
+                $"Valores admitidos: {string.Join(", ", Enum.GetNames<ProveedorBaseDatos>())}.");
+
+        return proveedor;
     }
 }
