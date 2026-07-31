@@ -6,11 +6,11 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Infrastructure.Autorizacion;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.QuickGrid;
-using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Clientes.Pages;
 
@@ -18,7 +18,7 @@ public record GestorCaeSelectorDto(Guid Id, string NombreCompleto, string Email)
 
 public partial class Clientes : ComponentBase
 {
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     private static readonly string[] RolesQuePuedenReasignar =
@@ -147,9 +147,10 @@ public partial class Clientes : ComponentBase
 
         if (_puedeReasignarEjecutivo && _gestoresDisponibles.Count == 0)
         {
-            var gestores = await UserManager.GetUsersInRoleAsync(Roles.GestorCae);
+            // Acotado al tenant activo — ver DirectorioUsuariosTenant: sin
+            // esto el selector ofrecía gestores de otras organizaciones.
+            var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae);
             _gestoresDisponibles = gestores
-                .OrderBy(u => u.NombreCompleto)
                 .Select(u => new GestorCaeSelectorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty))
                 .ToList();
         }

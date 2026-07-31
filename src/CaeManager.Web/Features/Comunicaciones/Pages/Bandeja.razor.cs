@@ -10,8 +10,8 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Infrastructure.Autorizacion;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Comunicaciones.Pages;
 
@@ -19,7 +19,7 @@ public record EjecutivoSelectorDto(Guid Id, string NombreCompleto);
 
 public partial class Bandeja : ComponentBase
 {
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ILogger<Bandeja> Logger { get; set; } = default!;
 
     // --- Filtros ---
@@ -59,9 +59,11 @@ public partial class Bandeja : ComponentBase
     {
         _clientesSelector = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
 
-        var gestores = await UserManager.GetUsersInRoleAsync(Roles.GestorCae);
+        // Acotado al tenant activo: GetUsersInRoleAsync devuelve los gestores
+        // de todas las organizaciones (AspNetUsers no tiene filtro global),
+        // así que el selector listaba nombres de empleados de otros tenants.
+        var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae);
         _ejecutivosDisponibles = gestores
-            .OrderBy(u => u.NombreCompleto)
             .Select(u => new EjecutivoSelectorDto(u.Id, u.NombreCompleto))
             .ToList();
 
