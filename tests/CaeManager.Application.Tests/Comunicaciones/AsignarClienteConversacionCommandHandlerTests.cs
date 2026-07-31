@@ -21,7 +21,7 @@ public class AsignarClienteConversacionCommandHandlerTests
         conversacionRepositorio.Agregar(conversacion);
 
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new AsignarClienteConversacionCommandHandler(conversacionRepositorio, clienteRepositorio, unitOfWork);
+        var handler = new AsignarClienteConversacionCommandHandler(conversacionRepositorio, clienteRepositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new AsignarClienteConversacionCommand(conversacion.Id, cliente.Id), CancellationToken.None);
@@ -40,7 +40,7 @@ public class AsignarClienteConversacionCommandHandlerTests
 
         var clienteRepositorio = new ClienteRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new AsignarClienteConversacionCommandHandler(conversacionRepositorio, clienteRepositorio, unitOfWork);
+        var handler = new AsignarClienteConversacionCommandHandler(conversacionRepositorio, clienteRepositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new AsignarClienteConversacionCommand(conversacion.Id, Guid.NewGuid()), CancellationToken.None);

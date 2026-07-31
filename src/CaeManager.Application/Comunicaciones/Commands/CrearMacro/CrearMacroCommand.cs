@@ -20,15 +20,18 @@ public class CrearMacroCommandValidator : AbstractValidator<CrearMacroCommand>
 }
 
 public class CrearMacroCommandHandler(
-    IMacroRespuestaRepository repositorio, IClienteRepository clienteRepositorio, IUnitOfWork unitOfWork)
+    IMacroRespuestaRepository repositorio, IClienteRepository clienteRepositorio,
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearMacroCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearMacroCommand request, CancellationToken cancellationToken)
     {
         if (request.ClienteId is not null)
         {
+            // Mismo alcance que EditarMacroCommandHandler: sin esto se podía
+            // dar de alta una plantilla en la cartera de otro gestor.
             var cliente = await clienteRepositorio.ObtenerPorIdAsync(request.ClienteId.Value, cancellationToken);
-            if (cliente is null)
+            if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
                 return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
         }
 

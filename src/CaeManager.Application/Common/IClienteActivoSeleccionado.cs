@@ -13,7 +13,7 @@ namespace CaeManager.Application.Common;
 ///
 /// La elección se revalida contra <c>DelegacionTenant</c> +
 /// <c>AsignacionOperadorDelegado</c> del usuario actual en el momento de
-/// elegir (ver el endpoint <c>/cuenta/cliente-activo/{tenantId}</c>, Web) —
+/// elegir (ver el endpoint <c>/cuenta/cliente-activo</c>, Web) —
 /// nunca se confía en un valor sin comprobar primero que la delegación
 /// sigue activa. El valor validado se persiste en una cookie y esta
 /// interfaz solo lo lee — no expone una forma de "elegir" directamente

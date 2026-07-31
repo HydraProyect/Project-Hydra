@@ -7,6 +7,13 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
 
 public record ObtenerConversacionPorIdQuery(Guid Id) : IRequest<ConversacionDetalleDto?>;
 
+/// <summary>
+/// <paramref name="CuerpoHtml"/> sale ya saneado por
+/// <see cref="ISanitizadorHtmlService"/> — es la única forma en que el cuerpo
+/// de un mensaje abandona la capa de aplicación, y por eso puede renderizarse
+/// como <c>MarkupString</c>. Quien añada otra ruta de lectura del cuerpo tiene
+/// que sanear igual (hallazgo N-1 de INFORME-AUDITORIA-2.md).
+/// </summary>
 public record MensajeDetalleDto(Guid Id, DireccionMensaje Direccion, string RemitenteEmail, string CuerpoHtml, DateTime FechaUtc);
 
 public record ParticipanteDetalleDto(
@@ -24,9 +31,14 @@ public record ConversacionDetalleDto(
     IReadOnlyList<MensajeDetalleDto> Mensajes,
     IReadOnlyList<ParticipanteDetalleDto> Participantes);
 
-public class ObtenerConversacionPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerConversacionPorIdQueryHandler(
+    IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
+    ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerConversacionPorIdQuery, ConversacionDetalleDto?>
 {
+    // Ver ObtenerConversacionesQueryHandler: mismo literal, mismo motivo.
+    private const string RolCliente = "Cliente";
+
     public async Task<ConversacionDetalleDto?> Handle(ObtenerConversacionPorIdQuery request, CancellationToken cancellationToken)
     {
         var conversacion = await (
@@ -49,14 +61,32 @@ public class ObtenerConversacionPorIdQueryHandler(IApplicationDbContext dbContex
 
         if (conversacion is null) return null;
 
-        if (conversacion.ClienteId is not null && !await alcanceDatos.ClienteVisibleAsync(conversacion.ClienteId.Value, cancellationToken))
+        if (conversacion.ClienteId is not null)
+        {
+            if (!await alcanceDatos.ClienteVisibleAsync(conversacion.ClienteId.Value, cancellationToken))
+                return null;
+        }
+        // Un hilo sin cliente resuelto es de la cola de triage: mismo criterio
+        // que la lista (ObtenerConversacionesQueryHandler), porque si no,
+        // acotar solo el listado dejaba el hilo accesible a quien tuviera el
+        // Guid.
+        else if (await currentUserService.ObtenerRolActualAsync() == RolCliente)
+        {
             return null;
+        }
 
-        var mensajes = await dbContext.MensajesCorreo
+        // Se materializa antes de proyectar al DTO porque el saneado corre en
+        // memoria: no hay forma de traducir el sanitizador a SQL.
+        var mensajesCrudos = await dbContext.MensajesCorreo
             .Where(m => m.ConversacionCorreoId == request.Id)
             .OrderBy(m => m.FechaUtc)
-            .Select(m => new MensajeDetalleDto(m.Id, m.Direccion, m.RemitenteEmail, m.CuerpoHtml, m.FechaUtc))
+            .Select(m => new { m.Id, m.Direccion, m.RemitenteEmail, m.CuerpoHtml, m.FechaUtc })
             .ToListAsync(cancellationToken);
+
+        var mensajes = mensajesCrudos
+            .Select(m => new MensajeDetalleDto(
+                m.Id, m.Direccion, m.RemitenteEmail, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc))
+            .ToList();
 
         var participantes = await dbContext.ParticipantesConversacion
             .Where(p => p.ConversacionCorreoId == request.Id)

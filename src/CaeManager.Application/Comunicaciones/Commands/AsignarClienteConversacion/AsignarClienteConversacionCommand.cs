@@ -20,17 +20,21 @@ public class AsignarClienteConversacionCommandValidator : AbstractValidator<Asig
 }
 
 public class AsignarClienteConversacionCommandHandler(
-    IConversacionCorreoRepository conversacionRepositorio, IClienteRepository clienteRepositorio, IUnitOfWork unitOfWork)
+    IConversacionCorreoRepository conversacionRepositorio, IClienteRepository clienteRepositorio,
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<AsignarClienteConversacionCommand, Result>
 {
     public async Task<Result> Handle(AsignarClienteConversacionCommand request, CancellationToken cancellationToken)
     {
         var cliente = await clienteRepositorio.ObtenerPorIdAsync(request.ClienteId, cancellationToken);
-        if (cliente is null)
+        // Mismo mensaje que "no existe" a propósito (ver
+        // AlcanceDatosServiceExtensions): no se confirma la existencia de un
+        // cliente fuera de la cartera de quien pregunta.
+        if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
 
         var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(request.ConversacionId, cancellationToken);
-        if (conversacion is null)
+        if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
             return Result.Fallo(Error.Crear("ConversacionCorreo.NoEncontrada", "No encontramos esta conversación."));
 
         conversacion.AsignarCliente(cliente.Id);
