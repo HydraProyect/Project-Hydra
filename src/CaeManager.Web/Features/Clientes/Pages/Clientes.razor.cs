@@ -6,11 +6,11 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Infrastructure.Autorizacion;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.QuickGrid;
-using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Clientes.Pages;
 
@@ -18,7 +18,7 @@ public record GestorCaeSelectorDto(Guid Id, string NombreCompleto, string Email)
 
 public partial class Clientes : ComponentBase
 {
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     private static readonly string[] RolesQuePuedenReasignar =
@@ -40,6 +40,7 @@ public partial class Clientes : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    private Guid _versionEditando;
     private string _razonSocial = string.Empty;
     private string _cif = string.Empty;
     private bool _esCritico;
@@ -147,14 +148,18 @@ public partial class Clientes : ComponentBase
 
         if (_puedeReasignarEjecutivo && _gestoresDisponibles.Count == 0)
         {
-            var gestores = await UserManager.GetUsersInRoleAsync(Roles.GestorCae);
+            // Acotado al tenant activo — ver DirectorioUsuariosTenant: sin
+            // esto el selector ofrecía gestores de otras organizaciones.
+            var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae);
             _gestoresDisponibles = gestores
-                .OrderBy(u => u.NombreCompleto)
                 .Select(u => new GestorCaeSelectorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty))
                 .ToList();
         }
 
         _editandoId = cliente.Id;
+        // La versión que se está viendo: vuelve en el Command para detectar
+        // que otra persona guardó mientras el formulario estaba abierto.
+        _versionEditando = cliente.Version;
         _razonSocial = cliente.RazonSocial;
         _cif = cliente.Cif;
         _esCritico = cliente.EsCritico;
@@ -190,7 +195,8 @@ public partial class Clientes : ComponentBase
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarClienteCommand(_editandoId.Value, _razonSocial, _cif, _esCritico, notas));
+                var resultado = await Mediator.Send(
+                    new EditarClienteCommand(_editandoId.Value, _razonSocial, _cif, _esCritico, notas, _versionEditando));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 

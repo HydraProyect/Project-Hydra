@@ -13,7 +13,8 @@ public record VehiculoDetalleDto(
     string EmpleadorNombre,
     string Nombre,
     string Modelo,
-    string NumeroPlaca);
+    string NumeroPlaca,
+    Guid Version);
 
 public class ObtenerVehiculoPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVehiculoPorIdQuery, VehiculoDetalleDto?>
@@ -24,7 +25,7 @@ public class ObtenerVehiculoPorIdQueryHandler(IApplicationDbContext dbContext, I
 
         var vehiculo = await dbContext.Vehiculos
             .Where(v => v.Id == request.Id)
-            .Select(v => new { v.Id, v.EmpresaId, v.SubcontrataId, v.Nombre, v.Modelo, v.NumeroPlaca })
+            .Select(v => new { v.Id, v.EmpresaId, v.SubcontrataId, v.Nombre, v.Modelo, v.NumeroPlaca, v.Version })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (vehiculo is null) return null;
@@ -34,6 +35,7 @@ public class ObtenerVehiculoPorIdQueryHandler(IApplicationDbContext dbContext, I
             : await dbContext.Subcontratas.Where(s => s.Id == vehiculo.SubcontrataId).Select(s => s.RazonSocial).FirstAsync(cancellationToken);
 
         return new VehiculoDetalleDto(
-            vehiculo.Id, vehiculo.EmpresaId, vehiculo.SubcontrataId, empleadorNombre, vehiculo.Nombre, vehiculo.Modelo, vehiculo.NumeroPlaca);
+            vehiculo.Id, vehiculo.EmpresaId, vehiculo.SubcontrataId, empleadorNombre, vehiculo.Nombre, vehiculo.Modelo,
+            vehiculo.NumeroPlaca, vehiculo.Version);
     }
 }

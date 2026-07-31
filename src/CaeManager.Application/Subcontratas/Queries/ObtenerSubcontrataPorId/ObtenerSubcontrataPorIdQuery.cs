@@ -7,7 +7,8 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 public record ObtenerSubcontrataPorIdQuery(Guid Id) : IRequest<SubcontrataDetalleDto?>;
 
 public record SubcontrataDetalleDto(
-    Guid Id, string RazonSocial, DateTime CreadoEnUtc, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds);
+    Guid Id, string RazonSocial, DateTime CreadoEnUtc, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds,
+    Guid Version);
 
 public class ObtenerSubcontrataPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerSubcontrataPorIdQuery, SubcontrataDetalleDto?>
@@ -18,7 +19,7 @@ public class ObtenerSubcontrataPorIdQueryHandler(IApplicationDbContext dbContext
 
         var subcontrata = await dbContext.Subcontratas
             .Where(s => s.Id == request.Id)
-            .Select(s => new { s.Id, s.RazonSocial, s.CreadoEnUtc })
+            .Select(s => new { s.Id, s.RazonSocial, s.CreadoEnUtc, s.Version })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (subcontrata is null) return null;
@@ -33,6 +34,7 @@ public class ObtenerSubcontrataPorIdQueryHandler(IApplicationDbContext dbContext
             .Select(se => se.EmpresaId)
             .ToListAsync(cancellationToken);
 
-        return new SubcontrataDetalleDto(subcontrata.Id, subcontrata.RazonSocial, subcontrata.CreadoEnUtc, clienteIds, empresaIds);
+        return new SubcontrataDetalleDto(
+            subcontrata.Id, subcontrata.RazonSocial, subcontrata.CreadoEnUtc, clienteIds, empresaIds, subcontrata.Version);
     }
 }

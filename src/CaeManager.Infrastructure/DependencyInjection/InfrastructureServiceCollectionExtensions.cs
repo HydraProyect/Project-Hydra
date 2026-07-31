@@ -13,6 +13,7 @@ using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Proyectos;
+using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
@@ -23,9 +24,13 @@ using Microsoft.AspNetCore.Authentication;
 using CaeManager.Infrastructure.AsistenteIa;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
+using Amazon;
+using Amazon.KeyManagementService;
 using CaeManager.Infrastructure.Backups;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Conversion;
+using CaeManager.Infrastructure.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using CaeManager.Infrastructure.DocumentosIa;
 using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.FileStorage;
@@ -33,6 +38,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Interceptors;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -50,13 +56,16 @@ public static class InfrastructureServiceCollectionExtensions
     {
         services.AddScoped<AuditoriaInterceptor>();
         services.AddScoped<TenantSelladoInterceptor>();
+        // Sin estado y sin dependencias: una sola instancia sirve.
+        services.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 
         services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
         {
             options.UseSqlite(configuration.GetConnectionString("CaeManagerDb"));
             options.AddInterceptors(
                 serviceProvider.GetRequiredService<AuditoriaInterceptor>(),
-                serviceProvider.GetRequiredService<TenantSelladoInterceptor>());
+                serviceProvider.GetRequiredService<TenantSelladoInterceptor>(),
+                serviceProvider.GetRequiredService<ConcurrenciaOptimistaInterceptor>());
         });
 
         services
@@ -88,9 +97,38 @@ public static class InfrastructureServiceCollectionExtensions
             ? rutaClavesDataProtection
             : Path.Combine(entorno.ContentRootPath, rutaClavesDataProtection);
 
-        services.AddDataProtection()
+        var constructorDataProtection = services.AddDataProtection()
             .SetApplicationName("CaeManager")
             .PersistKeysToFileSystem(new DirectoryInfo(rutaClavesAbsoluta));
+
+        // Cifrado en reposo de esas claves con AWS KMS. Ver
+        // DataProtectionKmsOptions: sin esto, las claves viajan en claro en el
+        // mismo backup que la base de datos que protegen.
+        var opcionesKms = new DataProtectionKmsOptions();
+        configuration.GetSection(DataProtectionKmsOptions.SeccionConfiguracion).Bind(opcionesKms);
+        services.Configure<DataProtectionKmsOptions>(
+            configuration.GetSection(DataProtectionKmsOptions.SeccionConfiguracion));
+
+        if (opcionesKms.EstaConfigurado)
+        {
+            services.AddSingleton<IAmazonKeyManagementService>(_ => new AmazonKeyManagementServiceClient(
+                opcionesKms.AccessKeyId, opcionesKms.SecretAccessKey, RegionEndpoint.GetBySystemName(opcionesKms.Region)));
+
+            constructorDataProtection.Services.Configure<KeyManagementOptions>(opciones =>
+                opciones.XmlEncryptor = new KmsXmlEncryptor(
+                    new AmazonKeyManagementServiceClient(
+                        opcionesKms.AccessKeyId, opcionesKms.SecretAccessKey, RegionEndpoint.GetBySystemName(opcionesKms.Region)),
+                    opcionesKms.KeyId!));
+        }
+        else
+        {
+            // Ruidoso a propósito: un despliegue que cree estar cifrando y no
+            // lo esté es peor que uno que sepa que no lo está. Se registra al
+            // construir el contenedor, así que sale en el arranque.
+            Console.WriteLine(
+                "[AVISO] DataProtection:Kms no está configurado — las claves de Data Protection se guardan SIN CIFRAR. " +
+                "Con Backups activo viajan en claro junto a la base de datos que protegen (ver RUNBOOK-CLAVES.md).");
+        }
 
         services.AddScoped<IClienteRepository, ClienteRepository>();
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
@@ -125,6 +163,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
+        services.AddScoped<IRegistroActividadSoporteRepository, RegistroActividadSoporteRepository>();
+        services.AddScoped<CaeManager.Domain.Retencion.ISolicitudPurgaRepository, SolicitudPurgaRepository>();
+        services.AddScoped<CaeManager.Application.Retencion.DeteccionPurgaService>();
+        services.AddScoped<CaeManager.Application.Retencion.EjecucionPurgaService>();
         services.AddScoped<IEvaluacionRepository, EvaluacionRepository>();
         services.AddScoped<IIncidenciaRepository, IncidenciaRepository>();
         services.AddScoped<IConversacionCorreoRepository, ConversacionCorreoRepository>();
@@ -133,6 +175,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
         services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
+        // La clase concreta se registra además de la interfaz: las páginas de
+        // administración necesitan sus listados, y los Commands solo la
+        // comprobación de IDirectorioUsuariosService.
+        services.AddScoped<DirectorioUsuariosTenant>();
+        services.AddScoped<IDirectorioUsuariosService>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
         // Scoped (no Singleton): depende de ITenantActual, que es scoped —
@@ -144,6 +191,19 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<BackupsOptions>(configuration.GetSection(BackupsOptions.SeccionConfiguracion));
         services.AddHostedService<BackupHostedService>();
+
+        // Política de retención RGPD: los plazos son decisión legal y viven en
+        // configuración, no en el código (ver RetencionDatosOptions).
+        services.Configure<RetencionDatosOptions>(
+            configuration.GetSection(RetencionDatosOptions.SeccionConfiguracion));
+
+        // La cola es singleton porque la comparten el productor (los Commands,
+        // scoped) y el consumidor (el hosted service, singleton). Se registra
+        // la clase concreta además de la interfaz: el procesador necesita su
+        // lector, que no forma parte del contrato de encolado.
+        services.AddSingleton<ColaAnalisisDocumentoEnMemoria>();
+        services.AddSingleton<IColaAnalisisDocumento>(sp => sp.GetRequiredService<ColaAnalisisDocumentoEnMemoria>());
+        services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>();

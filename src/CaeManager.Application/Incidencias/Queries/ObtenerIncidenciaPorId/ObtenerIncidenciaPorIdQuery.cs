@@ -9,7 +9,7 @@ public record ObtenerIncidenciaPorIdQuery(Guid Id) : IRequest<IncidenciaDetalleD
 
 public record IncidenciaDetalleDto(
     Guid Id, Guid CentroId, string CentroNombre, Guid? TrabajadorId, TipoIncidencia Tipo,
-    GravedadIncidencia Gravedad, DateOnly FechaOcurrencia, string Descripcion, bool Resuelta);
+    GravedadIncidencia Gravedad, DateOnly FechaOcurrencia, string Descripcion, bool Resuelta, Guid Version);
 
 public class ObtenerIncidenciaPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerIncidenciaPorIdQuery, IncidenciaDetalleDto?>
@@ -21,7 +21,8 @@ public class ObtenerIncidenciaPorIdQueryHandler(IApplicationDbContext dbContext,
             join centro in dbContext.Centros on i.CentroId equals centro.Id
             where i.Id == request.Id
             select new IncidenciaDetalleDto(
-                i.Id, i.CentroId, centro.Nombre, i.TrabajadorId, i.Tipo, i.Gravedad, i.FechaOcurrencia, i.Descripcion, i.Resuelta))
+                i.Id, i.CentroId, centro.Nombre, i.TrabajadorId, i.Tipo, i.Gravedad, i.FechaOcurrencia, i.Descripcion,
+                i.Resuelta, i.Version))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (incidencia is null) return null;

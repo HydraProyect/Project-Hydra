@@ -1,8 +1,11 @@
 using System.Security.Claims;
 using CaeManager.Application.Clientes.Queries.BuscarClientePorCif;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -17,6 +20,8 @@ public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 public partial class Usuarios : ComponentBase
 {
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
@@ -69,7 +74,11 @@ public partial class Usuarios : ComponentBase
             _usuarioActualId = Guid.TryParse(idClaim, out var id) ? id : null;
 
             var usuarios = new List<UsuarioListaDto>();
-            foreach (var usuario in UserManager.Users.OrderBy(u => u.Email).ToList())
+            // Acotado al tenant activo: UserManager.Users no filtra nada
+            // (AspNetUsers es la única tabla sin filtro global) y esta pantalla
+            // listaba los usuarios de todas las organizaciones con nombre y
+            // correo. Ver DirectorioUsuariosTenant.
+            foreach (var usuario in await DirectorioUsuarios.ObtenerVisiblesAsync())
             {
                 var roles = await UserManager.GetRolesAsync(usuario);
                 var activo = usuario.LockoutEnd is null || usuario.LockoutEnd < DateTimeOffset.UtcNow;
@@ -100,9 +109,8 @@ public partial class Usuarios : ComponentBase
 
     private async Task CargarCoordinadoresAsync()
     {
-        var coordinadores = await UserManager.GetUsersInRoleAsync(Roles.CoordinadorCae);
+        var coordinadores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.CoordinadorCae);
         _coordinadoresDisponibles = coordinadores
-            .OrderBy(u => u.NombreCompleto)
             .Select(u => new CoordinadorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty))
             .ToList();
     }
@@ -218,12 +226,25 @@ public partial class Usuarios : ComponentBase
             return;
         }
 
+        // ApplicationUser no lo sella el interceptor de tenant (no extiende
+        // EntidadConTenant, ver CaeManagerDbContext), así que hay que
+        // asignarlo aquí: sin esto el usuario nacía con TenantId vacío pese a
+        // que el propio ApplicationUser documenta que "todo usuario nuevo debe
+        // crearse con un TenantId explícito", y al iniciar sesión su claim de
+        // tenant no correspondía a ninguna organización.
+        if (TenantActual.TenantId is not { } tenantId)
+        {
+            _mensajeErrorFormulario = "No pudimos determinar tu organización. Vuelve a iniciar sesión.";
+            return;
+        }
+
         var usuario = new ApplicationUser
         {
             UserName = _email,
             Email = _email,
             NombreCompleto = _nombreCompleto,
             EmailConfirmed = true,
+            TenantId = tenantId,
             CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null,
             ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null,
             // La contraseña que acaba de escribir el Administrador es

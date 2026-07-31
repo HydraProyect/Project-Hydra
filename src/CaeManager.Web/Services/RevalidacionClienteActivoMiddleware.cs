@@ -54,7 +54,12 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 from asignacion in dbContext.AsignacionesOperadorDelegado
                 join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
                 where asignacion.UsuarioId == usuarioId.Value
+                      // Activa y no caducada: es lo que hace que una ventana
+                      // de soporte vencida corte el acceso en la siguiente
+                      // petición, sin que nadie tenga que revocarla a mano
+                      // (ver DelegacionTenant.EstaVigente).
                       && delegacion.Activa
+                      && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
                       && delegacion.TenantClienteId == tenantSeleccionado
                 select delegacion.Id)
                 .AnyAsync(contexto.RequestAborted);

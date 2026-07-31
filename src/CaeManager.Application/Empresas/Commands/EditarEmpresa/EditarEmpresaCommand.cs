@@ -6,7 +6,8 @@ using MediatR;
 
 namespace CaeManager.Application.Empresas.Commands.EditarEmpresa;
 
-public record EditarEmpresaCommand(Guid Id, string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds) : IRequest<Result>;
+public record EditarEmpresaCommand(
+    Guid Id, string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds, Guid Version = default) : IRequest<Result>;
 
 public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaCommand>
 {
@@ -40,6 +41,9 @@ public class EditarEmpresaCommandHandler(
         var empresa = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (empresa is null)
             return Result.Fallo(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa."));
+
+        if (ConcurrenciaOptimista.Verificar(empresa, request.Version, "esta empresa") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Empresa.RazonSocialDuplicada", "Ya existe una empresa con esta razón social."));

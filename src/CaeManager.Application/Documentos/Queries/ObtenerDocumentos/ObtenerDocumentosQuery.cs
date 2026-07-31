@@ -154,39 +154,55 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
                 x.TipoDocumentoNombre.ToUpper().Contains(busqueda));
         }
 
-        // El Estado se calcula en memoria (nunca en SQL, ver comentario de
-        // clase) — cuando se filtra por Estado, la paginación también tiene
-        // que hacerse en memoria, después de calcularlo, así que se trae el
-        // conjunto ya filtrado por ámbito/búsqueda completo en vez de paginar
-        // en SQL. El volumen de Documentos de esta app (miles, no millones)
-        // hace esto viable sin necesidad de una columna de estado persistida.
         var parametros = await dbContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var todos = await consulta
+        // El Estado se sigue calculando con CalculadoraEstadoDocumento —
+        // fuente única de verdad, ver el comentario de clase—, pero el
+        // *filtro* por Estado se traduce a un rango de fechas equivalente
+        // para que SQL pueda hacerlo. Antes no se traducía, y eso obligaba a
+        // materializar todos los Documentos del tenant en cada carga de la
+        // pantalla para paginar en memoria.
+        if (request.Estado is not null)
+        {
+            // Equivalencias con CalculadoraEstadoDocumento, que compara
+            // "días restantes" contra los umbrales: días <= umbral es lo mismo
+            // que fechaVencimiento <= hoy + umbral. Si alguna vez cambia la
+            // calculadora, estas cuatro líneas cambian con ella —
+            // DocumentosPaginacionEnSqlTests compara ambas para que no se
+            // separen en silencio.
+            var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);
+            var limiteAmbar = hoy.AddDays(parametros.UmbralAmbarDias);
+
+            consulta = request.Estado.Value switch
+            {
+                EstadoDocumento.NoAplica => consulta.Where(x => x.FechaVencimiento == null),
+                EstadoDocumento.Vencido => consulta.Where(x => x.FechaVencimiento != null && x.FechaVencimiento < hoy),
+                EstadoDocumento.Urgente => consulta.Where(x => x.FechaVencimiento >= hoy && x.FechaVencimiento <= limiteRojo),
+                EstadoDocumento.Proximo => consulta.Where(x => x.FechaVencimiento > limiteRojo && x.FechaVencimiento <= limiteAmbar),
+                EstadoDocumento.Vigente => consulta.Where(x => x.FechaVencimiento > limiteAmbar),
+                _ => consulta
+            };
+        }
+
+        var total = await consulta.CountAsync(cancellationToken);
+
+        var pagina = await consulta
             .OrderByDescending(x => x.FechaEmision)
+            .Skip((request.Pagina - 1) * request.TamanoPagina)
+            .Take(request.TamanoPagina)
             .Select(x => new DocumentoListaDto(
                 x.Id, x.Ambito, x.PropietarioNombre, x.TipoDocumentoNombre, x.FechaEmision, x.FechaVencimiento,
                 EstadoDocumento.Vigente, x.ArchivoUrl))
             .ToListAsync(cancellationToken);
 
-        var conEstado = todos
+        // Ahora solo sobre la página, no sobre todo el tenant.
+        var elementos = pagina
             .Select(d => d with
             {
                 Estado = CalculadoraEstadoDocumento.Calcular(
                     d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
-            });
-
-        var filtrados = request.Estado is not null
-            ? conEstado.Where(d => d.Estado == request.Estado)
-            : conEstado;
-
-        var listaFiltrada = filtrados.ToList();
-        var total = listaFiltrada.Count;
-
-        var elementos = listaFiltrada
-            .Skip((request.Pagina - 1) * request.TamanoPagina)
-            .Take(request.TamanoPagina)
+            })
             .ToList();
 
         return new ResultadoPaginado<DocumentoListaDto>(elementos, total, request.Pagina, request.TamanoPagina);

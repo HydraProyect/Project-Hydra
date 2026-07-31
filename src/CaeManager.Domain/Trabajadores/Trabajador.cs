@@ -98,6 +98,52 @@ public class Trabajador : EntidadBase
         return new Trabajador(null, subcontrataId, nombre, apellidos, alias, dni, fechaNacimiento, email, observaciones);
     }
 
+    /// <summary>
+    /// Cuándo se anonimizó, o null si conserva sus datos personales. Sirve
+    /// para dos cosas: no volver a procesarlo en barridos posteriores, y poder
+    /// demostrar cuándo se cumplió la supresión.
+    /// </summary>
+    public DateTime? AnonimizadoEnUtc { get; private set; }
+
+    public bool EstaAnonimizado => AnonimizadoEnUtc is not null;
+
+    /// <summary>
+    /// Rompe de forma irreversible el vínculo con la persona física
+    /// (RGPD-TRATAMIENTO-DATOS.md § 5: purgar es anonimizar, no borrar).
+    ///
+    /// La fila y sus relaciones se conservan —asignaciones, visitas,
+    /// documentos— porque el histórico de coordinación de actividades sigue
+    /// siendo necesario y, sin datos identificativos, deja de ser dato
+    /// personal. Borrar la fila rompería ese histórico y no aportaría nada
+    /// que esto no consiga.
+    ///
+    /// No se guarda ningún dato derivado del original: ni iniciales, ni un
+    /// hash del DNI, ni el año de nacimiento. Cualquiera de esas cosas
+    /// permitiría reidentificar cruzando con otra fuente, y entonces esto no
+    /// sería anonimización sino seudonimización — que sigue siendo dato
+    /// personal a efectos del RGPD.
+    ///
+    /// Idempotente: repetirlo no cambia nada ni mueve la fecha.
+    /// </summary>
+    public void Anonimizar(DateTime ahoraUtc)
+    {
+        if (EstaAnonimizado) return;
+
+        // El identificador visible pasa a ser el propio Id, que no dice nada
+        // de la persona pero mantiene legible el histórico.
+        var referencia = $"Anonimizado {Id.ToString()[..8]}";
+
+        Nombre = referencia;
+        Apellidos = string.Empty;
+        Alias = null;
+        Dni = string.Empty;
+        FechaNacimiento = null;
+        Email = null;
+        Observaciones = null;
+
+        AnonimizadoEnUtc = ahoraUtc;
+    }
+
     public void Actualizar(
         string nombre,
         string apellidos,
@@ -106,6 +152,13 @@ public class Trabajador : EntidadBase
         string? observaciones,
         string? alias)
     {
+        // Editar un trabajador anonimizado reintroduciría datos personales de
+        // alguien cuyo plazo de conservación ya venció, y dejaría la
+        // supresión sin efecto sin que nadie se enterara.
+        if (EstaAnonimizado)
+            throw new InvalidOperationException(
+                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse.");
+
         EstablecerNombre(nombre);
         EstablecerApellidos(apellidos);
         EstablecerAlias(alias);
