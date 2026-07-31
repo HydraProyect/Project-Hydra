@@ -19,10 +19,11 @@
         }
         <input type="hidden" name="returnUrl" value="@_returnUrl" />
 
-        @* onchange inline en vez de interop de JS: no hay CSP que lo impida
-           y evita arrastrar un fichero .js solo para un submit. *@
+        @* El envío lo dispara el listener delegado de microinteracciones.js:
+           la CSP (UseCabecerasSeguridad) no admite 'unsafe-inline' en
+           script-src, así que el onchange="…" que había aquí ya no correría. *@
         <select class="selector-cliente-activo" name="tenantId"
-                onchange="this.form.submit()" aria-label="Cliente activo">
+                data-enviar-al-cambiar aria-label="Cliente activo">
             @foreach (var cliente in _clientes)
             {
                 <option value="@cliente.TenantId" selected="@(cliente.TenantId == _tenantIdActivo)">@cliente.Nombre</option>

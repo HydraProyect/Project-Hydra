@@ -37,8 +37,27 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         return int.Parse(coincidencia.Groups[1].Value);
     }
 
+    /// <summary>
+    /// Antes este test se llamaba "Administrador ve los 200 clientes
+    /// sembrados" y comprobaba justo lo contrario: que ser Administrador en
+    /// la Consultora bastaba para verlo todo dentro del Delegated Workspace.
+    /// Eso era el hallazgo N-5 de INFORME-AUDITORIA-2.md —
+    /// <c>AsignacionOperadorDelegado.Rol</c> se guardaba y no se leía nunca—,
+    /// así que el test estaba fijando el defecto.
+    ///
+    /// Desde que el rol efectivo lo decide la asignación (ADR-004 § 5.3), el
+    /// administrador entra al workspace de demo como <c>GestorCae</c>
+    /// (<c>DelegacionDemoSeeder.RolOperadorDelegadoDemo</c>) y solo ve la
+    /// cartera de ese rol, no los ~200 clientes del Cliente Delegante.
+    ///
+    /// Que ningún Operador Delegado alcance acceso total es deliberado:
+    /// <c>CrearAsignacionOperadorDelegadoCommandValidator</c> excluye
+    /// Administrador y DireccionCae de los roles asignables — se opera dentro
+    /// del alcance del workspace, nunca con privilegios de administración de
+    /// la plataforma del cliente.
+    /// </summary>
     [Fact]
-    public async Task Administrador_ve_los_200_clientes_sembrados()
+    public async Task El_rol_de_la_delegacion_acota_al_administrador_dentro_del_workspace_delegado()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -48,21 +67,20 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         // El tenant de origen del Administrador (Consultora, ADR-004 § 5.1)
         // no tiene datos operativos propios — los ~200 Clientes sembrados de
         // prueba viven en su Delegated Workspace (ver DelegacionDemoSeeder).
-        // Sin este cambio de "Cliente activo" el test comprobaría el tenant
-        // equivocado.
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
+        // El administrador no es ejecutivo de ninguno de los clientes
+        // sembrados, así que como GestorCae su cartera está vacía. Lo que se
+        // comprueba es que NO aparecen los ~200: si el rol del claim volviera
+        // a filtrarse al workspace ajeno, el contador saldría y este test
+        // fallaría.
         var contador = page.GetByText(PatronContadorElementos()).First;
-        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        var totalVisible = await contador.IsVisibleAsync();
 
-        // >=200, no ==200: la app se comparte con el resto de tests de esta
-        // colección (un solo arranque, ver WebAppFixture) y FlujoCriticoTests
-        // puede haber creado algún Cliente adicional antes de que este test
-        // corra — lo que importa aquí es "sin restricción" (el total base +
-        // lo que sea que ya exista), no un número exacto congelado.
-        Assert.True(ExtraerTotalElementos(await contador.InnerTextAsync()) >= 200);
+        if (totalVisible)
+            Assert.True(ExtraerTotalElementos(await contador.InnerTextAsync()) < 200);
     }
 
     /// <summary>

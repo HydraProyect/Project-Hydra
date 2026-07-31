@@ -26,7 +26,8 @@ public class ResponderConversacionCommandValidator : AbstractValidator<Responder
 /// ConexionIntegracion.ClienteId (§ 12.2) para resolver el buzón real del
 /// Cliente/Tenant que atiende la conversación.
 /// </summary>
-public class ResponderConversacionCommandHandler(IConversacionCorreoRepository repositorio, IUnitOfWork unitOfWork)
+public class ResponderConversacionCommandHandler(
+    IConversacionCorreoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<ResponderConversacionCommand, Result>
 {
     private const string RemitenteSimuladoEmail = "equipo-cae@buzon-simulado.local";
@@ -34,7 +35,9 @@ public class ResponderConversacionCommandHandler(IConversacionCorreoRepository r
     public async Task<Result> Handle(ResponderConversacionCommand request, CancellationToken cancellationToken)
     {
         var conversacion = await repositorio.ObtenerPorIdAsync(request.ConversacionId, cancellationToken);
-        if (conversacion is null)
+        // Ver AsignarEjecutivoConversacionCommandHandler (hallazgo N-3): sin
+        // esto se podía responder en el hilo de otro gestor.
+        if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
             return Result.Fallo(Error.Crear("ConversacionCorreo.NoEncontrada", "No encontramos esta conversación."));
 
         conversacion.AgregarMensaje(DireccionMensaje.Saliente, RemitenteSimuladoEmail, request.CuerpoHtml);
