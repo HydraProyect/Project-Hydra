@@ -198,6 +198,13 @@ using (var scope = app.Services.CreateScope())
     // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
     // que SegundoTenant:Activo esté configurado explícitamente.
     await SegundoTenantSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
+
+    // Al final a propósito: aprovisiona la delegación de soporte —apagada—
+    // de todo tenant que exista, incluidos los que acaben de sembrarse.
+    // Idempotente, así que cubre también los tenants creados en arranques
+    // anteriores. Aprovisionar no concede acceso: abrirlo exige motivo y
+    // ventana (ver DelegacionesSoporteSeeder).
+    await DelegacionesSoporteSeeder.SeedAsync(dbContext, logger);
 }
 
 // Registrado antes del manejo de excepciones para envolverlo por completo:

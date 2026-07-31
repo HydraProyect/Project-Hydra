@@ -88,7 +88,9 @@ public class DirectorioUsuariosTenant(
         await (
             from asignacion in dbContext.AsignacionesOperadorDelegado
             join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
+            // Activa y no caducada — ver DelegacionTenant.EstaVigente.
             where delegacion.Activa && delegacion.TenantClienteId == tenantId
+                  && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
             select asignacion.UsuarioId)
             .Distinct()
             .ToListAsync(cancellationToken);
