@@ -40,6 +40,7 @@ public partial class Clientes : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    private Guid _versionEditando;
     private string _razonSocial = string.Empty;
     private string _cif = string.Empty;
     private bool _esCritico;
@@ -156,6 +157,9 @@ public partial class Clientes : ComponentBase
         }
 
         _editandoId = cliente.Id;
+        // La versión que se está viendo: vuelve en el Command para detectar
+        // que otra persona guardó mientras el formulario estaba abierto.
+        _versionEditando = cliente.Version;
         _razonSocial = cliente.RazonSocial;
         _cif = cliente.Cif;
         _esCritico = cliente.EsCritico;
@@ -191,7 +195,8 @@ public partial class Clientes : ComponentBase
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarClienteCommand(_editandoId.Value, _razonSocial, _cif, _esCritico, notas));
+                var resultado = await Mediator.Send(
+                    new EditarClienteCommand(_editandoId.Value, _razonSocial, _cif, _esCritico, notas, _versionEditando));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 
