@@ -17,14 +17,23 @@ public class AsignarEjecutivoConversacionCommandValidator : AbstractValidator<As
 }
 
 /// <summary>
-/// No carga el Ejecutivo antes de asignarlo: ApplicationUser vive en
-/// Infrastructure.Identity, que Application no puede referenciar (mismo
-/// motivo documentado en ReasignarEjecutivoClienteCommand) — Web ya valida
-/// que el id viene de un selector poblado con UserManager antes de llamar a
-/// este Command.
+/// El Ejecutivo se revalida contra <see cref="IDirectorioUsuariosService"/>.
+/// Antes no se comprobaba, con el argumento de que "Web ya valida que el id
+/// viene de un selector": un selector no es una frontera de autorización —
+/// nada impide enviar otro Guid— y así se podía escribir cualquier valor en
+/// <c>EjecutivoAsignadoId</c>, incluido el de un usuario de otro tenant
+/// (hallazgo N-10 de INFORME-AUDITORIA-2.md).
+///
+/// Hace falta la abstracción porque <c>ApplicationUser</c> vive en
+/// Infrastructure.Identity y Application no puede referenciarlo (mismo motivo
+/// documentado en ReasignarEjecutivoClienteCommand, que tiene el mismo hueco
+/// abierto).
 /// </summary>
 public class AsignarEjecutivoConversacionCommandHandler(
-    IConversacionCorreoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IConversacionCorreoRepository repositorio,
+    IAlcanceDatosService alcanceDatos,
+    IDirectorioUsuariosService directorioUsuarios,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<AsignarEjecutivoConversacionCommand, Result>
 {
     public async Task<Result> Handle(AsignarEjecutivoConversacionCommand request, CancellationToken cancellationToken)
@@ -35,6 +44,12 @@ public class AsignarEjecutivoConversacionCommandHandler(
         // que ya no está en su cartera podía reasignarla.
         if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
             return Result.Fallo(Error.Crear("ConversacionCorreo.NoEncontrada", "No encontramos esta conversación."));
+
+        // null es legítimo: es "desasignar".
+        if (request.EjecutivoId is { } ejecutivoId &&
+            !await directorioUsuarios.EsVisibleEnTenantActualAsync(ejecutivoId, cancellationToken))
+            return Result.Fallo(Error.Crear(
+                "AsignarEjecutivoConversacion.EjecutivoNoValido", "No encontramos a ese usuario en tu organización."));
 
         conversacion.Asignar(request.EjecutivoId);
         await unitOfWork.SaveChangesAsync(cancellationToken);
