@@ -62,6 +62,19 @@ public class DiskFileStorageService : IFileStorageService
         return Task.FromResult(flujo);
     }
 
+    public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default)
+    {
+        var rutaCompleta = ResolverRutaSegura(identificador);
+
+        // Misma resolución segura que al abrir: un identificador de otro
+        // tenant no resuelve, así que la purga de un tenant nunca puede
+        // borrar archivos de otro.
+        if (rutaCompleta is not null && File.Exists(rutaCompleta))
+            File.Delete(rutaCompleta);
+
+        return Task.CompletedTask;
+    }
+
     private string? ResolverRutaSegura(string identificador)
     {
         if (_tenantActual.TenantId is not { } tenantId) return null;
