@@ -6,7 +6,7 @@
 
 Hydra (CAE Manager) pasa a ser, como objetivo principal del producto, una **plataforma SaaS comercial multi-tenant** para la gestión de Coordinación de Actividades Empresariales, vendible a consultoras de PRL y a empresas contratistas. La implementación del aislamiento por tenant se hace **en este repositorio** (in-place), no en un fork.
 
-La organización que hoy usa el sistema en producción pasa a ser el **tenant #1** mediante la migración por etapas descrita en `INFORME-MULTITENANT.md` § 12 (esquema aditivo → backfill → cierre con filtros e índices → partición de archivos → verificación end-to-end), con ensayo previo obligatorio sobre una copia de la base de datos real.
+La organización que hoy usa el sistema en producción pasa a ser el **tenant #1** mediante la migración por etapas descrita en `docs/archive/INFORME-MULTITENANT.md` § 12 (esquema aditivo → backfill → cierre con filtros e índices → partición de archivos → verificación end-to-end), con ensayo previo obligatorio sobre una copia de la base de datos real.
 
 ## Por qué se supersede ADR-002
 
@@ -23,14 +23,14 @@ La hipótesis (1) ha dejado de ser válida: la estrategia SaaS es ahora el objet
 ## Documentación de esta decisión
 
 - `docs/MULTITENANCY.md` — filosofía del tenant, escenarios, reglas de aislamiento, clasificación de catálogos (global vs. por tenant) y Tenant Resolution Strategy. Es el documento normativo de multi-tenancy.
-- `INFORME-MULTITENANT.md` — el análisis técnico completo que fundamenta esta decisión (validación del modelo, riesgos, estrategia de migración/índices/consultas).
+- `docs/archive/INFORME-MULTITENANT.md` — el análisis técnico completo que fundamenta esta decisión (validación del modelo, riesgos, estrategia de migración/índices/consultas).
 - `PROJECT.md`, `CLAUDE.md`, `ROADMAP.md`, `ARCHITECTURE.md`, `DATABASE.md`, `DOMAIN.md` — actualizados en la misma fase de consolidación que este ADR, para que ninguna sesión futura trabaje contra esta decisión.
 
 ## Secuencia acordada (no saltarse fases)
 
 1. ✅ Consolidación documental (este ADR + documentos listados arriba).
 2. ⬜ Aprobación de la documentación por el propietario del producto.
-3. ⬜ Plan de migración detallado (etapas de `INFORME-MULTITENANT.md` § 12 desarrolladas a nivel de ejecución).
+3. ⬜ Plan de migración detallado (etapas de `docs/archive/INFORME-MULTITENANT.md` § 12 desarrolladas a nivel de ejecución).
 4. ⬜ Implementación técnica del multitenancy.
 5. ⬜ Validación (tests de aislamiento por agregado + verificación end-to-end en navegador).
 
