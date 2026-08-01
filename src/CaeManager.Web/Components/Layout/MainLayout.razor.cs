@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -11,6 +12,7 @@ public partial class MainLayout
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
 
     /// <summary>
     /// Forzar el cambio de contraseña en el primer login (ver
@@ -34,21 +36,27 @@ public partial class MainLayout
         var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (!Guid.TryParse(idClaim, out var id)) return;
 
-        var usuario = await UserManager.FindByIdAsync(id.ToString());
-        if (usuario is null) return;
-
-        if (usuario.DebeCambiarContrasena)
+        // Por la puerta: este guard corre en paralelo con la inicialización
+        // de los demás componentes del layout y de la página, todos sobre el
+        // mismo DbContext scoped (ver PuertaAccesoDatos).
+        await PuertaAccesoDatos.EjecutarAsync(async () =>
         {
-            Navigation.NavigateTo("/cuenta/cambiar-contrasena", forceLoad: true);
-            return;
-        }
+            var usuario = await UserManager.FindByIdAsync(id.ToString());
+            if (usuario is null) return;
 
-        // Mismo motivo que el guard de arriba: sin esto, un usuario
-        // auto-provisionado por SSO sin rol asignado (ver
-        // IdentityEndpointsExtensions) podría saltarse la sala de espera
-        // escribiendo cualquier otra URL a mano.
-        var roles = await UserManager.GetRolesAsync(usuario);
-        if (roles.Count == 0)
-            Navigation.NavigateTo("/cuenta/pendiente-de-rol", forceLoad: true);
+            if (usuario.DebeCambiarContrasena)
+            {
+                Navigation.NavigateTo("/cuenta/cambiar-contrasena", forceLoad: true);
+                return;
+            }
+
+            // Mismo motivo que el guard de arriba: sin esto, un usuario
+            // auto-provisionado por SSO sin rol asignado (ver
+            // IdentityEndpointsExtensions) podría saltarse la sala de espera
+            // escribiendo cualquier otra URL a mano.
+            var roles = await UserManager.GetRolesAsync(usuario);
+            if (roles.Count == 0)
+                Navigation.NavigateTo("/cuenta/pendiente-de-rol", forceLoad: true);
+        });
     }
 }
