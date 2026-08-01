@@ -298,6 +298,9 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<GraphEmailOptions>(configuration.GetSection(GraphEmailOptions.SeccionConfiguracion));
         services.AddHttpClient<IEmailService, GraphEmailService>();
+
+        // Comunicaciones (P2 #26): apagado por defecto — ver ComunicacionesOptions.
+        services.Configure<ComunicacionesOptions>(configuration.GetSection(ComunicacionesOptions.SeccionConfiguracion));
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();
