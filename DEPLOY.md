@@ -106,7 +106,8 @@ Primer arranque: la app ejecuta las migraciones de base de datos y crea el usuar
 
 ## 5. Verificar
 
-- `https://tu-dominio.up.railway.app/salud` debe responder `200 ok` (endpoint sin autenticación, pensado para healthchecks).
+- `https://tu-dominio.up.railway.app/salud` debe responder `200 Healthy` (endpoint sin autenticación, pensado para healthchecks). Desde el cierre del P0-5 (`MATURITY_REVIEW.md`) ya no es un "ok" incondicional: ejecuta una consulta real contra PostgreSQL, así que un 503 aquí significa que la base de datos no responde, no solo que el proceso esté caído.
+- **Uptime check externo (pendiente de provisionar, P0-5)**: apunta un monitor externo gratuito (UptimeRobot, Better Stack…) a `/salud` con alerta por email — sin esto, una caída un viernes por la noche no la notifica nadie. Misma pendiente para `Sentry__Dsn`: crear el proyecto en sentry.io y poner el DSN en Railway activa el error tracking sin tocar código.
 - `https://tu-dominio.up.railway.app/` debe redirigir a la pantalla de inicio de sesión.
 - Inicia sesión con el email/contraseña de `AdministradorInicial` que configuraste en el paso 3.
 
