@@ -20,7 +20,7 @@ public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 public partial class Usuarios : ComponentBase
 {
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
-    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private IPuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
