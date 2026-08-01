@@ -16,8 +16,8 @@ public class BotonTests : BunitContext
     public void Un_atributo_no_reconocido_llega_al_boton_renderizado()
     {
         var cut = Render<Boton>(parametros => parametros
-            .Add("aria-label", "Cerrar panel")
-            .Add("data-testid", "boton-cerrar"));
+            .AddUnmatched("aria-label", "Cerrar panel")
+            .AddUnmatched("data-testid", "boton-cerrar"));
 
         var boton = cut.Find("button");
 
@@ -29,7 +29,7 @@ public class BotonTests : BunitContext
     public void Las_clases_propias_del_boton_se_conservan_junto_a_las_del_llamador()
     {
         var cut = Render<Boton>(parametros => parametros
-            .Add("class", "clase-extra"));
+            .AddUnmatched("class", "clase-extra"));
 
         var boton = cut.Find("button");
 
