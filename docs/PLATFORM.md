@@ -43,7 +43,7 @@ El Kernel **no conoce** ninguna entidad de CAE (`Cliente`, `Documento`...) — s
 | **Integrations** | Diseñado, no implementado | `ARQUITECTURA-INTEGRACIONES.md`, `docs/INTEGRATION_GUIDELINES.md` |
 | **AI** | Ya sigue el patrón correcto pero acoplado a un caso de uso concreto — ver § 4 | `IExtraccionTrabajadoresIaService` (Application) / `AnthropicExtraccionTrabajadoresIaService` (Infrastructure) |
 | **Notifications** | Ya sigue el patrón correcto para dos canales — ver § 4 | `IEmailService`/`GraphEmailService`, `NotificacionUsuario` (interno) |
-| **Storage** | Ya sigue el patrón correcto para un backend — ver § 4 | `IFileStorageService` (Application), disco local (Infrastructure) |
+| **Storage** | Ya sigue el patrón correcto, dos backends intercambiables por configuración (P2 #22 de `docs/business/MATURITY_REVIEW.md`) | `IFileStorageService` (Application), disco local o S3 según `AlmacenamientoS3:Activo` (Infrastructure, ver `DEPLOY.md`) |
 | **Observability** | Parcial (Sentry opcional, "inerte por defecto") | `ROADMAP.md` § Iniciativa de hardening |
 | **Background Jobs** | Diseñado (ámbito de tenant explícito), sin infraestructura general de jobs todavía | `PLAN-MIGRACION-MULTITENANT.md` § 4.7 |
 | **Feature Flags** | No existe — esbozo en § 4 | — |

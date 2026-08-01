@@ -64,6 +64,7 @@ public class CaeManagerDbContext(
     public DbSet<AprobacionDocumento> AprobacionesDocumento => Set<AprobacionDocumento>();
     public DbSet<ExtraccionIaCache> ExtraccionesIaCache => Set<ExtraccionIaCache>();
     public DbSet<AuditoriaExtraccionIa> AuditoriasExtraccionIa => Set<AuditoriaExtraccionIa>();
+    public DbSet<TrabajoAnalisisDocumento> TrabajosAnalisisDocumento => Set<TrabajoAnalisisDocumento>();
     public DbSet<NotificacionUsuario> NotificacionesUsuario => Set<NotificacionUsuario>();
     public DbSet<Documento> Documentos => Set<Documento>();
     public DbSet<Asignacion> Asignaciones => Set<Asignacion>();
@@ -108,6 +109,7 @@ public class CaeManagerDbContext(
     IQueryable<AprobacionDocumento> IApplicationDbContext.AprobacionesDocumento => AprobacionesDocumento;
     IQueryable<ExtraccionIaCache> IApplicationDbContext.ExtraccionesIaCache => ExtraccionesIaCache;
     IQueryable<AuditoriaExtraccionIa> IApplicationDbContext.AuditoriasExtraccionIa => AuditoriasExtraccionIa;
+    IQueryable<TrabajoAnalisisDocumento> IApplicationDbContext.TrabajosAnalisisDocumento => TrabajosAnalisisDocumento;
     IQueryable<NotificacionUsuario> IApplicationDbContext.NotificacionesUsuario => NotificacionesUsuario;
     IQueryable<Documento> IApplicationDbContext.Documentos => Documentos;
     IQueryable<Asignacion> IApplicationDbContext.Asignaciones => Asignaciones;
@@ -217,6 +219,7 @@ public class CaeManagerDbContext(
         builder.Entity<ParticipanteConversacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<CaeManager.Domain.Soporte.RegistroActividadSoporte>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<CaeManager.Domain.Retencion.SolicitudPurga>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+        builder.Entity<TrabajoAnalisisDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
 
         // Concurrencia optimista sobre todo agregado con ciclo de vida
         // propio. Se recorre el modelo en vez de enumerar las 15 entidades

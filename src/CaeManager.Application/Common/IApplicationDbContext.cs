@@ -48,6 +48,7 @@ public interface IApplicationDbContext
     IQueryable<AprobacionDocumento> AprobacionesDocumento { get; }
     IQueryable<ExtraccionIaCache> ExtraccionesIaCache { get; }
     IQueryable<AuditoriaExtraccionIa> AuditoriasExtraccionIa { get; }
+    IQueryable<TrabajoAnalisisDocumento> TrabajosAnalisisDocumento { get; }
     IQueryable<NotificacionUsuario> NotificacionesUsuario { get; }
     IQueryable<Documento> Documentos { get; }
     IQueryable<Asignacion> Asignaciones { get; }
