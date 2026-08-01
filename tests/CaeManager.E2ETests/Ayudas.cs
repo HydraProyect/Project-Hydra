@@ -25,7 +25,7 @@ public static class Ayudas
     /// (mismo criterio que EmailAdministradorSegundoTenant); si cambia allí,
     /// este test debe actualizarse también.
     /// </summary>
-    public const string NombreClienteDelegadoDemo = "Ibertec S.A. (Cliente Delegante demo)";
+    public const string NombreClienteDelegadoDemo = "Laboratorios Dexter S.L. (Cliente Delegante demo)";
 
     public static string EmailPrueba(string rolEnMinusculas, int numero) =>
         $"prueba.{rolEnMinusculas}{numero}@caemanager.local";

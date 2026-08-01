@@ -73,23 +73,24 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
 
         // El administrador no es ejecutivo de ninguno de los clientes
         // sembrados, así que como GestorCae su cartera está vacía. Lo que se
-        // comprueba es que NO aparecen los ~200: si el rol del claim volviera
-        // a filtrarse al workspace ajeno, el contador saldría y este test
+        // comprueba es que NO aparece la cartera entera (9 clientes en la
+        // siembra determinista): si el rol del claim volviera a filtrarse al
+        // workspace ajeno, el contador saldría con el total y este test
         // fallaría.
         var contador = page.GetByText(PatronContadorElementos()).First;
         var totalVisible = await contador.IsVisibleAsync();
 
         if (totalVisible)
-            Assert.True(ExtraerTotalElementos(await contador.InnerTextAsync()) < 200);
+            Assert.True(ExtraerTotalElementos(await contador.InnerTextAsync()) < 9);
     }
 
     /// <summary>
     /// GestorCae solo ve su propia cartera (Cliente.EjecutivoUsuarioId) — el
-    /// primer usuario de prueba de este rol tiene exactamente 10 de los 200
-    /// clientes sembrados (ver DatosPruebaSeeder, "cartera de prueba": los
-    /// primeros 30 clientes repartidos entre 3 gestores round-robin). Se
-    /// comprueba el reparto exacto porque la semilla aleatoria es fija
-    /// (Random(20260716)) — no es un número arbitrario.
+    /// primer usuario de prueba de este rol tiene exactamente 3 de los 9
+    /// clientes sembrados (ver DatosPruebaSeeder, "cartera de prueba": todos
+    /// los clientes repartidos entre 3 gestores round-robin). Se comprueba el
+    /// reparto exacto porque la siembra es determinista — no es un número
+    /// arbitrario.
     /// </summary>
     [Fact]
     public async Task GestorCae_ve_solo_su_cartera_acotada()
@@ -104,7 +105,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         var total = ExtraerTotalElementos(await contador.InnerTextAsync());
-        Assert.Equal(10, total);
+        Assert.Equal(3, total);
     }
 
     [Fact]
@@ -118,7 +119,9 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
 
         var contador = page.GetByText(PatronContadorElementos()).First;
         await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        Assert.True(ExtraerTotalElementos(await contador.InnerTextAsync()) >= 200);
+        // Consulta ve la cartera entera del tenant: los 9 clientes de la
+        // siembra determinista (ver DatosPruebaSeeder), no una cartera acotada.
+        Assert.Equal(9, ExtraerTotalElementos(await contador.InnerTextAsync()));
 
         await page.GetByText("+ Nuevo cliente").ClickAsync();
         var drawer = page.Locator(".drawer-panel");
