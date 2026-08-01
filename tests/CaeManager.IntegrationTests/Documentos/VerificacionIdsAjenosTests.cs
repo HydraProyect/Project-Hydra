@@ -152,5 +152,6 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(null);
         public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>(null);
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 }
