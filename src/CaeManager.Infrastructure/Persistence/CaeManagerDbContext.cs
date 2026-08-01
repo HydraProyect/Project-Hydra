@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+using System.Reflection;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Alertas;
 using CaeManager.Domain.Asignaciones;
@@ -44,6 +44,24 @@ public class CaeManagerDbContext(
         dataProtectionProvider.CreateProtector("CaeManager.CredencialAccesoEmpresa.Credenciales.v1");
     private readonly IDataProtector _protectorCredencialesSubcontrata =
         dataProtectionProvider.CreateProtector("CaeManager.CredencialAccesoSubcontrata.Credenciales.v1");
+
+    // Cacheados una vez por tipo: MakeGenericMethod en cada entidad del
+    // bucle de OnModelCreating es barato, pero GetMethod (búsqueda por
+    // nombre) no hace falta repetirlo en cada arranque del modelo.
+    private static readonly MethodInfo MetodoAplicarFiltroTenant =
+        typeof(CaeManagerDbContext).GetMethod(nameof(AplicarFiltroTenant), BindingFlags.NonPublic | BindingFlags.Instance)!;
+    private static readonly MethodInfo MetodoAplicarFiltroTenantConSoftDelete =
+        typeof(CaeManagerDbContext).GetMethod(nameof(AplicarFiltroTenantConSoftDelete), BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+    // Lambdas C# reales (no Expression.Constant manual) — ver el comentario
+    // en OnModelCreating sobre por qué esto es lo que hace que el filtro se
+    // revincule contra el DbContext real de cada request en vez de quedar
+    // congelado en el modelo cacheado.
+    private void AplicarFiltroTenant<TEntidad>(ModelBuilder builder) where TEntidad : EntidadConTenant =>
+        builder.Entity<TEntidad>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+
+    private void AplicarFiltroTenantConSoftDelete<TEntidad>(ModelBuilder builder) where TEntidad : EntidadBase =>
+        builder.Entity<TEntidad>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
 
     public DbSet<Cliente> Clientes => Set<Cliente>();
     public DbSet<Centro> Centros => Set<Centro>();
@@ -194,29 +212,32 @@ public class CaeManagerDbContext(
         // AsignacionOperadorDelegado tampoco heredan de EntidadConTenant:
         // son catálogos globales por diseño (docs/MULTITENANCY.md § 7-8),
         // no un olvido.
+        //
+        // El filtro de cada entidad se construye con un método genérico real
+        // (AplicarFiltroTenant/ConSoftDelete), invocado por reflexión — nunca
+        // con Expression.Constant(tenantActual). Una lambda C# escrita a mano
+        // que referencia "tenantActual" cierra sobre el campo de ESTA
+        // instancia de DbContext, y EF Core reconoce ese patrón para
+        // revincular el filtro contra la instancia real en cada consulta.
+        // Expression.Constant(tenantActual), en cambio, hornea la instancia
+        // de ITenantActual de la primera vez que se construyó el modelo como
+        // constante del modelo cacheado (por tipo de DbContext, no por
+        // instancia) — todo DbContext posterior, con un tenant scoped
+        // distinto, seguiría evaluando contra ese ITenantActual congelado.
+        // Regresión real encontrada en auditoría de PR #49 (43/53 tests de
+        // AislamientoPorAgregadoTests fallando), confirmada reproduciendo el
+        // fallo. La reflexión aquí solo elige a qué método genérico llamar
+        // por cada tipo — el árbol de expresión en sí lo construye el
+        // compilador de C#, no código manual.
         foreach (var tipoEntidadTenant in builder.Model.GetEntityTypes()
                      .Where(t => typeof(EntidadConTenant).IsAssignableFrom(t.ClrType)))
         {
-            var parametro = Expression.Parameter(tipoEntidadTenant.ClrType, "e");
+            var metodo = (typeof(EntidadBase).IsAssignableFrom(tipoEntidadTenant.ClrType)
+                    ? MetodoAplicarFiltroTenantConSoftDelete
+                    : MetodoAplicarFiltroTenant)
+                .MakeGenericMethod(tipoEntidadTenant.ClrType);
 
-            // e.TenantId == tenantActual.TenantId — TenantId de la entidad es
-            // Guid, tenantActual.TenantId es Guid?; se convierte a Guid?
-            // antes de comparar para reproducir exactamente la igualdad
-            // "levantada" que ya hacía el operador == de C# en las líneas
-            // manuales (sin tenant resuelto, la comparación da false, nunca
-            // una excepción — fallo cerrado, docs/MULTITENANCY.md § 4.5).
-            var accesoTenantIdEntidad = Expression.Convert(
-                Expression.Property(parametro, nameof(EntidadConTenant.TenantId)), typeof(Guid?));
-            var accesoTenantActual = Expression.Property(Expression.Constant(tenantActual), nameof(ITenantActual.TenantId));
-            Expression cuerpoFiltro = Expression.Equal(accesoTenantIdEntidad, accesoTenantActual);
-
-            if (typeof(EntidadBase).IsAssignableFrom(tipoEntidadTenant.ClrType))
-            {
-                var noEstaEliminado = Expression.Not(Expression.Property(parametro, nameof(EntidadBase.EstaEliminado)));
-                cuerpoFiltro = Expression.AndAlso(noEstaEliminado, cuerpoFiltro);
-            }
-
-            tipoEntidadTenant.SetQueryFilter(Expression.Lambda(cuerpoFiltro, parametro));
+            metodo.Invoke(this, [builder]);
         }
 
         // Concurrencia optimista sobre todo agregado con ciclo de vida
