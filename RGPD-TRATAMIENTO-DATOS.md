@@ -51,7 +51,7 @@ Registro factual de qué datos personales trata la aplicación, dónde viven, qu
 
 | Servicio | Qué trata | Dónde |
 |---|---|---|
-| Railway | Aloja la aplicación y la base de datos completa (todo lo de la tabla del punto 1) | Ver política de privacidad de Railway |
+| Railway | Aloja la aplicación y la base de datos completa (todo lo de la tabla del punto 1) | Elegible por servicio: ofrece región UE (`europe-west4`, Ámsterdam) junto a EE. UU. y Singapur (comprobado 2026-08-01, ver docs.railway.com/reference/regions). **Acción pendiente antes del corte a PostgreSQL**: crear el servicio de Postgres en `europe-west4` y comprobar en el panel en qué región corre hoy el servicio de la app con su volumen SQLite — si está en una región de EE. UU. (el defecto depende de la preferencia de cuenta), los datos personales ya están saliendo de la UE hoy, no solo tras la migración |
 | AWS S3 (`eu-south-2`) | Backups automáticos de la base de datos completa + claves de cifrado — ver `RUNBOOK-CLAVES.md` | Región España |
 | Sentry (si se activa, hoy inerte) | Trazas de error — potencialmente puede incluir datos de la petición que falló | Según configuración cuando se active |
 | Microsoft Graph / M365 (cuando se active `IEmailService`, ver `ROADMAP.md` §6) | Correos enviados/recibidos, que pueden incluir datos de Trabajadores adjuntos como documentos | Según el tenant de M365 del cliente |

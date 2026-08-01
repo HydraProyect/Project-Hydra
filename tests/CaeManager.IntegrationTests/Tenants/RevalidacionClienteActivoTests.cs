@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -24,7 +24,7 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// </summary>
 public class RevalidacionClienteActivoTests : IAsyncLifetime
 {
-    private readonly string _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-reval-{Guid.NewGuid()}.db");
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly IDataProtectionProvider _protector = new EphemeralDataProtectionProvider();
     private readonly Guid _consultora = Guid.NewGuid();
     private readonly Guid _clienteDelegante = Guid.NewGuid();
@@ -47,8 +47,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
         await Task.CompletedTask;
     }
 
@@ -186,7 +185,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _clienteDelegante };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 

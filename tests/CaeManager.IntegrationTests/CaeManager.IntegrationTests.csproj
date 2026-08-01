@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CaeManager.Infrastructure\CaeManager.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\CaeManager.Migrations.PostgreSQL\CaeManager.Migrations.PostgreSQL.csproj" />
     <ProjectReference Include="..\..\src\CaeManager.Application\CaeManager.Application.csproj" />
     <ProjectReference Include="..\..\src\CaeManager.Domain\CaeManager.Domain.csproj" />
     <ProjectReference Include="..\..\src\CaeManager.Web\CaeManager.Web.csproj" />

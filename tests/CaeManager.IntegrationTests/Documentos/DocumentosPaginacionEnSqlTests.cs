@@ -1,4 +1,4 @@
-using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+﻿using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
@@ -29,7 +29,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
     private const int UmbralAmbarDias = 30;
     private const int UmbralRojoDias = 15;
 
-    private readonly string _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-docpag-{Guid.NewGuid()}.db");
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
     private readonly DateOnly _hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
@@ -73,8 +73,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
         await Task.CompletedTask;
     }
 
@@ -137,7 +136,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 

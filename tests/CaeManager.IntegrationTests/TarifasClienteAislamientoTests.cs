@@ -1,4 +1,4 @@
-using CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente;
+﻿using CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -30,7 +30,7 @@ namespace CaeManager.IntegrationTests;
 /// </summary>
 public class TarifasClienteAislamientoTests : IAsyncLifetime
 {
-    private readonly string _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-tarifas-{Guid.NewGuid()}.db");
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenantConsultora = Guid.NewGuid();
     private readonly Guid _tenantCliente = Guid.NewGuid();
     private Guid _clienteDelTenantCliente;
@@ -53,11 +53,7 @@ public class TarifasClienteAislamientoTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        // Microsoft.Data.Sqlite devuelve la conexión a su pool al disponer el
-        // contexto, y ese handle sigue abierto: en Windows impide borrar el
-        // archivo y hacía fallar el teardown (no el cuerpo) del test.
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
         await Task.CompletedTask;
     }
 
@@ -126,7 +122,7 @@ public class TarifasClienteAislamientoTests : IAsyncLifetime
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 

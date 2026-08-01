@@ -1,4 +1,4 @@
-using CaeManager.Domain.Clientes;
+﻿using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -13,21 +13,21 @@ using Xunit;
 namespace CaeManager.IntegrationTests;
 
 /// <summary>
-/// Verifica que las migraciones se aplican limpiamente contra SQLite real
-/// (no el proveedor in-memory, que no valida constraints) y que la semilla
-/// de datos queda en el estado esperado. Ver ROADMAP.md, criterio de
-/// aceptación de Fase 0.
+/// Verifica que las migraciones se aplican limpiamente contra PostgreSQL real
+/// (el motor de producción tras la migración de ADR-003; antes, SQLite) y que
+/// la semilla de datos queda en el estado esperado. Ver ROADMAP.md, criterio
+/// de aceptación de Fase 0.
 /// </summary>
 public class MigracionesTests : IAsyncLifetime
 {
-    private readonly string _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-tests-{Guid.NewGuid()}.db");
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private CaeManagerDbContext _dbContext = null!;
 
     public async Task InitializeAsync()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = TenantSeedData.IdPorDefecto };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 
@@ -37,12 +37,8 @@ public class MigracionesTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        await _dbContext.Database.EnsureDeletedAsync();
         await _dbContext.DisposeAsync();
-        // Microsoft.Data.Sqlite devuelve la conexión a su pool al disponer el
-        // contexto, y ese handle sigue abierto: en Windows impide borrar el
-        // archivo y hacía fallar el teardown (no el cuerpo) del test.
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
     }
 
     [Fact]
@@ -170,7 +166,9 @@ public class MigracionesTests : IAsyncLifetime
         // clase existe, compila y no la aplica nadie — la tabla TarifasCliente
         // no llegaba a crearse nunca y el módulo de Facturación fallaba al
         // usarla. No hay error ni aviso: por eso hace falta este test.
-        var clasesMigracion = typeof(CaeManagerDbContext).Assembly
+        // Ensamblado de PostgreSQL, no Infrastructure: cada motor tiene su
+        // propio juego de migraciones (ver InfrastructureServiceCollectionExtensions).
+        var clasesMigracion = typeof(CaeManager.Migrations.PostgreSQL.Migrations.LineaBase).Assembly
             .GetTypes()
             .Where(t => typeof(Migration).IsAssignableFrom(t) && t is { IsAbstract: false, IsGenericType: false })
             .Select(t => t.Name)
@@ -200,7 +198,7 @@ public class MigracionesTests : IAsyncLifetime
         await _dbContext.Database.OpenConnectionAsync();
         await using (var comando = _dbContext.Database.GetDbConnection().CreateCommand())
         {
-            comando.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table';";
+            comando.CommandText = "SELECT tablename FROM pg_tables WHERE schemaname = 'public';";
             await using var lector = await comando.ExecuteReaderAsync();
             while (await lector.ReadAsync())
                 tablas.Add(lector.GetString(0));
@@ -218,16 +216,12 @@ public class MigracionesTests : IAsyncLifetime
         // aplicó o alguna tabla quedó fuera.
         await using var comando = _dbContext.Database.GetDbConnection().CreateCommand();
         await _dbContext.Database.OpenConnectionAsync();
-        comando.CommandText = "PRAGMA table_info('Clientes');";
-        await using var lector = await comando.ExecuteReaderAsync();
+        comando.CommandText =
+            "SELECT is_nullable FROM information_schema.columns " +
+            "WHERE table_name = 'Clientes' AND column_name = 'TenantId';";
 
-        var notNullTenantId = false;
-        while (await lector.ReadAsync())
-        {
-            if (string.Equals(lector["name"].ToString(), "TenantId", StringComparison.Ordinal))
-                notNullTenantId = Convert.ToInt32(lector["notnull"]) == 1;
-        }
+        var esNullable = (string?)await comando.ExecuteScalarAsync();
 
-        notNullTenantId.Should().BeTrue();
+        esNullable.Should().Be("NO");
     }
 }

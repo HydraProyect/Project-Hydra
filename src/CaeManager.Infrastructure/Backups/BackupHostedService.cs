@@ -1,27 +1,33 @@
+using System.Diagnostics;
 using System.IO.Compression;
 using Amazon;
 using Amazon.S3;
 using Amazon.S3.Transfer;
+using CaeManager.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace CaeManager.Infrastructure.Backups;
 
 /// <summary>
-/// Backup periódico de CaeManager.db + las claves de Data Protection a S3,
+/// Backup periódico de la base de datos + las claves de Data Protection a S3,
 /// subidos siempre juntos como una unidad (ver RUNBOOK-CLAVES.md — restaurar
 /// solo la base de datos con un juego de claves distinto deja las
 /// credenciales de Empresa/Subcontrata cifradas permanentemente
 /// irrecuperables). Sin `Backups:Activo`, no hace nada — mismo patrón que
 /// DatosPruebaSeeder para no intentar tocar AWS sin cuenta provisionada.
 ///
-/// El backup de la base de datos usa `SqliteConnection.BackupDatabase`, el
-/// mecanismo online de SQLite (equivalente a `sqlite3 .backup`) — no bloquea
-/// las escrituras de la app mientras se genera, a diferencia de copiar el
-/// archivo .db directamente mientras está abierto.
+/// El mecanismo depende del motor (`Database:Proveedor`, ver
+/// ProveedorBaseDatos): con SQLite usa `SqliteConnection.BackupDatabase`, el
+/// mecanismo online de SQLite (no bloquea las escrituras de la app, a
+/// diferencia de copiar el archivo .db abierto); con PostgreSQL invoca
+/// `pg_dump --format=custom` (instalado en la imagen de despliegue, ver
+/// Dockerfile), que igualmente no bloquea al servidor y produce un archivo
+/// restaurable con `pg_restore`.
 /// </summary>
 public class BackupHostedService(
     IConfiguration configuration,
@@ -77,10 +83,9 @@ public class BackupHostedService(
 
         try
         {
-            var rutaBackupDb = Path.Combine(directorioTemporal, "CaeManager.db");
             var rutaZipClaves = Path.Combine(directorioTemporal, "dataprotection-keys.zip");
 
-            RespaldarBaseDeDatos(rutaBackupDb);
+            var rutaBackupDb = await RespaldarBaseDeDatosAsync(directorioTemporal, cancellationToken);
             RespaldarClavesDataProtection(rutaZipClaves);
 
             var marcaTiempo = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
@@ -90,7 +95,7 @@ public class BackupHostedService(
             using var clienteS3 = new AmazonS3Client(config.Aws.AccessKeyId, config.Aws.SecretAccessKey, regionEndpoint);
             using var transferencia = new TransferUtility(clienteS3);
 
-            await transferencia.UploadAsync(rutaBackupDb, config.Aws.BucketName, $"{prefijo}/CaeManager.db", cancellationToken);
+            await transferencia.UploadAsync(rutaBackupDb, config.Aws.BucketName, $"{prefijo}/{Path.GetFileName(rutaBackupDb)}", cancellationToken);
             await transferencia.UploadAsync(rutaZipClaves, config.Aws.BucketName, $"{prefijo}/dataprotection-keys.zip", cancellationToken);
 
             logger.LogInformation("Backup subido correctamente a s3://{Bucket}/{Prefijo}/", config.Aws.BucketName, prefijo);
@@ -107,9 +112,26 @@ public class BackupHostedService(
         }
     }
 
-    private void RespaldarBaseDeDatos(string rutaDestino)
+    private async Task<string> RespaldarBaseDeDatosAsync(string directorioTemporal, CancellationToken cancellationToken)
     {
-        var connectionStringBuilder = new SqliteConnectionStringBuilder(configuration.GetConnectionString("CaeManagerDb"));
+        var cadenaConexion = configuration.GetConnectionString("CaeManagerDb")
+            ?? throw new InvalidOperationException("Falta el connection string CaeManagerDb.");
+
+        if (LectorProveedorBaseDatos.Leer(configuration) == ProveedorBaseDatos.PostgreSql)
+        {
+            var rutaDump = Path.Combine(directorioTemporal, "CaeManager.dump");
+            await EjecutarPgDumpAsync(cadenaConexion, rutaDump, cancellationToken);
+            return rutaDump;
+        }
+
+        var rutaDb = Path.Combine(directorioTemporal, "CaeManager.db");
+        RespaldarSqlite(cadenaConexion, rutaDb);
+        return rutaDb;
+    }
+
+    private static void RespaldarSqlite(string cadenaConexion, string rutaDestino)
+    {
+        var connectionStringBuilder = new SqliteConnectionStringBuilder(cadenaConexion);
 
         using var origen = new SqliteConnection(connectionStringBuilder.ConnectionString);
         using var destino = new SqliteConnection($"Data Source={rutaDestino}");
@@ -117,6 +139,39 @@ public class BackupHostedService(
         origen.Open();
         destino.Open();
         origen.BackupDatabase(destino);
+    }
+
+    private async Task EjecutarPgDumpAsync(string cadenaConexion, string rutaDestino, CancellationToken cancellationToken)
+    {
+        var conexion = new NpgsqlConnectionStringBuilder(cadenaConexion);
+
+        var inicio = new ProcessStartInfo
+        {
+            FileName = opciones.Value.RutaPgDump,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        inicio.ArgumentList.Add($"--host={conexion.Host}");
+        inicio.ArgumentList.Add($"--port={conexion.Port}");
+        inicio.ArgumentList.Add($"--username={conexion.Username}");
+        inicio.ArgumentList.Add($"--dbname={conexion.Database}");
+        // Formato custom: comprimido y restaurable con pg_restore (que además
+        // permite restaurar tablas sueltas si hiciera falta), a diferencia
+        // del volcado SQL plano.
+        inicio.ArgumentList.Add("--format=custom");
+        inicio.ArgumentList.Add($"--file={rutaDestino}");
+        // Por variable de entorno del proceso hijo, nunca como argumento: la
+        // línea de comandos es visible para cualquier proceso de la máquina.
+        inicio.Environment["PGPASSWORD"] = conexion.Password;
+
+        using var proceso = Process.Start(inicio)
+            ?? throw new InvalidOperationException($"No se pudo iniciar pg_dump ('{opciones.Value.RutaPgDump}').");
+
+        var errores = await proceso.StandardError.ReadToEndAsync(cancellationToken);
+        await proceso.WaitForExitAsync(cancellationToken);
+
+        if (proceso.ExitCode != 0)
+            throw new InvalidOperationException($"pg_dump terminó con código {proceso.ExitCode}: {errores.Trim()}");
     }
 
     private void RespaldarClavesDataProtection(string rutaZipDestino)

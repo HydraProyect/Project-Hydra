@@ -20,6 +20,21 @@ jobs:
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest
+    # Los tests de integración corren contra PostgreSQL real desde la
+    # migración de ADR-003 (ver BaseDatosPostgresDePruebas): cada test crea y
+    # borra su propia base de datos en este servicio.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
