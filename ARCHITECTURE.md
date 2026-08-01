@@ -150,7 +150,7 @@ Las credenciales de plataformas externas (usuario/contraseña de portales como C
 
 ## Archivos (PDFs de documentos)
 
-Abstracción `IFileStorageService` en Application, implementada en Infrastructure sobre disco local en v1 (ruta configurable), con la interfaz diseñada para poder cambiar a almacenamiento en la nube sin tocar Application ni Presentation.
+Abstracción `IFileStorageService` en Application, implementada en Infrastructure sobre disco local en v1 (ruta configurable), con la interfaz diseñada para poder cambiar a almacenamiento en la nube sin tocar Application ni Presentation. **Cifrado en reposo** con `IDataProtector` (`DiskFileStorageService`, mismo mecanismo que las credenciales de plataformas externas): el contenido nunca queda en claro en el volumen. Sin migración automática de lo escrito antes de este cambio — un archivo legado se sigue sirviendo (fallback si `Unprotect` falla) y queda cifrado la próxima vez que algo lo reescriba.
 
 Todo archivo adjunto de un Documento se guarda siempre como un único PDF, aunque el usuario suba imágenes, Word o varios archivos a la vez:
 
