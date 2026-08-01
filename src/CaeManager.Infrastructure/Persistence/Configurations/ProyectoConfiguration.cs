@@ -19,7 +19,7 @@ public class ProyectoConfiguration : IEntityTypeConfiguration<Proyecto>
         // (solo se libera si se elimina, ver DATABASE.md/ROADMAP.md).
         builder.HasIndex(p => new { p.TenantId, p.ClienteId, p.Nombre })
                .IsUnique()
-               .HasFilter($"\"{nameof(Proyecto.EstaEliminado)}\" = 0");
+               .HasFilter($"NOT \"{nameof(Proyecto.EstaEliminado)}\"");
 
         builder.HasIndex(p => p.CentroId);
 
