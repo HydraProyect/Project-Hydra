@@ -1,0 +1,23 @@
+# P2 #25 de docs/business/MATURITY_REVIEW.md — dependencias desactualizadas
+# (paquetes NuGet, la imagen base del Dockerfile, las Actions del propio CI)
+# hoy solo se detectan a mano. Cada ecosistema abre sus PRs por separado, sin
+# agruparlos: en un repo con -warnaserror y tests de integración reales, cada
+# actualización merece pasar su propio CI antes de fiarse de ella, no
+# mezclarse con otras diez en un solo PR difícil de diagnosticar si algo
+# rompe.
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
