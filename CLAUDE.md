@@ -12,7 +12,7 @@ Hydra (CAE Manager) es una **plataforma SaaS multi-tenant**: producto comercial 
 
 **Retención de datos** (Fase 60): ciclo completo en `/retencion` (detectar → avisar → autorizar con fecha → ejecutar), apagado por defecto (`RetencionDatos:Activa`). La invariante que no se negocia: **no hay camino a "ejecutada" sin autorización expresa con fecha**. Criterios legales en `RGPD-TRATAMIENTO-DATOS.md` § 5, ya decididos por el usuario — no los redefinas.
 
-**Pendiente de verdad**: de las condiciones de salida a producción de `ADR-003`, la migración a PostgreSQL y el DPA/Términos de Uso por tenant siguen sin hacer. El DPA además tiene que declarar el acceso de soporte antes de usarlo con un cliente real.
+**Pendiente de verdad**: de las condiciones de salida a producción de `ADR-003`, solo el DPA/Términos de Uso por tenant sigue sin hacer (la migración a PostgreSQL se ejecutó en producción el 2026-08-01 — ver `RUNBOOK-MIGRACION-POSTGRESQL.md`; la rama SQLite se retiró del código). El DPA además tiene que declarar el acceso de soporte antes de usarlo con un cliente real.
 
 Las obligaciones RGPD/LOPDGDD siguen aplicando íntegras al tratamiento de datos personales y de salud de trabajadores — y la vía SaaS **reactiva** además las obligaciones de encargado del tratamiento frente a cada tenant (DPA, términos de uso). Ver `ADR-003` § condiciones de salida.
 

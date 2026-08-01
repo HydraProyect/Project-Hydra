@@ -89,9 +89,26 @@
     {
         if (Entrada is null) return;
 
+        // lockoutOnFailure: los intentos fallidos cuentan y bloquean la
+        // cuenta temporalmente (ver opciones Lockout en
+        // InfrastructureServiceCollectionExtensions). Convive con el uso de
+        // LockoutEnd = MaxValue como "usuario desactivado" (Usuarios.razor):
+        // el bloqueo por intentos pone una ventana corta, la desactivación
+        // manual una indefinida — ambos caen en IsLockedOut.
         var resultado = await SignInManager.PasswordSignInAsync(
-            Entrada.Email, Entrada.Password, isPersistent: true, lockoutOnFailure: false);
+            Entrada.Email, Entrada.Password, isPersistent: true, lockoutOnFailure: true);
         var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+
+        if (resultado.IsLockedOut)
+        {
+            // Literalmente el mismo mensaje que credenciales inválidas (más
+            // abajo) — no un texto parecido: una diferencia de wording, por
+            // mínima que sea, deja enumerar qué cuentas existen y están
+            // bloqueadas tras varios intentos, justo lo que esto evita.
+            logger.LogWarning("Login rechazado, cuenta bloqueada: {Email}", Entrada.Email);
+            mensajeError = MensajeErrorLogin;
+            return;
+        }
 
         if (resultado.RequiresTwoFactor)
         {
@@ -120,17 +137,20 @@
                 return;
             }
 
-            Navigation.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+            Navigation.NavigateTo(RedireccionLocal.Sanear(ReturnUrl), forceLoad: true);
             return;
         }
 
-        if (resultado.IsLockedOut)
-            logger.LogWarning("Login rechazado, cuenta bloqueada: {Email}", Entrada.Email);
-        else
-            logger.LogWarning("Login fallido (credenciales inválidas): {Email}", Entrada.Email);
-
-        mensajeError = "No pudimos iniciar sesión. Revisa tu correo y contraseña e intenta nuevamente.";
+        logger.LogWarning("Login fallido (credenciales inválidas): {Email}", Entrada.Email);
+        mensajeError = MensajeErrorLogin;
     }
+
+    /// <summary>
+    /// Un único texto para credenciales inválidas y cuenta bloqueada —
+    /// distinguirlos permitiría enumerar cuentas existentes y bloqueadas
+    /// (hallazgo de la auditoría de PR #48 sobre P0-2).
+    /// </summary>
+    private const string MensajeErrorLogin = "No pudimos iniciar sesión. Revisa tu correo y contraseña e intenta nuevamente.";
 
     private sealed class DatosEntrada
     {

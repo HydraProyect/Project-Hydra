@@ -1,7 +1,8 @@
 <button type="@Type"
-        class="boton boton-@ClaseVariante boton-@ClaseTamano"
+        class="@ClaseCompleta"
         disabled="@(Deshabilitado || Cargando)"
-        @onclick="OnClick">
+        @onclick="OnClick"
+        @attributes="AtributosSinClase">
     @if (Cargando)
     {
         <span class="boton-spinner" aria-hidden="true"></span>
@@ -18,6 +19,39 @@
     [Parameter] public string Type { get; set; } = "button";
     [Parameter] public EventCallback OnClick { get; set; }
 
+    /// <summary>
+    /// Attribute splatting (P2 #28 de docs/business/MATURITY_REVIEW.md): deja
+    /// pasar cualquier atributo HTML no reconocido como parámetro
+    /// (aria-label, data-testid, title...) directo al &lt;button&gt; sin
+    /// tener que añadir un [Parameter] nuevo por cada uno. "class" es un caso
+    /// especial: Blazor NO combina el "class" splatteado con uno explícito,
+    /// el último atributo emitido gana entero (reemplaza, no concatena) — por
+    /// eso "class" se saca de AtributosAdicionales y se combina a mano en
+    /// ClaseCompleta; el resto de atributos sí puede pisar el valor por
+    /// defecto del componente si hace falta.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AtributosAdicionales { get; set; }
+
     private string ClaseVariante => Variante.ToString().ToLowerInvariant();
     private string ClaseTamano => Tamano.ToString().ToLowerInvariant();
+
+    private string ClaseCompleta
+    {
+        get
+        {
+            var claseBase = $"boton boton-{ClaseVariante} boton-{ClaseTamano}";
+            return AtributosAdicionales is not null
+                && AtributosAdicionales.TryGetValue("class", out var claseLlamador)
+                && claseLlamador is string claseLlamadorTexto
+                && !string.IsNullOrWhiteSpace(claseLlamadorTexto)
+                ? $"{claseBase} {claseLlamadorTexto}"
+                : claseBase;
+        }
+    }
+
+    private Dictionary<string, object>? AtributosSinClase =>
+        AtributosAdicionales is null || !AtributosAdicionales.ContainsKey("class")
+            ? AtributosAdicionales
+            : AtributosAdicionales.Where(kvp => kvp.Key != "class").ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 }

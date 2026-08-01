@@ -8,4 +8,11 @@ namespace CaeManager.Domain.Configuracion;
 public interface IParametroSistemaRepository
 {
     Task<ParametroSistema> ObtenerAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Solo para aprovisionar la fila única de un tenant recién creado (ver
+    /// CrearClienteDeleganteCommand) — el tenant #1 la recibe por HasData de
+    /// migración y nunca pasa por aquí.
+    /// </summary>
+    void Agregar(ParametroSistema parametro);
 }

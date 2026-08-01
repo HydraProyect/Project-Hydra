@@ -1,5 +1,8 @@
 ﻿using CaeManager.Domain.Alertas;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -73,7 +76,24 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
         Guid alertaId;
         await using (var contextoA = CrearContexto(_tenantA))
         {
-            var alerta = new Alerta(Guid.NewGuid(), NivelAlerta.Urgente);
+            // Alerta.DocumentoId lleva FK real desde P0-1 de
+            // docs/business/MATURITY_REVIEW.md — hace falta un Documento real,
+            // que a su vez pide una Empresa, un Trabajador y un TipoDocumento reales.
+            var empresa = new Empresa("Empresa de prueba");
+            contextoA.Empresas.Add(empresa);
+            await contextoA.SaveChangesAsync();
+
+            var trabajador = Trabajador.DeEmpresa(empresa.Id, "Juan", "Pérez", "12345678Z");
+            var tipoDocumento = new TipoDocumento("Tipo de prueba", 12, true, 1, AmbitoAplicacion.Trabajador);
+            contextoA.Trabajadores.Add(trabajador);
+            contextoA.TiposDocumento.Add(tipoDocumento);
+            await contextoA.SaveChangesAsync();
+
+            var documento = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), null);
+            contextoA.Documentos.Add(documento);
+            await contextoA.SaveChangesAsync();
+
+            var alerta = new Alerta(documento.Id, NivelAlerta.Urgente);
             contextoA.Alertas.Add(alerta);
             await contextoA.SaveChangesAsync();
             alertaId = alerta.Id;

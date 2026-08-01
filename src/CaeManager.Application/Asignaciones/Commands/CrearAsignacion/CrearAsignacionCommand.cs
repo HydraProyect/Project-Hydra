@@ -3,6 +3,7 @@ using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 
@@ -17,11 +18,22 @@ public class CrearAsignacionCommandValidator : AbstractValidator<CrearAsignacion
     }
 }
 
-public class CrearAsignacionCommandHandler(IAsignacionRepository repositorio, IUnitOfWork unitOfWork)
+public class CrearAsignacionCommandHandler(
+    IAsignacionRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearAsignacionCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearAsignacionCommand request, CancellationToken cancellationToken)
     {
+        // Verificación de Ids ajenos (P0-1 de docs/business/MATURITY_REVIEW.md):
+        // sin esto, un Id de otro tenant se persistía sin error, sellado con
+        // el tenant actual — el filtro global ya deja "no encontrado" un Id
+        // ajeno, así que basta con consultar dentro del ámbito normal.
+        if (!await dbContext.Trabajadores.AnyAsync(t => t.Id == request.TrabajadorId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Asignacion.TrabajadorNoEncontrado", "No encontramos este trabajador."));
+
+        if (!await dbContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Asignacion.CentroNoEncontrado", "No encontramos este centro."));
+
         if (await repositorio.ExisteActivaAsync(request.TrabajadorId, request.CentroId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "Asignacion.YaActiva", "Este trabajador ya está dado de alta en este centro."));

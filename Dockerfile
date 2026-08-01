@@ -59,9 +59,22 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends postgresql-client-18 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /app/publish .
+COPY --from=build --chown=$APP_UID:$APP_UID /app/publish .
 
 EXPOSE 8080
+
+# Corre como el usuario no-root que ya trae la imagen base de .NET (P2 #25
+# de docs/business/MATURITY_REVIEW.md), en vez de como root por omisión.
+# $APP_UID lo define la propia imagen mcr.microsoft.com/dotnet/aspnet — no
+# hace falta declararlo aquí.
+#
+# OJO al desplegar esto por primera vez: la app escribe en el volumen
+# persistente de Railway (/data — dataprotection-keys/, y documentos/ si
+# AlmacenamientoS3 no está activo, ver DEPLOY.md). Si ese volumen ya existía
+# de antes con permisos de root, este cambio puede dejarlo sin poder
+# escribir hasta corregir la propiedad del volumen — verificar en el primer
+# despliegue tras este cambio, no asumir que funciona igual sin más.
+USER $APP_UID
 
 # El host asigna el puerto en tiempo de ejecución vía la variable PORT (p.
 # ej. Railway) — no se puede fijar en ENV porque cambia por despliegue, así
