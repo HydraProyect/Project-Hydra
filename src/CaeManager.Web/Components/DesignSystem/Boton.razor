@@ -1,7 +1,8 @@
 <button type="@Type"
         class="boton boton-@ClaseVariante boton-@ClaseTamano"
         disabled="@(Deshabilitado || Cargando)"
-        @onclick="OnClick">
+        @onclick="OnClick"
+        @attributes="AtributosAdicionales">
     @if (Cargando)
     {
         <span class="boton-spinner" aria-hidden="true"></span>
@@ -17,6 +18,18 @@
     [Parameter] public bool Cargando { get; set; }
     [Parameter] public string Type { get; set; } = "button";
     [Parameter] public EventCallback OnClick { get; set; }
+
+    /// <summary>
+    /// Attribute splatting (P2 #28 de docs/business/MATURITY_REVIEW.md): deja
+    /// pasar cualquier atributo HTML no reconocido como parámetro
+    /// (aria-label, data-testid, title...) directo al &lt;button&gt; sin
+    /// tener que añadir un [Parameter] nuevo por cada uno. Va al final a
+    /// propósito — así "class"/"style" se combinan con los ya puestos en vez
+    /// de reemplazarlos, y cualquier otro atributo del llamador sí puede
+    /// pisar el valor por defecto del componente si hace falta.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AtributosAdicionales { get; set; }
 
     private string ClaseVariante => Variante.ToString().ToLowerInvariant();
     private string ClaseTamano => Tamano.ToString().ToLowerInvariant();
