@@ -8,3 +8,4 @@ obj/
 appsettings.Development.json
 node_modules/
 App_Data/
+.claude/
