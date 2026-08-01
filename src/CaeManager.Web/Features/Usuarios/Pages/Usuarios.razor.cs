@@ -83,12 +83,25 @@ public partial class Usuarios : ComponentBase
             // en paralelo con los componentes del layout (ver PuertaAccesoDatos).
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
+                // Para un Operador Delegado se muestra el rol de la asignación
+                // (Consulta/GestorCae/CoordinadorCae), no su rol de origen: un
+                // operador de soporte es Administrador en el tenant de
+                // plataforma, pero CurrentUserService.ObtenerRolActualAsync ya
+                // lo acota al operar aquí — mostrar "Administrador" contradice
+                // esa restricción y alarma sin motivo a quien lo ve.
+                var rolesDelegados = await DirectorioUsuarios.ObtenerRolesDeOperadoresDelegadosAsync();
+
                 foreach (var usuario in await DirectorioUsuarios.ObtenerVisiblesAsync())
                 {
-                    var roles = await UserManager.GetRolesAsync(usuario);
                     var activo = usuario.LockoutEnd is null || usuario.LockoutEnd < DateTimeOffset.UtcNow;
+                    string rol;
+                    if (rolesDelegados.TryGetValue(usuario.Id, out var rolDelegado))
+                        rol = rolDelegado;
+                    else
+                        rol = (await UserManager.GetRolesAsync(usuario)).FirstOrDefault() ?? "—";
+
                     usuarios.Add(new UsuarioListaDto(
-                        usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, roles.FirstOrDefault() ?? "—", activo));
+                        usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, rol, activo));
                 }
             });
 
