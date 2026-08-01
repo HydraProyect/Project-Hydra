@@ -57,7 +57,7 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="VehiculoListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
+            <QuickGrid @ref="_grid" TGridItem="VehiculoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
                 <PropertyColumn Property="@(v => v.Nombre)" Sortable="true" />
                 <PropertyColumn Property="@(v => v.Modelo)" Sortable="true" />
                 <PropertyColumn Property="@(v => v.NumeroPlaca)" Title="Placa" />

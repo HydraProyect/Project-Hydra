@@ -20,6 +20,7 @@ public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 public partial class Usuarios : ComponentBase
 {
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
@@ -78,13 +79,18 @@ public partial class Usuarios : ComponentBase
             // (AspNetUsers es la única tabla sin filtro global) y esta pantalla
             // listaba los usuarios de todas las organizaciones con nombre y
             // correo. Ver DirectorioUsuariosTenant.
-            foreach (var usuario in await DirectorioUsuarios.ObtenerVisiblesAsync())
+            // Por la puerta: UserManager no pasa por MediatR y esta carga corre
+            // en paralelo con los componentes del layout (ver PuertaAccesoDatos).
+            await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
-                var roles = await UserManager.GetRolesAsync(usuario);
-                var activo = usuario.LockoutEnd is null || usuario.LockoutEnd < DateTimeOffset.UtcNow;
-                usuarios.Add(new UsuarioListaDto(
-                    usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, roles.FirstOrDefault() ?? "—", activo));
-            }
+                foreach (var usuario in await DirectorioUsuarios.ObtenerVisiblesAsync())
+                {
+                    var roles = await UserManager.GetRolesAsync(usuario);
+                    var activo = usuario.LockoutEnd is null || usuario.LockoutEnd < DateTimeOffset.UtcNow;
+                    usuarios.Add(new UsuarioListaDto(
+                        usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, roles.FirstOrDefault() ?? "—", activo));
+                }
+            });
 
             _usuarios = usuarios;
             _pagina = 1;
@@ -151,7 +157,7 @@ public partial class Usuarios : ComponentBase
 
     private async Task AbrirEditarAsync(Guid id)
     {
-        var usuario = await UserManager.FindByIdAsync(id.ToString());
+        var usuario = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.FindByIdAsync(id.ToString()));
         if (usuario is null)
         {
             ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
@@ -159,7 +165,7 @@ public partial class Usuarios : ComponentBase
             return;
         }
 
-        var roles = await UserManager.GetRolesAsync(usuario);
+        var roles = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.GetRolesAsync(usuario));
 
         _editandoId = usuario.Id;
         _email = usuario.Email ?? string.Empty;
@@ -254,14 +260,14 @@ public partial class Usuarios : ComponentBase
             DebeCambiarContrasena = true
         };
 
-        var resultado = await UserManager.CreateAsync(usuario, _password);
+        var resultado = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.CreateAsync(usuario, _password));
         if (!resultado.Succeeded)
         {
             _mensajeErrorFormulario = string.Join(" ", resultado.Errors.Select(e => e.Description));
             return;
         }
 
-        await UserManager.AddToRoleAsync(usuario, _rol);
+        await PuertaAccesoDatos.EjecutarAsync(() => UserManager.AddToRoleAsync(usuario, _rol));
 
         ToastService.Mostrar("Usuario creado correctamente.", TonoToast.Exito);
         _drawerVisible = false;
@@ -276,23 +282,30 @@ public partial class Usuarios : ComponentBase
             return;
         }
 
-        var usuario = await UserManager.FindByIdAsync(id.ToString());
-        if (usuario is null)
+        var actualizado = await PuertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            var usuario = await UserManager.FindByIdAsync(id.ToString());
+            if (usuario is null) return false;
+
+            usuario.NombreCompleto = _nombreCompleto;
+            usuario.CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null;
+            usuario.ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null;
+            await UserManager.UpdateAsync(usuario);
+
+            var rolesActuales = await UserManager.GetRolesAsync(usuario);
+            if (!rolesActuales.Contains(_rol))
+            {
+                await UserManager.RemoveFromRolesAsync(usuario, rolesActuales);
+                await UserManager.AddToRoleAsync(usuario, _rol);
+            }
+
+            return true;
+        });
+
+        if (!actualizado)
         {
             _mensajeErrorFormulario = "No encontramos este usuario.";
             return;
-        }
-
-        usuario.NombreCompleto = _nombreCompleto;
-        usuario.CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null;
-        usuario.ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null;
-        await UserManager.UpdateAsync(usuario);
-
-        var rolesActuales = await UserManager.GetRolesAsync(usuario);
-        if (!rolesActuales.Contains(_rol))
-        {
-            await UserManager.RemoveFromRolesAsync(usuario, rolesActuales);
-            await UserManager.AddToRoleAsync(usuario, _rol);
         }
 
         ToastService.Mostrar("Usuario actualizado correctamente.", TonoToast.Exito);
@@ -308,12 +321,17 @@ public partial class Usuarios : ComponentBase
             return;
         }
 
-        var usuario = await UserManager.FindByIdAsync(usuarioLista.Id.ToString());
-        if (usuario is null) return;
+        var encontrado = await PuertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            var usuario = await UserManager.FindByIdAsync(usuarioLista.Id.ToString());
+            if (usuario is null) return false;
 
-        usuario.LockoutEnabled = true;
-        usuario.LockoutEnd = usuarioLista.Activo ? DateTimeOffset.MaxValue : null;
-        await UserManager.UpdateAsync(usuario);
+            usuario.LockoutEnabled = true;
+            usuario.LockoutEnd = usuarioLista.Activo ? DateTimeOffset.MaxValue : null;
+            await UserManager.UpdateAsync(usuario);
+            return true;
+        });
+        if (!encontrado) return;
 
         ToastService.Mostrar(
             usuarioLista.Activo ? "Usuario desactivado." : "Usuario reactivado.",

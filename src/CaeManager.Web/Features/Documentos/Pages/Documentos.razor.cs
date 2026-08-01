@@ -40,8 +40,13 @@ public partial class Documentos : ComponentBase
     /// </summary>
     [SupplyParameterFromQuery] public string? Estado { get; set; }
 
+    private GridItemsProvider<DocumentoListaDto>? _proveedorElementos;
+
     protected override async Task OnInitializedAsync()
     {
+        // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
+        _proveedorElementos = ProveerElementosAsync;
+
         if (!string.IsNullOrWhiteSpace(Estado) && Enum.TryParse<EstadoDocumento>(Estado, out _))
             _estadoFiltro = Estado;
 

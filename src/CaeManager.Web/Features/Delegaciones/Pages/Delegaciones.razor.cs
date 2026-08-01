@@ -32,6 +32,7 @@ public partial class Delegaciones : ComponentBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Delegaciones> Logger { get; set; } = default!;
     [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
@@ -94,18 +95,22 @@ public partial class Delegaciones : ComponentBase
     /// (mismo motivo que <c>AsignacionOperadorDelegado.UsuarioId</c> es un
     /// Guid suelto). Se resuelven aquí, que es la capa que sí lo conoce.
     /// </summary>
-    private async Task CargarNombresDeOperadoresAsync()
-    {
-        foreach (var usuarioId in _delegaciones.SelectMany(d => d.Operadores).Select(o => o.UsuarioId).Distinct())
+    private Task CargarNombresDeOperadoresAsync() =>
+        // Por la puerta: UserManager no pasa por MediatR y esta carga corre en
+        // paralelo con los componentes del layout sobre el mismo DbContext
+        // scoped (ver PuertaAccesoDatos).
+        PuertaAccesoDatos.EjecutarAsync(async () =>
         {
-            if (_nombresPorUsuarioId.ContainsKey(usuarioId)) continue;
+            foreach (var usuarioId in _delegaciones.SelectMany(d => d.Operadores).Select(o => o.UsuarioId).Distinct())
+            {
+                if (_nombresPorUsuarioId.ContainsKey(usuarioId)) continue;
 
-            var usuario = await UserManager.FindByIdAsync(usuarioId.ToString());
-            _nombresPorUsuarioId[usuarioId] = usuario is null
-                ? "Usuario no encontrado"
-                : $"{usuario.NombreCompleto} ({usuario.Email})";
-        }
-    }
+                var usuario = await UserManager.FindByIdAsync(usuarioId.ToString());
+                _nombresPorUsuarioId[usuarioId] = usuario is null
+                    ? "Usuario no encontrado"
+                    : $"{usuario.NombreCompleto} ({usuario.Email})";
+            }
+        });
 
     private string NombreDeUsuario(Guid usuarioId) =>
         _nombresPorUsuarioId.GetValueOrDefault(usuarioId, "…");
