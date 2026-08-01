@@ -212,9 +212,35 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDirectorioUsuariosService>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
-        // Scoped (no Singleton): depende de ITenantActual, que es scoped —
-        // ver docs/MULTITENANCY.md § 4.6.
-        services.AddScoped<IFileStorageService, DiskFileStorageService>();
+
+        var opcionesS3 = new AlmacenamientoS3Options();
+        configuration.GetSection(AlmacenamientoS3Options.SeccionConfiguracion).Bind(opcionesS3);
+        services.Configure<AlmacenamientoS3Options>(configuration.GetSection(AlmacenamientoS3Options.SeccionConfiguracion));
+
+        // Scoped en los dos casos (no Singleton): dependen de ITenantActual,
+        // que es scoped — ver docs/MULTITENANCY.md § 4.6. AlmacenamientoS3:Activo
+        // apagado por defecto (mismo patrón que Backups/DataProtection:Kms):
+        // sin cuenta de AWS provisionada, sigue en disco local — ver DEPLOY.md.
+        if (opcionesS3.EstaConfigurado)
+        {
+            services.AddScoped<IFileStorageService, S3FileStorageService>();
+            services.AddHostedService<VerificacionAlmacenamientoS3HostedService>();
+        }
+        else
+        {
+            if (opcionesS3.Activo)
+            {
+                // Ruidoso a propósito, mismo criterio que DataProtection:Kms:
+                // un despliegue que cree estar guardando en S3 y en realidad
+                // siga en disco local (por una variable mal copiada) es peor
+                // que uno que sepa que sigue en disco.
+                Console.WriteLine(
+                    "[AVISO] AlmacenamientoS3:Activo está en true pero faltan variables de AWS " +
+                    "(AccessKeyId/SecretAccessKey/BucketName/Region) — los archivos siguen guardándose en disco local.");
+            }
+
+            services.AddScoped<IFileStorageService, DiskFileStorageService>();
+        }
 
         services.Configure<LibreOfficeConversorWordPdfServiceOptions>(configuration.GetSection(LibreOfficeConversorWordPdfServiceOptions.SeccionConfiguracion));
         services.AddSingleton<IConversorWordPdfService, LibreOfficeConversorWordPdfService>();
@@ -227,12 +253,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<RetencionDatosOptions>(
             configuration.GetSection(RetencionDatosOptions.SeccionConfiguracion));
 
-        // La cola es singleton porque la comparten el productor (los Commands,
-        // scoped) y el consumidor (el hosted service, singleton). Se registra
-        // la clase concreta además de la interfaz: el procesador necesita su
-        // lector, que no forma parte del contrato de encolado.
-        services.AddSingleton<ColaAnalisisDocumentoEnMemoria>();
-        services.AddSingleton<IColaAnalisisDocumento>(sp => sp.GetRequiredService<ColaAnalisisDocumentoEnMemoria>());
+        // Cola durable en PostgreSQL (P2 #22 de docs/business/MATURITY_REVIEW.md
+        // — antes, Channel<T> en memoria: un reinicio del proceso perdía los
+        // encargos pendientes sin dejar rastro). Scoped como cualquier otro
+        // repositorio: el hosted service abre su propio scope de DI por
+        // tenant/ciclo de sondeo, igual que ya hacía con la cola en memoria.
+        services.AddScoped<ITrabajoAnalisisDocumentoRepository, TrabajoAnalisisDocumentoRepository>();
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
