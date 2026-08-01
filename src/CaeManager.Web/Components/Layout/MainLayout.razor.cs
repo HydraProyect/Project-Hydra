@@ -12,7 +12,7 @@ public partial class MainLayout
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
-    [Inject] private IPuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
 
     /// <summary>
     /// Forzar el cambio de contraseña en el primer login (ver
