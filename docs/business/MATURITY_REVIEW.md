@@ -1,4 +1,8 @@
-# Informe de madurez SaaS — Hydra (CAE Manager)
+# MATURITY_REVIEW — Informe de madurez SaaS — Hydra (CAE Manager)
+
+**Tipo**: Informe — registro puntual de evaluación, no documento temático (análogo a `DECISION_LOG.md`: no sigue la clasificación Estratégico/Operativo ni los estados de `DOCUMENT_STANDARDS.md` § 3; es un snapshot fechado que no se reescribe).
+**Fecha del snapshot**: 2026-08-01 (HEAD `977a5a7`).
+**Propósito**: Servir de apoyo al seguimiento de decisiones de negocio: qué áreas del producto están maduras, cuáles bloquean el go-to-market (ver ranking P0-P3) y con qué riesgo. No es fuente de verdad de ninguna decisión — las decisiones que deriven de este informe se registran en `DECISION_LOG.md` y en los documentos temáticos correspondientes. Un informe futuro se añade como documento nuevo fechado, no editando este.
 
 > **Comité de revisión**: Staff Software Engineer · Principal Solutions Architect · Senior Backend Engineer · Senior Frontend Engineer · Staff UX Designer · Product Manager · Security Engineer · DevOps Engineer · Database Architect · SaaS CTO.
 >
