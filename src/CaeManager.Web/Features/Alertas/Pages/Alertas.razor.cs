@@ -52,8 +52,15 @@ public partial class Alertas : ComponentBase
         return Task.CompletedTask;
     }
 
-    private void GestionarDocumento(Guid documentoId) =>
-        NavigationManager.NavigateTo($"/documentos?documentoId={documentoId}");
+    /// <summary>
+    /// Un documento faltante (P1-15) no tiene DocumentoId — no hay nada que
+    /// "gestionar" todavía. Lleva al drawer de creación con el propietario y
+    /// el tipo ya elegidos en vez de a un documento inexistente.
+    /// </summary>
+    private void GestionarAlerta(AlertaDto alerta) => NavigationManager.NavigateTo(
+        alerta.DocumentoId is { } documentoId
+            ? $"/documentos?documentoId={documentoId}"
+            : $"/documentos?trabajadorId={alerta.TrabajadorId}&tipoDocumentoId={alerta.TipoDocumentoId}");
 
     private async Task CargarAsync()
     {
