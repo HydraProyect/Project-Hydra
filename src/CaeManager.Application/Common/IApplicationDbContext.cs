@@ -73,4 +73,5 @@ public interface IApplicationDbContext
     IQueryable<MensajeCorreo> MensajesCorreo { get; }
     IQueryable<ParticipanteConversacion> ParticipantesConversacion { get; }
     IQueryable<MacroRespuesta> MacrosRespuesta { get; }
+    IQueryable<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario { get; }
 }

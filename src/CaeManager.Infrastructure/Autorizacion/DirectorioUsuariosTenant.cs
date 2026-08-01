@@ -45,12 +45,29 @@ public class DirectorioUsuariosTenant(
         {
             if (tenantActual.TenantId is not { } tenantId) return [];
 
-            var idsDelegados = await ObtenerIdsDeOperadoresDelegadosAsync(tenantId, cancellationToken);
+            var rolesDelegados = await ObtenerRolesDeOperadoresDelegadosAsync(tenantId, cancellationToken);
 
             return await userManager.Users
-                .Where(u => u.TenantId == tenantId || idsDelegados.Contains(u.Id))
+                .Where(u => u.TenantId == tenantId || rolesDelegados.Keys.Contains(u.Id))
                 .OrderBy(u => u.Email)
                 .ToListAsync(cancellationToken);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Rol acotado (<c>AsignacionOperadorDelegado.Rol</c>) de cada Operador
+    /// Delegado visible en el tenant activo — nunca su rol de origen. Un
+    /// operador de soporte es <c>Administrador</c> en el tenant de plataforma,
+    /// pero <c>CurrentUserService.ObtenerRolActualAsync</c> ya lo acota a
+    /// Consulta/GestorCae/CoordinadorCae al operar aquí; mostrar su rol de
+    /// origen en /usuarios contradice esa restricción y alarma sin motivo a
+    /// quien lo ve (un "Administrador" desconocido en su propia organización).
+    /// </summary>
+    public Task<IReadOnlyDictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyDictionary<Guid, string>>(async () =>
+        {
+            if (tenantActual.TenantId is not { } tenantId) return new Dictionary<Guid, string>();
+
+            return await ObtenerRolesDeOperadoresDelegadosAsync(tenantId, cancellationToken);
         }, cancellationToken);
 
     /// <summary>
@@ -63,14 +80,14 @@ public class DirectorioUsuariosTenant(
         {
             if (tenantActual.TenantId is not { } tenantId) return [];
 
-            var idsDelegados = await ObtenerIdsDeOperadoresDelegadosAsync(tenantId, cancellationToken);
+            var rolesDelegados = await ObtenerRolesDeOperadoresDelegadosAsync(tenantId, cancellationToken);
 
             // GetUsersInRoleAsync no se puede componer con LINQ (devuelve una
             // lista ya materializada), así que el filtro se aplica después.
             var enRol = await userManager.GetUsersInRoleAsync(rol);
 
             return enRol
-                .Where(u => u.TenantId == tenantId || idsDelegados.Contains(u.Id))
+                .Where(u => u.TenantId == tenantId || rolesDelegados.Keys.Contains(u.Id))
                 .OrderBy(u => u.NombreCompleto)
                 .ToList();
         }, cancellationToken);
@@ -90,17 +107,17 @@ public class DirectorioUsuariosTenant(
 
             if (esDelTenant) return true;
 
-            return (await ObtenerIdsDeOperadoresDelegadosAsync(tenantId, cancellationToken)).Contains(usuarioId);
+            return (await ObtenerRolesDeOperadoresDelegadosAsync(tenantId, cancellationToken)).ContainsKey(usuarioId);
         }, cancellationToken);
 
-    private async Task<List<Guid>> ObtenerIdsDeOperadoresDelegadosAsync(Guid tenantId, CancellationToken cancellationToken) =>
+    private async Task<Dictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(Guid tenantId, CancellationToken cancellationToken) =>
         await (
             from asignacion in dbContext.AsignacionesOperadorDelegado
             join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
             // Activa y no caducada — ver DelegacionTenant.EstaVigente.
             where delegacion.Activa && delegacion.TenantClienteId == tenantId
                   && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
-            select asignacion.UsuarioId)
+            select new { asignacion.UsuarioId, asignacion.Rol })
             .Distinct()
-            .ToListAsync(cancellationToken);
+            .ToDictionaryAsync(x => x.UsuarioId, x => x.Rol, cancellationToken);
 }
