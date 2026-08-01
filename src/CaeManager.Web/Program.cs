@@ -196,6 +196,18 @@ builder.Services.AddRateLimiter(opciones =>
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// Health check real (P0-5 de docs/business/MATURITY_REVIEW.md): /salud
+// respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
+// cualquier uptime check externo veía un servicio sano que no podía servir
+// ni el login. Ahora ejecuta un SELECT 1 contra la base de datos: 200
+// "Healthy" solo si el proceso vive Y la BD responde. Sigue siendo anónimo
+// y barato a propósito (es lo que sondea Railway y el uptime check externo).
+builder.Services.AddHealthChecks()
+    .AddNpgSql(
+        sp => builder.Configuration.GetConnectionString("CaeManagerDb")
+            ?? throw new InvalidOperationException("Falta el connection string CaeManagerDb."),
+        name: "postgresql");
+
 var app = builder.Build();
 
 // Detrás de un proxy inverso (Railway, cualquier despliegue en contenedor —
@@ -296,7 +308,7 @@ app.UseRevalidacionClienteActivo();
 // módulos JS a veces se pedían antes de que la cookie de auth completara su
 // ida y vuelta, y un import() dinámico fallido no se reintenta solo.
 app.MapStaticAssets().AllowAnonymous();
-app.MapGet("/salud", () => Results.Ok("ok")).AllowAnonymous();
+app.MapHealthChecks("/salud").AllowAnonymous();
 app.MapIdentityEndpoints();
 app.MapClientesEndpoints();
 app.MapDocumentosEndpoints();
