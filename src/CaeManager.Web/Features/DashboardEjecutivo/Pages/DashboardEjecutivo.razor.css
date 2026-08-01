@@ -1,0 +1,26 @@
+.tarjeta-personalizar-kpis {
+    margin-bottom: var(--espaciado-lg, 1.5rem);
+}
+
+.rejilla-categorias-kpi {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--espaciado-md, 1rem);
+    margin-bottom: var(--espaciado-md, 1rem);
+}
+
+.categoria-kpi-titulo {
+    margin: 0 0 0.5rem;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-texto-secundario, #6b7280);
+}
+
+.checkbox-kpi {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+    cursor: pointer;
+}
