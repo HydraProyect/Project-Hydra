@@ -32,7 +32,7 @@ public class RequisitoDocumentalCommandsTests : IAsyncLifetime
         await contexto.Database.MigrateAsync();
 
         var cliente = new Cliente("Requisitos S.L.", "B12345674", esCritico: false);
-        var empresa = new Empresa("Empresa de Requisitos S.L.", "B87654321");
+        var empresa = new Empresa("Empresa de Requisitos S.L.", "B87654323");
         contexto.Clientes.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
