@@ -53,9 +53,12 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
         servicios.AddApplication();
         // AddApplication() registra LoggingBehavior en el pipeline de MediatR
         // (P1-10 de docs/business/MATURITY_REVIEW.md), que pide ILoggerFactory
-        // por constructor — este ServiceCollection de test no monta Serilog,
-        // así que basta con el sumidero nulo para poder resolver el pipeline.
+        // e ITenantActual por constructor — este ServiceCollection de test no
+        // monta Serilog, así que basta con el sumidero nulo para el logger; el
+        // mismo tenantActual que ya usa el DbContext para el filtro global,
+        // para que el comando y el logging vean el mismo tenant ambiental.
         servicios.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        servicios.AddSingleton<ITenantActual>(tenantActual);
         servicios.AddSingleton<IApplicationDbContext>(_dbContext);
         servicios.AddSingleton<IUnitOfWork>(_dbContext);
         servicios.AddSingleton<IAlcanceDatosService>(new AlcanceDatosServiceFalso());
