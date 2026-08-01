@@ -1,0 +1,121 @@
+@page "/dashboard-ejecutivo"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}")]
+@using ApexCharts
+@using CaeManager.Application.Dashboard.Catalogo
+
+<PageTitle>Dashboard Ejecutivo — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="dashboard-cabecera">
+        <span class="dashboard-kicker">Dashboard Ejecutivo</span>
+        <h1 class="titulo-pagina">Tu cartera, con los KPI que elijas</h1>
+    </div>
+
+    <Tarjeta Titulo="Personalizar" Class="tarjeta-personalizar-kpis">
+        <div class="rejilla-categorias-kpi">
+            @foreach (var categoria in CatalogoKpis.Todos.GroupBy(k => k.Categoria))
+            {
+                <div class="categoria-kpi">
+                    <h3 class="categoria-kpi-titulo">@categoria.Key</h3>
+                    @foreach (var kpi in categoria)
+                    {
+                        <label class="checkbox-kpi" title="@kpi.Descripcion">
+                            <input type="checkbox"
+                                   checked="@_seleccionEnEdicion.Contains(kpi.Codigo)"
+                                   @onchange="@(e => AlternarSeleccion(kpi.Codigo, (bool)e.Value!))" />
+                            @kpi.Titulo
+                        </label>
+                    }
+                </div>
+            }
+        </div>
+        <Boton OnClick="GuardarSeleccionAsync" Cargando="_guardando">Guardar selección</Boton>
+    </Tarjeta>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar el Dashboard Ejecutivo" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_valores is null || _seleccionGuardada is null)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else
+    {
+        var seleccionados = _seleccionGuardada
+            .Where(codigo => CatalogoKpis.Todos.Any(k => k.Codigo == codigo))
+            .Select(codigo => CatalogoKpis.Todos.First(k => k.Codigo == codigo))
+            .ToList();
+        var tiles = seleccionados.Where(k => k.TipoRender is TipoRenderKpi.TileNumerico or TipoRenderKpi.TilePorcentajeConTono).ToList();
+        var graficos = seleccionados.Where(k => k.TipoRender is TipoRenderKpi.GraficoDonut or TipoRenderKpi.GraficoBarras).ToList();
+
+        @if (seleccionados.Count == 0)
+        {
+            <EstadoVacio Titulo="Todavía no has elegido ningún KPI" Descripcion="Marca al menos uno en el panel de arriba y guarda la selección." />
+        }
+        else
+        {
+            @if (tiles.Count > 0)
+            {
+                <div class="rejilla-kpis-criticos">
+                    @foreach (var kpi in tiles)
+                    {
+                        <TarjetaMetrica Etiqueta="@kpi.Titulo" Valor="@ValorTile(kpi.Codigo)" Tono="@TonoTile(kpi.Codigo)" />
+                    }
+                </div>
+            }
+
+            @foreach (var kpi in graficos)
+            {
+                <Tarjeta Titulo="@kpi.Titulo">
+                    @if (kpi.Codigo == CatalogoKpis.SemaforoDocumental)
+                    {
+                        <ApexChart TItem="SegmentoGraficoDto" Height="280">
+                            <ApexPointSeries TItem="SegmentoGraficoDto" Items="_semaforoDocumental"
+                                             SeriesType="SeriesType.Donut"
+                                             XValue="@(s => s.Etiqueta)"
+                                             YValue="@(s => s.Valor)" />
+                        </ApexChart>
+                    }
+                    else if (kpi.Codigo == CatalogoKpis.IncidenciasPorGravedad)
+                    {
+                        @if (_incidenciasPorGravedad.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">No hay incidencias registradas.</p>
+                        }
+                        else
+                        {
+                            <ApexChart TItem="SegmentoGraficoDto" Height="280" Options="OpcionesBarraHorizontal">
+                                <ApexPointSeries TItem="SegmentoGraficoDto" Items="_incidenciasPorGravedad"
+                                                 SeriesType="SeriesType.Bar"
+                                                 XValue="@(s => s.Etiqueta)"
+                                                 YValue="@(s => s.Valor)" />
+                            </ApexChart>
+                        }
+                    }
+                    else if (kpi.Codigo == CatalogoKpis.CentrosConMasRiesgo)
+                    {
+                        @if (_centrosConMasRiesgo.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">No hay evaluaciones registradas todavía.</p>
+                        }
+                        else
+                        {
+                            <ApexChart TItem="SegmentoGraficoDto" Height="280" Options="OpcionesBarraHorizontal">
+                                <ApexPointSeries TItem="SegmentoGraficoDto" Items="_centrosConMasRiesgo"
+                                                 SeriesType="SeriesType.Bar"
+                                                 XValue="@(s => s.Etiqueta)"
+                                                 YValue="@(s => s.Valor)" />
+                            </ApexChart>
+                        }
+                    }
+                </Tarjeta>
+            }
+        }
+    }
+</div>
