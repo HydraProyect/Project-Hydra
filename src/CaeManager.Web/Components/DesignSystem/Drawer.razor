@@ -4,10 +4,13 @@
     (p. ej. Trabajador con documentos y asignaciones) se usa página completa
     en su lugar, no este componente.
 *@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
 @if (Visible)
 {
     <div class="drawer-superposicion" @onmousedown="() => _mouseDownEnSuperposicion = true" @onclick="ManejarClicSuperposicionAsync">
-        <div class="drawer-panel" @onmousedown="() => _mouseDownEnSuperposicion = false" @onmousedown:stopPropagation="true" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId">
+        <div class="drawer-panel" @onmousedown="() => _mouseDownEnSuperposicion = false" @onmousedown:stopPropagation="true" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId" tabindex="-1" @ref="_referenciaContenedor" @onkeydown="ManejarTeclaAsync">
             <div class="drawer-header">
                 <h2 id="@_tituloId">@Titulo</h2>
                 <button type="button" class="drawer-cerrar" aria-label="Cerrar" @onclick="CerrarAsync">×</button>
@@ -25,6 +28,9 @@
 
 @code {
     private readonly string _tituloId = $"drawer-titulo-{Guid.NewGuid():N}";
+    private ElementReference _referenciaContenedor;
+    private IJSObjectReference? _trampaFoco;
+    private bool _previoVisible;
 
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
@@ -50,8 +56,72 @@
     /// </summary>
     private bool _mouseDownEnSuperposicion;
 
-    private Task CerrarAsync() => VisibleChanged.InvokeAsync(false);
+    /// <summary>
+    /// Focus trap + retorno de foco (hallazgo P0-8 de
+    /// docs/business/MATURITY_REVIEW.md). Ver el comentario equivalente en
+    /// Modal.razor — mismo mecanismo, mismo módulo JS.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Visible && !_previoVisible)
+            await ActivarTrampaFocoAsync();
+        else if (!Visible && _previoVisible)
+            await LiberarTrampaFocoAsync();
+
+        _previoVisible = Visible;
+    }
+
+    /// <summary>
+    /// Mejor esfuerzo — ver el comentario equivalente en Modal.razor: sin
+    /// módulo JS disponible (tests de componente, circuito cerrándose) el
+    /// drawer sigue siendo usable, solo sin el focus trap.
+    /// </summary>
+    private async Task ActivarTrampaFocoAsync()
+    {
+        try
+        {
+            var modulo = await JS.InvokeAsync<IJSObjectReference>("import", "./js/dialogo-foco.js");
+            if (modulo is null) return;
+
+            await using (modulo)
+            {
+                _trampaFoco = await modulo.InvokeAsync<IJSObjectReference>("atraparFoco", _referenciaContenedor);
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    private async Task CerrarAsync() => await VisibleChanged.InvokeAsync(false);
 
     private Task ManejarClicSuperposicionAsync() =>
         CerrarAlHacerClicFuera && _mouseDownEnSuperposicion ? CerrarAsync() : Task.CompletedTask;
+
+    /// <summary>Mismo guard de trabajo sin guardar que el clic fuera — ver CerrarAlHacerClicFuera.</summary>
+    private Task ManejarTeclaAsync(KeyboardEventArgs e) =>
+        e.Key == "Escape" && CerrarAlHacerClicFuera ? CerrarAsync() : Task.CompletedTask;
+
+    private async Task LiberarTrampaFocoAsync()
+    {
+        if (_trampaFoco is null) return;
+
+        var trampa = _trampaFoco;
+        _trampaFoco = null;
+
+        try
+        {
+            // DisposeAsync de un IJSObjectReference también hace interop — si
+            // el circuito se cerró entre esta llamada y la anterior, también
+            // puede lanzar. Ambas van en el mismo try: ver el comentario
+            // equivalente en Modal.razor.
+            await trampa.InvokeVoidAsync("dispose");
+            await trampa.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync() => await LiberarTrampaFocoAsync();
 }
