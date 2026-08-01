@@ -17,7 +17,7 @@ public class TarifaClienteConfiguration : IEntityTypeConfiguration<TarifaCliente
         // Una única tarifa activa por (tenant, cliente, concepto)
         builder.HasIndex(t => new { t.TenantId, t.ClienteId, t.Concepto })
                .IsUnique()
-               .HasFilter($"\"{nameof(TarifaCliente.EstaEliminado)}\" = 0");
+               .HasFilter($"NOT \"{nameof(TarifaCliente.EstaEliminado)}\"");
 
         builder.HasIndex(t => t.ClienteId);
     }
