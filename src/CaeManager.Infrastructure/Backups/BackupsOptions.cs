@@ -15,6 +15,14 @@ public class BackupsOptions
 
     public int IntervaloHoras { get; set; } = 24;
 
+    /// <summary>
+    /// Binario de pg_dump cuando el motor es PostgreSQL. En el contenedor de
+    /// despliegue está en el PATH (ver Dockerfile); en desarrollo Windows
+    /// suele hacer falta la ruta completa (p. ej.
+    /// "C:\Program Files\PostgreSQL\17\bin\pg_dump.exe").
+    /// </summary>
+    public string RutaPgDump { get; set; } = "pg_dump";
+
     public AwsOptions Aws { get; set; } = new();
 
     public class AwsOptions

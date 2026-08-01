@@ -1,4 +1,4 @@
-using CaeManager.Application.Clientes.Commands.EditarCliente;
+﻿using CaeManager.Application.Clientes.Commands.EditarCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Domain.Clientes;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -27,7 +27,7 @@ namespace CaeManager.IntegrationTests.Documentos;
 /// </summary>
 public class EdicionConcurrenteExtremoAExtremoTests : IAsyncLifetime
 {
-    private readonly string _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-e2e-conc-{Guid.NewGuid()}.db");
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
     private Guid _clienteId;
 
@@ -45,8 +45,7 @@ public class EdicionConcurrenteExtremoAExtremoTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
         await Task.CompletedTask;
     }
 
@@ -132,7 +131,7 @@ public class EdicionConcurrenteExtremoAExtremoTests : IAsyncLifetime
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual), new ConcurrenciaOptimistaInterceptor())
             .Options;
 

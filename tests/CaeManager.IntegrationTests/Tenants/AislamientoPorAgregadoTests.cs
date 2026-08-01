@@ -1,4 +1,4 @@
-using CaeManager.Domain.Alertas;
+﻿using CaeManager.Domain.Alertas;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
@@ -52,7 +52,7 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// </summary>
 public class AislamientoPorAgregadoTests : IAsyncLifetime
 {
-    private readonly string _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-aislamiento-agregado-{Guid.NewGuid()}.db");
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenantA = Guid.NewGuid();
     private readonly Guid _tenantB = Guid.NewGuid();
 
@@ -62,21 +62,14 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
         await dbContext.Database.MigrateAsync();
     }
 
-    public Task DisposeAsync()
-    {
-        // Microsoft.Data.Sqlite devuelve la conexión a su pool al disponer el
-        // contexto, y ese handle sigue abierto: en Windows impide borrar el
-        // archivo y hacía fallar el teardown (no el cuerpo) del test.
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
-        return Task.CompletedTask;
-    }
+    public async Task DisposeAsync() =>
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
     private CaeManagerDbContext CrearContexto(Guid? tenantId)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 

@@ -61,7 +61,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Motor elegido por configuración mientras dura la migración a
         // PostgreSQL — ver ProveedorBaseDatos para por qué esto es transitorio.
-        var proveedor = LeerProveedor(configuration);
+        var proveedor = LectorProveedorBaseDatos.Leer(configuration);
 
         services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
         {
@@ -277,27 +277,5 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPlantillaCombinadaService, ClosedXmlPlantillaCombinadaService>();
 
         return services;
-    }
-
-    /// <summary>
-    /// Lee <c>Database:Proveedor</c>. Por defecto SQLite: un despliegue que no
-    /// diga nada tiene que seguir arrancando exactamente como hasta ahora.
-    /// Un valor escrito mal no cae de vuelta en silencio a SQLite — apuntar sin
-    /// querer a otro motor que el previsto es la clase de error que acaba
-    /// creando una base de datos vacía en paralelo a la de verdad.
-    /// </summary>
-    private static ProveedorBaseDatos LeerProveedor(IConfiguration configuration)
-    {
-        var valor = configuration["Database:Proveedor"];
-
-        if (string.IsNullOrWhiteSpace(valor))
-            return ProveedorBaseDatos.Sqlite;
-
-        if (!Enum.TryParse<ProveedorBaseDatos>(valor, ignoreCase: true, out var proveedor))
-            throw new InvalidOperationException(
-                $"Database:Proveedor tiene el valor '{valor}', que no es válido. " +
-                $"Valores admitidos: {string.Join(", ", Enum.GetNames<ProveedorBaseDatos>())}.");
-
-        return proveedor;
     }
 }
