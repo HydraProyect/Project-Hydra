@@ -166,12 +166,18 @@ var app = builder.Build();
 // dejan vacíos a propósito: el proxy de entrada cambia según dónde se
 // despliegue, y este es un único servicio detrás de un solo proxy de borde,
 // no una red interna con saltos que haya que enumerar.
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+var opcionesForwardedHeaders = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-    KnownProxies = { },
-    KnownIPNetworks = { }
-});
+};
+// KnownProxies/KnownIPNetworks traen loopback por defecto: un inicializador
+// `= { }` no los vacía, solo no añade nada más. Sin este Clear() explícito,
+// el middleware descarta X-Forwarded-Proto porque el edge de Railway no es
+// loopback, y la app cree que la petición es HTTP (genera Location: http://
+// en redirects, lo que rompe el login vía CSP form-action).
+opcionesForwardedHeaders.KnownProxies.Clear();
+opcionesForwardedHeaders.KnownIPNetworks.Clear();
+app.UseForwardedHeaders(opcionesForwardedHeaders);
 
 using (var scope = app.Services.CreateScope())
 {
