@@ -8,7 +8,7 @@ using MediatR;
 namespace CaeManager.Application.Comunicaciones.Commands.EditarMacro;
 
 public record EditarMacroCommand(
-    Guid Id, string Titulo, string CuerpoHtml, Guid? ClienteId, Guid Version = default) : IRequest<Result>;
+    Guid Id, string Titulo, string CuerpoHtml, Guid? ClienteId, Guid Version = default) : ICommand;
 
 public class EditarMacroCommandValidator : AbstractValidator<EditarMacroCommand>
 {

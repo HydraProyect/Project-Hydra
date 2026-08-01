@@ -23,6 +23,7 @@ SOLID, DRY, KISS, YAGNI. Código mantenible siempre por encima de código "rápi
 ## Application (CQRS)
 
 - Un archivo por Command/Query + su Handler + su Validator, agrupados en la misma carpeta de feature (ver `ARCHITECTURE.md`).
+- **Todo Command implementa `ICommand` (sin valor de retorno) o `ICommand<T>`, nunca `IRequest<...>` a pelo.** No es cosmético: `AutorizacionEscrituraBehavior` decide por esa interfaz quién puede escribir, así que un Command sin ella lo puede ejecutar cualquier rol, incluido uno de solo lectura. El sufijo `Command` en el nombre sigue siendo obligatorio, y `ArquitecturaCommandsTests` falla en CI si nombre e interfaz no van juntos en cualquiera de las dos direcciones. Las Queries siguen usando `IRequest<T>` directamente.
 - Los DTOs de salida de Queries son planos y específicos de esa query (no se reutiliza el mismo DTO "grande" para lista y detalle) — cada pantalla pide exactamente los campos que muestra.
 - FluentValidation por Command/Query con reglas de formato (obligatoriedad, longitud, formato de DNI/email); las reglas de negocio (p. ej. "no se puede eliminar un Cliente con Centros activos") viven en el handler o en el dominio, no en el validator.
 - Mapeo entidad→DTO: métodos de extensión estáticos explícitos (`cliente.ToDto()`) por defecto. AutoMapper solo se introduce si un mapeo concreto se vuelve genuinamente repetitivo y mecánico — nunca como configuración por defecto que oculte qué campo viene de dónde.

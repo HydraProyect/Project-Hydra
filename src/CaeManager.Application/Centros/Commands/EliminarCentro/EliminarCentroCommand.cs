@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Centros.Commands.EliminarCentro;
 
-public record EliminarCentroCommand(Guid Id, Guid UsuarioId) : IRequest<Result>;
+public record EliminarCentroCommand(Guid Id, Guid UsuarioId) : ICommand;
 
 public class EliminarCentroCommandHandler(ICentroRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarCentroCommand, Result>

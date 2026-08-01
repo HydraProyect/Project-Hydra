@@ -13,7 +13,7 @@ namespace CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 /// y la razón de que revocar sea <c>Activa = false</c> y no un borrado
 /// (ADR-004 § 5.5).
 /// </summary>
-public record ReactivarDelegacionTenantCommand(Guid DelegacionTenantId) : IRequest<Result>;
+public record ReactivarDelegacionTenantCommand(Guid DelegacionTenantId) : ICommand;
 
 public class ReactivarDelegacionTenantCommandValidator : AbstractValidator<ReactivarDelegacionTenantCommand>
 {
