@@ -19,10 +19,10 @@ namespace CaeManager.Application.Common;
 /// Se registra el <i>tipo</i> del request, no sus valores.
 ///
 /// Va el primero del pipeline —por fuera incluso de
-/// <c>AccesoDatosPorRequestBehavior</c>— para medir lo que el usuario
-/// espera de verdad, incluida la creación del contexto de datos. Puede
-/// hacerlo sin riesgo porque no toca la base de datos: <c>ITenantActual</c>
-/// es una propiedad síncrona ya resuelta y las dos llamadas a
+/// <c>SerializacionAccesoDatosBehavior</c>— para medir lo que el usuario
+/// espera de verdad, incluida la cola de acceso a datos. Puede hacerlo sin
+/// riesgo porque no toca la base de datos: <c>ITenantActual</c> es una
+/// propiedad síncrona ya resuelta y las dos llamadas a
 /// <c>ICurrentUserService</c> que usa leen claims, no filas.
 ///
 /// Los nombres de propiedad (<c>Request</c>, <c>TenantId</c>,
