@@ -32,7 +32,7 @@ public partial class Delegaciones : ComponentBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
-    [Inject] private IPuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Delegaciones> Logger { get; set; } = default!;
     [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
