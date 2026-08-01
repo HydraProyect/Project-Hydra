@@ -112,14 +112,14 @@ Cada caso de uso es un Command (escritura) o Query (lectura) explícito, manejad
 
 - **Commands**: pasan por el Domain (cargan el agregado vía repositorio, invocan métodos de negocio que protegen invariantes, persisten). Ejemplo: `CrearClienteCommand → CrearClienteCommandHandler`.
 - **Queries**: proyectan directamente a DTOs de lectura con `.Select(...)`, sin pasar por el repositorio de agregados — las queries no tienen invariantes que proteger, solo necesitan ser rápidas. No se usa `AsNoTracking()`: proyectar a un DTO ya no engancha nada al change tracker, así que sería ruido. Sí haría falta en las pocas lecturas que materializan entidades completas. Application define `IApplicationDbContext` con una propiedad `IQueryable<T>` de solo lectura por agregado; `CaeManagerDbContext` la implementa en Infrastructure. Application referencia el paquete `Microsoft.EntityFrameworkCore` (la capa de abstracciones, para poder usar `CountAsync`/`ToListAsync`/etc. sobre `IQueryable<T>`) pero **nunca** un proveedor concreto (`Npgsql.EntityFrameworkCore.PostgreSQL`, `...SqlServer`, ...) ni el tipo `CaeManagerDbContext` — eso es exclusivo de Infrastructure.
-- **Pipeline behaviors** de MediatR para: validación (FluentValidation), logging, y captura de excepciones de dominio → `Result<T>`.
+- **Pipeline behaviors** de MediatR, en este orden (de fuera adentro): `LoggingBehavior` (request, duración, tenant, usuario, resultado — nunca el contenido del request), `SerializacionAccesoDatosBehavior`, `ConcurrenciaBehavior`, `AutorizacionEscrituraBehavior` y `ValidationBehavior` (FluentValidation). **No hay behavior de captura de excepciones de dominio → `Result<T>`**: una `ArgumentException` de entidad sigue llegando cruda a la UI (hallazgo de coherencia de `docs/business/MATURITY_REVIEW.md` § 1, pendiente).
 
 No se usa un `IRepository<T>` genérico. Cada agregado raíz (Cliente, Centro, Empresa, Trabajador, Documento, Asignacion) tiene su propia interfaz de repositorio definida en `Domain`, con los métodos que ese agregado necesita — no un CRUD genérico que invite a saltarse invariantes.
 
 ## Manejo de errores
 
 - Errores esperables de negocio (validación, reglas violadas, "no encontrado") → `Result<T>` / `Result`, nunca excepciones. La UI los traduce a microcopy en español (ver `UX_PATTERNS.md`).
-- Excepciones reservadas para errores verdaderamente inesperados (fallo de infraestructura). Un middleware/behavior las captura, las registra (logging estructurado) y las traduce a un estado de error genérico y amigable.
+- Excepciones reservadas para errores verdaderamente inesperados (fallo de infraestructura). `LoggingBehavior` las registra con nivel Error (correlacionadas con tenant y usuario), Sentry las reporta si hay DSN configurado, y `app.UseExceptionHandler("/Error")` las traduce a la página de error genérica. No se traducen a `Result<T>`.
 
 ## Autenticación y autorización
 

@@ -56,21 +56,33 @@ var rutaLogsAbsoluta = Path.IsPathRooted(rutaLogs)
     ? rutaLogs
     : Path.Combine(builder.Environment.ContentRootPath, rutaLogs);
 
-builder.Host.UseSerilog((context, services, loggerConfiguration) => loggerConfiguration
-    .ReadFrom.Configuration(context.Configuration)
-    .ReadFrom.Services(services)
-    .Enrich.FromLogContext()
-    .WriteTo.Console()
-    .WriteTo.File(rutaLogsAbsoluta, rollingInterval: RollingInterval.Day, retainedFileCountLimit: 31));
+// Sink de logs en la nube (Seq): inerte mientras "Serilog:Seq:ServerUrl" no
+// esté configurado — mismo patrón "funciona sin configurar, se endurece con
+// una variable de entorno en producción" que Sentry, KMS o Backups. Sin él,
+// los logs viven solo en el volumen del contenedor y desaparecen con él, que
+// es justo lo que hace indiagnosticable un incidente (P1-10 de
+// docs/business/MATURITY_REVIEW.md). Seq acepta tanto una instancia propia
+// como Seq cloud; la ApiKey es opcional porque una instancia sin
+// autenticación no la pide.
+var urlSeq = builder.Configuration["Serilog:Seq:ServerUrl"];
+var apiKeySeq = builder.Configuration["Serilog:Seq:ApiKey"];
 
-// Para añadir un sink en la nube (Seq, Axiom, etc.) más adelante: agregar el
-// paquete NuGet correspondiente y un .WriteTo.Xxx(...) condicionado a que su
-// clave de configuración (p. ej. "Serilog:Seq:ServerUrl") esté presente en
-// builder.Configuration — mismo patrón "funciona sin configurar, se
-// endurece con una variable de entorno en producción" que
-// DataProtection/AlmacenamientoArchivos. Ningún paquete de sink en la nube
-// está referenciado todavía porque no hay cuenta provisionada (ver
-// RUNBOOK-CLAVES.md / ROADMAP.md).
+builder.Host.UseSerilog((context, services, loggerConfiguration) =>
+{
+    loggerConfiguration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        // Sin esto, los eventos de varias réplicas o de varios despliegues
+        // se mezclan sin poder separarse una vez en la nube.
+        .Enrich.WithProperty("Aplicacion", "CaeManager")
+        .Enrich.WithProperty("Entorno", context.HostingEnvironment.EnvironmentName)
+        .WriteTo.Console()
+        .WriteTo.File(rutaLogsAbsoluta, rollingInterval: RollingInterval.Day, retainedFileCountLimit: 31);
+
+    if (!string.IsNullOrWhiteSpace(urlSeq))
+        loggerConfiguration.WriteTo.Seq(urlSeq, apiKey: apiKeySeq);
+});
 
 // Error tracking con Sentry — si "Sentry:Dsn" no está configurado (hoy, en
 // todos los entornos: no hay cuenta de Sentry provisionada todavía), la SDK
@@ -219,7 +231,26 @@ using (var scope = app.Services.CreateScope())
 // Registrado antes del manejo de excepciones para envolverlo por completo:
 // una petición que termina en 500 vía UseExceptionHandler se sigue
 // registrando aquí con su código de estado final, no como si hubiera ido bien.
-app.UseSerilogRequestLogging();
+//
+// EnrichDiagnosticContext corre al cerrar la petición, cuando el tenant ya
+// está resuelto — por eso los servicios se piden a ctx.RequestServices y no
+// por constructor: ITenantActual es scoped y este callback lo comparte un
+// middleware singleton. Es lo que hace que la traza HTTP (descargas de
+// documentos, exports, endpoints de identidad) salga correlacionada con el
+// tenant igual que la de MediatR, que se correlaciona en LoggingBehavior.
+app.UseSerilogRequestLogging(opciones =>
+{
+    opciones.EnrichDiagnosticContext = (contextoDiagnostico, contextoHttp) =>
+    {
+        var tenantActual = contextoHttp.RequestServices.GetService<ITenantActual>();
+        if (tenantActual?.TenantId is { } tenantId)
+            contextoDiagnostico.Set("TenantId", tenantId);
+
+        var usuarioId = contextoHttp.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(usuarioId))
+            contextoDiagnostico.Set("UsuarioId", usuarioId);
+    };
+});
 
 if (!app.Environment.IsDevelopment())
 {
