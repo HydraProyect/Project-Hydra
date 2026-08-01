@@ -69,7 +69,7 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
+            <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
                 <PropertyColumn Property="@(d => d.PropietarioNombre)" Title="Propietario" Sortable="true" />
                 <TemplateColumn Title="Ámbito">
                     <Badge>@context.Ambito</Badge>

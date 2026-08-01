@@ -17,10 +17,17 @@ public static class ApplicationServiceCollectionExtensions
 
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(ensamblado));
         services.AddValidatorsFromAssembly(ensamblado);
-        // Orden importa. ConcurrenciaBehavior va el primero para envolver a
-        // los otros dos: el choque de concurrencia nace dentro del handler,
-        // al guardar, así que quien lo captura tiene que estar por fuera.
-        // Después, un Command bloqueado por rol ni siquiera llega a validarse.
+        // Scoped: una puerta por petición HTTP o circuito de Blazor — la
+        // misma que usan los accesos a datos que no pasan por MediatR.
+        services.AddScoped<PuertaAccesoDatos>();
+        // Orden importa. SerializacionAccesoDatos va el primero de todos: la
+        // serialización del DbContext tiene que abarcar el request entero,
+        // incluidos los demás behaviors (AutorizacionEscritura consulta el rol
+        // del usuario). Luego ConcurrenciaBehavior, que envuelve a los otros
+        // dos: el choque de concurrencia nace dentro del handler, al guardar,
+        // así que quien lo captura tiene que estar por fuera. Después, un
+        // Command bloqueado por rol ni siquiera llega a validarse.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(SerializacionAccesoDatosBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ConcurrenciaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionEscrituraBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ValidationBehavior<,>));

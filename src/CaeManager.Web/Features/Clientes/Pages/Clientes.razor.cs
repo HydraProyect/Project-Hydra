@@ -57,8 +57,17 @@ public partial class Clientes : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    private GridItemsProvider<ClienteListaDto>? _proveedorElementos;
+
     protected override async Task OnInitializedAsync()
     {
+        // Delegado estable: pasar el grupo de método directamente en el
+        // markup crea un delegado nuevo en cada render, QuickGrid lo trata
+        // como "fuente de datos distinta" y recarga — combinado con el
+        // StateHasChanged del proveedor, bucle infinito de recargas (visto
+        // con PostgreSQL, donde el proveedor es asíncrono de verdad).
+        _proveedorElementos = ProveerElementosAsync;
+
         // Permite que el buscador global (Ctrl/Cmd+K) navegue aquí con el
         // filtro ya cargado, p. ej. /clientes?q=Cadena+Industrial.
         if (!string.IsNullOrWhiteSpace(TerminoBusquedaInicial))

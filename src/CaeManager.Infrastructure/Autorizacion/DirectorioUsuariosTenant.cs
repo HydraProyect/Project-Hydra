@@ -26,63 +26,72 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// justamente gestionan.
 /// </summary>
 public class DirectorioUsuariosTenant(
-    UserManager<ApplicationUser> userManager, IApplicationDbContext dbContext, ITenantActual tenantActual)
+    UserManager<ApplicationUser> userManager, IApplicationDbContext dbContext, ITenantActual tenantActual,
+    PuertaAccesoDatos puertaAccesoDatos)
     : IDirectorioUsuariosService
 {
     /// <summary>
     /// Usuarios del tenant activo, más sus Operadores Delegados. Sin tenant
     /// resuelto devuelve vacío, no todo: mismo fallo cerrado que el resto de
     /// la cadena de resolución.
+    ///
+    /// Los tres métodos públicos pasan por PuertaAccesoDatos: los llaman
+    /// páginas de Blazor directamente (sin MediatR), en paralelo con la
+    /// inicialización de los componentes del layout sobre el mismo DbContext
+    /// scoped.
     /// </summary>
-    public async Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesAsync(CancellationToken cancellationToken = default)
-    {
-        if (tenantActual.TenantId is not { } tenantId) return [];
+    public Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesAsync(CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ApplicationUser>>(async () =>
+        {
+            if (tenantActual.TenantId is not { } tenantId) return [];
 
-        var idsDelegados = await ObtenerIdsDeOperadoresDelegadosAsync(tenantId, cancellationToken);
+            var idsDelegados = await ObtenerIdsDeOperadoresDelegadosAsync(tenantId, cancellationToken);
 
-        return await userManager.Users
-            .Where(u => u.TenantId == tenantId || idsDelegados.Contains(u.Id))
-            .OrderBy(u => u.Email)
-            .ToListAsync(cancellationToken);
-    }
+            return await userManager.Users
+                .Where(u => u.TenantId == tenantId || idsDelegados.Contains(u.Id))
+                .OrderBy(u => u.Email)
+                .ToListAsync(cancellationToken);
+        }, cancellationToken);
 
     /// <summary>
     /// Equivalente a <c>GetUsersInRoleAsync</c> pero acotado al tenant activo
     /// — es el que alimenta los selectores de gestor/ejecutivo.
     /// </summary>
-    public async Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesEnRolAsync(
-        string rol, CancellationToken cancellationToken = default)
-    {
-        if (tenantActual.TenantId is not { } tenantId) return [];
+    public Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesEnRolAsync(
+        string rol, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ApplicationUser>>(async () =>
+        {
+            if (tenantActual.TenantId is not { } tenantId) return [];
 
-        var idsDelegados = await ObtenerIdsDeOperadoresDelegadosAsync(tenantId, cancellationToken);
+            var idsDelegados = await ObtenerIdsDeOperadoresDelegadosAsync(tenantId, cancellationToken);
 
-        // GetUsersInRoleAsync no se puede componer con LINQ (devuelve una
-        // lista ya materializada), así que el filtro se aplica después.
-        var enRol = await userManager.GetUsersInRoleAsync(rol);
+            // GetUsersInRoleAsync no se puede componer con LINQ (devuelve una
+            // lista ya materializada), así que el filtro se aplica después.
+            var enRol = await userManager.GetUsersInRoleAsync(rol);
 
-        return enRol
-            .Where(u => u.TenantId == tenantId || idsDelegados.Contains(u.Id))
-            .OrderBy(u => u.NombreCompleto)
-            .ToList();
-    }
+            return enRol
+                .Where(u => u.TenantId == tenantId || idsDelegados.Contains(u.Id))
+                .OrderBy(u => u.NombreCompleto)
+                .ToList();
+        }, cancellationToken);
 
     /// <summary>
     /// Para revalidar en servidor un Id que llegó de un selector: que la UI
     /// solo ofrezca opciones válidas no impide escribir otro Guid a mano
     /// (hallazgo N-10 de INFORME-AUDITORIA-2.md).
     /// </summary>
-    public async Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default)
-    {
-        if (tenantActual.TenantId is not { } tenantId) return false;
+    public Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            if (tenantActual.TenantId is not { } tenantId) return false;
 
-        var esDelTenant = await userManager.Users
-            .AnyAsync(u => u.Id == usuarioId && u.TenantId == tenantId, cancellationToken);
+            var esDelTenant = await userManager.Users
+                .AnyAsync(u => u.Id == usuarioId && u.TenantId == tenantId, cancellationToken);
 
-        if (esDelTenant) return true;
+            if (esDelTenant) return true;
 
-        return (await ObtenerIdsDeOperadoresDelegadosAsync(tenantId, cancellationToken)).Contains(usuarioId);
-    }
+            return (await ObtenerIdsDeOperadoresDelegadosAsync(tenantId, cancellationToken)).Contains(usuarioId);
+        }, cancellationToken);
 
     private async Task<List<Guid>> ObtenerIdsDeOperadoresDelegadosAsync(Guid tenantId, CancellationToken cancellationToken) =>
         await (
