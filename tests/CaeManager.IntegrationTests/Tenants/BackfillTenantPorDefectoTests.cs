@@ -1,4 +1,4 @@
-using CaeManager.Infrastructure.MultiTenancy;
+﻿using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
@@ -21,6 +21,13 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// defecto. Esta es la prueba que exige la regla de "cada cambio incorpora
 /// sus pruebas antes de continuar": sin ella, una base vacía de test no
 /// demuestra nada sobre el caso real que importa.
+///
+/// Es el único test de integración que sigue sobre SQLite tras llevar la
+/// suite a PostgreSQL: reproduce un punto intermedio del historial de
+/// migraciones de SQLite (<c>AgregarTenantNullable</c>) que en el ensamblado
+/// de PostgreSQL no existe — su línea base nace ya con TenantId NOT NULL, así
+/// que el backfill nunca correrá sobre ese motor. Se retira junto con la rama
+/// SQLite cuando se complete el corte (ver ProveedorBaseDatos).
 /// </summary>
 public class BackfillTenantPorDefectoTests : IAsyncLifetime
 {
@@ -59,7 +66,7 @@ public class BackfillTenantPorDefectoTests : IAsyncLifetime
         // Microsoft.Data.Sqlite devuelve la conexión a su pool al disponer el
         // contexto, y ese handle sigue abierto: en Windows impide borrar el
         // archivo y hacía fallar el teardown (no el cuerpo) del test.
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        SqliteConnection.ClearAllPools();
         if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
     }
 

@@ -1,4 +1,4 @@
-using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
+﻿using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -26,7 +26,7 @@ namespace CaeManager.IntegrationTests.Comunicaciones;
 /// </summary>
 public class CuerpoMensajeSaneadoTests : IAsyncLifetime
 {
-    private readonly string _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-xss-{Guid.NewGuid()}.db");
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
     private Guid _conversacionId;
 
@@ -48,10 +48,7 @@ public class CuerpoMensajeSaneadoTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        // Mismo motivo que en TarifasClienteAislamientoTests: Sqlite mantiene
-        // la conexión en pool y en Windows impide borrar el archivo.
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
         await Task.CompletedTask;
     }
 
@@ -91,7 +88,7 @@ public class CuerpoMensajeSaneadoTests : IAsyncLifetime
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 
