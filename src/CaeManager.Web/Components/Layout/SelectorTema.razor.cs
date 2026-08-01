@@ -19,7 +19,7 @@ namespace CaeManager.Web.Components.Layout;
 /// </summary>
 public partial class SelectorTema : ComponentBase, IAsyncDisposable
 {
-    [Inject] private CaeManager.Application.Common.IPuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private CaeManager.Application.Common.PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
 
     private IJSObjectReference? _modulo;
     private ApplicationUser? _usuario;

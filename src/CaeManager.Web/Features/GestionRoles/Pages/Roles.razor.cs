@@ -34,7 +34,7 @@ public partial class Roles : ComponentBase
     };
 
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
-    [Inject] private IPuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private IEmailService EmailService { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Roles> Logger { get; set; } = default!;
