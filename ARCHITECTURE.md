@@ -150,7 +150,7 @@ Las credenciales de plataformas externas (usuario/contraseña de portales como C
 
 ## Archivos (PDFs de documentos)
 
-Abstracción `IFileStorageService` en Application, implementada en Infrastructure sobre disco local en v1 (ruta configurable), con la interfaz diseñada para poder cambiar a almacenamiento en la nube sin tocar Application ni Presentation.
+Abstracción `IFileStorageService` en Application, con dos implementaciones intercambiables en Infrastructure sin tocar Application ni Presentation: disco local (por defecto, ruta configurable) o S3 (`AlmacenamientoS3:Activo`, P2 #22 de `docs/business/MATURITY_REVIEW.md` — necesario para más de una réplica, ver `DEPLOY.md`).
 
 Todo archivo adjunto de un Documento se guarda siempre como un único PDF, aunque el usuario suba imágenes, Word o varios archivos a la vez:
 
