@@ -27,7 +27,7 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// </summary>
 public class DirectorioUsuariosTenant(
     UserManager<ApplicationUser> userManager, IApplicationDbContext dbContext, ITenantActual tenantActual,
-    PuertaAccesoDatos puertaAccesoDatos)
+    IPuertaAccesoDatos puertaAccesoDatos)
     : IDirectorioUsuariosService
 {
     /// <summary>
