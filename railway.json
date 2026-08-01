@@ -5,6 +5,8 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "preDeployCommand": "dotnet CaeManager.Web.dll --migrate-only"
+    "preDeployCommand": "dotnet CaeManager.Web.dll --migrate-only",
+    "healthcheckPath": "/salud",
+    "healthcheckTimeout": 300
   }
 }

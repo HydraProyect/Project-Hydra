@@ -110,6 +110,13 @@ Primer arranque: la app ejecuta las migraciones de base de datos y crea el usuar
 
 **Migraciones fuera del arranque (P2 #22 de `docs/business/MATURITY_REVIEW.md`)**: `railway.json` (config-as-code, en la raíz del repo) declara un `deploy.preDeployCommand` que ejecuta `dotnet CaeManager.Web.dll --migrate-only` — aplica las migraciones pendientes y termina, antes de que Railway arranque el proceso web del deploy. Railway lo recoge solo si no hay un Start/Pre-Deploy Command puesto a mano en el dashboard del servicio (Settings → Deploy) que lo pise; si el proyecto ya tiene uno configurado ahí, hay que borrarlo para que `railway.json` mande. El arranque normal del proceso web **sigue aplicando las migraciones también** (`Migraciones:AlArrancar`, por defecto `true`) — a propósito, para no depender de que el pre-deploy ya esté activo; aplicar una migración ya aplicada no hace nada. Dos réplicas repitiendo esto arrancando a la vez sí sería la carrera que este mecanismo existe para evitar — pon `Migraciones__AlArrancar=false` en las variables del servicio antes de escalar a más de una réplica, no antes.
 
+### Gate de deploy y smoke test post-deploy (P2 #23)
+
+Dos mecanismos distintos, uno ya activo por código y el otro pendiente de un clic en el dashboard:
+
+- **Smoke test post-deploy — ya activo.** `railway.json` declara `deploy.healthcheckPath=/salud` y `deploy.healthcheckTimeout=300`: Railway no corta el tráfico hacia el deploy nuevo hasta que ese endpoint responda `200`, y si nunca responde, el deploy se descarta y el tráfico se queda en el anterior (zero-downtime nativo de Railway, sin script propio). **Límite real de esta protección hoy**: `/salud` (`Program.cs`) devuelve `Results.Ok("ok")` incondicional — responde `200` aunque PostgreSQL esté caído. Arreglar eso es P0 #5 de `docs/business/MATURITY_REVIEW.md` (`AddHealthChecks().AddNpgSql()`), fuera del alcance de esta sesión (P2) — hasta que se cierre, este smoke test detecta que el proceso arrancó, no que la app funciona de verdad.
+- **Gate de CI verde — requiere un paso manual, no expresable en `railway.json`.** Railway soporta "Wait for CI" (Settings del servicio → Deploy), que deja el deploy en espera hasta que los GitHub Actions del commit terminen, y lo descarta si alguno falla — pero es un ajuste que Railway solo expone en el dashboard, no en config-as-code (confirmado en su documentación a fecha de este cambio). Actívalo a mano una vez: Settings → Deploy → "Wait for CI". El repo ya cumple el único requisito (`.github/workflows/ci.yml` dispara con `on: push` sobre la rama que despliegas).
+
 ## 5. Verificar
 
 - `https://tu-dominio.up.railway.app/salud` debe responder `200 ok` (endpoint sin autenticación, pensado para healthchecks).
