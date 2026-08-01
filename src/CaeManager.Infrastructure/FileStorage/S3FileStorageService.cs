@@ -18,6 +18,7 @@ namespace CaeManager.Infrastructure.FileStorage;
 /// Scoped, no Singleton, por la misma razón que <see cref="DiskFileStorageService"/>:
 /// depende de <see cref="ITenantActual"/>, que es scoped — inyectarlo en un
 /// singleton sería una dependencia cautiva que capturaría el primer tenant
+/// resuelto para siempre.
 ///
 /// <b>Pendiente al integrar con P1 #12</b> (cifrado en reposo de
 /// <see cref="DiskFileStorageService"/> con <c>IDataProtector</c>, trabajado
@@ -29,7 +30,6 @@ namespace CaeManager.Infrastructure.FileStorage;
 /// (protector <c>"CaeManager.Archivos.v1"</c>, para que un archivo cifrado
 /// en un backend se pueda leer si se cambia al otro) antes de dar por
 /// cerrado ese punto.
-/// resuelto para siempre.
 /// </summary>
 public class S3FileStorageService : IFileStorageService, IDisposable
 {

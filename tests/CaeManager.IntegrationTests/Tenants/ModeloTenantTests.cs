@@ -33,8 +33,11 @@ public class ModeloTenantTests
 
         tiposConTenant.Should().NotBeEmpty("si esto está vacío, el propio test dejó de poder ver el modelo real");
 
+        // GetQueryFilter() quedó obsoleto en EF Core 10 (filtros con nombre,
+        // varios por entidad) a favor de GetDeclaredQueryFilters() — Any()
+        // basta aquí, no hace falta inspeccionar el filtro en sí.
         var sinFiltro = tiposConTenant
-            .Where(t => t.GetQueryFilter() is null)
+            .Where(t => !t.GetDeclaredQueryFilters().Any())
             .Select(t => t.ClrType.Name)
             .ToList();
 
@@ -59,7 +62,7 @@ public class ModeloTenantTests
             .ToList();
 
         var conFiltroInesperado = tiposSinTenant
-            .Where(t => t.GetQueryFilter() is not null)
+            .Where(t => t.GetDeclaredQueryFilters().Any())
             .Select(t => t.ClrType.Name)
             .ToList();
 
