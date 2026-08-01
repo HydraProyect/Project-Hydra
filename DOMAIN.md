@@ -71,6 +71,7 @@ El estado de un Documento (`Vigente`/`Proximo`/`Urgente`/`Vencido`/`NoAplica`) *
 
 ## Notas de deuda del modelo
 
-- Tres clases duplican el concepto "credenciales de portal externo" (`PlataformaAcceso`, `CredencialAccesoEmpresa`, `CredencialAccesoSubcontrata`) — unificarlas es un cambio de modelo independiente, no mezclar con otros refactors.
+- Tres clases duplican el concepto "credenciales de portal externo" (`CanalGestionDocumental`, `CredencialAccesoEmpresa`, `CredencialAccesoSubcontrata`) — unificarlas es un cambio de modelo independiente, no mezclar con otros refactors.
 - `RequisitoDocumental` existe en Domain sin Commands/Queries ni UI.
 - No existe infraestructura de Domain Events (decisión: no construirla sin caso de uso real — YAGNI).
+- `Dni`/`Cif`/`Email` (`CaeManager.Domain.Common`, P2 #27 de `docs/business/MATURITY_REVIEW.md`) son value objects nuevos con la misma validación que ya aplicaban a mano los constructores de `Trabajador`/`Cliente`/`Empresa` (Dni/Cif) o que no existía en absoluto (Email, hasta ahora solo comprobado como no-vacío). Ninguna entidad existente se migró a usarlos todavía — `Trabajador.Dni`/`Cliente.Cif`/`Empresa.Cif` siguen siendo `string`, con ~150 sitios de uso combinados que un cambio de tipo sin poder compilar en este entorno habría arriesgado más de lo que valía. Disponibles para código nuevo; migrar lo existente es trabajo de seguimiento.
