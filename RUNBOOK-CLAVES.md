@@ -2,25 +2,28 @@
 
 Este documento cubre exactamente un escenario: el volumen persistente de Railway (montado en `/data`, ver `DEPLOY.md`) se pierde, se corrompe, o hay que restaurarlo desde un backup. Léelo *antes* de que pase, no durante — el error más caro de este escenario se comete en los primeros cinco minutos.
 
+**Desde el corte a PostgreSQL (`ADR-003`, ver `ROADMAP.md`), la base de datos ya no vive en este volumen** — es un servicio gestionado de Railway aparte, con su propia persistencia. Perder este volumen ya no implica perder Clientes/Empresas/Trabajadores/Documentos; el radio de pérdida real hoy es `dataprotection-keys/` y los PDFs adjuntos.
+
 ## Qué hay en `/data`
 
 | Ruta | Qué es | Qué pasa si se pierde |
 |---|---|---|
-| `CaeManager.db` | La base de datos SQLite completa: Clientes, Empresas, Trabajadores, Documentos, todo. | Pérdida de datos obvia — es la que todo el mundo piensa primero. |
-| `dataprotection-keys/` | Las claves de cifrado de ASP.NET Core Data Protection. | **La menos obvia y la más grave** — ver siguiente sección. |
+| `dataprotection-keys/` | Las claves de cifrado de ASP.NET Core Data Protection. | **La más grave** — ver siguiente sección. |
 | `documentos/` | Los PDFs adjuntos de los Documentos. | Los archivos en sí desaparecen (las filas de la BD que los referencian quedan huérfanas). |
+
+La base de datos PostgreSQL se recupera por su propio mecanismo (el servicio gestionado de Railway + los backups de `pg_dump` a S3 descritos más abajo), independiente de este volumen.
 
 ## El punto crítico: las claves de Data Protection no son solo "para las cookies"
 
 `dataprotection-keys/` no es un detalle de sesión — es lo que cifra **en reposo** las credenciales de acceso a plataformas externas (`CredencialAccesoEmpresa`, `CredencialAccesoSubcontrata`, ver `CredencialAccesoEmpresaConfiguration.cs`/`CredencialAccesoSubcontrataConfiguration.cs` y el `ValueConverter` en `CaeManagerDbContext.cs`), documentado en `ARCHITECTURE.md` § cifrado de credenciales.
 
-Esto significa: **si `dataprotection-keys/` se pierde pero `CaeManager.db` sobrevive**, cada fila de credencial guardada (usuario/contraseña de portales tipo CTAIMA) sigue estando en la base de datos, pero como bytes cifrados con una clave que ya no existe en ningún sitio. No hay fuerza bruta, no hay "recuperar la clave" — es matemáticamente irrecuperable. La fila sigue ahí, pero es basura permanente.
+Esto significa: **si `dataprotection-keys/` se pierde pero la base de datos sobrevive**, cada fila de credencial guardada (usuario/contraseña de portales tipo CTAIMA) sigue estando en la base de datos, pero como bytes cifrados con una clave que ya no existe en ningún sitio. No hay fuerza bruta, no hay "recuperar la clave" — es matemáticamente irrecuperable. La fila sigue ahí, pero es basura permanente.
 
 Esto **no** afecta a las contraseñas de los propios usuarios de CAE Manager (esas usan el hash de ASP.NET Identity, no Data Protection) — solo a las credenciales de plataformas externas guardadas en Empresa/Subcontrata.
 
 ## Prevención
 
-- **Implementado (2026-07-18)**: `BackupHostedService` (`src/CaeManager.Infrastructure/Backups/`) sube automáticamente `CaeManager.db` + `dataprotection-keys/` **juntos, en la misma operación**, a un bucket de S3 — cada `Backups:IntervaloHoras` (24h por defecto) y una vez más al arrancar el proceso. La base de datos se respalda con `SqliteConnection.BackupDatabase` (el mecanismo online de SQLite, no bloquea escrituras mientras corre) y las claves se comprimen en un `.zip`. Apagado por defecto (`Backups:Activo=false`, mismo patrón que `DatosPrueba:Activo`) — no intenta nada sin cuenta de AWS configurada. Variables necesarias en Railway: `Backups__Activo=true`, `Backups__Aws__AccessKeyId`, `Backups__Aws__SecretAccessKey`, `Backups__Aws__BucketName`, `Backups__Aws__Region` (ver `DEPLOY.md`).
+- **Implementado (2026-07-18, mecanismo de base de datos actualizado 2026-08-01)**: `BackupHostedService` (`src/CaeManager.Infrastructure/Backups/`) sube automáticamente un volcado de la base de datos + `dataprotection-keys/` **juntos, en la misma operación**, a un bucket de S3 — cada `Backups:IntervaloHoras` (24h por defecto) y una vez más al arrancar el proceso. La base de datos se respalda con `pg_dump --format=custom` (no bloquea al servidor; el resultado se restaura con `pg_restore`) y las claves se comprimen en un `.zip`. Apagado por defecto (`Backups:Activo=false`, mismo patrón que `DatosPrueba:Activo`) — no intenta nada sin cuenta de AWS configurada. Variables necesarias en Railway: `Backups__Activo=true`, `Backups__Aws__AccessKeyId`, `Backups__Aws__SecretAccessKey`, `Backups__Aws__BucketName`, `Backups__Aws__Region` (ver `DEPLOY.md`).
   - Producción y staging pueden compartir el mismo bucket/credenciales sin pisarse — cada backup se sube bajo un prefijo `{RAILWAY_SERVICE_NAME}/{fecha-hora}/`, tomado automáticamente de la variable que Railway ya inyecta por servicio.
   - Retención: el bucket tiene versionado activado (recomendado al crearlo) para poder recuperar una versión anterior si un backup corrupto sobrescribe uno bueno. Para borrar automáticamente backups viejos, configura una **Lifecycle rule** en el propio bucket de S3 (consola de AWS → el bucket → pestaña *Management* → *Create lifecycle rule* → expirar objetos con más de N días) — no hay borrado automático implementado en la app a propósito, para no arriesgarse a borrar algo que todavía hiciera falta por un bug.
 - **Implementado (2026-07-31)**: cifrado de las propias claves con **AWS KMS** — ver la sección siguiente. Elimina el riesgo de raíz del backup: las claves siguen viviendo en el volumen, pero ya no en claro, y la clave maestra que las abre nunca sale de AWS.
@@ -90,13 +93,14 @@ Cerrar eso del todo es una migración aparte: activar KMS, forzar la creación d
 ## Recuperación — desde un backup en S3
 
 1. En la consola de AWS → S3 → el bucket configurado → entra a la carpeta `{nombre-del-servicio}/` (el nombre que le pusiste al servicio en Railway) → elige la carpeta con la fecha-hora más reciente antes del incidente.
-2. Descarga los dos archivos de esa carpeta: `CaeManager.db` y `dataprotection-keys.zip`.
-3. Sube `CaeManager.db` al volumen de Railway (`/data/CaeManager.db`) y descomprime `dataprotection-keys.zip` dentro de `/data/dataprotection-keys/` — **los dos juntos, del mismo backup**, nunca mezclando fechas distintas entre uno y otro.
+2. Descarga los dos archivos de esa carpeta: `CaeManager.dump` (volcado de `pg_dump --format=custom`) y `dataprotection-keys.zip`.
+3. Restaura `CaeManager.dump` en el servicio de PostgreSQL de Railway con `pg_restore` (ver "Recuperación — con backup disponible") y descomprime `dataprotection-keys.zip` dentro de `/data/dataprotection-keys/` en el volumen de la app — **los dos juntos, del mismo backup**, nunca mezclando fechas distintas entre uno y otro.
 4. Sigue con la sección "Recuperación — con backup disponible" de más abajo para el resto de la verificación.
 
 ## Recuperación — con backup disponible
 
-1. **Restaura `CaeManager.db` y `dataprotection-keys/` juntos, del mismo backup, en la misma operación.** Este es el error #1 a evitar: restaurar solo la base de datos (porque "es lo importante") y dejar que Railway/la app genere una carpeta de claves nueva desde cero. Si eso pasa, acabas con una base de datos íntegra pero con todas las credenciales cifradas ya ilegibles — el mismo resultado que no tener backup en absoluto, solo que sin darte cuenta hasta que alguien intente usar una credencial guardada.
+1. **Restaura `CaeManager.dump` y `dataprotection-keys/` juntos, del mismo backup, en la misma operación.** Este es el error #1 a evitar: restaurar solo la base de datos (porque "es lo importante") y dejar que Railway/la app genere una carpeta de claves nueva desde cero. Si eso pasa, acabas con una base de datos íntegra pero con todas las credenciales cifradas ya ilegibles — el mismo resultado que no tener backup en absoluto, solo que sin darte cuenta hasta que alguien intente usar una credencial guardada.
+   - Restaurar el volcado: `pg_restore --clean --if-exists --no-owner --dbname=<connection string del servicio Postgres de Railway> CaeManager.dump` (mismo cliente `pg_dump`/`pg_restore` que instala el `Dockerfile` — o cualquier máquina con la versión ≥ la del servidor).
 2. Verifica que el servicio arranca limpio (revisa los logs de Railway o, si tienes acceso, `/salud`) — la app corre sus migraciones pendientes automáticamente al arrancar (`Program.cs`, `dbContext.Database.MigrateAsync()`), así que un backup de una versión de esquema anterior sigue funcionando.
 3. Como verificación puntual: entra como Administrador, abre una Empresa que tuviera credenciales guardadas antes del incidente, y confirma que se ven correctamente (no como error/basura). Si algo salió mal en el paso 1, este es el primer sitio donde se nota.
 
