@@ -20,13 +20,19 @@ public static class ApplicationServiceCollectionExtensions
         // Scoped: una puerta por petición HTTP o circuito de Blazor — la
         // misma que usan los accesos a datos que no pasan por MediatR.
         services.AddScoped<PuertaAccesoDatos>();
-        // Orden importa. SerializacionAccesoDatos va el primero de todos: la
-        // serialización del DbContext tiene que abarcar el request entero,
-        // incluidos los demás behaviors (AutorizacionEscritura consulta el rol
-        // del usuario). Luego ConcurrenciaBehavior, que envuelve a los otros
-        // dos: el choque de concurrencia nace dentro del handler, al guardar,
-        // así que quien lo captura tiene que estar por fuera. Después, un
-        // Command bloqueado por rol ni siquiera llega a validarse.
+        // Orden importa. LoggingBehavior va el primero de todos: mide lo que
+        // el usuario espera de verdad, incluido el tiempo en la cola de
+        // acceso a datos, y su ámbito de log correlaciona todo lo que
+        // registren los behaviors de dentro. Puede ir ahí porque no toca la
+        // base de datos (ver su comentario). Luego SerializacionAccesoDatos:
+        // la serialización del DbContext tiene que abarcar el resto del
+        // request, incluidos los demás behaviors (AutorizacionEscritura
+        // consulta el rol del usuario). Luego ConcurrenciaBehavior, que
+        // envuelve a los otros dos: el choque de concurrencia nace dentro del
+        // handler, al guardar, así que quien lo captura tiene que estar por
+        // fuera. Después, un Command bloqueado por rol ni siquiera llega a
+        // validarse.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(SerializacionAccesoDatosBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ConcurrenciaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionEscrituraBehavior<,>));
