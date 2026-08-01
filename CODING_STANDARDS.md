@@ -46,7 +46,7 @@ SOLID, DRY, KISS, YAGNI. Código mantenible siempre por encima de código "rápi
 
 - Toda regla de negocio no trivial (empezando por el cálculo de estado de Documento, ver `DATABASE.md`) tiene pruebas unitarias en `CaeManager.Domain.Tests` antes de considerarse terminada.
 - Handlers de Application se prueban en `CaeManager.Application.Tests` con repositorios fake/mock — sin base de datos real.
-- Flujos completos (migraciones + queries reales) se prueban en `CaeManager.IntegrationTests` contra SQLite en archivo temporal, no en memoria (el proveedor in-memory de EF Core no valida constraints reales).
+- Flujos completos (migraciones + queries reales) se prueban en `CaeManager.IntegrationTests` contra PostgreSQL real (local o el servicio de CI), no en memoria (el proveedor in-memory de EF Core no valida constraints reales — desde el corte a PostgreSQL de 2026-08-01, mismo motor que producción).
 - Framework: xUnit + FluentAssertions.
 
 ## Git
