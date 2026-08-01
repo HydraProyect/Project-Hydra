@@ -19,6 +19,7 @@ SOLID, DRY, KISS, YAGNI. Código mantenible siempre por encima de código "rápi
 - Entidades exponen comportamiento (`documento.Renovar(fechaEmision)`), no setters públicos que permitan estados inválidos (`documento.FechaEmision = x` sin pasar por invariantes).
 - Invariantes se protegen en el constructor/métodos, nunca se confía en que la capa de Application las valide dos veces (aunque Application sí valida forma/formato de entrada con FluentValidation antes de llegar al dominio).
 - Result pattern (`Result`, `Result<T>`) para fallos de negocio esperables; excepciones reservadas para errores de infraestructura no recuperables.
+- Código de `Error.Crear(codigo, mensaje)`: `Entidad.Motivo` (PascalCase, sin espacios — `"Cliente.NoEncontrado"`). Reutiliza el código de un caso ya existente para el mismo motivo en vez de inventar uno nuevo — ver el comentario de `Error.cs` para el porqué de no tener un catálogo/enum centralizado.
 
 ## Application (CQRS)
 
@@ -47,7 +48,7 @@ SOLID, DRY, KISS, YAGNI. Código mantenible siempre por encima de código "rápi
 
 - Toda regla de negocio no trivial (empezando por el cálculo de estado de Documento, ver `DATABASE.md`) tiene pruebas unitarias en `CaeManager.Domain.Tests` antes de considerarse terminada.
 - Handlers de Application se prueban en `CaeManager.Application.Tests` con repositorios fake/mock — sin base de datos real.
-- Flujos completos (migraciones + queries reales) se prueban en `CaeManager.IntegrationTests` contra SQLite en archivo temporal, no en memoria (el proveedor in-memory de EF Core no valida constraints reales).
+- Flujos completos (migraciones + queries reales) se prueban en `CaeManager.IntegrationTests` contra PostgreSQL real (local o el servicio de CI), no en memoria (el proveedor in-memory de EF Core no valida constraints reales — desde el corte a PostgreSQL de 2026-08-01, mismo motor que producción).
 - Framework: xUnit + FluentAssertions.
 
 ## Git

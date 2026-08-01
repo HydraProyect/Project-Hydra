@@ -1,9 +1,11 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CerrarAccesoSoporte;
+using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDelegado;
+using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
 using CaeManager.Domain.Soporte;
@@ -22,11 +24,10 @@ namespace CaeManager.Web.Features.Delegaciones.Pages;
 /// revocar por ningún camino del producto, lo que contradice el titular del
 /// propio ADR — un modelo de delegación reversible.
 ///
-/// Solo revoca y reactiva. Dar de alta una delegación nueva sigue sin flujo
-/// de producto a propósito: el ADR-004 § 12.2 deja abierto quién puede
-/// iniciarla (¿el cliente, la consultora, ambos?) y lo marca como decisión
-/// con implicaciones comerciales. Inventarlo aquí sería diseñar producto
-/// bajo la excusa de cerrar una auditoría.
+/// También el alta (P0-7 de docs/business/MATURITY_REVIEW.md): ADR-004 § 12.2
+/// dejaba abierto quién puede iniciar una delegación nueva, con la propia
+/// v1 mínima aceptable ya decidida ahí — "solo Administrador de plataforma".
+/// Por eso el botón "Nueva delegación" solo aparece si <see cref="_esAdministradorPlataforma"/>.
 /// </summary>
 public partial class Delegaciones : ComponentBase
 {
@@ -36,6 +37,8 @@ public partial class Delegaciones : ComponentBase
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Delegaciones> Logger { get; set; } = default!;
     [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
+
+    private bool _esAdministradorPlataforma;
 
     /// <summary>
     /// Gestionar delegaciones se hace desde la propia organización, nunca
@@ -65,6 +68,11 @@ public partial class Delegaciones : ComponentBase
     private bool _abriendoSoporte;
     private string? _errorSoporte;
 
+    private bool _mostrarNuevaDelegacion;
+    private string _nombreClienteNuevo = string.Empty;
+    private bool _creandoDelegacion;
+    private string? _errorNuevaDelegacion;
+
     protected override Task OnInitializedAsync() => CargarAsync();
 
     private async Task CargarAsync()
@@ -75,6 +83,7 @@ public partial class Delegaciones : ComponentBase
 
         try
         {
+            _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
             _delegaciones = await Mediator.Send(new ObtenerDelegacionesQuery());
             await CargarNombresDeOperadoresAsync();
         }
@@ -291,6 +300,43 @@ public partial class Delegaciones : ComponentBase
         finally
         {
             _procesandoId = null;
+        }
+    }
+
+    private void AbrirFormularioNuevaDelegacion()
+    {
+        _mostrarNuevaDelegacion = true;
+        _nombreClienteNuevo = string.Empty;
+        _errorNuevaDelegacion = null;
+    }
+
+    private async Task CrearDelegacionAsync()
+    {
+        _creandoDelegacion = true;
+        _errorNuevaDelegacion = null;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(new CrearClienteDeleganteCommand(_nombreClienteNuevo));
+
+            if (resultado.EsFallido)
+            {
+                _errorNuevaDelegacion = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Cliente Delegante creado y delegación activa.", TonoToast.Exito);
+            _mostrarNuevaDelegacion = false;
+            await CargarAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _errorNuevaDelegacion = string.Join(" ", ex.Errors.Select(e => e.ErrorMessage));
+        }
+        finally
+        {
+            _creandoDelegacion = false;
         }
     }
 }

@@ -43,6 +43,36 @@ public class AuditoriaInterceptor(ICurrentUserService currentUserService) : Save
         return await base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 
+    /// <summary>
+    /// La vía síncrona también audita — este interceptor era el único de los
+    /// tres sin este override, exactamente la clase de agujero por omisión
+    /// que el hallazgo N-15 (INFORME-AUDITORIA-2.md) cerró en los otros dos:
+    /// un SaveChanges() corriente guardaba sin dejar rastro de auditoría.
+    /// Diferencia con TenantSelladoInterceptor: aquí el trabajo compartido
+    /// necesita el usuario actual, cuyo contrato es asíncrono. Bloquear con
+    /// GetResult() sobre un Task pendiente arriesga deadlock en el circuito
+    /// Blazor, así que solo se aprovecha si ya está resuelto (el caso normal:
+    /// los claims están cacheados) y si no, se audita sin autoría — un
+    /// registro sin usuario es mejor que ningún registro, y es lo mismo que
+    /// ya ocurre con los jobs de fondo.
+    /// </summary>
+    public override InterceptionResult<int> SavingChanges(
+        DbContextEventData eventData,
+        InterceptionResult<int> result)
+    {
+        if (eventData.Context is DbContext context)
+        {
+            var tareaUsuario = currentUserService.ObtenerUsuarioActualIdAsync();
+            var usuarioId = tareaUsuario.IsCompletedSuccessfully ? tareaUsuario.Result : null;
+            var registros = ConstruirRegistros(context, usuarioId);
+
+            if (registros.Count > 0)
+                context.Set<RegistroAuditoria>().AddRange(registros);
+        }
+
+        return base.SavingChanges(eventData, result);
+    }
+
     private static List<RegistroAuditoria> ConstruirRegistros(DbContext context, Guid? usuarioId)
     {
         var registros = new List<RegistroAuditoria>();

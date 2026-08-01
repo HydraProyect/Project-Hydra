@@ -1,6 +1,6 @@
 # Plan de migración detallado — Multi-tenancy (`TenantId`)
 
-**Estado**: Plan de ejecución (Fase 3 de la secuencia de `ADR-003-saas-multitenant.md`). Desarrolla a nivel de pasos concretos las etapas 0–5 de `INFORME-MULTITENANT.md` § 12. **No implementado** — este documento se aprueba antes de escribir la primera migración EF Core.
+**Estado**: Plan de ejecución (Fase 3 de la secuencia de `ADR-003-saas-multitenant.md`). Desarrolla a nivel de pasos concretos las etapas 0–5 de `docs/archive/INFORME-MULTITENANT.md` § 12. **No implementado** — este documento se aprueba antes de escribir la primera migración EF Core.
 
 Prerequisito ya cumplido: documentación consolidada (`ADR-003`, `docs/MULTITENANCY.md`, `DOMAIN.md`, y `PROJECT.md`/`ROADMAP.md`/`CLAUDE.md`/`ARCHITECTURE.md`/`DATABASE.md` actualizados).
 
@@ -40,7 +40,7 @@ Más, fuera de `*Configuration.cs` porque vive en Identity: `AspNetUsers` (`Appl
 
 ### 0.4 `ParametroSistema`: cambio de semántica, no solo de esquema
 
-Hoy es fila única global (umbrales 30/15). Pasa a una fila por tenant. Esto es el único cambio conceptual real (`INFORME-MULTITENANT.md` § 14) — se trata en la Etapa 2 como parte del backfill, no como un `ADD COLUMN` más.
+Hoy es fila única global (umbrales 30/15). Pasa a una fila por tenant. Esto es el único cambio conceptual real (`docs/archive/INFORME-MULTITENANT.md` § 14) — se trata en la Etapa 2 como parte del backfill, no como un `ADD COLUMN` más.
 
 ---
 
@@ -148,4 +148,4 @@ Caso de uso que las Etapas 1–4 dejan preparado pero no implementan como flujo 
 
 ## 8. Fuera de alcance de este plan (deuda ya identificada, no se aborda aquí)
 
-SSO por tenant, subdominios, migración a PostgreSQL, DPA/Términos de Uso por tenant, self-signup/billing, cuotas de IA por tenant — todos son condiciones de salida a producción SaaS (`ADR-003`) o backlog (`INFORME-MULTITENANT.md` § 16), con su propio plan cuando corresponda. Este plan cubre exclusivamente el aislamiento de datos por `TenantId`.
+SSO por tenant, subdominios, migración a PostgreSQL, DPA/Términos de Uso por tenant, self-signup/billing, cuotas de IA por tenant — todos son condiciones de salida a producción SaaS (`ADR-003`) o backlog (`docs/archive/INFORME-MULTITENANT.md` § 16), con su propio plan cuando corresponda. Este plan cubre exclusivamente el aislamiento de datos por `TenantId`.
