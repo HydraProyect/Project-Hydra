@@ -90,7 +90,15 @@ public partial class ImportarCombinado : ComponentBase
 
         try
         {
-            _resultado = await Mediator.Send(new EjecutarImportacionCombinadaCommand(_plan, _reemplazarExistentes));
+            var resultado = await Mediator.Send(new EjecutarImportacionCombinadaCommand(_plan, _reemplazarExistentes));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeError = resultado.Error.Mensaje;
+                return;
+            }
+
+            _resultado = resultado.Valor;
             ToastService.Mostrar("Importación completada.", TonoToast.Exito);
         }
         catch (Exception)

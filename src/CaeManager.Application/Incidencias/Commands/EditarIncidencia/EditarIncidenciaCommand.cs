@@ -8,7 +8,7 @@ namespace CaeManager.Application.Incidencias.Commands.EditarIncidencia;
 
 public record EditarIncidenciaCommand(
     Guid Id, Guid? TrabajadorId, TipoIncidencia Tipo, GravedadIncidencia Gravedad,
-    DateOnly FechaOcurrencia, string Descripcion, Guid Version = default) : IRequest<Result>;
+    DateOnly FechaOcurrencia, string Descripcion, Guid Version = default) : ICommand;
 
 public class EditarIncidenciaCommandValidator : AbstractValidator<EditarIncidenciaCommand>
 {

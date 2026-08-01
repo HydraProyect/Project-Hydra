@@ -9,7 +9,7 @@ namespace CaeManager.Application.Visitas.Commands.EditarVisita;
 public record EditarVisitaCommand(
     Guid Id, DateOnly FechaInicio, DateOnly FechaFin, IReadOnlyList<Guid> TrabajadorIds, string? Notas,
     Guid Version = default)
-    : IRequest<Result>;
+    : ICommand;
 
 public class EditarVisitaCommandValidator : AbstractValidator<EditarVisitaCommand>
 {

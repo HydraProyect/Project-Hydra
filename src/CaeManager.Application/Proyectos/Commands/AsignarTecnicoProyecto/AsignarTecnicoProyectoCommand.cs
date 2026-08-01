@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Proyectos.Commands.AsignarTecnicoProyecto;
 
 public record AsignarTecnicoProyectoCommand(Guid ProyectoId, Guid TrabajadorId, DateOnly FechaAlta)
-    : IRequest<Result<Guid>>;
+    : ICommand<Guid>;
 
 public class AsignarTecnicoProyectoCommandValidator : AbstractValidator<AsignarTecnicoProyectoCommand>
 {

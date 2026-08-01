@@ -12,7 +12,7 @@ namespace CaeManager.Application.Trabajadores.Commands.ResolverDeteccionNuevo;
 /// p. ej. porque es un administrativo que no hace falta registrar en el
 /// sistema (ver la petición original del usuario, Fase 36).
 /// </summary>
-public record ResolverDeteccionNuevoCommand(Guid DeteccionId, bool Crear) : IRequest<Result>;
+public record ResolverDeteccionNuevoCommand(Guid DeteccionId, bool Crear) : ICommand;
 
 public class ResolverDeteccionNuevoCommandHandler(
     IDeteccionTrabajadorRepository deteccionRepositorio,

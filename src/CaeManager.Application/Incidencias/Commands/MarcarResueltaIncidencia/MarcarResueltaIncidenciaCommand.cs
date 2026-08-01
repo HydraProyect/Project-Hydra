@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Incidencias.Commands.MarcarResueltaIncidencia;
 
-public record MarcarResueltaIncidenciaCommand(Guid Id, bool Resuelta) : IRequest<Result>;
+public record MarcarResueltaIncidenciaCommand(Guid Id, bool Resuelta) : ICommand;
 
 public class MarcarResueltaIncidenciaCommandHandler(IIncidenciaRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<MarcarResueltaIncidenciaCommand, Result>

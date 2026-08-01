@@ -11,7 +11,7 @@ public record CrearTarifaClienteCommand(
     ConceptoFacturable Concepto,
     decimal PrecioUnitario,
     string MonedaIso = "EUR")
-    : IRequest<Result<Guid>>;
+    : ICommand<Guid>;
 
 public class CrearTarifaClienteCommandValidator : AbstractValidator<CrearTarifaClienteCommand>
 {
