@@ -3,6 +3,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Empresas.Commands.CrearEmpresa;
 
@@ -30,7 +31,8 @@ public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaComman
 }
 
 public class CrearEmpresaCommandHandler(
-    IEmpresaRepository repositorio, IEmpresaClienteRepository empresaClienteRepositorio, IUnitOfWork unitOfWork)
+    IEmpresaRepository repositorio, IEmpresaClienteRepository empresaClienteRepositorio,
+    IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearEmpresaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearEmpresaCommand request, CancellationToken cancellationToken)
@@ -41,10 +43,19 @@ public class CrearEmpresaCommandHandler(
         if (!string.IsNullOrWhiteSpace(request.Cif) && await repositorio.ExisteConCifAsync(request.Cif, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.CifDuplicado", "Ya existe una empresa con este CIF."));
 
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        var clienteIds = request.ClienteIds.Distinct().ToList();
+        var clientesEncontrados = await dbContext.Clientes
+            .Where(c => clienteIds.Contains(c.Id))
+            .CountAsync(cancellationToken);
+
+        if (clientesEncontrados != clienteIds.Count)
+            return Result.Fallo<Guid>(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));
+
         var empresa = new Empresa(request.RazonSocial, request.Cif);
         repositorio.Agregar(empresa);
 
-        foreach (var clienteId in request.ClienteIds.Distinct())
+        foreach (var clienteId in clienteIds)
             empresaClienteRepositorio.Agregar(new EmpresaCliente(empresa.Id, clienteId));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

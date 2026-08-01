@@ -66,6 +66,32 @@ public class CrearDocumentoCommandHandler(
                 "Documento.AmbitoIncorrecto",
                 $"\"{tipoDocumento.Nombre}\" es un tipo de documento de {DescribirAmbito(tipoDocumento.AmbitoAplicacion)}, no de {DescribirAmbito(ambitoSolicitado)}."));
 
+        // Verificación del propietario (P0-1 de docs/business/MATURITY_REVIEW.md):
+        // sin esto, un Id de otro tenant se persistía sin error, sellado con
+        // el tenant actual — hallazgo explícito del comité sobre este mismo
+        // handler. El filtro global de EF ya deja "no encontrado" un Id ajeno.
+        var propietarioEncontrado = ambitoSolicitado switch
+        {
+            AmbitoAplicacion.Trabajador => await dbContext.Trabajadores.AnyAsync(t => t.Id == request.TrabajadorId, cancellationToken),
+            AmbitoAplicacion.Cliente => await dbContext.Clientes.AnyAsync(c => c.Id == request.ClienteId, cancellationToken),
+            AmbitoAplicacion.Vehiculo => await dbContext.Vehiculos.AnyAsync(v => v.Id == request.VehiculoId, cancellationToken),
+            AmbitoAplicacion.Proyecto => await dbContext.Proyectos.AnyAsync(p => p.Id == request.ProyectoId, cancellationToken),
+            _ => await dbContext.Empresas.AnyAsync(e => e.Id == request.EmpresaId, cancellationToken)
+        };
+
+        if (!propietarioEncontrado)
+        {
+            var mensaje = ambitoSolicitado switch
+            {
+                AmbitoAplicacion.Trabajador => "No encontramos este trabajador.",
+                AmbitoAplicacion.Cliente => "No encontramos este cliente.",
+                AmbitoAplicacion.Vehiculo => "No encontramos este vehículo.",
+                AmbitoAplicacion.Proyecto => "No encontramos este proyecto.",
+                _ => "No encontramos esta empresa."
+            };
+            return Result.Fallo<Guid>(Error.Crear("Documento.PropietarioNoEncontrado", mensaje));
+        }
+
         var fechaVencimiento = tipoDocumento.AplicaVencimientoAutomatico
             ? CalculadoraEstadoDocumento.CalcularFechaVencimiento(request.FechaEmision, tipoDocumento.VigenciaMeses)
             : request.FechaVencimientoManual;
