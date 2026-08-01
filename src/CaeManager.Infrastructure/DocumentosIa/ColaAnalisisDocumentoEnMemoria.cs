@@ -11,8 +11,9 @@ namespace CaeManager.Infrastructure.DocumentosIa;
 /// En memoria y no en una tabla porque el trabajo que transporta ya es de
 /// mejor esfuerzo por diseño —hoy, si la verificación IA falla, solo se
 /// registra en el log y la subida se da por buena igual—, y porque la
-/// aplicación corre en una sola réplica (DEPLOY.md: SQLite no admite
-/// escritura concurrente desde varios procesos). Persistirla sería montar una
+/// aplicación corre en una sola réplica (ver DEPLOY.md — con PostgreSQL ya no
+/// es la base de datos lo que lo impide, sino que esta cola en memoria no
+/// tendría a quién avisar en otro proceso). Persistirla sería montar una
 /// infraestructura de jobs que nadie ha pedido y que además conviene diseñar
 /// junto con la Plataforma de Integraciones, no antes
 /// (ARQUITECTURA-INTEGRACIONES.md).

@@ -137,21 +137,6 @@ public class CaeManagerDbContext(
 
         builder.ApplyConfigurationsFromAssembly(typeof(CaeManagerDbContext).Assembly);
 
-        // Los índices únicos filtrados por soft delete llevan el filtro como
-        // SQL crudo escrito para SQLite ("EstaEliminado" = 0), y en PostgreSQL
-        // un boolean no compara con un entero. Se reescribe aquí y no en cada
-        // configuración para que el modelo de SQLite quede byte a byte igual
-        // que antes (el chequeo de migraciones pendientes de CI compara contra
-        // ese snapshot) mientras convivan los dos motores.
-        if (Database.IsNpgsql())
-        {
-            foreach (var indice in builder.Model.GetEntityTypes().SelectMany(e => e.GetIndexes()))
-            {
-                if (indice.GetFilter() == "\"EstaEliminado\" = 0")
-                    indice.SetFilter("NOT \"EstaEliminado\"");
-            }
-        }
-
         // Cifrado en reposo de credenciales de plataformas externas (ver ARCHITECTURE.md, "Datos sensibles").
         var conversorCredenciales = new ValueConverter<string?, string?>(
             valorPlano => valorPlano == null ? null : _protectorCredenciales.Protect(valorPlano),

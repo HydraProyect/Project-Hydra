@@ -59,32 +59,21 @@ public static class InfrastructureServiceCollectionExtensions
         // Sin estado y sin dependencias: una sola instancia sirve.
         services.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 
-        // Motor elegido por configuración mientras dura la migración a
-        // PostgreSQL — ver ProveedorBaseDatos para por qué esto es transitorio.
-        var proveedor = LectorProveedorBaseDatos.Leer(configuration);
-
         services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
         {
             var cadena = configuration.GetConnectionString("CaeManagerDb");
 
-            if (proveedor == ProveedorBaseDatos.PostgreSql)
+            options.UseNpgsql(cadena, npgsql =>
             {
-                options.UseNpgsql(cadena, npgsql =>
-                {
-                    // Las migraciones de PostgreSQL viven en su propio ensamblado:
-                    // EF Core descubre las migraciones escaneando el ensamblado
-                    // entero, así que dos juegos en el mismo sitio se pisarían.
-                    npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL");
+                // Las migraciones viven en su propio ensamblado, separado de
+                // Infrastructure — EF Core descubre las migraciones escaneando
+                // el ensamblado entero, así que conviene que sea uno dedicado.
+                npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL");
 
-                    // Contra un servidor de red hay errores transitorios que con
-                    // un archivo local sencillamente no existían.
-                    npgsql.EnableRetryOnFailure();
-                });
-            }
-            else
-            {
-                options.UseSqlite(cadena);
-            }
+                // Contra un servidor de red hay errores transitorios que con
+                // un archivo local sencillamente no existían.
+                npgsql.EnableRetryOnFailure();
+            });
 
             options.AddInterceptors(
                 serviceProvider.GetRequiredService<AuditoriaInterceptor>(),
