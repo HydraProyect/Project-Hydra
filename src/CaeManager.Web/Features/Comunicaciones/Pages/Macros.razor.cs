@@ -3,15 +3,19 @@ using CaeManager.Application.Comunicaciones.Commands.CrearMacro;
 using CaeManager.Application.Comunicaciones.Commands.EditarMacro;
 using CaeManager.Application.Comunicaciones.Commands.EliminarMacro;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
+using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Comunicaciones.Pages;
 
 public partial class Macros : ComponentBase
 {
     [Inject] private ILogger<Macros> Logger { get; set; } = default!;
+    [Inject] private IOptions<ComunicacionesOptions> OpcionesComunicaciones { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     private string _clienteFiltro = string.Empty;
     private IReadOnlyList<ClienteSelectorDto> _clientesSelector = [];
@@ -39,6 +43,16 @@ public partial class Macros : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        // Módulo congelado por defecto (ComunicacionesOptions, P2 #26 de
+        // docs/business/MATURITY_REVIEW.md): sin ingesta real de Graph
+        // detrás, se presenta como si la ruta no existiera en vez de
+        // mostrar una bandeja que nadie va a alimentar de verdad.
+        if (!OpcionesComunicaciones.Value.Activo)
+        {
+            NavigationManager.NavigateTo("/not-found");
+            return;
+        }
+
         _clientesSelector = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
         await CargarAsync();
     }
