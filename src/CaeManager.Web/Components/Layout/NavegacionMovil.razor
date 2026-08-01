@@ -1,0 +1,41 @@
+@*
+    Alternativa de navegación por debajo de 1024px (hallazgo P0-8 de
+    docs/business/MATURITY_REVIEW.md): MainLayout.razor.css oculta
+    ".barra-lateral" con display:none bajo ese ancho sin sustituirla por
+    nada — la app quedaba sin forma de navegar en tablet/móvil. El botón
+    solo se muestra en ese rango (ver NavegacionMovil.razor.css); en
+    escritorio el propio CSS lo oculta y este componente no hace nada.
+*@
+@rendermode InteractiveServer
+@implements IDisposable
+@inject NavigationManager Navigation
+
+<button type="button" class="boton-menu-movil" aria-label="Abrir menú de navegación" @onclick="Abrir">
+    <Icono Nombre="menu" />
+</button>
+
+<Drawer Visible="_visible" VisibleChanged="v => _visible = v" Titulo="Menú">
+    <NavMenu />
+</Drawer>
+
+@code {
+    private bool _visible;
+
+    protected override void OnInitialized() => Navigation.LocationChanged += CerrarAlNavegar;
+
+    private void Abrir() => _visible = true;
+
+    /// <summary>Igual que BuscadorGlobal: navegar a un enlace del menú debe cerrarlo, no dejarlo tapando la página de destino.</summary>
+    private void CerrarAlNavegar(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (!_visible) return;
+
+        _ = InvokeAsync(() =>
+        {
+            _visible = false;
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= CerrarAlNavegar;
+}

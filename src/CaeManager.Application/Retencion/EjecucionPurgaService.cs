@@ -25,12 +25,18 @@ public class EjecucionPurgaService(
     IApplicationDbContext dbContext,
     ISolicitudPurgaRepository solicitudRepositorio,
     IFileStorageService almacenamiento,
+    ITenantActual tenantActual,
     IUnitOfWork unitOfWork,
     ILogger<EjecucionPurgaService> logger)
 {
     /// <summary>Devuelve cuántos registros se anonimizaron.</summary>
     public async Task<int> EjecutarAsync(Guid solicitudId, DateOnly hoy, CancellationToken cancellationToken = default)
     {
+        // Fallo cerrado — mismo criterio que DeteccionPurgaService: sin
+        // tenant resuelto no hay ámbito seguro en el que ignorar el filtro
+        // de soft-delete más abajo.
+        if (tenantActual.TenantId is not { } tenantId) return 0;
+
         var solicitud = await solicitudRepositorio.ObtenerPorIdAsync(solicitudId, cancellationToken);
         if (solicitud is null) return 0;
 
@@ -43,8 +49,8 @@ public class EjecucionPurgaService(
 
         var afectados = solicitud.TipoDato switch
         {
-            TipoDatoPurgable.Documentos => await AnonimizarDocumentosAsync(solicitud.FechaCorte, ahora, cancellationToken),
-            TipoDatoPurgable.TrabajadoresDadosDeBaja => await AnonimizarTrabajadoresAsync(solicitud.FechaCorte, ahora, cancellationToken),
+            TipoDatoPurgable.Documentos => await AnonimizarDocumentosAsync(tenantId, solicitud.FechaCorte, ahora, cancellationToken),
+            TipoDatoPurgable.TrabajadoresDadosDeBaja => await AnonimizarTrabajadoresAsync(tenantId, solicitud.FechaCorte, ahora, cancellationToken),
             _ => 0
         };
 
@@ -58,9 +64,17 @@ public class EjecucionPurgaService(
     }
 
     private async Task<int> AnonimizarDocumentosAsync(
-        DateOnly fechaCorte, DateTime ahora, CancellationToken cancellationToken)
+        Guid tenantId, DateOnly fechaCorte, DateTime ahora, CancellationToken cancellationToken)
     {
+        // IgnoreQueryFilters() + Where(TenantId) explícito — ver el comentario
+        // equivalente en DeteccionPurgaService (P0-1/P0-3 de
+        // docs/business/MATURITY_REVIEW.md): sin esto, un Documento
+        // soft-deleted que SÍ hubiera entrado en la SolicitudPurga (porque la
+        // detección ya lo ve, tras el fix de arriba) seguiría sin
+        // anonimizarse aquí, dejando la purga incompleta a medio camino.
         var documentos = await dbContext.Documentos
+            .IgnoreQueryFilters()
+            .Where(d => d.TenantId == tenantId)
             .Where(d => d.AnonimizadoEnUtc == null)
             .Where(d => d.FechaVencimiento != null
                 ? d.FechaVencimiento <= fechaCorte
@@ -95,9 +109,12 @@ public class EjecucionPurgaService(
     }
 
     private async Task<int> AnonimizarTrabajadoresAsync(
-        DateOnly fechaCorte, DateTime ahora, CancellationToken cancellationToken)
+        Guid tenantId, DateOnly fechaCorte, DateTime ahora, CancellationToken cancellationToken)
     {
+        // Mismo criterio que AnonimizarDocumentosAsync — ver comentario ahí.
         var trabajadores = await dbContext.Trabajadores
+            .IgnoreQueryFilters()
+            .Where(t => t.TenantId == tenantId)
             .Where(t => t.AnonimizadoEnUtc == null)
             .Where(t => dbContext.Asignaciones.Any(a => a.TrabajadorId == t.Id))
             .Where(t => !dbContext.Asignaciones.Any(a => a.TrabajadorId == t.Id && a.FechaBaja == null))

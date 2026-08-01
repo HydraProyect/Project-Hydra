@@ -26,6 +26,10 @@ public class ClienteConfiguration : IEntityTypeConfiguration<Cliente>
         builder.HasIndex(c => new { c.TenantId, c.Cif }).IsUnique();
         builder.HasIndex(c => c.EjecutivoUsuarioId);
 
+        // Prerequisito de las FKs compuestas (TenantId, Id) que otras tablas
+        // declaran hacia Cliente — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        builder.HasIndex(c => new { c.TenantId, c.Id }).IsUnique();
+
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }

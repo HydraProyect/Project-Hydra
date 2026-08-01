@@ -3,6 +3,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Visitas.Commands.CrearVisita;
 
@@ -30,15 +31,29 @@ public class CrearVisitaCommandValidator : AbstractValidator<CrearVisitaCommand>
 }
 
 public class CrearVisitaCommandHandler(
-    IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio, IUnitOfWork unitOfWork)
+    IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
+    IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearVisitaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearVisitaCommand request, CancellationToken cancellationToken)
     {
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        if (!await dbContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Visita.CentroNoEncontrado", "No encontramos este centro."));
+
+        var trabajadorIds = request.TrabajadorIds.Distinct().ToList();
+        var encontrados = await dbContext.Trabajadores
+            .Where(t => trabajadorIds.Contains(t.Id))
+            .Select(t => t.Id)
+            .CountAsync(cancellationToken);
+
+        if (encontrados != trabajadorIds.Count)
+            return Result.Fallo<Guid>(Error.Crear("Visita.TrabajadorNoEncontrado", "Alguno de los trabajadores seleccionados no existe."));
+
         var visita = new Visita(request.CentroId, request.FechaInicio, request.FechaFin, request.Notas);
         repositorio.Agregar(visita);
 
-        foreach (var trabajadorId in request.TrabajadorIds.Distinct())
+        foreach (var trabajadorId in trabajadorIds)
             visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadorId));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

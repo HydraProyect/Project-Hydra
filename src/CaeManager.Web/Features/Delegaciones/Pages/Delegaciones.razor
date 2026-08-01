@@ -5,7 +5,16 @@
 <PageTitle>Delegaciones — CAE Manager</PageTitle>
 
 <div class="contenedor-pagina">
-    <h1 class="titulo-pagina">Delegaciones</h1>
+    <div class="cabecera-delegaciones">
+        <h1 class="titulo-pagina">Delegaciones</h1>
+
+        @if (_esAdministradorPlataforma && !OperandoWorkspaceAjeno)
+        {
+            @* v1 de ADR-004 § 12.2: solo el administrador de la plataforma
+               puede iniciar una delegación nueva. *@
+            <Boton OnClick="AbrirFormularioNuevaDelegacion">Nueva delegación</Boton>
+        }
+    </div>
 
     <p class="descripcion-delegaciones">
         Una delegación autoriza a una consultora a gestionar la CAE de un cliente sin ser dueña de
@@ -285,5 +294,31 @@
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_revocando" OnClick="() => _delegacionARevocar = null">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Destructivo" Cargando="_revocando" OnClick="RevocarAsync">Revocar acceso</Boton>
+    </Pie>
+</Modal>
+
+@* Alta de un Cliente Delegante: crea el tenant, la delegación activa y te
+   asigna como Operador Delegado en el mismo paso — sin esto la delegación
+   quedaría creada pero inservible. *@
+<Modal Visible="_mostrarNuevaDelegacion" VisibleChanged="v => { if (!v) _mostrarNuevaDelegacion = v; }"
+       Titulo="Nueva delegación" CerrarAlHacerClicFuera="!_creandoDelegacion">
+    <ChildContent>
+        <p>
+            Se creará una organización nueva y quedará delegada a la tuya de inmediato: podrás
+            gestionar su CAE en cuanto la crees.
+        </p>
+
+        <CampoTexto Etiqueta="Nombre del Cliente Delegante" Valor="@_nombreClienteNuevo"
+                    ValorChanged="v => _nombreClienteNuevo = v" Placeholder="Constructora Ejemplo S.L." />
+
+        @if (_errorNuevaDelegacion is not null)
+        {
+            <p class="aviso-error">@_errorNuevaDelegacion</p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_creandoDelegacion"
+               OnClick="() => _mostrarNuevaDelegacion = false">Cancelar</Boton>
+        <Boton Cargando="_creandoDelegacion" OnClick="CrearDelegacionAsync">Crear</Boton>
     </Pie>
 </Modal>
