@@ -36,6 +36,7 @@ public static class IdentitySeeder
     public static async Task SeedAsync(
         UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole<Guid>> roleManager,
+        IUserStore<ApplicationUser> userStore,
         ILogger logger,
         IConfiguration configuration)
     {
@@ -79,7 +80,7 @@ public static class IdentitySeeder
 
         await userManager.AddToRoleAsync(administrador, Identity.Roles.Administrador);
 
-        if (userManager.Store is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
+        if (userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
         {
             await claveStore.SetAuthenticatorKeyAsync(administrador, ClaveTotpAdministradorInicial, CancellationToken.None);
             await userManager.UpdateAsync(administrador);
