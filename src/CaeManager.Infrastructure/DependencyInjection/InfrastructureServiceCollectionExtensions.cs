@@ -228,6 +228,13 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<RetencionDatosOptions>(
             configuration.GetSection(RetencionDatosOptions.SeccionConfiguracion));
 
+        // Kill switch de la detección previa a clasificación de Documento
+        // (ver DeteccionPreviaDocumentoOptions) — apagado por defecto hasta
+        // que exista DPA de subencargado para datos de salud (P0-4 de
+        // docs/business/MATURITY_REVIEW.md).
+        services.Configure<DeteccionPreviaDocumentoOptions>(
+            configuration.GetSection(DeteccionPreviaDocumentoOptions.SeccionConfiguracion));
+
         // La cola es singleton porque la comparten el productor (los Commands,
         // scoped) y el consumidor (el hosted service, singleton). Se registra
         // la clase concreta además de la interfaz: el procesador necesita su
