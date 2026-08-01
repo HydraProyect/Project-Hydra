@@ -16,9 +16,9 @@ public abstract class EntidadBase : EntidadConTenant
     /// producto donde varios gestores CAE trabajan sobre la misma cartera, y
     /// donde un Documento mal sobrescrito es una vigencia mal calculada.
     ///
-    /// Un <see cref="Guid"/> y no un <c>rowversion</c>/<c>xmin</c> nativo
-    /// porque tiene que funcionar igual en SQLite hoy y en PostgreSQL después
-    /// (condición de salida de ADR-003) — el valor lo renueva
+    /// Un <see cref="Guid"/> y no un <c>rowversion</c>/<c>xmin</c> nativo de
+    /// PostgreSQL porque tenía que funcionar igual también en SQLite durante
+    /// la migración de `ADR-003` (ya completada) — el valor lo renueva
     /// <c>ConcurrenciaOptimistaInterceptor</c> en cada modificación, no la
     /// base de datos.
     ///

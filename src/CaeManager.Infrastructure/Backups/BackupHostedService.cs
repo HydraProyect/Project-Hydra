@@ -3,8 +3,6 @@ using System.IO.Compression;
 using Amazon;
 using Amazon.S3;
 using Amazon.S3.Transfer;
-using CaeManager.Infrastructure.Persistence;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -21,13 +19,9 @@ namespace CaeManager.Infrastructure.Backups;
 /// irrecuperables). Sin `Backups:Activo`, no hace nada — mismo patrón que
 /// DatosPruebaSeeder para no intentar tocar AWS sin cuenta provisionada.
 ///
-/// El mecanismo depende del motor (`Database:Proveedor`, ver
-/// ProveedorBaseDatos): con SQLite usa `SqliteConnection.BackupDatabase`, el
-/// mecanismo online de SQLite (no bloquea las escrituras de la app, a
-/// diferencia de copiar el archivo .db abierto); con PostgreSQL invoca
-/// `pg_dump --format=custom` (instalado en la imagen de despliegue, ver
-/// Dockerfile), que igualmente no bloquea al servidor y produce un archivo
-/// restaurable con `pg_restore`.
+/// La base de datos se vuelca con `pg_dump --format=custom` (instalado en la
+/// imagen de despliegue, ver Dockerfile) — no bloquea al servidor y produce
+/// un archivo restaurable con `pg_restore`.
 /// </summary>
 public class BackupHostedService(
     IConfiguration configuration,
@@ -117,28 +111,9 @@ public class BackupHostedService(
         var cadenaConexion = configuration.GetConnectionString("CaeManagerDb")
             ?? throw new InvalidOperationException("Falta el connection string CaeManagerDb.");
 
-        if (LectorProveedorBaseDatos.Leer(configuration) == ProveedorBaseDatos.PostgreSql)
-        {
-            var rutaDump = Path.Combine(directorioTemporal, "CaeManager.dump");
-            await EjecutarPgDumpAsync(cadenaConexion, rutaDump, cancellationToken);
-            return rutaDump;
-        }
-
-        var rutaDb = Path.Combine(directorioTemporal, "CaeManager.db");
-        RespaldarSqlite(cadenaConexion, rutaDb);
-        return rutaDb;
-    }
-
-    private static void RespaldarSqlite(string cadenaConexion, string rutaDestino)
-    {
-        var connectionStringBuilder = new SqliteConnectionStringBuilder(cadenaConexion);
-
-        using var origen = new SqliteConnection(connectionStringBuilder.ConnectionString);
-        using var destino = new SqliteConnection($"Data Source={rutaDestino}");
-
-        origen.Open();
-        destino.Open();
-        origen.BackupDatabase(destino);
+        var rutaDump = Path.Combine(directorioTemporal, "CaeManager.dump");
+        await EjecutarPgDumpAsync(cadenaConexion, rutaDump, cancellationToken);
+        return rutaDump;
     }
 
     private async Task EjecutarPgDumpAsync(string cadenaConexion, string rutaDestino, CancellationToken cancellationToken)
