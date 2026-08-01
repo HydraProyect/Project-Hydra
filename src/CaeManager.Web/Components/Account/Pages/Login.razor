@@ -99,9 +99,11 @@
 
         if (resultado.IsLockedOut)
         {
-            // Mismo mensaje deliberadamente vago que el de credenciales: no
-            // confirmar a un atacante que la cuenta existe y está bloqueada.
-            mensajeError = "No pudimos iniciar sesión. Espera unos minutos e intenta nuevamente.";
+            // Literalmente el mismo mensaje que credenciales inválidas (más
+            // abajo) — no un texto parecido: una diferencia de wording, por
+            // mínima que sea, deja enumerar qué cuentas existen y están
+            // bloqueadas tras varios intentos, justo lo que esto evita.
+            mensajeError = MensajeErrorLogin;
             return;
         }
 
@@ -132,8 +134,15 @@
             return;
         }
 
-        mensajeError = "No pudimos iniciar sesión. Revisa tu correo y contraseña e intenta nuevamente.";
+        mensajeError = MensajeErrorLogin;
     }
+
+    /// <summary>
+    /// Un único texto para credenciales inválidas y cuenta bloqueada —
+    /// distinguirlos permitiría enumerar cuentas existentes y bloqueadas
+    /// (hallazgo de la auditoría de PR #48 sobre P0-2).
+    /// </summary>
+    private const string MensajeErrorLogin = "No pudimos iniciar sesión. Revisa tu correo y contraseña e intenta nuevamente.";
 
     private sealed class DatosEntrada
     {
