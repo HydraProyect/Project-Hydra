@@ -4,7 +4,7 @@ Guía para dejar CAE Manager accesible por navegador para todo el equipo (piloto
 
 ## Por qué Railway
 
-CAE Manager usa SQLite y guarda los PDFs adjuntos en disco local (ver `ARCHITECTURE.md`) — una elección deliberada para v1, pensada para una única instancia. Railway encaja bien con eso: despliega directo desde el repo de GitHub, sirve HTTPS automáticamente y soporta un volumen persistente sencillo. **No escales el servicio a más de 1 réplica** — SQLite no soporta escritura concurrente desde varios procesos.
+CAE Manager usa PostgreSQL (servicio gestionado aparte, ver más abajo) y guarda los PDFs adjuntos en disco local (ver `ARCHITECTURE.md`). Railway encaja bien con eso: despliega directo desde el repo de GitHub, sirve HTTPS automáticamente, soporta un volumen persistente sencillo para la app y ofrece Postgres como servicio adicional del mismo proyecto. **No escales el servicio de la app a más de 1 réplica todavía** — no es ya una limitación de la base de datos, sino de otras piezas que siguen atadas al proceso (backplane de SignalR, cola de análisis IA en memoria, elección de líder para los `BackgroundService` — ver `ROADMAP.md` § migración a PostgreSQL, epílogo).
 
 ## 1. Crear el proyecto en Railway
 
@@ -13,21 +13,22 @@ CAE Manager usa SQLite y guarda los PDFs adjuntos en disco local (ver `ARCHITECT
 3. Railway detecta el `Dockerfile` en la raíz del repo automáticamente y lo usa para construir la imagen — no hace falta configurar nada más para el build.
 4. En la pestaña **Settings** del servicio, en "Networking", pulsa "Generate Domain" para obtener una URL pública tipo `algo.up.railway.app`.
 
-## 2. Añadir un volumen persistente
+## 2. Añadir la base de datos y un volumen persistente
 
-Sin esto, la base de datos, los PDFs adjuntos y las claves de cifrado se pierden en cada redeploy.
+La base de datos vive en un servicio de PostgreSQL aparte, no en el volumen — sin él, o sin el volumen, los PDFs adjuntos y las claves de cifrado se pierden en cada redeploy.
 
-1. En el servicio, pestaña **Volumes** → "New Volume".
-2. Mount path: `/data`.
-3. Tamaño: 1 GB es de sobra para empezar (se puede ampliar después).
+1. En el lienzo del proyecto, "+ New" → "Database" → "Add PostgreSQL". Comprueba en su pestaña **Settings → Region** que queda en la misma región que el servicio de la app (relevante para RGPD, ver `RGPD-TRATAMIENTO-DATOS.md` § 6).
+2. En el servicio de la **app**, pestaña **Volumes** → "New Volume".
+3. Mount path: `/data`.
+4. Tamaño: 1 GB es de sobra para empezar (se puede ampliar después).
 
 ## 3. Variables de entorno
 
-En la pestaña **Variables** del servicio, añade:
+En la pestaña **Variables** del servicio de la **app**, añade:
 
 | Variable | Valor | Para qué |
 |---|---|---|
-| `ConnectionStrings__CaeManagerDb` | `Data Source=/data/CaeManager.db` | Base de datos SQLite en el volumen persistente |
+| `ConnectionStrings__CaeManagerDb` | `Host=${{Postgres.PGHOST}};Port=${{Postgres.PGPORT}};Database=${{Postgres.PGDATABASE}};Username=${{Postgres.PGUSER}};Password=${{Postgres.PGPASSWORD}}` | Conexión al servicio de PostgreSQL del paso 2 — usa referencias de variable de Railway (`${{NombreDelServicio.VARIABLE}}`, ajustando el nombre si tu servicio de Postgres no se llama "Postgres") en vez de copiar la contraseña a mano, para que no se desincronice si Railway la rota |
 | `AlmacenamientoArchivos__Ruta` | `/data/documentos` | PDFs adjuntos de Documentos, en el volumen |
 | `DataProtection__RutaClaves` | `/data/dataprotection-keys` | Claves de cifrado de credenciales (Empresa/Centro) — si no se persisten, cada redeploy invalida las credenciales ya guardadas |
 | `AdministradorInicial__Email` | (tu elección, p. ej. `admin@ProjectHydra.com`) | Evita arrancar con el email de administrador por defecto, público en el propio código |
@@ -89,10 +90,9 @@ Pasos para crear el App Registration en [entra.microsoft.com](https://entra.micr
 
 ### Datos de prueba para pruebas de carga y verificación de perfiles
 
-Con `DatosPrueba__Activo=true`, el primer arranque siembra automáticamente (solo si todavía no hay ningún Cliente — no duplica en redeploys posteriores):
+Con `DatosPrueba__Activo=true`, el primer arranque siembra automáticamente (solo si todavía no hay ningún Cliente — no duplica en redeploys posteriores) una cartera con la forma de un cliente fundador real — Clientes con varias Empresas contratistas cada uno, Empresas con varios Centros y Trabajadores, documentación estándar completa con fechas de vencimiento repartidas entre vencido/urgente/próximo/vigente, y datos ya preparados para probar la purga de retención (ver `ROADMAP.md` § Fase 62 para el detalle exacto y los números). Nombres de personas, empresas y lugares son de ficción a propósito, para que nada de la siembra se confunda con un dato real.
 
-- 200 Clientes, 220 Empresas, 200 Subcontratas, ~300 Centros, 500 Trabajadores (repartidos entre Empresa y Subcontrata) y ~1000 Documentos con fechas de vencimiento repartidas entre vencido/urgente/próximo/vigente.
-- 3 usuarios de prueba por cada uno de los 6 perfiles (Administrador/DireccionCae/CoordinadorCae/GestorCae/Consulta/Cliente), con email `prueba.<rol><n>@caemanager.local` y contraseña `Prueba#2026` para todos — así se puede iniciar sesión con cada perfil y comprobar qué ve cada uno con volumen real de datos.
+3 usuarios de prueba por cada uno de los 6 perfiles (Administrador/DireccionCae/CoordinadorCae/GestorCae/Consulta/Cliente), con email `prueba.<rol><n>@caemanager.local` y contraseña `Prueba#2026` para todos — así se puede iniciar sesión con cada perfil y comprobar qué ve cada uno con volumen real de datos.
 
 **No actives esto en el entorno real del equipo** — pensado para un servicio aparte (o una base de datos que luego se descarta) dedicado solo a pruebas de carga y QA.
 
@@ -112,6 +112,6 @@ Primer arranque: la app ejecuta las migraciones de base de datos y crea el usuar
 
 ## Notas para producción real (fuera de alcance de un piloto)
 
-- **Una sola réplica.** Si el equipo crece y hace falta más capacidad, el paso siguiente es migrar de SQLite a PostgreSQL (la arquitectura ya está preparada para eso, ver `ROADMAP.md` → "Fuera de alcance de v1") antes de escalar horizontalmente.
-- **Backups del volumen.** Railway no hace backups automáticos de los volúmenes en todos los planes — revisa la política de tu plan o exporta `CaeManager.db` periódicamente.
-- **Cifrado de las claves de Data Protection en reposo.** Hoy se persisten en el volumen sin una capa adicional de cifrado del propio archivo de claves (advertencia esperada en los logs: "No XML encryptor configured") — aceptable para un piloto donde el acceso al volumen ya está restringido; para un despliegue más sensible, considera `ProtectKeysWithCertificate` o un almacén de claves gestionado (Azure Key Vault, AWS KMS).
+- **Una sola réplica.** La migración a PostgreSQL (`ADR-003`) ya está hecha — lo que sigue atando la app a una sola réplica es otra cosa: backplane de SignalR, cola de análisis IA en memoria y elección de líder para los `BackgroundService`. Ver `ROADMAP.md` § migración a PostgreSQL, epílogo.
+- **Backups.** Automatizados con `Backups__Activo=true` (`pg_dump` de la base de datos + `dataprotection-keys/` a S3, ver `RUNBOOK-CLAVES.md`) — no dependen de la política de backups de volúmenes de Railway.
+- **Cifrado de las claves de Data Protection en reposo.** Con `DataProtection__Kms__*` configurado (ver tabla más arriba y `RUNBOOK-CLAVES.md` § KMS), las claves se cifran con AWS KMS antes de escribirse al volumen — confírmalo en el log de arranque (`cifrado con AWS KMS operativo`). Sin esas variables, quedan sin cifrar (advertencia esperada en los logs).

@@ -1,12 +1,24 @@
 # Runbook — Corte de SQLite a PostgreSQL (ADR-003)
 
-Procedimiento del corte de producción, con ventana de parada y camino de
-vuelta **escritos antes de tocar nada** (exigencia del punto 7 del backlog de
-migración, `ROADMAP.md`). La herramienta de copia es
-`MigradorDatosPostgreSql` (modo de un solo uso de la propia app, ver
-`Program.cs`); su ensayo completo en local —siembra real → copia → recuentos
-idénticos en 50 tablas → login y páginas sobre la base migrada— está hecho
-(2026-08-01, ver ROADMAP § migración a PostgreSQL).
+**Histórico — el corte ya se ejecutó en producción el 2026-08-01** (ver
+`ROADMAP.md` § migración a PostgreSQL, "Corte a producción"). Se documenta
+aquí como registro de cómo se hizo, no como procedimiento a repetir: en la
+práctica, la producción de entonces solo tenía datos de prueba, así que el
+corte real fue más simple que lo escrito abajo — Postgres arrancó vacío y la
+propia app lo migró/resembró al arrancar, sin ejecutar ningún migrador de
+datos. La rama SQLite (incluida la clase `MigradorDatosPostgreSql` que
+describe este documento) se retiró del código después del corte — ver
+"Después del corte" más abajo. Si algún día hiciera falta migrar datos reales
+desde una fuente externa, hay que escribir esa herramienta de nuevo; esta ya
+no existe.
+
+Procedimiento original, con ventana de parada y camino de vuelta **escritos
+antes de tocar nada** (exigencia del punto 7 del backlog de migración,
+`ROADMAP.md`). La herramienta de copia era `MigradorDatosPostgreSql` (modo de
+un solo uso de la propia app); su ensayo completo en local —siembra real →
+copia → recuentos idénticos en 50 tablas → login y páginas sobre la base
+migrada— quedó hecho antes del corte real (2026-08-01, ver ROADMAP § migración
+a PostgreSQL).
 
 ## Principio del diseño
 
@@ -89,12 +101,14 @@ La base PostgreSQL fallida se borra y se repite el corte otro día; no se
 
 ## Después del corte (no en la ventana)
 
-- Retirar la rama SQLite: `ProveedorBaseDatos`, el juego de migraciones de
-  Infrastructure, `BackfillTenantPorDefectoTests`, y la rama SQLite de
-  `BackupHostedService` — ver el comentario de `ProveedorBaseDatos` (es
-  transitorio a propósito).
+- ✅ **Retirada la rama SQLite** (2026-08-01): `ProveedorBaseDatos`,
+  `LectorProveedorBaseDatos`, el juego de migraciones de Infrastructure,
+  `MigradorDatosPostgreSql`, `BackfillTenantPorDefectoTests`, y la rama
+  SQLite de `BackupHostedService` — todo eliminado. La app ya no sabe hablar
+  SQLite; `WebAppFixture` (E2E) también se movió a PostgreSQL.
 - El volumen conserva `dataprotection-keys/` y los archivos subidos
-  (`AlmacenamientoArchivos`): sigue siendo necesario; solo `CaeManager.db`
-  queda obsoleto (mantenerlo unas semanas como red de seguridad extra).
-- Actualizar `DEPLOY.md`/`RGPD-TRATAMIENTO-DATOS.md` con el estado final y
-  cerrar el punto en `ROADMAP.md`.
+  (`AlmacenamientoArchivos`): sigue siendo necesario. `CaeManager.db` ya no
+  existe en ningún sitio — la base de datos vive en el servicio de Postgres
+  de Railway, no en el volumen.
+- ✅ Actualizados `DEPLOY.md`/`RGPD-TRATAMIENTO-DATOS.md`/`ARCHITECTURE.md`/
+  `RUNBOOK-CLAVES.md` con el estado final; punto cerrado en `ROADMAP.md`.

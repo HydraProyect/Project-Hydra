@@ -5,7 +5,7 @@
 - **Backend**: ASP.NET Core 10 (LTS). *Nota: el brief original especificaba .NET 9; se usa .NET 10 porque es la versión LTS vigente y la única disponible a través de los canales de paquetes permitidos en el entorno de desarrollo — .NET 9 es STS y ya estaría cerca de fin de soporte. No afecta ninguna decisión de arquitectura de este documento.*
 - **Frontend**: Blazor Server (interactividad server-side; sin necesidad de API pública en v1)
 - **ORM**: Entity Framework Core 10
-- **Base de datos**: SQLite en desarrollo y v1 de producción; el acceso a datos se hace exclusivamente a través de EF Core con proveedor intercambiable, de forma que migrar a PostgreSQL o SQL Server sea un cambio de configuración, no de código.
+- **Base de datos**: PostgreSQL (migrado desde SQLite en el corte de `ADR-003`, ver `ROADMAP.md` § Fase 61/62); el acceso a datos se hace exclusivamente a través de EF Core, sin SQL crudo fuera de los repositorios.
 - **Autenticación**: ASP.NET Core Identity + cookies, con login corporativo opcional vía Microsoft Entra ID (OpenID Connect) — ver más abajo.
 
 ## Por qué Blazor Server (y no WASM ni una API + SPA)
@@ -111,7 +111,7 @@ Regla práctica: si para entender "todo lo relacionado con Trabajadores" hay que
 Cada caso de uso es un Command (escritura) o Query (lectura) explícito, manejado por MediatR:
 
 - **Commands**: pasan por el Domain (cargan el agregado vía repositorio, invocan métodos de negocio que protegen invariantes, persisten). Ejemplo: `CrearClienteCommand → CrearClienteCommandHandler`.
-- **Queries**: proyectan directamente a DTOs de lectura con `.Select(...)`, sin pasar por el repositorio de agregados — las queries no tienen invariantes que proteger, solo necesitan ser rápidas. No se usa `AsNoTracking()`: proyectar a un DTO ya no engancha nada al change tracker, así que sería ruido. Sí haría falta en las pocas lecturas que materializan entidades completas. Application define `IApplicationDbContext` con una propiedad `IQueryable<T>` de solo lectura por agregado; `CaeManagerDbContext` la implementa en Infrastructure. Application referencia el paquete `Microsoft.EntityFrameworkCore` (la capa de abstracciones, para poder usar `CountAsync`/`ToListAsync`/etc. sobre `IQueryable<T>`) pero **nunca** un proveedor concreto (`Microsoft.EntityFrameworkCore.Sqlite`, `...SqlServer`, ...) ni el tipo `CaeManagerDbContext` — eso es exclusivo de Infrastructure. Es la misma distinción que ya aplicamos a la base de datos en general: la tecnología concreta es intercambiable, el contrato no.
+- **Queries**: proyectan directamente a DTOs de lectura con `.Select(...)`, sin pasar por el repositorio de agregados — las queries no tienen invariantes que proteger, solo necesitan ser rápidas. No se usa `AsNoTracking()`: proyectar a un DTO ya no engancha nada al change tracker, así que sería ruido. Sí haría falta en las pocas lecturas que materializan entidades completas. Application define `IApplicationDbContext` con una propiedad `IQueryable<T>` de solo lectura por agregado; `CaeManagerDbContext` la implementa en Infrastructure. Application referencia el paquete `Microsoft.EntityFrameworkCore` (la capa de abstracciones, para poder usar `CountAsync`/`ToListAsync`/etc. sobre `IQueryable<T>`) pero **nunca** un proveedor concreto (`Npgsql.EntityFrameworkCore.PostgreSQL`, `...SqlServer`, ...) ni el tipo `CaeManagerDbContext` — eso es exclusivo de Infrastructure.
 - **Pipeline behaviors** de MediatR para: validación (FluentValidation), logging, y captura de excepciones de dominio → `Result<T>`.
 
 No se usa un `IRepository<T>` genérico. Cada agregado raíz (Cliente, Centro, Empresa, Trabajador, Documento, Asignacion) tiene su propia interfaz de repositorio definida en `Domain`, con los métodos que ese agregado necesita — no un CRUD genérico que invite a saltarse invariantes.
@@ -168,7 +168,7 @@ PDFsharp 6 no depende de GDI+ ni de las fuentes del sistema operativo (es multip
 
 - `CaeManager.Domain.Tests`: pruebas unitarias de reglas de negocio puras (p. ej. cálculo de estado de un Documento según vigencia y umbrales) — sin base de datos.
 - `CaeManager.Application.Tests`: handlers de Commands/Queries con repositorios en memoria o mocks.
-- `CaeManager.IntegrationTests`: EF Core contra SQLite en archivo temporal, validando migraciones y queries reales.
+- `CaeManager.IntegrationTests`: EF Core contra PostgreSQL real (una base de datos propia por fixture, ver `BaseDatosPostgresDePruebas`), validando migraciones y queries reales.
 
 ## Convención de nombres de proyecto
 
