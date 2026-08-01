@@ -42,7 +42,7 @@ erDiagram
 - **Cliente**: empresa propietaria de los Centros donde se realizan los trabajos (Retail Iberia S.A., Bebidas del Norte S.A., ...). No opera el sistema. Tiene `EjecutivoUsuarioId` (Gestor CAE dueño de la cartera — base del alcance por rol).
 - **Empresa**: la contratista cuyos trabajadores realizan los trabajos (Ibertec S.A., EcoPlant Reciclaje S.L., ...). **No pertenece a un Cliente** — trabaja para muchos (`EmpresaCliente`, N:N), y un Cliente contrata a muchas. Esta relación N:N es intocable: es el corazón del modelo CAE.
 - **Subcontrata**: empresa subcontratada que aporta personal/flota. N:N tanto con Cliente como con Empresa.
-- **Centro**: ubicación física. Pertenece a un único Cliente (`ClienteId`) y es operado por una Empresa (`EmpresaId`) — dos padres simultáneos, no es hijo único de nadie. Satélites: `PlataformaAcceso` (1:1, credenciales cifradas), `RequisitoDocumental` (exigencias adicionales; hoy sin UI), `TipoDocumentoCentro` (tipos exigidos).
+- **Centro**: ubicación física. Pertenece a un único Cliente (`ClienteId`) y es operado por una Empresa (`EmpresaId`) — dos padres simultáneos, no es hijo único de nadie. Satélites: `PlataformaAcceso` (1:1, credenciales cifradas), `RequisitoDocumental` (exigencias adicionales, texto libre, CRUD completo — pestaña "Requisitos del Centro"), `TipoDocumentoCentro` (tipos exigidos).
 - **Trabajador / Vehículo**: pertenecen a una Empresa **o** una Subcontrata (`EmpresaId?`/`SubcontrataId?` mutuamente excluyentes — `EsDeSubcontrata`). **Sin `ClienteId`**: su relación con Clientes es derivada (Trabajador vía `Asignacion`+Centro; Vehículo transitiva) y puede ser múltiple simultáneamente — un `ClienteId` singular sería estructuralmente falso (decisión debatida y cerrada; ver `docs/MULTITENANCY.md` § 3).
 - **Asignacion**: N:N Trabajador↔Centro con historial (`FechaAlta`/`FechaBaja?`; activa = sin baja). Índice único `(TrabajadorId, CentroId, FechaAlta)`.
 - **Visita**: periodo (`FechaInicio`–`FechaFin`) de trabajadores en un Centro, con N:N `VisitaTrabajador`.
@@ -72,5 +72,4 @@ El estado de un Documento (`Vigente`/`Proximo`/`Urgente`/`Vencido`/`NoAplica`) *
 ## Notas de deuda del modelo
 
 - Tres clases duplican el concepto "credenciales de portal externo" (`PlataformaAcceso`, `CredencialAccesoEmpresa`, `CredencialAccesoSubcontrata`) — unificarlas es un cambio de modelo independiente, no mezclar con otros refactors.
-- `RequisitoDocumental` existe en Domain sin Commands/Queries ni UI.
 - No existe infraestructura de Domain Events (decisión: no construirla sin caso de uso real — YAGNI).

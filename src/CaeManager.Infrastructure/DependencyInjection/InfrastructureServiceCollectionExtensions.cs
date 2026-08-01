@@ -9,6 +9,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Incidencias;
@@ -179,6 +180,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITarifaClienteRepository, TarifaClienteRepository>();
         services.AddScoped<IProyectoRepository, ProyectoRepository>();
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
+        services.AddScoped<IRequisitoDocumentalRepository, RequisitoDocumentalRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
         services.AddScoped<IPreferenciaDashboardUsuarioRepository, PreferenciaDashboardUsuarioRepository>();

@@ -14,6 +14,7 @@
     <div class="barra-filtros">
         <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync">
             <option value="">Todos</option>
+            <option value="@nameof(EstadoDocumento.Faltante)">Falta</option>
             <option value="@nameof(EstadoDocumento.Vencido)">Vencido</option>
             <option value="@nameof(EstadoDocumento.Urgente)">Urgente</option>
             <option value="@nameof(EstadoDocumento.Proximo)">Próximo</option>
@@ -44,6 +45,7 @@
                     <th>Estado</th>
                     <th>Trabajador</th>
                     <th>Tipo de documento</th>
+                    <th>Centro</th>
                     <th>Vencimiento</th>
                     <th>Archivo</th>
                     <th></th>
@@ -56,9 +58,10 @@
                         <td><Badge Tono="EstadoDocumentoUi.Tono(alerta.Estado)">@EstadoDocumentoUi.Texto(alerta.Estado)</Badge></td>
                         <td>@alerta.TrabajadorNombre</td>
                         <td>@alerta.TipoDocumentoNombre</td>
+                        <td>@(alerta.CentroNombre ?? "—")</td>
                         <td>@(alerta.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
                         <td>
-                            @if (alerta.ArchivoUrl is not null)
+                            @if (alerta.DocumentoId is not null && alerta.ArchivoUrl is not null)
                             {
                                 <a href="/documentos/@alerta.DocumentoId/archivo" target="_blank">Ver PDF</a>
                             }
@@ -68,8 +71,8 @@
                             }
                         </td>
                         <td>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarDocumento(alerta.DocumentoId)">
-                                Gestionar
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarAlerta(alerta)">
+                                @(alerta.DocumentoId is not null ? "Gestionar" : "Subir documento")
                             </Boton>
                         </td>
                     </tr>

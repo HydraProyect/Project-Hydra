@@ -40,6 +40,18 @@ public partial class Documentos : ComponentBase
     /// </summary>
     [SupplyParameterFromQuery] public string? Estado { get; set; }
 
+    /// <summary>
+    /// Permite llegar aquí desde Alertas con un documento "faltante" (P1-15
+    /// de docs/business/MATURITY_REVIEW.md — Trabajador con Asignación activa
+    /// a un Centro que exige un TipoDocumento obligatorio, sin ningún
+    /// Documento de ese tipo): abre el drawer de creación con el propietario
+    /// y el tipo ya elegidos, en vez de "gestionar" un Documento que todavía
+    /// no existe (DocumentoId, arriba, siempre es null en este caso).
+    /// </summary>
+    [SupplyParameterFromQuery] public Guid? TrabajadorId { get; set; }
+
+    [SupplyParameterFromQuery] public Guid? TipoDocumentoId { get; set; }
+
     private GridItemsProvider<DocumentoListaDto>? _proveedorElementos;
 
     protected override async Task OnInitializedAsync()
@@ -52,6 +64,8 @@ public partial class Documentos : ComponentBase
 
         if (DocumentoId is not null)
             await AbrirEditarAsync(DocumentoId.Value);
+        else if (TrabajadorId is not null && TipoDocumentoId is not null)
+            await AbrirCrearParaFaltanteAsync(TrabajadorId.Value, TipoDocumentoId.Value);
     }
 
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
@@ -232,6 +246,13 @@ public partial class Documentos : ComponentBase
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+    }
+
+    private async Task AbrirCrearParaFaltanteAsync(Guid trabajadorId, Guid tipoDocumentoId)
+    {
+        await AbrirCrearAsync();
+        _trabajadorId = trabajadorId.ToString();
+        CambiarTipoDocumento(tipoDocumentoId.ToString());
     }
 
     private async Task CambiarAmbitoAsync(string valor)
