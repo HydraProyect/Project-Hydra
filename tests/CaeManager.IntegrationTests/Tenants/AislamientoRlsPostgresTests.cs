@@ -1,0 +1,135 @@
+using CaeManager.Domain.Clientes;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Persistence;
+using FluentAssertions;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using Xunit;
+
+namespace CaeManager.IntegrationTests.Tenants;
+
+/// <summary>
+/// Prueba las políticas RLS de la migración <c>HabilitarRlsPostgres</c>
+/// contra el rol restringido real (<c>cae_app_runtime</c>), no contra el
+/// propietario de las tablas — RLS nunca restringe al propietario ni a un
+/// superusuario (ver RUNBOOK-RLS.md), así que un test que solo usara el rol
+/// por defecto (como el resto de los tests de este proyecto, ver
+/// <see cref="BaseDatosPostgresDePruebas"/>) pasaría igual aunque las
+/// políticas estuvieran completamente rotas o ni se hubieran aplicado.
+///
+/// <c>SET ROLE</c> (en vez de abrir una conexión de login nueva) basta para
+/// probarlo: el superusuario de los tests ya puede asumir cualquier rol sin
+/// contraseña, y una vez asumido, Postgres aplica RLS exactamente igual que
+/// lo haría una conexión real bajo ese rol.
+/// </summary>
+public class AislamientoRlsPostgresTests : IAsyncLifetime
+{
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
+    private readonly Guid _tenantA = Guid.NewGuid();
+    private readonly Guid _tenantB = Guid.NewGuid();
+
+    public async Task InitializeAsync()
+    {
+        var tenantActual = new TenantActualAmbiental { TenantId = _tenantA };
+        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
+            .Options;
+
+        // Migra y siembra como el rol propietario de los tests (postgres) a
+        // propósito: RLS no debe interferir en absoluto con ese rol, solo
+        // con cae_app_runtime — es justo lo que estos tests verifican.
+        await using var dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+        await dbContext.Database.MigrateAsync();
+
+        dbContext.Clientes.Add(new Cliente("RENDELSUR", "B12345674", esCritico: false));
+        await dbContext.SaveChangesAsync();
+    }
+
+    public async Task DisposeAsync() =>
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
+
+    private async Task<NpgsqlConnection> AbrirComoRolRestringidoAsync()
+    {
+        var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+
+        await using var setRol = conexion.CreateCommand();
+        setRol.CommandText = "SET ROLE cae_app_runtime;";
+        await setRol.ExecuteNonQueryAsync();
+
+        return conexion;
+    }
+
+    private static async Task FijarTenantDeSesionAsync(NpgsqlConnection conexion, Guid? tenantId)
+    {
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT set_config('app.tenant_id', @valor, false);";
+        comando.Parameters.AddWithValue("valor", tenantId?.ToString() ?? string.Empty);
+        await comando.ExecuteNonQueryAsync();
+    }
+
+    private static async Task<long> ContarClientesAsync(NpgsqlConnection conexion)
+    {
+        await using var consulta = conexion.CreateCommand();
+        consulta.CommandText = "SELECT count(*) FROM \"Clientes\";";
+        return (long)(await consulta.ExecuteScalarAsync())!;
+    }
+
+    [Fact]
+    public async Task El_rol_restringido_no_ve_ninguna_fila_sin_tenant_de_sesion_fijado()
+    {
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+
+        var total = await ContarClientesAsync(conexion);
+
+        total.Should().Be(0, "sin app.tenant_id fijado la política debe ocultar todas las filas, no solo las de otros tenants");
+    }
+
+    [Fact]
+    public async Task El_rol_restringido_solo_ve_las_filas_del_tenant_fijado_en_la_sesion()
+    {
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+        (await ContarClientesAsync(conexion)).Should().Be(1);
+
+        await FijarTenantDeSesionAsync(conexion, _tenantB);
+        (await ContarClientesAsync(conexion)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_rol_propietario_de_las_tablas_no_esta_restringido_por_rls()
+    {
+        // Control negativo: sin SET ROLE, la misma consulta (como el rol con
+        // el que migran hoy todos los entornos) debe ver la fila igual que
+        // antes de esta migración — confirma que RLS es hoy inerte para el
+        // propietario, tal como documenta RUNBOOK-RLS.md, y no una regresión
+        // que rompería el arranque/las queries normales.
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+
+        (await ContarClientesAsync(conexion)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task El_rol_restringido_no_puede_insertar_una_fila_de_otro_tenant_que_el_fijado_en_sesion()
+    {
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+
+        await using var insertar = conexion.CreateCommand();
+        insertar.CommandText =
+            "INSERT INTO \"Clientes\" (\"Id\", \"RazonSocial\", \"Cif\", \"EsCritico\", \"TenantId\", \"Version\", \"CreadoEnUtc\", \"EstaEliminado\") " +
+            "VALUES (@id, 'Intento cruzado', 'B99999999', false, @tenantOtro, @version, now(), false);";
+        insertar.Parameters.AddWithValue("id", Guid.NewGuid());
+        insertar.Parameters.AddWithValue("tenantOtro", _tenantB);
+        insertar.Parameters.AddWithValue("version", Guid.NewGuid());
+
+        var accion = async () => await insertar.ExecuteNonQueryAsync();
+
+        await accion.Should().ThrowAsync<PostgresException>(
+            "WITH CHECK debe rechazar una fila cuyo TenantId no coincide con app.tenant_id de la sesión, aunque el INSERT venga de fuera de EF");
+    }
+}

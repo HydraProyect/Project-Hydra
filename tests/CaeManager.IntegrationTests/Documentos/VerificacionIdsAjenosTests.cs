@@ -4,6 +4,7 @@ using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento;
 using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
@@ -73,7 +74,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
 
         var handler = new CrearDocumentoCommandHandler(
             new DocumentoRepository(contexto), contexto, contexto,
-            new ColaAnalisisDocumentoFalsa(), _tenantActual, new CurrentUserServiceFalso());
+            new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(
@@ -134,9 +135,16 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
         resultado.Error.Codigo.Should().Be("TipoDocumento.CentroNoEncontrado");
     }
 
-    private sealed class ColaAnalisisDocumentoFalsa : IColaAnalisisDocumento
+    private sealed class ColaAnalisisDocumentoFalsa : ITrabajoAnalisisDocumentoRepository
     {
-        public void Encolar(EncargoAnalisisDocumento encargo) { }
+        public void Agregar(TrabajoAnalisisDocumento trabajo) { }
+
+        public Task<TrabajoAnalisisDocumento?> ObtenerSiguientePendienteAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<TrabajoAnalisisDocumento?>(null);
+
+        public Task<IReadOnlyList<TrabajoAnalisisDocumento>> ObtenerEstancadosAsync(
+            TimeSpan umbral, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<TrabajoAnalisisDocumento>>([]);
     }
 
     private sealed class CurrentUserServiceFalso : ICurrentUserService

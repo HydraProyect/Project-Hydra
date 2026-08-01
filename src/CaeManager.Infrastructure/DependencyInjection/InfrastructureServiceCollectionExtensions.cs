@@ -56,12 +56,23 @@ public static class InfrastructureServiceCollectionExtensions
     {
         services.AddScoped<AuditoriaInterceptor>();
         services.AddScoped<TenantSelladoInterceptor>();
+        services.AddScoped<TenantRlsConnectionInterceptor>();
         // Sin estado y sin dependencias: una sola instancia sirve.
         services.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 
         services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
         {
-            var cadena = configuration.GetConnectionString("CaeManagerDb");
+            // CaeManagerDbRuntime es opcional y, ausente (el caso de hoy en
+            // todos los entornos), cae en la misma cadena de siempre — cero
+            // cambio de comportamiento. Solo tras provisionar el rol
+            // restringido de RUNBOOK-RLS.md tiene sentido configurarla: es el
+            // rol que hace que las políticas RLS de la migración
+            // HabilitarRlsPostgres empiecen a restringir de verdad (RLS no
+            // aplica al propietario de la tabla ni a un superusuario). Las
+            // migraciones (Program.cs) siguen conectando con CaeManagerDb sin
+            // pasar por aquí — ese rol necesita DDL que el de runtime no tiene.
+            var cadena = configuration.GetConnectionString("CaeManagerDbRuntime")
+                ?? configuration.GetConnectionString("CaeManagerDb");
 
             options.UseNpgsql(cadena, npgsql =>
             {
@@ -78,6 +89,7 @@ public static class InfrastructureServiceCollectionExtensions
             options.AddInterceptors(
                 serviceProvider.GetRequiredService<AuditoriaInterceptor>(),
                 serviceProvider.GetRequiredService<TenantSelladoInterceptor>(),
+                serviceProvider.GetRequiredService<TenantRlsConnectionInterceptor>(),
                 serviceProvider.GetRequiredService<ConcurrenciaOptimistaInterceptor>());
         });
 
@@ -215,9 +227,35 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDirectorioUsuariosService>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
-        // Scoped (no Singleton): depende de ITenantActual, que es scoped —
-        // ver docs/MULTITENANCY.md § 4.6.
-        services.AddScoped<IFileStorageService, DiskFileStorageService>();
+
+        var opcionesS3 = new AlmacenamientoS3Options();
+        configuration.GetSection(AlmacenamientoS3Options.SeccionConfiguracion).Bind(opcionesS3);
+        services.Configure<AlmacenamientoS3Options>(configuration.GetSection(AlmacenamientoS3Options.SeccionConfiguracion));
+
+        // Scoped en los dos casos (no Singleton): dependen de ITenantActual,
+        // que es scoped — ver docs/MULTITENANCY.md § 4.6. AlmacenamientoS3:Activo
+        // apagado por defecto (mismo patrón que Backups/DataProtection:Kms):
+        // sin cuenta de AWS provisionada, sigue en disco local — ver DEPLOY.md.
+        if (opcionesS3.EstaConfigurado)
+        {
+            services.AddScoped<IFileStorageService, S3FileStorageService>();
+            services.AddHostedService<VerificacionAlmacenamientoS3HostedService>();
+        }
+        else
+        {
+            if (opcionesS3.Activo)
+            {
+                // Ruidoso a propósito, mismo criterio que DataProtection:Kms:
+                // un despliegue que cree estar guardando en S3 y en realidad
+                // siga en disco local (por una variable mal copiada) es peor
+                // que uno que sepa que sigue en disco.
+                Console.WriteLine(
+                    "[AVISO] AlmacenamientoS3:Activo está en true pero faltan variables de AWS " +
+                    "(AccessKeyId/SecretAccessKey/BucketName/Region) — los archivos siguen guardándose en disco local.");
+            }
+
+            services.AddScoped<IFileStorageService, DiskFileStorageService>();
+        }
 
         services.Configure<LibreOfficeConversorWordPdfServiceOptions>(configuration.GetSection(LibreOfficeConversorWordPdfServiceOptions.SeccionConfiguracion));
         services.AddSingleton<IConversorWordPdfService, LibreOfficeConversorWordPdfService>();
@@ -237,12 +275,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<DeteccionPreviaDocumentoOptions>(
             configuration.GetSection(DeteccionPreviaDocumentoOptions.SeccionConfiguracion));
 
-        // La cola es singleton porque la comparten el productor (los Commands,
-        // scoped) y el consumidor (el hosted service, singleton). Se registra
-        // la clase concreta además de la interfaz: el procesador necesita su
-        // lector, que no forma parte del contrato de encolado.
-        services.AddSingleton<ColaAnalisisDocumentoEnMemoria>();
-        services.AddSingleton<IColaAnalisisDocumento>(sp => sp.GetRequiredService<ColaAnalisisDocumentoEnMemoria>());
+        // Cola durable en PostgreSQL (P2 #22 de docs/business/MATURITY_REVIEW.md
+        // — antes, Channel<T> en memoria: un reinicio del proceso perdía los
+        // encargos pendientes sin dejar rastro). Scoped como cualquier otro
+        // repositorio: el hosted service abre su propio scope de DI por
+        // tenant/ciclo de sondeo, igual que ya hacía con la cola en memoria.
+        services.AddScoped<ITrabajoAnalisisDocumentoRepository, TrabajoAnalisisDocumentoRepository>();
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
         // Timeouts explícitos en todos los HttpClient de IA/Graph (P0-9 de
@@ -297,6 +335,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<GraphEmailOptions>(configuration.GetSection(GraphEmailOptions.SeccionConfiguracion));
         services.AddHttpClient<IEmailService, GraphEmailService>(
             cliente => cliente.Timeout = TimeSpan.FromSeconds(30));
+
+        // Comunicaciones (P2 #26): apagado por defecto — ver ComunicacionesOptions.
+        services.Configure<ComunicacionesOptions>(configuration.GetSection(ComunicacionesOptions.SeccionConfiguracion));
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();
