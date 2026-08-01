@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="bunit" Version="2.7.2" />
+    <PackageReference Include="bunit" Version="2.8.6" />
     <!-- AngleSharp 1.4.0 llega de forma transitiva vía bunit y tiene una
          vulnerabilidad moderada conocida (GHSA-pgww-w46g-26qg) — se fija
          explícitamente a una versión parcheada en vez de silenciar el
