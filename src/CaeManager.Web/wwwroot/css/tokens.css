@@ -154,6 +154,16 @@
     --color-primary-600: var(--color-primary-200);
     --color-primary-700: var(--color-primary-100);
 
+    /* Mismo criterio que el primario: el -700 de día (pensado para texto
+       sobre el -50 claro, ver Badge.razor.css) es demasiado oscuro sobre el
+       -50 de noche, que es casi negro — se sube a un tono claro de la misma
+       familia en vez de reutilizar el valor de día (hallazgo P0-8 de
+       docs/business/MATURITY_REVIEW.md: el semáforo no puede perder
+       contraste al cambiar de tema). */
+    --color-success-700: #4ade80;
+    --color-warning-700: #fbbf24;
+    --color-danger-700: #f87171;
+
     --shadow-card: 0 4px 14px rgba(0, 0, 0, 0.35);
     --shadow-overlay: 0 20px 50px rgba(0, 0, 0, 0.5);
   }
@@ -185,6 +195,10 @@
   --color-primary-500: var(--color-primary-300);
   --color-primary-600: var(--color-primary-200);
   --color-primary-700: var(--color-primary-100);
+
+  --color-success-700: #4ade80;
+  --color-warning-700: #fbbf24;
+  --color-danger-700: #f87171;
 
   --shadow-card: 0 4px 14px rgba(0, 0, 0, 0.35);
   --shadow-overlay: 0 20px 50px rgba(0, 0, 0, 0.5);
