@@ -1,4 +1,4 @@
-<span class="badge badge-@Tono.ToString().ToLowerInvariant()" @attributes="AtributosAdicionales">
+<span class="@ClaseCompleta" @attributes="AtributosSinClase">
     @ChildContent
 </span>
 
@@ -6,7 +6,26 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public TonoBadge Tono { get; set; } = TonoBadge.Neutro;
 
-    /// <summary>Attribute splatting — ver el comentario de Boton.razor, mismo criterio (P2 #28 de docs/business/MATURITY_REVIEW.md).</summary>
+    /// <summary>Attribute splatting — ver el comentario de Boton.razor, mismo criterio (P2 #28 de docs/business/MATURITY_REVIEW.md), incluido el merge manual de "class".</summary>
     [Parameter(CaptureUnmatchedValues = true)]
     public Dictionary<string, object>? AtributosAdicionales { get; set; }
+
+    private string ClaseCompleta
+    {
+        get
+        {
+            var claseBase = $"badge badge-{Tono.ToString().ToLowerInvariant()}";
+            return AtributosAdicionales is not null
+                && AtributosAdicionales.TryGetValue("class", out var claseLlamador)
+                && claseLlamador is string claseLlamadorTexto
+                && !string.IsNullOrWhiteSpace(claseLlamadorTexto)
+                ? $"{claseBase} {claseLlamadorTexto}"
+                : claseBase;
+        }
+    }
+
+    private Dictionary<string, object>? AtributosSinClase =>
+        AtributosAdicionales is null || !AtributosAdicionales.ContainsKey("class")
+            ? AtributosAdicionales
+            : AtributosAdicionales.Where(kvp => kvp.Key != "class").ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 }

@@ -6,13 +6,13 @@
     }
     <input id="@_id"
            type="@Type"
-           class="campo-input @(TieneError ? "campo-input-error" : null)"
+           class="@ClaseCompleta"
            value="@_valorMostrado"
            placeholder="@Placeholder"
            disabled="@Deshabilitado"
            @oninput="ManejarCambioAsync"
            @onblur="ManejarBlurAsync"
-           @attributes="AtributosAdicionales" />
+           @attributes="AtributosSinClase" />
     @if (TieneError)
     {
         <span class="campo-mensaje-error" role="alert">@MensajeError</span>
@@ -36,11 +36,30 @@
     [Parameter] public bool Deshabilitado { get; set; }
     [Parameter] public string? MensajeError { get; set; }
 
-    /// <summary>Attribute splatting — ver el comentario de Boton.razor, mismo criterio (P2 #28 de docs/business/MATURITY_REVIEW.md).</summary>
+    /// <summary>Attribute splatting — ver el comentario de Boton.razor, mismo criterio (P2 #28 de docs/business/MATURITY_REVIEW.md), incluido el merge manual de "class".</summary>
     [Parameter(CaptureUnmatchedValues = true)]
     public Dictionary<string, object>? AtributosAdicionales { get; set; }
 
     private bool TieneError => !string.IsNullOrWhiteSpace(MensajeError);
+
+    private string ClaseCompleta
+    {
+        get
+        {
+            var claseBase = TieneError ? "campo-input campo-input-error" : "campo-input";
+            return AtributosAdicionales is not null
+                && AtributosAdicionales.TryGetValue("class", out var claseLlamador)
+                && claseLlamador is string claseLlamadorTexto
+                && !string.IsNullOrWhiteSpace(claseLlamadorTexto)
+                ? $"{claseBase} {claseLlamadorTexto}"
+                : claseBase;
+        }
+    }
+
+    private Dictionary<string, object>? AtributosSinClase =>
+        AtributosAdicionales is null || !AtributosAdicionales.ContainsKey("class")
+            ? AtributosAdicionales
+            : AtributosAdicionales.Where(kvp => kvp.Key != "class").ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
     /// <summary>
     /// El valor mostrado en el input solo se resincroniza con el

@@ -59,9 +59,27 @@ BEGIN
     -- ella, este rol (como cualquier rol con BYPASSRLS o un superusuario)
     -- ignoraría las políticas de más abajo igual que hoy las ignora el rol
     -- propietario.
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cae_app_runtime') THEN
-        CREATE ROLE cae_app_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
-    END IF;
+    --
+    -- El IF NOT EXISTS por sí solo no basta: cae_app_runtime es un rol de
+    -- CLUSTER (pg_roles/pg_authid es catálogo compartido por todo el
+    -- cluster, no por base de datos), así que si esta migración se aplica
+    -- en paralelo contra varias bases de datos de test del mismo cluster
+    -- (patrón habitual: una base efímera por clase de test), dos
+    -- transacciones pueden pasar el NOT EXISTS a la vez antes de que
+    -- ninguna confirme el CREATE ROLE, y la segunda revienta con
+    -- "duplicate key value violates unique constraint pg_authid_rolname_index"
+    -- en vez de un error legible — visto reproducido en CI de PR #49
+    -- (E2E con exit 134 y 70+ tests de AislamientoPorAgregadoTests caídos
+    -- porque la app no arrancaba). BEGIN/EXCEPTION aquí sí es atómico
+    -- frente a esa carrera: si otra transacción ganó la carrera, esta
+    -- captura el duplicado y sigue sin fallar.
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cae_app_runtime') THEN
+            CREATE ROLE cae_app_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+        END IF;
+    EXCEPTION WHEN duplicate_object OR unique_violation THEN
+        NULL;
+    END;
 
     FOREACH tabla IN ARRAY ARRAY[{arrayTablas}]
     LOOP
