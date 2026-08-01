@@ -7,7 +7,7 @@ using MediatR;
 namespace CaeManager.Application.Evaluaciones.Commands.CrearEvaluacion;
 
 public record CrearEvaluacionCommand(
-    Guid CentroId, Guid? TrabajadorId, DateOnly Fecha, int Puntuacion, string? Observaciones) : IRequest<Result<Guid>>;
+    Guid CentroId, Guid? TrabajadorId, DateOnly Fecha, int Puntuacion, string? Observaciones) : ICommand<Guid>;
 
 public class CrearEvaluacionCommandValidator : AbstractValidator<CrearEvaluacionCommand>
 {

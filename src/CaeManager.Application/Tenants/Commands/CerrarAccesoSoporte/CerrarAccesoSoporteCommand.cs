@@ -14,7 +14,7 @@ namespace CaeManager.Application.Tenants.Commands.CerrarAccesoSoporte;
 /// operador, no en la siguiente sesión (ver
 /// <c>RevalidacionClienteActivoMiddleware</c>).
 /// </summary>
-public record CerrarAccesoSoporteCommand(Guid DelegacionTenantId) : IRequest<Result>;
+public record CerrarAccesoSoporteCommand(Guid DelegacionTenantId) : ICommand;
 
 public class CerrarAccesoSoporteCommandValidator : AbstractValidator<CerrarAccesoSoporteCommand>
 {

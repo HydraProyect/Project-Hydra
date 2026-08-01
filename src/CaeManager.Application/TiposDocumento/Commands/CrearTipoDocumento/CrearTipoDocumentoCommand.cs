@@ -18,7 +18,7 @@ public record CrearTipoDocumentoCommand(
     string? CriteriosValidacion,
     string? SeSolicitaA,
     string? Observaciones,
-    IReadOnlyList<Guid> CentroIds) : IRequest<Result<Guid>>;
+    IReadOnlyList<Guid> CentroIds) : ICommand<Guid>;
 
 public class CrearTipoDocumentoCommandValidator : AbstractValidator<CrearTipoDocumentoCommand>
 {
