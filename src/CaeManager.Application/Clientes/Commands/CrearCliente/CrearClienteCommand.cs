@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CaeManager.Application.Clientes.Commands.CrearCliente;
 
-public record CrearClienteCommand(string RazonSocial, string Cif, bool EsCritico, string? Notas) : IRequest<Result<Guid>>;
+public record CrearClienteCommand(string RazonSocial, string Cif, bool EsCritico, string? Notas) : ICommand<Guid>;
 
 public class CrearClienteCommandValidator : AbstractValidator<CrearClienteCommand>
 {

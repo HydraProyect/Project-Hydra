@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Proyectos.Commands.EliminarProyecto;
 
-public record EliminarProyectoCommand(Guid Id) : IRequest<Result>;
+public record EliminarProyectoCommand(Guid Id) : ICommand;
 
 public class EliminarProyectoCommandHandler(
     IProyectoRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService currentUserService)

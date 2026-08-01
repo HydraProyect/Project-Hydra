@@ -11,7 +11,7 @@ namespace CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 /// drawer de edición, para no interrumpir el flujo de repasar varias
 /// visitas seguidas.
 /// </summary>
-public record MarcarNotificadoClienteCommand(Guid Id, bool Notificado) : IRequest<Result>;
+public record MarcarNotificadoClienteCommand(Guid Id, bool Notificado) : ICommand;
 
 public class MarcarNotificadoClienteCommandHandler(IVisitaRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<MarcarNotificadoClienteCommand, Result>

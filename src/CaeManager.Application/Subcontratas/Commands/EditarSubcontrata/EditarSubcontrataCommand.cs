@@ -8,7 +8,7 @@ namespace CaeManager.Application.Subcontratas.Commands.EditarSubcontrata;
 
 public record EditarSubcontrataCommand(
     Guid Id, string RazonSocial, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds,
-    Guid Version = default) : IRequest<Result>;
+    Guid Version = default) : ICommand;
 
 public class EditarSubcontrataCommandValidator : AbstractValidator<EditarSubcontrataCommand>
 {

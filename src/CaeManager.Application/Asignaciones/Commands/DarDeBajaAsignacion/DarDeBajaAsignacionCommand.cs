@@ -12,7 +12,7 @@ namespace CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignacion;
 /// dónde ha trabajado cada persona (mejora directa sobre la matriz de "X"
 /// del Excel original, que no guardaba fechas).
 /// </summary>
-public record DarDeBajaAsignacionCommand(Guid Id, DateOnly FechaBaja) : IRequest<Result>;
+public record DarDeBajaAsignacionCommand(Guid Id, DateOnly FechaBaja) : ICommand;
 
 public class DarDeBajaAsignacionCommandValidator : AbstractValidator<DarDeBajaAsignacionCommand>
 {

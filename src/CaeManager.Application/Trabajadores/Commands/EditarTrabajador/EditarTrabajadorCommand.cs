@@ -14,7 +14,7 @@ public record EditarTrabajadorCommand(
     string? Email,
     string? Observaciones,
     string? Alias = null,
-    Guid Version = default) : IRequest<Result>;
+    Guid Version = default) : ICommand;
 
 public class EditarTrabajadorCommandValidator : AbstractValidator<EditarTrabajadorCommand>
 {

@@ -8,7 +8,7 @@ namespace CaeManager.Application.Facturacion.Commands.ActualizarTarifaCliente;
 
 public record ActualizarTarifaClienteCommand(
     Guid Id, decimal PrecioUnitario, string MonedaIso, Guid Version = default)
-    : IRequest<Result>;
+    : ICommand;
 
 public class ActualizarTarifaClienteCommandValidator : AbstractValidator<ActualizarTarifaClienteCommand>
 {
