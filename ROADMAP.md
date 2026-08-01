@@ -871,7 +871,7 @@ Los límites reales, por orden de aparición:
 
 **Sin medir todavía**: no hay ninguna prueba de carga ejecutada contra el sistema, así que cualquier cifra concreta de "aguanta N usuarios" sería inventada. Lo de arriba es análisis de código, no medición.
 
-## Backlog — Migración a PostgreSQL: qué hace falta para empezar (2026-08-01, 🟡 construcción hecha, corte pendiente)
+## Backlog — Migración a PostgreSQL (2026-08-01, 🟡 corte ejecutado en producción, dos cabos sin confirmar)
 
 Condición de salida a producción pendiente de `ADR-003`. El trabajo real no es cambiar el proveedor de EF Core —eso es una tarde— sino lo que arrastra:
 
@@ -889,7 +889,18 @@ Condición de salida a producción pendiente de `ADR-003`. El trabajo real no es
 7. ✅ **Migración de datos construida y ensayada** (2026-08-01): `MigradorDatosPostgreSql` (Infrastructure), modo de un solo uso de la propia app (`MigracionDatosPostgreSql:Destino` en `Program.cs` — copia, verifica y termina sin arrancar el servidor). Copia por ADO crudo (sin filtros de EF: viajan también las filas soft-deleted y las de todos los tenants; sin value converters: el texto cifrado de credenciales viaja intacto, emparejado con las claves de Data Protection que no se mueven del volumen), FKs en `DEFERRABLE` durante una única transacción (evita ordenar 50 tablas con auto-referencias), `COPY` binario con conversión guiada por el catálogo del destino, verificación de congruencia de esquemas columna a columna y de recuentos tabla a tabla, guardarraíl contra re-ejecuciones sobre un destino con datos, y reajuste de secuencias identity. **Ensayado completo en local**: siembra real (985 documentos, 19 usuarios) → copia → 50 tablas con recuentos idénticos → login y barrido de páginas sobre la base migrada. La ventana de parada y el camino de vuelta están escritos en `RUNBOOK-MIGRACION-POSTGRESQL.md` — el volumen SQLite no se toca en ningún paso del corte.
 8. ✅ **`EnableRetryOnFailure`** — ya incluido en `b971eed`.
 
-**Lo que queda para el corte** (todo con el usuario delante, nada de código): crear el Postgres de Railway en `europe-west4` y comprobar la región del servicio actual (punto 1 / RGPD § 6), ejecutar `RUNBOOK-MIGRACION-POSTGRESQL.md` con su verificación end-to-end en navegador dentro de la propia ventana, y el DPA/Términos de Uso (condición aparte de ADR-003). Hasta entonces main sigue desplegando sobre SQLite sin cambios.
+## Corte a producción — ejecutado 2026-08-01
+
+El usuario decidió que la producción de entonces solo tenía datos de prueba (desechables), así que el corte se simplificó: sin ejecutar `MigradorDatosPostgreSql` (que queda listo para el día que haya datos reales), Postgres arrancó vacío y la propia app lo migró y resembró al arrancar. Confirmado por log de arranque real en Railway:
+
+- ✅ Servicio de la app migrado a la región **EU West (Ámsterdam)** — decisión y ejecución del usuario.
+- ✅ Migraciones aplicadas contra el Postgres de Railway sin error.
+- ✅ Siembra completa: 9+3 clientes (dos tenants Cliente Delegante de demo), 2252+ documentos, KMS operativo, delegaciones de soporte aprovisionadas.
+- 🟡 **Región del Postgres de Railway sin confirmar por el usuario** — se le pidió comprobarlo en Settings → Region del propio servicio de base de datos (debería ser también EU West; nunca llegó la confirmación explícita).
+- 🟡 **Backup a S3 con pg_dump — corregido pero sin una segunda confirmación en producción**: el primer backup automático falló (`pg_dump: aborting because of server version mismatch` — el `postgresql-client` de los repos por defecto de la imagen resuelve a la 16, insuficiente contra el Postgres 18.4 de Railway). Corregido instalando `postgresql-client-18` desde el repositorio oficial PGDG (commit `04245aa`, ya en `main`) — pendiente un log de arranque posterior a ese redeploy que confirme "Backup subido correctamente a s3://...".
+- 🟡 **Un login dio HTTP 400** justo después de ese redeploy — diagnosticado como coincidencia de tiempos con el propio redeploy en curso (no como fallo de la app: la cookie de sesión sí quedó puesta, confirmado porque al volver atrás la sesión ya estaba iniciada). No confirmado que no vuelva a pasar en un despliegue ya estable.
+
+**Pendiente real, no bloqueante para seguir trabajando**: el DPA/Términos de Uso (condición aparte de `ADR-003`, revisión legal); retirar la rama SQLite (`ProveedorBaseDatos`, las migraciones de Infrastructure, `BackfillTenantPorDefectoTests`, la rama SQLite de `BackupHostedService`) una vez el corte quede confirmado sin cabos sueltos — ver "Después del corte" en `RUNBOOK-MIGRACION-POSTGRESQL.md`; borrar en S3 los backups anteriores a la activación de KMS (viajan con las claves de Data Protection en claro) — decisión ya tomada por el usuario, pendiente de ejecutar en la consola de AWS.
 
 ## Fase 61 — Dos bugs reales de Blazor Server destapados por PostgreSQL (2026-08-01)
 
