@@ -39,12 +39,24 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # LibreOfficeConversorWordPdfService invoca en modo headless para convertir
 # Word (.docx) a PDF al subir un Documento — ver ARCHITECTURE.md.
 #
-# postgresql-client aporta pg_dump, que BackupHostedService invoca cuando el
-# motor es PostgreSQL. La base Debian de esta imagen (trixie) trae el cliente
-# 17 — pg_dump tiene que ser >= que la versión del servidor, así que si el
-# Postgres de Railway sube de versión mayor hay que revisar esto.
+# postgresql-client-18 aporta pg_dump, que BackupHostedService invoca cuando
+# el motor es PostgreSQL. pg_dump tiene que ser >= la versión del servidor
+# (el Postgres de Railway es 18.4, comprobado 2026-08-01) — el paquete
+# "postgresql-client" sin versión de los repos por defecto de esta imagen
+# resuelve a la 16, insuficiente (falla con "aborting because of server
+# version mismatch"), así que se instala desde el repositorio oficial de
+# PostgreSQL (PGDG), que sí publica la 18. Si el Postgres de Railway sube de
+# versión mayor otra vez, hay que subir el número de aquí abajo también.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libreoffice-writer postgresql-client \
+    && apt-get install -y --no-install-recommends libreoffice-writer curl ca-certificates gnupg \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail \
+       https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && . /etc/os-release \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+       > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client-18 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/publish .
