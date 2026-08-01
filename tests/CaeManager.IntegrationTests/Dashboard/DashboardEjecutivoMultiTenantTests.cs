@@ -14,6 +14,8 @@ using MediatR;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Dashboard;
@@ -49,6 +51,11 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
 
         var servicios = new ServiceCollection();
         servicios.AddApplication();
+        // AddApplication() registra LoggingBehavior en el pipeline de MediatR
+        // (P1-10 de docs/business/MATURITY_REVIEW.md), que pide ILoggerFactory
+        // por constructor — este ServiceCollection de test no monta Serilog,
+        // así que basta con el sumidero nulo para poder resolver el pipeline.
+        servicios.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         servicios.AddSingleton<IApplicationDbContext>(_dbContext);
         servicios.AddSingleton<IUnitOfWork>(_dbContext);
         servicios.AddSingleton<IAlcanceDatosService>(new AlcanceDatosServiceFalso());
