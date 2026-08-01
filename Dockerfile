@@ -11,6 +11,7 @@ WORKDIR /src
 COPY src/CaeManager.Domain/CaeManager.Domain.csproj src/CaeManager.Domain/
 COPY src/CaeManager.Application/CaeManager.Application.csproj src/CaeManager.Application/
 COPY src/CaeManager.Infrastructure/CaeManager.Infrastructure.csproj src/CaeManager.Infrastructure/
+COPY src/CaeManager.Migrations.PostgreSQL/CaeManager.Migrations.PostgreSQL.csproj src/CaeManager.Migrations.PostgreSQL/
 COPY src/CaeManager.Web/CaeManager.Web.csproj src/CaeManager.Web/
 RUN dotnet restore src/CaeManager.Web/CaeManager.Web.csproj -r linux-x64
 
@@ -37,8 +38,13 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # también Calc/Impress/etc. sin necesidad) aporta el binario "soffice" que
 # LibreOfficeConversorWordPdfService invoca en modo headless para convertir
 # Word (.docx) a PDF al subir un Documento — ver ARCHITECTURE.md.
+#
+# postgresql-client aporta pg_dump, que BackupHostedService invoca cuando el
+# motor es PostgreSQL. La base Debian de esta imagen (trixie) trae el cliente
+# 17 — pg_dump tiene que ser >= que la versión del servidor, así que si el
+# Postgres de Railway sube de versión mayor hay que revisar esto.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libreoffice-writer \
+    && apt-get install -y --no-install-recommends libreoffice-writer postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/publish .

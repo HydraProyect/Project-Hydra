@@ -159,6 +159,40 @@ builder.Services.AddRazorComponents()
 
 var app = builder.Build();
 
+// Modo de un solo uso para el corte a PostgreSQL (ADR-003, punto 7 del
+// backlog de migración): con MigracionDatosPostgreSql:Destino configurado,
+// el proceso copia todos los datos del SQLite actual al destino, verifica
+// los recuentos y termina — no arranca el servidor ni siembra nada. Ver
+// MigradorDatosPostgreSql y RUNBOOK-MIGRACION-POSTGRESQL.md.
+var destinoMigracionDatos = app.Configuration["MigracionDatosPostgreSql:Destino"];
+if (!string.IsNullOrWhiteSpace(destinoMigracionDatos))
+{
+    if (CaeManager.Infrastructure.Persistence.LectorProveedorBaseDatos.Leer(app.Configuration)
+        != CaeManager.Infrastructure.Persistence.ProveedorBaseDatos.Sqlite)
+    {
+        throw new InvalidOperationException(
+            "La migración de datos lee el origen del connection string CaeManagerDb, que debe ser el SQLite " +
+            "actual — con Database:Proveedor=PostgreSql apuntaría a otra base PostgreSQL, no al origen real.");
+    }
+
+    var loggerMigracionDatos = app.Services.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        await CaeManager.Infrastructure.Persistence.Migracion.MigradorDatosPostgreSql.EjecutarAsync(
+            app.Configuration.GetConnectionString("CaeManagerDb")!,
+            destinoMigracionDatos,
+            app.Configuration.GetValue<bool>("MigracionDatosPostgreSql:SobrescribirDestino"),
+            loggerMigracionDatos);
+    }
+    catch (Exception ex)
+    {
+        loggerMigracionDatos.LogError(ex, "La migración de datos a PostgreSQL falló — el destino no debe usarse.");
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
 // Detrás de un proxy inverso (Railway, cualquier despliegue en contenedor —
 // ver DEPLOY.md), Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS

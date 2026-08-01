@@ -1,4 +1,4 @@
-using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento;
+﻿using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -22,7 +22,7 @@ namespace CaeManager.IntegrationTests;
 /// </summary>
 public class RevisionIaDocumentoTests : IAsyncLifetime
 {
-    private readonly string _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-tests-{Guid.NewGuid()}.db");
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _usuarioIdDePrueba = Guid.NewGuid();
     private CaeManagerDbContext _dbContext = null!;
     private Trabajador _trabajadorVisible = null!;
@@ -34,7 +34,7 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
     {
         var tenantActual = new TenantActualAmbiental { TenantId = TenantSeedData.IdPorDefecto };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 
@@ -64,12 +64,8 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        await _dbContext.Database.EnsureDeletedAsync();
         await _dbContext.DisposeAsync();
-        // Microsoft.Data.Sqlite devuelve la conexión a su pool al disponer el
-        // contexto, y ese handle sigue abierto: en Windows impide borrar el
-        // archivo y hacía fallar el teardown (no el cuerpo) del test.
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
     }
 
     [Fact]
