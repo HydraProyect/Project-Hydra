@@ -3,6 +3,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 
@@ -24,6 +25,7 @@ public class CrearSubcontrataCommandHandler(
     ISubcontrataRepository repositorio,
     ISubcontrataClienteRepository subcontrataClienteRepositorio,
     ISubcontrataEmpresaRepository subcontrataEmpresaRepositorio,
+    IApplicationDbContext dbContext,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearSubcontrataCommand, Result<Guid>>
 {
@@ -32,13 +34,23 @@ public class CrearSubcontrataCommandHandler(
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Subcontrata.RazonSocialDuplicada", "Ya existe una subcontrata con esta razón social."));
 
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        var clienteIds = request.ClienteIds.Distinct().ToList();
+        var empresaIds = request.EmpresaIds.Distinct().ToList();
+
+        if (await dbContext.Clientes.Where(c => clienteIds.Contains(c.Id)).CountAsync(cancellationToken) != clienteIds.Count)
+            return Result.Fallo<Guid>(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));
+
+        if (await dbContext.Empresas.Where(e => empresaIds.Contains(e.Id)).CountAsync(cancellationToken) != empresaIds.Count)
+            return Result.Fallo<Guid>(Error.Crear("Subcontrata.EmpresaNoEncontrada", "Alguna de las empresas seleccionadas no existe."));
+
         var subcontrata = new Subcontrata(request.RazonSocial);
         repositorio.Agregar(subcontrata);
 
-        foreach (var clienteId in request.ClienteIds.Distinct())
+        foreach (var clienteId in clienteIds)
             subcontrataClienteRepositorio.Agregar(new SubcontrataCliente(subcontrata.Id, clienteId));
 
-        foreach (var empresaId in request.EmpresaIds.Distinct())
+        foreach (var empresaId in empresaIds)
             subcontrataEmpresaRepositorio.Agregar(new SubcontrataEmpresa(subcontrata.Id, empresaId));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

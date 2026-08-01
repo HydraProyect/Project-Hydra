@@ -4,6 +4,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 
@@ -22,7 +23,10 @@ public record DetectarCamposDocumentoQuery(byte[] Contenido, string NombreArchiv
 
 public record DeteccionCamposDocumentoDto(Guid? TipoDocumentoId, Guid? TrabajadorId, int ConfianzaGeneral);
 
-public class DetectarCamposDocumentoQueryHandler(IDocumentAIRouterService router, IApplicationDbContext dbContext)
+public class DetectarCamposDocumentoQueryHandler(
+    IDocumentAIRouterService router,
+    IApplicationDbContext dbContext,
+    IOptions<DeteccionPreviaDocumentoOptions> opciones)
     : IRequestHandler<DetectarCamposDocumentoQuery, Result<DeteccionCamposDocumentoDto>>
 {
     private const string TipoEsperadoDesconocido = "documento CAE (tipo todavía no seleccionado por el usuario, infiérelo libremente del contenido)";
@@ -33,6 +37,15 @@ public class DetectarCamposDocumentoQueryHandler(IDocumentAIRouterService router
     public async Task<Result<DeteccionCamposDocumentoDto>> Handle(
         DetectarCamposDocumentoQuery request, CancellationToken cancellationToken)
     {
+        // Apagado por defecto (ver DeteccionPreviaDocumentoOptions): sin esto,
+        // el PDF completo de cualquier Documento de Trabajador —incluido un
+        // reconocimiento médico— viajaba a un proveedor de IA externo antes
+        // de que existiera un TipoDocumento que lo protegiera con
+        // VerificacionIaActiva/LecturaIaActiva. Devolver "sin sugerencia" deja
+        // el alta manual intacta, solo sin el autorrelleno.
+        if (!opciones.Value.Activa)
+            return Result.Exito(new DeteccionCamposDocumentoDto(null, null, 0));
+
         var resultado = await router.ProcesarAsync(request.Contenido, request.NombreArchivo, TipoEsperadoDesconocido, cancellationToken);
         if (resultado.EsFallido)
             return Result.Fallo<DeteccionCamposDocumentoDto>(resultado.Error);

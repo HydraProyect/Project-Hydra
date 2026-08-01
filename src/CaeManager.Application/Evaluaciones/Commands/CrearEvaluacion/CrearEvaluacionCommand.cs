@@ -3,6 +3,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Evaluaciones;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Evaluaciones.Commands.CrearEvaluacion;
 
@@ -19,11 +20,20 @@ public class CrearEvaluacionCommandValidator : AbstractValidator<CrearEvaluacion
     }
 }
 
-public class CrearEvaluacionCommandHandler(IEvaluacionRepository repositorio, IUnitOfWork unitOfWork)
+public class CrearEvaluacionCommandHandler(
+    IEvaluacionRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearEvaluacionCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearEvaluacionCommand request, CancellationToken cancellationToken)
     {
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        if (!await dbContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Evaluacion.CentroNoEncontrado", "No encontramos este centro."));
+
+        if (request.TrabajadorId is { } trabajadorId
+            && !await dbContext.Trabajadores.AnyAsync(t => t.Id == trabajadorId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Evaluacion.TrabajadorNoEncontrado", "No encontramos este trabajador."));
+
         var evaluacion = new Evaluacion(request.CentroId, request.TrabajadorId, request.Fecha, request.Puntuacion, request.Observaciones);
         repositorio.Agregar(evaluacion);
         await unitOfWork.SaveChangesAsync(cancellationToken);

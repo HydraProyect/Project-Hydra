@@ -1,6 +1,7 @@
 using CaeManager.Infrastructure.Persistence.Seed;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Infrastructure.Identity;
@@ -12,10 +13,14 @@ namespace CaeManager.Infrastructure.Identity;
 /// no es determinista y requiere las APIs reales para calcularse bien.
 ///
 /// Email/contraseña son configurables (AdministradorInicial:Email /
-/// AdministradorInicial:Contrasena) para que un despliegue compartido (ver
-/// DEPLOY.md) no arranque con las credenciales por defecto, públicas en
-/// este mismo archivo — en desarrollo local, sin configurar nada, se usan
-/// esos valores por defecto tal cual siempre.
+/// AdministradorInicial:Contrasena). En desarrollo local, sin configurar
+/// nada, se usan los valores por defecto públicos en este mismo archivo.
+/// En producción los defaults NO se usan nunca: si falta la configuración,
+/// el arranque falla con instrucciones (hallazgo P0-2 de
+/// docs/business/MATURITY_REVIEW.md — nada impedía que producción arrancara
+/// con las credenciales hardcodeadas del repo). Fallar el arranque es
+/// deliberado: un despliegue de producción accesible con una contraseña
+/// pública es peor que un despliegue caído.
 ///
 /// El Administrador inicial nace con 2FA ya activo (P1-13 de
 /// docs/business/MATURITY_REVIEW.md exige 2FA para todo Administrador —
@@ -38,7 +43,8 @@ public static class IdentitySeeder
         RoleManager<IdentityRole<Guid>> roleManager,
         IUserStore<ApplicationUser> userStore,
         ILogger logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment entorno)
     {
         foreach (var rol in Identity.Roles.Todos)
         {
@@ -46,8 +52,21 @@ public static class IdentitySeeder
                 await roleManager.CreateAsync(new IdentityRole<Guid>(rol));
         }
 
-        var email = configuration["AdministradorInicial:Email"] ?? EmailAdministradorInicial;
-        var contrasena = configuration["AdministradorInicial:Contrasena"] ?? ContrasenaAdministradorInicial;
+        var emailConfigurado = configuration["AdministradorInicial:Email"];
+        var contrasenaConfigurada = configuration["AdministradorInicial:Contrasena"];
+
+        if (entorno.IsProduction()
+            && (string.IsNullOrWhiteSpace(emailConfigurado) || string.IsNullOrWhiteSpace(contrasenaConfigurada)))
+        {
+            throw new InvalidOperationException(
+                "En producción es obligatorio configurar AdministradorInicial:Email y "
+                + "AdministradorInicial:Contrasena (variables AdministradorInicial__Email / "
+                + "AdministradorInicial__Contrasena, ver DEPLOY.md) — las credenciales por "
+                + "defecto son públicas en el código fuente y no se usan fuera de desarrollo.");
+        }
+
+        var email = emailConfigurado ?? EmailAdministradorInicial;
+        var contrasena = contrasenaConfigurada ?? ContrasenaAdministradorInicial;
 
         if (await userManager.FindByEmailAsync(email) is not null)
             return;

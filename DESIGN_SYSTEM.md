@@ -164,6 +164,8 @@ Un único set de iconos **outline** en todo el sistema (trazo 1.75px, sin rellen
 
 Documentación detallada (Do/Don't/accesibilidad) pendiente de completar por componente a medida que se usan en más de un contexto — ver nota al inicio de esta sección.
 
+**Attribute splatting** (P2 #28 de `docs/business/MATURITY_REVIEW.md`): patrón establecido en Boton/Badge/CampoTexto — `[Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AtributosAdicionales { get; set; }` capturado en el elemento raíz con `@attributes="AtributosAdicionales"`. Blazor **no** combina automáticamente un `class`/`style` splatteado con uno explícito del elemento — el último atributo emitido gana entero (reemplaza, no concatena), a diferencia de lo que la posición sugeriría; verificado con un test que falló en CI al asumir lo contrario. Por eso `class` se saca de `AtributosAdicionales` y se combina a mano (`ClaseCompleta`/`AtributosSinClase` en cada componente) — el resto de atributos sí puede pisar el valor por defecto del componente si hace falta. Deja pasar `aria-*`/`data-*`/cualquier atributo HTML no reconocido sin tener que añadir un `[Parameter]` nuevo por cada caso. El resto de componentes de la tabla de arriba todavía no lo tienen — aplicar el mismo patrón (incluido el merge manual de `class`) cuando haga falta pasar un atributo que hoy no admiten, no antes (YAGNI).
+
 Cada uno, al implementarse, se documenta en este archivo con esta estructura fija:
 
 ```

@@ -3,6 +3,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Vehiculos;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
 
@@ -40,11 +41,20 @@ public class CrearVehiculoCommandValidator : AbstractValidator<CrearVehiculoComm
     }
 }
 
-public class CrearVehiculoCommandHandler(IVehiculoRepository repositorio, IUnitOfWork unitOfWork)
+public class CrearVehiculoCommandHandler(IVehiculoRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearVehiculoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearVehiculoCommand request, CancellationToken cancellationToken)
     {
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        if (request.EmpresaId is { } empresaId
+            && !await dbContext.Empresas.AnyAsync(e => e.Id == empresaId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Vehiculo.EmpresaNoEncontrada", "No encontramos esta empresa."));
+
+        if (request.SubcontrataId is { } subcontrataId
+            && !await dbContext.Subcontratas.AnyAsync(s => s.Id == subcontrataId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Vehiculo.SubcontrataNoEncontrada", "No encontramos esta subcontrata."));
+
         if (await repositorio.ExisteConMatriculaAsync(request.NumeroPlaca, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Vehiculo.MatriculaDuplicada", "Ya existe un vehículo con este número de placa."));
 
