@@ -154,6 +154,45 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
+// Rate limiting por IP sobre /cuenta/* (login local, callback de Microsoft,
+// verificación 2FA) — junto con el lockout de Identity, cierra el hallazgo
+// P0-2 de docs/business/MATURITY_REVIEW.md (fuerza bruta sin fricción): el
+// lockout protege cada cuenta concreta, este límite frena el barrido de
+// muchas cuentas distintas desde una misma IP. El resto de la aplicación no
+// se limita: es Blazor Server con sesión iniciada, el tráfico útil viaja por
+// el circuito SignalR, no por peticiones HTTP repetidas. Limitador en
+// memoria: suficiente mientras el techo sea 1 réplica (autodocumentado en
+// ARCHITECTURE.md); con multi-réplica habría que moverlo a un almacén
+// compartido, igual que el resto de estado de proceso.
+builder.Services.AddRateLimiter(opciones =>
+{
+    opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    opciones.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
+    {
+        if (!contexto.Request.Path.StartsWithSegments("/cuenta"))
+            return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("sin-limite");
+
+        // Con sesión iniciada (cerrar sesión, cambio de Delegated Workspace
+        // vía /cuenta/cliente-activo) el margen es holgado — el objetivo son
+        // los anónimos que martillean el login.
+        var limite = contexto.User.Identity?.IsAuthenticated == true ? 60 : 10;
+
+        // La IP real ya está resuelta: UseForwardedHeaders corre al principio
+        // del pipeline (ver más abajo) y el middleware de rate limiting actúa
+        // después, por petición.
+        var ip = contexto.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
+
+        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            $"{limite}:{ip}",
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = limite,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
+    });
+});
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
@@ -193,7 +232,7 @@ using (var scope = app.Services.CreateScope())
     // como tenant #1 (ver AmbitoTenantExplicito, docs/MULTITENANCY.md § 8.4).
     using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
     {
-        await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration);
+        await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration, app.Environment);
     }
 
     // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
@@ -239,6 +278,11 @@ app.UseRequestLocalization(new RequestLocalizationOptions()
     .AddSupportedUICultures(culturaEspanola.Name));
 
 app.UseAuthentication();
+
+// Tras UseAuthentication (el límite distingue anónimo/autenticado) y antes
+// de que ningún endpoint procese la petición.
+app.UseRateLimiter();
+
 app.UseAuthorization();
 app.UseAntiforgery();
 

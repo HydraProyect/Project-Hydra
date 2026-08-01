@@ -31,8 +31,8 @@ En la pestaña **Variables** del servicio de la **app**, añade:
 | `ConnectionStrings__CaeManagerDb` | `Host=${{Postgres.PGHOST}};Port=${{Postgres.PGPORT}};Database=${{Postgres.PGDATABASE}};Username=${{Postgres.PGUSER}};Password=${{Postgres.PGPASSWORD}}` | Conexión al servicio de PostgreSQL del paso 2 — usa referencias de variable de Railway (`${{NombreDelServicio.VARIABLE}}`, ajustando el nombre si tu servicio de Postgres no se llama "Postgres") en vez de copiar la contraseña a mano, para que no se desincronice si Railway la rota |
 | `AlmacenamientoArchivos__Ruta` | `/data/documentos` | PDFs adjuntos de Documentos, en el volumen |
 | `DataProtection__RutaClaves` | `/data/dataprotection-keys` | Claves de cifrado de credenciales (Empresa/Centro) — si no se persisten, cada redeploy invalida las credenciales ya guardadas |
-| `AdministradorInicial__Email` | (tu elección, p. ej. `admin@ProjectHydra.com`) | Evita arrancar con el email de administrador por defecto, público en el propio código |
-| `AdministradorInicial__Contrasena` | (una contraseña real, mínimo 10 caracteres) | Igual que arriba, para la contraseña |
+| `AdministradorInicial__Email` | (tu elección, p. ej. `admin@ProjectHydra.com`) | **Obligatoria en producción** (`ASPNETCORE_ENVIRONMENT=Production`): sin ella el arranque falla a propósito — las credenciales por defecto son públicas en el código y solo se usan en desarrollo |
+| `AdministradorInicial__Contrasena` | (una contraseña real, mínimo 10 caracteres) | Igual que arriba, para la contraseña — también obligatoria en producción |
 | `ConversionWordPdf__TimeoutSegundos` | (opcional, por defecto `60`) | Tiempo máximo que se espera a LibreOffice al convertir un Word (.docx) a PDF antes de darlo por fallado — no suele hacer falta tocarlo |
 | `DatosPrueba__Activo` | `true` (opcional, solo para un entorno de pruebas) | Siembra una base de datos genérica de cientos de filas por entidad — ver más abajo |
 | `Logging__RutaArchivo` | (opcional, por defecto `App_Data/logs/log-.txt` relativo al volumen) | Ruta del log estructurado de Serilog en disco (consola + archivo con rotación diaria) — ver "Iniciativa de hardening" en `ROADMAP.md` |
