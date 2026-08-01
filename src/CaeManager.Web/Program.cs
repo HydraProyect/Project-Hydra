@@ -1,3 +1,4 @@
+using ApexCharts;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
 using CaeManager.Infrastructure.DependencyInjection;
@@ -117,6 +118,7 @@ builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<BusquedaGlobalService>();
 builder.Services.AddScoped<AsistenteIaService>();
 builder.Services.AddScoped<CaeManager.Web.Components.Workspace.ContextWorkspaceService>();
+builder.Services.AddApexCharts();
 
 builder.Services.AddCascadingAuthenticationState();
 var authenticationBuilder = builder.Services
