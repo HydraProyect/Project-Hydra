@@ -13,7 +13,7 @@ public record ObtenerRequisitosDocumentalesDeCentroQuery(Guid CentroId)
     : IRequest<IReadOnlyList<RequisitoDocumentalDto>>;
 
 public record RequisitoDocumentalDto(
-    Guid Id, string Descripcion, string? PeriodicidadEspecial, bool BloqueaAcceso, string? Notas);
+    Guid Id, string Descripcion, string? PeriodicidadEspecial, bool BloqueaAcceso, string? Notas, Guid Version);
 
 public class ObtenerRequisitosDocumentalesDeCentroQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerRequisitosDocumentalesDeCentroQuery, IReadOnlyList<RequisitoDocumentalDto>>
@@ -27,7 +27,7 @@ public class ObtenerRequisitosDocumentalesDeCentroQueryHandler(IApplicationDbCon
         return await dbContext.RequisitosDocumentales
             .Where(r => r.CentroId == request.CentroId)
             .OrderBy(r => r.Descripcion)
-            .Select(r => new RequisitoDocumentalDto(r.Id, r.Descripcion, r.PeriodicidadEspecial, r.BloqueaAcceso, r.Notas))
+            .Select(r => new RequisitoDocumentalDto(r.Id, r.Descripcion, r.PeriodicidadEspecial, r.BloqueaAcceso, r.Notas, r.Version))
             .ToListAsync(cancellationToken);
     }
 }
