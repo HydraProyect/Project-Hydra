@@ -11,6 +11,7 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject NavigationManager Navigation
 @inject IOptions<AzureAdOptions> OpcionesAzureAd
+@inject ILoggerFactory LoggerFactory
 
 <PageTitle>Iniciar sesión — CAE Manager</PageTitle>
 
@@ -90,9 +91,12 @@
 
         var resultado = await SignInManager.PasswordSignInAsync(
             Entrada.Email, Entrada.Password, isPersistent: true, lockoutOnFailure: false);
+        var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
 
         if (resultado.RequiresTwoFactor)
         {
+            logger.LogInformation("Login con contraseña correcto, pendiente de 2FA: {Email}", Entrada.Email);
+
             var destino = "/cuenta/verificar-2fa";
             if (!string.IsNullOrWhiteSpace(ReturnUrl))
                 destino += $"?ReturnUrl={Uri.EscapeDataString(ReturnUrl)}";
@@ -108,6 +112,8 @@
             // resolverlo ya en el login evita un salto visible de "/" (o
             // ReturnUrl) a la pantalla de cambio de contraseña.
             var usuario = await UserManager.FindByEmailAsync(Entrada.Email);
+            logger.LogInformation("Login correcto: {Email} ({UsuarioId})", Entrada.Email, usuario?.Id);
+
             if (usuario is { DebeCambiarContrasena: true })
             {
                 Navigation.NavigateTo("/cuenta/cambiar-contrasena", forceLoad: true);
@@ -117,6 +123,11 @@
             Navigation.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
             return;
         }
+
+        if (resultado.IsLockedOut)
+            logger.LogWarning("Login rechazado, cuenta bloqueada: {Email}", Entrada.Email);
+        else
+            logger.LogWarning("Login fallido (credenciales inválidas): {Email}", Entrada.Email);
 
         mensajeError = "No pudimos iniciar sesión. Revisa tu correo y contraseña e intenta nuevamente.";
     }
