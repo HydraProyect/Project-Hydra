@@ -1,8 +1,12 @@
-<span class="badge badge-@Tono.ToString().ToLowerInvariant()">
+<span class="badge badge-@Tono.ToString().ToLowerInvariant()" @attributes="AtributosAdicionales">
     @ChildContent
 </span>
 
 @code {
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public TonoBadge Tono { get; set; } = TonoBadge.Neutro;
+
+    /// <summary>Attribute splatting — ver el comentario de Boton.razor, mismo criterio (P2 #28 de docs/business/MATURITY_REVIEW.md).</summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AtributosAdicionales { get; set; }
 }
