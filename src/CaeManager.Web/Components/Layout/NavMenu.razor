@@ -10,8 +10,14 @@
     Dashboard/Asignaciones/Visitas/Vehículos/Alertas/Calendario/Reportes.
     Los datos que ve cada enlace ya quedan acotados por IAlcanceDatosService
     en las Queries — este menú solo decide qué pestañas existen, no qué
-    filas aparecen dentro.
+    filas aparecen dentro. Comunicaciones es la excepción explícita a "solo
+    lo que ya funciona": el enlace se oculta con Comunicaciones:Activo
+    (apagado por defecto, P2 #26 de docs/business/MATURITY_REVIEW.md) porque
+    no hay ingesta real detrás — ver ComunicacionesOptions.
 *@
+@using CaeManager.Infrastructure.Comunicaciones
+@using Microsoft.Extensions.Options
+@inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
 <nav class="nav-principal">
     <AuthorizeView Roles="@RolesConMenuCompleto">
         <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
@@ -65,9 +71,12 @@
         <NavLink class="nav-item" href="incidencias">
             <Icono Nombre="incidencias" /> Incidencias
         </NavLink>
-        <NavLink class="nav-item" href="comunicaciones">
-            <Icono Nombre="chat" /> Comunicaciones
-        </NavLink>
+        @if (OpcionesComunicaciones.Value.Activo)
+        {
+            <NavLink class="nav-item" href="comunicaciones">
+                <Icono Nombre="chat" /> Comunicaciones
+            </NavLink>
+        }
 
         <span class="nav-grupo-titulo">Control</span>
         <NavLink class="nav-item" href="alertas">

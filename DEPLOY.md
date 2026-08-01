@@ -43,6 +43,7 @@ En la pestaña **Variables** del servicio de la **app**, añade:
 | `DatosPrueba__Activo` | `true` (opcional, solo para un entorno de pruebas) | Siembra una base de datos genérica de cientos de filas por entidad — ver más abajo |
 | `Logging__RutaArchivo` | (opcional, por defecto `App_Data/logs/log-.txt` relativo al volumen) | Ruta del log estructurado de Serilog en disco (consola + archivo con rotación diaria) — ver "Iniciativa de hardening" en `ROADMAP.md` |
 | `Sentry__Dsn` | (opcional, vacío por defecto) | Activa el error tracking de Sentry si se rellena con el DSN de un proyecto real — sin esta variable la SDK queda completamente inerte, no hace falta tener cuenta de Sentry para desplegar |
+| `Comunicaciones__Activo` | `true` (opcional, por defecto `false`) | Módulo congelado (P2 #26 de `docs/business/MATURITY_REVIEW.md`): sin esta variable, `/comunicaciones` responde como si la ruta no existiera. No hay ingesta real de Microsoft Graph detrás — no lo actives frente a un cliente real hasta que la haya |
 | `Backups__Activo` | `true` (opcional, por defecto `false`) | Activa el backup automático diario de `CaeManager.db` + `dataprotection-keys/` a S3 — ver `RUNBOOK-CLAVES.md` |
 | `Backups__Aws__AccessKeyId` / `Backups__Aws__SecretAccessKey` | credenciales de un usuario IAM con permisos solo sobre el bucket de backups (`s3:PutObject`/`GetObject`/`ListBucket`) | Nunca uses las credenciales root de la cuenta de AWS para esto |
 | `Backups__Aws__BucketName` | nombre del bucket S3 | |
