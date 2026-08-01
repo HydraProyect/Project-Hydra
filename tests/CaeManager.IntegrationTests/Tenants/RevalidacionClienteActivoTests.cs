@@ -208,5 +208,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("GestorCae");
 
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
+
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 }
