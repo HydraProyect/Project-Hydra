@@ -114,49 +114,106 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
         () => new Cliente("RENDELSUR", "B12345674", esCritico: false));
 
     [Fact]
-    public Task Aislamiento_Centro() => VerificarAislamientoAsync(
-        () => new Centro(Guid.NewGuid(), Guid.NewGuid(), "Planta Sevilla"));
+    public Task Aislamiento_Centro()
+    {
+        Guid clienteId = default, empresaId = default;
+        return VerificarAislamientoAsync(
+            () => new Centro(clienteId, empresaId, "Planta Sevilla"),
+            async contexto =>
+            {
+                clienteId = await SembrarClienteAsync(contexto);
+                empresaId = await SembrarEmpresaAsync(contexto);
+            });
+    }
 
     [Fact]
-    public Task Aislamiento_Documento() => VerificarAislamientoAsync(
-        () => Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), null));
+    public Task Aislamiento_Documento()
+    {
+        Guid trabajadorId = default, tipoDocumentoId = default;
+        return VerificarAislamientoAsync(
+            () => Documento.DeTrabajador(trabajadorId, tipoDocumentoId, new DateOnly(2026, 1, 1), null),
+            async contexto =>
+            {
+                trabajadorId = await SembrarTrabajadorAsync(contexto);
+                tipoDocumentoId = await SembrarTipoDocumentoAsync(contexto);
+            });
+    }
 
     [Fact]
     public Task Aislamiento_Empresa() => VerificarAislamientoAsync(
         () => new Empresa("Ibertec S.A."));
 
     [Fact]
-    public Task Aislamiento_RequisitoDocumental() => VerificarAislamientoAsync(
-        () => new RequisitoDocumental(Guid.NewGuid(), "AEAT nominativo", null, bloqueaAcceso: false));
+    public Task Aislamiento_RequisitoDocumental()
+    {
+        Guid centroId = default;
+        return VerificarAislamientoAsync(
+            () => new RequisitoDocumental(centroId, "AEAT nominativo", null, bloqueaAcceso: false),
+            async contexto => centroId = await SembrarCentroAsync(contexto));
+    }
 
     [Fact]
     public Task Aislamiento_Subcontrata() => VerificarAislamientoAsync(
         () => new Subcontrata("Subcontrata de prueba"));
 
     [Fact]
-    public Task Aislamiento_Trabajador() => VerificarAislamientoAsync(
-        () => Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Pérez", "12345678Z"));
+    public Task Aislamiento_Trabajador()
+    {
+        Guid empresaId = default;
+        return VerificarAislamientoAsync(
+            () => Trabajador.DeEmpresa(empresaId, "Juan", "Pérez", "12345678Z"),
+            async contexto => empresaId = await SembrarEmpresaAsync(contexto));
+    }
 
     [Fact]
-    public Task Aislamiento_Vehiculo() => VerificarAislamientoAsync(
-        () => Vehiculo.DeEmpresa(Guid.NewGuid(), "Furgoneta 1", "Modelo X", "1234ABC"));
+    public Task Aislamiento_Vehiculo()
+    {
+        Guid empresaId = default;
+        return VerificarAislamientoAsync(
+            () => Vehiculo.DeEmpresa(empresaId, "Furgoneta 1", "Modelo X", "1234ABC"),
+            async contexto => empresaId = await SembrarEmpresaAsync(contexto));
+    }
 
     [Fact]
-    public Task Aislamiento_Visita() => VerificarAislamientoAsync(
-        () => new Visita(Guid.NewGuid(), new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 2), null));
+    public Task Aislamiento_Visita()
+    {
+        Guid centroId = default;
+        return VerificarAislamientoAsync(
+            () => new Visita(centroId, new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 2), null),
+            async contexto => centroId = await SembrarCentroAsync(contexto));
+    }
 
     [Fact]
-    public Task Aislamiento_Proyecto() => VerificarAislamientoAsync(
-        () => Proyecto.Crear(Guid.NewGuid(), Guid.NewGuid(), "Parada técnica 2026", new DateOnly(2026, 1, 1), null, null));
+    public Task Aislamiento_Proyecto()
+    {
+        Guid clienteId = default, centroId = default;
+        return VerificarAislamientoAsync(
+            () => Proyecto.Crear(clienteId, centroId, "Parada técnica 2026", new DateOnly(2026, 1, 1), null, null),
+            async contexto =>
+            {
+                clienteId = await SembrarClienteAsync(contexto);
+                centroId = await SembrarCentroAsync(contexto);
+            });
+    }
 
     [Fact]
-    public Task Aislamiento_Evaluacion() => VerificarAislamientoAsync(
-        () => new Evaluacion(Guid.NewGuid(), null, new DateOnly(2026, 1, 1), 80, null));
+    public Task Aislamiento_Evaluacion()
+    {
+        Guid centroId = default;
+        return VerificarAislamientoAsync(
+            () => new Evaluacion(centroId, null, new DateOnly(2026, 1, 1), 80, null),
+            async contexto => centroId = await SembrarCentroAsync(contexto));
+    }
 
     [Fact]
-    public Task Aislamiento_Incidencia() => VerificarAislamientoAsync(
-        () => new Incidencia(Guid.NewGuid(), null, TipoIncidencia.Accidente, GravedadIncidencia.Leve,
-            new DateOnly(2026, 1, 1), "Descripción de prueba"));
+    public Task Aislamiento_Incidencia()
+    {
+        Guid centroId = default;
+        return VerificarAislamientoAsync(
+            () => new Incidencia(centroId, null, TipoIncidencia.Accidente, GravedadIncidencia.Leve,
+                new DateOnly(2026, 1, 1), "Descripción de prueba"),
+            async contexto => centroId = await SembrarCentroAsync(contexto));
+    }
 
     // Hallazgo A-1 de INFORME-AUDITORIA-TECNICA.md: TarifaCliente heredaba de
     // EntidadBase pero se quedó sin HasQueryFilter, así que
@@ -164,8 +221,13 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     // también las borradas lógicamente). Divulgación cruzada de precios
     // comerciales entre consultoras.
     [Fact]
-    public Task Aislamiento_TarifaCliente() => VerificarAislamientoAsync(
-        () => TarifaCliente.Crear(Guid.NewGuid(), ConceptoFacturable.TrabajadorActivo, 12.50m, "EUR"));
+    public Task Aislamiento_TarifaCliente()
+    {
+        Guid clienteId = default;
+        return VerificarAislamientoAsync(
+            () => TarifaCliente.Crear(clienteId, ConceptoFacturable.TrabajadorActivo, 12.50m, "EUR"),
+            async contexto => clienteId = await SembrarClienteAsync(contexto));
+    }
 
     [Fact]
     public Task Aislamiento_ConversacionCorreo() => VerificarAislamientoAsync(
@@ -178,20 +240,39 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     // --- tablas de unión/satélite (EntidadConTenant directa, sin soft delete) ---
 
     [Fact]
-    public Task Aislamiento_Alerta() => VerificarAislamientoAsync(
-        () => new Alerta(Guid.NewGuid(), NivelAlerta.Urgente));
+    public Task Aislamiento_Alerta()
+    {
+        Guid documentoId = default;
+        return VerificarAislamientoAsync(
+            () => new Alerta(documentoId, NivelAlerta.Urgente),
+            async contexto => documentoId = await SembrarDocumentoAsync(contexto));
+    }
 
     [Fact]
-    public Task Aislamiento_Asignacion() => VerificarAislamientoAsync(
-        () => new Asignacion(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1)));
+    public Task Aislamiento_Asignacion()
+    {
+        Guid trabajadorId = default, centroId = default;
+        return VerificarAislamientoAsync(
+            () => new Asignacion(trabajadorId, centroId, new DateOnly(2026, 1, 1)),
+            async contexto =>
+            {
+                trabajadorId = await SembrarTrabajadorAsync(contexto);
+                centroId = await SembrarCentroAsync(contexto);
+            });
+    }
 
     [Fact]
     public Task Aislamiento_RegistroAuditoria() => VerificarAislamientoAsync(
         () => new RegistroAuditoria("Cliente", Guid.NewGuid(), "Creado", null, "{}", null));
 
     [Fact]
-    public Task Aislamiento_CanalGestionDocumental() => VerificarAislamientoAsync(
-        () => CanalGestionDocumental.DePlataforma(Guid.NewGuid(), "CTAIMA CAE", null, null, null));
+    public Task Aislamiento_CanalGestionDocumental()
+    {
+        Guid centroId = default;
+        return VerificarAislamientoAsync(
+            () => CanalGestionDocumental.DePlataforma(centroId, "CTAIMA CAE", null, null, null),
+            async contexto => centroId = await SembrarCentroAsync(contexto));
+    }
 
     [Fact]
     public Task Aislamiento_ParametroSistema() => VerificarAislamientoAsync(
@@ -206,16 +287,34 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
         () => new TipoDocumento("Tipo de prueba", 12, true, 1, AmbitoAplicacion.Trabajador));
 
     [Fact]
-    public Task Aislamiento_TipoDocumentoCentro() => VerificarAislamientoAsync(
-        () => new TipoDocumentoCentro(Guid.NewGuid(), Guid.NewGuid()));
+    public Task Aislamiento_TipoDocumentoCentro()
+    {
+        Guid tipoDocumentoId = default, centroId = default;
+        return VerificarAislamientoAsync(
+            () => new TipoDocumentoCentro(tipoDocumentoId, centroId),
+            async contexto =>
+            {
+                tipoDocumentoId = await SembrarTipoDocumentoAsync(contexto);
+                centroId = await SembrarCentroAsync(contexto);
+            });
+    }
 
     [Fact]
     public Task Aislamiento_CredencialAccesoEmpresa() => VerificarAislamientoAsync(
         () => new CredencialAccesoEmpresa(Guid.NewGuid(), null, null, null, null));
 
     [Fact]
-    public Task Aislamiento_EmpresaCliente() => VerificarAislamientoAsync(
-        () => new EmpresaCliente(Guid.NewGuid(), Guid.NewGuid()));
+    public Task Aislamiento_EmpresaCliente()
+    {
+        Guid empresaId = default, clienteId = default;
+        return VerificarAislamientoAsync(
+            () => new EmpresaCliente(empresaId, clienteId),
+            async contexto =>
+            {
+                empresaId = await SembrarEmpresaAsync(contexto);
+                clienteId = await SembrarClienteAsync(contexto);
+            });
+    }
 
     [Fact]
     public Task Aislamiento_NotificacionUsuario() => VerificarAislamientoAsync(
@@ -226,20 +325,47 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
         () => new CredencialAccesoSubcontrata(Guid.NewGuid(), null, null, null, null));
 
     [Fact]
-    public Task Aislamiento_SubcontrataCliente() => VerificarAislamientoAsync(
-        () => new SubcontrataCliente(Guid.NewGuid(), Guid.NewGuid()));
+    public Task Aislamiento_SubcontrataCliente()
+    {
+        Guid subcontrataId = default, clienteId = default;
+        return VerificarAislamientoAsync(
+            () => new SubcontrataCliente(subcontrataId, clienteId),
+            async contexto =>
+            {
+                subcontrataId = await SembrarSubcontrataAsync(contexto);
+                clienteId = await SembrarClienteAsync(contexto);
+            });
+    }
 
     [Fact]
-    public Task Aislamiento_SubcontrataEmpresa() => VerificarAislamientoAsync(
-        () => new SubcontrataEmpresa(Guid.NewGuid(), Guid.NewGuid()));
+    public Task Aislamiento_SubcontrataEmpresa()
+    {
+        Guid subcontrataId = default, empresaId = default;
+        return VerificarAislamientoAsync(
+            () => new SubcontrataEmpresa(subcontrataId, empresaId),
+            async contexto =>
+            {
+                subcontrataId = await SembrarSubcontrataAsync(contexto);
+                empresaId = await SembrarEmpresaAsync(contexto);
+            });
+    }
 
     [Fact]
     public Task Aislamiento_DeteccionTrabajador() => VerificarAislamientoAsync(
         () => DeteccionTrabajador.Nuevo(Guid.NewGuid(), Guid.NewGuid(), "Juan", "Pérez", "12345678Z"));
 
     [Fact]
-    public Task Aislamiento_VisitaTrabajador() => VerificarAislamientoAsync(
-        () => new VisitaTrabajador(Guid.NewGuid(), Guid.NewGuid()));
+    public Task Aislamiento_VisitaTrabajador()
+    {
+        Guid visitaId = default, trabajadorId = default;
+        return VerificarAislamientoAsync(
+            () => new VisitaTrabajador(visitaId, trabajadorId),
+            async contexto =>
+            {
+                visitaId = await SembrarVisitaAsync(contexto);
+                trabajadorId = await SembrarTrabajadorAsync(contexto);
+            });
+    }
 
     [Fact]
     public Task Aislamiento_ExtraccionIaCache() => VerificarAislamientoAsync(
@@ -254,8 +380,17 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
         () => RevisionIaDocumento.Crear(Guid.NewGuid(), 40, "Apto médico", null, null, null, "Confianza insuficiente"));
 
     [Fact]
-    public Task Aislamiento_ProyectoTecnico() => VerificarAislamientoAsync(
-        () => new ProyectoTecnico(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1)));
+    public Task Aislamiento_ProyectoTecnico()
+    {
+        Guid proyectoId = default, trabajadorId = default;
+        return VerificarAislamientoAsync(
+            () => new ProyectoTecnico(proyectoId, trabajadorId, new DateOnly(2026, 1, 1)),
+            async contexto =>
+            {
+                proyectoId = await SembrarProyectoAsync(contexto);
+                trabajadorId = await SembrarTrabajadorAsync(contexto);
+            });
+    }
 
     // Hallazgo M-1: AprobacionDocumento tampoco tenía filtro. No fugaba
     // todavía porque su único lector hace join contra Documentos (que sí está
@@ -304,5 +439,130 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
         contexto.ConversacionesCorreo.Add(conversacion);
         await contexto.SaveChangesAsync();
         return conversacion.Id;
+    }
+
+    // --- Siembra de dependencias para las entidades con FK real (P0-1 de
+    // docs/business/MATURITY_REVIEW.md) — antes se podía insertar cualquier
+    // Guid inventado como propietario; ahora la base de datos lo rechaza,
+    // así que estos tests necesitan un padre real en el contexto del tenant A.
+    // Varios tests siembran el mismo tipo de padre más de una vez en el mismo
+    // tenant (p. ej. Trabajador y Centro siembran cada uno su propia Empresa),
+    // así que cada llamada genera un identificador único y válido — reusar uno
+    // fijo chocaría con los índices únicos (TenantId, Cif)/(TenantId, RazonSocial)/
+    // (TenantId, Dni)/(TenantId, Nombre).
+
+    private static int _contadorSiembra;
+
+    private static async Task<Guid> SembrarClienteAsync(CaeManagerDbContext contexto)
+    {
+        var cliente = new Cliente($"Cliente de prueba {Guid.NewGuid():N}", GenerarCifValido(), esCritico: false);
+        contexto.Clientes.Add(cliente);
+        await contexto.SaveChangesAsync();
+        return cliente.Id;
+    }
+
+    private static async Task<Guid> SembrarEmpresaAsync(CaeManagerDbContext contexto)
+    {
+        var empresa = new Empresa($"Empresa de prueba {Guid.NewGuid():N}");
+        contexto.Empresas.Add(empresa);
+        await contexto.SaveChangesAsync();
+        return empresa.Id;
+    }
+
+    private static async Task<Guid> SembrarSubcontrataAsync(CaeManagerDbContext contexto)
+    {
+        var subcontrata = new Subcontrata($"Subcontrata de prueba {Guid.NewGuid():N}");
+        contexto.Subcontratas.Add(subcontrata);
+        await contexto.SaveChangesAsync();
+        return subcontrata.Id;
+    }
+
+    private static async Task<Guid> SembrarCentroAsync(CaeManagerDbContext contexto)
+    {
+        var clienteId = await SembrarClienteAsync(contexto);
+        var empresaId = await SembrarEmpresaAsync(contexto);
+        var centro = new Centro(clienteId, empresaId, "Centro de prueba");
+        contexto.Centros.Add(centro);
+        await contexto.SaveChangesAsync();
+        return centro.Id;
+    }
+
+    private static async Task<Guid> SembrarTrabajadorAsync(CaeManagerDbContext contexto)
+    {
+        var empresaId = await SembrarEmpresaAsync(contexto);
+        var trabajador = Trabajador.DeEmpresa(empresaId, "Juan", "Pérez", GenerarDniValido());
+        contexto.Trabajadores.Add(trabajador);
+        await contexto.SaveChangesAsync();
+        return trabajador.Id;
+    }
+
+    private static async Task<Guid> SembrarTipoDocumentoAsync(CaeManagerDbContext contexto)
+    {
+        var tipoDocumento = new TipoDocumento($"Tipo de prueba {Guid.NewGuid():N}", 12, true, 1, AmbitoAplicacion.Trabajador);
+        contexto.TiposDocumento.Add(tipoDocumento);
+        await contexto.SaveChangesAsync();
+        return tipoDocumento.Id;
+    }
+
+    /// <summary>CIF con dígito de control real, calculado con el mismo algoritmo que ValidadorIdentificacion (organización "B", control numérico).</summary>
+    private static string GenerarCifValido()
+    {
+        var digitos = System.Threading.Interlocked.Increment(ref _contadorSiembra).ToString().PadLeft(7, '0');
+        var sumaPares = 0;
+        var sumaImpares = 0;
+        for (var i = 0; i < digitos.Length; i++)
+        {
+            var num = digitos[i] - '0';
+            if (i % 2 == 1)
+            {
+                sumaPares += num;
+            }
+            else
+            {
+                var multiplicado = num * 2;
+                sumaImpares += multiplicado > 9 ? multiplicado - 9 : multiplicado;
+            }
+        }
+
+        var residuo = (sumaPares + sumaImpares) % 10;
+        var digitoControl = residuo == 0 ? 0 : 10 - residuo;
+        return $"B{digitos}{digitoControl}";
+    }
+
+    /// <summary>DNI con letra de control real (algoritmo estándar módulo 23).</summary>
+    private static string GenerarDniValido()
+    {
+        const string letras = "TRWAGMYFPDXBNJZSQVHLCKE";
+        var numero = System.Threading.Interlocked.Increment(ref _contadorSiembra);
+        return $"{numero:D8}{letras[numero % 23]}";
+    }
+
+    private static async Task<Guid> SembrarDocumentoAsync(CaeManagerDbContext contexto)
+    {
+        var trabajadorId = await SembrarTrabajadorAsync(contexto);
+        var tipoDocumentoId = await SembrarTipoDocumentoAsync(contexto);
+        var documento = Documento.DeTrabajador(trabajadorId, tipoDocumentoId, new DateOnly(2026, 1, 1), null);
+        contexto.Documentos.Add(documento);
+        await contexto.SaveChangesAsync();
+        return documento.Id;
+    }
+
+    private static async Task<Guid> SembrarProyectoAsync(CaeManagerDbContext contexto)
+    {
+        var clienteId = await SembrarClienteAsync(contexto);
+        var centroId = await SembrarCentroAsync(contexto);
+        var proyecto = Proyecto.Crear(clienteId, centroId, $"Proyecto {Guid.NewGuid():N}", new DateOnly(2026, 1, 1), null, null);
+        contexto.Proyectos.Add(proyecto);
+        await contexto.SaveChangesAsync();
+        return proyecto.Id;
+    }
+
+    private static async Task<Guid> SembrarVisitaAsync(CaeManagerDbContext contexto)
+    {
+        var centroId = await SembrarCentroAsync(contexto);
+        var visita = new Visita(centroId, new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 2), null);
+        contexto.Visitas.Add(visita);
+        await contexto.SaveChangesAsync();
+        return visita.Id;
     }
 }
