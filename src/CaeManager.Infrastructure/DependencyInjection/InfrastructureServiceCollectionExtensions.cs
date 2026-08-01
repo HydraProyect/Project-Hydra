@@ -236,9 +236,20 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IColaAnalisisDocumento>(sp => sp.GetRequiredService<ColaAnalisisDocumentoEnMemoria>());
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
+        // Timeouts explícitos en todos los HttpClient de IA/Graph (P0-9 de
+        // docs/business/MATURITY_REVIEW.md): el procesador de la cola de IA es
+        // secuencial, así que una llamada colgada al proveedor detenía la cola
+        // de TODOS los tenants durante los 100 s del default de HttpClient.
+        // 60 s para el chat (interactivo: si tarda más, ya está roto para el
+        // usuario) y 120 s para OCR/extracción sobre PDFs grandes. Retry y
+        // circuit breaker (AddStandardResilienceHandler) quedan como P1-16 —
+        // este Timeout es compatible: la resiliencia estándar se encadena a
+        // estos mismos registros sin tocarlos.
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
-        services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>();
-        services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>();
+        services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>(
+            cliente => cliente.Timeout = TimeSpan.FromSeconds(60));
+        services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>(
+            cliente => cliente.Timeout = TimeSpan.FromSeconds(120));
         // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
         // implementación directa de Anthropic aquí — RouterExtraccionMetadatosDocumentoIaService
         // (Application) la satisface delegando en IDocumentAIRouterService,
@@ -261,18 +272,22 @@ public static class InfrastructureServiceCollectionExtensions
         // una decisión de benchmark, no algo que se cambie por tener una
         // clave nueva (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1).
         services.Configure<MistralOcrOptions>(configuration.GetSection(MistralOcrOptions.SeccionConfiguracion));
-        services.AddHttpClient<MistralOcrDocumentAIProvider>();
+        services.AddHttpClient<MistralOcrDocumentAIProvider>(
+            cliente => cliente.Timeout = TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<MistralOcrDocumentAIProvider>());
 
-        services.AddHttpClient<AnthropicDocumentAIProvider>();
+        services.AddHttpClient<AnthropicDocumentAIProvider>(
+            cliente => cliente.Timeout = TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<AnthropicDocumentAIProvider>());
 
         services.Configure<GeminiOptions>(configuration.GetSection(GeminiOptions.SeccionConfiguracion));
-        services.AddHttpClient<GeminiDocumentAIProvider>();
+        services.AddHttpClient<GeminiDocumentAIProvider>(
+            cliente => cliente.Timeout = TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<GeminiDocumentAIProvider>());
 
         services.Configure<GraphEmailOptions>(configuration.GetSection(GraphEmailOptions.SeccionConfiguracion));
-        services.AddHttpClient<IEmailService, GraphEmailService>();
+        services.AddHttpClient<IEmailService, GraphEmailService>(
+            cliente => cliente.Timeout = TimeSpan.FromSeconds(30));
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();
