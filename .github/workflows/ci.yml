@@ -104,13 +104,32 @@ jobs:
       # Dockerfile, mismo -r linux-x64 --self-contained false de la Fase 22)
       # — así un SDK band distinto o un asset de framework faltante se
       # detecta aquí, no en producción como pasó esa vez.
+      #
+      # load: true (además de push: false) mete la imagen en el daemon local
+      # de este runner — sin esto, Trivy no tendría qué escanear en el paso
+      # siguiente.
       - name: Construir imagen Docker
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
           push: false
+          load: true
           tags: caemanager:ci
+
+      # P2 #25 de docs/business/MATURITY_REVIEW.md: escaneo de la imagen de
+      # despliegue en busca de vulnerabilidades conocidas (SO + paquetes del
+      # framework de .NET). No bloqueante a propósito (exit-code 0) hasta que
+      # alguien triage el primer informe — convertirlo en bloqueante sin
+      # revisarlo antes rompería el CI de golpe por vulnerabilidades ya
+      # existentes que nadie ha decidido todavía si son aceptables o no.
+      - name: Escanear vulnerabilidades de la imagen (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: caemanager:ci
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "0"
 
   bunit-tests:
     name: Tests de componentes (bUnit)

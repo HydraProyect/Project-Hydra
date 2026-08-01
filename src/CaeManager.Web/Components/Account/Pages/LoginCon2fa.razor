@@ -81,7 +81,7 @@
                 return;
             }
 
-            Navigation.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+            Navigation.NavigateTo(RedireccionLocal.Sanear(ReturnUrl), forceLoad: true);
             return;
         }
 

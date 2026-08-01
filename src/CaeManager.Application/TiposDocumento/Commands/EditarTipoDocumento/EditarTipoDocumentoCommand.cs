@@ -3,6 +3,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento;
 
@@ -47,7 +48,8 @@ public class EditarTipoDocumentoCommandValidator : AbstractValidator<EditarTipoD
 }
 
 public class EditarTipoDocumentoCommandHandler(
-    ITipoDocumentoRepository repositorio, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio, IUnitOfWork unitOfWork)
+    ITipoDocumentoRepository repositorio, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
+    IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarTipoDocumentoCommand, Result>
 {
     public async Task<Result> Handle(EditarTipoDocumentoCommand request, CancellationToken cancellationToken)
@@ -75,10 +77,18 @@ public class EditarTipoDocumentoCommandHandler(
         var deseados = request.CentroIds.Distinct().ToHashSet();
         var actualesCentroIds = actuales.Select(tc => tc.CentroId).ToHashSet();
 
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md
+        // (hallazgo de la auditoría de PR #48). Solo hace falta verificar las
+        // vinculaciones NUEVAS: las que ya estaban antes ya pasaron por esta
+        // comprobación cuando se crearon.
+        var centroIdsNuevos = deseados.Except(actualesCentroIds).ToList();
+        if (await dbContext.Centros.Where(c => centroIdsNuevos.Contains(c.Id)).CountAsync(cancellationToken) != centroIdsNuevos.Count)
+            return Result.Fallo(Error.Crear("TipoDocumento.CentroNoEncontrado", "Alguno de los centros seleccionados no existe."));
+
         foreach (var tc in actuales.Where(tc => !deseados.Contains(tc.CentroId)))
             tipoDocumentoCentroRepositorio.Eliminar(tc);
 
-        foreach (var centroId in deseados.Except(actualesCentroIds))
+        foreach (var centroId in centroIdsNuevos)
             tipoDocumentoCentroRepositorio.Agregar(new TipoDocumentoCentro(tipoDocumento.Id, centroId));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
