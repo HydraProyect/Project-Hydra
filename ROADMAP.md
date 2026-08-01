@@ -899,8 +899,9 @@ El usuario decidió que la producción de entonces solo tenía datos de prueba (
 - ✅ **Región del Postgres confirmada (2026-08-01)**: EU West (Ámsterdam) — igual que el servicio de la app. Todo el tratamiento de datos personales queda dentro de la UE.
 - ✅ **Backup a S3 con pg_dump confirmado (2026-08-01)**: tras el redeploy con `postgresql-client-18` (commit `04245aa`), log real: `Backup subido correctamente a s3://project-hydra-backups/Project-Hydra/20260801-153348/`.
 - ✅ **Estabilidad confirmada**: arranque limpio (sin reinicios), guard de siembra idempotente (`ya hay Clientes — se omite`), tráfico HTTP normal sin ningún 400 — el HTTP 400 puntual anterior queda confirmado como coincidencia de tiempos con el redeploy en curso, no como fallo de la app.
+- ✅ **Backups antiguos con claves en claro eliminados del bucket S3** (2026-08-01, ejecutado por el usuario en la consola de AWS) — eran solo datos de prueba, así que se optó por borrar en vez de rotar la clave de Data Protection. El bucket solo conserva backups posteriores a la activación de KMS.
 
-**Pendiente real, no bloqueante para seguir trabajando**: el DPA/Términos de Uso (condición aparte de `ADR-003`, revisión legal); retirar la rama SQLite (`ProveedorBaseDatos`, las migraciones de Infrastructure, `BackfillTenantPorDefectoTests`, la rama SQLite de `BackupHostedService`) — ver "Después del corte" en `RUNBOOK-MIGRACION-POSTGRESQL.md`; borrar en S3 los backups anteriores a la activación de KMS (viajan con las claves de Data Protection en claro) — decisión ya tomada por el usuario, pendiente de ejecutar en la consola de AWS.
+**Pendiente real, no bloqueante para seguir trabajando**: el DPA/Términos de Uso (condición aparte de `ADR-003`, revisión legal); retirar la rama SQLite (`ProveedorBaseDatos`, las migraciones de Infrastructure, `BackfillTenantPorDefectoTests`, la rama SQLite de `BackupHostedService`) — ver "Después del corte" en `RUNBOOK-MIGRACION-POSTGRESQL.md`.
 
 ## Fase 61 — Dos bugs reales de Blazor Server destapados por PostgreSQL (2026-08-01)
 
