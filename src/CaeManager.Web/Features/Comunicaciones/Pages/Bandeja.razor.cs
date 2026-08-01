@@ -8,10 +8,12 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Infrastructure.Autorizacion;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Comunicaciones.Pages;
 
@@ -21,6 +23,8 @@ public partial class Bandeja : ComponentBase
 {
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ILogger<Bandeja> Logger { get; set; } = default!;
+    [Inject] private IOptions<ComunicacionesOptions> OpcionesComunicaciones { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     // --- Filtros ---
     private string _estadoFiltro = string.Empty;
@@ -57,6 +61,16 @@ public partial class Bandeja : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        // Módulo congelado por defecto (ComunicacionesOptions, P2 #26 de
+        // docs/business/MATURITY_REVIEW.md): sin ingesta real de Graph
+        // detrás, se presenta como si la ruta no existiera en vez de
+        // mostrar una bandeja que nadie va a alimentar de verdad.
+        if (!OpcionesComunicaciones.Value.Activo)
+        {
+            NavigationManager.NavigateTo("/not-found");
+            return;
+        }
+
         _clientesSelector = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
 
         // Acotado al tenant activo: GetUsersInRoleAsync devuelve los gestores
