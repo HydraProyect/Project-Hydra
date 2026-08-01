@@ -109,7 +109,7 @@ jobs:
       # de este runner — sin esto, Trivy no tendría qué escanear en el paso
       # siguiente.
       - name: Construir imagen Docker
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
