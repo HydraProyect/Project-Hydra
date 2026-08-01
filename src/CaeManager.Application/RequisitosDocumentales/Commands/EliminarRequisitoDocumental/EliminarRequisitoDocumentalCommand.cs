@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.RequisitosDocumentales;
 using MediatR;
 
 namespace CaeManager.Application.RequisitosDocumentales.Commands.EliminarRequisitoDocumental;
