@@ -22,6 +22,8 @@ La base de datos vive en un servicio de PostgreSQL aparte, no en el volumen — 
 3. Mount path: `/data`.
 4. Tamaño: 1 GB es de sobra para empezar (se puede ampliar después).
 
+**Si el volumen ya existía de un despliegue anterior a que la imagen empezara a correr como usuario no-root (P2 #25 de `docs/business/MATURITY_REVIEW.md`)**: verifica en el primer arranque tras actualizar que la app puede seguir escribiendo en `/data` — busca errores de permisos en el log (`dataprotection-keys/`, `documentos/` si no está activo `AlmacenamientoS3`). Un volumen nuevo no tiene este problema.
+
 ## 3. Variables de entorno
 
 En la pestaña **Variables** del servicio de la **app**, añade:
@@ -29,7 +31,11 @@ En la pestaña **Variables** del servicio de la **app**, añade:
 | Variable | Valor | Para qué |
 |---|---|---|
 | `ConnectionStrings__CaeManagerDb` | `Host=${{Postgres.PGHOST}};Port=${{Postgres.PGPORT}};Database=${{Postgres.PGDATABASE}};Username=${{Postgres.PGUSER}};Password=${{Postgres.PGPASSWORD}}` | Conexión al servicio de PostgreSQL del paso 2 — usa referencias de variable de Railway (`${{NombreDelServicio.VARIABLE}}`, ajustando el nombre si tu servicio de Postgres no se llama "Postgres") en vez de copiar la contraseña a mano, para que no se desincronice si Railway la rota |
-| `AlmacenamientoArchivos__Ruta` | `/data/documentos` | PDFs adjuntos de Documentos, en el volumen |
+| `AlmacenamientoArchivos__Ruta` | `/data/documentos` | PDFs adjuntos de Documentos, en el volumen — se ignora si `AlmacenamientoS3__Activo=true` (ver fila siguiente) |
+| `AlmacenamientoS3__Activo` | `true` (opcional, por defecto `false`) | Guarda los PDFs de Documento en S3 en vez de en el volumen local (P2 #22 de `docs/business/MATURITY_REVIEW.md`) — necesario para más de una réplica, donde un archivo subido a una réplica no lo verían las demás en disco local |
+| `AlmacenamientoS3__AccessKeyId` / `AlmacenamientoS3__SecretAccessKey` | credenciales de un usuario IAM **distinto** de los de Backups y de KMS, con permisos solo sobre el bucket de documentos (`s3:PutObject`/`GetObject`/`DeleteObject`) | Igual que con KMS: separarlo de los otros usuarios IAM es lo que hace que filtrar unas credenciales no dé acceso a lo que protegen las otras — y aquí además importa que ese bucket puede contener datos de salud (reconocimientos médicos), ver `RGPD-TRATAMIENTO-DATOS.md` |
+| `AlmacenamientoS3__BucketName` | nombre del bucket S3, **distinto** del de Backups | No reutilices el bucket de backups: ese ya contiene un volcado completo de la base de datos |
+| `AlmacenamientoS3__Region` | región del bucket, p. ej. `eu-south-2` | Misma consideración de RGPD que el resto de buckets — no sacar datos de España |
 | `DataProtection__RutaClaves` | `/data/dataprotection-keys` | Claves de cifrado de credenciales (Empresa/Centro) — si no se persisten, cada redeploy invalida las credenciales ya guardadas |
 | `AdministradorInicial__Email` | (tu elección, p. ej. `admin@ProjectHydra.com`) | Evita arrancar con el email de administrador por defecto, público en el propio código |
 | `AdministradorInicial__Contrasena` | (una contraseña real, mínimo 10 caracteres) | Igual que arriba, para la contraseña |
@@ -37,6 +43,7 @@ En la pestaña **Variables** del servicio de la **app**, añade:
 | `DatosPrueba__Activo` | `true` (opcional, solo para un entorno de pruebas) | Siembra una base de datos genérica de cientos de filas por entidad — ver más abajo |
 | `Logging__RutaArchivo` | (opcional, por defecto `App_Data/logs/log-.txt` relativo al volumen) | Ruta del log estructurado de Serilog en disco (consola + archivo con rotación diaria) — ver "Iniciativa de hardening" en `ROADMAP.md` |
 | `Sentry__Dsn` | (opcional, vacío por defecto) | Activa el error tracking de Sentry si se rellena con el DSN de un proyecto real — sin esta variable la SDK queda completamente inerte, no hace falta tener cuenta de Sentry para desplegar |
+| `Comunicaciones__Activo` | `true` (opcional, por defecto `false`) | Módulo congelado (P2 #26 de `docs/business/MATURITY_REVIEW.md`): sin esta variable, `/comunicaciones` responde como si la ruta no existiera. No hay ingesta real de Microsoft Graph detrás — no lo actives frente a un cliente real hasta que la haya |
 | `Backups__Activo` | `true` (opcional, por defecto `false`) | Activa el backup automático diario de `CaeManager.db` + `dataprotection-keys/` a S3 — ver `RUNBOOK-CLAVES.md` |
 | `Backups__Aws__AccessKeyId` / `Backups__Aws__SecretAccessKey` | credenciales de un usuario IAM con permisos solo sobre el bucket de backups (`s3:PutObject`/`GetObject`/`ListBucket`) | Nunca uses las credenciales root de la cuenta de AWS para esto |
 | `Backups__Aws__BucketName` | nombre del bucket S3 | |
@@ -104,6 +111,15 @@ Con el Dockerfile detectado, el volumen montado y las variables puestas, Railway
 
 Primer arranque: la app ejecuta las migraciones de base de datos y crea el usuario administrador automáticamente (ver `Program.cs` → `IdentitySeeder`) — no hace falta ningún paso manual.
 
+**Migraciones fuera del arranque (P2 #22 de `docs/business/MATURITY_REVIEW.md`)**: `railway.json` (config-as-code, en la raíz del repo) declara un `deploy.preDeployCommand` que ejecuta `dotnet CaeManager.Web.dll --migrate-only` — aplica las migraciones pendientes y termina, antes de que Railway arranque el proceso web del deploy. Railway lo recoge solo si no hay un Start/Pre-Deploy Command puesto a mano en el dashboard del servicio (Settings → Deploy) que lo pise; si el proyecto ya tiene uno configurado ahí, hay que borrarlo para que `railway.json` mande. El arranque normal del proceso web **sigue aplicando las migraciones también** (`Migraciones:AlArrancar`, por defecto `true`) — a propósito, para no depender de que el pre-deploy ya esté activo; aplicar una migración ya aplicada no hace nada. Dos réplicas repitiendo esto arrancando a la vez sí sería la carrera que este mecanismo existe para evitar — pon `Migraciones__AlArrancar=false` en las variables del servicio antes de escalar a más de una réplica, no antes.
+
+### Gate de deploy y smoke test post-deploy (P2 #23)
+
+Dos mecanismos distintos, uno ya activo por código y el otro pendiente de un clic en el dashboard:
+
+- **Smoke test post-deploy — ya activo.** `railway.json` declara `deploy.healthcheckPath=/salud` y `deploy.healthcheckTimeout=300`: Railway no corta el tráfico hacia el deploy nuevo hasta que ese endpoint responda `200`, y si nunca responde, el deploy se descarta y el tráfico se queda en el anterior (zero-downtime nativo de Railway, sin script propio). **Límite real de esta protección hoy**: `/salud` (`Program.cs`) devuelve `Results.Ok("ok")` incondicional — responde `200` aunque PostgreSQL esté caído. Arreglar eso es P0 #5 de `docs/business/MATURITY_REVIEW.md` (`AddHealthChecks().AddNpgSql()`), fuera del alcance de esta sesión (P2) — hasta que se cierre, este smoke test detecta que el proceso arrancó, no que la app funciona de verdad.
+- **Gate de CI verde — requiere un paso manual, no expresable en `railway.json`.** Railway soporta "Wait for CI" (Settings del servicio → Deploy), que deja el deploy en espera hasta que los GitHub Actions del commit terminen, y lo descarta si alguno falla — pero es un ajuste que Railway solo expone en el dashboard, no en config-as-code (confirmado en su documentación a fecha de este cambio). Actívalo a mano una vez: Settings → Deploy → "Wait for CI". El repo ya cumple el único requisito (`.github/workflows/ci.yml` dispara con `on: push` sobre la rama que despliegas).
+
 ## 5. Verificar
 
 - `https://tu-dominio.up.railway.app/salud` debe responder `200 ok` (endpoint sin autenticación, pensado para healthchecks).
@@ -112,6 +128,6 @@ Primer arranque: la app ejecuta las migraciones de base de datos y crea el usuar
 
 ## Notas para producción real (fuera de alcance de un piloto)
 
-- **Una sola réplica.** La migración a PostgreSQL (`ADR-003`) ya está hecha — lo que sigue atando la app a una sola réplica es otra cosa: backplane de SignalR, cola de análisis IA en memoria y elección de líder para los `BackgroundService`. Ver `ROADMAP.md` § migración a PostgreSQL, epílogo.
+- **Una sola réplica.** La migración a PostgreSQL (`ADR-003`) ya está hecha; las migraciones de esquema ya pueden desacoplarse del arranque de cada réplica (ver más arriba, § 4); la cola de análisis IA ya es durable en PostgreSQL en vez de vivir en memoria del proceso (`TrabajoAnalisisDocumento`, P2 #22) — un redeploy ya no pierde encargos pendientes; y los PDFs de Documento ya pueden vivir en S3 en vez de en el volumen local de cada réplica (`AlmacenamientoS3__Activo`, misma sección). Lo que sigue atando la app a una sola réplica: backplane de SignalR y elección de líder para los `BackgroundService` (sin ella, N réplicas del procesador de la cola competirían por el mismo trabajo pendiente en vez de repartírselo). Ver `ROADMAP.md` § migración a PostgreSQL, epílogo.
 - **Backups.** Automatizados con `Backups__Activo=true` (`pg_dump` de la base de datos + `dataprotection-keys/` a S3, ver `RUNBOOK-CLAVES.md`) — no dependen de la política de backups de volúmenes de Railway.
 - **Cifrado de las claves de Data Protection en reposo.** Con `DataProtection__Kms__*` configurado (ver tabla más arriba y `RUNBOOK-CLAVES.md` § KMS), las claves se cifran con AWS KMS antes de escribirse al volumen — confírmalo en el log de arranque (`cifrado con AWS KMS operativo`). Sin esas variables, quedan sin cifrar (advertencia esperada en los logs).
