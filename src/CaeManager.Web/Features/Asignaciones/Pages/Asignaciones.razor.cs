@@ -37,6 +37,11 @@ public partial class Asignaciones : ComponentBase
     private string _fechaBaja = string.Empty;
     private bool _procesandoBaja;
 
+    private GridItemsProvider<AsignacionListaDto>? _proveedorElementos;
+
+    // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
+    protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
+
     private async ValueTask<GridItemsProviderResult<AsignacionListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<AsignacionListaDto> request)
     {

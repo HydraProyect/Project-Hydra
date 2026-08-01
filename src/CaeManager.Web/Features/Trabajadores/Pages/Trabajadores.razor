@@ -57,7 +57,7 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="TrabajadorListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
+            <QuickGrid @ref="_grid" TGridItem="TrabajadorListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
                 <PropertyColumn Property="@(t => t.Apellidos)" Sortable="true" />
                 <PropertyColumn Property="@(t => t.Nombre)" Sortable="true" />
                 <PropertyColumn Property="@(t => t.Dni)" Title="DNI" />

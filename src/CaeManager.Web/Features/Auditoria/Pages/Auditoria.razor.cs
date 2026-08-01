@@ -17,6 +17,7 @@ public partial class Auditoria : ComponentBase
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
 
     private ResultadoPaginado<RegistroAuditoriaDto>? _resultado;
     private Dictionary<Guid, string> _usuariosPorId = new();
@@ -44,11 +45,17 @@ public partial class Auditoria : ComponentBase
                 .Distinct()
                 .ToList();
 
-            foreach (var id in idsFaltantes)
+            // Por la puerta: UserManager no pasa por MediatR y esta carga
+            // corre en paralelo con los componentes del layout sobre el mismo
+            // DbContext scoped (ver PuertaAccesoDatos).
+            await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
-                var usuario = await UserManager.FindByIdAsync(id.ToString());
-                _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
-            }
+                foreach (var id in idsFaltantes)
+                {
+                    var usuario = await UserManager.FindByIdAsync(id.ToString());
+                    _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+                }
+            });
         }
         catch (Exception)
         {

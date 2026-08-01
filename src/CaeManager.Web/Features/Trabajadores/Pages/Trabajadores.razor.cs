@@ -56,8 +56,13 @@ public partial class Trabajadores : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    private GridItemsProvider<TrabajadorListaDto>? _proveedorElementos;
+
     protected override async Task OnInitializedAsync()
     {
+        // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
+        _proveedorElementos = ProveerElementosAsync;
+
         if (!string.IsNullOrWhiteSpace(TerminoBusquedaInicial))
             _busqueda = TerminoBusquedaInicial;
 

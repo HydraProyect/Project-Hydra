@@ -19,6 +19,8 @@ namespace CaeManager.Web.Components.Layout;
 /// </summary>
 public partial class SelectorTema : ComponentBase, IAsyncDisposable
 {
+    [Inject] private CaeManager.Application.Common.PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+
     private IJSObjectReference? _modulo;
     private ApplicationUser? _usuario;
     private string? _temaActual;
@@ -30,7 +32,10 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
 
         if (!Guid.TryParse(idClaim, out var usuarioId)) return;
 
-        _usuario = await UserManager.FindByIdAsync(usuarioId.ToString());
+        // Por la puerta: se inicializa en paralelo con el resto del layout
+        // sobre el mismo DbContext scoped (ver PuertaAccesoDatos).
+        _usuario = await PuertaAccesoDatos.EjecutarAsync(
+            () => UserManager.FindByIdAsync(usuarioId.ToString()));
         _temaActual = TemaATexto(_usuario?.Tema ?? TemaPreferido.Sistema);
     }
 
@@ -53,7 +58,7 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
         if (_usuario is not null)
         {
             _usuario.Tema = TextoATema(texto);
-            await UserManager.UpdateAsync(_usuario);
+            await PuertaAccesoDatos.EjecutarAsync(() => UserManager.UpdateAsync(_usuario));
         }
     }
 

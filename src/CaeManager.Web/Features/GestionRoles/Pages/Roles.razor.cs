@@ -34,6 +34,7 @@ public partial class Roles : ComponentBase
     };
 
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private IEmailService EmailService { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Roles> Logger { get; set; } = default!;
@@ -61,16 +62,22 @@ public partial class Roles : ComponentBase
 
         try
         {
-            var roles = new List<RolInfoDto>();
-            foreach (var nombreRol in CaeManager.Infrastructure.Identity.Roles.Todos)
+            // Por la puerta: UserManager no pasa por MediatR y esta carga
+            // corre en paralelo con los componentes del layout sobre el mismo
+            // DbContext scoped (ver PuertaAccesoDatos).
+            await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
-                var usuariosEnRol = await UserManager.GetUsersInRoleAsync(nombreRol);
-                roles.Add(new RolInfoDto(
-                    CaeManager.Infrastructure.Identity.Roles.NombreVisible(nombreRol), DescripcionesPorRol[nombreRol], usuariosEnRol.Count));
-            }
+                var roles = new List<RolInfoDto>();
+                foreach (var nombreRol in CaeManager.Infrastructure.Identity.Roles.Todos)
+                {
+                    var usuariosEnRol = await UserManager.GetUsersInRoleAsync(nombreRol);
+                    roles.Add(new RolInfoDto(
+                        CaeManager.Infrastructure.Identity.Roles.NombreVisible(nombreRol), DescripcionesPorRol[nombreRol], usuariosEnRol.Count));
+                }
 
-            _roles = roles;
-            await CargarPendientesAsync();
+                _roles = roles;
+                await CargarPendientesAsync();
+            });
         }
         catch (Exception)
         {
@@ -109,7 +116,8 @@ public partial class Roles : ComponentBase
 
         try
         {
-            var usuario = await UserManager.FindByIdAsync(pendiente.Id.ToString());
+            var usuario = await PuertaAccesoDatos.EjecutarAsync(
+                () => UserManager.FindByIdAsync(pendiente.Id.ToString()));
             if (usuario is null)
             {
                 ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
@@ -118,7 +126,8 @@ public partial class Roles : ComponentBase
             }
 
             var rol = RolElegido(pendiente.Id);
-            var resultado = await UserManager.AddToRoleAsync(usuario, rol);
+            var resultado = await PuertaAccesoDatos.EjecutarAsync(
+                () => UserManager.AddToRoleAsync(usuario, rol));
             if (!resultado.Succeeded)
             {
                 ToastService.Mostrar(string.Join(" ", resultado.Errors.Select(e => e.Description)), TonoToast.Error);
