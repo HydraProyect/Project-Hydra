@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.Playwright;
 using PdfSharp.Pdf;
 
@@ -14,6 +15,17 @@ public static class Ayudas
 {
     public const string EmailAdministrador = "admin@caemanager.local";
     public const string ContrasenaAdministrador = "CaeManager#2026";
+
+    /// <summary>
+    /// Misma clave que IdentitySeeder.ClaveTotpAdministradorInicial (ver esa
+    /// clase en CaeManager.Infrastructure.Identity) — duplicada aquí en vez
+    /// de referenciada porque este proyecto de test no referencia
+    /// Infrastructure (mismo criterio que NombreClienteDelegadoDemo); si
+    /// cambia allí, este test debe actualizarse también. El Administrador
+    /// inicial nace con 2FA activo (P1-13 de docs/business/MATURITY_REVIEW.md),
+    /// así que IniciarSesionAsync tiene que poder calcular el código TOTP.
+    /// </summary>
+    public const string ClaveTotpAdministrador = "JBSWY3DPEHPK3PXP";
 
     public const string ContrasenaUsuariosPrueba = "Prueba#2026";
 
@@ -59,7 +71,67 @@ public static class Ayudas
         await page.FillAsync("#email", email);
         await page.FillAsync("#password", password);
         await page.ClickAsync("button[type=\"submit\"]");
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        // Solo el Administrador inicial tiene 2FA activo hoy (P1-13 de
+        // docs/business/MATURITY_REVIEW.md) — el resto de cuentas de prueba
+        // pasan de largo por esta rama y siguen directas al dashboard.
+        if (page.Url.Contains("/cuenta/verificar-2fa"))
+        {
+            await page.FillAsync("#codigo", GenerarCodigoTotp(ClaveTotpAdministrador));
+            await page.ClickAsync("button[type=\"submit\"]");
+        }
+
         await page.Locator(".nav-principal").WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+    }
+
+    /// <summary>
+    /// TOTP de 6 dígitos (RFC 6238, HMAC-SHA1, paso de 30s) — el mismo
+    /// algoritmo que <c>UserManager.VerifyTwoFactorTokenAsync</c> valida del
+    /// lado servidor vía <c>AuthenticatorTokenProvider</c>. Sin paquete
+    /// nuevo: es la única forma de que este proyecto de test calcule el
+    /// código del Administrador inicial (ver ClaveTotpAdministrador) sin
+    /// acceso a base de datos ni a Infrastructure.
+    /// </summary>
+    public static string GenerarCodigoTotp(string claveBase32, DateTimeOffset? momento = null)
+    {
+        var clave = DescodificarBase32(claveBase32);
+        var contador = (long)(momento ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds() / 30;
+
+        var contadorBytes = BitConverter.GetBytes(contador);
+        if (BitConverter.IsLittleEndian)
+            Array.Reverse(contadorBytes);
+
+        using var hmac = new HMACSHA1(clave);
+        var hash = hmac.ComputeHash(contadorBytes);
+
+        var desplazamiento = hash[^1] & 0x0F;
+        var codigoBinario =
+            ((hash[desplazamiento] & 0x7F) << 24) |
+            ((hash[desplazamiento + 1] & 0xFF) << 16) |
+            ((hash[desplazamiento + 2] & 0xFF) << 8) |
+            (hash[desplazamiento + 3] & 0xFF);
+
+        return (codigoBinario % 1_000_000).ToString("D6");
+    }
+
+    private static byte[] DescodificarBase32(string base32)
+    {
+        const string alfabeto = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+        var bytes = new List<byte>();
+        int buffer = 0, bitsEnBuffer = 0;
+
+        foreach (var caracter in base32.TrimEnd('=').ToUpperInvariant())
+        {
+            buffer = (buffer << 5) | alfabeto.IndexOf(caracter);
+            bitsEnBuffer += 5;
+            if (bitsEnBuffer < 8) continue;
+
+            bitsEnBuffer -= 8;
+            bytes.Add((byte)((buffer >> bitsEnBuffer) & 0xFF));
+        }
+
+        return bytes.ToArray();
     }
 
     /// <summary>
