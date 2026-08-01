@@ -51,11 +51,13 @@ public sealed class PuertaAccesoDatos(IDbContextFactory<CaeManagerDbContext> fab
 
     /// <summary>
     /// El contexto de la operación en curso en este flujo asíncrono, o
-    /// <c>null</c> si no hay ninguno. Solo lo consume el registro de DI de
-    /// <c>CaeManagerDbContext</c> (ver <c>InfrastructureServiceCollectionExtensions</c>)
-    /// — nada más debería depender de esta propiedad.
+    /// <c>null</c> si no hay ninguno. Público por necesidad de empaquetado
+    /// (lo lee el registro de DI de <c>CaeManagerDbContext</c> en
+    /// <c>InfrastructureServiceCollectionExtensions</c> y los tests de
+    /// integración que verifican el aislamiento entre "circuitos"), pero
+    /// nada fuera de esos dos casos debería depender de esta propiedad.
     /// </summary>
-    internal CaeManagerDbContext? ContextoActual => _contextoActual.Value;
+    public CaeManagerDbContext? ContextoActual => _contextoActual.Value;
 
     public async Task<T> EjecutarAsync<T>(Func<Task<T>> operacion, CancellationToken cancellationToken = default)
     {
