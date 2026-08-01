@@ -14,19 +14,25 @@
     color: var(--color-neutral-700);
 }
 
+/* *-700, no *-500: el semáforo de vigencia documental es el patrón visual
+   insignia del producto (DESIGN_SYSTEM.md) y *-500 sobre *-50 incumplía el
+   "WCAG AA no negociable" (≈2,2:1 el verde, ≈1,9:1 el ámbar) — hallazgo P0-8
+   de docs/business/MATURITY_REVIEW.md. Los tokens *-700 ya se remapean por
+   tema (ver tokens.css), así que este cambio no necesita lógica aparte para
+   modo oscuro. */
 .badge-exito {
     background-color: var(--color-success-50);
-    color: var(--color-success-500);
+    color: var(--color-success-700);
 }
 
 .badge-advertencia {
     background-color: var(--color-warning-50);
-    color: var(--color-warning-500);
+    color: var(--color-warning-700);
 }
 
 .badge-peligro {
     background-color: var(--color-danger-50);
-    color: var(--color-danger-500);
+    color: var(--color-danger-700);
 }
 
 .badge-info {

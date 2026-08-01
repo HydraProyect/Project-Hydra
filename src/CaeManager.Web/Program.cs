@@ -158,8 +158,68 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
+// Rate limiting por IP sobre los POST de autenticación en /cuenta/* (login
+// local, callback de Microsoft, verificación 2FA) — junto con el lockout de
+// Identity, cierra el hallazgo P0-2 de docs/business/MATURITY_REVIEW.md
+// (fuerza bruta sin fricción): el lockout protege cada cuenta concreta, este
+// límite frena el barrido de muchas cuentas distintas desde una misma IP.
+// Solo se limitan los POST — un GET a /cuenta/iniciar-sesion es simplemente
+// cargar la página, y limitarlo también castigaba tráfico legítimo: un
+// runner de CI (o un usuario real detrás de un NAT/proxy compartido) hace
+// varias cargas de página desde la misma IP y se quedaba sin poder ni ver el
+// formulario de login (regresión real, encontrada en los E2E de este mismo
+// cambio — devolvía 429 antes de que existiera nada que enviar). El resto de
+// la aplicación no se limita: es Blazor Server con sesión iniciada, el
+// tráfico útil viaja por el circuito SignalR, no por peticiones HTTP
+// repetidas. Limitador en memoria: suficiente mientras el techo sea 1
+// réplica (autodocumentado en ARCHITECTURE.md); con multi-réplica habría que
+// moverlo a un almacén compartido, igual que el resto de estado de proceso.
+builder.Services.AddRateLimiter(opciones =>
+{
+    opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    opciones.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
+    {
+        var esPostDeCuenta = HttpMethods.IsPost(contexto.Request.Method)
+            && contexto.Request.Path.StartsWithSegments("/cuenta");
+
+        if (!esPostDeCuenta)
+            return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("sin-limite");
+
+        // Con sesión iniciada (cambio de Delegated Workspace vía
+        // /cuenta/cliente-activo, cerrar sesión) el margen es holgado — el
+        // objetivo son los anónimos que martillean el login.
+        var limite = contexto.User.Identity?.IsAuthenticated == true ? 60 : 10;
+
+        // La IP real ya está resuelta: UseForwardedHeaders corre al principio
+        // del pipeline (ver más abajo) y el middleware de rate limiting actúa
+        // después, por petición.
+        var ip = contexto.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
+
+        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            $"{limite}:{ip}",
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = limite,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
+    });
+});
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Health check real (P0-5 de docs/business/MATURITY_REVIEW.md): /salud
+// respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
+// cualquier uptime check externo veía un servicio sano que no podía servir
+// ni el login. Ahora ejecuta un SELECT 1 contra la base de datos: 200
+// "Healthy" solo si el proceso vive Y la BD responde. Sigue siendo anónimo
+// y barato a propósito (es lo que sondea Railway y el uptime check externo).
+builder.Services.AddHealthChecks()
+    .AddNpgSql(
+        sp => builder.Configuration.GetConnectionString("CaeManagerDb")
+            ?? throw new InvalidOperationException("Falta el connection string CaeManagerDb."),
+        name: "postgresql");
 
 var app = builder.Build();
 
@@ -224,7 +284,7 @@ using (var scope = app.Services.CreateScope())
     // como tenant #1 (ver AmbitoTenantExplicito, docs/MULTITENANCY.md § 8.4).
     using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
     {
-        await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration);
+        await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration, app.Environment);
     }
 
     // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
@@ -270,6 +330,11 @@ app.UseRequestLocalization(new RequestLocalizationOptions()
     .AddSupportedUICultures(culturaEspanola.Name));
 
 app.UseAuthentication();
+
+// Tras UseAuthentication (el límite distingue anónimo/autenticado) y antes
+// de que ningún endpoint procese la petición.
+app.UseRateLimiter();
+
 app.UseAuthorization();
 app.UseAntiforgery();
 
@@ -283,7 +348,7 @@ app.UseRevalidacionClienteActivo();
 // módulos JS a veces se pedían antes de que la cookie de auth completara su
 // ida y vuelta, y un import() dinámico fallido no se reintenta solo.
 app.MapStaticAssets().AllowAnonymous();
-app.MapGet("/salud", () => Results.Ok("ok")).AllowAnonymous();
+app.MapHealthChecks("/salud").AllowAnonymous();
 app.MapIdentityEndpoints();
 app.MapClientesEndpoints();
 app.MapDocumentosEndpoints();
