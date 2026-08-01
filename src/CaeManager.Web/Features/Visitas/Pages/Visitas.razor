@@ -52,7 +52,7 @@
            referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="ProveerElementosAsync" Pagination="_paginacion" Class="tabla-datos">
+            <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
                 <PropertyColumn Property="@(v => v.CentroNombre)" Title="Centro" Sortable="true" />
                 <TemplateColumn Title="Cliente / Empresa">
                     @context.ClienteRazonSocial — @context.EmpresaRazonSocial

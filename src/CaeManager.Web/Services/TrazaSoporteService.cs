@@ -26,7 +26,8 @@ public class TrazaSoporteService(
     ICurrentUserService currentUserService,
     IApplicationDbContext dbContext,
     IRegistroActividadSoporteRepository repositorio,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    PuertaAccesoDatos puertaAccesoDatos)
 {
     private bool _resuelto;
     private Guid? _delegacionSoporteId;
@@ -47,11 +48,16 @@ public class TrazaSoporteService(
 
         // El registro pertenece al tenant visitado, no al de Hydra: es el
         // cliente quien debe poder consultar qué se hizo en sus datos.
-        using (AmbitoTenantExplicito.Establecer(tenantId))
+        // Por la puerta: un lote de interacciones puede llegar desde el
+        // navegador mientras otro componente consulta (ver PuertaAccesoDatos).
+        await puertaAccesoDatos.EjecutarAsync(async () =>
         {
-            repositorio.Agregar(new RegistroActividadSoporte(usuarioId, delegacionId, tipo, detalle));
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-        }
+            using (AmbitoTenantExplicito.Establecer(tenantId))
+            {
+                repositorio.Agregar(new RegistroActividadSoporte(usuarioId, delegacionId, tipo, detalle));
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+        }, cancellationToken);
     }
 
     /// <summary>Si esta sesión está operando un workspace de soporte — lo consulta la UI para avisarlo.</summary>
@@ -71,23 +77,29 @@ public class TrazaSoporteService(
         // normal de la aplicación.
         if (clienteActivoSeleccionado.TenantIdSeleccionado is not { } tenantSeleccionado) return;
 
-        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
-        if (usuarioId is null) return;
+        // Por la puerta: la primera resolución dispara desde TrazaSoporte, que
+        // se inicializa en paralelo con el resto del layout (ver PuertaAccesoDatos).
+        var delegacionId = await puertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+            if (usuarioId is null) return (Guid?)null;
 
-        var delegacionId = await (
-            from asignacion in dbContext.AsignacionesOperadorDelegado
-            join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
-            where asignacion.UsuarioId == usuarioId.Value
-                  && delegacion.TenantClienteId == tenantSeleccionado
-                  && delegacion.Proposito == PropositoDelegacion.Soporte
-                  && delegacion.Activa
-            select (Guid?)delegacion.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+            _usuarioId = usuarioId;
+
+            return await (
+                from asignacion in dbContext.AsignacionesOperadorDelegado
+                join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
+                where asignacion.UsuarioId == usuarioId.Value
+                      && delegacion.TenantClienteId == tenantSeleccionado
+                      && delegacion.Proposito == PropositoDelegacion.Soporte
+                      && delegacion.Activa
+                select (Guid?)delegacion.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+        }, cancellationToken);
 
         if (delegacionId is null) return;
 
         _delegacionSoporteId = delegacionId;
         _tenantVisitadoId = tenantSeleccionado;
-        _usuarioId = usuarioId;
     }
 }

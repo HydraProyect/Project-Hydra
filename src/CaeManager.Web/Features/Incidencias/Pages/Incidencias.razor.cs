@@ -72,6 +72,11 @@ public partial class Incidencias : ComponentBase
         _ => gravedad.ToString()
     };
 
+    private GridItemsProvider<IncidenciaListaDto>? _proveedorElementos;
+
+    // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
+    protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
+
     private async ValueTask<GridItemsProviderResult<IncidenciaListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<IncidenciaListaDto> request)
     {

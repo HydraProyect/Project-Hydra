@@ -52,6 +52,11 @@ public partial class Visitas : ComponentBase
     private string _centroAEliminar = string.Empty;
     private bool _eliminando;
 
+    private GridItemsProvider<VisitaListaDto>? _proveedorElementos;
+
+    // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
+    protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
+
     private async ValueTask<GridItemsProviderResult<VisitaListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<VisitaListaDto> request)
     {
