@@ -39,7 +39,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
             contexto.ParametrosSistema.Add(new ParametroSistema(30, 15));
 
         var cliente = new Cliente("Falta Documental S.L.", "B12345674", esCritico: false);
-        var empresa = new Empresa("Contratista de Prueba S.L.", "B87654321");
+        var empresa = new Empresa("Contratista de Prueba S.L.", "B87654323");
         contexto.Clientes.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
