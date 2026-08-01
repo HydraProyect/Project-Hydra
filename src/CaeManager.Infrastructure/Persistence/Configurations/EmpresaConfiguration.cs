@@ -21,6 +21,9 @@ public class EmpresaConfiguration : IEntityTypeConfiguration<Empresa>
         builder.HasIndex(e => new { e.TenantId, e.RazonSocial }).IsUnique();
         builder.HasIndex(e => new { e.TenantId, e.Cif }).IsUnique();
 
+        // Prerequisito de FKs compuestas — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        builder.HasIndex(e => new { e.TenantId, e.Id }).IsUnique();
+
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }
