@@ -6,6 +6,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Interceptors;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
@@ -130,7 +131,7 @@ public class RequisitoDocumentalCommandsTests : IAsyncLifetime
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual), new ConcurrenciaOptimistaInterceptor())
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
