@@ -88,8 +88,22 @@
     {
         if (Entrada is null) return;
 
+        // lockoutOnFailure: los intentos fallidos cuentan y bloquean la
+        // cuenta temporalmente (ver opciones Lockout en
+        // InfrastructureServiceCollectionExtensions). Convive con el uso de
+        // LockoutEnd = MaxValue como "usuario desactivado" (Usuarios.razor):
+        // el bloqueo por intentos pone una ventana corta, la desactivación
+        // manual una indefinida — ambos caen en IsLockedOut.
         var resultado = await SignInManager.PasswordSignInAsync(
-            Entrada.Email, Entrada.Password, isPersistent: true, lockoutOnFailure: false);
+            Entrada.Email, Entrada.Password, isPersistent: true, lockoutOnFailure: true);
+
+        if (resultado.IsLockedOut)
+        {
+            // Mismo mensaje deliberadamente vago que el de credenciales: no
+            // confirmar a un atacante que la cuenta existe y está bloqueada.
+            mensajeError = "No pudimos iniciar sesión. Espera unos minutos e intenta nuevamente.";
+            return;
+        }
 
         if (resultado.RequiresTwoFactor)
         {
@@ -114,7 +128,7 @@
                 return;
             }
 
-            Navigation.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+            Navigation.NavigateTo(RedireccionLocal.Sanear(ReturnUrl), forceLoad: true);
             return;
         }
 
