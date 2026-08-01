@@ -147,5 +147,7 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
         public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("DireccionCae");
 
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(tenantOrigenId());
+
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 }
