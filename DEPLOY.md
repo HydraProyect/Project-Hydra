@@ -22,6 +22,8 @@ La base de datos vive en un servicio de PostgreSQL aparte, no en el volumen — 
 3. Mount path: `/data`.
 4. Tamaño: 1 GB es de sobra para empezar (se puede ampliar después).
 
+**Si el volumen ya existía de un despliegue anterior a que la imagen empezara a correr como usuario no-root (P2 #25 de `docs/business/MATURITY_REVIEW.md`)**: verifica en el primer arranque tras actualizar que la app puede seguir escribiendo en `/data` — busca errores de permisos en el log (`dataprotection-keys/`, `documentos/` si no está activo `AlmacenamientoS3`). Un volumen nuevo no tiene este problema.
+
 ## 3. Variables de entorno
 
 En la pestaña **Variables** del servicio de la **app**, añade:
