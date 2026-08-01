@@ -7,7 +7,7 @@ using MediatR;
 namespace CaeManager.Application.Empresas.Commands.EditarEmpresa;
 
 public record EditarEmpresaCommand(
-    Guid Id, string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds, Guid Version = default) : IRequest<Result>;
+    Guid Id, string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds, Guid Version = default) : ICommand;
 
 public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaCommand>
 {

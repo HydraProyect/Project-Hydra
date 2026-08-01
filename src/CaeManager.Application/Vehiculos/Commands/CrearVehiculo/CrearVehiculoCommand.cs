@@ -16,7 +16,7 @@ public record CrearVehiculoCommand(
     Guid? SubcontrataId,
     string Nombre,
     string Modelo,
-    string NumeroPlaca) : IRequest<Result<Guid>>;
+    string NumeroPlaca) : ICommand<Guid>;
 
 public class CrearVehiculoCommandValidator : AbstractValidator<CrearVehiculoCommand>
 {

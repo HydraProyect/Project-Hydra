@@ -13,7 +13,7 @@ public record CrearCentroCommand(
     string? CodigoCentro,
     string? Direccion,
     string? Contacto,
-    DateOnly? ContratoVigenteHasta) : IRequest<Result<Guid>>;
+    DateOnly? ContratoVigenteHasta) : ICommand<Guid>;
 
 public class CrearCentroCommandValidator : AbstractValidator<CrearCentroCommand>
 {

@@ -24,7 +24,7 @@ namespace CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 /// cliente para diagnosticar es delicado.
 /// </summary>
 public record AbrirAccesoSoporteCommand(
-    Guid DelegacionTenantId, string Motivo, int DiasDeVentana, string Rol = RolesSoporte.SoloLectura) : IRequest<Result>;
+    Guid DelegacionTenantId, string Motivo, int DiasDeVentana, string Rol = RolesSoporte.SoloLectura) : ICommand;
 
 /// <summary>
 /// Roles con los que puede entrar soporte. Coinciden con los que admite

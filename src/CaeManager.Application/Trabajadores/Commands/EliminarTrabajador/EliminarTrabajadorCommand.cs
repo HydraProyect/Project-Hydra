@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 
-public record EliminarTrabajadorCommand(Guid Id, Guid UsuarioId) : IRequest<Result>;
+public record EliminarTrabajadorCommand(Guid Id, Guid UsuarioId) : ICommand;
 
 public class EliminarTrabajadorCommandHandler(ITrabajadorRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarTrabajadorCommand, Result>

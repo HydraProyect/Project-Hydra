@@ -12,7 +12,7 @@ namespace CaeManager.Application.Clientes.Commands.EditarCliente;
 /// "sin comprobación", para los llamadores que todavía no la propagan.
 /// </summary>
 public record EditarClienteCommand(
-    Guid Id, string RazonSocial, string Cif, bool EsCritico, string? Notas, Guid Version = default) : IRequest<Result>;
+    Guid Id, string RazonSocial, string Cif, bool EsCritico, string? Notas, Guid Version = default) : ICommand;
 
 public class EditarClienteCommandValidator : AbstractValidator<EditarClienteCommand>
 {
