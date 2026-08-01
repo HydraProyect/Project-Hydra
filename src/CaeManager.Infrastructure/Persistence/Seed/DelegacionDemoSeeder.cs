@@ -37,7 +37,20 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// </summary>
 public static class DelegacionDemoSeeder
 {
-    public const string NombreTenantClienteDemo = "Ibertec S.A. (Cliente Delegante demo)";
+    // Nombres de ficción (caricaturas), como el resto de la siembra de
+    // demo (ver DatosPruebaSeeder) — distintos de los 9 "Cliente" que
+    // DatosPruebaSeeder crea dentro de cada tenant, para no repetir marca.
+    public const string NombreTenantClienteDemo = "Laboratorios Dexter S.L. (Cliente Delegante demo)";
+
+    /// <summary>
+    /// Segundo Cliente Delegante, con datos propios más pequeños y sin
+    /// usuarios de prueba: da a la Consultora una cartera de más de un
+    /// cliente (Visión de cartera, selector de Cliente activo con opciones
+    /// reales) y permite comprobar a simple vista que los datos de un tenant
+    /// no se cuelan en el otro.
+    /// </summary>
+    public const string NombreTenantClienteDemo2 = "Transportes Planet Express S.A. (Cliente Delegante demo 2)";
+
     public const string RolOperadorDelegadoDemo = "GestorCae";
 
     public static async Task SeedAsync(
@@ -50,58 +63,7 @@ public static class DelegacionDemoSeeder
         if (!configuration.GetValue<bool>("DatosPrueba:Activo"))
             return;
 
-        var tenantClienteExistente = await dbContext.Tenants
-            .FirstOrDefaultAsync(t => t.Nombre == NombreTenantClienteDemo, cancellationToken);
-
-        Guid tenantClienteId;
-        if (tenantClienteExistente is null)
-        {
-            var tenantCliente = new Tenant(NombreTenantClienteDemo);
-            tenantClienteId = tenantCliente.Id;
-
-            // Mismo motivo que SegundoTenantSeeder: hace falta un tenant
-            // resuelto ya para este primer guardado (el interceptor de
-            // auditoría necesita sellar contra algo), antes incluso de que
-            // el propio Tenant exista en la base de datos — el Id ya se
-            // conoce porque se genera en el constructor (ver Entity).
-            using (AmbitoTenantExplicito.Establecer(tenantClienteId))
-            {
-                dbContext.Tenants.Add(tenantCliente);
-
-                // Todo tenant necesita su propia fila de ParametroSistema —
-                // ObtenerKpisDashboardQuery/ObtenerDesgloseDashboardQuery la
-                // leen con SingleAsync() y fallan si no existe ninguna. Al
-                // tenant #1 se la da un HasData de migración; un tenant
-                // creado en tiempo de ejecución (como este) tiene que
-                // sembrarla explícitamente — mismos umbrales por defecto que
-                // ParametroSistemaSeedData.
-                dbContext.ParametrosSistema.Add(new ParametroSistema(
-                    ParametroSistemaSeedData.UmbralAmbarDias, ParametroSistemaSeedData.UmbralRojoDias));
-
-                // Mismo motivo: el catálogo de TipoDocumento también tiene
-                // HasData solo para el tenant #1 (ver TipoDocumentoConfiguration
-                // y el comentario de TipoDocumentoSeedData.ComoFilasParaMigracion,
-                // "un tenant nuevo recibirá su propia copia editable al
-                // aprovisionarse", docs/MULTITENANCY.md § 7) — sin esto, los
-                // Documento que DatosPruebaSeeder genera más abajo referencian
-                // un TipoDocumentoId que solo existe bajo el tenant #1, y el
-                // filtro global de tenant lo esconde: la lista de Documentos
-                // de este tenant aparecería vacía pese a que el Dashboard sí
-                // cuenta filas (ese conteo no necesita el join a TiposDocumento).
-                // Ids nuevos a propósito — el Id de TipoDocumentoSeedData es
-                // fijo para las filas del tenant #1, no reutilizable aquí.
-                dbContext.TiposDocumento.AddRange(TipoDocumentoSeedData.Datos.Select(t => new TipoDocumento(
-                    t.Nombre, t.VigenciaMeses, t.AplicaVencimiento, t.Orden, t.Ambito, t.EsObligatorio, t.Notas)));
-
-                await dbContext.SaveChangesAsync(cancellationToken);
-            }
-
-            logger.LogInformation("Tenant Cliente Delegante de demo sembrado: {TenantId}.", tenantClienteId);
-        }
-        else
-        {
-            tenantClienteId = tenantClienteExistente.Id;
-        }
+        var tenantClienteId = await AprovisionarTenantClienteAsync(dbContext, NombreTenantClienteDemo, logger, cancellationToken);
 
         // Todos los datos operativos de prueba (clientes, empresas, centros,
         // trabajadores, documentos, usuarios prueba.<rol><n>@...) se siembran
@@ -114,6 +76,82 @@ public static class DelegacionDemoSeeder
             await ComunicacionesDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
         }
 
+        await CrearDelegacionConAdministradorAsync(
+            dbContext, userManager, configuration, logger, tenantClienteId, NombreTenantClienteDemo, cancellationToken);
+
+        // Segundo Cliente Delegante: solo datos (los usuarios de prueba son
+        // únicos por email y ya pertenecen al primero).
+        var tenantCliente2Id = await AprovisionarTenantClienteAsync(dbContext, NombreTenantClienteDemo2, logger, cancellationToken);
+
+        using (AmbitoTenantExplicito.Establecer(tenantCliente2Id))
+        {
+            await DatosPruebaSeeder.SembrarSoloDatosAsync(dbContext, logger, cancellationToken);
+        }
+
+        await CrearDelegacionConAdministradorAsync(
+            dbContext, userManager, configuration, logger, tenantCliente2Id, NombreTenantClienteDemo2, cancellationToken);
+    }
+
+    private static async Task<Guid> AprovisionarTenantClienteAsync(
+        CaeManagerDbContext dbContext, string nombreTenant, ILogger logger, CancellationToken cancellationToken)
+    {
+        var tenantExistente = await dbContext.Tenants
+            .FirstOrDefaultAsync(t => t.Nombre == nombreTenant, cancellationToken);
+        if (tenantExistente is not null)
+            return tenantExistente.Id;
+
+        var tenantCliente = new Tenant(nombreTenant);
+
+        // Mismo motivo que SegundoTenantSeeder: hace falta un tenant
+        // resuelto ya para este primer guardado (el interceptor de
+        // auditoría necesita sellar contra algo), antes incluso de que
+        // el propio Tenant exista en la base de datos — el Id ya se
+        // conoce porque se genera en el constructor (ver Entity).
+        using (AmbitoTenantExplicito.Establecer(tenantCliente.Id))
+        {
+            dbContext.Tenants.Add(tenantCliente);
+
+            // Todo tenant necesita su propia fila de ParametroSistema —
+            // ObtenerKpisDashboardQuery/ObtenerDesgloseDashboardQuery la
+            // leen con SingleAsync() y fallan si no existe ninguna. Al
+            // tenant #1 se la da un HasData de migración; un tenant
+            // creado en tiempo de ejecución (como este) tiene que
+            // sembrarla explícitamente — mismos umbrales por defecto que
+            // ParametroSistemaSeedData.
+            dbContext.ParametrosSistema.Add(new ParametroSistema(
+                ParametroSistemaSeedData.UmbralAmbarDias, ParametroSistemaSeedData.UmbralRojoDias));
+
+            // Mismo motivo: el catálogo de TipoDocumento también tiene
+            // HasData solo para el tenant #1 (ver TipoDocumentoConfiguration
+            // y el comentario de TipoDocumentoSeedData.ComoFilasParaMigracion,
+            // "un tenant nuevo recibirá su propia copia editable al
+            // aprovisionarse", docs/MULTITENANCY.md § 7) — sin esto, los
+            // Documento que DatosPruebaSeeder genera más abajo referencian
+            // un TipoDocumentoId que solo existe bajo el tenant #1, y el
+            // filtro global de tenant lo esconde: la lista de Documentos
+            // de este tenant aparecería vacía pese a que el Dashboard sí
+            // cuenta filas (ese conteo no necesita el join a TiposDocumento).
+            // Ids nuevos a propósito — el Id de TipoDocumentoSeedData es
+            // fijo para las filas del tenant #1, no reutilizable aquí.
+            dbContext.TiposDocumento.AddRange(TipoDocumentoSeedData.Datos.Select(t => new TipoDocumento(
+                t.Nombre, t.VigenciaMeses, t.AplicaVencimiento, t.Orden, t.Ambito, t.EsObligatorio, t.Notas)));
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        logger.LogInformation("Tenant Cliente Delegante de demo sembrado: {Nombre} ({TenantId}).", nombreTenant, tenantCliente.Id);
+        return tenantCliente.Id;
+    }
+
+    private static async Task CrearDelegacionConAdministradorAsync(
+        CaeManagerDbContext dbContext,
+        UserManager<ApplicationUser> userManager,
+        IConfiguration configuration,
+        ILogger logger,
+        Guid tenantClienteId,
+        string nombreTenantCliente,
+        CancellationToken cancellationToken)
+    {
         if (await dbContext.DelegacionesTenant.AnyAsync(
                 d => d.TenantConsultoraId == TenantSeedData.IdPorDefecto && d.TenantClienteId == tenantClienteId,
                 cancellationToken))
@@ -150,6 +188,6 @@ public static class DelegacionDemoSeeder
 
         logger.LogInformation(
             "Delegated Workspace de demo sembrado: {Administrador} puede operar {TenantCliente} como {Rol}.",
-            administradorConsultora.Email, NombreTenantClienteDemo, RolOperadorDelegadoDemo);
+            administradorConsultora.Email, nombreTenantCliente, RolOperadorDelegadoDemo);
     }
 }
