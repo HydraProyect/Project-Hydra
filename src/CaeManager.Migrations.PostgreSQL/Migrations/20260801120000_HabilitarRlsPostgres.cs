@@ -66,8 +66,8 @@ BEGIN
     -- en paralelo contra varias bases de datos de test del mismo cluster
     -- (patrón habitual: una base efímera por clase de test), dos
     -- transacciones pueden pasar el NOT EXISTS a la vez antes de que
-    -- ninguna confirme el CREATE ROLE, y la segunda revienta con
-    -- "duplicate key value violates unique constraint pg_authid_rolname_index"
+    -- ninguna confirme el CREATE ROLE, y la segunda revienta con un
+    -- duplicate key value violates unique constraint pg_authid_rolname_index
     -- en vez de un error legible — visto reproducido en CI de PR #49
     -- (E2E con exit 134 y 70+ tests de AislamientoPorAgregadoTests caídos
     -- porque la app no arrancaba). BEGIN/EXCEPTION aquí sí es atómico
