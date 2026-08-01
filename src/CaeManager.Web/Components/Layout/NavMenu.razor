@@ -22,6 +22,11 @@
                 <Icono Nombre="cartera" /> Visión de cartera
             </NavLink>
         </AuthorizeView>
+        <AuthorizeView Roles="@RolesDeAdministracionAmpliada" Context="authDashboardEjecutivo">
+            <NavLink class="nav-item" href="dashboard-ejecutivo">
+                <Icono Nombre="dashboard" /> Dashboard Ejecutivo
+            </NavLink>
+        </AuthorizeView>
 
         <span class="nav-grupo-titulo">Negocio</span>
         <NavLink class="nav-item" href="clientes">
