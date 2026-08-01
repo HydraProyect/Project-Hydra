@@ -200,6 +200,7 @@ using (var scope = app.Services.CreateScope())
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+    var userStore = scope.ServiceProvider.GetRequiredService<IUserStore<ApplicationUser>>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     // Sin sesión de usuario en el arranque no hay tenant que resolver por
@@ -207,7 +208,7 @@ using (var scope = app.Services.CreateScope())
     // como tenant #1 (ver AmbitoTenantExplicito, docs/MULTITENANCY.md § 8.4).
     using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
     {
-        await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration);
+        await IdentitySeeder.SeedAsync(userManager, roleManager, userStore, logger, app.Configuration);
     }
 
     // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
