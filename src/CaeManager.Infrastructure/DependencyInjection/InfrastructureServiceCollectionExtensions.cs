@@ -59,7 +59,21 @@ public static class InfrastructureServiceCollectionExtensions
         // Sin estado y sin dependencias: una sola instancia sirve.
         services.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 
-        services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
+        // Fábrica, no AddDbContext: cada operación (un despacho de MediatR,
+        // una carga directa de UserManager) recibe su propio DbContext en vez
+        // de compartir uno solo para todo el circuito de Blazor — ver
+        // PuertaAccesoDatos, que sustituye al semáforo que antes serializaba
+        // ese acceso compartido (P1-11 de docs/business/MATURITY_REVIEW.md).
+        //
+        // lifetime: Scoped es la parte que no se puede tocar sin abrir una
+        // fuga de tenant: así la fábrica construye sus DbContextOptions — y,
+        // con ellas, resuelve AuditoriaInterceptor/TenantSelladoInterceptor,
+        // ambos dependientes de servicios scoped como ITenantActual — contra
+        // el scope del circuito o de la petición actual. Con el valor por
+        // defecto (Singleton) esos interceptores quedarían resueltos contra
+        // el proveedor raíz y fijados al primer tenant que creara un
+        // DbContext, para siempre, hasta reiniciar el proceso.
+        services.AddDbContextFactory<CaeManagerDbContext>((serviceProvider, options) =>
         {
             var cadena = configuration.GetConnectionString("CaeManagerDb");
 
@@ -79,7 +93,24 @@ public static class InfrastructureServiceCollectionExtensions
                 serviceProvider.GetRequiredService<AuditoriaInterceptor>(),
                 serviceProvider.GetRequiredService<TenantSelladoInterceptor>(),
                 serviceProvider.GetRequiredService<ConcurrenciaOptimistaInterceptor>());
-        });
+        }, lifetime: ServiceLifetime.Scoped);
+
+        services.AddScoped<PuertaAccesoDatos>();
+        services.AddScoped<IPuertaAccesoDatos>(sp => sp.GetRequiredService<PuertaAccesoDatos>());
+
+        // CaeManagerDbContext sigue siendo Scoped (Identity — UserManager,
+        // RoleManager, SignInManager — lo exige, y necesita uno estable para
+        // todo el circuito), pero ya no es "el único": si hay una operación
+        // en curso a través de PuertaAccesoDatos, esta resolución devuelve
+        // SU contexto (aislado); si no —RevalidacionClienteActivoMiddleware,
+        // los minimal endpoints de Identity, la siembra al arrancar en
+        // Program.cs—, crea uno y lo memoiza para el resto del scope, igual
+        // que hacía AddDbContext antes de este cambio. Esos accesos no
+        // pasaban por el semáforo tampoco antes (no compiten con la
+        // inicialización paralela de componentes), así que no pierden nada.
+        services.AddScoped<CaeManagerDbContext>(sp =>
+            sp.GetRequiredService<PuertaAccesoDatos>().ContextoActual
+            ?? sp.GetRequiredService<IDbContextFactory<CaeManagerDbContext>>().CreateDbContext());
 
         services
             .AddIdentityCore<ApplicationUser>(opciones =>

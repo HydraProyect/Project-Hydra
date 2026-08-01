@@ -17,7 +17,7 @@ public partial class Auditoria : ComponentBase
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
-    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private IPuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
 
     private ResultadoPaginado<RegistroAuditoriaDto>? _resultado;
     private Dictionary<Guid, string> _usuariosPorId = new();

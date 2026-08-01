@@ -27,7 +27,7 @@ public class TrazaSoporteService(
     IApplicationDbContext dbContext,
     IRegistroActividadSoporteRepository repositorio,
     IUnitOfWork unitOfWork,
-    PuertaAccesoDatos puertaAccesoDatos)
+    IPuertaAccesoDatos puertaAccesoDatos)
 {
     private bool _resuelto;
     private Guid? _delegacionSoporteId;
