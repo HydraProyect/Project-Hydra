@@ -55,6 +55,7 @@ Producción y staging pueden usar las mismas variables de `Backups__Aws__*` (mis
 |---|---|---|
 | `Anthropic__ApiKey` | tu API key de [console.anthropic.com](https://console.anthropic.com) | Activa el chat "Pregúntale a Hydra" (botón flotante) — sin esta variable el botón ni se muestra. Si la key tiene fecha de expiración (recomendado), hay que rotarla en Railway antes de que caduque o el chat deja de responder |
 | `Anthropic__Modelo` | (opcional, por defecto `claude-sonnet-5`) | Modelo usado para el chat |
+| `DeteccionPreviaDocumento__Activa` | (opcional, por defecto `false`) | **Apagada a propósito** (P0-4 de `docs/business/MATURITY_REVIEW.md`): activarla envía el PDF completo de cualquier Documento de Trabajador —incluidos reconocimientos médicos— a un proveedor de IA externo antes de conocer el tipo de documento. No la actives hasta que el DPA declare ese tratamiento de datos de salud (art. 9 RGPD) como subencargado |
 
 Las dos variables de `AdministradorInicial` solo se aplican **la primera vez que arranca** (cuando todavía no existe ningún usuario administrador) — si el servicio ya arrancó una vez sin ellas, cambia la contraseña desde `/usuarios` en vez de tocar estas variables.
 
