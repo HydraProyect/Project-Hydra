@@ -26,4 +26,14 @@ public interface ICurrentUserService
     /// condiciones que <see cref="ObtenerUsuarioActualIdAsync"/>.
     /// </summary>
     Task<Guid?> ObtenerTenantOrigenIdAsync();
+
+    /// <summary>
+    /// Si el usuario actual tiene la autenticación en dos pasos activada
+    /// (P1-13 de docs/business/MATURITY_REVIEW.md — se exige para abrir un
+    /// acceso de soporte, ver AbrirAccesoSoporteCommand). Application no
+    /// puede consultar Identity directamente (vive en Infrastructure/Web);
+    /// falso también si no hay usuario resuelto — fallo cerrado, igual que
+    /// <see cref="ObtenerRolActualAsync"/>.
+    /// </summary>
+    Task<bool> TieneDobleFactorActivoAsync();
 }
