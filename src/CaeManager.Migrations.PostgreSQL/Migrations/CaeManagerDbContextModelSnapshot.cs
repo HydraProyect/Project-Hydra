@@ -1893,6 +1893,52 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ExtraccionesIaCache", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.DocumentosIa.TrabajoAnalisisDocumento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("IniciadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Intentos")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UltimoError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid?>("UsuarioSolicitanteId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Estado", "CreadoEnUtc");
+
+                    b.ToTable("TrabajosAnalisisDocumento", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Empresas.CredencialAccesoEmpresa", b =>
                 {
                     b.Property<Guid>("Id")

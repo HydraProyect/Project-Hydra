@@ -1,6 +1,6 @@
 # MULTITENANCY — Documento normativo de multi-tenancy de Hydra
 
-**Estado**: Aprobación pendiente (fase de consolidación documental de `ADR-003-saas-multitenant.md`). Describe la arquitectura decidida; la implementación técnica **todavía no existe** en el código — no asumir que el aislamiento está activo hasta que `ROADMAP.md` registre la fase como completada.
+**Estado**: Implementado y validado (`TenantId` en las 25 tablas de dominio originales + las añadidas desde entonces, filtro global + interceptor de sellado, índices únicos compuestos, almacenamiento particionado por tenant, tests de aislamiento por agregado — ver `CLAUDE.md`, "Decisión multi-tenant" de `ROADMAP.md`, 2026-07-24, y la segunda línea de RLS de PostgreSQL de § 4.2, 2026-08-01). Este documento sigue siendo la referencia normativa de las reglas de aislamiento, catálogos y Tenant Resolution Strategy — no una propuesta pendiente de aprobar.
 
 ---
 
@@ -38,6 +38,8 @@ Dentro de cada tenant, el modelo CAE es el ya existente, sin cambios:
 
 1. **Toda tabla de datos lleva `TenantId` (Guid, NOT NULL)** — incluidas las de unión (`EmpresaCliente`, `VisitaTrabajador`...) y las transversales (`RegistroAuditoria`, `Alerta`, `NotificacionUsuario`, `DeteccionTrabajador`). Ninguna tabla depende de un JOIN para saber de quién es (defensa en profundidad). Excepciones: `Tenant` misma, `AspNetRoles` (catálogo global, § 7) y las tablas de Identity que derivan del usuario ya particionado.
 2. **Lectura**: Global Query Filter de EF Core por entidad, **combinado** con el de soft-delete existente (`!EstaEliminado && TenantId == tenantActual`) — EF Core solo admite un `HasQueryFilter` por entidad; un filtro nuevo separado *reemplazaría* silenciosamente al de soft-delete. Prohibido `IgnoreQueryFilters()` y SQL crudo sin revisión explícita (regla ya vigente en `CLAUDE.md`, que pasa a ser frontera de seguridad entre tenants).
+
+   **Segunda línea (implementada 2026-08-01, P2 #21 de `docs/business/MATURITY_REVIEW.md`)**: Row-Level Security de PostgreSQL con `FORCE`, política `aislamiento_tenant` en las 40 tablas de este filtro, comparando `TenantId` contra la variable de sesión `app.tenant_id` que `TenantRlsConnectionInterceptor` fija en cada conexión desde el mismo `ITenantActual`. Cubre exactamente el caso que el filtro de EF no puede cubrir por construcción: una consulta que se lo salte (`IgnoreQueryFilters` mal revisado, SQL crudo, un bug del propio EF). Hoy sigue siendo defensa en profundidad *inerte* en producción — RLS nunca restringe al propietario de la tabla ni a un superusuario, y la aplicación todavía conecta con ese rol —, hasta que se rote la conexión de runtime al rol restringido `cae_app_runtime` siguiendo `RUNBOOK-RLS.md` (paso operativo con credenciales reales, deliberadamente no automatizado). Migración: `HabilitarRlsPostgres`.
 3. **Escritura**: interceptor de `SaveChanges` que sella `TenantId` en toda entidad nueva desde `ITenantActual` y rechaza modificaciones cuyo `TenantId` no coincida. Los Commands **nunca** reciben ni pasan `TenantId`.
 4. **Referencias cruzadas**: todo Command que reciba un Id de otra entidad la carga antes de usarla — el filtro global convierte un Id de otro tenant en "no encontrado". Regla de revisión de código, cubierta por tests.
 5. **Fallo cerrado**: sin tenant resoluble → sin datos (lista vacía / 403). Nunca "sin filtro".
@@ -53,7 +55,7 @@ Los 7 índices únicos hoy globales pasan a compuestos con `TenantId` como prime
 
 | Capa | Mecanismo | Decide | Estado |
 |---|---|---|---|
-| 1. Tenant | Filtro global + interceptor (Infrastructure) | De qué organización es cada fila | A implementar |
+| 1. Tenant | Filtro global + interceptor (Infrastructure) | De qué organización es cada fila | Implementado |
 | 2. Rol | Policies ASP.NET Core (`Administrador`...`Cliente`) | Qué puede hacer un usuario | Existe |
 | 3. Cartera | `IAlcanceDatosService` | Qué subconjunto del tenant ve un rol restringido | Existe (no se toca) |
 | 4. Escritura | `AutorizacionEscrituraBehavior` + regla de referencias (§ 4.4) | Qué puede mutar | Existe + refuerzo |
@@ -73,7 +75,7 @@ Criterio de clasificación: un catálogo es **global** si es parte del producto 
 | Enums de dominio (`EstadoDocumento`, `NivelAlerta`, `AmbitoAplicacion`, `TipoDeteccion`, `TipoIdentificacion`) | **Global** | Son tipos del código, no datos. La lógica de negocio (cálculo de estado, semáforos) depende de ellos. |
 | Plantillas de importación Excel (`/clientes/plantilla.xlsx`, etc.) | **Global** | Formato de intercambio del producto, igual para todos los tenants. |
 | Umbrales/textos de UI, microcopy, Design System | **Global** | Identidad del producto. Branding por tenant (logo, colores) es una posible feature comercial futura — backlog, no ahora. |
-| Configuración de integraciones (`AzureAd:*`, `Graph:*`, `Anthropic:*`, Sentry, Backups) | **Global hoy, por-tenant en el futuro señalado** | Hoy son configuración de la instalación (appsettings). SSO por tenant y cuotas de IA por tenant están identificados como deuda SaaS en `INFORME-MULTITENANT.md` § 16 — se abordan cuando haya un segundo tenant real que los necesite, con diseño propio (secretos por tenant cifrados, no appsettings). |
+| Configuración de integraciones (`AzureAd:*`, `Graph:*`, `Anthropic:*`, Sentry, Backups) | **Global hoy, por-tenant en el futuro señalado** | Hoy son configuración de la instalación (appsettings). SSO por tenant y cuotas de IA por tenant están identificados como deuda SaaS en `docs/archive/INFORME-MULTITENANT.md` § 16 — se abordan cuando haya un segundo tenant real que los necesite, con diseño propio (secretos por tenant cifrados, no appsettings). |
 | `ProveedorIntegracion` / `VersionApiProveedor` (catálogo de la futura Plataforma de Integraciones — Dokify, 6Coordina, CTAIMA, eCoordina, Microsoft 365, Anthropic, OpenAI...) | **Global** | Es parte del producto: qué proveedores soporta Hydra y qué capacidades tiene cada versión de su API, del mismo modo que los roles son parte del código. La instancia que cada tenant activa y configura (`ConexionIntegracion`, `CredencialIntegracion`, `SaludConexionIntegracion`, `TrabajoIntegracion`, `SincronizacionIntegracion`, `SuscripcionWebhook`, `EventoWebhook`) es **por tenant**, con `TenantId` obligatorio como cualquier otra tabla de datos. Ver `ARQUITECTURA-INTEGRACIONES.md` (diseño de backlog, no implementado). |
 
 ## 8. Tenant Resolution Strategy
@@ -129,6 +131,7 @@ Ninguno de los tres modos anteriores cubre a una **Consultora** externa (p. ej. 
 - `ADR-003-saas-multitenant.md` — la decisión vigente (SaaS in-place, supersede ADR-002).
 - `ADR-001-multitenant.md` — el modelo técnico (TenantId por fila, filtro global, interceptor, índices compuestos) — reactivado como guía por ADR-003.
 - `ADR-002-single-tenant.md` — superseded; se conserva como registro histórico y por su § 4 (obligaciones RGPD que siguen vigentes).
-- `INFORME-MULTITENANT.md` — análisis técnico completo: riesgos, estrategia de migración por etapas, impactos CQRS/DDD/rendimiento.
+- `docs/archive/INFORME-MULTITENANT.md` — análisis técnico completo: riesgos, estrategia de migración por etapas, impactos CQRS/DDD/rendimiento.
 - `PLAN-MIGRACION-MULTITENANT.md` — plan de ejecución por etapas.
 - `ARQUITECTURA-INTEGRACIONES.md` — diseño de la futura Plataforma de Integraciones (proveedores CAE/ERP/CRM/IA), backlog, no implementado — asegura que las decisiones de esta página no le cierren puertas.
+- `RUNBOOK-RLS.md` — cómo activar de verdad la segunda línea de RLS de § 4.2 en producción (rotación del rol de conexión, paso operativo no automatizado).
