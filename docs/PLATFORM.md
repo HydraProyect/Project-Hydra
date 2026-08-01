@@ -37,7 +37,7 @@ El Kernel **no conoce** ninguna entidad de CAE (`Cliente`, `Documento`...) — s
 
 | Capacidad | Estado hoy | Dónde está diseñada/implementada |
 |---|---|---|
-| **MultiTenant** | Diseñado, implementación pendiente | `ADR-003`, `docs/MULTITENANCY.md`, `INFORME-MULTITENANT.md`, `PLAN-MIGRACION-MULTITENANT.md` |
+| **MultiTenant** | Implementado y validado (ver `docs/MULTITENANCY.md`) | `ADR-003`, `docs/MULTITENANCY.md`, `docs/archive/INFORME-MULTITENANT.md`, `PLAN-MIGRACION-MULTITENANT.md` |
 | **Identity** | Implementado (ASP.NET Core Identity + SSO Entra ID opcional) | `ARCHITECTURE.md` |
 | **Authorization** | Implementado (roles + `IAlcanceDatosService` por cartera) | `DOMAIN.md`, `ARCHITECTURE.md` |
 | **Integrations** | Diseñado, no implementado | `ARQUITECTURA-INTEGRACIONES.md`, `docs/INTEGRATION_GUIDELINES.md` |
