@@ -35,7 +35,13 @@ public class CampoTextoTests : BunitContext
         // "a mitad de camino" antes de que el debounce termine.
         var tareaInput = input.InputAsync("nuevo valor");
 
-        await Task.Delay(100);
+        // 20ms en vez de 100ms: en runners de CI con contención, un
+        // Task.Delay corto puede despertarse tarde: cuanto más cerca del
+        // umbral de 300ms se comprueba, más fácil que el jitter del
+        // scheduler lo cruce y el assert de "todavía no" salga en falso
+        // (visto en CI, ver PR #44). 20ms deja el mismo margen que ya usa
+        // el otro test de este archivo sin ese problema.
+        await Task.Delay(20);
         valoresRecibidos.Should().BeEmpty("todavía no pasaron los 300ms de debounce");
 
         await tareaInput;
