@@ -62,11 +62,15 @@ El modelo de negocio es la raíz: el ICP nace de él (a quién le sirve ese mode
 - `COMPETITOR_ANALYSIS.md`
 - `ROADMAP_BUSINESS.md`
 
-`DECISION_LOG.md` no entra en esta clasificación — no es un documento temático, es un registro transversal (ver siguiente sección).
+`DECISION_LOG.md` y `MATURITY_REVIEW.md` no entran en esta clasificación — no son documentos temáticos, son registros transversales (ver siguientes secciones).
 
 ## Registro de decisiones
 
 `DECISION_LOG.md` no se lee de forma lineal como el resto: es el equivalente de negocio de los ADR técnicos (`ADR-001`, `ADR-002`, `ADR-003`) — un historial cronológico e inmutable de decisiones ya tomadas (fecha, decisión, motivo, alternativas descartadas, impacto), no un documento que se reescribe. Se consulta cuando hace falta saber *por qué* una decisión comercial se tomó de una manera y no de otra, y se amplía cada vez que el propietario del producto confirma una decisión de negocio nueva. Cualquier documento temático de esta carpeta puede generar una entrada ahí al pasar de `Draft`/`In Progress` a `Approved`.
+
+## Informes de evaluación
+
+`MATURITY_REVIEW.md` es un informe de madurez del producto (snapshot fechado, comité de revisión técnica externo al contenido de negocio). Como `DECISION_LOG.md`, no es un documento temático: no define decisiones, las **alimenta** — su ranking de prioridades P0-P3 es insumo para `ROADMAP_BUSINESS.md` y `PRODUCT_STRATEGY.md`, y cualquier decisión que derive de él se registra en `DECISION_LOG.md`. Un informe futuro se añade como snapshot nuevo fechado, no editando el existente.
 
 ## Reglas de esta carpeta
 
