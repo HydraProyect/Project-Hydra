@@ -154,27 +154,36 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
-// Rate limiting por IP sobre /cuenta/* (login local, callback de Microsoft,
-// verificación 2FA) — junto con el lockout de Identity, cierra el hallazgo
-// P0-2 de docs/business/MATURITY_REVIEW.md (fuerza bruta sin fricción): el
-// lockout protege cada cuenta concreta, este límite frena el barrido de
-// muchas cuentas distintas desde una misma IP. El resto de la aplicación no
-// se limita: es Blazor Server con sesión iniciada, el tráfico útil viaja por
-// el circuito SignalR, no por peticiones HTTP repetidas. Limitador en
-// memoria: suficiente mientras el techo sea 1 réplica (autodocumentado en
-// ARCHITECTURE.md); con multi-réplica habría que moverlo a un almacén
-// compartido, igual que el resto de estado de proceso.
+// Rate limiting por IP sobre los POST de autenticación en /cuenta/* (login
+// local, callback de Microsoft, verificación 2FA) — junto con el lockout de
+// Identity, cierra el hallazgo P0-2 de docs/business/MATURITY_REVIEW.md
+// (fuerza bruta sin fricción): el lockout protege cada cuenta concreta, este
+// límite frena el barrido de muchas cuentas distintas desde una misma IP.
+// Solo se limitan los POST — un GET a /cuenta/iniciar-sesion es simplemente
+// cargar la página, y limitarlo también castigaba tráfico legítimo: un
+// runner de CI (o un usuario real detrás de un NAT/proxy compartido) hace
+// varias cargas de página desde la misma IP y se quedaba sin poder ni ver el
+// formulario de login (regresión real, encontrada en los E2E de este mismo
+// cambio — devolvía 429 antes de que existiera nada que enviar). El resto de
+// la aplicación no se limita: es Blazor Server con sesión iniciada, el
+// tráfico útil viaja por el circuito SignalR, no por peticiones HTTP
+// repetidas. Limitador en memoria: suficiente mientras el techo sea 1
+// réplica (autodocumentado en ARCHITECTURE.md); con multi-réplica habría que
+// moverlo a un almacén compartido, igual que el resto de estado de proceso.
 builder.Services.AddRateLimiter(opciones =>
 {
     opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     opciones.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
     {
-        if (!contexto.Request.Path.StartsWithSegments("/cuenta"))
+        var esPostDeCuenta = HttpMethods.IsPost(contexto.Request.Method)
+            && contexto.Request.Path.StartsWithSegments("/cuenta");
+
+        if (!esPostDeCuenta)
             return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("sin-limite");
 
-        // Con sesión iniciada (cerrar sesión, cambio de Delegated Workspace
-        // vía /cuenta/cliente-activo) el margen es holgado — el objetivo son
-        // los anónimos que martillean el login.
+        // Con sesión iniciada (cambio de Delegated Workspace vía
+        // /cuenta/cliente-activo, cerrar sesión) el margen es holgado — el
+        // objetivo son los anónimos que martillean el login.
         var limite = contexto.User.Identity?.IsAuthenticated == true ? 60 : 10;
 
         // La IP real ya está resuelta: UseForwardedHeaders corre al principio
