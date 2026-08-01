@@ -257,6 +257,10 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     public Task Aislamiento_ProyectoTecnico() => VerificarAislamientoAsync(
         () => new ProyectoTecnico(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1)));
 
+    [Fact]
+    public Task Aislamiento_TrabajoAnalisisDocumento() => VerificarAislamientoAsync(
+        () => new TrabajoAnalisisDocumento(Guid.NewGuid(), Guid.NewGuid(), TipoAnalisisDocumento.VerificacionIa));
+
     // Hallazgo M-1: AprobacionDocumento tampoco tenía filtro. No fugaba
     // todavía porque su único lector hace join contra Documentos (que sí está
     // filtrado), pero la invariante estaba rota y cualquier consulta futura
