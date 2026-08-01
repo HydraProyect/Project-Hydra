@@ -871,7 +871,7 @@ Los límites reales, por orden de aparición:
 
 **Sin medir todavía**: no hay ninguna prueba de carga ejecutada contra el sistema, así que cualquier cifra concreta de "aguanta N usuarios" sería inventada. Lo de arriba es análisis de código, no medición.
 
-## Backlog — Migración a PostgreSQL (2026-08-01, 🟡 corte ejecutado en producción, dos cabos sin confirmar)
+## Backlog — Migración a PostgreSQL (2026-08-01, ✅ corte cerrado en producción)
 
 Condición de salida a producción pendiente de `ADR-003`. El trabajo real no es cambiar el proveedor de EF Core —eso es una tarde— sino lo que arrastra:
 
@@ -896,11 +896,11 @@ El usuario decidió que la producción de entonces solo tenía datos de prueba (
 - ✅ Servicio de la app migrado a la región **EU West (Ámsterdam)** — decisión y ejecución del usuario.
 - ✅ Migraciones aplicadas contra el Postgres de Railway sin error.
 - ✅ Siembra completa: 9+3 clientes (dos tenants Cliente Delegante de demo), 2252+ documentos, KMS operativo, delegaciones de soporte aprovisionadas.
-- 🟡 **Región del Postgres de Railway sin confirmar por el usuario** — se le pidió comprobarlo en Settings → Region del propio servicio de base de datos (debería ser también EU West; nunca llegó la confirmación explícita).
-- 🟡 **Backup a S3 con pg_dump — corregido pero sin una segunda confirmación en producción**: el primer backup automático falló (`pg_dump: aborting because of server version mismatch` — el `postgresql-client` de los repos por defecto de la imagen resuelve a la 16, insuficiente contra el Postgres 18.4 de Railway). Corregido instalando `postgresql-client-18` desde el repositorio oficial PGDG (commit `04245aa`, ya en `main`) — pendiente un log de arranque posterior a ese redeploy que confirme "Backup subido correctamente a s3://...".
-- 🟡 **Un login dio HTTP 400** justo después de ese redeploy — diagnosticado como coincidencia de tiempos con el propio redeploy en curso (no como fallo de la app: la cookie de sesión sí quedó puesta, confirmado porque al volver atrás la sesión ya estaba iniciada). No confirmado que no vuelva a pasar en un despliegue ya estable.
+- ✅ **Región del Postgres confirmada (2026-08-01)**: EU West (Ámsterdam) — igual que el servicio de la app. Todo el tratamiento de datos personales queda dentro de la UE.
+- ✅ **Backup a S3 con pg_dump confirmado (2026-08-01)**: tras el redeploy con `postgresql-client-18` (commit `04245aa`), log real: `Backup subido correctamente a s3://project-hydra-backups/Project-Hydra/20260801-153348/`.
+- ✅ **Estabilidad confirmada**: arranque limpio (sin reinicios), guard de siembra idempotente (`ya hay Clientes — se omite`), tráfico HTTP normal sin ningún 400 — el HTTP 400 puntual anterior queda confirmado como coincidencia de tiempos con el redeploy en curso, no como fallo de la app.
 
-**Pendiente real, no bloqueante para seguir trabajando**: el DPA/Términos de Uso (condición aparte de `ADR-003`, revisión legal); retirar la rama SQLite (`ProveedorBaseDatos`, las migraciones de Infrastructure, `BackfillTenantPorDefectoTests`, la rama SQLite de `BackupHostedService`) una vez el corte quede confirmado sin cabos sueltos — ver "Después del corte" en `RUNBOOK-MIGRACION-POSTGRESQL.md`; borrar en S3 los backups anteriores a la activación de KMS (viajan con las claves de Data Protection en claro) — decisión ya tomada por el usuario, pendiente de ejecutar en la consola de AWS.
+**Pendiente real, no bloqueante para seguir trabajando**: el DPA/Términos de Uso (condición aparte de `ADR-003`, revisión legal); retirar la rama SQLite (`ProveedorBaseDatos`, las migraciones de Infrastructure, `BackfillTenantPorDefectoTests`, la rama SQLite de `BackupHostedService`) — ver "Después del corte" en `RUNBOOK-MIGRACION-POSTGRESQL.md`; borrar en S3 los backups anteriores a la activación de KMS (viajan con las claves de Data Protection en claro) — decisión ya tomada por el usuario, pendiente de ejecutar en la consola de AWS.
 
 ## Fase 61 — Dos bugs reales de Blazor Server destapados por PostgreSQL (2026-08-01)
 
