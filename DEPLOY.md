@@ -37,14 +37,14 @@ En la pestaña **Variables** del servicio de la **app**, añade:
 | `AlmacenamientoS3__BucketName` | nombre del bucket S3, **distinto** del de Backups | No reutilices el bucket de backups: ese ya contiene un volcado completo de la base de datos |
 | `AlmacenamientoS3__Region` | región del bucket, p. ej. `eu-south-2` | Misma consideración de RGPD que el resto de buckets — no sacar datos de España |
 | `DataProtection__RutaClaves` | `/data/dataprotection-keys` | Claves de cifrado de credenciales (Empresa/Centro) — si no se persisten, cada redeploy invalida las credenciales ya guardadas |
-| `AdministradorInicial__Email` | (tu elección, p. ej. `admin@ProjectHydra.com`) | Evita arrancar con el email de administrador por defecto, público en el propio código |
-| `AdministradorInicial__Contrasena` | (una contraseña real, mínimo 10 caracteres) | Igual que arriba, para la contraseña |
+| `AdministradorInicial__Email` | (tu elección, p. ej. `admin@ProjectHydra.com`) | **Obligatoria en producción** (`ASPNETCORE_ENVIRONMENT=Production`): sin ella el arranque falla a propósito — las credenciales por defecto son públicas en el código y solo se usan en desarrollo |
+| `AdministradorInicial__Contrasena` | (una contraseña real, mínimo 10 caracteres) | Igual que arriba, para la contraseña — también obligatoria en producción |
 | `ConversionWordPdf__TimeoutSegundos` | (opcional, por defecto `60`) | Tiempo máximo que se espera a LibreOffice al convertir un Word (.docx) a PDF antes de darlo por fallado — no suele hacer falta tocarlo |
 | `DatosPrueba__Activo` | `true` (opcional, solo para un entorno de pruebas) | Siembra una base de datos genérica de cientos de filas por entidad — ver más abajo |
 | `Logging__RutaArchivo` | (opcional, por defecto `App_Data/logs/log-.txt` relativo al volumen) | Ruta del log estructurado de Serilog en disco (consola + archivo con rotación diaria) — ver "Iniciativa de hardening" en `ROADMAP.md` |
 | `Sentry__Dsn` | (opcional, vacío por defecto) | Activa el error tracking de Sentry si se rellena con el DSN de un proyecto real — sin esta variable la SDK queda completamente inerte, no hace falta tener cuenta de Sentry para desplegar |
 | `Comunicaciones__Activo` | `true` (opcional, por defecto `false`) | Módulo congelado (P2 #26 de `docs/business/MATURITY_REVIEW.md`): sin esta variable, `/comunicaciones` responde como si la ruta no existiera. No hay ingesta real de Microsoft Graph detrás — no lo actives frente a un cliente real hasta que la haya |
-| `Backups__Activo` | `true` (opcional, por defecto `false`) | Activa el backup automático diario de `CaeManager.db` + `dataprotection-keys/` a S3 — ver `RUNBOOK-CLAVES.md` |
+| `Backups__Activo` | `true` (opcional, por defecto `false`) | Activa el backup automático diario del volcado de PostgreSQL (`pg_dump --format=custom`) + `dataprotection-keys/` a S3 — ver `RUNBOOK-CLAVES.md` |
 | `Backups__Aws__AccessKeyId` / `Backups__Aws__SecretAccessKey` | credenciales de un usuario IAM con permisos solo sobre el bucket de backups (`s3:PutObject`/`GetObject`/`ListBucket`) | Nunca uses las credenciales root de la cuenta de AWS para esto |
 | `Backups__Aws__BucketName` | nombre del bucket S3 | |
 | `Backups__Aws__Region` | región del bucket, p. ej. `eu-south-2` | |
@@ -62,6 +62,7 @@ Producción y staging pueden usar las mismas variables de `Backups__Aws__*` (mis
 |---|---|---|
 | `Anthropic__ApiKey` | tu API key de [console.anthropic.com](https://console.anthropic.com) | Activa el chat "Pregúntale a Hydra" (botón flotante) — sin esta variable el botón ni se muestra. Si la key tiene fecha de expiración (recomendado), hay que rotarla en Railway antes de que caduque o el chat deja de responder |
 | `Anthropic__Modelo` | (opcional, por defecto `claude-sonnet-5`) | Modelo usado para el chat |
+| `DeteccionPreviaDocumento__Activa` | (opcional, por defecto `false`) | **Apagada a propósito** (P0-4 de `docs/business/MATURITY_REVIEW.md`): activarla envía el PDF completo de cualquier Documento de Trabajador —incluidos reconocimientos médicos— a un proveedor de IA externo antes de conocer el tipo de documento. No la actives hasta que el DPA declare ese tratamiento de datos de salud (art. 9 RGPD) como subencargado |
 
 Las dos variables de `AdministradorInicial` solo se aplican **la primera vez que arranca** (cuando todavía no existe ningún usuario administrador) — si el servicio ya arrancó una vez sin ellas, cambia la contraseña desde `/usuarios` en vez de tocar estas variables.
 
@@ -122,7 +123,8 @@ Dos mecanismos distintos, uno ya activo por código y el otro pendiente de un cl
 
 ## 5. Verificar
 
-- `https://tu-dominio.up.railway.app/salud` debe responder `200 ok` (endpoint sin autenticación, pensado para healthchecks).
+- `https://tu-dominio.up.railway.app/salud` debe responder `200 Healthy` (endpoint sin autenticación, pensado para healthchecks). Desde el cierre del P0-5 (`MATURITY_REVIEW.md`) ya no es un "ok" incondicional: ejecuta una consulta real contra PostgreSQL, así que un 503 aquí significa que la base de datos no responde, no solo que el proceso esté caído.
+- **Uptime check externo (pendiente de provisionar, P0-5)**: apunta un monitor externo gratuito (UptimeRobot, Better Stack…) a `/salud` con alerta por email — sin esto, una caída un viernes por la noche no la notifica nadie. Misma pendiente para `Sentry__Dsn`: crear el proyecto en sentry.io y poner el DSN en Railway activa el error tracking sin tocar código.
 - `https://tu-dominio.up.railway.app/` debe redirigir a la pantalla de inicio de sesión.
 - Inicia sesión con el email/contraseña de `AdministradorInicial` que configuraste en el paso 3.
 
