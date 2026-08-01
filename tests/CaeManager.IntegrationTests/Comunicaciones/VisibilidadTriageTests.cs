@@ -1,4 +1,4 @@
-using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
+﻿using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
@@ -25,7 +25,7 @@ namespace CaeManager.IntegrationTests.Comunicaciones;
 /// </summary>
 public class VisibilidadTriageTests : IAsyncLifetime
 {
-    private readonly string _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-triage-{Guid.NewGuid()}.db");
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
     private Guid _clientePropio;
     private Guid _conversacionSinCliente;
@@ -53,8 +53,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
         await Task.CompletedTask;
     }
 
@@ -109,7 +108,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 

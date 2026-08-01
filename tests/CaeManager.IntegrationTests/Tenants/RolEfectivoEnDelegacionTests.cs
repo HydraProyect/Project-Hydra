@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -23,7 +23,7 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// </summary>
 public class RolEfectivoEnDelegacionTests : IAsyncLifetime
 {
-    private readonly string _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-roldeleg-{Guid.NewGuid()}.db");
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _consultora = Guid.NewGuid();
     private readonly Guid _clienteDelegante = Guid.NewGuid();
     private readonly Guid _usuario = Guid.NewGuid();
@@ -46,8 +46,7 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        if (File.Exists(_rutaBaseDatos)) File.Delete(_rutaBaseDatos);
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
         await Task.CompletedTask;
     }
 
@@ -127,7 +126,7 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         // global sin filtro, así que se leen igual desde cualquiera.
         var tenantActual = new TenantActualAmbiental { TenantId = _clienteDelegante };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 

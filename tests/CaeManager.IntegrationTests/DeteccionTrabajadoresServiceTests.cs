@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Deteccion;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
@@ -32,14 +32,14 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     private static readonly Guid IdTipoDocumentoIta = new("20000000-0000-0000-0000-000000000003");
     private static readonly Guid IdTipoDocumentoCertificadoSs = new("20000000-0000-0000-0000-000000000001");
 
-    private readonly string _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-tests-{Guid.NewGuid()}.db");
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private CaeManagerDbContext _dbContext = null!;
 
     public async Task InitializeAsync()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = TenantSeedData.IdPorDefecto };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseSqlite($"Data Source={_rutaBaseDatos}")
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 
@@ -47,15 +47,10 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
         await _dbContext.Database.MigrateAsync();
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
         _dbContext.Dispose();
-        // Microsoft.Data.Sqlite devuelve la conexión a su pool al disponer el
-        // contexto, y ese handle sigue abierto: en Windows impide borrar el
-        // archivo y hacía fallar el teardown (no el cuerpo) del test.
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        File.Delete(_rutaBaseDatos);
-        return Task.CompletedTask;
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
     }
 
     private DeteccionTrabajadoresService CrearServicio(IExtraccionTrabajadoresIaService extraccion, IFileStorageService? almacenamiento = null) =>
