@@ -164,6 +164,8 @@ Un único set de iconos **outline** en todo el sistema (trazo 1.75px, sin rellen
 
 Documentación detallada (Do/Don't/accesibilidad) pendiente de completar por componente a medida que se usan en más de un contexto — ver nota al inicio de esta sección.
 
+**Attribute splatting** (P2 #28 de `docs/business/MATURITY_REVIEW.md`): patrón establecido en Boton/Badge/CampoTexto — `[Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AtributosAdicionales { get; set; }` capturado en el elemento raíz con `@attributes="AtributosAdicionales"`, siempre como el último atributo del elemento (para que `class`/`style` se combinen con los del componente en vez de reemplazarlos). Deja pasar `aria-*`/`data-*`/cualquier atributo HTML no reconocido sin tener que añadir un `[Parameter]` nuevo por cada caso. El resto de componentes de la tabla de arriba todavía no lo tienen — aplicar el mismo patrón cuando haga falta pasar un atributo que hoy no admiten, no antes (YAGNI).
+
 Cada uno, al implementarse, se documenta en este archivo con esta estructura fija:
 
 ```
