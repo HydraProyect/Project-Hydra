@@ -23,6 +23,10 @@ public class TipoDocumentoConfiguration : IEntityTypeConfiguration<TipoDocumento
 
         builder.HasIndex(t => new { t.TenantId, t.Nombre }).IsUnique();
 
+        // Prerequisito de las FKs que Documento/TipoDocumentoCentro declaran
+        // hacia TipoDocumento — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        builder.HasIndex(t => new { t.TenantId, t.Id }).IsUnique();
+
         builder.HasData(TipoDocumentoSeedData.ComoFilasParaMigracion());
     }
 }

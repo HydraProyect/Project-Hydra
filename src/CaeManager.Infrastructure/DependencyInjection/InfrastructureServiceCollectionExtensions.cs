@@ -100,6 +100,19 @@ public static class InfrastructureServiceCollectionExtensions
                 opciones.Password.RequireNonAlphanumeric = false;
                 opciones.User.RequireUniqueEmail = true;
                 opciones.SignIn.RequireConfirmedAccount = false;
+
+                // Bloqueo temporal por intentos fallidos — solo surte efecto
+                // porque Login.razor pasa lockoutOnFailure: true (hallazgo
+                // P0-2 de docs/business/MATURITY_REVIEW.md: fuerza bruta sin
+                // fricción). Ventana corta: frena un ataque de credenciales
+                // sin dejar fuera medio día a un usuario legítimo que
+                // tropieza con su gestor de contraseñas. La desactivación
+                // manual de usuarios (LockoutEnd = MaxValue, Usuarios.razor)
+                // sigue funcionando igual: es el mismo mecanismo con ventana
+                // indefinida.
+                opciones.Lockout.MaxFailedAccessAttempts = 5;
+                opciones.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                opciones.Lockout.AllowedForNewUsers = true;
             })
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<CaeManagerDbContext>()
@@ -191,6 +204,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITarifaClienteRepository, TarifaClienteRepository>();
         services.AddScoped<IProyectoRepository, ProyectoRepository>();
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
+        services.AddScoped<CaeManager.Domain.Tenants.ITenantRepository, TenantRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
         services.AddScoped<IPreferenciaDashboardUsuarioRepository, PreferenciaDashboardUsuarioRepository>();
@@ -254,6 +268,13 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<RetencionDatosOptions>(
             configuration.GetSection(RetencionDatosOptions.SeccionConfiguracion));
 
+        // Kill switch de la detección previa a clasificación de Documento
+        // (ver DeteccionPreviaDocumentoOptions) — apagado por defecto hasta
+        // que exista DPA de subencargado para datos de salud (P0-4 de
+        // docs/business/MATURITY_REVIEW.md).
+        services.Configure<DeteccionPreviaDocumentoOptions>(
+            configuration.GetSection(DeteccionPreviaDocumentoOptions.SeccionConfiguracion));
+
         // Cola durable en PostgreSQL (P2 #22 de docs/business/MATURITY_REVIEW.md
         // — antes, Channel<T> en memoria: un reinicio del proceso perdía los
         // encargos pendientes sin dejar rastro). Scoped como cualquier otro
@@ -262,9 +283,20 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITrabajoAnalisisDocumentoRepository, TrabajoAnalisisDocumentoRepository>();
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
+        // Timeouts explícitos en todos los HttpClient de IA/Graph (P0-9 de
+        // docs/business/MATURITY_REVIEW.md): el procesador de la cola de IA es
+        // secuencial, así que una llamada colgada al proveedor detenía la cola
+        // de TODOS los tenants durante los 100 s del default de HttpClient.
+        // 60 s para el chat (interactivo: si tarda más, ya está roto para el
+        // usuario) y 120 s para OCR/extracción sobre PDFs grandes. Retry y
+        // circuit breaker (AddStandardResilienceHandler) quedan como P1-16 —
+        // este Timeout es compatible: la resiliencia estándar se encadena a
+        // estos mismos registros sin tocarlos.
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
-        services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>();
-        services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>();
+        services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>(
+            cliente => cliente.Timeout = TimeSpan.FromSeconds(60));
+        services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>(
+            cliente => cliente.Timeout = TimeSpan.FromSeconds(120));
         // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
         // implementación directa de Anthropic aquí — RouterExtraccionMetadatosDocumentoIaService
         // (Application) la satisface delegando en IDocumentAIRouterService,
@@ -287,18 +319,22 @@ public static class InfrastructureServiceCollectionExtensions
         // una decisión de benchmark, no algo que se cambie por tener una
         // clave nueva (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1).
         services.Configure<MistralOcrOptions>(configuration.GetSection(MistralOcrOptions.SeccionConfiguracion));
-        services.AddHttpClient<MistralOcrDocumentAIProvider>();
+        services.AddHttpClient<MistralOcrDocumentAIProvider>(
+            cliente => cliente.Timeout = TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<MistralOcrDocumentAIProvider>());
 
-        services.AddHttpClient<AnthropicDocumentAIProvider>();
+        services.AddHttpClient<AnthropicDocumentAIProvider>(
+            cliente => cliente.Timeout = TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<AnthropicDocumentAIProvider>());
 
         services.Configure<GeminiOptions>(configuration.GetSection(GeminiOptions.SeccionConfiguracion));
-        services.AddHttpClient<GeminiDocumentAIProvider>();
+        services.AddHttpClient<GeminiDocumentAIProvider>(
+            cliente => cliente.Timeout = TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<GeminiDocumentAIProvider>());
 
         services.Configure<GraphEmailOptions>(configuration.GetSection(GraphEmailOptions.SeccionConfiguracion));
-        services.AddHttpClient<IEmailService, GraphEmailService>();
+        services.AddHttpClient<IEmailService, GraphEmailService>(
+            cliente => cliente.Timeout = TimeSpan.FromSeconds(30));
 
         // Comunicaciones (P2 #26): apagado por defecto — ver ComunicacionesOptions.
         services.Configure<ComunicacionesOptions>(configuration.GetSection(ComunicacionesOptions.SeccionConfiguracion));
