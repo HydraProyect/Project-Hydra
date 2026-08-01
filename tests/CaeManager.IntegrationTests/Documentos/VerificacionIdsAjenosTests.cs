@@ -1,6 +1,8 @@
 using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
+using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento;
+using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -82,6 +84,54 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Documento.PropietarioNoEncontrado");
+    }
+
+    /// <summary>
+    /// Hallazgo de la auditoría independiente de PR #48 sobre este mismo P0-1:
+    /// CrearTipoDocumentoCommand/EditarTipoDocumentoCommand quedaron fuera del
+    /// barrido original pese a que TipoDocumentoCentro recibió FK real en el
+    /// mismo commit — un CentroId ajeno habría producido un DbUpdateException
+    /// sin capturar (500) en vez de un Result.Fallo legible.
+    /// </summary>
+    [Fact]
+    public async Task CrearTipoDocumento_rechaza_un_CentroId_inexistente()
+    {
+        await using var contexto = CrearContexto();
+        var handler = new CrearTipoDocumentoCommandHandler(
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, contexto);
+
+        var resultado = await handler.Handle(
+            new CrearTipoDocumentoCommand(
+                Nombre: "Tipo de prueba", VigenciaMeses: 12, AplicaVencimientoAutomatico: true, Orden: 1,
+                AmbitoAplicacion: AmbitoAplicacion.Trabajador, EsObligatorio: false, Notas: null, Descripcion: null,
+                CriteriosValidacion: null, SeSolicitaA: null, Observaciones: null, CentroIds: [Guid.NewGuid()]),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("TipoDocumento.CentroNoEncontrado");
+    }
+
+    [Fact]
+    public async Task EditarTipoDocumento_rechaza_un_CentroId_nuevo_inexistente()
+    {
+        await using var contexto = CrearContexto();
+
+        var tipoDocumento = new TipoDocumento("Tipo de prueba", 12, true, 1, AmbitoAplicacion.Trabajador);
+        contexto.TiposDocumento.Add(tipoDocumento);
+        await contexto.SaveChangesAsync();
+
+        var handler = new EditarTipoDocumentoCommandHandler(
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, contexto);
+
+        var resultado = await handler.Handle(
+            new EditarTipoDocumentoCommand(
+                Id: tipoDocumento.Id, Nombre: "Tipo de prueba", VigenciaMeses: 12, AplicaVencimientoAutomatico: true,
+                Orden: 1, EsObligatorio: false, Notas: null, Descripcion: null, CriteriosValidacion: null,
+                SeSolicitaA: null, Observaciones: null, CentroIds: [Guid.NewGuid()]),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("TipoDocumento.CentroNoEncontrado");
     }
 
     private sealed class ColaAnalisisDocumentoFalsa : IColaAnalisisDocumento
