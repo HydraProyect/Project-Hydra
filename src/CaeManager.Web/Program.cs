@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
 using CaeManager.Infrastructure.DependencyInjection;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using CaeManager.Web.Components;
@@ -16,6 +17,7 @@ using CaeManager.Web.Features.Tenants;
 using CaeManager.Web.Reportes;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
@@ -181,8 +183,31 @@ app.UseForwardedHeaders(opcionesForwardedHeaders);
 
 using (var scope = app.Services.CreateScope())
 {
+    // Las migraciones (DDL: CreateTable, y desde HabilitarRlsPostgres además
+    // ENABLE ROW LEVEL SECURITY / CREATE POLICY) exigen el rol propietario de
+    // las tablas — el rol de runtime que RUNBOOK-RLS.md provisiona para
+    // ConnectionStrings:CaeManagerDbRuntime no tiene privilegios de DDL a
+    // propósito (es justo lo que hace que RLS lo restrinja de verdad). Por
+    // eso las migraciones se aplican con una instancia propia apuntando
+    // siempre a CaeManagerDb (el rol propietario), sin pasar por el
+    // DbContext inyectado — que desde que se configura CaeManagerDbRuntime
+    // usa ese rol restringido para todo lo demás (ver
+    // TenantRlsConnectionInterceptor). Mientras CaeManagerDbRuntime no esté
+    // configurado (todos los entornos hoy) ambas cadenas son la misma y esto
+    // es equivalente a lo de antes.
+    var cadenaMigraciones = app.Configuration.GetConnectionString("CaeManagerDb");
+    var opcionesMigraciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+        .UseNpgsql(cadenaMigraciones, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+        .Options;
+    await using (var dbContextMigraciones = new CaeManagerDbContext(
+        opcionesMigraciones,
+        scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>(),
+        new TenantActualAmbiental()))
+    {
+        await dbContextMigraciones.Database.MigrateAsync();
+    }
+
     var dbContext = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-    await dbContext.Database.MigrateAsync();
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();

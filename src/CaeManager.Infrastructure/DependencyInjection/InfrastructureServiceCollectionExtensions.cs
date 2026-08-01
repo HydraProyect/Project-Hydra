@@ -56,12 +56,23 @@ public static class InfrastructureServiceCollectionExtensions
     {
         services.AddScoped<AuditoriaInterceptor>();
         services.AddScoped<TenantSelladoInterceptor>();
+        services.AddScoped<TenantRlsConnectionInterceptor>();
         // Sin estado y sin dependencias: una sola instancia sirve.
         services.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 
         services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
         {
-            var cadena = configuration.GetConnectionString("CaeManagerDb");
+            // CaeManagerDbRuntime es opcional y, ausente (el caso de hoy en
+            // todos los entornos), cae en la misma cadena de siempre — cero
+            // cambio de comportamiento. Solo tras provisionar el rol
+            // restringido de RUNBOOK-RLS.md tiene sentido configurarla: es el
+            // rol que hace que las políticas RLS de la migración
+            // HabilitarRlsPostgres empiecen a restringir de verdad (RLS no
+            // aplica al propietario de la tabla ni a un superusuario). Las
+            // migraciones (Program.cs) siguen conectando con CaeManagerDb sin
+            // pasar por aquí — ese rol necesita DDL que el de runtime no tiene.
+            var cadena = configuration.GetConnectionString("CaeManagerDbRuntime")
+                ?? configuration.GetConnectionString("CaeManagerDb");
 
             options.UseNpgsql(cadena, npgsql =>
             {
@@ -78,6 +89,7 @@ public static class InfrastructureServiceCollectionExtensions
             options.AddInterceptors(
                 serviceProvider.GetRequiredService<AuditoriaInterceptor>(),
                 serviceProvider.GetRequiredService<TenantSelladoInterceptor>(),
+                serviceProvider.GetRequiredService<TenantRlsConnectionInterceptor>(),
                 serviceProvider.GetRequiredService<ConcurrenciaOptimistaInterceptor>());
         });
 
