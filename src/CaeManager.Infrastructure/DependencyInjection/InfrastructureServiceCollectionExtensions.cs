@@ -88,6 +88,19 @@ public static class InfrastructureServiceCollectionExtensions
                 opciones.Password.RequireNonAlphanumeric = false;
                 opciones.User.RequireUniqueEmail = true;
                 opciones.SignIn.RequireConfirmedAccount = false;
+
+                // Bloqueo temporal por intentos fallidos — solo surte efecto
+                // porque Login.razor pasa lockoutOnFailure: true (hallazgo
+                // P0-2 de docs/business/MATURITY_REVIEW.md: fuerza bruta sin
+                // fricción). Ventana corta: frena un ataque de credenciales
+                // sin dejar fuera medio día a un usuario legítimo que
+                // tropieza con su gestor de contraseñas. La desactivación
+                // manual de usuarios (LockoutEnd = MaxValue, Usuarios.razor)
+                // sigue funcionando igual: es el mismo mecanismo con ventana
+                // indefinida.
+                opciones.Lockout.MaxFailedAccessAttempts = 5;
+                opciones.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                opciones.Lockout.AllowedForNewUsers = true;
             })
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<CaeManagerDbContext>()
