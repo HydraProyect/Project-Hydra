@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Web.Components.Account;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
@@ -84,10 +85,12 @@ public static class ClienteActivoEndpoints
                 });
             }
 
-            // LocalRedirect (no Redirect) a propósito: rechaza cualquier
-            // returnUrl que no sea una ruta local — nunca seguir una URL
-            // externa que llegara en el query string.
-            return Results.LocalRedirect(string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl);
+            // Saneado explícito (no solo LocalRedirect) por la misma razón que
+            // IdentityEndpointsExtensions: un returnUrl malicioso hace que
+            // LocalRedirect lance en vez de responder — saneado, la petición
+            // simplemente aterriza en "/" (hallazgo de la auditoría de PR #48
+            // sobre P0-2, mismo patrón que Login.razor/LoginCon2fa.razor).
+            return Results.LocalRedirect(RedireccionLocal.Sanear(returnUrl));
         });
 
         return endpoints;
