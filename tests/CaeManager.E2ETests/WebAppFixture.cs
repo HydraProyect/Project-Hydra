@@ -7,11 +7,13 @@ namespace CaeManager.E2ETests;
 
 /// <summary>
 /// Arranca CaeManager.Web como un proceso real (el mismo binario que se
-/// despliega, no un servidor in-memory) contra una base de datos SQLite
-/// temporal y sembrada con datos de prueba (ver
-/// DatosPruebaSeeder/IdentitySeeder). Se comparte entre todas las clases de
-/// test de la colección "AppCollection" — un solo arranque (migraciones +
-/// siembra de ~1500 filas) para toda la suite, no uno por clase.
+/// despliega, no un servidor in-memory) contra una base de datos PostgreSQL
+/// temporal (propia, borrada al terminar — ver BaseDatosPostgresDePruebas) y
+/// sembrada con datos de prueba (ver DatosPruebaSeeder/IdentitySeeder). Se
+/// comparte entre todas las clases de test de la colección "AppCollection" —
+/// un solo arranque (migraciones + siembra de ~2000 filas) para toda la
+/// suite, no uno por clase. Necesita un servidor PostgreSQL accesible (local
+/// o el servicio de CI, ver BaseDatosPostgresDePruebas).
 /// </summary>
 public class WebAppFixture : IAsyncLifetime
 {
@@ -22,7 +24,7 @@ public class WebAppFixture : IAsyncLifetime
 
     private Process? _proceso;
     private IPlaywright? _playwright;
-    private string? _rutaBaseDatos;
+    private string? _cadenaConexion;
 
     public string BaseUrl { get; private set; } = string.Empty;
 
@@ -43,7 +45,7 @@ public class WebAppFixture : IAsyncLifetime
         var puerto = ObtenerPuertoLibre();
         BaseUrl = $"http://127.0.0.1:{puerto}";
 
-        _rutaBaseDatos = Path.Combine(Path.GetTempPath(), $"caemanager-e2e-{Guid.NewGuid():N}.db");
+        _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica("e2e");
 
         var rutaDll = LocalizarCaeManagerWebDll();
 
@@ -60,7 +62,7 @@ public class WebAppFixture : IAsyncLifetime
 
         infoInicio.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
         infoInicio.Environment["ASPNETCORE_URLS"] = BaseUrl;
-        infoInicio.Environment["ConnectionStrings__CaeManagerDb"] = $"Data Source={_rutaBaseDatos}";
+        infoInicio.Environment["ConnectionStrings__CaeManagerDb"] = _cadenaConexion;
         infoInicio.Environment["DatosPrueba__Activo"] = "true";
 
         foreach (var (clave, valor) in VariablesDeEntornoAdicionales())
@@ -166,33 +168,9 @@ public class WebAppFixture : IAsyncLifetime
 
         _proceso?.Dispose();
 
-        if (_rutaBaseDatos is null) return;
+        if (_cadenaConexion is null) return;
 
-        foreach (var sufijo in new[] { string.Empty, "-shm", "-wal" })
-            await BorrarConReintentosAsync(_rutaBaseDatos + sufijo);
-    }
-
-    /// <summary>
-    /// Aunque el proceso hijo ya haya salido, Windows puede tardar un instante
-    /// en soltar el handle del fichero, y entonces <c>File.Delete</c> lanza
-    /// IOException. Fallar la limpieza de un temporal no debe tumbar una suite
-    /// que ha pasado: se reintenta un poco y, si aun así no se puede, se deja
-    /// el fichero al sistema (está en la carpeta de temporales).
-    /// </summary>
-    private static async Task BorrarConReintentosAsync(string ruta)
-    {
-        for (var intento = 0; intento < 10; intento++)
-        {
-            try
-            {
-                if (File.Exists(ruta)) File.Delete(ruta);
-                return;
-            }
-            catch (IOException)
-            {
-                await Task.Delay(100);
-            }
-        }
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
     }
 
     /// <summary>

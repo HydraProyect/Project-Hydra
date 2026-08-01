@@ -88,9 +88,11 @@ jobs:
 
       # Falla si alguien cambió el modelo (una entidad, una propiedad) sin
       # generar la migración correspondiente — el tipo de olvido que solo se
-      # descubre hoy al desplegar y ver crashear la app contra el volumen real.
+      # descubre hoy al desplegar y ver crashear la app contra la base real.
+      # Las migraciones viven en su propio ensamblado, no en Infrastructure
+      # (ver CaeManager.Migrations.PostgreSQL).
       - name: dotnet ef migrations has-pending-model-changes
-        run: dotnet ef migrations has-pending-model-changes --project src/CaeManager.Infrastructure --startup-project src/CaeManager.Web
+        run: dotnet ef migrations has-pending-model-changes --project src/CaeManager.Migrations.PostgreSQL --startup-project src/CaeManager.Web
 
   docker-build:
     name: Build de la imagen de despliegue
@@ -130,6 +132,21 @@ jobs:
   e2e-tests:
     name: Tests E2E (Playwright)
     runs-on: ubuntu-latest
+    # WebAppFixture arranca la app real contra una base PostgreSQL propia
+    # (creada y borrada por test, ver BaseDatosPostgresDePruebas) — mismo
+    # servicio que usa el job build-and-test.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -141,8 +158,8 @@ jobs:
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
 
-      # Arranca la propia app (WebAppFixture) como subproceso real contra un
-      # SQLite temporal — necesita el .dll ya compilado antes de correr los
+      # Arranca la propia app (WebAppFixture) como subproceso real contra
+      # PostgreSQL — necesita el .dll ya compilado antes de correr los
       # tests, y el propio proyecto Web (CaeManager.Web.dll) también.
       - name: Compilar
         run: dotnet build CaeManager.slnx --no-restore
