@@ -221,7 +221,7 @@ using (var scope = app.Services.CreateScope())
     // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
     // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
     // que SegundoTenant:Activo esté configurado explícitamente.
-    await SegundoTenantSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
+    await SegundoTenantSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, logger);
 
     // Al final a propósito: aprovisiona la delegación de soporte —apagada—
     // de todo tenant que exista, incluidos los que acaben de sembrarse.
