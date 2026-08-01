@@ -1,7 +1,10 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
 @if (Visible)
 {
     <div class="modal-superposicion" @onclick="ManejarClicSuperposicionAsync">
-        <div class="modal-contenido modal-contenido-@Ancho.ToString().ToLowerInvariant()" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId">
+        <div class="modal-contenido modal-contenido-@Ancho.ToString().ToLowerInvariant()" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId" tabindex="-1" @ref="_referenciaContenedor" @onkeydown="ManejarTeclaAsync">
             <div class="modal-header">
                 <h2 id="@_tituloId">@Titulo</h2>
                 <button type="button" class="modal-cerrar" aria-label="Cerrar" @onclick="CerrarAsync">×</button>
@@ -19,6 +22,9 @@
 
 @code {
     private readonly string _tituloId = $"modal-titulo-{Guid.NewGuid():N}";
+    private ElementReference _referenciaContenedor;
+    private IJSObjectReference? _trampaFoco;
+    private bool _previoVisible;
 
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
@@ -30,7 +36,81 @@
     /// <summary>Mediano (520px) es el default histórico — ver <see cref="AnchoModal"/>.</summary>
     [Parameter] public AnchoModal Ancho { get; set; } = AnchoModal.Mediano;
 
-    private Task CerrarAsync() => VisibleChanged.InvokeAsync(false);
+    /// <summary>
+    /// Focus trap + retorno de foco (hallazgo P0-8 de
+    /// docs/business/MATURITY_REVIEW.md — DESIGN_SYSTEM.md ya prometía
+    /// "Escape para cerrar overlays" y no se cumplía). El Tab en sí lo
+    /// atrapa dialogo-foco.js (necesita recorrer el DOM, algo que Blazor no
+    /// puede hacer sin interop); aquí solo se detecta la transición
+    /// oculto→visible/visible→oculto para activar y liberar la trampa.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Visible && !_previoVisible)
+            await ActivarTrampaFocoAsync();
+        else if (!Visible && _previoVisible)
+            await LiberarTrampaFocoAsync();
+
+        _previoVisible = Visible;
+    }
+
+    /// <summary>
+    /// Mejor esfuerzo: el diálogo sigue siendo usable sin el focus trap si el
+    /// entorno no soporta JS interop en este momento (circuito cerrándose, o
+    /// —como en los tests de componente con bUnit, sin navegador real
+    /// detrás— sin módulo que mockear). Escape para cerrar no depende de
+    /// esto, es puro Blazor. El comportamiento real de foco/teclado lo
+    /// prueba Playwright contra la app real (ver CaeManager.E2ETests).
+    /// </summary>
+    private async Task ActivarTrampaFocoAsync()
+    {
+        try
+        {
+            var modulo = await JS.InvokeAsync<IJSObjectReference>("import", "./js/dialogo-foco.js");
+            if (modulo is null) return;
+
+            await using (modulo)
+            {
+                _trampaFoco = await modulo.InvokeAsync<IJSObjectReference>("atraparFoco", _referenciaContenedor);
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    private async Task CerrarAsync() => await VisibleChanged.InvokeAsync(false);
 
     private Task ManejarClicSuperposicionAsync() => CerrarAlHacerClicFuera ? CerrarAsync() : Task.CompletedTask;
+
+    /// <summary>
+    /// Misma condición que cerrar al clicar fuera: si hay trabajo sin
+    /// guardar, Escape tampoco debe descartarlo de golpe.
+    /// </summary>
+    private Task ManejarTeclaAsync(KeyboardEventArgs e) =>
+        e.Key == "Escape" && CerrarAlHacerClicFuera ? CerrarAsync() : Task.CompletedTask;
+
+    private async Task LiberarTrampaFocoAsync()
+    {
+        if (_trampaFoco is null) return;
+
+        var trampa = _trampaFoco;
+        _trampaFoco = null;
+
+        try
+        {
+            // DisposeAsync de un IJSObjectReference también hace interop (para
+            // liberar la referencia en el lado JS) — si el circuito se cerró
+            // entre la llamada anterior y esta, también puede lanzar. Las dos
+            // llamadas van en el mismo try: un circuito ya cerrado no tiene
+            // nada que liberar en ninguna de ellas.
+            await trampa.InvokeVoidAsync("dispose");
+            await trampa.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync() => await LiberarTrampaFocoAsync();
 }
