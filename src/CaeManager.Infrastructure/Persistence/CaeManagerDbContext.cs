@@ -89,6 +89,7 @@ public class CaeManagerDbContext(
     public DbSet<MensajeCorreo> MensajesCorreo => Set<MensajeCorreo>();
     public DbSet<ParticipanteConversacion> ParticipantesConversacion => Set<ParticipanteConversacion>();
     public DbSet<MacroRespuesta> MacrosRespuesta => Set<MacroRespuesta>();
+    public DbSet<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario => Set<PreferenciaDashboardUsuario>();
 
     IQueryable<Cliente> IApplicationDbContext.Clientes => Clientes;
     IQueryable<Empresa> IApplicationDbContext.Empresas => Empresas;
@@ -130,6 +131,7 @@ public class CaeManagerDbContext(
     IQueryable<MensajeCorreo> IApplicationDbContext.MensajesCorreo => MensajesCorreo;
     IQueryable<ParticipanteConversacion> IApplicationDbContext.ParticipantesConversacion => ParticipantesConversacion;
     IQueryable<MacroRespuesta> IApplicationDbContext.MacrosRespuesta => MacrosRespuesta;
+    IQueryable<PreferenciaDashboardUsuario> IApplicationDbContext.PreferenciasDashboardUsuario => PreferenciasDashboardUsuario;
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
