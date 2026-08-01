@@ -3,6 +3,7 @@ using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.Trabajadores.Deteccion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -44,7 +45,7 @@ public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCo
 
 public class CrearDocumentoCommandHandler(
     IDocumentoRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork,
-    IColaAnalisisDocumento colaAnalisis, ITenantActual tenantActual, ICurrentUserService currentUserService)
+    ITrabajoAnalisisDocumentoRepository colaAnalisis, ICurrentUserService currentUserService)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDocumentoCommand request, CancellationToken cancellationToken)
@@ -90,7 +91,6 @@ public class CrearDocumentoCommandHandler(
         };
 
         repositorio.Agregar(documento);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Los dos análisis pesados se encolan en vez de ejecutarse aquí: son
         // llamadas a un modelo externo, con su latencia, y hacerlas dentro del
@@ -98,14 +98,16 @@ public class CrearDocumentoCommandHandler(
         // esperaba a que "terminara de subir" algo que en realidad ya estaba
         // guardado.
         //
-        // No cambia ninguna garantía: ambos ya eran mejor esfuerzo — un fallo
-        // solo se registraba en el log y nunca impedía dar la subida por
-        // completada. Lo que cambia es quién espera. Al terminar, el
-        // procesador avisa por la campana.
-        //
-        // El tenant y el usuario se resuelven aquí, todavía dentro del
-        // circuito, y viajan en el encargo: fuera de él no hay claim de sesión
-        // que leer (ver EncargoAnalisisDocumento).
+        // El trabajo se agrega al mismo SaveChangesAsync que el Documento —
+        // no en una llamada aparte después — para que los dos se confirmen
+        // juntos o ninguno: antes, un fallo justo entre el guardado del
+        // Documento y el encolado en memoria perdía el encargo sin que nadie
+        // se enterase, y el propio proceso reiniciándose con encargos
+        // pendientes ya los perdía siempre (cola en memoria). No cambia
+        // ninguna garantía de negocio: el análisis en sí sigue siendo mejor
+        // esfuerzo — un fallo se reintenta unas pocas veces y luego se marca
+        // como definitivamente fallido, nunca invalida el Documento ya
+        // guardado. Al terminar, el procesador avisa por la campana.
         var necesitaDeteccion = ambitoSolicitado == AmbitoAplicacion.Empresa
             && tipoDocumento.DeteccionTrabajadoresActiva && !string.IsNullOrWhiteSpace(request.ArchivoUrl);
         var necesitaVerificacion = ambitoSolicitado == AmbitoAplicacion.Trabajador
@@ -115,20 +117,14 @@ public class CrearDocumentoCommandHandler(
         {
             var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
-            // Sin tenant resuelto no hay forma de que el procesador encuentre
-            // el documento, así que no se encola nada: fallo cerrado y
-            // silencioso, igual que antes lo era un fallo del análisis.
-            if (tenantActual.TenantId is { } tenantId)
-            {
-                if (necesitaDeteccion)
-                    colaAnalisis.Encolar(new EncargoAnalisisDocumento(
-                        documento.Id, tenantId, usuarioId, TipoAnalisisDocumento.DeteccionTrabajadores));
+            if (necesitaDeteccion)
+                colaAnalisis.Agregar(new TrabajoAnalisisDocumento(documento.Id, usuarioId, TipoAnalisisDocumento.DeteccionTrabajadores));
 
-                if (necesitaVerificacion)
-                    colaAnalisis.Encolar(new EncargoAnalisisDocumento(
-                        documento.Id, tenantId, usuarioId, TipoAnalisisDocumento.VerificacionIa));
-            }
+            if (necesitaVerificacion)
+                colaAnalisis.Agregar(new TrabajoAnalisisDocumento(documento.Id, usuarioId, TipoAnalisisDocumento.VerificacionIa));
         }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(documento.Id);
     }

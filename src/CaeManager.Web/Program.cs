@@ -161,6 +161,20 @@ builder.Services.AddRazorComponents()
 
 var app = builder.Build();
 
+// Modo dedicado para el paso de "pre-deploy" de Railway (ver railway.json y
+// DEPLOY.md § 4 — P2 #22 de docs/business/MATURITY_REVIEW.md, una de las
+// tres cosas que desbloquean multi-réplica): aplica las migraciones
+// pendientes y termina, sin levantar Kestrel ni sembrar datos. Así el
+// esquema se cierra una única vez, antes de que arranque ninguna réplica del
+// proceso web — no N réplicas compitiendo por aplicar DDL a la vez en cada
+// redeploy/reinicio.
+if (args.Contains("--migrate-only"))
+{
+    using var scopeMigracion = app.Services.CreateScope();
+    await MigrarBaseDeDatosAsync(app.Configuration, scopeMigracion.ServiceProvider);
+    return;
+}
+
 // Detrás de un proxy inverso (Railway, cualquier despliegue en contenedor —
 // ver DEPLOY.md), Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS
@@ -183,28 +197,18 @@ app.UseForwardedHeaders(opcionesForwardedHeaders);
 
 using (var scope = app.Services.CreateScope())
 {
-    // Las migraciones (DDL: CreateTable, y desde HabilitarRlsPostgres además
-    // ENABLE ROW LEVEL SECURITY / CREATE POLICY) exigen el rol propietario de
-    // las tablas — el rol de runtime que RUNBOOK-RLS.md provisiona para
-    // ConnectionStrings:CaeManagerDbRuntime no tiene privilegios de DDL a
-    // propósito (es justo lo que hace que RLS lo restrinja de verdad). Por
-    // eso las migraciones se aplican con una instancia propia apuntando
-    // siempre a CaeManagerDb (el rol propietario), sin pasar por el
-    // DbContext inyectado — que desde que se configura CaeManagerDbRuntime
-    // usa ese rol restringido para todo lo demás (ver
-    // TenantRlsConnectionInterceptor). Mientras CaeManagerDbRuntime no esté
-    // configurado (todos los entornos hoy) ambas cadenas son la misma y esto
-    // es equivalente a lo de antes.
-    var cadenaMigraciones = app.Configuration.GetConnectionString("CaeManagerDb");
-    var opcionesMigraciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
-        .UseNpgsql(cadenaMigraciones, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-        .Options;
-    await using (var dbContextMigraciones = new CaeManagerDbContext(
-        opcionesMigraciones,
-        scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>(),
-        new TenantActualAmbiental()))
+    // Migraciones__AlArrancar=false (Railway) una vez que el
+    // preDeployCommand de railway.json esté aplicándolas de verdad — hasta
+    // entonces, por defecto (true), el arranque normal las aplica igual que
+    // siempre: con el pre-deploy sin adoptar, es la única vía que las
+    // ejecuta. Con las dos activas a la vez no hay riesgo de una sola
+    // réplica (las migraciones ya aplicadas no se repiten), pero si se
+    // escalase a varias réplicas simultáneas sí volvería la carrera que
+    // migrate-only existe para evitar — de ahí el apagador explícito en vez
+    // de dejarlo siempre encendido.
+    if (app.Configuration.GetValue("Migraciones:AlArrancar", defaultValue: true))
     {
-        await dbContextMigraciones.Database.MigrateAsync();
+        await MigrarBaseDeDatosAsync(app.Configuration, scope.ServiceProvider);
     }
 
     var dbContext = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
@@ -288,3 +292,27 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+// Las migraciones (DDL: CreateTable, y desde HabilitarRlsPostgres además
+// ENABLE ROW LEVEL SECURITY / CREATE POLICY) exigen el rol propietario de
+// las tablas — el rol de runtime que RUNBOOK-RLS.md provisiona para
+// ConnectionStrings:CaeManagerDbRuntime no tiene privilegios de DDL a
+// propósito (es justo lo que hace que RLS lo restrinja de verdad). Por eso
+// las migraciones se aplican con una instancia propia apuntando siempre a
+// CaeManagerDb (el rol propietario), sin pasar por el DbContext inyectado —
+// que desde que se configura CaeManagerDbRuntime usa ese rol restringido
+// para todo lo demás (ver TenantRlsConnectionInterceptor). Mientras
+// CaeManagerDbRuntime no esté configurado (todos los entornos hoy) ambas
+// cadenas son la misma y esto es equivalente a conectar una sola vez.
+static async Task MigrarBaseDeDatosAsync(IConfiguration configuration, IServiceProvider servicios)
+{
+    var cadenaMigraciones = configuration.GetConnectionString("CaeManagerDb");
+    var opcionesMigraciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+        .UseNpgsql(cadenaMigraciones, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+        .Options;
+    await using var dbContextMigraciones = new CaeManagerDbContext(
+        opcionesMigraciones,
+        servicios.GetRequiredService<IDataProtectionProvider>(),
+        new TenantActualAmbiental());
+    await dbContextMigraciones.Database.MigrateAsync();
+}
