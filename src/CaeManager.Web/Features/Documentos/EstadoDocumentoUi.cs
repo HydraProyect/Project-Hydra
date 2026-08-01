@@ -16,6 +16,7 @@ public static class EstadoDocumentoUi
         EstadoDocumento.Proximo => TonoBadge.Advertencia,
         EstadoDocumento.Urgente => TonoBadge.Peligro,
         EstadoDocumento.Vencido => TonoBadge.Peligro,
+        EstadoDocumento.Faltante => TonoBadge.Peligro,
         _ => TonoBadge.Neutro
     };
 
@@ -25,6 +26,7 @@ public static class EstadoDocumentoUi
         EstadoDocumento.Proximo => "Próximo",
         EstadoDocumento.Urgente => "Urgente",
         EstadoDocumento.Vencido => "Vencido",
+        EstadoDocumento.Faltante => "Falta",
         _ => "No aplica"
     };
 }
