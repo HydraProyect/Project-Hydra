@@ -16,7 +16,13 @@ namespace CaeManager.Application.Tests.Common;
 /// convención de nombre —un typo desactivaba la autorización— pero abre el
 /// simétrico: olvidar la interfaz. Estos tests cierran esa vía exigiendo que
 /// nombre e interfaz vayan siempre juntos, <b>en ambas direcciones</b>, y
-/// fallan en CI con el nombre exacto del tipo que se saltó la regla.
+/// fallan en CI con el nombre exacto de los tipos que se saltaron la regla.
+///
+/// Recorren el ensamblado, no los archivos: el nombre del archivo no dice
+/// nada de lo que hay dentro. Su primera ejecución lo demostró — los cinco
+/// Commands de retención viven en <c>GestionarSolicitudPurgaCommands.cs</c>,
+/// fuera de cualquier patrón <c>*Command.cs</c>, y se habrían quedado sin
+/// autorizar en silencio.
 /// </summary>
 public class ArquitecturaCommandsTests
 {
@@ -35,7 +41,11 @@ public class ArquitecturaCommandsTests
             .Select(t => t.FullName)
             .ToList();
 
-        infractores.Should().BeEmpty(
+        // Se afirma sobre la lista unida y no sobre la colección: FluentAssertions
+        // solo enseña el primer elemento de una colección no vacía, y aquí interesa
+        // ver los que falten de golpe (la primera ejecución de este test destapó
+        // cinco Commands en un mismo archivo, no uno).
+        string.Join(", ", infractores).Should().BeEmpty(
             "un Command que no implementa ICommand se salta AutorizacionEscrituraBehavior — "
             + "cualquier rol, incluido uno de solo lectura, podría ejecutarlo");
     }
@@ -53,7 +63,8 @@ public class ArquitecturaCommandsTests
             .Select(t => t.FullName)
             .ToList();
 
-        infractores.Should().BeEmpty("todo ICommand debe llamarse ...Command (CODING_STANDARDS.md)");
+        string.Join(", ", infractores).Should()
+            .BeEmpty("todo ICommand debe llamarse ...Command (CODING_STANDARDS.md)");
     }
 
     [Fact]
@@ -75,7 +86,7 @@ public class ArquitecturaCommandsTests
             .Select(x => $"{x.Tipo.FullName} devuelve {x.Respuesta.Name}")
             .ToList();
 
-        infractores.Should().BeEmpty("todo Command devuelve Result o Result<T>");
+        string.Join(", ", infractores).Should().BeEmpty("todo Command devuelve Result o Result<T>");
     }
 
     [Fact]
