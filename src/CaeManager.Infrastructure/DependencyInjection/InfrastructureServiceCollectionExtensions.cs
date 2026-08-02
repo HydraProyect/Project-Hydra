@@ -22,6 +22,7 @@ using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Visitas;
 using CaeManager.Application.Importacion;
 using Microsoft.AspNetCore.Authentication;
+using CaeManager.Infrastructure.Alertas;
 using CaeManager.Infrastructure.AsistenteIa;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
@@ -463,6 +464,17 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<IEmailService, GraphEmailService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
+
+        // Resumen diario de alertas de vencimiento por correo (Issue #2):
+        // apagado por defecto — ver AlertasPorCorreoOptions. Independiente
+        // de si Graph:* está configurado (IEmailService ya degrada solo si
+        // no lo está); este interruptor decide si el job en sí corre.
+        var opcionesAlertasPorCorreo = new AlertasPorCorreoOptions();
+        configuration.GetSection(AlertasPorCorreoOptions.SeccionConfiguracion).Bind(opcionesAlertasPorCorreo);
+        services.Configure<AlertasPorCorreoOptions>(configuration.GetSection(AlertasPorCorreoOptions.SeccionConfiguracion));
+
+        if (opcionesAlertasPorCorreo.Activo)
+            services.AddHostedService<EnvioAlertasVencimientoHostedService>();
 
         // Comunicaciones (P2 #26): apagado por defecto — ver ComunicacionesOptions.
         services.Configure<ComunicacionesOptions>(configuration.GetSection(ComunicacionesOptions.SeccionConfiguracion));
