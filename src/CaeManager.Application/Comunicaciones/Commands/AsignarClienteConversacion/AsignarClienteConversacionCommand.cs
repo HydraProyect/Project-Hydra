@@ -8,7 +8,7 @@ using MediatR;
 namespace CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
 
 /// <summary>Resuelve una conversación de la cola de triage (ver § 12.4) asignándole un Cliente real.</summary>
-public record AsignarClienteConversacionCommand(Guid ConversacionId, Guid ClienteId) : IRequest<Result>;
+public record AsignarClienteConversacionCommand(Guid ConversacionId, Guid ClienteId) : ICommand;
 
 public class AsignarClienteConversacionCommandValidator : AbstractValidator<AsignarClienteConversacionCommand>
 {

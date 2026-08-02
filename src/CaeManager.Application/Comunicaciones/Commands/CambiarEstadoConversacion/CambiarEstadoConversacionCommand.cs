@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
 
-public record CambiarEstadoConversacionCommand(Guid ConversacionId, EstadoConversacion NuevoEstado) : IRequest<Result>;
+public record CambiarEstadoConversacionCommand(Guid ConversacionId, EstadoConversacion NuevoEstado) : ICommand;
 
 public class CambiarEstadoConversacionCommandValidator : AbstractValidator<CambiarEstadoConversacionCommand>
 {

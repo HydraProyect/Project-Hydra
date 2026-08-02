@@ -12,7 +12,7 @@ namespace CaeManager.Application.Tenants.Commands.CrearAsignacionOperadorDelegad
 /// (ADR-004 § 5.3 — un mismo usuario puede tener roles distintos en
 /// delegaciones distintas).
 /// </summary>
-public record CrearAsignacionOperadorDelegadoCommand(Guid DelegacionTenantId, Guid UsuarioId, string Rol) : IRequest<Result<Guid>>;
+public record CrearAsignacionOperadorDelegadoCommand(Guid DelegacionTenantId, Guid UsuarioId, string Rol) : ICommand<Guid>;
 
 public class CrearAsignacionOperadorDelegadoCommandValidator : AbstractValidator<CrearAsignacionOperadorDelegadoCommand>
 {
@@ -40,6 +40,7 @@ public class CrearAsignacionOperadorDelegadoCommandValidator : AbstractValidator
 public class CrearAsignacionOperadorDelegadoCommandHandler(
     IAsignacionOperadorDelegadoRepository repositorio,
     IDelegacionTenantRepository delegacionRepositorio,
+    IDirectorioUsuariosService directorioUsuarios,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearAsignacionOperadorDelegadoCommand, Result<Guid>>
 {
@@ -51,6 +52,12 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
 
         if (!delegacion.Activa)
             return Result.Fallo<Guid>(Error.Crear("AsignacionOperadorDelegado.DelegacionInactiva", "Esta delegación está desactivada."));
+
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // AsignacionOperadorDelegado.UsuarioId apunta a AspNetUsers, que
+        // Application no puede referenciar directamente (ver IDirectorioUsuariosService).
+        if (!await directorioUsuarios.EsVisibleEnTenantActualAsync(request.UsuarioId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("AsignacionOperadorDelegado.UsuarioNoEncontrado", "No encontramos ese usuario."));
 
         if (await repositorio.ExisteAsync(request.DelegacionTenantId, request.UsuarioId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(

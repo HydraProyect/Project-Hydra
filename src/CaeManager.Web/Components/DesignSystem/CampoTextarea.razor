@@ -8,7 +8,8 @@
               rows="@Filas"
               placeholder="@Placeholder"
               disabled="@Deshabilitado"
-              @oninput="ManejarCambioAsync">@Valor</textarea>
+              @oninput="ManejarCambioAsync"
+              @onblur="() => OnBlur.InvokeAsync()">@Valor</textarea>
     @if (TieneError)
     {
         <span class="campo-mensaje-error" role="alert">@MensajeError</span>
@@ -25,6 +26,9 @@
     [Parameter] public bool Deshabilitado { get; set; }
     [Parameter] public int Filas { get; set; } = 3;
     [Parameter] public string? MensajeError { get; set; }
+
+    /// <summary>Ver <see cref="CampoTexto"/> — mismo propósito, misma semántica.</summary>
+    [Parameter] public EventCallback OnBlur { get; set; }
 
     private bool TieneError => !string.IsNullOrWhiteSpace(MensajeError);
 

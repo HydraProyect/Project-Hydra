@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CaeManager.Application.Proyectos.Commands.CerrarProyecto;
 
-public record CerrarProyectoCommand(Guid Id, DateOnly FechaCierre) : IRequest<Result>;
+public record CerrarProyectoCommand(Guid Id, DateOnly FechaCierre) : ICommand;
 
 public class CerrarProyectoCommandValidator : AbstractValidator<CerrarProyectoCommand>
 {

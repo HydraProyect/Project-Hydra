@@ -37,13 +37,13 @@ El Kernel **no conoce** ninguna entidad de CAE (`Cliente`, `Documento`...) — s
 
 | Capacidad | Estado hoy | Dónde está diseñada/implementada |
 |---|---|---|
-| **MultiTenant** | Diseñado, implementación pendiente | `ADR-003`, `docs/MULTITENANCY.md`, `INFORME-MULTITENANT.md`, `PLAN-MIGRACION-MULTITENANT.md` |
+| **MultiTenant** | Implementado y validado (ver `docs/MULTITENANCY.md`) | `ADR-003`, `docs/MULTITENANCY.md`, `docs/archive/INFORME-MULTITENANT.md`, `PLAN-MIGRACION-MULTITENANT.md` |
 | **Identity** | Implementado (ASP.NET Core Identity + SSO Entra ID opcional) | `ARCHITECTURE.md` |
 | **Authorization** | Implementado (roles + `IAlcanceDatosService` por cartera) | `DOMAIN.md`, `ARCHITECTURE.md` |
 | **Integrations** | Diseñado, no implementado | `ARQUITECTURA-INTEGRACIONES.md`, `docs/INTEGRATION_GUIDELINES.md` |
 | **AI** | Ya sigue el patrón correcto pero acoplado a un caso de uso concreto — ver § 4 | `IExtraccionTrabajadoresIaService` (Application) / `AnthropicExtraccionTrabajadoresIaService` (Infrastructure) |
 | **Notifications** | Ya sigue el patrón correcto para dos canales — ver § 4 | `IEmailService`/`GraphEmailService`, `NotificacionUsuario` (interno) |
-| **Storage** | Ya sigue el patrón correcto para un backend — ver § 4 | `IFileStorageService` (Application), disco local (Infrastructure) |
+| **Storage** | Ya sigue el patrón correcto, dos backends intercambiables por configuración (P2 #22 de `docs/business/MATURITY_REVIEW.md`) | `IFileStorageService` (Application), disco local o S3 según `AlmacenamientoS3:Activo` (Infrastructure, ver `DEPLOY.md`) |
 | **Observability** | Parcial (Sentry opcional, "inerte por defecto") | `ROADMAP.md` § Iniciativa de hardening |
 | **Background Jobs** | Diseñado (ámbito de tenant explícito), sin infraestructura general de jobs todavía | `PLAN-MIGRACION-MULTITENANT.md` § 4.7 |
 | **Feature Flags** | No existe — esbozo en § 4 | — |

@@ -85,7 +85,15 @@ public partial class Importacion : ComponentBase
 
         try
         {
-            _resultado = await Mediator.Send(new EjecutarImportacionCommand(_plan));
+            var resultado = await Mediator.Send(new EjecutarImportacionCommand(_plan));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeError = resultado.Error.Mensaje;
+                return;
+            }
+
+            _resultado = resultado.Valor;
             ToastService.Mostrar("Importación completada.", TonoToast.Exito);
         }
         catch (Exception)

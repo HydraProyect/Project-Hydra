@@ -11,7 +11,7 @@ namespace CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente;
 /// documento; si es false, se mantiene activo tal cual — p. ej. porque solo
 /// falta puntualmente en este documento concreto (ver DeteccionTrabajadoresService, Fase 36).
 /// </summary>
-public record ResolverDeteccionAusenteCommand(Guid DeteccionId, bool Desactivar) : IRequest<Result>;
+public record ResolverDeteccionAusenteCommand(Guid DeteccionId, bool Desactivar) : ICommand;
 
 public class ResolverDeteccionAusenteCommandHandler(
     IDeteccionTrabajadorRepository deteccionRepositorio,

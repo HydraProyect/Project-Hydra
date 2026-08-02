@@ -1,0 +1,31 @@
+/* Oculto en escritorio (la barra lateral ya está visible) — visible solo
+   por debajo de 1024px, el mismo punto de corte donde MainLayout.razor.css
+   oculta ".barra-lateral". */
+.boton-menu-movil {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: none;
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.boton-menu-movil:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.boton-menu-movil:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+@media (max-width: 1023px) {
+    .boton-menu-movil {
+        display: inline-flex;
+    }
+}
