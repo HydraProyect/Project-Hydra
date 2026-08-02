@@ -52,6 +52,11 @@ jobs:
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
 
+      # reportgenerator (para el informe de cobertura de abajo) — mismo
+      # manifiesto que dotnet-ef, ver .config/dotnet-tools.json.
+      - name: Restaurar herramientas locales
+        run: dotnet tool restore
+
       # -warnaserror: ningún warning nuevo pasa desapercibido — coherente con
       # el nivel de rigor que ya pide CODING_STANDARDS.md, ahora ejecutable.
       - name: Compilar (warnings como errores)
@@ -60,14 +65,41 @@ jobs:
       - name: Verificar formato (dotnet format)
         run: dotnet format CaeManager.slnx --no-restore --verify-no-changes
 
+      # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
+      # en los tres proyectos de test) escribe un coverage.cobertura.xml por
+      # suite bajo ./coverage — P1-19 de docs/business/MATURITY_REVIEW.md:
+      # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
+      # visibilidad ni de gate. Se empieza por visibilidad (el informe de
+      # más abajo) — un umbral que falle el build queda para cuando haya una
+      # primera cifra real con la que decidir uno defendible, no uno
+      # inventado a ciegas.
       - name: Tests de Domain
-        run: dotnet test tests/CaeManager.Domain.Tests --no-restore --logger "console;verbosity=normal"
+        run: >
+          dotnet test tests/CaeManager.Domain.Tests --no-restore --logger "console;verbosity=normal"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/domain
 
       - name: Tests de Application
-        run: dotnet test tests/CaeManager.Application.Tests --no-restore --logger "console;verbosity=normal"
+        run: >
+          dotnet test tests/CaeManager.Application.Tests --no-restore --logger "console;verbosity=normal"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/application
 
       - name: Tests de integración
-        run: dotnet test tests/CaeManager.IntegrationTests --no-restore --logger "console;verbosity=normal"
+        run: >
+          dotnet test tests/CaeManager.IntegrationTests --no-restore --logger "console;verbosity=normal"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/integration
+
+      # MarkdownSummaryGithub: pensado por ReportGenerator específicamente
+      # para $GITHUB_STEP_SUMMARY — aparece en la pestaña Summary del run,
+      # no hace falta abrir un artefacto para ver el número.
+      # continue-on-error: un fallo en el informe (p. ej. ningún .cobertura.xml
+      # si algo cambia en coverlet) no debe tumbar un job cuyos tests ya
+      # pasaron — es visibilidad, no gate (ver el comentario de arriba).
+      - name: Informe de cobertura
+        if: always()
+        continue-on-error: true
+        run: |
+          reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:MarkdownSummaryGithub
+          cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
   migraciones-pendientes:
     name: Detectar migraciones EF olvidadas
@@ -145,8 +177,23 @@ jobs:
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
 
+      - name: Restaurar herramientas locales
+        run: dotnet tool restore
+
       - name: Tests de componentes Blazor
-        run: dotnet test tests/CaeManager.Web.Tests --logger "console;verbosity=normal"
+        run: >
+          dotnet test tests/CaeManager.Web.Tests --logger "console;verbosity=normal"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/web
+
+      # continue-on-error: un fallo en el informe (p. ej. ningún .cobertura.xml
+      # si algo cambia en coverlet) no debe tumbar un job cuyos tests ya
+      # pasaron — es visibilidad, no gate (ver el comentario de arriba).
+      - name: Informe de cobertura
+        if: always()
+        continue-on-error: true
+        run: |
+          reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:MarkdownSummaryGithub
+          cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
   e2e-tests:
     name: Tests E2E (Playwright)
