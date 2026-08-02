@@ -90,17 +90,31 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // soporte antes de generar la actividad que se comprueba después.
         await page.Locator(".aviso-sesion-soporte").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
-        // Un clic en un enlace de navegación real: registra una Interaccion
-        // (el listener de trazaSoporte.js) y, al llegar a /documentos, una
-        // Navegacion nueva (TrazaSoporte.OnInitializedAsync/LocationChanged).
-        await page.Locator(".nav-item", new PageLocatorOptions { HasText = "Documentos" }).ClickAsync();
-        await page.WaitForURLAsync($"{fixture.BaseUrl}/documentos");
+        // Navegación real a /documentos: Navegacion nueva vía
+        // TrazaSoporte.OnInitializedAsync/LocationChanged.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
+
+        // Interacción sin navegar: "+ Nuevo cliente" abre un drawer (ningún
+        // Command se despacha solo con abrirlo, así que es seguro incluso en
+        // "Solo lectura", el permiso por defecto de este acceso). No se usa
+        // un enlace de navegación para esto — un clic que además navega mata
+        // el circuito/módulo JS antes de que el lote de trazaSoporte.js
+        // (2s, INTERVALO_ENVIO_MS) llegue a enviarse, y la Interaccion se
+        // pierde (visto en CI: "Navegó a" sí quedaba registrado, "Pulsó" no).
+        await page.GetByText("+ Nuevo cliente").First.ClickAsync();
+        var panelNuevoCliente = page.Locator(".drawer-panel");
+        await panelNuevoCliente.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         // Las interacciones se acumulan en el navegador y se envían por lotes
-        // cada 2 s (trazaSoporte.js, INTERVALO_ENVIO_MS) — no hay señal en el
-        // DOM que esperar para "ya se envió el lote", así que aquí sí hace
-        // falta una espera fija, con margen sobre esos 2 s.
+        // cada 2 s — no hay señal en el DOM que esperar para "ya se envió el
+        // lote", así que aquí sí hace falta una espera fija, con margen
+        // sobre esos 2 s, todavía en la misma página (sin navegar).
         await page.WaitForTimeoutAsync(2_500);
+
+        // Cerrar sin guardar nada — clic fuera del panel, mismo mecanismo
+        // que RegresionesTests.
+        await page.Locator(".drawer-superposicion").ClickAsync(new LocatorClickOptions { Position = new Position { X = 10, Y = 10 } });
+        await panelNuevoCliente.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 5_000 });
 
         // --- Volver al tenant de origen: gestionar delegaciones (incluida
         // la propia lectura de actividad) se hace desde la organización
