@@ -21,7 +21,7 @@ public class EliminarClientesCommandValidator : AbstractValidator<EliminarClient
     public EliminarClientesCommandValidator() => RuleFor(c => c.Ids).NotEmpty();
 }
 
-public class EliminarClientesCommandHandler(IClienteRepository repositorio, IUnitOfWork unitOfWork)
+public class EliminarClientesCommandHandler(IClienteRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarClientesCommand, Result<ResultadoEliminacionLoteDto>>
 {
     public async Task<Result<ResultadoEliminacionLoteDto>> Handle(EliminarClientesCommand request, CancellationToken cancellationToken)
@@ -32,7 +32,7 @@ public class EliminarClientesCommandHandler(IClienteRepository repositorio, IUni
         foreach (var id in request.Ids)
         {
             var cliente = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
-            if (cliente is null)
+            if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
             {
                 errores.Add("Un cliente ya no existía.");
                 continue;
