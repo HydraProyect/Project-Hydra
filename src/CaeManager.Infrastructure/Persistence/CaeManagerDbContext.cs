@@ -1,3 +1,4 @@
+using CaeManager.Application.ApiKeys;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Auditoria;
 using CaeManager.Application.Centros;
@@ -22,6 +23,7 @@ using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Alertas;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Auditoria;
@@ -63,7 +65,7 @@ public class CaeManagerDbContext(
         INotificacionesQueryContext, IAsignacionesQueryContext, IVisitasQueryContext, IVehiculosQueryContext,
         IConfiguracionQueryContext, IAuditoriaQueryContext, IRequisitosDocumentalesQueryContext, ITenantsQueryContext,
         IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext, IEvaluacionesQueryContext,
-        IIncidenciasQueryContext, IComunicacionesQueryContext
+        IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -157,6 +159,8 @@ public class CaeManagerDbContext(
     IQueryable<ParticipanteConversacion> IComunicacionesQueryContext.ParticipantesConversacion => ParticipantesConversacion;
     public DbSet<MacroRespuesta> MacrosRespuesta => Set<MacroRespuesta>();
     IQueryable<MacroRespuesta> IComunicacionesQueryContext.MacrosRespuesta => MacrosRespuesta;
+    public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();
+    IQueryable<ClaveApi> IApiKeysQueryContext.ClavesApi => ClavesApi;
     public DbSet<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario => Set<PreferenciaDashboardUsuario>();
     IQueryable<PreferenciaDashboardUsuario> IConfiguracionQueryContext.PreferenciasDashboardUsuario => PreferenciasDashboardUsuario;
 
@@ -195,10 +199,10 @@ public class CaeManagerDbContext(
         // cada *Configuration.cs) — ver docs/MULTITENANCY.md § 4.2: EF Core
         // solo admite un HasQueryFilter por entidad, así que ponerlo en un
         // único lugar evita que un segundo HasQueryFilter futuro reemplace
-        // silenciosamente este sin que nadie lo note. Los 15 agregados con
+        // silenciosamente este sin que nadie lo note. Los 16 agregados con
         // soft delete combinan ambos filtros; los 23 restantes (tablas de
         // unión/satélite sin ciclo de vida propio) solo llevan el de tenant.
-        // Las dos listas cubren las 38 entidades que heredan de
+        // Las dos listas cubren las 39 entidades que heredan de
         // EntidadConTenant/EntidadBase, sin excepción: es la invariante que
         // enuncia docs/MULTITENANCY.md ("ninguna tabla sin filtro global") y
         // la cubre AislamientoPorAgregadoTests. Toda entidad nueva añade aquí
@@ -221,6 +225,7 @@ public class CaeManagerDbContext(
         builder.Entity<TarifaCliente>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
         builder.Entity<ConversacionCorreo>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
         builder.Entity<MacroRespuesta>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        builder.Entity<ClaveApi>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
 
         builder.Entity<Alerta>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
         builder.Entity<Asignacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);

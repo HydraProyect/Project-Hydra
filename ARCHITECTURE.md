@@ -3,7 +3,7 @@
 ## Stack
 
 - **Backend**: ASP.NET Core 10 (LTS). *Nota: el brief original especificaba .NET 9; se usa .NET 10 porque es la versión LTS vigente y la única disponible a través de los canales de paquetes permitidos en el entorno de desarrollo — .NET 9 es STS y ya estaría cerca de fin de soporte. No afecta ninguna decisión de arquitectura de este documento.*
-- **Frontend**: Blazor Server (interactividad server-side; sin necesidad de API pública en v1)
+- **Frontend**: Blazor Server (interactividad server-side; la UI del producto no necesita una API pública detrás — ver más abajo "API pública" para la superficie HTTP añadida en P3-29, orientada a integradores externos, no a la UI)
 - **ORM**: Entity Framework Core 10
 - **Base de datos**: PostgreSQL (migrado desde SQLite en el corte de `ADR-003`, ver `ROADMAP.md` § Fase 61/62); el acceso a datos se hace exclusivamente a través de EF Core, sin SQL crudo fuera de los repositorios.
 - **Autenticación**: ASP.NET Core Identity + cookies, con login corporativo opcional vía Microsoft Entra ID (OpenID Connect) — ver más abajo.
@@ -134,6 +134,12 @@ No se usa un `IRepository<T>` genérico. Cada agregado raíz (Cliente, Centro, E
 Hydra es multi-tenant por diseño (`ADR-003-saas-multitenant.md`): cada organización compradora es un tenant, frontera absoluta de aislamiento. Mecanismo (`ADR-001`, reactivado): `TenantId` por fila + **Global Query Filter combinado con el de soft delete** (EF Core solo admite un `HasQueryFilter` por entidad: `!EstaEliminado && TenantId == tenantActual`), interceptor de `SaveChanges` que sella `TenantId` en escritura (los Commands nunca lo pasan), índices únicos de negocio compuestos `(TenantId, campo)`, y `ITenantActual` resuelto por claim de sesión (mismo patrón que `ICurrentUserService`; estrategia completa en `docs/MULTITENANCY.md` § 8). El aislamiento es un concern de Infrastructure: Domain y Application no razonan sobre tenants.
 
 Estado: **implementado y cubierto por tests**. Todas las entidades que heredan de `EntidadConTenant`/`EntidadBase` (38 a fecha de la Fase 59) tienen su filtro global en `CaeManagerDbContext.OnModelCreating`, el `TenantSelladoInterceptor` sella en escritura y rechaza modificaciones cruzadas, y hay un test de aislamiento por agregado (`AislamientoPorAgregadoTests`, uno por cada una). La invariante es "todas, sin excepciones" — el número concreto envejece, la regla no. Lo que sigue pendiente de `ADR-003` son sus condiciones de salida a producción (PostgreSQL, DPA/Términos por tenant), no el mecanismo.
+
+## API pública (implementada, P3-29 — no publicada/anunciada todavía)
+
+`/api/v1`, solo lectura sobre 5 recursos core (Clientes, Centros, Trabajadores, Documentos, Asignaciones), montada directamente sobre las Queries de MediatR ya existentes — ningún handler nuevo, solo una capa Minimal API (`src/CaeManager.Web/Api/V1/`) que los expone por HTTP. Autenticación por API key (`ClaveApi`, Domain/ApiKeys — hasheada con SHA-256, nunca cifrada de forma reversible: se muestra una única vez al generarla), con un `AuthenticationScheme` propio (`ApiKeyAuthenticationHandler`, Infrastructure/Autenticacion) que rellena los mismos claims que ya usa el resto del sistema (`tenant_id`, rol `Consulta` fijo) — el aislamiento multi-tenant y `IAlcanceDatosService` se aplican sin cambios (ver `docs/MULTITENANCY.md` § "API pública"). Rate limiting por tenant (`Microsoft.AspNetCore.RateLimiting`, ventana fija configurable) y documento OpenAPI nativo de .NET 10 en `/api/v1/openapi.json`.
+
+Las claves se emiten **desde fuera del tenant**, no por autoservicio: solo el Administrador del tenant plataforma, sobre una `DelegacionTenant` de propósito Soporte ya existente (`/configuracion/claves-api`) — mismo criterio de autorización que `AbrirAccesoSoporteCommand`. Ningún cliente se autogestiona esto en v1.
 
 ## Plataforma de Integraciones (diseño de backlog, no implementado — ver `ARQUITECTURA-INTEGRACIONES.md`)
 
