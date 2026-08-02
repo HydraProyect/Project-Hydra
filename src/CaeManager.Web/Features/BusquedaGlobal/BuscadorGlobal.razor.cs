@@ -22,10 +22,64 @@ public partial class BuscadorGlobal : ComponentBase
     private CancellationTokenSource? _debounceCts;
     private int _indiceSeleccionado = -1;
 
+    /// <summary>
+    /// Acciones fijas del palette (P3-31) — navegación rápida a las listas y
+    /// atajos de creación, mezcladas con los resultados de búsqueda. Filtro
+    /// simple por substring, sin Query: no son datos, son rutas fijas de la
+    /// propia app.
+    /// </summary>
+    private static readonly IReadOnlyList<(string Nombre, string Ruta)> ComandosNavegacion =
+    [
+        ("Ir a Clientes", "/clientes"),
+        ("Ir a Empresas", "/empresas"),
+        ("Ir a Subcontratas", "/subcontratas"),
+        ("Ir a Centros", "/centros"),
+        ("Ir a Trabajadores", "/trabajadores"),
+        ("Ir a Documentos", "/documentos"),
+        ("Ir a Dashboard", "/"),
+        ("Crear cliente", "/clientes?accion=crear"),
+        ("Crear documento", "/documentos?accion=crear"),
+    ];
+
+    /// <summary>
+    /// Comandos de navegación (filtrados por coincidencia de nombre) más,
+    /// cuando la búsqueda de una categoría no encontró nada, un atajo para
+    /// crearla con el término ya escrito precargado como nombre — pedido
+    /// explícito: "si introduce una empresa/centro/trabajador que no se
+    /// encuentre, dar la opción de crearlo con el nombre ya prellenado".
+    /// </summary>
+    private IReadOnlyList<ItemBusquedaDto> Comandos
+    {
+        get
+        {
+            var termino = _termino.Trim();
+            if (termino.Length < 2) return [];
+
+            var comandos = ComandosNavegacion
+                .Where(c => c.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase))
+                .Select(c => new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta))
+                .ToList();
+
+            if (_resultado is not null)
+            {
+                var terminoCodificado = Uri.EscapeDataString(termino);
+
+                if (_resultado.Empresas.Count == 0)
+                    comandos.Add(new ItemBusquedaDto(Guid.Empty, $"Crear empresa «{termino}»", null, $"/empresas?accion=crear&nombre={terminoCodificado}"));
+                if (_resultado.Centros.Count == 0)
+                    comandos.Add(new ItemBusquedaDto(Guid.Empty, $"Crear centro «{termino}»", null, $"/centros?accion=crear&nombre={terminoCodificado}"));
+                if (_resultado.Trabajadores.Count == 0)
+                    comandos.Add(new ItemBusquedaDto(Guid.Empty, $"Crear trabajador «{termino}»", null, $"/trabajadores?accion=crear&nombre={terminoCodificado}"));
+            }
+
+            return comandos;
+        }
+    }
+
     /// <summary>Todas las categorías en una sola lista, en el mismo orden en que se renderizan — para navegar con ↑↓ + Enter.</summary>
     private IReadOnlyList<ItemBusquedaDto> ElementosPlanos => _resultado is null
-        ? []
-        : [.. _resultado.Clientes, .. _resultado.Empresas, .. _resultado.Subcontratas, .. _resultado.Centros, .. _resultado.Trabajadores];
+        ? Comandos
+        : [.. Comandos, .. _resultado.Clientes, .. _resultado.Empresas, .. _resultado.Subcontratas, .. _resultado.Centros, .. _resultado.Trabajadores];
 
     protected override void OnInitialized()
     {
