@@ -50,9 +50,28 @@ y alertas. En despliegue — perfil de consultor para gestión multi-tenant.
 *Todo lo anterior es Draft: hipótesis de trabajo pendiente de confirmación explícita del
 propietario del producto antes de pasar a Approved.*
 
+## Pregunta abierta: postura frente a Konvergia (Draft, 2026-08-02)
+
+Insumo de `BENCHMARK_PRECIOS_CAE.md` § 1-bis. Konvergia es una red de interoperabilidad entre plataformas CAE asociadas (no una plataforma en sí), sin API pública, gobernada en parte por Once For All (mismo CEO que Dokify). Tres opciones frente a ella, sin decidir aquí:
+
+1. **Adherirse como socio** — negociación de adhesión (business development, no contrato de API) con una red gobernada en parte por un competidor.
+2. **Integrar plataforma a plataforma** — contra las plataformas miembro individuales, sin pasar por Konvergia como intermediario.
+3. **Orquestar sin membresía** — las contratas ya pueden activar Konvergia por sí mismas desde sus propias cuentas en plataformas miembro; Hydra puede construir valor encima sin ser miembro de la red.
+
+No se decide hasta tener tenants en producción y algo real que ofrecer en cualquier negociación de adhesión.
+
+## Prioridad de integración (Draft, 2026-08-02)
+
+**Twind (CTAIMA) primero** — tiene API REST real documentada y el cliente fundador ya opera sobre esa plataforma. **Konvergia después, si acaso** — ver pregunta abierta de arriba. **Nunca contra CTAIMACAE legacy** — Twind es el objetivo desde el día uno del conector (detalle técnico en `ARQUITECTURA-INTEGRACIONES.md`).
+
+## Módulos futuros detectados vía catálogo API (Draft, 2026-08-02)
+
+El catálogo de API 1.0 legacy de CTAIMA (developers.ctaima.com) expone funcionalidad más allá de la gestión documental: **Control de Accesos, Entradas y Salidas** (listado de presencia en emergencias) y **Autorizaciones de Pagos** (estado documental como condición para pagar facturas a un contratista). Candidatos al backlog conceptual de `docs/PLATFORM.md` § 1, sin priorizar aquí — son insumo de idea, no compromiso de construcción.
+
 ## Documentos relacionados
 
 - `docs/PLATFORM.md` § 1 — backlog conceptual de módulos de dominio futuros, sin priorizar.
 - `COMPETITOR_ANALYSIS.md` — panorama frente al que se decide esta estrategia.
 - `ROADMAP_BUSINESS.md` — calendario de ejecución de esta estrategia.
-- `ARQUITECTURA-INTEGRACIONES.md` — alternativa de integración frente a construcción propia.
+- `ARQUITECTURA-INTEGRACIONES.md` — alternativa de integración frente a construcción propia; diseño técnico del conector Twind priorizado arriba.
+- `BENCHMARK_PRECIOS_CAE.md` — origen de la pregunta abierta sobre Konvergia.

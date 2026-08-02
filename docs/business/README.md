@@ -41,7 +41,9 @@ El modelo de negocio es la raíz: el ICP nace de él (a quién le sirve ese mode
 8. **`DATA_OWNERSHIP.md`** — de quién son los datos de cada tenant y qué implica contractualmente.
 9. **`GO_TO_MARKET.md`** — cómo se lleva todo lo anterior al mercado.
 10. **`COMPETITOR_ANALYSIS.md`** — frente a quién competimos y con qué ventaja.
-11. **`ROADMAP_BUSINESS.md`** — cuándo, en qué orden y con qué hitos comerciales.
+11. **`BENCHMARK_PRECIOS_CAE.md`** — precios de mercado con fuente, insumo directo de `COMPETITOR_ANALYSIS.md` y `PRICING.md`.
+12. **`PLANTILLAS_SOLICITUD_PRECIOS.md`** — herramienta de trabajo para obtener los datos de precio que el benchmark todavía no tiene.
+13. **`ROADMAP_BUSINESS.md`** — cuándo, en qué orden y con qué hitos comerciales.
 
 ## Documentos estratégicos vs. operativos
 
@@ -60,6 +62,8 @@ El modelo de negocio es la raíz: el ICP nace de él (a quién le sirve ese mode
 - `PROFESSIONAL_SERVICES.md`
 - `UNIT_ECONOMICS.md`
 - `COMPETITOR_ANALYSIS.md`
+- `BENCHMARK_PRECIOS_CAE.md`
+- `PLANTILLAS_SOLICITUD_PRECIOS.md`
 - `ROADMAP_BUSINESS.md`
 
 `DECISION_LOG.md` y `MATURITY_REVIEW.md` no entran en esta clasificación — no son documentos temáticos, son registros transversales (ver siguientes secciones).

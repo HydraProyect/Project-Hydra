@@ -106,6 +106,17 @@ src/CaeManager.Infrastructure/Integraciones/
 
 Mismo patrón "**inerte por defecto**" que ya usan `AzureAd`/`Graph`/`Anthropic`/Sentry/Backups (`ARCHITECTURE.md`): una `ConexionIntegracion` deshabilitada o sin credenciales simplemente no se ejecuta.
 
+### 5.1 Nota de mercado sobre el primer conector objetivo (CTAIMA/Twind) — solo referencias, sin cifras de negocio
+
+Verificado en la sesión de benchmark de mercado del 2026-08-02 (detalle completo, incluidas cifras, en `docs/business/BENCHMARK_PRECIOS_CAE.md`; esta nota solo referencia, per `DOCUMENT_STANDARDS.md` § 6):
+
+- **Objetivo del conector**: Twind, la plataforma nueva de CTAIMA Group que unifica CTAIMACAE y e-coordina — nunca CTAIMACAE legacy. La migración está en curso durante 2026 sin garantía pública de compatibilidad retroactiva para integraciones existentes (los titulares con API/SSO son contactados por CTAIMA para reconfigurar antes de la actualización).
+- **Estado del catálogo API**: `developers.ctaima.com` (Azure API Management) publica hoy 8 APIs REST **1.0 del legacy** (Gestión Documental, Contratos, Clientes, Recursos, Control de Accesos, Entradas y Salidas, Autorizaciones de Pagos, Gestión General). El catálogo de Twind todavía no es público. Las 1.0 sirven hoy como inventario funcional de lo integrable, no como contrato de implementación.
+- **Restricción de niveles de acceso**: STANDARD (1.000 peticiones/semana) / EXTRA (10.000/semana) / ADVANTAGE (ilimitado), contratación por contacto comercial. El impacto de coste de cada nivel sobre el margen del add-on vive en `docs/business/UNIT_ECONOMICS.md`, no aquí.
+- **Konvergia**: sin API pública ni modelo de consumo por uso — descartada como opción técnica de integración a corto plazo. La postura estratégica frente a esa red (adherirse/integrar/orquestar sin membresía) vive en `docs/business/PRODUCT_STRATEGY.md`, referencia cruzada, no desarrollo aquí.
+
+**Nota de ADR futuro, no redactado todavía (regla YAGNI de `CLAUDE.md`)**: una **capa adaptadora (anti-corruption layer) por conector externo** se justifica cuando exista decisión real de construir el primer conector — la propia migración legacy→Twind ya demuestra que el proveedor objetivo rompe compatibilidad con el tiempo, y aislar el dominio de Hydra de cada API externa protege el roadmap de integraciones de decisiones de terceros. Este documento lo anticipa como nota; se formaliza como ADR cuando la construcción del conector deje de ser hipotética.
+
 ## 6. Orquestación
 
 ### 6.1 Retry / Circuit Breaker / Rate Limiting
