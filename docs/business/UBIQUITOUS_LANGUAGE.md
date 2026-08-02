@@ -77,6 +77,7 @@ Ninguno de estos términos tiene definición confirmada. La columna "Nota de tra
 | **Add-on** | Draft | Capacidad o módulo contratable por separado de un plan base. Relacionado con `FeatureFlag`/`TenantFeatureFlag` (`docs/PLATFORM.md` § 4). Aclarar si es sinónimo de "módulo" (unidad de código) o un concepto puramente comercial (add-on = se paga aparte). | `PRICING.md` |
 | **Plan** | Draft | Nivel de suscripción que determina features y límites incluidos — `Tenant → Plan → Features → Límites` (esbozo en `docs/PLATFORM.md` § 4). | `PRICING.md` |
 | **Suscripción** | Draft | Relación comercial recurrente entre un Tenant y un Plan. | `PRICING.md` / `UNIT_ECONOMICS.md` |
+| **Datos de Servicio** | Draft | Patrón *Service Data* de Zendesk: el contenido que el tenant introduce en la plataforma (documentos, datos de trabajadores, mensajes) — distinto de los datos de cuenta (identificación del tenant/usuarios) y de los datos de uso (telemetría/logs). Usado por los Términos y Condiciones de Uso y el resto del paquete legal para separar "de quién son los datos" de "qué datos son". Ver `docs/business/legal/LEGAL_FRAMEWORK.md` § 2.4 y `DATA_OWNERSHIP.md`. | `docs/business/legal/TERMINOS_Y_CONDICIONES.md` |
 
 ## Reglas de este documento
 
