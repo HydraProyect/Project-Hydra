@@ -53,8 +53,13 @@ de pago por uso.
 
 *Draft — cifras estimadas, a sustituir por medición real del primer piloto (GESEME).*
 
+## Coste de servir: conector Twind (Draft, 2026-08-02)
+
+Insumo de `ARQUITECTURA-INTEGRACIONES.md` (niveles de acceso API de CTAIMA/Twind) y `BENCHMARK_PRECIOS_CAE.md`. El futuro add-on de integración con Twind arrastra un coste externo por tenant, o compartido entre tenants, en forma de suscripción a un nivel de la API de CTAIMA (STANDARD/EXTRA/ADVANTAGE). El límite del nivel STANDARD (1.000 peticiones/semana) es insuficiente para una sola consultora de 50 clientes: solo el sondeo diario de vencimientos documentales ya lo agotaría con margen estrecho, antes de contar cualquier sincronización adicional. Estimar el volumen de peticiones/tenant esperado es un insumo directo para dimensionar si el margen del add-on aguanta el coste del nivel EXTRA/ADVANTAGE una vez esos precios se conozcan (bloqueado en `PRICING.md`, pendiente de respuesta de CTAIMA vía `PLANTILLAS_SOLICITUD_PRECIOS.md`).
+
 ## Documentos relacionados
 
 - `PRICING.md` — tarifas sobre las que se calculan estas métricas.
 - `BUSINESS_MODEL.md` — modelo de negocio que estas métricas validan o cuestionan.
 - `GO_TO_MARKET.md` — estrategia de adquisición que determina el CAC.
+- `ARQUITECTURA-INTEGRACIONES.md` — límites de nivel de acceso de la API de Twind que originan el coste de servir del add-on de integración.

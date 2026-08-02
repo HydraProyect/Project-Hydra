@@ -43,9 +43,20 @@ antes de ajustar la tarifa comercial de referencia de la tabla anterior.
 
 *Draft — condiciones ofertadas, pendientes de firma y de confirmación formal.*
 
+## Anclas de mercado (Draft, 2026-08-02)
+
+Insumo de `BENCHMARK_PRECIOS_CAE.md` § 6, no decisión de pricing:
+
+- **La "visibilidad" como unidad de cobro** es la unidad que el mercado ya acepta pagar por cada relación cliente↔documentación (~180–190 €/año en la estructura de packs y ampliaciones de Nalanda). Es trasladable como referencia de disposición a pagar a la banda de 50 clientes gestionados de Hydra — hipótesis a contrastar, no una unidad de facturación decidida.
+- **Coste agregado del statu quo**: un contratista con varios titulares paga hoy cientos a miles de €/año por plataforma que le impone cada cliente (detalle completo en `BENCHMARK_PRECIOS_CAE.md` § 6.3) — argumento de valor directo para justificar el precio de Hydra frente al coste total que ya soporta el mercado, no frente a una alternativa gratuita.
+- **Trade-off abierto: transparencia vs. opacidad**. Ningún competidor publica precio por encima de ~50 contratas gestionadas (`BENCHMARK_PRECIOS_CAE.md`, "opacidad de precios en banda consultora"). Dos caminos: publicar precios en la banda consultora como diferenciador (patrón UCAE en banda baja), o negociar a medida como práctica incumbente (más margen capturable, menos fricción de entrada). Pregunta abierta, no resuelta aquí.
+- **Add-on conector Twind — no tarifable todavía**: su coste depende de los niveles de acceso API EXTRA/ADVANTAGE de CTAIMA, no publicados, y de si la clave API se contrata por organización o por cliente final. **Bloqueante identificado**: hasta que la plantilla 2 de `PLANTILLAS_SOLICITUD_PRECIOS.md` obtenga respuesta de CTAIMA, este add-on no puede llevar cifra.
+
 ## Documentos relacionados
 
 - `BUSINESS_MODEL.md` — modelo de negocio del que este documento deriva.
 - `UNIT_ECONOMICS.md` — si estas tarifas son sostenibles.
 - `PROFESSIONAL_SERVICES.md` — qué se vende además de estos planes.
 - `docs/PLATFORM.md` § 4 "Licensing" — implementación técnica de planes/límites/feature flags (documento técnico, referencia esta página en lugar de fijar cifras).
+- `BENCHMARK_PRECIOS_CAE.md` — fuente de las anclas de mercado de arriba.
+- `ARQUITECTURA-INTEGRACIONES.md` — restricción de niveles de acceso de la API de Twind que bloquea la tarifa del add-on conector.
