@@ -289,50 +289,52 @@ La lectura de conjunto: **el potencial es uniformemente 8-9 porque casi ninguna 
 
 # Ranking de prioridades
 
+> **Estado de cierre (2026-08-02)**: los hallazgos de este informe se trabajaron en 4 ramas paralelas (`claude/p0-maturity-review-*` a `p3-maturity-review-*`), cada una auditada de forma independiente antes de mergear — build/tests reales, no solo lectura de diff. P0, P1 y P2 ya están en `main` (PRs [#48](https://github.com/christopherjp1-jpg/Project-Hydra/pull/48), [#47](https://github.com/christopherjp1-jpg/Project-Hydra/pull/47), [#49](https://github.com/christopherjp1-jpg/Project-Hydra/pull/49)). P3 sigue en curso (PR [#60](https://github.com/christopherjp1-jpg/Project-Hydra/pull/60)). Leyenda: ✅ resuelto y verificado · 🟡 parcial (ver nota) · ⬜ pendiente. El detalle día a día de cada fix vive en `ROADMAP.md`; esto es solo el mapa de qué quedó cerrado.
+
 ## P0 — Debe corregirse antes del MVP (antes de activar un tenant real)
 
-1. **Cerrar la inyección de referencia cruzada de tenant**: verificar Ids referenciados en todos los Commands de creación/vinculación (mínimo `CrearDocumentoCommandHandler`, `CrearAsignacionCommandHandler`; auditar los 73) **y** añadir FKs reales en BD — idealmente compuestas `(TenantId, Id)` para que el propio motor rechace referencias cruzadas. Con datos reales dentro, esta migración se encarece cada semana.
-2. **Login**: `lockoutOnFailure: true` + rate limiting en `/cuenta/*`; retirar el admin por defecto hardcodeado (fallar el arranque en producción si no hay `AdministradorInicial` configurado); validar `ReturnUrl` local.
-3. **Purga RGPD vs soft delete**: decidir (decisión legal — requiere confirmación del propietario, según la regla de `CLAUDE.md`) si las filas `EstaEliminado` entran en detección/anonimización. Hoy los datos de trabajadores dados de baja persisten indefinidamente fuera del ciclo de retención.
-4. **DPA + Términos de Uso** con revisión legal, incluyendo acceso de soporte, estructura tripartita de ADR-004 § 13 y el subencargado Anthropic para datos de salud (o desactivar la IA sobre reconocimientos médicos hasta resolverlo).
-5. **Monitoreo mínimo viable** (~2 horas de trabajo): DSN de Sentry, uptime check externo con alerta, y health check real (`AddHealthChecks().AddNpgSql()` en vez del `Ok("ok")` incondicional).
-6. **Ensayo de restauración completo** (dump + claves DataProtection) siguiendo `RUNBOOK-CLAVES.md`, con fecha y resultado documentados. Definir RPO/RTO.
-7. **Flujo de alta de delegaciones** (decidir § 12.2 aunque sea "solo Administrador de plataforma en v1") — sin él, el segmento consultora no se puede aprovisionar.
-8. **Accesibilidad del patrón insignia**: contraste del semáforo a tonos `*-700` (ya existen en tokens.css); Escape + focus trap en Modal/Drawer; navegación en <1024px.
-9. **Correcciones baratas de coherencia**: sincronizar los 4 documentos desactualizados por el corte a PostgreSQL (empezando por `CLAUDE.md`); `AuditoriaInterceptor` en la vía síncrona; timeouts en los HttpClients de IA.
+1. ✅ **Cerrar la inyección de referencia cruzada de tenant**: verificar Ids referenciados en todos los Commands de creación/vinculación (mínimo `CrearDocumentoCommandHandler`, `CrearAsignacionCommandHandler`; auditar los 73) **y** añadir FKs reales en BD — idealmente compuestas `(TenantId, Id)` para que el propio motor rechace referencias cruzadas. Con datos reales dentro, esta migración se encarece cada semana. — 19 Commands auditados + 45 FKs compuestas `(TenantId, Id)` reales en BD (verificado por SQL); el gap inicial en `CrearTipoDocumentoCommand`/`EditarTipoDocumentoCommand` se cerró en un fix posterior. PR #48.
+2. ✅ **Login**: `lockoutOnFailure: true` + rate limiting en `/cuenta/*`; retirar el admin por defecto hardcodeado (fallar el arranque en producción si no hay `AdministradorInicial` configurado); validar `ReturnUrl` local. PR #48.
+3. ✅ **Purga RGPD vs soft delete**: decidir (decisión legal — requiere confirmación del propietario, según la regla de `CLAUDE.md`) si las filas `EstaEliminado` entran en detección/anonimización. Hoy los datos de trabajadores dados de baja persisten indefinidamente fuera del ciclo de retención. — Decisión: sí entran. Implementación auditada (fallo cerrado sin tenant resuelto, invariante de autorización intacta, `IgnoreQueryFilters()` revisado deliberadamente). PR #48.
+4. 🟡 **DPA + Términos de Uso** con revisión legal, incluyendo acceso de soporte, estructura tripartita de ADR-004 § 13 y el subencargado Anthropic para datos de salud (o desactivar la IA sobre reconocimientos médicos hasta resolverlo). — Solo la mitad técnica: kill-switch de IA sobre reconocimientos médicos apagado por defecto (PR #48). El DPA/Términos de Uso en sí sigue sin escribirse — requiere revisión legal, no es un fix de código.
+5. 🟡 **Monitoreo mínimo viable** (~2 horas de trabajo): DSN de Sentry, uptime check externo con alerta, y health check real (`AddHealthChecks().AddNpgSql()` en vez del `Ok("ok")` incondicional). — Health check real contra PostgreSQL hecho (PR #48). Sentry DSN y uptime check externo siguen pendientes.
+6. ⬜ **Ensayo de restauración completo** (dump + claves DataProtection) siguiendo `RUNBOOK-CLAVES.md`, con fecha y resultado documentados. Definir RPO/RTO. — Solo existe el script ejecutable y la plantilla (`docs/ENSAYO-RESTAURACION.md`, `scripts/ensayo-restauracion.sh`, PR #48); el registro de resultados sigue vacío porque el ensayo real nunca se corrió.
+7. ✅ **Flujo de alta de delegaciones** (decidir § 12.2 aunque sea "solo Administrador de plataforma en v1") — sin él, el segmento consultora no se puede aprovisionar. — `CrearClienteDeleganteCommand`, autorización verificada en el propio handler (no solo en la UI). PR #48.
+8. ✅ **Accesibilidad del patrón insignia**: contraste del semáforo a tonos `*-700` (ya existen en tokens.css); Escape + focus trap en Modal/Drawer; navegación en <1024px. PR #48.
+9. ✅ **Correcciones baratas de coherencia**: sincronizar los 4 documentos desactualizados por el corte a PostgreSQL (empezando por `CLAUDE.md`); `AuditoriaInterceptor` en la vía síncrona; timeouts en los HttpClients de IA. PR #48.
 
 ## P1 — Muy recomendable antes de vender
 
-10. Observabilidad de aplicación: `LoggingBehavior` (comando, duración, tenant, usuario, resultado) + enricher de Serilog con TenantId + sink de logs en la nube.
-11. Sustituir `PuertaAccesoDatos` por `IDbContextFactory<CaeManagerDbContext>` — elimina el cuello de botella por circuito y ~150 líneas de complejidad accidental.
-12. Cifrado at-rest de los PDFs (el dato más sensible del sistema es el único sin cifrar).
-13. 2FA obligatoria para Administradores y para activar delegaciones de Soporte; auditar eventos de autenticación.
-14. Índices orientados al filtro global (`Documentos(TenantId, FechaVencimiento) WHERE NOT EstaEliminado`), CHECK XOR del propietario polimórfico, `pg_trgm` para las 32 búsquedas `Contains`.
-15. Alerta de "documento faltante" por exigencia de Centro (cierra el hueco funcional CAE más importante) y UI de `RequisitoDocumental` o su retirada.
-16. Validación por magic bytes de archivos subidos; `AddStandardResilienceHandler` en HTTP de IA/Graph.
-17. Marker interface `ICommand` en vez de convención de nombre + test de arquitectura.
-18. Filtros persistidos en URL y validación inline en blur (ambos prometidos por `UX_PATTERNS.md`).
-19. Cobertura en CI; E2E de los 3 flujos diferenciadores (Delegated Workspace, retención, soporte); prueba de carga base para tener una cifra defendible.
-20. Gate de proceso: checklist de seguridad obligatorio para todo módulo nuevo (la lección de Fase 59).
+10. ✅ Observabilidad de aplicación: `LoggingBehavior` (comando, duración, tenant, usuario, resultado) + enricher de Serilog con TenantId + sink de logs en la nube. PR #47.
+11. ⬜ Sustituir `PuertaAccesoDatos` por `IDbContextFactory<CaeManagerDbContext>` — elimina el cuello de botella por circuito y ~150 líneas de complejidad accidental. — Intentado y **revertido deliberadamente**: el rediseño solo resolvía `CaeManagerDbContext`, pero ~31 repositorios y ~8 servicios más seguían Scoped capturando el contexto por constructor, reproduciendo el mismo bug un nivel más abajo — arreglarlo de raíz exigía una barrida de ~50 registros sin poder compilar/testear en el entorno donde se intentó. Se documentó en `ROADMAP.md` como investigación cerrada, pendiente de un cambio de lifetimes planificado aparte.
+12. ✅ Cifrado at-rest de los PDFs (el dato más sensible del sistema es el único sin cifrar). — Transparente para el resto del sistema (viewer/descarga/IA sin cambios); fallback documentado para PDFs legados sin cifrar. PR #47.
+13. ✅ 2FA obligatoria para Administradores y para activar delegaciones de Soporte; auditar eventos de autenticación. PR #47.
+14. ✅ Índices orientados al filtro global (`Documentos(TenantId, FechaVencimiento) WHERE NOT EstaEliminado`), CHECK XOR del propietario polimórfico, `pg_trgm` para las 32 búsquedas `Contains`. — Verificado con SQL real contra Postgres (índice, CHECK y extensión confirmados por consulta directa, migración reversible). PR #47.
+15. ✅ Alerta de "documento faltante" por exigencia de Centro (cierra el hueco funcional CAE más importante) y UI de `RequisitoDocumental` o su retirada. — Nota de diseño: la alerta se apoya en `TipoDocumento.EsObligatorio`/`TipoDocumentoCentro`, no en `RequisitoDocumental` (que sigue siendo texto libre) — documentado explícitamente en el propio agregado para que nadie lo asuma. PR #47.
+16. ✅ Validación por magic bytes de archivos subidos; `AddStandardResilienceHandler` en HTTP de IA/Graph. PR #47.
+17. ✅ Marker interface `ICommand` en vez de convención de nombre + test de arquitectura. PR #47.
+18. 🟡 Filtros persistidos en URL y validación inline en blur (ambos prometidos por `UX_PATTERNS.md`). — Filtros en URL: las 12 páginas de listado cubiertas. Validación en blur: el mecanismo funciona pero solo está conectado en `Centros.razor`; el resto de páginas que usan `CampoTexto`/`CampoTextarea` quedan pendientes de adoptarlo.
+19. ✅ Cobertura en CI; E2E de los 3 flujos diferenciadores (Delegated Workspace, retención, soporte); prueba de carga base para tener una cifra defendible. — Incluye el hallazgo de causa raíz de un flakiness E2E real (rate limiting de `/cuenta/*` agotándose contra la propia suite de tests), resuelto sin relajar timeouts ni dejar tests en cuarentena. PR #47.
+20. ✅ Gate de proceso: checklist de seguridad obligatorio para todo módulo nuevo (la lección de Fase 59). — `CODING_STANDARDS.md`, grounded en hallazgos reales (no una lista genérica de OWASP). PR #47.
 
 ## P2 — Puede esperar unos meses
 
-21. PostgreSQL Row-Level Security como segunda línea bajo el filtro de EF.
-22. Cola de IA durable + archivos a S3 + migraciones separadas del arranque (los tres desbloquean multi-réplica).
-23. Gate de deploy (Railway solo despliega con CI verde) + smoke test post-deploy.
-24. Consolidación documental: un documento canónico por hecho, informes históricos a `docs/archive/`, README real con quickstart y `docker-compose.yml`.
-25. Pentest externo; Dependabot + escaneo de imagen; `USER` no-root en Dockerfile.
-26. Ingesta Graph real de Comunicaciones **o congelar el módulo y no venderlo**.
-27. Unificación de las 3 clases de credenciales; value objects para Dni/Cif/Email; catálogo central de códigos de error; filtros de tenant por reflexión del modelo.
-28. Deep-links a entidades; attribute splatting en el design system; límite de 3 toasts.
+21. ✅ PostgreSQL Row-Level Security como segunda línea bajo el filtro de EF. — Verificado: `set_config` parametrizado (sin riesgo de inyección), fallo cerrado sin tenant resuelto, migración aplicada y revertida contra Postgres real. Queda inerte en producción hasta rotar la credencial de runtime al rol restringido — paso manual documentado en `RUNBOOK-RLS.md`, a propósito no automatizado. PR #49.
+22. ✅ Cola de IA durable + archivos a S3 + migraciones separadas del arranque (los tres desbloquean multi-réplica). — S3 particionado por tenant en la key, anti-IDOR verificado. El flag `Migraciones:AlArrancar` sigue en `true` por defecto (opt-in a `false`, no lo contrario) — documentado honestamente en `DEPLOY.md` como paso a activar antes de escalar réplicas. PR #49.
+23. ✅ Gate de deploy (Railway solo despliega con CI verde) + smoke test post-deploy. — Smoke test (`healthcheckPath=/salud`) activo por código desde PR #49, ya con el health check real de P0-5 (`SELECT 1` contra PostgreSQL, no un `200` incondicional). El gate de "Wait for CI" es un ajuste de Railway (Settings → Deploy), no expresable en `railway.json` — activado a mano en el servicio de producción el 2026-08-02.
+24. ✅ Consolidación documental: un documento canónico por hecho, informes históricos a `docs/archive/`, README real con quickstart y `docker-compose.yml`. PR #49.
+25. 🟡 Pentest externo; Dependabot + escaneo de imagen; `USER` no-root en Dockerfile. — Las tres piezas de código hechas (Dependabot cubre NuGet+Docker+Actions, escaneo Trivy integrado en CI). El cambio a no-root causó una caída real de producción el 2026-08-02 (el volumen `/data` de Railway seguía siendo de `root`, `dataprotection-keys/` quedó sin permiso de escritura → 500 en cualquier página con formulario) — corregido en PR #62 con un entrypoint que arranca como root, corrige la propiedad de `/data` solo si hace falta, y baja privilegios con `gosu` antes de ejecutar la app; el proceso de la app en sí sigue sin correr nunca como root. Pentest externo sigue pendiente — requiere contratar un proveedor, no es un fix de código.
+26. ✅ Ingesta Graph real de Comunicaciones **o congelar el módulo y no venderlo**. — Se optó por congelar: módulo oculto de la navegación, redirección real en vez de una UI que aparente funcionar. PR #49. Tenant Microsoft 365 dev + app registration + permisos de Graph ya preparados para si se retoma la ingesta real más adelante — ver `RUNBOOK-GRAPH-M365.md`.
+27. 🟡 Unificación de las 3 clases de credenciales; value objects para Dni/Cif/Email; catálogo central de códigos de error; filtros de tenant por reflexión del modelo. — Filtro por reflexión: **se encontró y corrigió un bug crítico de fuga entre tenants** en la primera versión (`Expression.Constant` congelando el tenant del primer `DbContext` construido en el proceso) antes de mergear, verificado con prueba adversarial de 5 tenants concurrentes. Unificación de credenciales: 2 de 3 clases unificadas, la tercera (`CanalGestionDocumental`) queda fuera con justificación documentada en el propio código. Value objects Dni/Cif/Email: creados y testeados, pero **ninguna entidad del dominio los adopta todavía**. Catálogo de códigos de error: es una convención documentada, no un catálogo con enforcement real (sin test de arquitectura contra duplicados). PR #49.
+28. 🟡 Deep-links a entidades; attribute splatting en el design system; límite de 3 toasts. — Attribute splatting y límite de 3 toasts hechos. Deep-links a entidades sigue sin cubrir.
 
 ## P3 — Mejoras de excelencia
 
-29. **API pública versionada** (`/api/v1` + OpenAPI + API keys por tenant + rate limiting) montada sobre los handlers existentes — prerequisito de la Plataforma de Integraciones y argumento de venta enterprise.
-30. Multi-réplica completa (backplane SignalR, leader election, sticky sessions); OpenTelemetry; feature flags por tenant; Licensing/billing.
-31. Bulk actions, atajos j/k, acciones en el palette, filtros guardados — el kit del usuario experto de 8h/día.
-32. Fronteras de módulo reales (partir `IApplicationDbContext` por feature + tests de dependencia) — el paso honesto hacia el "kernel vs. módulos" que `docs/PLATFORM.md` ya promete.
-33. Primer conector de integración cuando haya proveedor confirmado; SSO federado por tenant.
+29. ⬜ **API pública versionada** (`/api/v1` + OpenAPI + API keys por tenant + rate limiting) montada sobre los handlers existentes — prerequisito de la Plataforma de Integraciones y argumento de venta enterprise.
+30. ⬜ Multi-réplica completa (backplane SignalR, leader election, sticky sessions); OpenTelemetry; feature flags por tenant; Licensing/billing.
+31. ⬜ Bulk actions, atajos j/k, acciones en el palette, filtros guardados — el kit del usuario experto de 8h/día.
+32. 🟡 Fronteras de módulo reales (partir `IApplicationDbContext` por feature + tests de dependencia) — el paso honesto hacia el "kernel vs. módulos" que `docs/PLATFORM.md` ya promete. — **En curso, PR #60.** Refactor mecánico verificado (137 archivos, `CaeManagerDbContext` implementa las ~30 interfaces segregadas correctamente, sin fugas de copia/pega). Pero los tests de arquitectura nuevos, verificados introduciendo violaciones deliberadas, solo atrapan la reaparición literal del god-interface viejo — no el mismo antipatrón bajo otro nombre, ni un handler cruzando a la interfaz de otra feature sin necesidad, que es justo lo que "fronteras de módulo reales" promete evitar.
+33. ⬜ Primer conector de integración cuando haya proveedor confirmado; SSO federado por tenant.
 
 ---
 
