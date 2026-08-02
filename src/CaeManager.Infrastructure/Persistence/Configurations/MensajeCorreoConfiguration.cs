@@ -13,9 +13,12 @@ public class MensajeCorreoConfiguration : IEntityTypeConfiguration<MensajeCorreo
 
         builder.Property(m => m.RemitenteEmail).IsRequired().HasMaxLength(320);
         builder.Property(m => m.CuerpoHtml).IsRequired();
+        builder.Property(m => m.MensajeExternoId).HasMaxLength(MensajeCorreo.LongitudMaximaMensajeExternoId);
 
         builder.HasIndex(m => m.ConversacionCorreoId);
         builder.HasIndex(m => m.FechaUtc);
+        // Único por tenant: idempotencia ante reintentos de notificación de webhook (P3-33).
+        builder.HasIndex(m => new { m.TenantId, m.MensajeExternoId }).IsUnique();
 
         // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.
     }

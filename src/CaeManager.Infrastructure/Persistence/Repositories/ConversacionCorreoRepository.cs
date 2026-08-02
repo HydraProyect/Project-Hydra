@@ -11,5 +11,14 @@ public class ConversacionCorreoRepository(CaeManagerDbContext dbContext) : IConv
             .Include(c => c.Participantes)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
+    public Task<ConversacionCorreo?> ObtenerPorHiloExternoAsync(string hiloExternoId, CancellationToken cancellationToken = default) =>
+        dbContext.ConversacionesCorreo
+            .Include(c => c.Mensajes)
+            .Include(c => c.Participantes)
+            .FirstOrDefaultAsync(c => c.HiloExternoId == hiloExternoId, cancellationToken);
+
+    public Task<bool> ExisteMensajeExternoAsync(string mensajeExternoId, CancellationToken cancellationToken = default) =>
+        dbContext.MensajesCorreo.AnyAsync(m => m.MensajeExternoId == mensajeExternoId, cancellationToken);
+
     public void Agregar(ConversacionCorreo conversacion) => dbContext.ConversacionesCorreo.Add(conversacion);
 }
