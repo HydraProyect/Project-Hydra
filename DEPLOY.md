@@ -148,10 +148,10 @@ Primer arranque: la app ejecuta las migraciones de base de datos y crea el usuar
 
 ### Gate de deploy y smoke test post-deploy (P2 #23)
 
-Dos mecanismos distintos, uno ya activo por código y el otro pendiente de un clic en el dashboard:
+Los dos mecanismos ya están activos — uno por código, el otro activado a mano en el dashboard el 2026-08-02:
 
-- **Smoke test post-deploy — ya activo.** `railway.json` declara `deploy.healthcheckPath=/salud` y `deploy.healthcheckTimeout=300`: Railway no corta el tráfico hacia el deploy nuevo hasta que ese endpoint responda `200`, y si nunca responde, el deploy se descarta y el tráfico se queda en el anterior (zero-downtime nativo de Railway, sin script propio). **Límite real de esta protección hoy**: `/salud` (`Program.cs`) devuelve `Results.Ok("ok")` incondicional — responde `200` aunque PostgreSQL esté caído. Arreglar eso es P0 #5 de `docs/business/MATURITY_REVIEW.md` (`AddHealthChecks().AddNpgSql()`), fuera del alcance de esta sesión (P2) — hasta que se cierre, este smoke test detecta que el proceso arrancó, no que la app funciona de verdad.
-- **Gate de CI verde — requiere un paso manual, no expresable en `railway.json`.** Railway soporta "Wait for CI" (Settings del servicio → Deploy), que deja el deploy en espera hasta que los GitHub Actions del commit terminen, y lo descarta si alguno falla — pero es un ajuste que Railway solo expone en el dashboard, no en config-as-code (confirmado en su documentación a fecha de este cambio). Actívalo a mano una vez: Settings → Deploy → "Wait for CI". El repo ya cumple el único requisito (`.github/workflows/ci.yml` dispara con `on: push` sobre la rama que despliegas).
+- **Smoke test post-deploy — activo, y ya con el health check real de P0 #5.** `railway.json` declara `deploy.healthcheckPath=/salud` y `deploy.healthcheckTimeout=300`: Railway no corta el tráfico hacia el deploy nuevo hasta que ese endpoint responda `200`, y si nunca responde, el deploy se descarta y el tráfico se queda en el anterior (zero-downtime nativo de Railway, sin script propio). `/salud` (`Program.cs`) ya no devuelve `Results.Ok("ok")` incondicional — corre `AddHealthChecks().AddNpgSql()` (`SELECT 1` contra la base), así que un `200` significa que el proceso vive **y** PostgreSQL responde, no solo que el proceso arrancó.
+- **Gate de CI verde — activado.** Railway soporta "Wait for CI" (Settings del servicio → Deploy), que deja el deploy en espera hasta que los GitHub Actions del commit terminen, y lo descarta si alguno falla — es un ajuste que Railway solo expone en el dashboard, no en config-as-code. Activado en el servicio de producción.
 
 ## 5. Verificar
 

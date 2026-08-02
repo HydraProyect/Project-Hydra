@@ -1,0 +1,4 @@
+# Los scripts de shell corren dentro de la imagen Docker (Linux) — un CRLF
+# accidental (habitual si se editan en Windows, ver core.autocrlf) rompe el
+# shebang y falla el arranque del contenedor en silencio.
+*.sh text eol=lf
