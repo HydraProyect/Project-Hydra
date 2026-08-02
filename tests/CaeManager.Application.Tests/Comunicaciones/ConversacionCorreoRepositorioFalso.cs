@@ -10,5 +10,11 @@ public class ConversacionCorreoRepositorioFalso : IConversacionCorreoRepository
     public Task<ConversacionCorreo?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones.FirstOrDefault(c => c.Id == id));
 
+    public Task<ConversacionCorreo?> ObtenerPorHiloExternoAsync(string hiloExternoId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Conversaciones.FirstOrDefault(c => c.HiloExternoId == hiloExternoId));
+
+    public Task<bool> ExisteMensajeExternoAsync(string mensajeExternoId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Conversaciones.SelectMany(c => c.Mensajes).Any(m => m.MensajeExternoId == mensajeExternoId));
+
     public void Agregar(ConversacionCorreo conversacion) => Conversaciones.Add(conversacion);
 }

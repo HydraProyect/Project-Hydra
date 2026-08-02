@@ -39,6 +39,7 @@ using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
+using CaeManager.Infrastructure.Integraciones;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -220,6 +221,27 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<VerificacionSignalRRedisHostedService>();
         }
 
+        // Primer conector de integración (P3-33 de docs/business/MATURITY_REVIEW.md
+        // — Microsoft 365, correo bidireccional para Comunicaciones, ver
+        // ARQUITECTURA-INTEGRACIONES.md § 12). Apagado por defecto: sin App
+        // Registration de Entra ID, el endpoint de conectar buzón devuelve
+        // un error explícito en vez de arrancar un flujo OAuth roto — el
+        // resto de Comunicaciones (bandeja con datos sembrados) sigue
+        // funcionando igual.
+        var opcionesMicrosoft365 = new Microsoft365GraphOptions();
+        configuration.GetSection(Microsoft365GraphOptions.SeccionConfiguracion).Bind(opcionesMicrosoft365);
+        services.Configure<Microsoft365GraphOptions>(configuration.GetSection(Microsoft365GraphOptions.SeccionConfiguracion));
+
+        services.AddHttpClient<CaeManager.Application.Integraciones.IMicrosoft365GraphClient, Microsoft365GraphClient>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
+
+        if (opcionesMicrosoft365.EstaConfigurado)
+        {
+            services.AddHostedService<IngestaWebhookHostedService>();
+            services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
+        }
+
         services.AddScoped<IClienteRepository, ClienteRepository>();
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         services.AddScoped<IEmpresaClienteRepository, EmpresaClienteRepository>();
@@ -265,6 +287,13 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IIncidenciaRepository, IncidenciaRepository>();
         services.AddScoped<IConversacionCorreoRepository, ConversacionCorreoRepository>();
         services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.ISuscripcionWebhookRepository, SuscripcionWebhookRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.IEventoWebhookRepository, EventoWebhookRepository>();
+        services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
+        services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
+        services.AddScoped<CaeManager.Application.Integraciones.IWebhookTenantResolver, WebhookTenantResolver>();
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Clientes.IClientesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -290,6 +319,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Incidencias.IIncidenciasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.ApiKeys.IApiKeysQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Integraciones.IIntegracionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
         services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         // Sin estado propio (abre una conexión Npgsql nueva por llamada) — una sola instancia sirve.
