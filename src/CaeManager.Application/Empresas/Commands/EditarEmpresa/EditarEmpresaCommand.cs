@@ -36,13 +36,13 @@ public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaComm
 
 public class EditarEmpresaCommandHandler(
     IEmpresaRepository repositorio, IEmpresaClienteRepository empresaClienteRepositorio,
-    IClientesQueryContext clientesContext, IUnitOfWork unitOfWork)
+    IClientesQueryContext clientesContext, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarEmpresaCommand, Result>
 {
     public async Task<Result> Handle(EditarEmpresaCommand request, CancellationToken cancellationToken)
     {
         var empresa = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (empresa is null)
+        if (empresa is null || !await alcanceDatos.EmpresaVisibleAsync(empresa.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa."));
 
         if (ConcurrenciaOptimista.Verificar(empresa, request.Version, "esta empresa") is { } conflicto)
