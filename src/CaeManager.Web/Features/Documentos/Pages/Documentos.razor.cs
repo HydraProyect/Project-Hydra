@@ -11,6 +11,7 @@ using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
 using CaeManager.Domain.Documentos;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Documentos;
 using FluentValidation;
@@ -52,6 +53,13 @@ public partial class Documentos : ComponentBase
 
     [SupplyParameterFromQuery] public Guid? TipoDocumentoId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "q")] public string? TerminoBusquedaInicial { get; set; }
+
+    /// <summary>Ámbito del filtro de la rejilla — mismo mecanismo que <see cref="Estado"/>, ver OnParametersSet.</summary>
+    [SupplyParameterFromQuery] public string? Ambito { get; set; }
+
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
     private GridItemsProvider<DocumentoListaDto>? _proveedorElementos;
 
     protected override async Task OnInitializedAsync()
@@ -59,13 +67,25 @@ public partial class Documentos : ComponentBase
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
 
-        if (!string.IsNullOrWhiteSpace(Estado) && Enum.TryParse<EstadoDocumento>(Estado, out _))
-            _estadoFiltro = Estado;
-
         if (DocumentoId is not null)
             await AbrirEditarAsync(DocumentoId.Value);
         else if (TrabajadorId is not null && TipoDocumentoId is not null)
             await AbrirCrearParaFaltanteAsync(TrabajadorId.Value, TipoDocumentoId.Value);
+    }
+
+    /// <summary>
+    /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
+    /// compartir la URL, volver atrás) — no solo en el primer render — para
+    /// que la URL sea la fuente de verdad de los tres filtros de la rejilla,
+    /// no solo su semilla inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        _estadoFiltro = !string.IsNullOrWhiteSpace(Estado) && Enum.TryParse<EstadoDocumento>(Estado, out _)
+            ? Estado
+            : string.Empty;
+        _busqueda = TerminoBusquedaInicial ?? string.Empty;
+        _ambitoFiltro = Ambito ?? string.Empty;
     }
 
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
@@ -196,18 +216,21 @@ public partial class Documentos : ComponentBase
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
 
     private async Task CambiarAmbitoFiltroAsync(string valor)
     {
         _ambitoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl(nameof(Ambito), valor);
         await RecargarAsync();
     }
 
     private async Task CambiarEstadoFiltroAsync(string valor)
     {
         _estadoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl(nameof(Estado), valor);
         await RecargarAsync();
     }
 
