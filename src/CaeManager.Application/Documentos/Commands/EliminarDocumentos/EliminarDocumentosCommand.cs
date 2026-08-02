@@ -1,5 +1,6 @@
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -15,7 +16,8 @@ public class EliminarDocumentosCommandValidator : AbstractValidator<EliminarDocu
     public EliminarDocumentosCommandValidator() => RuleFor(c => c.Ids).NotEmpty();
 }
 
-public class EliminarDocumentosCommandHandler(IDocumentoRepository repositorio, IUnitOfWork unitOfWork)
+public class EliminarDocumentosCommandHandler(
+    IDocumentoRepository repositorio, IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarDocumentosCommand, Result<ResultadoEliminacionLoteDto>>
 {
     public async Task<Result<ResultadoEliminacionLoteDto>> Handle(EliminarDocumentosCommand request, CancellationToken cancellationToken)
@@ -26,7 +28,7 @@ public class EliminarDocumentosCommandHandler(IDocumentoRepository repositorio, 
         foreach (var id in request.Ids)
         {
             var documento = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
-            if (documento is null)
+            if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
             {
                 errores.Add("Un documento ya no existía.");
                 continue;
