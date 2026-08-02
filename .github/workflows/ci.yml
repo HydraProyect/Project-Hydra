@@ -36,7 +36,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@v4
@@ -108,7 +108,7 @@ jobs:
     name: Detectar migraciones EF olvidadas
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@v4
@@ -133,7 +133,7 @@ jobs:
     name: Build de la imagen de despliegue
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Reconstruye exactamente la imagen que despliega Railway (mismo
       # Dockerfile, mismo -r linux-x64 --self-contained false de la Fase 22)
@@ -170,7 +170,7 @@ jobs:
     name: Tests de componentes (bUnit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@v4
@@ -217,7 +217,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@v4
@@ -265,7 +265,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@v4
@@ -327,7 +327,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
