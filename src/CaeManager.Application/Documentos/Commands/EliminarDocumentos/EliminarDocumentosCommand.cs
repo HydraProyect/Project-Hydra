@@ -8,7 +8,7 @@ using MediatR;
 namespace CaeManager.Application.Documentos.Commands.EliminarDocumentos;
 
 /// <summary>Borrado en lote (P3-31) — ver EliminarClientesCommand para el criterio de éxito parcial.</summary>
-public record EliminarDocumentosCommand(IReadOnlyList<Guid> Ids, Guid UsuarioId) : IRequest<Result<ResultadoEliminacionLoteDto>>;
+public record EliminarDocumentosCommand(IReadOnlyList<Guid> Ids, Guid UsuarioId) : ICommand<ResultadoEliminacionLoteDto>;
 
 public class EliminarDocumentosCommandValidator : AbstractValidator<EliminarDocumentosCommand>
 {

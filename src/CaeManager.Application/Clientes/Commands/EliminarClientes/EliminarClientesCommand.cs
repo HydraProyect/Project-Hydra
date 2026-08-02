@@ -12,7 +12,7 @@ namespace CaeManager.Application.Clientes.Commands.EliminarClientes;
 /// una única transacción. Éxito parcial no es fallo del Command: se reporta
 /// en <see cref="ResultadoEliminacionLoteDto"/> para que la UI lo resuma.
 /// </summary>
-public record EliminarClientesCommand(IReadOnlyList<Guid> Ids, Guid UsuarioId) : IRequest<Result<ResultadoEliminacionLoteDto>>;
+public record EliminarClientesCommand(IReadOnlyList<Guid> Ids, Guid UsuarioId) : ICommand<ResultadoEliminacionLoteDto>;
 
 public record ResultadoEliminacionLoteDto(int Eliminados, IReadOnlyList<string> Errores);
 

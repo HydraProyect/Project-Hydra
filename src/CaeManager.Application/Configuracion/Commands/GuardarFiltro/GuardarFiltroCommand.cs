@@ -12,7 +12,7 @@ namespace CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 /// entiende la propia pantalla — este Command no conoce la forma de los
 /// filtros de cada feature.
 /// </summary>
-public record GuardarFiltroCommand(string Pantalla, string Nombre, string ValoresJson) : IRequest<Result<Guid>>;
+public record GuardarFiltroCommand(string Pantalla, string Nombre, string ValoresJson) : ICommand<Guid>;
 
 public static class PantallasConFiltrosGuardados
 {
