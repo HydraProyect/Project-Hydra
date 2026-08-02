@@ -15,9 +15,13 @@ namespace CaeManager.E2ETests;
 /// llamador tenga EsPlataforma=true (solo el tenant #1) y que la cuenta
 /// tenga 2FA activo — únicamente Ayudas.EmailAdministrador cumple ambas
 /// condiciones entre los usuarios sembrados.
+///
+/// Colección propia (WebAppFixtureParaSoporte, no "AppCollection"): abrir
+/// el acceso deja una AsignacionOperadorDelegado nueva que sobrevive a
+/// cerrarlo — ver el comentario de esa clase en WebAppFixture.cs.
 /// </summary>
-[Collection("AppCollection")]
-public class FlujoSoporteTests(WebAppFixture fixture)
+[Collection("AppCollectionSoporte")]
+public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
 {
     /// <summary>
     /// Localiza la tarjeta de delegación de Soporte (no la Comercial) hacia

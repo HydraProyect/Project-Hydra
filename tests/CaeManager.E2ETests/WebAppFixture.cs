@@ -288,3 +288,20 @@ public sealed class WebAppFixtureConRetencionActiva : WebAppFixture
 
 [CollectionDefinition("AppCollectionRetencion")]
 public class AppCollectionRetencion : ICollectionFixture<WebAppFixtureConRetencionActiva>;
+
+/// <summary>
+/// Instancia propia (sin variables de entorno extra) solo para
+/// FlujoSoporteTests: abrir un acceso de soporte crea una
+/// AsignacionOperadorDelegado nueva hacia el Cliente Delegante de demo que
+/// sigue existiendo después de cerrar el acceso (cerrar solo desactiva la
+/// DelegacionTenant, no borra la asignación) — con "AppCollection"
+/// compartida, esa segunda asignación deja dos &lt;option&gt; con el mismo
+/// texto en el selector de Cliente activo y rompe
+/// Ayudas.CambiarClienteActivoAsync para el resto de tests de esa
+/// colección (AlcanceRolesTests, FlujoDelegatedWorkspaceTests) — visto en
+/// CI, no una hipótesis.
+/// </summary>
+[CollectionDefinition("AppCollectionSoporte")]
+public class AppCollectionSoporte : ICollectionFixture<WebAppFixtureParaSoporte>;
+
+public sealed class WebAppFixtureParaSoporte : WebAppFixture;
