@@ -186,6 +186,16 @@ builder.Services.AddAuthorization(options =>
 // repetidas. Limitador en memoria: suficiente mientras el techo sea 1
 // réplica (autodocumentado en ARCHITECTURE.md); con multi-réplica habría que
 // moverlo a un almacén compartido, igual que el resto de estado de proceso.
+// Techos configurables con los mismos valores de siempre por defecto: la
+// suite E2E hace logins reales en serie (cada login del Administrador son
+// DOS POST anónimos: credenciales + código 2FA) y supera los 10/min desde
+// 127.0.0.1 — exactamente el patrón de fuerza bruta que este límite corta,
+// solo que aquí es tráfico legítimo de test. El fixture E2E sube el techo
+// por variable de entorno (ver WebAppFixture); en producción no hay ninguna
+// configuración y aplican los valores de siempre.
+var limiteCuentaAnonimo = builder.Configuration.GetValue("RateLimiting:Cuenta:LimiteAnonimo", 10);
+var limiteCuentaAutenticado = builder.Configuration.GetValue("RateLimiting:Cuenta:LimiteAutenticado", 60);
+
 builder.Services.AddRateLimiter(opciones =>
 {
     opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -200,7 +210,7 @@ builder.Services.AddRateLimiter(opciones =>
         // Con sesión iniciada (cambio de Delegated Workspace vía
         // /cuenta/cliente-activo, cerrar sesión) el margen es holgado — el
         // objetivo son los anónimos que martillean el login.
-        var limite = contexto.User.Identity?.IsAuthenticated == true ? 60 : 10;
+        var limite = contexto.User.Identity?.IsAuthenticated == true ? limiteCuentaAutenticado : limiteCuentaAnonimo;
 
         // La IP real ya está resuelta: UseForwardedHeaders corre al principio
         // del pipeline (ver más abajo) y el middleware de rate limiting actúa
