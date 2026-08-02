@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.Trabajadores.Deteccion;
 using CaeManager.Domain.Common;
@@ -43,7 +44,7 @@ public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCo
 }
 
 public class CrearDocumentoCommandHandler(
-    IDocumentoRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork,
+    IDocumentoRepository repositorio, ITiposDocumentoQueryContext dbContext, IUnitOfWork unitOfWork,
     IColaAnalisisDocumento colaAnalisis, ITenantActual tenantActual, ICurrentUserService currentUserService)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {

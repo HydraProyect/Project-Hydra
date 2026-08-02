@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Importacion;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +14,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// cada fila es a la vez un Cliente y un Centro con el mismo nombre
 /// (ver Centro.cs).
 /// </summary>
-public class ClosedXmlPlantillaClientesService(IApplicationDbContext dbContext) : IPlantillaClientesService
+public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext) : IPlantillaClientesService
 {
     private const string NombreHoja = "Clientes";
     private const int FilaCabecera = 1;
@@ -45,9 +47,9 @@ public class ClosedXmlPlantillaClientesService(IApplicationDbContext dbContext) 
     public async Task<PlanImportacionDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
         var nombresClientesExistentes = new HashSet<string>(
-            await dbContext.Clientes.Select(c => c.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await clientesContext.Clientes.Select(c => c.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
         var nombresCentrosExistentes = new HashSet<string>(
-            await dbContext.Centros.Select(c => c.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await centrosContext.Centros.Select(c => c.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
 
         using var libro = new XLWorkbook(archivo);
 

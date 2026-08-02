@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Clientes;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +18,7 @@ public record ClienteDetalleDto(
     Guid Id, string RazonSocial, string Cif, bool EsCritico, string? Notas, DateTime CreadoEnUtc,
     Guid? EjecutivoUsuarioId, Guid Version);
 
-public class ObtenerClientePorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerClientePorIdQueryHandler(IClientesQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerClientePorIdQuery, ClienteDetalleDto?>
 {
     public async Task<ClienteDetalleDto?> Handle(ObtenerClientePorIdQuery request, CancellationToken cancellationToken)

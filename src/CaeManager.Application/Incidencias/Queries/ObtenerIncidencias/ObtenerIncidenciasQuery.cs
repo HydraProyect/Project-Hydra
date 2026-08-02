@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Incidencias;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Incidencias;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -12,16 +15,16 @@ public record IncidenciaListaDto(
     Guid Id, string CentroNombre, string? TrabajadorNombre, TipoIncidencia Tipo,
     GravedadIncidencia Gravedad, DateOnly FechaOcurrencia, bool Resuelta);
 
-public class ObtenerIncidenciasQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerIncidenciasQueryHandler(ICentrosQueryContext centrosContext, IIncidenciasQueryContext incidenciasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerIncidenciasQuery, ResultadoPaginado<IncidenciaListaDto>>
 {
     public async Task<ResultadoPaginado<IncidenciaListaDto>> Handle(
         ObtenerIncidenciasQuery request, CancellationToken cancellationToken)
     {
         var consulta =
-            from incidencia in dbContext.Incidencias
-            join centro in dbContext.Centros on incidencia.CentroId equals centro.Id
-            join trabajador in dbContext.Trabajadores on incidencia.TrabajadorId equals trabajador.Id into trabajadores
+            from incidencia in incidenciasContext.Incidencias
+            join centro in centrosContext.Centros on incidencia.CentroId equals centro.Id
+            join trabajador in trabajadoresContext.Trabajadores on incidencia.TrabajadorId equals trabajador.Id into trabajadores
             from trabajador in trabajadores.DefaultIfEmpty()
             select new { incidencia, centro, trabajador };
 

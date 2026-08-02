@@ -1,4 +1,9 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.DocumentosIa;
+using CaeManager.Application.Evaluaciones;
+using CaeManager.Application.Facturacion;
+using CaeManager.Application.Incidencias;
 using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
 using CaeManager.Domain.Incidencias;
 using MediatR;
@@ -49,7 +54,7 @@ public record CatalogoKpisValoresDto(
 /// puede recibir la lista de códigos seleccionados y calcular solo esas
 /// sub-áreas.
 /// </summary>
-public class ObtenerCatalogoKpisQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos, IMediator mediator)
+public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext, IDocumentosIaQueryContext documentosIaContext, IEvaluacionesQueryContext evaluacionesContext, IFacturacionQueryContext facturacionContext, IIncidenciasQueryContext incidenciasContext, IAlcanceDatosService alcanceDatos, IMediator mediator)
     : IRequestHandler<ObtenerCatalogoKpisQuery, CatalogoKpisValoresDto>
 {
     public async Task<CatalogoKpisValoresDto> Handle(ObtenerCatalogoKpisQuery request, CancellationToken cancellationToken)
@@ -90,7 +95,7 @@ public class ObtenerCatalogoKpisQueryHandler(IApplicationDbContext dbContext, IA
     private async Task<(double? PuntuacionMedia, int Total, IReadOnlyList<CentroRiesgoEvaluacionDto> CentrosConMasRiesgo)>
         CalcularEvaluacionesAsync(IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
     {
-        var evaluacionesQuery = dbContext.Evaluaciones.AsQueryable();
+        var evaluacionesQuery = evaluacionesContext.Evaluaciones.AsQueryable();
         if (centroIdsVisibles is not null)
             evaluacionesQuery = evaluacionesQuery.Where(e => centroIdsVisibles.Contains(e.CentroId));
 
@@ -104,7 +109,7 @@ public class ObtenerCatalogoKpisQueryHandler(IApplicationDbContext dbContext, IA
             .Select(g => new { CentroId = g.Key, PuntuacionMedia = g.Average(e => (double)e.Puntuacion) })
             .OrderBy(x => x.PuntuacionMedia)
             .Take(5)
-            .Join(dbContext.Centros, x => x.CentroId, c => c.Id,
+            .Join(centrosContext.Centros, x => x.CentroId, c => c.Id,
                 (x, c) => new CentroRiesgoEvaluacionDto(c.Id, c.Nombre, x.PuntuacionMedia))
             .ToListAsync(cancellationToken);
 
@@ -114,7 +119,7 @@ public class ObtenerCatalogoKpisQueryHandler(IApplicationDbContext dbContext, IA
     private async Task<(int Abiertas, IReadOnlyList<GravedadIncidenciaConteoDto> PorGravedad, double? TiempoMedioResolucionDias, int TotalResueltas)>
         CalcularIncidenciasAsync(IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
     {
-        var incidenciasQuery = dbContext.Incidencias.AsQueryable();
+        var incidenciasQuery = incidenciasContext.Incidencias.AsQueryable();
         if (centroIdsVisibles is not null)
             incidenciasQuery = incidenciasQuery.Where(i => centroIdsVisibles.Contains(i.CentroId));
 
@@ -143,7 +148,7 @@ public class ObtenerCatalogoKpisQueryHandler(IApplicationDbContext dbContext, IA
         var ahora = DateTime.UtcNow;
         var inicioMes = new DateTime(ahora.Year, ahora.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        var auditoriasQuery = dbContext.AuditoriasExtraccionIa.Where(a => a.CreadaEnUtc >= inicioMes);
+        var auditoriasQuery = documentosIaContext.AuditoriasExtraccionIa.Where(a => a.CreadaEnUtc >= inicioMes);
 
         var totalAuditoriasMes = await auditoriasQuery.CountAsync(cancellationToken);
         var costeMes = await auditoriasQuery.SumAsync(a => (a.CosteEstimado ?? 0) + (a.CosteEstimadoOcr ?? 0), cancellationToken);
@@ -167,7 +172,7 @@ public class ObtenerCatalogoKpisQueryHandler(IApplicationDbContext dbContext, IA
     {
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
-        var clientesConTarifaQuery = dbContext.TarifasCliente.Select(t => t.ClienteId).Distinct();
+        var clientesConTarifaQuery = facturacionContext.TarifasCliente.Select(t => t.ClienteId).Distinct();
         if (clienteIdsVisibles is not null)
             clientesConTarifaQuery = clientesConTarifaQuery.Where(id => clienteIdsVisibles.Contains(id));
 

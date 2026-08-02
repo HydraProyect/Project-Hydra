@@ -1,4 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Visitas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,16 +23,16 @@ public record VisitaDetalleDto(
     string? Notas,
     Guid Version);
 
-public class ObtenerVisitaPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVisitaPorIdQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVisitaPorIdQuery, VisitaDetalleDto?>
 {
     public async Task<VisitaDetalleDto?> Handle(ObtenerVisitaPorIdQuery request, CancellationToken cancellationToken)
     {
         var visita = await (
-            from v in dbContext.Visitas
-            join centro in dbContext.Centros on v.CentroId equals centro.Id
-            join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
-            join empresa in dbContext.Empresas on centro.EmpresaId equals empresa.Id
+            from v in visitasContext.Visitas
+            join centro in centrosContext.Centros on v.CentroId equals centro.Id
+            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
             where v.Id == request.Id
             select new
             {
@@ -48,7 +52,7 @@ public class ObtenerVisitaPorIdQueryHandler(IApplicationDbContext dbContext, IAl
         if (visita is null) return null;
         if (!await alcanceDatos.CentroVisibleAsync(visita.CentroId, cancellationToken)) return null;
 
-        var trabajadorIds = await dbContext.VisitasTrabajadores
+        var trabajadorIds = await visitasContext.VisitasTrabajadores
             .Where(vt => vt.VisitaId == request.Id)
             .Select(vt => vt.TrabajadorId)
             .ToListAsync(cancellationToken);

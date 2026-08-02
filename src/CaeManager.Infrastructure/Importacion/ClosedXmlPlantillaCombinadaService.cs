@@ -1,4 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Importacion;
 using CaeManager.Domain.Common;
 using ClosedXML.Excel;
@@ -15,7 +19,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// por Id — más cómodo de rellenar a mano en Excel — y se resuelven contra
 /// la base de datos y contra las propias hojas anteriores del archivo.
 /// </summary>
-public class ClosedXmlPlantillaCombinadaService(IApplicationDbContext dbContext) : IPlantillaCombinadaService
+public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext) : IPlantillaCombinadaService
 {
     private const string HojaClientes = "Clientes";
     private const string HojaEmpresas = "Empresas";
@@ -91,23 +95,23 @@ public class ClosedXmlPlantillaCombinadaService(IApplicationDbContext dbContext)
 
     public async Task<PlanImportacionCombinadaDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
-        var clientesExistentes = await dbContext.Clientes.ToListAsync(cancellationToken);
+        var clientesExistentes = await clientesContext.Clientes.ToListAsync(cancellationToken);
         var cifsExistentes = new HashSet<string>(clientesExistentes.Select(c => c.Cif), StringComparer.OrdinalIgnoreCase);
         var nombresClientesDisponibles = new HashSet<string>(clientesExistentes.Select(c => c.RazonSocial), StringComparer.OrdinalIgnoreCase);
 
         var nombresEmpresasExistentes = new HashSet<string>(
-            await dbContext.Empresas.Select(e => e.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await empresasContext.Empresas.Select(e => e.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
         var nombresEmpresasDisponibles = new HashSet<string>(nombresEmpresasExistentes, StringComparer.OrdinalIgnoreCase);
 
         var centrosExistentes = new HashSet<string>(
-            (await (from centro in dbContext.Centros
-                    join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
+            (await (from centro in centrosContext.Centros
+                    join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
                     select cliente.RazonSocial + ClaveSeparador + centro.Nombre)
                 .ToListAsync(cancellationToken)),
             StringComparer.OrdinalIgnoreCase);
 
         var dnisExistentes = new HashSet<string>(
-            await dbContext.Trabajadores.Select(t => t.Dni).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await trabajadoresContext.Trabajadores.Select(t => t.Dni).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
 
         using var libro = new XLWorkbook(archivo);
 

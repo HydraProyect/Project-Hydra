@@ -129,7 +129,8 @@ public class AlcancePorIdTests : IAsyncLifetime
     public async Task Devuelve_el_documento_de_un_trabajador_dentro_de_la_cartera_visible()
     {
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisibleId]);
-        var handler = new ObtenerDocumentoPorIdQueryHandler(_dbContext, alcance);
+        var handler = new ObtenerDocumentoPorIdQueryHandler(
+            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
 
         var resultado = await handler.Handle(
             new ObtenerDocumentoPorIdQuery(_documentoDeTrabajadorVisible.Id), CancellationToken.None);
@@ -145,7 +146,8 @@ public class AlcancePorIdTests : IAsyncLifetime
         // vigilancia de la salud de un trabajador de otra cartera con solo
         // conocer/adivinar el Guid del Documento.
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisibleId]);
-        var handler = new ObtenerDocumentoPorIdQueryHandler(_dbContext, alcance);
+        var handler = new ObtenerDocumentoPorIdQueryHandler(
+            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
 
         var resultado = await handler.Handle(
             new ObtenerDocumentoPorIdQuery(_documentoDeTrabajadorAjeno.Id), CancellationToken.None);
@@ -159,7 +161,8 @@ public class AlcancePorIdTests : IAsyncLifetime
         // Lista vacía = cartera sin asignar todavía (p. ej. un Gestor CAE recién
         // creado) — nunca debe confundirse con "sin restricción".
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: []);
-        var handler = new ObtenerDocumentoPorIdQueryHandler(_dbContext, alcance);
+        var handler = new ObtenerDocumentoPorIdQueryHandler(
+            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
 
         var resultado = await handler.Handle(
             new ObtenerDocumentoPorIdQuery(_documentoDeTrabajadorVisible.Id), CancellationToken.None);

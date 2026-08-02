@@ -1,4 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Proyectos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,26 +26,26 @@ public record ProyectoDetalleDto(
     int DocumentosGestionados,
     Guid Version);
 
-public class ObtenerProyectoPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerProyectoPorIdQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerProyectoPorIdQuery, ProyectoDetalleDto?>
 {
     public async Task<ProyectoDetalleDto?> Handle(ObtenerProyectoPorIdQuery request, CancellationToken cancellationToken)
     {
-        var proyecto = await dbContext.Proyectos.FirstOrDefaultAsync(p => p.Id == request.Id, cancellationToken);
+        var proyecto = await proyectosContext.Proyectos.FirstOrDefaultAsync(p => p.Id == request.Id, cancellationToken);
         if (proyecto is null) return null;
 
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
         if (clienteIdsVisibles is not null && !clienteIdsVisibles.Contains(proyecto.ClienteId))
             return null;
 
-        var clienteRazonSocial = await dbContext.Clientes
+        var clienteRazonSocial = await clientesContext.Clientes
             .Where(c => c.Id == proyecto.ClienteId).Select(c => c.RazonSocial).FirstAsync(cancellationToken);
-        var centroNombre = await dbContext.Centros
+        var centroNombre = await centrosContext.Centros
             .Where(c => c.Id == proyecto.CentroId).Select(c => c.Nombre).FirstAsync(cancellationToken);
 
-        var tecnicosActivos = await dbContext.ProyectosTecnicos
+        var tecnicosActivos = await proyectosContext.ProyectosTecnicos
             .CountAsync(pt => pt.ProyectoId == proyecto.Id && pt.FechaBaja == null, cancellationToken);
-        var documentosGestionados = await dbContext.Documentos
+        var documentosGestionados = await documentosContext.Documentos
             .CountAsync(d => d.ProyectoId == proyecto.Id, cancellationToken);
 
         return new ProyectoDetalleDto(
