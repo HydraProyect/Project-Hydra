@@ -34,7 +34,7 @@ Infrastructure (EF Core, Identity, almacenamiento de archivos, cifrado)
 `Infrastructure` implementa interfaces definidas en `Domain`/`Application`; nunca al revés. `Domain` no referencia ningún paquete NuGet de infraestructura (ni siquiera EF Core).
 
 ```
-CaeManager.sln
+CaeManager.slnx
 ├── src/
 │   ├── CaeManager.Domain/
 │   │   ├── Clientes/            (Cliente.cs, ICLienteRepository.cs, ...)
@@ -93,7 +93,10 @@ CaeManager.sln
 └── tests/
     ├── CaeManager.Domain.Tests/
     ├── CaeManager.Application.Tests/
-    └── CaeManager.IntegrationTests/
+    ├── CaeManager.Architecture.Tests/
+    ├── CaeManager.IntegrationTests/
+    ├── CaeManager.Web.Tests/
+    └── CaeManager.E2ETests/
 ```
 
 ### Resolviendo "Feature First" vs "Clean Architecture"
@@ -125,7 +128,7 @@ No se usa un `IRepository<T>` genérico. Cada agregado raíz (Cliente, Centro, E
 
 - ASP.NET Core Identity como almacén de usuarios y roles, con cookie de autenticación (`AuthenticationStateProvider` nativo de Blazor Server).
 - Roles semilla (fuente de verdad: `Infrastructure/Identity/Roles.cs`): `Administrador`, `DireccionCae`, `CoordinadorCae`, `GestorCae`, `Consulta`, `Cliente`. `CoordinadorCae` y `GestorCae` se llamaron `Supervisor` y `EjecutivoCae` hasta la migración `AgregarRolesJerarquia`.
-- Autorización basada en policies (`[Authorize(Policy = "...")]`), no en checks de rol hardcodeados dispersos por el código.
+- Autorización por rol declarativo en cada `@page` (`[Authorize(Roles = "...")]`, ver `CODING_STANDARDS.md` § "Checklist de seguridad para módulos nuevos") más `AutorizacionEscrituraBehavior` (Application) filtrando por un `string[] RolesConEscritura` centralizado antes de que cualquier Command con escritura llegue a validarse. Policies (`[Authorize(Policy = "...")]`) existen solo para la API pública (`/api/v1`, `Program.cs` — política `ApiPublica`); no son el mecanismo general de autorización todavía.
 - **SSO con Microsoft Entra ID** (opcional, `AzureAd:*` en configuración — ver `DEPLOY.md`): Identity sigue siendo el almacén de usuarios/roles, Entra ID solo se añade como external login provider (OpenID Connect), restringido al tenant de la empresa. Cualquier cuenta del tenant puede iniciar sesión — si es la primera vez, se auto-provisiona un `ApplicationUser` **sin ningún rol**, que queda en una pantalla de espera (`/cuenta/pendiente-de-rol`) hasta que un Administrador le asigna uno desde la pestaña "Pendientes de asignar" en `/roles` (ver `Roles.razor`). Mientras Entra ID esté configurado, `RestriccionLoginLocalClaimsTransformation` (`IClaimsTransformation` global) limita el rol efectivo de cualquier sesión que no se haya autenticado por Microsoft a `Consulta`, como capa extra de control para los roles editores — **excepto Administrador**, que conserva su rol real incluso por login local (vía de escape deliberada para nunca perder acceso de administración). Sin `AzureAd:*` configurado, todo esto queda completamente inerte (mismo principio que Sentry/Backups/Anthropic) — el login local se comporta exactamente igual que antes de que existiera SSO.
 - **Envío de correo** (`IEmailService` en Application, `GraphEmailService` en Infrastructure, opcional, `Graph:*` en configuración — ver `DEPLOY.md`): Microsoft Graph con permisos de aplicación (client credentials, no depende de que haya sesión de usuario), usado para notificar a los Administradores cuando hay un usuario pendiente de rol y para confirmar al usuario cuando se le asigna uno. Siempre "best effort": un fallo de envío se registra en el log pero nunca revierte ni bloquea la acción de negocio que lo dispara. Sin `Graph:*` configurado, queda inerte igual que el resto de integraciones opcionales.
 
@@ -174,7 +177,10 @@ PDFsharp 6 no depende de GDI+ ni de las fuentes del sistema operativo (es multip
 
 - `CaeManager.Domain.Tests`: pruebas unitarias de reglas de negocio puras (p. ej. cálculo de estado de un Documento según vigencia y umbrales) — sin base de datos.
 - `CaeManager.Application.Tests`: handlers de Commands/Queries con repositorios en memoria o mocks.
+- `CaeManager.Architecture.Tests`: tests de arquitectura (convenciones de nombres/interfaces, ausencia de fugas entre capas — p. ej. `ArquitecturaCommandsTests`).
 - `CaeManager.IntegrationTests`: EF Core contra PostgreSQL real (una base de datos propia por fixture, ver `BaseDatosPostgresDePruebas`), validando migraciones y queries reales.
+- `CaeManager.Web.Tests`: componentes Blazor con bUnit.
+- `CaeManager.E2ETests`: la app real arrancada como subproceso (`WebAppFixture`) contra PostgreSQL, navegador Playwright.
 
 ## Convención de nombres de proyecto
 
