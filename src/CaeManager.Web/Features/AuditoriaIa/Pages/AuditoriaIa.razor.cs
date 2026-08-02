@@ -1,5 +1,6 @@
 using CaeManager.Application.DocumentosIa.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -9,6 +10,10 @@ namespace CaeManager.Web.Features.AuditoriaIa.Pages;
 public partial class AuditoriaIa : ComponentBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    [SupplyParameterFromQuery(Name = "proveedor")]
+    public string? ProveedorInicial { get; set; }
 
     private ResultadoPaginado<RegistroAuditoriaIaDto>? _resultado;
     private bool _cargando = true;
@@ -17,7 +22,24 @@ public partial class AuditoriaIa : ComponentBase
     private int _pagina = 1;
     private const int TamanoPagina = 30;
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    protected override Task OnInitializedAsync()
+    {
+        // Ver el comentario equivalente en Auditoria.razor.cs: OnInitializedAsync
+        // corre antes que OnParametersSet en el primer render, así que la
+        // carga inicial necesita el filtro ya resuelto aquí, no solo allí.
+        _filtroProveedor = string.IsNullOrWhiteSpace(ProveedorInicial) ? null : ProveedorInicial;
+        return CargarAsync();
+    }
+
+    /// <summary>
+    /// Re-sincroniza el filtro con la URL en navegaciones posteriores (P1-18
+    /// de docs/business/MATURITY_REVIEW.md) — la recarga la sigue disparando
+    /// cada manejador de filtro explícitamente, no este método.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        _filtroProveedor = string.IsNullOrWhiteSpace(ProveedorInicial) ? null : ProveedorInicial;
+    }
 
     private async Task CargarAsync()
     {
@@ -43,6 +65,7 @@ public partial class AuditoriaIa : ComponentBase
     {
         _filtroProveedor = string.IsNullOrWhiteSpace(proveedor) ? null : proveedor;
         _pagina = 1;
+        NavigationManager.ActualizarFiltroEnUrl("proveedor", proveedor);
         return CargarAsync();
     }
 
