@@ -1,4 +1,5 @@
 ﻿using CaeManager.Domain.Alertas;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
@@ -31,7 +32,7 @@ namespace CaeManager.IntegrationTests.Tenants;
 
 /// <summary>
 /// Cierre de la Etapa 5 de PLAN-MIGRACION-MULTITENANT.md: test de
-/// aislamiento por cada uno de los <b>38</b> tipos que heredan de
+/// aislamiento por cada uno de los <b>39</b> tipos que heredan de
 /// <c>EntidadConTenant</c>/<c>EntidadBase</c> — uno por cada línea de
 /// <c>HasQueryFilter</c> de <c>CaeManagerDbContext</c>, sin excepciones
 /// (regla de docs/MULTITENANCY.md § 9 — "los tests de aislamiento se
@@ -47,7 +48,7 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// <see cref="AislamientoMultiTenantTests"/> ya
 /// prueba con más profundidad de escenario (fallo cerrado, rechazo de
 /// modificación cruzada, índice único) sobre dos entidades representativas
-/// (Cliente/Alerta); este archivo cierra la cobertura completa de las 38,
+/// (Cliente/Alerta); este archivo cierra la cobertura completa de las 39,
 /// con la misma verificación de visibilidad en cada una.
 /// </summary>
 public class AislamientoPorAgregadoTests : IAsyncLifetime
@@ -174,6 +175,10 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     [Fact]
     public Task Aislamiento_MacroRespuesta() => VerificarAislamientoAsync(
         () => new MacroRespuesta("Falta el apto médico", "<p>Nos falta el apto médico.</p>"));
+
+    [Fact]
+    public Task Aislamiento_ClaveApi() => VerificarAislamientoAsync(
+        () => new ClaveApi("Integración de prueba", "hydra_ab12cd", $"hash-{Guid.NewGuid():N}", Guid.NewGuid()));
 
     // --- tablas de unión/satélite (EntidadConTenant directa, sin soft delete) ---
 
