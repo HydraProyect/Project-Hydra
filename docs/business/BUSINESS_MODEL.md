@@ -35,6 +35,14 @@
 
 *Draft — pendiente de desarrollo completo y confirmación explícita antes de Approved.*
 
+## Nota de escenarios de salida (hipótesis fechada 2026-08-02)
+
+Insumo de `BENCHMARK_PRECIOS_CAE.md` § 1-bis. La adquisición de Hydra por un grupo consolidador del sector (Once For All ya adquirió Nalanda y Dokify) es un escenario de salida plausible **por consecuencia** de ganar el segmento consultora de forma independiente — explícitamente descartado como *driver* de diseño de producto: diseñar para ese comprador arriesga un comprador único, distorsiona el roadmap, y el escenario simétrico más probable frente al éxito de Hydra es la copia por un incumbente, no la compra.
+
+## Precedente de monetización (Draft, 2026-08-02)
+
+El mercado ya acepta pagar por la relación cliente↔documentación ("visibilidad", ver `BENCHMARK_PRECIOS_CAE.md` § 1 y § 6) como unidad de cobro independiente de la licencia base. Relevante para elegir la unidad de facturación del modelo Hydra en la banda consultora — desarrollo concreto en `PRICING.md`, aquí solo se registra el precedente de mercado.
+
 ## Documentos relacionados
 
 - `ICP.md` — a quién se dirige este modelo de negocio.
@@ -42,3 +50,4 @@
 - `BUSINESS_ARCHITECTURE.md` — cómo se organiza comercialmente.
 - `docs/MULTITENANCY.md` § 2 — escenarios de negocio ya nombrados desde el ángulo técnico de aislamiento.
 - `PROJECT.md` § "A quién sirve" — visión de producto de los dos perfiles de comprador.
+- `BENCHMARK_PRECIOS_CAE.md` — fuente del precedente de monetización y del escenario de salida de arriba.

@@ -44,9 +44,17 @@ prospectos:
 
 *Draft — guion de trabajo, no política de venta formalmente aprobada.*
 
+## Munición de posicionamiento (Draft, 2026-08-02)
+
+Insumo de `BENCHMARK_PRECIOS_CAE.md` § 1 y `COMPETITOR_ANALYSIS.md`:
+
+- **Resentimiento del contratista contra el modelo incumbente**: las quejas públicas más repetidas del sector (renovaciones automáticas opacas, cobro por elementos ya dados de baja, subidas de cuota sin preaviso) son munición de mensaje directamente citable — fuentes públicas en `BENCHMARK_PRECIOS_CAE.md` § 1. "Quién paga" (consultora vs. repercutir a contratas) es, además de una decisión de pricing, una decisión de marca: alinearse con el lado que sufre el modelo actual es un mensaje de posicionamiento en sí mismo.
+- **Caducidad del pitch "hoy es Excel"**: el dolor de la gestión manual tiene fecha de caducidad — Konvergia (interoperabilidad entre plataformas) y la IA/OCR que los incumbentes ya están incorporando erosionan progresivamente ese argumento. Implicación de mensaje: el argumento de venta de 2026 es el dolor actual (fricción, opacidad, coste agregado multi-plataforma), pero la ventaja defendible a 5 años tiene que ser otra — el modelo de operación delegada de consultora, que ningún incumbente cubre hoy porque colisiona con su propio pricing por "visibilidad" (cada cliente-titular es una unidad de cobro, no un caso a resolver con eficiencia operativa).
+
 ## Documentos relacionados
 
 - `ICP.md` — a quién se dirige esta estrategia.
 - `COMPETITOR_ANALYSIS.md` — panorama competitivo que informa el posicionamiento.
 - `ROADMAP_BUSINESS.md` — calendario de ejecución de esta estrategia.
 - `BUSINESS_ARCHITECTURE.md` — canales de venta como parte de la arquitectura comercial.
+- `BENCHMARK_PRECIOS_CAE.md` — fuente de la munición de posicionamiento de arriba.
