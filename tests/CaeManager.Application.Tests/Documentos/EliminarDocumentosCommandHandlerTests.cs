@@ -1,4 +1,6 @@
 using CaeManager.Application.Documentos.Commands.EliminarDocumentos;
+using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Proyectos;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
 using Xunit;
@@ -15,8 +17,9 @@ public class EliminarDocumentosCommandHandlerTests
         var repositorio = new DocumentoRepositorioFalso();
         repositorio.Agregar(uno);
         repositorio.Agregar(dos);
-        var unitOfWork = new Clientes.UnitOfWorkFalso();
-        var handler = new EliminarDocumentosCommandHandler(repositorio, unitOfWork);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new EliminarDocumentosCommandHandler(
+            repositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new EliminarDocumentosCommand([uno.Id, dos.Id], Guid.NewGuid()), CancellationToken.None);
 
@@ -33,8 +36,9 @@ public class EliminarDocumentosCommandHandlerTests
         var existente = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), null);
         var repositorio = new DocumentoRepositorioFalso();
         repositorio.Agregar(existente);
-        var unitOfWork = new Clientes.UnitOfWorkFalso();
-        var handler = new EliminarDocumentosCommandHandler(repositorio, unitOfWork);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new EliminarDocumentosCommandHandler(
+            repositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new EliminarDocumentosCommand([existente.Id, Guid.NewGuid()], Guid.NewGuid()), CancellationToken.None);
@@ -43,5 +47,24 @@ public class EliminarDocumentosCommandHandlerTests
         resultado.Valor.Eliminados.Should().Be(1);
         resultado.Valor.Errores.Should().ContainSingle();
         existente.EstaEliminado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task No_elimina_un_documento_de_cliente_fuera_de_la_cartera()
+    {
+        var clienteAjeno = Guid.NewGuid();
+        var documento = Documento.DeCliente(clienteAjeno, Guid.NewGuid(), new DateOnly(2026, 1, 1), null);
+        var repositorio = new DocumentoRepositorioFalso();
+        repositorio.Agregar(documento);
+        var unitOfWork = new UnitOfWorkFalso();
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]);
+        var handler = new EliminarDocumentosCommandHandler(repositorio, alcance, new ProyectosQueryContextFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(new EliminarDocumentosCommand([documento.Id], Guid.NewGuid()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Eliminados.Should().Be(0);
+        resultado.Valor.Errores.Should().ContainSingle();
+        documento.EstaEliminado.Should().BeFalse();
     }
 }

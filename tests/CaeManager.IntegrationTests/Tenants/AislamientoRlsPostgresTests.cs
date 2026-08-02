@@ -1,3 +1,4 @@
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Clientes;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -44,6 +45,7 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         await dbContext.Database.MigrateAsync();
 
         dbContext.Clientes.Add(new Cliente("RENDELSUR", "B12345674", esCritico: false));
+        dbContext.ClavesApi.Add(new ClaveApi("Integración de prueba", "cae_abcd", "hash-de-prueba", Guid.NewGuid()));
         await dbContext.SaveChangesAsync();
     }
 
@@ -74,6 +76,13 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
     {
         await using var consulta = conexion.CreateCommand();
         consulta.CommandText = "SELECT count(*) FROM \"Clientes\";";
+        return (long)(await consulta.ExecuteScalarAsync())!;
+    }
+
+    private static async Task<long> ContarClavesApiAsync(NpgsqlConnection conexion)
+    {
+        await using var consulta = conexion.CreateCommand();
+        consulta.CommandText = "SELECT count(*) FROM \"ClavesApi\";";
         return (long)(await consulta.ExecuteScalarAsync())!;
     }
 
@@ -111,6 +120,21 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         await conexion.OpenAsync();
 
         (await ContarClientesAsync(conexion)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task El_rol_restringido_solo_ve_las_claves_api_del_tenant_fijado_en_la_sesion()
+    {
+        // ClavesApi (P3-29) se creó después de HabilitarRlsPostgres y se
+        // quedó fuera de la lista original — verificado aquí para que el
+        // gap no vuelva a colarse en la siguiente tabla nueva.
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+        (await ContarClavesApiAsync(conexion)).Should().Be(1);
+
+        await FijarTenantDeSesionAsync(conexion, _tenantB);
+        (await ContarClavesApiAsync(conexion)).Should().Be(0);
     }
 
     [Fact]

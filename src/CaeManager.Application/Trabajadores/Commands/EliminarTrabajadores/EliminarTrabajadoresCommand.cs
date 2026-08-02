@@ -15,7 +15,7 @@ public class EliminarTrabajadoresCommandValidator : AbstractValidator<EliminarTr
     public EliminarTrabajadoresCommandValidator() => RuleFor(c => c.Ids).NotEmpty();
 }
 
-public class EliminarTrabajadoresCommandHandler(ITrabajadorRepository repositorio, IUnitOfWork unitOfWork)
+public class EliminarTrabajadoresCommandHandler(ITrabajadorRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarTrabajadoresCommand, Result<ResultadoEliminacionLoteDto>>
 {
     public async Task<Result<ResultadoEliminacionLoteDto>> Handle(EliminarTrabajadoresCommand request, CancellationToken cancellationToken)
@@ -26,7 +26,7 @@ public class EliminarTrabajadoresCommandHandler(ITrabajadorRepository repositori
         foreach (var id in request.Ids)
         {
             var trabajador = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
-            if (trabajador is null)
+            if (trabajador is null || !await alcanceDatos.TrabajadorVisibleAsync(trabajador.Id, cancellationToken))
             {
                 errores.Add("Un trabajador ya no existía.");
                 continue;
