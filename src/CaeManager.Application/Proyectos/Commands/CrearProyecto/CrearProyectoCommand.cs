@@ -9,7 +9,7 @@ namespace CaeManager.Application.Proyectos.Commands.CrearProyecto;
 
 public record CrearProyectoCommand(
     Guid ClienteId, Guid CentroId, string Nombre, DateOnly FechaInicio, DateOnly? FechaFinPrevista, string? Notas)
-    : IRequest<Result<Guid>>;
+    : ICommand<Guid>;
 
 public class CrearProyectoCommandValidator : AbstractValidator<CrearProyectoCommand>
 {

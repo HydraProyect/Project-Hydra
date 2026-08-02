@@ -9,7 +9,7 @@ namespace CaeManager.Application.Incidencias.Commands.CrearIncidencia;
 
 public record CrearIncidenciaCommand(
     Guid CentroId, Guid? TrabajadorId, TipoIncidencia Tipo, GravedadIncidencia Gravedad,
-    DateOnly FechaOcurrencia, string Descripcion) : IRequest<Result<Guid>>;
+    DateOnly FechaOcurrencia, string Descripcion) : ICommand<Guid>;
 
 public class CrearIncidenciaCommandValidator : AbstractValidator<CrearIncidenciaCommand>
 {

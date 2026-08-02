@@ -65,17 +65,46 @@ public class WebAppFixture : IAsyncLifetime
         infoInicio.Environment["ConnectionStrings__CaeManagerDb"] = _cadenaConexion;
         infoInicio.Environment["DatosPrueba__Activo"] = "true";
 
+        // El rate limiting de /cuenta/* (P0-2: fuerza bruta) limita los POST
+        // anónimos a 10/min POR IP — y toda esta suite llega desde 127.0.0.1
+        // haciendo logins reales en serie, donde cada login del Administrador
+        // son DOS POST anónimos (credenciales + código 2FA). La colección
+        // "AppCollection" sola acumula ~13 POST anónimos en menos de un
+        // minuto: el POST nº 11 recibía un 429 silencioso, el navegador se
+        // quedaba en la página de login y el test moría 30 s después
+        // esperando ".nav-principal" — el cuelgue intermitente de la Fase 69
+        // (intermitente porque dependía de dónde cayera el corte de la
+        // ventana fija de 1 minuto; por eso los tests pasaban aislados y
+        // fallaban solo dentro de la suite completa). Techo alto vía
+        // configuración (ver Program.cs, valores por defecto intactos en
+        // producción): aquí el "ataque" es el propio runner.
+        infoInicio.Environment["RateLimiting__Cuenta__LimiteAnonimo"] = "1000";
+        infoInicio.Environment["RateLimiting__Cuenta__LimiteAutenticado"] = "1000";
+
         foreach (var (clave, valor) in VariablesDeEntornoAdicionales())
             infoInicio.Environment[clave] = valor;
 
         _proceso = Process.Start(infoInicio)
             ?? throw new InvalidOperationException("No se pudo arrancar el proceso de CaeManager.Web.");
 
-        // No dejamos que los buffers de stdout/stderr se llenen y bloqueen al
-        // proceso hijo — se descartan, pero si arrancar falla el mensaje de
-        // EsperarArranqueAsync (timeout) sigue siendo diagnosticable desde ahí.
+        // stderr se reenvía (prefijado con el puerto, para distinguir las 4
+        // fixtures que pueden estar corriendo en la misma suite) en vez de
+        // descartarse: una excepción no controlada mientras la app ya está
+        // arrancada y sirviendo peticiones no dejaba ningún rastro en el log
+        // de CI — un test E2E que falla por timeout esperando contenido daba
+        // exactamente el mismo síntoma tanto si la página tardaba de más
+        // como si el servidor había reventado al renderizarla, y no había
+        // forma de distinguirlos. stdout sigue descartado a propósito: es
+        // ruido de logging normal (Information/Debug) que no ayuda a
+        // diagnosticar un fallo — leer los buffers con BeginOutputReadLine
+        // ya evita que se llenen y bloqueen al proceso hijo, se escriba o no
+        // lo que traen.
         _proceso.OutputDataReceived += (_, _) => { };
-        _proceso.ErrorDataReceived += (_, _) => { };
+        _proceso.ErrorDataReceived += (_, e) =>
+        {
+            if (!string.IsNullOrEmpty(e.Data))
+                Console.Error.WriteLine($"[CaeManager.Web:{puerto}] {e.Data}");
+        };
         _proceso.BeginOutputReadLine();
         _proceso.BeginErrorReadLine();
 
@@ -272,3 +301,36 @@ public sealed class WebAppFixtureConSegundoTenant : WebAppFixture
 
 [CollectionDefinition("AppCollectionMultiTenant")]
 public class AppCollectionMultiTenant : ICollectionFixture<WebAppFixtureConSegundoTenant>;
+
+/// <summary>
+/// Arranca CaeManager.Web con la política de retención activa
+/// (RetencionDatos:Activa, apagada por defecto en cualquier otro sitio —
+/// ver CLAUDE.md) para poder ejercitar /retencion de verdad con Playwright
+/// (P1-19 de docs/business/MATURITY_REVIEW.md). En su propia colección: el
+/// resto de la suite E2E no necesita ni debe activar retención.
+/// </summary>
+public sealed class WebAppFixtureConRetencionActiva : WebAppFixture
+{
+    protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
+        new Dictionary<string, string> { ["RetencionDatos__Activa"] = "true" };
+}
+
+[CollectionDefinition("AppCollectionRetencion")]
+public class AppCollectionRetencion : ICollectionFixture<WebAppFixtureConRetencionActiva>;
+
+/// <summary>
+/// Instancia propia (sin variables de entorno extra) solo para
+/// FlujoSoporteTests: abrir un acceso de soporte crea una
+/// AsignacionOperadorDelegado nueva hacia el Cliente Delegante de demo que
+/// sigue existiendo después de cerrar el acceso (cerrar solo desactiva la
+/// DelegacionTenant, no borra la asignación) — con "AppCollection"
+/// compartida, esa segunda asignación deja dos &lt;option&gt; con el mismo
+/// texto en el selector de Cliente activo y rompe
+/// Ayudas.CambiarClienteActivoAsync para el resto de tests de esa
+/// colección (AlcanceRolesTests, FlujoDelegatedWorkspaceTests) — visto en
+/// CI, no una hipótesis.
+/// </summary>
+[CollectionDefinition("AppCollectionSoporte")]
+public class AppCollectionSoporte : ICollectionFixture<WebAppFixtureParaSoporte>;
+
+public sealed class WebAppFixtureParaSoporte : WebAppFixture;

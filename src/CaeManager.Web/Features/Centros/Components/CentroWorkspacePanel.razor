@@ -10,10 +10,16 @@
 @using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro
 @using CaeManager.Domain.Centros
 @using CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeCentro
+@using CaeManager.Application.RequisitosDocumentales.Commands.CrearRequisitoDocumental
+@using CaeManager.Application.RequisitosDocumentales.Commands.EditarRequisitoDocumental
+@using CaeManager.Application.RequisitosDocumentales.Commands.EliminarRequisitoDocumental
 @using CaeManager.Application.RequisitosDocumentales.Queries.ObtenerRequisitosDocumentalesDeCentro
+@using CaeManager.Domain.Common
+@using FluentValidation
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
+@inject ToastService ToastService
 
 @if (_cargando)
 {
@@ -48,6 +54,11 @@ else
                 break;
 
             case "requisitos":
+                <div class="workspace-cabecera-seccion">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirCrearRequisitoAsync">
+                        + Añadir requisito
+                    </Boton>
+                </div>
                 @if (_cargandoRequisitos)
                 {
                     <EstadoCargando Filas="3" />
@@ -85,6 +96,10 @@ else
                                 {
                                     <p class="workspace-metrica-inline">@requisito.Notas</p>
                                 }
+                                <div class="workspace-tarjeta-requisito-acciones">
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarRequisitoAsync(requisito)">Editar</Boton>
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminarRequisito(requisito)">Eliminar</Boton>
+                                </div>
                             </li>
                         }
                     </ul>
@@ -202,6 +217,35 @@ else
                 break;
         }
     </Pestanas>
+
+    <Drawer Visible="_drawerRequisitoVisible" VisibleChanged="v => _drawerRequisitoVisible = v"
+            Titulo="@(_editandoRequisitoId is null ? "Nuevo requisito" : "Editar requisito")"
+            CerrarAlHacerClicFuera="@(_mensajeErrorRequisito is null && !_guardandoRequisito)">
+        <ChildContent>
+            @if (_mensajeErrorRequisito is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorRequisito</div>
+            }
+            <CampoTextarea Etiqueta="Descripción" Valor="@_descripcionRequisito" ValorChanged="v => _descripcionRequisito = v" />
+            <CampoTexto Etiqueta="Periodicidad especial (opcional)" Valor="@_periodicidadRequisito" ValorChanged="v => _periodicidadRequisito = v" />
+            <label class="campo-checkbox">
+                <input type="checkbox" @bind="_bloqueaAccesoRequisito" /> Bloquea el acceso al centro mientras no se cumpla
+            </label>
+            <CampoTextarea Etiqueta="Notas (opcional)" Valor="@_notasRequisito" ValorChanged="v => _notasRequisito = v" />
+        </ChildContent>
+        <Pie>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerRequisitoVisible = false" Deshabilitado="_guardandoRequisito">Cancelar</Boton>
+            <Boton OnClick="GuardarRequisitoAsync" Cargando="_guardandoRequisito">Guardar</Boton>
+        </Pie>
+    </Drawer>
+
+    <DialogoConfirmacion
+        Visible="_confirmarEliminarRequisitoVisible"
+        VisibleChanged="v => _confirmarEliminarRequisitoVisible = v"
+        Titulo="¿Eliminar este requisito?"
+        Mensaje="@($"\"{_requisitoAEliminar?.Descripcion}\" dejará de aparecer en Requisitos del Centro.")"
+        EnProgreso="_eliminandoRequisito"
+        OnConfirmar="ConfirmarEliminarRequisitoAsync" />
 }
 
 @code {
@@ -227,6 +271,20 @@ else
     private IReadOnlyList<RequisitoDocumentalDto>? _requisitos;
     private bool _cargandoRequisitos;
     private bool _errorRequisitos;
+
+    private bool _drawerRequisitoVisible;
+    private Guid? _editandoRequisitoId;
+    private Guid _versionRequisito;
+    private string _descripcionRequisito = string.Empty;
+    private string _periodicidadRequisito = string.Empty;
+    private bool _bloqueaAccesoRequisito;
+    private string _notasRequisito = string.Empty;
+    private bool _guardandoRequisito;
+    private string? _mensajeErrorRequisito;
+
+    private bool _confirmarEliminarRequisitoVisible;
+    private RequisitoDocumentalDto? _requisitoAEliminar;
+    private bool _eliminandoRequisito;
     private IReadOnlyList<TrabajadorAsignadoDto>? _trabajadores;
     private bool _cargandoTrabajadores;
     private bool _errorTrabajadores;
@@ -307,6 +365,106 @@ else
         {
             if (idSolicitado == EntidadId)
                 _cargandoRequisitos = false;
+        }
+    }
+
+    private Task AbrirCrearRequisitoAsync()
+    {
+        _editandoRequisitoId = null;
+        _versionRequisito = Guid.Empty;
+        _descripcionRequisito = string.Empty;
+        _periodicidadRequisito = string.Empty;
+        _bloqueaAccesoRequisito = false;
+        _notasRequisito = string.Empty;
+        _mensajeErrorRequisito = null;
+        _drawerRequisitoVisible = true;
+        return Task.CompletedTask;
+    }
+
+    private Task AbrirEditarRequisitoAsync(RequisitoDocumentalDto requisito)
+    {
+        _editandoRequisitoId = requisito.Id;
+        _versionRequisito = requisito.Version;
+        _descripcionRequisito = requisito.Descripcion;
+        _periodicidadRequisito = requisito.PeriodicidadEspecial ?? string.Empty;
+        _bloqueaAccesoRequisito = requisito.BloqueaAcceso;
+        _notasRequisito = requisito.Notas ?? string.Empty;
+        _mensajeErrorRequisito = null;
+        _drawerRequisitoVisible = true;
+        return Task.CompletedTask;
+    }
+
+    private async Task GuardarRequisitoAsync()
+    {
+        _guardandoRequisito = true;
+        _mensajeErrorRequisito = null;
+
+        try
+        {
+            var periodicidad = string.IsNullOrWhiteSpace(_periodicidadRequisito) ? null : _periodicidadRequisito;
+            var notas = string.IsNullOrWhiteSpace(_notasRequisito) ? null : _notasRequisito;
+
+            Result resultado = _editandoRequisitoId is null
+                ? await Mediator.Send(new CrearRequisitoDocumentalCommand(
+                    EntidadId, _descripcionRequisito, periodicidad, _bloqueaAccesoRequisito, notas))
+                : await Mediator.Send(new EditarRequisitoDocumentalCommand(
+                    _editandoRequisitoId.Value, _descripcionRequisito, periodicidad, _bloqueaAccesoRequisito, notas, _versionRequisito));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorRequisito = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar(
+                _editandoRequisitoId is null ? "Requisito creado correctamente." : "Requisito actualizado correctamente.",
+                TonoToast.Exito);
+
+            _drawerRequisitoVisible = false;
+            await CargarRequisitosAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _mensajeErrorRequisito = ex.Errors.FirstOrDefault()?.ErrorMessage
+                ?? "No pudimos guardar los cambios. Revisa los datos introducidos.";
+        }
+        catch (Exception)
+        {
+            _mensajeErrorRequisito = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _guardandoRequisito = false;
+        }
+    }
+
+    private void AbrirEliminarRequisito(RequisitoDocumentalDto requisito)
+    {
+        _requisitoAEliminar = requisito;
+        _confirmarEliminarRequisitoVisible = true;
+    }
+
+    private async Task ConfirmarEliminarRequisitoAsync()
+    {
+        if (_requisitoAEliminar is null) return;
+
+        _eliminandoRequisito = true;
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarRequisitoDocumentalCommand(_requisitoAEliminar.Id));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar("Requisito eliminado.", TonoToast.Exito);
+            _confirmarEliminarRequisitoVisible = false;
+            await CargarRequisitosAsync();
+        }
+        finally
+        {
+            _eliminandoRequisito = false;
         }
     }
 

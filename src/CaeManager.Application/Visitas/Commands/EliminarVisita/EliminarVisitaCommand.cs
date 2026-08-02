@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Visitas.Commands.EliminarVisita;
 
-public record EliminarVisitaCommand(Guid Id, Guid UsuarioId) : IRequest<Result>;
+public record EliminarVisitaCommand(Guid Id, Guid UsuarioId) : ICommand;
 
 public class EliminarVisitaCommandHandler(IVisitaRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarVisitaCommand, Result>

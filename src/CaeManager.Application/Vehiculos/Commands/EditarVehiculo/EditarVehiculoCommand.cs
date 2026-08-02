@@ -7,7 +7,7 @@ using MediatR;
 namespace CaeManager.Application.Vehiculos.Commands.EditarVehiculo;
 
 public record EditarVehiculoCommand(
-    Guid Id, string Nombre, string Modelo, string NumeroPlaca, Guid Version = default) : IRequest<Result>;
+    Guid Id, string Nombre, string Modelo, string NumeroPlaca, Guid Version = default) : ICommand;
 
 public class EditarVehiculoCommandValidator : AbstractValidator<EditarVehiculoCommand>
 {

@@ -9,7 +9,7 @@ namespace CaeManager.Application.Visitas.Commands.CrearVisita;
 
 public record CrearVisitaCommand(
     Guid CentroId, DateOnly FechaInicio, DateOnly FechaFin, IReadOnlyList<Guid> TrabajadorIds, string? Notas)
-    : IRequest<Result<Guid>>;
+    : ICommand<Guid>;
 
 public class CrearVisitaCommandValidator : AbstractValidator<CrearVisitaCommand>
 {

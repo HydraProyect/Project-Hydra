@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 
 public record CrearSubcontrataCommand(
-    string RazonSocial, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds) : IRequest<Result<Guid>>;
+    string RazonSocial, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds) : ICommand<Guid>;
 
 public class CrearSubcontrataCommandValidator : AbstractValidator<CrearSubcontrataCommand>
 {
