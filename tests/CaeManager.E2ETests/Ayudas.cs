@@ -39,6 +39,17 @@ public static class Ayudas
     /// </summary>
     public const string NombreClienteDelegadoDemo = "Laboratorios Dexter S.L. (Cliente Delegante demo)";
 
+    /// <summary>Segundo Cliente Delegante de demo, sin datos de usuario propios — ver DelegacionDemoSeeder.NombreTenantClienteDemo2.</summary>
+    public const string NombreClienteDelegadoDemo2 = "Transportes Planet Express S.A. (Cliente Delegante demo 2)";
+
+    /// <summary>
+    /// Nombre del tenant de origen del Administrador inicial (la Consultora,
+    /// ADR-004 § 5.1) — mismo criterio de duplicación que
+    /// NombreClienteDelegadoDemo: TenantSeedData vive en Infrastructure, que
+    /// este proyecto de test no referencia.
+    /// </summary>
+    public const string NombreTenantOrigenPorDefecto = "Organización principal";
+
     public static string EmailPrueba(string rolEnMinusculas, int numero) =>
         $"prueba.{rolEnMinusculas}{numero}@caemanager.local";
 
