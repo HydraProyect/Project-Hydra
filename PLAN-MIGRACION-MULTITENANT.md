@@ -1,6 +1,6 @@
 # Plan de migración detallado — Multi-tenancy (`TenantId`)
 
-**Estado**: Plan de ejecución (Fase 3 de la secuencia de `ADR-003-saas-multitenant.md`). Desarrolla a nivel de pasos concretos las etapas 0–5 de `docs/archive/INFORME-MULTITENANT.md` § 12. **No implementado** — este documento se aprueba antes de escribir la primera migración EF Core.
+**Estado**: Plan de ejecución (Fase 3 de la secuencia de `ADR-003-saas-multitenant.md`). Desarrolla a nivel de pasos concretos las etapas 0–5 de `docs/archive/INFORME-MULTITENANT.md` § 12. **Implementado y cerrado** — las 5 etapas están completas (ver Etapa 5 § 7, ✅ 2026-07-24); pendiente diferido explícito: el comando de migración de archivos preexistentes de la Etapa 4 § 5 punto 2 (sin efecto hasta que haya un despliegue de producción con archivos reales que mover).
 
 Prerequisito ya cumplido: documentación consolidada (`ADR-003`, `docs/MULTITENANCY.md`, `DOMAIN.md`, y `PROJECT.md`/`ROADMAP.md`/`CLAUDE.md`/`ARCHITECTURE.md`/`DATABASE.md` actualizados).
 
