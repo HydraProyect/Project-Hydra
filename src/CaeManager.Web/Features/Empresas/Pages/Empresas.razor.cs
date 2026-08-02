@@ -6,6 +6,7 @@ using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -56,15 +57,27 @@ public partial class Empresas : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
     private GridItemsProvider<EmpresaListaDto>? _proveedorElementos;
 
     protected override void OnInitialized()
     {
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
+    }
 
-        if (!string.IsNullOrWhiteSpace(TerminoBusquedaInicial))
-            _busqueda = TerminoBusquedaInicial;
+    /// <summary>
+    /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
+    /// compartir la URL, volver atrás) — no solo en el primer render — para
+    /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
+    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
+        if (deLaUrl != _busqueda)
+            _busqueda = deLaUrl;
     }
 
     private async ValueTask<GridItemsProviderResult<EmpresaListaDto>> ProveerElementosAsync(
@@ -101,6 +114,7 @@ public partial class Empresas : ComponentBase
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
 
