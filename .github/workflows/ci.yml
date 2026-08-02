@@ -98,7 +98,7 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:MarkdownSummaryGithub
+          dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:MarkdownSummaryGithub
           cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
   migraciones-pendientes:
@@ -192,7 +192,7 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:MarkdownSummaryGithub
+          dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:MarkdownSummaryGithub
           cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
   e2e-tests:
