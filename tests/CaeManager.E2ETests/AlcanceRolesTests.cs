@@ -18,15 +18,22 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     /// <summary>
     /// Cuarentena de <see cref="GestorCae_ve_solo_su_cartera_acotada"/> y
     /// <see cref="Consulta_ve_todo_pero_no_puede_crear_un_cliente"/> — no un
-    /// "riesgo documentado y listo", sino una decisión explícita de dejar el
-    /// check de CI en verde en vez de rojo permanente por una causa ya
-    /// conocida (auditoría del PR #47, tras 8/8 reproducciones reales entre
-    /// CI y verificación local — ver ROADMAP.md, Fase 69, para el detalle
-    /// completo de lo descartado: margen de timeout, contención de CPU,
-    /// excepción de servidor). Un CI rojo permanente deja de significar
-    /// "algo se rompió" — esta cuarentena existe para que lo siga
-    /// significando. Quitar el Skip en cuanto se identifique la causa real
-    /// o se pueda reproducir en un entorno con SDK de .NET.
+    /// "riesgo documentado y listo", sino una decisión explícita de no dejar
+    /// el check de CI en rojo permanente sin ninguna señal visible de por qué
+    /// (auditoría del PR #47, tras 8/8 reproducciones reales entre CI y
+    /// verificación local — ver ROADMAP.md, Fase 69, para el detalle completo
+    /// de lo descartado: margen de timeout, contención de CPU, excepción de
+    /// servidor).
+    ///
+    /// <b>No resolvió el problema de fondo.</b> Con estos dos fuera, el
+    /// siguiente run real falló en dos tests completamente distintos
+    /// (<c>FlujoDelegatedWorkspaceTests</c>, <c>Rol_Cliente_ve_un_menu_reducido...</c>
+    /// de esta misma clase) — la intermitencia es de la colección
+    /// <c>AppCollection</c> compartida, no de estos dos tests en concreto.
+    /// No se van a seguir poniendo tests en cuarentena uno a uno según van
+    /// apareciendo: ver ROADMAP.md, Fase 69, para el estado real (sin
+    /// resolver del todo, a propósito) y la pista más fuerte que hay hasta
+    /// ahora.
     /// </summary>
     private const string MotivoCuarentena =
         "Cuelgue intermitente sin causa identificada esperando el contador de /clientes — ver ROADMAP.md, Fase 69.";
