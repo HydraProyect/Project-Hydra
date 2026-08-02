@@ -6,9 +6,19 @@ namespace CaeManager.E2ETests;
 /// P1-19 de docs/business/MATURITY_REVIEW.md: acceso de soporte (Fase 60) no
 /// tenía ningún E2E — solo cobertura de dominio (DelegacionSoporteTests).
 /// Cubre el ciclo completo desde /delegaciones: abrir acceso (motivo +
-/// ventana), ver que queda registrado en la actividad, y cerrarlo — el
-/// mismo camino que seguiría un Administrador de plataforma de verdad, no
-/// una llamada directa a los Commands.
+/// ventana), operar el workspace delegado como lo haría quien atiende una
+/// incidencia de verdad (navegación + un clic, no solo el evento de
+/// apertura), ver que ambas cosas — la apertura y la propia navegación/
+/// interacción — quedan en la actividad registrada, y cerrarlo.
+///
+/// La primera versión de este test solo comprobaba "Acceso concedido"/
+/// "Acceso cerrado", que escriben directamente AbrirAccesoSoporteCommand/
+/// CerrarAccesoSoporteCommand — nunca ejercitaba TrazaSoporteService (el
+/// mecanismo que CLAUDE.md destaca de esta feature: navegación y clics
+/// registrados mientras el operador tiene el Cliente Delegante como Cliente
+/// activo). Hallazgo de auditoría (revisión de af823ba/840eff7/1f53b53):
+/// cubierto ahora seleccionando de verdad el workspace delegado tras abrir
+/// el acceso.
 ///
 /// Solo el Administrador inicial puede abrir acceso de soporte:
 /// AbrirAccesoSoporteCommandHandler exige que el tenant de ORIGEN del
@@ -19,6 +29,12 @@ namespace CaeManager.E2ETests;
 /// Colección propia (WebAppFixtureParaSoporte, no "AppCollection"): abrir
 /// el acceso deja una AsignacionOperadorDelegado nueva que sobrevive a
 /// cerrarlo — ver el comentario de esa clase en WebAppFixture.cs.
+///
+/// Fuera de alcance a propósito: caducidad/revocación de la ventana de
+/// soporte. Ya está cubierta a nivel de dominio (DelegacionSoporteTests,
+/// DelegacionTenant.EstaVigente) y provocarla de verdad desde la UI
+/// requeriría manipular el reloj del servidor o la base de datos
+/// directamente — más una prueba de integración que un E2E de UI.
 /// </summary>
 [Collection("AppCollectionSoporte")]
 public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
@@ -61,7 +77,43 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         await tarjeta.GetByText("Acceso abierto").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         await tarjeta.GetByText("Cerrar acceso").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
-        // --- La actividad registrada incluye la concesión del acceso ---
+        // --- Operar el workspace delegado de verdad: TrazaSoporteService solo
+        // escribe mientras el Cliente Delegante está seleccionado como
+        // Cliente activo (ver su comentario de clase) — sin este paso, la
+        // actividad registrada solo tendría el evento de apertura, nunca la
+        // navegación/interacción que es la pieza central de la feature. ---
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/");
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
+
+        // El aviso solo se pinta cuando TrazaSoporteService.EsSesionDeSoporteAsync
+        // resuelve a true — confirma que la sesión quedó reconocida como de
+        // soporte antes de generar la actividad que se comprueba después.
+        await page.Locator(".aviso-sesion-soporte").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+
+        // Un clic en un enlace de navegación real: registra una Interaccion
+        // (el listener de trazaSoporte.js) y, al llegar a /documentos, una
+        // Navegacion nueva (TrazaSoporte.OnInitializedAsync/LocationChanged).
+        await page.Locator(".nav-item", new PageLocatorOptions { HasText = "Documentos" }).ClickAsync();
+        await page.WaitForURLAsync($"{fixture.BaseUrl}/documentos");
+
+        // Las interacciones se acumulan en el navegador y se envían por lotes
+        // cada 2 s (trazaSoporte.js, INTERVALO_ENVIO_MS) — no hay señal en el
+        // DOM que esperar para "ya se envió el lote", así que aquí sí hace
+        // falta una espera fija, con margen sobre esos 2 s.
+        await page.WaitForTimeoutAsync(2_500);
+
+        // --- Volver al tenant de origen: gestionar delegaciones (incluida
+        // la propia lectura de actividad) se hace desde la organización
+        // propia, nunca operando el workspace ajeno (Delegaciones.razor.cs,
+        // OperandoWorkspaceAjeno). ---
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreTenantOrigenPorDefecto);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
+
+        tarjeta = TarjetaSoporte(page, Ayudas.NombreClienteDelegadoDemo);
+        await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+
+        // --- La actividad registrada incluye la concesión del acceso y la
+        // navegación/interacción reales, no solo el evento de apertura ---
         await tarjeta.GetByText("Ver actividad registrada").ClickAsync();
 
         var drawer = page.Locator(".drawer-panel").Filter(new LocatorFilterOptions { HasText = "Actividad de soporte registrada" });
@@ -69,7 +121,10 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
 
         var tabla = drawer.Locator(".tabla-datos");
         await tabla.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        Assert.Contains("Acceso concedido", await tabla.InnerTextAsync());
+        var textoActividad = await tabla.InnerTextAsync();
+        Assert.Contains("Acceso concedido", textoActividad);
+        Assert.Contains("Navegó a", textoActividad);
+        Assert.Contains("Pulsó", textoActividad);
 
         // Cerrar el drawer para poder interactuar de nuevo con la tarjeta —
         // el botón explícito, no Escape: no depende de que dialogo-foco.js
