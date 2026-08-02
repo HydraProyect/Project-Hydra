@@ -15,28 +15,13 @@ namespace CaeManager.E2ETests;
 [Collection("AppCollection")]
 public partial class AlcanceRolesTests(WebAppFixture fixture)
 {
-    /// <summary>
-    /// Cuarentena de <see cref="GestorCae_ve_solo_su_cartera_acotada"/> y
-    /// <see cref="Consulta_ve_todo_pero_no_puede_crear_un_cliente"/> — no un
-    /// "riesgo documentado y listo", sino una decisión explícita de no dejar
-    /// el check de CI en rojo permanente sin ninguna señal visible de por qué
-    /// (auditoría del PR #47, tras 8/8 reproducciones reales entre CI y
-    /// verificación local — ver ROADMAP.md, Fase 69, para el detalle completo
-    /// de lo descartado: margen de timeout, contención de CPU, excepción de
-    /// servidor).
-    ///
-    /// <b>No resolvió el problema de fondo.</b> Con estos dos fuera, el
-    /// siguiente run real falló en dos tests completamente distintos
-    /// (<c>FlujoDelegatedWorkspaceTests</c>, <c>Rol_Cliente_ve_un_menu_reducido...</c>
-    /// de esta misma clase) — la intermitencia es de la colección
-    /// <c>AppCollection</c> compartida, no de estos dos tests en concreto.
-    /// No se van a seguir poniendo tests en cuarentena uno a uno según van
-    /// apareciendo: ver ROADMAP.md, Fase 69, para el estado real (sin
-    /// resolver del todo, a propósito) y la pista más fuerte que hay hasta
-    /// ahora.
-    /// </summary>
-    private const string MotivoCuarentena =
-        "Cuelgue intermitente sin causa identificada esperando el contador de /clientes — ver ROADMAP.md, Fase 69.";
+    // La cuarentena de GestorCae_ve_solo_su_cartera_acotada y
+    // Consulta_ve_todo_pero_no_puede_crear_un_cliente (Fase 69: "cuelgue
+    // intermitente sin causa identificada") se levantó al encontrar la causa
+    // raíz: el rate limiting de /cuenta/* devolvía 429 al POST de login
+    // cuando la suite acumulaba más de 10 POST anónimos por minuto desde
+    // 127.0.0.1 — ver el comentario en WebAppFixture, que es donde vive el
+    // arreglo (techo del limitador configurable para la suite).
 
     [GeneratedRegex(@"\d+ items")]
     private static partial Regex PatronContadorElementos();
@@ -115,7 +100,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     /// reparto exacto porque la siembra es determinista — no es un número
     /// arbitrario.
     /// </summary>
-    [Fact(Skip = MotivoCuarentena)]
+    [Fact]
     public async Task GestorCae_ve_solo_su_cartera_acotada()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
@@ -131,7 +116,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         Assert.Equal(3, total);
     }
 
-    [Fact(Skip = MotivoCuarentena)]
+    [Fact]
     public async Task Consulta_ve_todo_pero_no_puede_crear_un_cliente()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();

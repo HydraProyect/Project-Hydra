@@ -65,6 +65,22 @@ public class WebAppFixture : IAsyncLifetime
         infoInicio.Environment["ConnectionStrings__CaeManagerDb"] = _cadenaConexion;
         infoInicio.Environment["DatosPrueba__Activo"] = "true";
 
+        // El rate limiting de /cuenta/* (P0-2: fuerza bruta) limita los POST
+        // anónimos a 10/min POR IP — y toda esta suite llega desde 127.0.0.1
+        // haciendo logins reales en serie, donde cada login del Administrador
+        // son DOS POST anónimos (credenciales + código 2FA). La colección
+        // "AppCollection" sola acumula ~13 POST anónimos en menos de un
+        // minuto: el POST nº 11 recibía un 429 silencioso, el navegador se
+        // quedaba en la página de login y el test moría 30 s después
+        // esperando ".nav-principal" — el cuelgue intermitente de la Fase 69
+        // (intermitente porque dependía de dónde cayera el corte de la
+        // ventana fija de 1 minuto; por eso los tests pasaban aislados y
+        // fallaban solo dentro de la suite completa). Techo alto vía
+        // configuración (ver Program.cs, valores por defecto intactos en
+        // producción): aquí el "ataque" es el propio runner.
+        infoInicio.Environment["RateLimiting__Cuenta__LimiteAnonimo"] = "1000";
+        infoInicio.Environment["RateLimiting__Cuenta__LimiteAutenticado"] = "1000";
+
         foreach (var (clave, valor) in VariablesDeEntornoAdicionales())
             infoInicio.Environment[clave] = valor;
 
