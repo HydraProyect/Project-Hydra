@@ -43,6 +43,7 @@
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="SubcontrataListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
                 <PropertyColumn Property="@(s => s.RazonSocial)" Sortable="true" />
+                <PropertyColumn Property="@(s => s.Cif)" Title="CIF" />
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, context.Id, context.RazonSocial, "informacion")'>
                         Ver
@@ -80,6 +81,7 @@
         }
 
         <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.RazonSocial))" />
+        <CampoTexto Etiqueta="CIF" Valor="@_cif" ValorChanged="v => _cif = v" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.Cif))" />
 
         <SelectorMultiple Etiqueta="Clientes que la contrataron"
                            Elementos="@_clientesDisponiblesSelector"
