@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Facturacion.Commands.EliminarTarifaCliente;
 
-public record EliminarTarifaClienteCommand(Guid Id) : IRequest<Result>;
+public record EliminarTarifaClienteCommand(Guid Id) : ICommand;
 
 public class EliminarTarifaClienteCommandHandler(
     ITarifaClienteRepository repositorio,

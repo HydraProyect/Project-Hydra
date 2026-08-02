@@ -21,7 +21,7 @@ public record CrearTrabajadorCommand(
     DateOnly? FechaNacimiento,
     string? Email,
     string? Observaciones,
-    string? Alias = null) : IRequest<Result<Guid>>;
+    string? Alias = null) : ICommand<Guid>;
 
 public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajadorCommand>
 {

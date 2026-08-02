@@ -25,7 +25,7 @@ namespace CaeManager.Application.Documentos.Commands.CrearDocumento;
 public record CrearDocumentoCommand(
     Guid? TrabajadorId, Guid? ClienteId, Guid? EmpresaId, Guid? VehiculoId, Guid? ProyectoId, Guid TipoDocumentoId, DateOnly FechaEmision,
     DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios)
-    : IRequest<Result<Guid>>;
+    : ICommand<Guid>;
 
 public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCommand>
 {

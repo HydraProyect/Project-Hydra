@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CaeManager.Application.Configuracion.Commands.ActualizarParametroSistema;
 
-public record ActualizarParametroSistemaCommand(int UmbralAmbarDias, int UmbralRojoDias) : IRequest<Result>;
+public record ActualizarParametroSistemaCommand(int UmbralAmbarDias, int UmbralRojoDias) : ICommand;
 
 public class ActualizarParametroSistemaCommandValidator : AbstractValidator<ActualizarParametroSistemaCommand>
 {

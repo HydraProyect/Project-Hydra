@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 
-public record CrearAsignacionCommand(Guid TrabajadorId, Guid CentroId, DateOnly FechaAlta) : IRequest<Result<Guid>>;
+public record CrearAsignacionCommand(Guid TrabajadorId, Guid CentroId, DateOnly FechaAlta) : ICommand<Guid>;
 
 public class CrearAsignacionCommandValidator : AbstractValidator<CrearAsignacionCommand>
 {

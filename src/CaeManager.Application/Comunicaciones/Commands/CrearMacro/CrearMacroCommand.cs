@@ -7,7 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Comunicaciones.Commands.CrearMacro;
 
-public record CrearMacroCommand(string Titulo, string CuerpoHtml, Guid? ClienteId) : IRequest<Result<Guid>>;
+public record CrearMacroCommand(string Titulo, string CuerpoHtml, Guid? ClienteId) : ICommand<Guid>;
 
 public class CrearMacroCommandValidator : AbstractValidator<CrearMacroCommand>
 {

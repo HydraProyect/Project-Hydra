@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Evaluaciones.Commands.EliminarEvaluacion;
 
-public record EliminarEvaluacionCommand(Guid Id, Guid UsuarioId) : IRequest<Result>;
+public record EliminarEvaluacionCommand(Guid Id, Guid UsuarioId) : ICommand;
 
 public class EliminarEvaluacionCommandHandler(IEvaluacionRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarEvaluacionCommand, Result>

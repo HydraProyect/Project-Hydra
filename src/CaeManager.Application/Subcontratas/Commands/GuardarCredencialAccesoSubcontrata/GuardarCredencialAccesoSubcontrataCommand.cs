@@ -11,7 +11,7 @@ namespace CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSu
 /// un juego de credenciales — mismo patrón que GuardarCredencialAccesoEmpresaCommand.
 /// </summary>
 public record GuardarCredencialAccesoSubcontrataCommand(
-    Guid SubcontrataId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : IRequest<Result>;
+    Guid SubcontrataId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : ICommand;
 
 public class GuardarCredencialAccesoSubcontrataCommandValidator : AbstractValidator<GuardarCredencialAccesoSubcontrataCommand>
 {
