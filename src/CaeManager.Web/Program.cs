@@ -421,7 +421,6 @@ app.UseAuthentication();
 app.UseRateLimiter();
 
 app.UseAuthorization();
-app.UseRateLimiter();
 app.UseAntiforgery();
 
 // Después de UseAuthentication (hace falta el usuario resuelto) y antes de
