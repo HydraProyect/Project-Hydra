@@ -31,7 +31,7 @@ Este control equivale al patrón de "separación lógica" (*Logical Separation*)
 
 **Compromiso adoptado: tratamiento exclusivamente dentro del Espacio Económico Europeo.** Los proveedores de hosting y almacenamiento concretos, y su ubicación, se listan de forma nombrada y transparente en `LISTA_SUBENCARGADOS.md`.
 
-> **Nota de verificación pendiente, no resuelta en este borrador**: este anexo no puede publicarse en firme hasta confirmar que el proveedor de hosting efectivamente en uso en el entorno de **producción** cumple este compromiso. Ver la nota correspondiente en `LISTA_SUBENCARGADOS.md` § "Nota de verificación pendiente" antes de dar este apartado por cerrado.
+**Verificado (2026-08-02)**: el proyecto de Railway (aplicación y PostgreSQL de producción) está migrado a la región de Ámsterdam, y el cifrado de claves con AWS KMS opera en `eu-south-2` (Zaragoza) según confirmación directa en el log de arranque de producción — ambos dentro del EEE. Ver el detalle fila por fila en `LISTA_SUBENCARGADOS.md`.
 
 ## 4. Control de acceso
 
