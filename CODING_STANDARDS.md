@@ -24,6 +24,7 @@ SOLID, DRY, KISS, YAGNI. Código mantenible siempre por encima de código "rápi
 ## Application (CQRS)
 
 - Un archivo por Command/Query + su Handler + su Validator, agrupados en la misma carpeta de feature (ver `ARCHITECTURE.md`).
+- **Todo Command implementa `ICommand` (sin valor de retorno) o `ICommand<T>`, nunca `IRequest<...>` a pelo.** No es cosmético: `AutorizacionEscrituraBehavior` decide por esa interfaz quién puede escribir, así que un Command sin ella lo puede ejecutar cualquier rol, incluido uno de solo lectura. El sufijo `Command` en el nombre sigue siendo obligatorio, y `ArquitecturaCommandsTests` falla en CI si nombre e interfaz no van juntos en cualquiera de las dos direcciones. Las Queries siguen usando `IRequest<T>` directamente.
 - Los DTOs de salida de Queries son planos y específicos de esa query (no se reutiliza el mismo DTO "grande" para lista y detalle) — cada pantalla pide exactamente los campos que muestra.
 - FluentValidation por Command/Query con reglas de formato (obligatoriedad, longitud, formato de DNI/email); las reglas de negocio (p. ej. "no se puede eliminar un Cliente con Centros activos") viven en el handler o en el dominio, no en el validator.
 - Mapeo entidad→DTO: métodos de extensión estáticos explícitos (`cliente.ToDto()`) por defecto. AutoMapper solo se introduce si un mapeo concreto se vuelve genuinamente repetitivo y mecánico — nunca como configuración por defecto que oculte qué campo viene de dónde.
@@ -67,3 +68,19 @@ SOLID, DRY, KISS, YAGNI. Código mantenible siempre por encima de código "rápi
 - [ ] **¿Hay al menos un test E2E (`tests/CaeManager.E2ETests`) o bUnit (`tests/CaeManager.Web.Tests`) del flujo nuevo que añade esta fase**, si toca un flujo de usuario o un componente de lógica no trivial? Esta regla existe precisamente porque las Fases 7-23 se cerraron sin ella y generaron un backlog de 13 bugs/mejoras sin cubrir — ver ROADMAP.md, "Iniciativa de hardening" § 2 y § 8.
 - [ ] ¿CI está en verde (los 6 checks de `ci.yml`) antes de mergear, no solo "compila en mi máquina"?
 - [ ] ¿Se actualizó `ROADMAP.md` con lo hecho/pendiente de esta fase, siguiendo el formato ya establecido (✅/🟡/⬜ + fecha)?
+
+## Checklist de seguridad para módulos nuevos (obligatorio antes de cerrar la fase)
+
+Aplica cuando una fase introduce una pantalla, Command/Query o flujo de usuario nuevo — no a cada PR trivial. No es hipotético: Comunicaciones (Fase 59) se cerró sin pasar por esto, y la auditoría de la fase siguiente (Fase 60) encontró, solo en ese módulo, XSS almacenado (`CuerpoHtml` renderizado con `(MarkupString)` sin sanitizar), páginas sin `[Authorize]` accesibles tecleando la URL, Commands de escritura que comprobaban aislamiento entre tenants pero no alcance de cartera dentro del propio tenant (mientras la Query equivalente sí lo hacía), un selector de Id de usuario aceptado sin validar en servidor, y `catch (Exception)` silenciosos de una clase de defecto ya corregida en el resto del código. Todo evitable con lo que el propio repositorio ya sabía hacer en otros módulos — "el proceso, no el código, es el hallazgo de fondo" (`docs/archive/INFORME-AUDITORIA-2.md`).
+
+- [ ] **Salida a HTML**: ¿el módulo renderiza contenido que no escribió el propio código (texto libre de usuario, HTML/Markdown externo)? Pasa por `ISanitizadorHtmlService` (o Markdig con `.DisableHtml()` si es Markdown de confianza) — nunca `(MarkupString)` directo sobre un valor no controlado.
+- [ ] **Autorización a nivel de página**: ¿toda `@page` nueva declara `@attribute [Authorize(Roles = ...)]` explícito? El `FallbackPolicy` global no es sustituto — ya hubo una pantalla real accesible solo por escribir la URL.
+- [ ] **Alcance de datos en escritura, no solo en lectura**: si el Query equivalente ya filtra por `IAlcanceDatosService`/cartera, ¿el Command que edita o borra lo mismo comprueba el mismo alcance? Filtrar solo la lectura y dejar la escritura abierta ya pasó una vez en este repositorio.
+- [ ] **IDs referenciados, cargados bajo el filtro de tenant**: todo Command que reciba un Id de otra entidad —incluido el valor de un selector del propio formulario— lo carga primero. Un selector de UI no es una frontera de autorización de servidor.
+- [ ] **CSRF**: ¿algún endpoint minimal API o formulario cambia estado con `GET`, o sin `AntiforgeryToken`?
+- [ ] **`catch` silenciosos**: ¿hay algún `catch (Exception)` que traga el error sin loguearlo ni propagarlo?
+- [ ] **Paginación/volumen**: si la pantalla lista algo sin techo natural, ¿pagina en SQL en vez de materializar todo en memoria? ¿Un buscador en vivo tiene debounce, o repide la lista completa en cada tecla?
+- [ ] **Tabla nueva sin `TenantId`**: ¿toda tabla de dominio nueva tiene `TenantId` y queda cubierta por el filtro global, salvo que sea un catálogo global ya documentado en `docs/MULTITENANCY.md` § 7?
+- [ ] **Secretos y credenciales nuevas**: si el módulo guarda alguna credencial (API key, contraseña de un portal externo...), ¿usa `IDataProtector`/cifrado at-rest en vez de texto plano?
+
+Este es un checklist documentado, no un gate mecánico de CI — igual que la regla de "un test E2E por flujo nuevo" de más arriba, lo ejecuta quien cierra la fase (persona o sesión de IA) contra el propio diff, no una comprobación automática. Ver ROADMAP.md, "Iniciativa de hardening" § 8, para el criterio general de Definition of Done del que este checklist forma parte.

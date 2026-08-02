@@ -19,7 +19,7 @@ public record EditarTipoDocumentoCommand(
     string? CriteriosValidacion,
     string? SeSolicitaA,
     string? Observaciones,
-    IReadOnlyList<Guid> CentroIds) : IRequest<Result>;
+    IReadOnlyList<Guid> CentroIds) : ICommand;
 
 public class EditarTipoDocumentoCommandValidator : AbstractValidator<EditarTipoDocumentoCommand>
 {

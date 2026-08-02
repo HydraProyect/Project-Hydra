@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaCliente;
 
 /// <summary>Nivel 2 (Gestor CAE u otro rol con acceso a este Cliente): override por Cliente+TipoDocumento — ver ConfiguracionIaDocumentoCliente.</summary>
-public record ActualizarLecturaIaClienteCommand(Guid ClienteId, Guid TipoDocumentoId, bool Activa) : IRequest<Result>;
+public record ActualizarLecturaIaClienteCommand(Guid ClienteId, Guid TipoDocumentoId, bool Activa) : ICommand;
 
 public class ActualizarLecturaIaClienteCommandHandler(
     IConfiguracionIaDocumentoClienteRepository repositorio, IApplicationDbContext dbContext,

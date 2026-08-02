@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Importacion;
 using CaeManager.Domain.Asignaciones;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -18,7 +19,7 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacion;
 /// nombre/DNI en vez de duplicarlas — importar el mismo archivo dos veces
 /// no crea filas repetidas.
 /// </summary>
-public record EjecutarImportacionCommand(PlanImportacionDto Plan) : IRequest<ResultadoImportacionDto>;
+public record EjecutarImportacionCommand(PlanImportacionDto Plan) : ICommand<ResultadoImportacionDto>;
 
 public record ResultadoImportacionDto(
     int ClientesCreados,
@@ -37,9 +38,9 @@ public class EjecutarImportacionCommandHandler(
     IAsignacionRepository asignacionRepositorio,
     IApplicationDbContext dbContext,
     IUnitOfWork unitOfWork)
-    : IRequestHandler<EjecutarImportacionCommand, ResultadoImportacionDto>
+    : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
-    public async Task<ResultadoImportacionDto> Handle(EjecutarImportacionCommand request, CancellationToken cancellationToken)
+    public async Task<Result<ResultadoImportacionDto>> Handle(EjecutarImportacionCommand request, CancellationToken cancellationToken)
     {
         var plan = request.Plan;
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);

@@ -13,7 +13,7 @@ namespace CaeManager.Application.Tenants.Commands.CrearDelegacionTenant;
 /// <paramref name="TenantClienteId"/> (ADR-004 § 5.3). No concede acceso a
 /// ningún usuario por sí sola — eso es <c>CrearAsignacionOperadorDelegadoCommand</c>.
 /// </summary>
-public record CrearDelegacionTenantCommand(Guid TenantConsultoraId, Guid TenantClienteId) : IRequest<Result<Guid>>;
+public record CrearDelegacionTenantCommand(Guid TenantConsultoraId, Guid TenantClienteId) : ICommand<Guid>;
 
 public class CrearDelegacionTenantCommandValidator : AbstractValidator<CrearDelegacionTenantCommand>
 {

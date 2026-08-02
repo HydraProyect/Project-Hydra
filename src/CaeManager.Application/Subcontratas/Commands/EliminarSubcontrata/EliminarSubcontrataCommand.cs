@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 
-public record EliminarSubcontrataCommand(Guid Id, Guid UsuarioId) : IRequest<Result>;
+public record EliminarSubcontrataCommand(Guid Id, Guid UsuarioId) : ICommand;
 
 public class EliminarSubcontrataCommandHandler(ISubcontrataRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarSubcontrataCommand, Result>

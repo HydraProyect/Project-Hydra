@@ -5,6 +5,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -51,15 +52,34 @@ public partial class Centros : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    // Reutilizan las mismas reglas que ya corren en el servidor al guardar
+    // (misma validación, sin duplicarla) — solo se les pide que validen un
+    // único campo, no el Command completo, porque el resto del formulario
+    // puede seguir a medio rellenar mientras el usuario todavía está en él.
+    [Inject] private IValidator<CrearCentroCommand> ValidadorCrear { get; set; } = default!;
+    [Inject] private IValidator<EditarCentroCommand> ValidadorEditar { get; set; } = default!;
+
     private GridItemsProvider<CentroListaDto>? _proveedorElementos;
 
     protected override void OnInitialized()
     {
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
+    }
 
-        if (!string.IsNullOrWhiteSpace(TerminoBusquedaInicial))
-            _busqueda = TerminoBusquedaInicial;
+    /// <summary>
+    /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
+    /// compartir la URL, volver atrás) — no solo en el primer render — para
+    /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
+    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
+        if (deLaUrl != _busqueda)
+            _busqueda = deLaUrl;
     }
 
     private async ValueTask<GridItemsProviderResult<CentroListaDto>> ProveerElementosAsync(
@@ -97,6 +117,7 @@ public partial class Centros : ComponentBase
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
 
@@ -230,6 +251,33 @@ public partial class Centros : ComponentBase
     }
 
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
+
+    /// <summary>
+    /// Validación inline al salir del campo (UX_PATTERNS.md, P1-18 de
+    /// docs/business/MATURITY_REVIEW.md) — hasta ahora el error de "nombre
+    /// obligatorio" solo aparecía tras el viaje de ida y vuelta al servidor
+    /// en Guardar. Valida solo <see cref="CrearCentroCommand.Nombre"/>/
+    /// <see cref="EditarCentroCommand.Nombre"/> con el mismo validador que
+    /// ya corre al guardar — el resto del formulario puede seguir
+    /// incompleto sin que este campo lo bloquee.
+    /// </summary>
+    private async Task ValidarNombreAsync()
+    {
+        const string campo = nameof(CrearCentroCommand.Nombre);
+
+        var resultado = _editandoId is null
+            ? await ValidadorCrear.ValidateAsync(
+                new CrearCentroCommand(Guid.Empty, Guid.Empty, _nombre, null, null, null, null),
+                opciones => opciones.IncludeProperties(campo))
+            : await ValidadorEditar.ValidateAsync(
+                new EditarCentroCommand(_editandoId.Value, _nombre, null, null, null, null, _versionEditando),
+                opciones => opciones.IncludeProperties(campo));
+
+        if (resultado.IsValid)
+            _erroresCampo.Remove(campo);
+        else
+            _erroresCampo[campo] = resultado.Errors[0].ErrorMessage;
+    }
 
     private void AbrirEliminar(Guid id, string nombre)
     {

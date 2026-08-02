@@ -16,7 +16,7 @@ namespace CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 /// de configuración, porque la configuración de IA se conserva tal cual al
 /// reasignar (ver ConfiguracionIaDocumentoCliente).
 /// </summary>
-public record ReasignarEjecutivoClienteCommand(Guid ClienteId, Guid? NuevoEjecutivoUsuarioId) : IRequest<Result>;
+public record ReasignarEjecutivoClienteCommand(Guid ClienteId, Guid? NuevoEjecutivoUsuarioId) : ICommand;
 
 public class ReasignarEjecutivoClienteCommandHandler(
     IClienteRepository clienteRepositorio,

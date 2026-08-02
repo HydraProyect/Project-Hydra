@@ -9,7 +9,7 @@ namespace CaeManager.Application.Evaluaciones.Commands.EditarEvaluacion;
 
 public record EditarEvaluacionCommand(
     Guid Id, Guid? TrabajadorId, DateOnly Fecha, int Puntuacion, string? Observaciones,
-    Guid Version = default) : IRequest<Result>;
+    Guid Version = default) : ICommand;
 
 public class EditarEvaluacionCommandValidator : AbstractValidator<EditarEvaluacionCommand>
 {
