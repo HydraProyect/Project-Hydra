@@ -14,12 +14,30 @@ public class EliminarClienteCommandHandlerTests
         var repositorio = new ClienteRepositorioFalso { TieneCentrosActivos = false };
         repositorio.Agregar(cliente);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarClienteCommandHandler(repositorio, unitOfWork);
+        var handler = new EliminarClienteCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new EliminarClienteCommand(cliente.Id, Guid.NewGuid()), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         cliente.EstaEliminado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Falla_cuando_el_cliente_esta_fuera_de_la_cartera()
+    {
+        var cliente = new Cliente("Bebidas del Norte S.A. (Planta El Prat)", "B12345674", true);
+        var repositorio = new ClienteRepositorioFalso { TieneCentrosActivos = false };
+        repositorio.Agregar(cliente);
+        var unitOfWork = new UnitOfWorkFalso();
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]);
+        var handler = new EliminarClienteCommandHandler(repositorio, alcance, unitOfWork);
+
+        var resultado = await handler.Handle(new EliminarClienteCommand(cliente.Id, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Cliente.NoEncontrado");
+        cliente.EstaEliminado.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     [Fact]
@@ -29,7 +47,7 @@ public class EliminarClienteCommandHandlerTests
         var repositorio = new ClienteRepositorioFalso { TieneCentrosActivos = true };
         repositorio.Agregar(cliente);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarClienteCommandHandler(repositorio, unitOfWork);
+        var handler = new EliminarClienteCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new EliminarClienteCommand(cliente.Id, Guid.NewGuid()), CancellationToken.None);
 
@@ -43,7 +61,7 @@ public class EliminarClienteCommandHandlerTests
     {
         var repositorio = new ClienteRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarClienteCommandHandler(repositorio, unitOfWork);
+        var handler = new EliminarClienteCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new EliminarClienteCommand(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None);
 
