@@ -183,6 +183,8 @@ public class CaeManagerDbContext(
     IQueryable<ClaveApi> IApiKeysQueryContext.ClavesApi => ClavesApi;
     public DbSet<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario => Set<PreferenciaDashboardUsuario>();
     IQueryable<PreferenciaDashboardUsuario> IConfiguracionQueryContext.PreferenciasDashboardUsuario => PreferenciasDashboardUsuario;
+    public DbSet<FiltroGuardado> FiltrosGuardados => Set<FiltroGuardado>();
+    IQueryable<FiltroGuardado> IConfiguracionQueryContext.FiltrosGuardados => FiltrosGuardados;
 
 
     protected override void OnModelCreating(ModelBuilder builder)
