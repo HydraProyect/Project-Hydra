@@ -13,7 +13,7 @@ public record EditarCentroCommand(
     string? Direccion,
     string? Contacto,
     DateOnly? ContratoVigenteHasta,
-    Guid Version = default) : IRequest<Result>;
+    Guid Version = default) : ICommand;
 
 public class EditarCentroCommandValidator : AbstractValidator<EditarCentroCommand>
 {

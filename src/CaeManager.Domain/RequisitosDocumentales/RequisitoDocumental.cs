@@ -8,6 +8,11 @@ namespace CaeManager.Domain.RequisitosDocumentales;
 /// original muestra que estos requisitos son heterogéneos y ad-hoc por
 /// cliente — forzar una relación estructurada con TipoDocumento sería
 /// prematuro (ver DATABASE.md).
+///
+/// No dispara alertas: la detección de "documento faltante" (ver
+/// ObtenerAlertasQuery) se apoya en TipoDocumento.EsObligatorio +
+/// TipoDocumentoCentro, no en este agregado. Un RequisitoDocumental sin
+/// cumplir (incluido uno con BloqueaAcceso) no aparece hoy en /alertas.
 /// </summary>
 public class RequisitoDocumental : EntidadBase
 {

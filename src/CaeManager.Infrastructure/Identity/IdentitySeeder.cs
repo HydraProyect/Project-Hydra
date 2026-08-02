@@ -21,15 +21,27 @@ namespace CaeManager.Infrastructure.Identity;
 /// con las credenciales hardcodeadas del repo). Fallar el arranque es
 /// deliberado: un despliegue de producción accesible con una contraseña
 /// pública es peor que un despliegue caído.
+///
+/// El Administrador inicial nace con 2FA ya activo (P1-13 de
+/// docs/business/MATURITY_REVIEW.md exige 2FA para todo Administrador —
+/// sembrarlo sin ella dejaría la propia cuenta bootstrap fuera de su
+/// propia regla, y MainLayout la redirigiría a /cuenta/configurar-2fa en
+/// cuanto iniciara sesión). La clave TOTP es fija y pública a propósito
+/// (no una credencial real — un despliegue compartido debe reconfigurar
+/// el autenticador desde /cuenta/configurar-2fa igual que cambiaría la
+/// contraseña por defecto) para que los tests E2E (Ayudas.cs, que no
+/// referencia este proyecto) puedan calcular el código sin acceso a BD.
 /// </summary>
 public static class IdentitySeeder
 {
     public const string EmailAdministradorInicial = "admin@caemanager.local";
     public const string ContrasenaAdministradorInicial = "CaeManager#2026";
+    public const string ClaveTotpAdministradorInicial = "JBSWY3DPEHPK3PXP";
 
     public static async Task SeedAsync(
         UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole<Guid>> roleManager,
+        IUserStore<ApplicationUser> userStore,
         ILogger logger,
         IConfiguration configuration,
         IHostEnvironment entorno)
@@ -86,5 +98,13 @@ public static class IdentitySeeder
         }
 
         await userManager.AddToRoleAsync(administrador, Identity.Roles.Administrador);
+
+        if (userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
+        {
+            await claveStore.SetAuthenticatorKeyAsync(administrador, ClaveTotpAdministradorInicial, CancellationToken.None);
+            await userManager.UpdateAsync(administrador);
+        }
+
+        await userManager.SetTwoFactorEnabledAsync(administrador, true);
     }
 }

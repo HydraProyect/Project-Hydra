@@ -5,6 +5,7 @@ using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Infrastructure.Autorizacion;
 using FluentValidation;
@@ -57,6 +58,8 @@ public partial class Clientes : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
     private GridItemsProvider<ClienteListaDto>? _proveedorElementos;
 
     protected override async Task OnInitializedAsync()
@@ -68,17 +71,27 @@ public partial class Clientes : ComponentBase
         // con PostgreSQL, donde el proveedor es asíncrono de verdad).
         _proveedorElementos = ProveerElementosAsync;
 
-        // Permite que el buscador global (Ctrl/Cmd+K) navegue aquí con el
-        // filtro ya cargado, p. ej. /clientes?q=Cadena+Industrial.
-        if (!string.IsNullOrWhiteSpace(TerminoBusquedaInicial))
-            _busqueda = TerminoBusquedaInicial;
-
         // Reasignar el Gestor CAE dueño de un Cliente es una decisión de
         // rango superior (ver ReasignarEjecutivoClienteCommand) — el propio
         // Gestor CAE no ve ni puede tocar este campo sobre sus propios
         // clientes.
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         _puedeReasignarEjecutivo = RolesQuePuedenReasignar.Any(estadoAutenticacion.User.IsInRole);
+    }
+
+    /// <summary>
+    /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
+    /// compartir la URL, volver atrás) — no solo en el primer render — para
+    /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
+    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md). Permite además
+    /// que el buscador global (Ctrl/Cmd+K) navegue aquí con el filtro ya
+    /// cargado, p. ej. /clientes?q=Cadena+Industrial.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
+        if (deLaUrl != _busqueda)
+            _busqueda = deLaUrl;
     }
 
     private async ValueTask<GridItemsProviderResult<ClienteListaDto>> ProveerElementosAsync(
@@ -116,6 +129,7 @@ public partial class Clientes : ComponentBase
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
 

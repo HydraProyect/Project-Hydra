@@ -9,6 +9,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Incidencias;
@@ -46,6 +47,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Http.Resilience;
 
 namespace CaeManager.Infrastructure.DependencyInjection;
 
@@ -204,6 +206,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITarifaClienteRepository, TarifaClienteRepository>();
         services.AddScoped<IProyectoRepository, ProyectoRepository>();
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
+        services.AddScoped<IRequisitoDocumentalRepository, RequisitoDocumentalRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.ITenantRepository, TenantRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
@@ -288,15 +291,28 @@ public static class InfrastructureServiceCollectionExtensions
         // secuencial, así que una llamada colgada al proveedor detenía la cola
         // de TODOS los tenants durante los 100 s del default de HttpClient.
         // 60 s para el chat (interactivo: si tarda más, ya está roto para el
-        // usuario) y 120 s para OCR/extracción sobre PDFs grandes. Retry y
-        // circuit breaker (AddStandardResilienceHandler) quedan como P1-16 —
-        // este Timeout es compatible: la resiliencia estándar se encadena a
-        // estos mismos registros sin tocarlos.
+        // usuario) y 120 s para OCR/extracción sobre PDFs grandes.
+        //
+        // Reintento + circuit breaker (P1-16 de docs/business/MATURITY_REVIEW.md,
+        // AddStandardResilienceHandler sobre Polly — mismo paquete que
+        // ARQUITECTURA-INTEGRACIONES.md § 6.1 ya preveía para la futura
+        // Plataforma de Integraciones). HttpClient.Timeout pasa a
+        // Timeout.InfiniteTimeSpan: con el handler de resiliencia añadido,
+        // ese timeout envolvería TODO el pipeline (reintentos incluidos) y
+        // cortaría el primer reintento a medias — el límite real ahora lo
+        // pone AplicarResilienciaHttp. MaxRetryAttempts baja a 2 (no el 3
+        // por defecto): con el intento inicial serían hasta 4 intentos
+        // completos, y para el cliente de chat (60 s/intento) eso son ~4
+        // minutos de colgado — justo lo que el Timeout de P0-9 quería
+        // evitar. TotalRequestTimeout al doble del intento acota el peor
+        // caso a ~2x en vez de dejar que reintentos + backoff se disparen.
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>(
-            cliente => cliente.Timeout = TimeSpan.FromSeconds(60));
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(60));
         services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>(
-            cliente => cliente.Timeout = TimeSpan.FromSeconds(120));
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
         // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
         // implementación directa de Anthropic aquí — RouterExtraccionMetadatosDocumentoIaService
         // (Application) la satisface delegando en IDocumentAIRouterService,
@@ -320,21 +336,32 @@ public static class InfrastructureServiceCollectionExtensions
         // clave nueva (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1).
         services.Configure<MistralOcrOptions>(configuration.GetSection(MistralOcrOptions.SeccionConfiguracion));
         services.AddHttpClient<MistralOcrDocumentAIProvider>(
-            cliente => cliente.Timeout = TimeSpan.FromSeconds(120));
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<MistralOcrDocumentAIProvider>());
 
         services.AddHttpClient<AnthropicDocumentAIProvider>(
-            cliente => cliente.Timeout = TimeSpan.FromSeconds(120));
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<AnthropicDocumentAIProvider>());
 
         services.Configure<GeminiOptions>(configuration.GetSection(GeminiOptions.SeccionConfiguracion));
         services.AddHttpClient<GeminiDocumentAIProvider>(
-            cliente => cliente.Timeout = TimeSpan.FromSeconds(120));
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<GeminiDocumentAIProvider>());
 
+        // Graph SendMail no es idempotente: un reintento tras un 5xx/timeout
+        // transitorio podría duplicar el correo si el envío ya se había
+        // procesado del lado de Microsoft antes de que la respuesta se
+        // perdiera. Riesgo aceptado (igual que en cualquier integración
+        // estándar de este tipo) frente al beneficio de no fallar todo el
+        // envío por un fallo de red puntual — no hay deduplicación aquí,
+        // sería sobre-ingeniería para P1-16.
         services.Configure<GraphEmailOptions>(configuration.GetSection(GraphEmailOptions.SeccionConfiguracion));
         services.AddHttpClient<IEmailService, GraphEmailService>(
-            cliente => cliente.Timeout = TimeSpan.FromSeconds(30));
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
 
         // Comunicaciones (P2 #26): apagado por defecto — ver ComunicacionesOptions.
         services.Configure<ComunicacionesOptions>(configuration.GetSection(ComunicacionesOptions.SeccionConfiguracion));
@@ -345,4 +372,31 @@ public static class InfrastructureServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Reintento + circuit breaker estándar (Polly vía
+    /// <c>AddStandardResilienceHandler</c>, P1-16 de
+    /// docs/business/MATURITY_REVIEW.md) para un HttpClient cuyo Timeout ya
+    /// se dejó en <see cref="Timeout.InfiniteTimeSpan"/> por el llamador —
+    /// el límite de tiempo real lo pone este método, no
+    /// <c>HttpClient.Timeout</c> (que envolvería todo el pipeline,
+    /// reintentos incluidos, y cortaría el primero a medias).
+    ///
+    /// <see cref="HttpTimeoutStrategyOptions.Timeout"/> de intento = el
+    /// timeout que tenía cada cliente antes de P1-16 (no cambia cuánto
+    /// puede tardar un intento). <c>MaxRetryAttempts</c> baja a 2 frente al
+    /// valor por defecto (3) para no reintroducir el colgado largo que
+    /// P0-9 cerró en el cliente de chat interactivo. El total se acota al
+    /// doble del intento, y el <c>SamplingDuration</c> del circuit breaker
+    /// al triple — la validación de <c>HttpStandardResilienceOptions</c>
+    /// exige que sea al menos el doble del timeout de intento.
+    /// </summary>
+    private static IHttpStandardResiliencePipelineBuilder AplicarResilienciaHttp(this IHttpClientBuilder constructor, TimeSpan timeoutPorIntento) =>
+        constructor.AddStandardResilienceHandler(opciones =>
+        {
+            opciones.AttemptTimeout.Timeout = timeoutPorIntento;
+            opciones.TotalRequestTimeout.Timeout = timeoutPorIntento * 2;
+            opciones.CircuitBreaker.SamplingDuration = timeoutPorIntento * 3;
+            opciones.Retry.MaxRetryAttempts = 2;
+        });
 }

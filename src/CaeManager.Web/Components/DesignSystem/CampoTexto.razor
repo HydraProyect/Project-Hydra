@@ -36,6 +36,14 @@
     [Parameter] public bool Deshabilitado { get; set; }
     [Parameter] public string? MensajeError { get; set; }
 
+    /// <summary>
+    /// Se dispara al perder el foco, después de <see cref="ValorChanged"/> —
+    /// para que el padre pueda validar el campo "al salir de él" (UX_PATTERNS.md,
+    /// P1-18 de docs/business/MATURITY_REVIEW.md) sin acoplar esta clase a
+    /// FluentValidation ni a ningún mecanismo de validación concreto.
+    /// </summary>
+    [Parameter] public EventCallback OnBlur { get; set; }
+
     /// <summary>Attribute splatting — ver el comentario de Boton.razor, mismo criterio (P2 #28 de docs/business/MATURITY_REVIEW.md), incluido el merge manual de "class".</summary>
     [Parameter(CaptureUnmatchedValues = true)]
     public Dictionary<string, object>? AtributosAdicionales { get; set; }
@@ -100,6 +108,13 @@
             return;
         }
 
+        // Ver ManejarBlurAsync: Cancel() y el propio vencimiento del delay
+        // pueden solaparse — el temporizador puede completar sin lanzar
+        // justo cuando el blur ya está cancelando, y sin esto los dos
+        // notificarían el mismo valor (bug real, visto en CI: ValorChanged
+        // invocado dos veces con el mismo valor tras perder el foco).
+        if (cts.Token.IsCancellationRequested) return;
+
         _ultimoValorNotificado = _ultimoValor;
         await ValorChanged.InvokeAsync(_ultimoValor);
     }
@@ -115,6 +130,7 @@
         _debounceCts?.Cancel();
         _ultimoValorNotificado = _ultimoValor;
         await ValorChanged.InvokeAsync(_ultimoValor);
+        await OnBlur.InvokeAsync();
     }
 
     public void Dispose()

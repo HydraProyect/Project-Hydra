@@ -22,9 +22,13 @@ namespace CaeManager.Application.Common;
 /// Workspace es el de la asignación, no el del claim de sesión (ADR-004
 /// § 5.3).
 ///
-/// Distingue Command de Query por convención de nombre (sufijo "Command",
-/// exigido en todo el código — ver CODING_STANDARDS.md) en vez de una
-/// interfaz marcador, para no tener que tocar los ~40 Command existentes.
+/// Distingue Command de Query por la interfaz marcador <see cref="ICommand"/>,
+/// no por el sufijo del nombre del tipo: con la convención de nombre, un typo
+/// al declarar la clase desactivaba la autorización en silencio y ni el
+/// compilador ni un test podían verlo. La convención de nombre sigue siendo
+/// obligatoria (CODING_STANDARDS.md), pero ahora la sostiene
+/// <c>ArquitecturaCommandsTests</c> — que exige nombre e interfaz en ambas
+/// direcciones — en vez de ser ella misma el mecanismo de seguridad.
 /// Se registra antes que ValidationBehavior: un Command bloqueado por rol
 /// ni siquiera llega a validarse.
 /// </summary>
@@ -40,7 +44,7 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(ICurrentUserServ
     public async Task<TResponse> Handle(
         TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
-        if (!typeof(TRequest).Name.EndsWith("Command", StringComparison.Ordinal))
+        if (request is not ICommandBase)
             return await next(cancellationToken);
 
         var rol = await currentUserService.ObtenerRolActualAsync();

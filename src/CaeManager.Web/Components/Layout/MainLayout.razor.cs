@@ -24,9 +24,11 @@ public partial class MainLayout
     /// OnInitializedAsync, porque @Body es un parámetro en cascada de
     /// LayoutComponentBase que cambia en cada navegación — así el guard se
     /// revisa de nuevo en cada página, no solo la primera vez que se monta
-    /// el Layout. La única pantalla que nunca pasa por aquí es
-    /// CambiarContrasena.razor, porque usa AuthLayout en vez de este
-    /// Layout — no hace falta comprobar la ruta actual a mano.
+    /// el Layout. Las únicas pantallas que nunca pasan por aquí son
+    /// CambiarContrasena.razor y ConfigurarAutenticadorDosFactores.razor,
+    /// porque usan AuthLayout en vez de este Layout — no hace falta
+    /// comprobar la ruta actual a mano, ni hay bucle de redirección con el
+    /// guard de 2FA de más abajo.
     /// </summary>
     protected override async Task OnParametersSetAsync()
     {
@@ -56,7 +58,19 @@ public partial class MainLayout
             // escribiendo cualquier otra URL a mano.
             var roles = await UserManager.GetRolesAsync(usuario);
             if (roles.Count == 0)
+            {
                 Navigation.NavigateTo("/cuenta/pendiente-de-rol", forceLoad: true);
+                return;
+            }
+
+            // 2FA obligatoria para Administrador (P1-13 de
+            // docs/business/MATURITY_REVIEW.md): es el rol con más alcance
+            // del sistema, y hoy activar la autenticación en dos pasos era
+            // opt-in — nadie la exigía. ConfigurarAutenticadorDosFactores.razor
+            // usa AuthLayout, no este Layout, así que no vuelve a pasar por
+            // aquí y no hay bucle de redirección.
+            if (roles.Contains(Roles.Administrador) && !await UserManager.GetTwoFactorEnabledAsync(usuario))
+                Navigation.NavigateTo("/cuenta/configurar-2fa", forceLoad: true);
         });
     }
 }

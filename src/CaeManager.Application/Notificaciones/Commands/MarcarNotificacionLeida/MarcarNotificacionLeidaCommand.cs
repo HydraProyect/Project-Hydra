@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida;
 
-public record MarcarNotificacionLeidaCommand(Guid Id) : IRequest<Result>;
+public record MarcarNotificacionLeidaCommand(Guid Id) : ICommand;
 
 public class MarcarNotificacionLeidaCommandHandler(
     INotificacionUsuarioRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService currentUserService)

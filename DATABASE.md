@@ -105,7 +105,7 @@ Instancia de un TipoDocumento para un Trabajador. Corresponde a las columnas "Fe
 | Campo | Tipo | Notas |
 |---|---|---|
 | Id | Guid | PK |
-| TrabajadorId | Guid? | Propietario **polimórfico excluyente**: exactamente uno de TrabajadorId / ClienteId / EmpresaId / VehiculoId está poblado (ver `DOMAIN.md`) |
+| TrabajadorId | Guid? | Propietario **polimórfico excluyente**: exactamente uno de TrabajadorId / ClienteId / EmpresaId / VehiculoId / ProyectoId está poblado (ver `DOMAIN.md`) — forzado por `CHECK CK_Documentos_PropietarioXor` (`num_nonnulls(...) = 1`), no solo por convención de las factories de dominio (P1-14 de `docs/business/MATURITY_REVIEW.md`) |
 | ClienteId / EmpresaId / VehiculoId | Guid? | Ver arriba |
 | TipoDocumentoId | Guid | FK → TipoDocumento |
 | FechaEmision | date | |
