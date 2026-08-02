@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 
-public record EliminarFiltroGuardadoCommand(Guid Id) : IRequest<Result>;
+public record EliminarFiltroGuardadoCommand(Guid Id) : ICommand;
 
 public class EliminarFiltroGuardadoCommandValidator : AbstractValidator<EliminarFiltroGuardadoCommand>
 {
