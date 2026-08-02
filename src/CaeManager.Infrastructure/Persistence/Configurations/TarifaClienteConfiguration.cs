@@ -1,3 +1,4 @@
+using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Facturacion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -20,5 +21,11 @@ public class TarifaClienteConfiguration : IEntityTypeConfiguration<TarifaCliente
                .HasFilter($"NOT \"{nameof(TarifaCliente.EstaEliminado)}\"");
 
         builder.HasIndex(t => t.ClienteId);
+
+        // FK real — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        builder.HasOne<Cliente>().WithMany()
+            .HasForeignKey(t => new { t.TenantId, t.ClienteId })
+            .HasPrincipalKey(c => new { c.TenantId, c.Id })
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

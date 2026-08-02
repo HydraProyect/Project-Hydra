@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Vehiculos.Commands.EliminarVehiculo;
 
-public record EliminarVehiculoCommand(Guid Id, Guid UsuarioId) : IRequest<Result>;
+public record EliminarVehiculoCommand(Guid Id, Guid UsuarioId) : ICommand;
 
 public class EliminarVehiculoCommandHandler(IVehiculoRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarVehiculoCommand, Result>

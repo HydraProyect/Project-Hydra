@@ -22,7 +22,7 @@ namespace CaeManager.Application.ApiKeys.Commands.GenerarClaveApi;
 /// La clave completa se devuelve una única vez, en <see cref="Result{T}.Valor"/>;
 /// a partir de aquí solo se guarda su hash — no hay manera de recuperarla.
 /// </summary>
-public record GenerarClaveApiCommand(Guid DelegacionTenantId, string NombreDescriptivo) : IRequest<Result<ClaveApiGeneradaDto>>;
+public record GenerarClaveApiCommand(Guid DelegacionTenantId, string NombreDescriptivo) : ICommand<ClaveApiGeneradaDto>;
 
 public record ClaveApiGeneradaDto(Guid Id, string ClaveEnClaro, string PrefijoVisible);
 

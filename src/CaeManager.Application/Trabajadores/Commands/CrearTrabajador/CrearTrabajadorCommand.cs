@@ -1,8 +1,11 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Subcontratas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 
@@ -20,7 +23,7 @@ public record CrearTrabajadorCommand(
     DateOnly? FechaNacimiento,
     string? Email,
     string? Observaciones,
-    string? Alias = null) : IRequest<Result<Guid>>;
+    string? Alias = null) : ICommand<Guid>;
 
 public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajadorCommand>
 {
@@ -62,11 +65,21 @@ public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajador
     }
 }
 
-public class CrearTrabajadorCommandHandler(ITrabajadorRepository repositorio, IUnitOfWork unitOfWork)
+public class CrearTrabajadorCommandHandler(
+    ITrabajadorRepository repositorio, IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearTrabajadorCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearTrabajadorCommand request, CancellationToken cancellationToken)
     {
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        if (request.EmpresaId is { } empresaId
+            && !await empresasContext.Empresas.AnyAsync(e => e.Id == empresaId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Trabajador.EmpresaNoEncontrada", "No encontramos esta empresa."));
+
+        if (request.SubcontrataId is { } subcontrataId
+            && !await subcontratasContext.Subcontratas.AnyAsync(s => s.Id == subcontrataId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Trabajador.SubcontrataNoEncontrada", "No encontramos esta subcontrata."));
+
         if (await repositorio.ExisteConDniAsync(request.Dni, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Trabajador.DniDuplicado", "Ya existe un trabajador con este DNI."));
 

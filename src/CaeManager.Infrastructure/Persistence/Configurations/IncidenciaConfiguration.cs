@@ -1,4 +1,6 @@
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Incidencias;
+using CaeManager.Domain.Trabajadores;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -17,5 +19,16 @@ public class IncidenciaConfiguration : IEntityTypeConfiguration<Incidencia>
 
         builder.HasIndex(i => i.CentroId);
         builder.HasIndex(i => i.TrabajadorId);
+
+        // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        builder.HasOne<Centro>().WithMany()
+            .HasForeignKey(i => new { i.TenantId, i.CentroId })
+            .HasPrincipalKey(c => new { c.TenantId, c.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<Trabajador>().WithMany()
+            .HasForeignKey(i => new { i.TenantId, i.TrabajadorId })
+            .HasPrincipalKey(t => new { t.TenantId, t.Id })
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -15,7 +15,7 @@ namespace CaeManager.Application.Documentos.Commands.RenovarDocumento;
 /// (ver UX_PATTERNS.md, "Cambiar estado").
 /// </summary>
 public record RenovarDocumentoCommand(
-    Guid Id, DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios) : IRequest<Result>;
+    Guid Id, DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios) : ICommand;
 
 public class RenovarDocumentoCommandValidator : AbstractValidator<RenovarDocumentoCommand>
 {

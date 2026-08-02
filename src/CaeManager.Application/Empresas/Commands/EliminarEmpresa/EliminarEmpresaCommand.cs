@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 
-public record EliminarEmpresaCommand(Guid Id, Guid UsuarioId) : IRequest<Result>;
+public record EliminarEmpresaCommand(Guid Id, Guid UsuarioId) : ICommand;
 
 public class EliminarEmpresaCommandHandler(IEmpresaRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarEmpresaCommand, Result>

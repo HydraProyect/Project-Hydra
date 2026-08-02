@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Incidencias.Commands.EliminarIncidencia;
 
-public record EliminarIncidenciaCommand(Guid Id, Guid UsuarioId) : IRequest<Result>;
+public record EliminarIncidenciaCommand(Guid Id, Guid UsuarioId) : ICommand;
 
 public class EliminarIncidenciaCommandHandler(IIncidenciaRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarIncidenciaCommand, Result>

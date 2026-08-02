@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Clientes.Commands.EliminarCliente;
 
-public record EliminarClienteCommand(Guid Id, Guid UsuarioId) : IRequest<Result>;
+public record EliminarClienteCommand(Guid Id, Guid UsuarioId) : ICommand;
 
 public class EliminarClienteCommandHandler(IClienteRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarClienteCommand, Result>

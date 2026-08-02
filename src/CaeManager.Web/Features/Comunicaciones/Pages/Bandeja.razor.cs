@@ -8,10 +8,13 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Infrastructure.Autorizacion;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Comunicaciones.Pages;
 
@@ -21,6 +24,13 @@ public partial class Bandeja : ComponentBase
 {
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ILogger<Bandeja> Logger { get; set; } = default!;
+    [Inject] private IOptions<ComunicacionesOptions> OpcionesComunicaciones { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    [SupplyParameterFromQuery(Name = "estado")] public string? EstadoInicial { get; set; }
+    [SupplyParameterFromQuery(Name = "mes")] public string? MesInicial { get; set; }
+    [SupplyParameterFromQuery(Name = "cliente")] public string? ClienteInicial { get; set; }
+    [SupplyParameterFromQuery(Name = "q")] public string? BusquedaInicial { get; set; }
 
     // --- Filtros ---
     private string _estadoFiltro = string.Empty;
@@ -57,6 +67,23 @@ public partial class Bandeja : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        // Módulo congelado por defecto (ComunicacionesOptions, P2 #26 de
+        // docs/business/MATURITY_REVIEW.md): sin ingesta real de Graph
+        // detrás, se presenta como si la ruta no existiera en vez de
+        // mostrar una bandeja que nadie va a alimentar de verdad.
+        if (!OpcionesComunicaciones.Value.Activo)
+        {
+            NavigationManager.NavigateTo("/not-found");
+            return;
+        }
+
+        // Los [Parameter] ya están asignados en este punto — se leen aquí y
+        // no solo en OnParametersSet porque en el primer render
+        // OnInitializedAsync corre ANTES que OnParametersSet, y la carga
+        // inicial de abajo necesita los filtros ya resueltos (P1-18 de
+        // docs/business/MATURITY_REVIEW.md).
+        SincronizarFiltrosDesdeUrl();
+
         _clientesSelector = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
 
         // Acotado al tenant activo: GetUsersInRoleAsync devuelve los gestores
@@ -68,6 +95,22 @@ public partial class Bandeja : ComponentBase
             .ToList();
 
         await CargarListaAsync();
+    }
+
+    /// <summary>
+    /// Re-sincroniza los filtros con la URL en navegaciones posteriores
+    /// dentro de la propia página (volver atrás, compartir la URL) — la
+    /// recarga la sigue disparando explícitamente AplicarFiltrosAsync, no
+    /// este método, para no depender del timing del router.
+    /// </summary>
+    protected override void OnParametersSet() => SincronizarFiltrosDesdeUrl();
+
+    private void SincronizarFiltrosDesdeUrl()
+    {
+        _estadoFiltro = EstadoInicial ?? string.Empty;
+        _mesFiltro = MesInicial ?? string.Empty;
+        _clienteIdFiltro = ClienteInicial ?? string.Empty;
+        _busqueda = BusquedaInicial ?? string.Empty;
     }
 
     private async Task CargarListaAsync()
@@ -113,7 +156,21 @@ public partial class Bandeja : ComponentBase
         }
     }
 
-    private Task AplicarFiltrosAsync() => CargarListaAsync();
+    private Task AplicarFiltrosAsync()
+    {
+        // Los cuatro a la vez en una sola navegación — llamar a
+        // ActualizarFiltroEnUrl varias veces seguidas arriesgaría que cada
+        // NavigateTo lea la URL todavía sin el cambio del anterior.
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["estado"] = _estadoFiltro,
+            ["mes"] = _mesFiltro,
+            ["cliente"] = _clienteIdFiltro,
+            ["q"] = _busqueda
+        });
+
+        return CargarListaAsync();
+    }
 
     private Task FiltrarAsignadasAMiAsync()
     {

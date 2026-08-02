@@ -52,6 +52,11 @@ jobs:
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
 
+      # reportgenerator (para el informe de cobertura de abajo) — mismo
+      # manifiesto que dotnet-ef, ver .config/dotnet-tools.json.
+      - name: Restaurar herramientas locales
+        run: dotnet tool restore
+
       # -warnaserror: ningún warning nuevo pasa desapercibido — coherente con
       # el nivel de rigor que ya pide CODING_STANDARDS.md, ahora ejecutable.
       - name: Compilar (warnings como errores)
@@ -60,17 +65,44 @@ jobs:
       - name: Verificar formato (dotnet format)
         run: dotnet format CaeManager.slnx --no-restore --verify-no-changes
 
+      # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
+      # en los tres proyectos de test) escribe un coverage.cobertura.xml por
+      # suite bajo ./coverage — P1-19 de docs/business/MATURITY_REVIEW.md:
+      # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
+      # visibilidad ni de gate. Se empieza por visibilidad (el informe de
+      # más abajo) — un umbral que falle el build queda para cuando haya una
+      # primera cifra real con la que decidir uno defendible, no uno
+      # inventado a ciegas.
       - name: Tests de Domain
-        run: dotnet test tests/CaeManager.Domain.Tests --no-restore --logger "console;verbosity=normal"
+        run: >
+          dotnet test tests/CaeManager.Domain.Tests --no-restore --logger "console;verbosity=normal"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/domain
 
       - name: Tests de Application
-        run: dotnet test tests/CaeManager.Application.Tests --no-restore --logger "console;verbosity=normal"
+        run: >
+          dotnet test tests/CaeManager.Application.Tests --no-restore --logger "console;verbosity=normal"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/application
 
       - name: Tests de arquitectura
         run: dotnet test tests/CaeManager.Architecture.Tests --no-restore --logger "console;verbosity=normal"
 
       - name: Tests de integración
-        run: dotnet test tests/CaeManager.IntegrationTests --no-restore --logger "console;verbosity=normal"
+        run: >
+          dotnet test tests/CaeManager.IntegrationTests --no-restore --logger "console;verbosity=normal"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/integration
+
+      # MarkdownSummaryGithub: pensado por ReportGenerator específicamente
+      # para $GITHUB_STEP_SUMMARY — aparece en la pestaña Summary del run,
+      # no hace falta abrir un artefacto para ver el número.
+      # continue-on-error: un fallo en el informe (p. ej. ningún .cobertura.xml
+      # si algo cambia en coverlet) no debe tumbar un job cuyos tests ya
+      # pasaron — es visibilidad, no gate (ver el comentario de arriba).
+      - name: Informe de cobertura
+        if: always()
+        continue-on-error: true
+        run: |
+          dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:MarkdownSummaryGithub
+          cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
   migraciones-pendientes:
     name: Detectar migraciones EF olvidadas
@@ -107,13 +139,32 @@ jobs:
       # Dockerfile, mismo -r linux-x64 --self-contained false de la Fase 22)
       # — así un SDK band distinto o un asset de framework faltante se
       # detecta aquí, no en producción como pasó esa vez.
+      #
+      # load: true (además de push: false) mete la imagen en el daemon local
+      # de este runner — sin esto, Trivy no tendría qué escanear en el paso
+      # siguiente.
       - name: Construir imagen Docker
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
           push: false
+          load: true
           tags: caemanager:ci
+
+      # P2 #25 de docs/business/MATURITY_REVIEW.md: escaneo de la imagen de
+      # despliegue en busca de vulnerabilidades conocidas (SO + paquetes del
+      # framework de .NET). No bloqueante a propósito (exit-code 0) hasta que
+      # alguien triage el primer informe — convertirlo en bloqueante sin
+      # revisarlo antes rompería el CI de golpe por vulnerabilidades ya
+      # existentes que nadie ha decidido todavía si son aceptables o no.
+      - name: Escanear vulnerabilidades de la imagen (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: caemanager:ci
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "0"
 
   bunit-tests:
     name: Tests de componentes (bUnit)
@@ -129,8 +180,23 @@ jobs:
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
 
+      - name: Restaurar herramientas locales
+        run: dotnet tool restore
+
       - name: Tests de componentes Blazor
-        run: dotnet test tests/CaeManager.Web.Tests --logger "console;verbosity=normal"
+        run: >
+          dotnet test tests/CaeManager.Web.Tests --logger "console;verbosity=normal"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/web
+
+      # continue-on-error: un fallo en el informe (p. ej. ningún .cobertura.xml
+      # si algo cambia en coverlet) no debe tumbar un job cuyos tests ya
+      # pasaron — es visibilidad, no gate (ver el comentario de arriba).
+      - name: Informe de cobertura
+        if: always()
+        continue-on-error: true
+        run: |
+          dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:MarkdownSummaryGithub
+          cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
   e2e-tests:
     name: Tests E2E (Playwright)
@@ -176,6 +242,83 @@ jobs:
 
       - name: Tests E2E
         run: dotnet test tests/CaeManager.E2ETests --no-build --logger "console;verbosity=normal"
+
+  load-test:
+    name: Prueba de carga base (k6)
+    runs-on: ubuntu-latest
+    # No bloqueante a propósito, igual que el escaneo de Trivy: es la
+    # primera cifra real de carga que existe en el repo (P1-19 de
+    # docs/business/MATURITY_REVIEW.md, antes no había ninguna) — sin un
+    # historial de resultados todavía no hay umbral defendible que hacer
+    # fallar el build, solo visibilidad.
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Compilar
+        run: dotnet build CaeManager.slnx --no-restore
+
+      - name: Instalar k6
+        uses: grafana/setup-k6-action@v1
+
+      # Arranca el mismo binario que despliega Railway, en segundo plano,
+      # contra el Postgres del job — mismo patrón que WebAppFixture en los
+      # tests E2E (ver esa clase), pero como proceso de shell porque este
+      # job no es un proyecto de test .NET.
+      - name: Arrancar la app
+        run: |
+          ASPNETCORE_ENVIRONMENT=Development \
+          ASPNETCORE_URLS=http://127.0.0.1:5000 \
+          ConnectionStrings__CaeManagerDb="Host=localhost;Port=5432;Database=caemanager_carga;Username=postgres;Password=postgres" \
+          DatosPrueba__Activo=true \
+          nohup dotnet src/CaeManager.Web/bin/Debug/net10.0/CaeManager.Web.dll > app.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:5000/salud > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          echo "La app no respondió /salud a tiempo:"
+          cat app.log
+          exit 1
+
+      # scripts/carga-basica.js explica por qué k6 y no un paquete NuGet
+      # (NBomber exige suscripción comercial para uso organizacional —
+      # mismo motivo por el que ARCHITECTURE.md ya había descartado
+      # QuestPDF). Sin --scenario-thresholds: el resumen es la primera
+      # cifra real, no hay una anterior con la que decidir un umbral.
+      - name: Prueba de carga (k6)
+        run: k6 run scripts/carga-basica.js | tee k6-resumen.txt
+        env:
+          BASE_URL: http://127.0.0.1:5000
+
+      - name: Publicar resumen
+        if: always()
+        run: |
+          {
+            echo "## Prueba de carga base (k6)"
+            echo '```'
+            cat k6-resumen.txt 2>/dev/null || echo "Sin resumen — revisa el log del paso anterior."
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   gitleaks:
     name: Escaneo de secretos (gitleaks)

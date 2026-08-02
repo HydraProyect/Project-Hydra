@@ -88,4 +88,39 @@ public class DrawerTests : BunitContext
 
         valorNotificado.Should().BeNull("CerrarAlHacerClicFuera=false debe ignorar cualquier clic fuera");
     }
+
+    /// <summary>
+    /// Hallazgo P0-8 de docs/business/MATURITY_REVIEW.md: DESIGN_SYSTEM.md
+    /// prometía "Escape para cerrar overlays" y Drawer no lo implementaba.
+    /// </summary>
+    [Fact]
+    public void Escape_cierra_el_drawer_cuando_CerrarAlHacerClicFuera_es_true()
+    {
+        bool? valorNotificado = null;
+        var cut = Render<Drawer>(parametros => parametros
+            .Add(p => p.Visible, true)
+            .Add(p => p.VisibleChanged, v => valorNotificado = v)
+            .Add(p => p.Titulo, "Prueba")
+            .AddChildContent("<p>Contenido</p>"));
+
+        cut.Find(".drawer-panel").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        valorNotificado.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Escape_no_cierra_el_drawer_con_trabajo_sin_guardar()
+    {
+        bool? valorNotificado = null;
+        var cut = Render<Drawer>(parametros => parametros
+            .Add(p => p.Visible, true)
+            .Add(p => p.VisibleChanged, v => valorNotificado = v)
+            .Add(p => p.Titulo, "Prueba")
+            .Add(p => p.CerrarAlHacerClicFuera, false)
+            .AddChildContent("<p>Contenido</p>"));
+
+        cut.Find(".drawer-panel").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        valorNotificado.Should().BeNull();
+    }
 }

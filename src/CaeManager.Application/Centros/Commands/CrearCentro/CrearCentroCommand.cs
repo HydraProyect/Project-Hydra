@@ -1,8 +1,11 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Centros.Commands.CrearCentro;
 
@@ -13,7 +16,7 @@ public record CrearCentroCommand(
     string? CodigoCentro,
     string? Direccion,
     string? Contacto,
-    DateOnly? ContratoVigenteHasta) : IRequest<Result<Guid>>;
+    DateOnly? ContratoVigenteHasta) : ICommand<Guid>;
 
 public class CrearCentroCommandValidator : AbstractValidator<CrearCentroCommand>
 {
@@ -32,11 +35,19 @@ public class CrearCentroCommandValidator : AbstractValidator<CrearCentroCommand>
     }
 }
 
-public class CrearCentroCommandHandler(ICentroRepository repositorio, IUnitOfWork unitOfWork)
+public class CrearCentroCommandHandler(
+    ICentroRepository repositorio, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearCentroCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearCentroCommand request, CancellationToken cancellationToken)
     {
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        if (!await clientesContext.Clientes.AnyAsync(c => c.Id == request.ClienteId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Centro.ClienteNoEncontrado", "No encontramos este cliente."));
+
+        if (!await empresasContext.Empresas.AnyAsync(e => e.Id == request.EmpresaId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Centro.EmpresaNoEncontrada", "No encontramos esta empresa."));
+
         if (await repositorio.ExisteConNombreEnClienteAsync(request.ClienteId, request.Nombre, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Centro.NombreDuplicado", "Este cliente ya tiene un centro con este nombre."));
 

@@ -15,8 +15,12 @@ public static class IdentityEndpointsExtensions
     public static IEndpointRouteBuilder MapIdentityEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/cuenta/cerrar-sesion", async (
-            SignInManager<ApplicationUser> signInManager, HttpContext httpContext) =>
+            SignInManager<ApplicationUser> signInManager, HttpContext httpContext, ILoggerFactory loggerFactory) =>
         {
+            var usuarioId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                .LogInformation("Cierre de sesión: {UsuarioId}", usuarioId);
+
             await signInManager.SignOutAsync();
 
             // La cookie de Delegated Workspace no la borra SignOutAsync: es
@@ -58,6 +62,7 @@ public static class IdentityEndpointsExtensions
             UserManager<ApplicationUser> userManager,
             IEmailService emailService,
             ILogger<Program> logger,
+            ILoggerFactory loggerFactory,
             string? returnUrl) =>
         {
             var infoExterna = await signInManager.GetExternalLoginInfoAsync();
@@ -114,6 +119,9 @@ public static class IdentityEndpointsExtensions
             await signInManager.SignInWithClaimsAsync(usuario, isPersistent: true,
                 additionalClaims: [new Claim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)]);
 
+            loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                .LogInformation("Login SSO correcto: {Email} ({UsuarioId})", email, usuario.Id);
+
             var roles = await userManager.GetRolesAsync(usuario);
             if (roles.Count == 0)
             {
@@ -127,7 +135,10 @@ public static class IdentityEndpointsExtensions
                 return Results.LocalRedirect("/cuenta/pendiente-de-rol");
             }
 
-            return Results.LocalRedirect(string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl);
+            // Sanear en vez de confiar en que LocalRedirect lance: con un
+            // returnUrl malicioso ("//atacante.com") LocalRedirect responde
+            // 500; saneado, el usuario aterriza en "/" y sigue trabajando.
+            return Results.LocalRedirect(RedireccionLocal.Sanear(returnUrl));
         }).AllowAnonymous();
 
         return endpoints;
