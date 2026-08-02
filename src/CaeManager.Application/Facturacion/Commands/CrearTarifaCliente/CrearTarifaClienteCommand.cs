@@ -1,3 +1,4 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Facturacion;
@@ -30,14 +31,14 @@ public class CrearTarifaClienteCommandValidator : AbstractValidator<CrearTarifaC
 
 public class CrearTarifaClienteCommandHandler(
     ITarifaClienteRepository repositorio,
-    IApplicationDbContext dbContext,
+    IClientesQueryContext clientesContext,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearTarifaClienteCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearTarifaClienteCommand request, CancellationToken cancellationToken)
     {
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
-        if (!await dbContext.Clientes.AnyAsync(c => c.Id == request.ClienteId, cancellationToken))
+        if (!await clientesContext.Clientes.AnyAsync(c => c.Id == request.ClienteId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("TarifaCliente.ClienteNoEncontrado", "No encontramos este cliente."));
 
         if (await repositorio.ExisteParaConceptoAsync(request.ClienteId, request.Concepto, cancellationToken: cancellationToken))

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,7 +14,7 @@ namespace CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 /// </summary>
 public record EsAdministradorPlataformaQuery : IRequest<bool>;
 
-public class EsAdministradorPlataformaQueryHandler(IApplicationDbContext dbContext, ICurrentUserService currentUserService)
+public class EsAdministradorPlataformaQueryHandler(ITenantsQueryContext tenantsContext, ICurrentUserService currentUserService)
     : IRequestHandler<EsAdministradorPlataformaQuery, bool>
 {
     public async Task<bool> Handle(EsAdministradorPlataformaQuery request, CancellationToken cancellationToken)
@@ -21,6 +22,6 @@ public class EsAdministradorPlataformaQueryHandler(IApplicationDbContext dbConte
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
         if (tenantOrigenId is null) return false;
 
-        return await dbContext.Tenants.AnyAsync(t => t.Id == tenantOrigenId.Value && t.EsPlataforma, cancellationToken);
+        return await tenantsContext.Tenants.AnyAsync(t => t.Id == tenantOrigenId.Value && t.EsPlataforma, cancellationToken);
     }
 }

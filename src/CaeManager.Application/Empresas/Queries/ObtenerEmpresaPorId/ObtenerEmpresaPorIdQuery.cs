@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,7 +10,7 @@ public record ObtenerEmpresaPorIdQuery(Guid Id) : IRequest<EmpresaDetalleDto?>;
 public record EmpresaDetalleDto(
     Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, IReadOnlyList<Guid> ClienteIds, Guid Version);
 
-public class ObtenerEmpresaPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerEmpresaPorIdQueryHandler(IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerEmpresaPorIdQuery, EmpresaDetalleDto?>
 {
     public async Task<EmpresaDetalleDto?> Handle(ObtenerEmpresaPorIdQuery request, CancellationToken cancellationToken)

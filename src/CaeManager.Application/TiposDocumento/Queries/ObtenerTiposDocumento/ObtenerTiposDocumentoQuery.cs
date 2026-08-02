@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -33,31 +35,31 @@ public record TipoDocumentoListaDto(
     bool DeteccionTrabajadoresActiva,
     bool VerificacionIaActiva);
 
-public class ObtenerTiposDocumentoQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosContext, ITiposDocumentoQueryContext tiposDocumentoContext)
     : IRequestHandler<ObtenerTiposDocumentoQuery, IReadOnlyList<TipoDocumentoListaDto>>
 {
     public async Task<IReadOnlyList<TipoDocumentoListaDto>> Handle(
         ObtenerTiposDocumentoQuery request, CancellationToken cancellationToken)
     {
-        var consulta = dbContext.TiposDocumento.AsQueryable();
+        var consulta = tiposDocumentoContext.TiposDocumento.AsQueryable();
 
         if (request.AmbitoAplicacion is not null)
             consulta = consulta.Where(t => t.AmbitoAplicacion == request.AmbitoAplicacion);
 
         if (request.ClienteId is not null || request.EmpresaId is not null || request.CentroId is not null)
         {
-            var centrosFiltrados = dbContext.Centros.AsQueryable();
+            var centrosFiltrados = centrosContext.Centros.AsQueryable();
             if (request.CentroId is not null) centrosFiltrados = centrosFiltrados.Where(c => c.Id == request.CentroId);
             if (request.EmpresaId is not null) centrosFiltrados = centrosFiltrados.Where(c => c.EmpresaId == request.EmpresaId);
             if (request.ClienteId is not null) centrosFiltrados = centrosFiltrados.Where(c => c.ClienteId == request.ClienteId);
 
             var centroIdsFiltrados = centrosFiltrados.Select(c => c.Id);
 
-            var tipoDocumentoIdsGlobales = dbContext.TiposDocumento
-                .Where(t => !dbContext.TiposDocumentoCentros.Any(tc => tc.TipoDocumentoId == t.Id))
+            var tipoDocumentoIdsGlobales = tiposDocumentoContext.TiposDocumento
+                .Where(t => !tiposDocumentoContext.TiposDocumentoCentros.Any(tc => tc.TipoDocumentoId == t.Id))
                 .Select(t => t.Id);
 
-            var tipoDocumentoIdsAsociados = dbContext.TiposDocumentoCentros
+            var tipoDocumentoIdsAsociados = tiposDocumentoContext.TiposDocumentoCentros
                 .Where(tc => centroIdsFiltrados.Contains(tc.CentroId))
                 .Select(tc => tc.TipoDocumentoId);
 

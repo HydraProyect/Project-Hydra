@@ -1,12 +1,18 @@
+using System.Text.Json;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Clientes.Commands.EditarCliente;
 using CaeManager.Application.Clientes.Commands.EliminarCliente;
+using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
+using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
+using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
+using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Workspace;
 using CaeManager.Infrastructure.Autorizacion;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -60,7 +66,24 @@ public partial class Clientes : ComponentBase
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
+    /// <summary>Comando del palette "Crear cliente" (P3-31): /clientes?accion=crear abre el Drawer directamente.</summary>
+    [SupplyParameterFromQuery] public string? Accion { get; set; }
+
     private GridItemsProvider<ClienteListaDto>? _proveedorElementos;
+
+    // --- P3-31: selección múltiple, atajos j/k, filtros guardados ---
+    private readonly HashSet<Guid> _seleccionados = [];
+    private List<ClienteListaDto> _elementosPagina = [];
+    private Guid? _idEnfocado;
+    private bool _eliminandoLote;
+    private bool _confirmarEliminarLoteVisible;
+
+    private IReadOnlyList<FiltroGuardadoDto> _filtrosGuardados = [];
+    private bool _mostrarGuardarFiltro;
+    private string _nombreFiltroNuevo = string.Empty;
+    private bool _guardandoFiltro;
+
+    private record FiltrosClientesJson(string? Busqueda, bool SoloCriticos);
 
     protected override async Task OnInitializedAsync()
     {
@@ -77,6 +100,11 @@ public partial class Clientes : ComponentBase
         // clientes.
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         _puedeReasignarEjecutivo = RolesQuePuedenReasignar.Any(estadoAutenticacion.User.IsInRole);
+
+        if (Accion == "crear")
+            AbrirCrear();
+
+        _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Clientes));
     }
 
     /// <summary>
@@ -112,7 +140,12 @@ public partial class Clientes : ComponentBase
 
             _totalElementos = resultado.TotalElementos;
 
-            return GridItemsProviderResult.From(resultado.Elementos.ToList(), resultado.TotalElementos);
+            var elementos = resultado.Elementos.ToList();
+            _elementosPagina = elementos;
+            _seleccionados.Clear();
+            _idEnfocado = null;
+
+            return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
         catch (Exception)
         {
@@ -297,5 +330,153 @@ public partial class Clientes : ComponentBase
         {
             _eliminando = false;
         }
+    }
+
+    // --- P3-31: selección múltiple ---
+
+    private bool TodosSeleccionados =>
+        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+
+    private void AlternarSeleccionTodos(bool marcar)
+    {
+        if (marcar)
+            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+        else
+            _seleccionados.Clear();
+    }
+
+    private void AlternarSeleccion(Guid id, bool marcado)
+    {
+        if (marcado) _seleccionados.Add(id);
+        else _seleccionados.Remove(id);
+    }
+
+    private async Task ConfirmarEliminarLoteAsync()
+    {
+        _eliminandoLote = true;
+
+        try
+        {
+            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
+            var resultado = await Mediator.Send(new EliminarClientesCommand(_seleccionados.ToList(), usuarioId ?? Guid.Empty));
+            var dto = resultado.Valor;
+
+            ToastService.Mostrar(
+                dto.Errores.Count == 0
+                    ? $"{dto.Eliminados} cliente(s) eliminado(s)."
+                    : $"{dto.Eliminados} eliminado(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            _seleccionados.Clear();
+            _confirmarEliminarLoteVisible = false;
+            await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos eliminar los clientes seleccionados. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _eliminandoLote = false;
+        }
+    }
+
+    // --- P3-31: atajos de teclado j/k/x/Enter ---
+
+    private string ObtenerClaseFila(ClienteListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
+
+    private async Task ManejarAtajoAsync(string tecla)
+    {
+        if (_elementosPagina.Count == 0) return;
+
+        switch (tecla)
+        {
+            case "j":
+                {
+                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    break;
+                }
+            case "k":
+                {
+                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    break;
+                }
+            case "x":
+                if (_idEnfocado is { } idAlternar)
+                    AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                break;
+            case "Enter":
+                if (_idEnfocado is { } idAbrir)
+                {
+                    var elemento = _elementosPagina.FirstOrDefault(e => e.Id == idAbrir);
+                    if (elemento is not null)
+                        await WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, elemento.Id, elemento.RazonSocial, "informacion");
+                }
+                break;
+        }
+
+        StateHasChanged();
+    }
+
+    // --- P3-31: filtros guardados ---
+
+    private async Task AplicarFiltroGuardadoAsync(string idTexto)
+    {
+        if (!Guid.TryParse(idTexto, out var id)) return;
+
+        var filtro = _filtrosGuardados.FirstOrDefault(f => f.Id == id);
+        if (filtro is null) return;
+
+        var valores = JsonSerializer.Deserialize<FiltrosClientesJson>(filtro.ValoresJson);
+        if (valores is null) return;
+
+        _busqueda = valores.Busqueda ?? string.Empty;
+        _soloCriticos = valores.SoloCriticos;
+        await RecargarAsync();
+    }
+
+    private async Task GuardarFiltroActualAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_nombreFiltroNuevo)) return;
+
+        _guardandoFiltro = true;
+
+        try
+        {
+            var valoresJson = JsonSerializer.Serialize(new FiltrosClientesJson(
+                string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda, _soloCriticos));
+
+            var resultado = await Mediator.Send(
+                new GuardarFiltroCommand(PantallasConFiltrosGuardados.Clientes, _nombreFiltroNuevo, valoresJson));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Clientes));
+            _mostrarGuardarFiltro = false;
+            _nombreFiltroNuevo = string.Empty;
+            ToastService.Mostrar("Filtro guardado.", TonoToast.Exito);
+        }
+        finally
+        {
+            _guardandoFiltro = false;
+        }
+    }
+
+    private async Task EliminarFiltroGuardadoAsync(Guid id)
+    {
+        var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(id));
+        if (resultado.EsFallido)
+        {
+            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            return;
+        }
+
+        _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Clientes));
     }
 }

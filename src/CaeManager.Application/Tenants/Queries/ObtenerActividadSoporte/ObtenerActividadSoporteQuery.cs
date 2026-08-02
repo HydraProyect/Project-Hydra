@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using MediatR;
@@ -29,7 +30,7 @@ public record ActividadSoporteDto(
     Guid Id, Guid UsuarioSoporteId, TipoActividadSoporte Tipo, string? Detalle, DateTime OcurridaEnUtc);
 
 public class ObtenerActividadSoporteQueryHandler(
-    IApplicationDbContext dbContext, ICurrentUserService currentUserService)
+    ITenantsQueryContext dbContext, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerActividadSoporteQuery, IReadOnlyList<ActividadSoporteDto>>
 {
     public async Task<IReadOnlyList<ActividadSoporteDto>> Handle(

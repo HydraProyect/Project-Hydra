@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -25,7 +27,8 @@ public record DeteccionCamposDocumentoDto(Guid? TipoDocumentoId, Guid? Trabajado
 
 public class DetectarCamposDocumentoQueryHandler(
     IDocumentAIRouterService router,
-    IApplicationDbContext dbContext,
+    ITiposDocumentoQueryContext tiposDocumentoContext,
+    ITrabajadoresQueryContext trabajadoresContext,
     IOptions<DeteccionPreviaDocumentoOptions> opciones)
     : IRequestHandler<DetectarCamposDocumentoQuery, Result<DeteccionCamposDocumentoDto>>
 {
@@ -68,7 +71,7 @@ public class DetectarCamposDocumentoQueryHandler(
         if (string.IsNullOrWhiteSpace(tipoDetectado))
             return null;
 
-        var tipos = await dbContext.TiposDocumento
+        var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == ambito)
             .Select(t => new { t.Id, t.Nombre })
             .ToListAsync(cancellationToken);
@@ -88,7 +91,7 @@ public class DetectarCamposDocumentoQueryHandler(
             return null;
 
         var dniNormalizado = NormalizarDni(dniDetectado);
-        var trabajadores = await dbContext.Trabajadores
+        var trabajadores = await trabajadoresContext.Trabajadores
             .Select(t => new { t.Id, t.Dni })
             .ToListAsync(cancellationToken);
 

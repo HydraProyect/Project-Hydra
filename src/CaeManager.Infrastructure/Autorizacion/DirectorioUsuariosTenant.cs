@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +27,7 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// justamente gestionan.
 /// </summary>
 public class DirectorioUsuariosTenant(
-    UserManager<ApplicationUser> userManager, IApplicationDbContext dbContext, ITenantActual tenantActual,
+    UserManager<ApplicationUser> userManager, ITenantsQueryContext dbContext, ITenantActual tenantActual,
     PuertaAccesoDatos puertaAccesoDatos)
     : IDirectorioUsuariosService
 {

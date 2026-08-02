@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Incidencias;
 using FluentValidation;
@@ -23,7 +24,7 @@ public class EditarIncidenciaCommandValidator : AbstractValidator<EditarIncidenc
 }
 
 public class EditarIncidenciaCommandHandler(
-    IIncidenciaRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
+    IIncidenciaRepository repositorio, ITrabajadoresQueryContext trabajadoresContext, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarIncidenciaCommand, Result>
 {
     public async Task<Result> Handle(EditarIncidenciaCommand request, CancellationToken cancellationToken)
@@ -37,7 +38,7 @@ public class EditarIncidenciaCommandHandler(
 
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
         if (request.TrabajadorId is { } trabajadorId
-            && !await dbContext.Trabajadores.AnyAsync(t => t.Id == trabajadorId, cancellationToken))
+            && !await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == trabajadorId, cancellationToken))
             return Result.Fallo(Error.Crear("Incidencia.TrabajadorNoEncontrado", "No encontramos este trabajador."));
 
         try

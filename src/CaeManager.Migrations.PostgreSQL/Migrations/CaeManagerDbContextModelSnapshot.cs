@@ -52,6 +52,65 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("Alertas", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.ApiKeys.ClaveApi", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CreadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("HashClave")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("NombreDescriptivo")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PrefijoVisible")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime?>("RevocadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UltimoUsoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HashClave")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("ClavesApi", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Asignaciones.Asignacion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -318,6 +377,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("ClienteId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ConexionIntegracionId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -343,6 +405,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("FechaUltimoMensajeUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("HiloExternoId")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
@@ -357,6 +423,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "ClienteId");
 
                     b.HasIndex("TenantId", "Estado");
+
+                    b.HasIndex("TenantId", "HiloExternoId")
+                        .IsUnique();
 
                     b.ToTable("ConversacionesCorreo", (string)null);
                 });
@@ -424,6 +493,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("FechaUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("MensajeExternoId")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<string>("RemitenteEmail")
                         .IsRequired()
                         .HasMaxLength(320)
@@ -437,6 +510,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("ConversacionCorreoId");
 
                     b.HasIndex("FechaUtc");
+
+                    b.HasIndex("TenantId", "MensajeExternoId")
+                        .IsUnique();
 
                     b.ToTable("MensajesCorreo", (string)null);
                 });
@@ -472,6 +548,39 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("ConversacionCorreoId");
 
                     b.ToTable("ParticipantesConversacion", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Configuracion.FiltroGuardado", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Pantalla")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ValoresJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UsuarioId", "Pantalla");
+
+                    b.ToTable("FiltrosGuardados", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Configuracion.ParametroSistema", b =>
@@ -2220,6 +2329,160 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "TrabajadorId");
 
                     b.ToTable("Incidencias", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Integraciones.ConexionIntegracion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BuzonEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<Guid?>("ClienteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaConectadaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UltimoError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ClienteId");
+
+                    b.HasIndex("TenantId", "Nombre")
+                        .IsUnique();
+
+                    b.ToTable("ConexionesIntegracion", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Integraciones.CredencialIntegracion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConexionIntegracionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RefreshToken")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ConexionIntegracionId")
+                        .IsUnique();
+
+                    b.ToTable("CredencialesIntegracion", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Integraciones.EventoWebhook", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConexionIntegracionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ErrorProcesado")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("FechaRecepcionUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Intentos")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PayloadCrudo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Procesado")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConexionIntegracionId");
+
+                    b.HasIndex("TenantId", "Procesado");
+
+                    b.ToTable("EventosWebhook", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Integraciones.SuscripcionWebhook", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClientState")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ConexionIntegracionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("FechaExpiracionUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("GraphSubscriptionId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FechaExpiracionUtc");
+
+                    b.HasIndex("TenantId", "ConexionIntegracionId")
+                        .IsUnique();
+
+                    b.ToTable("SuscripcionesWebhook", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Notificaciones.NotificacionUsuario", b =>

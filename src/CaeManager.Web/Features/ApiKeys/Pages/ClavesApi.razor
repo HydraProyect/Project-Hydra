@@ -1,0 +1,134 @@
+@page "/configuracion/claves-api"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+
+<PageTitle>Claves API — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <h1 class="titulo-pagina">Claves de la API pública</h1>
+
+    <p class="descripcion-delegaciones">
+        La API pública (<code>/api/v1</code>, solo lectura por ahora) se autentica con estas claves,
+        una por integración. Se emiten desde aquí, nunca desde la organización del cliente — igual
+        criterio que el acceso de soporte: solo sobre una delegación de soporte ya existente.
+    </p>
+
+    @if (_delegacionesSoporte.Count == 0 && !_cargandoDelegaciones)
+    {
+        <EstadoVacio Titulo="No hay ninguna delegación de soporte disponible"
+                     Descripcion="Antes de emitir una clave hace falta una delegación de soporte con este cliente (ver Delegaciones)." />
+    }
+    else
+    {
+        <CampoSelect Etiqueta="Cliente" Valor="@(_delegacionSeleccionadaId?.ToString() ?? string.Empty)" ValorChanged="OnDelegacionSeleccionadaAsync">
+            <option value="">Selecciona un cliente…</option>
+            @foreach (var delegacion in _delegacionesSoporte)
+            {
+                <option value="@delegacion.Id">@delegacion.ClienteNombre</option>
+            }
+        </CampoSelect>
+
+        @if (_delegacionSeleccionadaId is not null)
+        {
+            <div class="acciones-claves-api">
+                <Boton OnClick="() => _mostrarFormularioGenerar = true">Generar clave</Boton>
+            </div>
+
+            @if (_cargandoClaves)
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (_claves.Count == 0)
+            {
+                <EstadoVacio Titulo="Sin claves emitidas" Descripcion="Este cliente todavía no tiene ninguna clave de la API pública." />
+            }
+            else
+            {
+                <table class="tabla-datos">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Prefijo</th>
+                            <th>Creada</th>
+                            <th>Último uso</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var clave in _claves)
+                        {
+                            <tr>
+                                <td>@clave.NombreDescriptivo</td>
+                                <td><code>@clave.PrefijoVisible…</code></td>
+                                <td>@clave.CreadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                <td>@(clave.UltimoUsoUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</td>
+                                <td><Badge Tono="@(clave.EstaActiva ? TonoBadge.Exito : TonoBadge.Neutro)">@(clave.EstaActiva ? "Activa" : "Revocada")</Badge></td>
+                                <td>
+                                    @if (clave.EstaActiva)
+                                    {
+                                        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
+                                               OnClick="() => _claveARevocar = clave" Cargando="@(_procesandoId == clave.Id)">
+                                            Revocar
+                                        </Boton>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    }
+</div>
+
+<Modal Visible="_mostrarFormularioGenerar" VisibleChanged="v => _mostrarFormularioGenerar = v"
+       Titulo="Generar clave" CerrarAlHacerClicFuera="!_generando">
+    <ChildContent>
+        <CampoTexto Etiqueta="Nombre" Valor="@_nombreNuevaClave" ValorChanged="v => _nombreNuevaClave = v"
+                    Placeholder="Integración con el ERP de Contoso" />
+
+        @if (_errorGenerar is not null)
+        {
+            <p class="aviso-error">@_errorGenerar</p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_generando" OnClick="() => _mostrarFormularioGenerar = false">Cancelar</Boton>
+        <Boton Cargando="_generando" OnClick="GenerarAsync">Generar</Boton>
+    </Pie>
+</Modal>
+
+@* Se muestra una única vez: cerrar este modal es la última oportunidad de copiarla. *@
+<Modal Visible="_claveGenerada is not null" VisibleChanged="v => { if (!v) _claveGenerada = null; }"
+       Titulo="Clave generada">
+    <ChildContent>
+        @if (_claveGenerada is not null)
+        {
+            <p class="aviso-revocacion">
+                Copia esta clave ahora: no se puede volver a mostrar. Si se pierde, hay que revocarla y generar otra.
+            </p>
+            <CampoTexto Etiqueta="Clave" Valor="@_claveGenerada" ValorChanged="_ => { }" Deshabilitado="true" />
+        }
+    </ChildContent>
+    <Pie>
+        <Boton OnClick="() => _claveGenerada = null">Ya la copié</Boton>
+    </Pie>
+</Modal>
+
+<Modal Visible="_claveARevocar is not null" VisibleChanged="v => { if (!v) _claveARevocar = null; }"
+       Titulo="Revocar la clave" CerrarAlHacerClicFuera="!_revocando">
+    <ChildContent>
+        @if (_claveARevocar is not null)
+        {
+            <p>
+                Cualquier integración que use <strong>@_claveARevocar.NombreDescriptivo</strong> dejará de poder
+                llamar a la API inmediatamente. No se puede deshacer — hará falta generar una clave nueva.
+            </p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_revocando" OnClick="() => _claveARevocar = null">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Destructivo" Cargando="_revocando" OnClick="RevocarAsync">Revocar</Boton>
+    </Pie>
+</Modal>

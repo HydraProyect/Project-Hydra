@@ -1,4 +1,9 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Visitas;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +31,7 @@ public record KpisDashboardDto(
 /// Documentos de Trabajador — los de Cliente/Empresa quedan fuera de estos
 /// KPI por ahora (fuera de alcance).
 /// </summary>
-public class ObtenerKpisDashboardQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerKpisDashboardQuery, KpisDashboardDto>
 {
     public async Task<KpisDashboardDto> Handle(ObtenerKpisDashboardQuery request, CancellationToken cancellationToken)
@@ -34,22 +39,22 @@ public class ObtenerKpisDashboardQueryHandler(IApplicationDbContext dbContext, I
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
 
-        var trabajadoresQuery = dbContext.Trabajadores.AsQueryable();
+        var trabajadoresQuery = trabajadoresContext.Trabajadores.AsQueryable();
         if (trabajadorIdsVisibles is not null) trabajadoresQuery = trabajadoresQuery.Where(t => trabajadorIdsVisibles.Contains(t.Id));
         var trabajadoresActivos = await trabajadoresQuery.CountAsync(cancellationToken);
 
-        var centrosQuery = dbContext.Centros.AsQueryable();
+        var centrosQuery = centrosContext.Centros.AsQueryable();
         if (centroIdsVisibles is not null) centrosQuery = centrosQuery.Where(c => centroIdsVisibles.Contains(c.Id));
         var centros = await centrosQuery.CountAsync(cancellationToken);
 
         var hoyParaVisitas = DateOnly.FromDateTime(DateTime.UtcNow);
-        var visitasQuery = dbContext.Visitas.Where(v => v.FechaFin >= hoyParaVisitas);
+        var visitasQuery = visitasContext.Visitas.Where(v => v.FechaFin >= hoyParaVisitas);
         if (centroIdsVisibles is not null) visitasQuery = visitasQuery.Where(v => centroIdsVisibles.Contains(v.CentroId));
         var visitasProgramadas = await visitasQuery.CountAsync(cancellationToken);
 
-        var parametros = await dbContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
 
-        var documentosQuery = dbContext.Documentos.Where(d => d.TrabajadorId != null);
+        var documentosQuery = documentosContext.Documentos.Where(d => d.TrabajadorId != null);
         if (trabajadorIdsVisibles is not null) documentosQuery = documentosQuery.Where(d => trabajadorIdsVisibles.Contains(d.TrabajadorId!.Value));
 
         var fechasVencimiento = await documentosQuery

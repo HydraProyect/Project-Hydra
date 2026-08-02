@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Subcontratas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,7 +14,7 @@ public record ObtenerSubcontratasParaSelectorQuery(Guid? EmpresaId = null) : IRe
 
 public record SubcontrataSelectorDto(Guid Id, string RazonSocial);
 
-public class ObtenerSubcontratasParaSelectorQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerSubcontratasParaSelectorQueryHandler(ISubcontratasQueryContext dbContext)
     : IRequestHandler<ObtenerSubcontratasParaSelectorQuery, IReadOnlyList<SubcontrataSelectorDto>>
 {
     public async Task<IReadOnlyList<SubcontrataSelectorDto>> Handle(

@@ -1,7 +1,9 @@
 using CaeManager.Application.Comunicaciones.Commands.AsignarEjecutivoConversacion;
 using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
+using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using FluentAssertions;
 using Xunit;
@@ -26,11 +28,20 @@ public class AlcanceEscrituraConversacionTests
     private static AlcanceDatosServiceFalso AlcanceSinElClienteAjeno() =>
         new(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]);
 
+    private static ResponderConversacionCommandHandler CrearHandlerResponder(
+        ConversacionCorreoRepositorioFalso repositorio, AlcanceDatosServiceFalso alcance, UnitOfWorkFalso unitOfWork)
+    {
+        var graphClient = new Microsoft365GraphClientFalso();
+        var accesoGraph = new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient);
+        return new ResponderConversacionCommandHandler(
+            repositorio, new ConexionIntegracionRepositorioFalso(), alcance, graphClient, accesoGraph, unitOfWork);
+    }
+
     [Fact]
     public async Task No_se_puede_responder_en_el_hilo_de_un_cliente_fuera_de_la_cartera()
     {
         var (conversacion, repositorio, unitOfWork) = Preparar();
-        var handler = new ResponderConversacionCommandHandler(repositorio, AlcanceSinElClienteAjeno(), unitOfWork);
+        var handler = CrearHandlerResponder(repositorio, AlcanceSinElClienteAjeno(), unitOfWork);
 
         var resultado = await handler.Handle(
             new ResponderConversacionCommand(conversacion.Id, "<p>Me meto en tu hilo</p>"), CancellationToken.None);
@@ -123,7 +134,7 @@ public class AlcanceEscrituraConversacionTests
         // Contrapeso: el alcance no puede romper el uso normal del módulo.
         var (conversacion, repositorio, unitOfWork) = Preparar();
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [ClienteAjeno]);
-        var handler = new ResponderConversacionCommandHandler(repositorio, alcance, unitOfWork);
+        var handler = CrearHandlerResponder(repositorio, alcance, unitOfWork);
 
         var resultado = await handler.Handle(
             new ResponderConversacionCommand(conversacion.Id, "<p>Respondo lo mío</p>"), CancellationToken.None);
@@ -142,7 +153,7 @@ public class AlcanceEscrituraConversacionTests
         var repositorio = new ConversacionCorreoRepositorioFalso();
         repositorio.Agregar(conversacion);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new ResponderConversacionCommandHandler(repositorio, AlcanceSinElClienteAjeno(), unitOfWork);
+        var handler = CrearHandlerResponder(repositorio, AlcanceSinElClienteAjeno(), unitOfWork);
 
         var resultado = await handler.Handle(
             new ResponderConversacionCommand(conversacion.Id, "<p>Pido datos</p>"), CancellationToken.None);
