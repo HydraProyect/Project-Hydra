@@ -32,13 +32,14 @@ public class EditarSubcontrataCommandHandler(
     ISubcontrataEmpresaRepository subcontrataEmpresaRepositorio,
     IClientesQueryContext clientesContext,
     IEmpresasQueryContext empresasContext,
+    IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EditarSubcontrataCommand, Result>
 {
     public async Task<Result> Handle(EditarSubcontrataCommand request, CancellationToken cancellationToken)
     {
         var subcontrata = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (subcontrata is null)
+        if (subcontrata is null || !await alcanceDatos.SubcontrataVisibleAsync(subcontrata.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 
         if (ConcurrenciaOptimista.Verificar(subcontrata, request.Version, "esta subcontrata") is { } conflicto)

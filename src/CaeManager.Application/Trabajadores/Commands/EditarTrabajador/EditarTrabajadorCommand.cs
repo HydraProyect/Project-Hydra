@@ -40,13 +40,13 @@ public class EditarTrabajadorCommandValidator : AbstractValidator<EditarTrabajad
     }
 }
 
-public class EditarTrabajadorCommandHandler(ITrabajadorRepository repositorio, IUnitOfWork unitOfWork)
+public class EditarTrabajadorCommandHandler(ITrabajadorRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarTrabajadorCommand, Result>
 {
     public async Task<Result> Handle(EditarTrabajadorCommand request, CancellationToken cancellationToken)
     {
         var trabajador = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (trabajador is null)
+        if (trabajador is null || !await alcanceDatos.TrabajadorVisibleAsync(trabajador.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Trabajador.NoEncontrado", "No encontramos este trabajador."));
 
         if (ConcurrenciaOptimista.Verificar(trabajador, request.Version, "este trabajador") is { } conflicto)

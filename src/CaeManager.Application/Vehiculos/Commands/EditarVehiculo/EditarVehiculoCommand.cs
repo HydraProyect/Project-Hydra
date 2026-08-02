@@ -29,13 +29,13 @@ public class EditarVehiculoCommandValidator : AbstractValidator<EditarVehiculoCo
     }
 }
 
-public class EditarVehiculoCommandHandler(IVehiculoRepository repositorio, IUnitOfWork unitOfWork)
+public class EditarVehiculoCommandHandler(IVehiculoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarVehiculoCommand, Result>
 {
     public async Task<Result> Handle(EditarVehiculoCommand request, CancellationToken cancellationToken)
     {
         var vehiculo = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (vehiculo is null)
+        if (vehiculo is null || !await alcanceDatos.VehiculoVisibleAsync(vehiculo.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Vehiculo.NoEncontrado", "No encontramos este vehículo."));
 
         if (ConcurrenciaOptimista.Verificar(vehiculo, request.Version, "este vehículo") is { } conflicto)
