@@ -95,6 +95,15 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // donde vive el botón "+ Nuevo cliente" del siguiente paso.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
+        // Que un clic ya abra el drawer (más abajo) solo prueba que el
+        // propio delegado de eventos de Blazor está conectado — el listener
+        // de trazaSoporte.js es una cadena aparte (OnAfterRenderAsync ->
+        // import del módulo JS -> document.addEventListener) sin ninguna
+        // señal en el DOM que esperar; un clic automatizado de Playwright
+        // puede llegar antes de que termine (visto en CI: el drawer se
+        // abría bien, pero la Interaccion nunca se registraba).
+        await page.WaitForTimeoutAsync(1_000);
+
         // Interacción sin navegar: "+ Nuevo cliente" abre un drawer (ningún
         // Command se despacha solo con abrirlo, así que es seguro incluso en
         // "Solo lectura", el permiso por defecto de este acceso). No se usa
