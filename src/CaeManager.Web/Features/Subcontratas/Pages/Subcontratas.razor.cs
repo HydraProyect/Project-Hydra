@@ -7,6 +7,7 @@ using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcon
 using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -61,15 +62,27 @@ public partial class Subcontratas : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
     private GridItemsProvider<SubcontrataListaDto>? _proveedorElementos;
 
     protected override void OnInitialized()
     {
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
+    }
 
-        if (!string.IsNullOrWhiteSpace(TerminoBusquedaInicial))
-            _busqueda = TerminoBusquedaInicial;
+    /// <summary>
+    /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
+    /// compartir la URL, volver atrás) — no solo en el primer render — para
+    /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
+    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
+        if (deLaUrl != _busqueda)
+            _busqueda = deLaUrl;
     }
 
     private async ValueTask<GridItemsProviderResult<SubcontrataListaDto>> ProveerElementosAsync(
@@ -106,6 +119,7 @@ public partial class Subcontratas : ComponentBase
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
 
