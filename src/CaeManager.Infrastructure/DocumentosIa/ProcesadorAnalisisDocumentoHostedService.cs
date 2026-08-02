@@ -5,6 +5,7 @@ using CaeManager.Application.Trabajadores.Deteccion;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Coordinacion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -34,6 +35,7 @@ namespace CaeManager.Infrastructure.DocumentosIa;
 /// </summary>
 public class ProcesadorAnalisisDocumentoHostedService(
     IServiceScopeFactory ambitoFactory,
+    IEleccionLiderService eleccionLider,
     ILogger<ProcesadorAnalisisDocumentoHostedService> logger) : BackgroundService
 {
     private static readonly TimeSpan IntervaloSondeo = TimeSpan.FromSeconds(5);
@@ -53,7 +55,14 @@ public class ProcesadorAnalisisDocumentoHostedService(
         {
             try
             {
-                await SondearTodosLosTenantsAsync(stoppingToken);
+                // Elección de líder entre réplicas (P3-30 de docs/business/MATURITY_REVIEW.md):
+                // sin bloqueo de fila en ObtenerSiguientePendienteAsync, dos
+                // réplicas sondeando a la vez podrían tomar el mismo
+                // TrabajoAnalisisDocumento y analizarlo dos veces. Solo la
+                // que gana el advisory lock sondea este tick; las demás lo
+                // saltan y lo vuelven a intentar en el siguiente.
+                await eleccionLider.IntentarEjecutarComoLiderAsync(
+                    "procesador-analisis-documento", SondearTodosLosTenantsAsync, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

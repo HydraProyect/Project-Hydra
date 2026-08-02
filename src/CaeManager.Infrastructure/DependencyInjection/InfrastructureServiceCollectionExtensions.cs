@@ -27,8 +27,10 @@ using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
 using Amazon;
 using Amazon.KeyManagementService;
+using Amazon.S3;
 using CaeManager.Infrastructure.Backups;
 using CaeManager.Infrastructure.Comunicaciones;
+using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Conversion;
 using CaeManager.Infrastructure.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
@@ -48,6 +50,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http.Resilience;
+using StackExchange.Redis;
 
 namespace CaeManager.Infrastructure.DependencyInjection;
 
@@ -175,6 +178,48 @@ public static class InfrastructureServiceCollectionExtensions
                 "Con Backups activo viajan en claro junto a la base de datos que protegen (ver RUNBOOK-CLAVES.md).");
         }
 
+        // Llavero compartido entre réplicas (P3-30 de docs/business/MATURITY_REVIEW.md):
+        // reemplaza el XmlRepository de disco local configurado arriba por uno
+        // en S3 — mismo patrón que el XmlEncryptor de KMS, la última
+        // Configure<KeyManagementOptions> que se registra es la que gana.
+        // Apagado por defecto: sin AWS provisionado, sigue en disco local
+        // (correcto para una sola réplica, ver PersistKeysToFileSystem arriba).
+        var opcionesDataProtectionS3 = new DataProtectionS3Options();
+        configuration.GetSection(DataProtectionS3Options.SeccionConfiguracion).Bind(opcionesDataProtectionS3);
+        services.Configure<DataProtectionS3Options>(
+            configuration.GetSection(DataProtectionS3Options.SeccionConfiguracion));
+
+        if (opcionesDataProtectionS3.EstaConfigurado)
+        {
+            constructorDataProtection.Services.Configure<KeyManagementOptions>(opciones =>
+                opciones.XmlRepository = new S3XmlRepository(
+                    new AmazonS3Client(
+                        opcionesDataProtectionS3.AccessKeyId, opcionesDataProtectionS3.SecretAccessKey,
+                        RegionEndpoint.GetBySystemName(opcionesDataProtectionS3.Region)),
+                    opcionesDataProtectionS3));
+
+            services.AddHostedService<VerificacionDataProtectionS3HostedService>();
+        }
+
+        // Backplane de SignalR (P3-30 de docs/business/MATURITY_REVIEW.md).
+        // AddSignalR() aquí y AddInteractiveServerComponents() en Program.cs
+        // (Web) apuntan al mismo registro interno — el orden entre ambas
+        // llamadas no importa. Apagado por defecto: sin Redis provisionado,
+        // SignalR sigue con su backplane en memoria del proceso (correcto
+        // para una sola réplica).
+        var opcionesSignalRRedis = new SignalRRedisOptions();
+        configuration.GetSection(SignalRRedisOptions.SeccionConfiguracion).Bind(opcionesSignalRRedis);
+        services.Configure<SignalRRedisOptions>(
+            configuration.GetSection(SignalRRedisOptions.SeccionConfiguracion));
+
+        if (opcionesSignalRRedis.EstaConfigurado)
+        {
+            services.AddSignalR().AddStackExchangeRedis(opcionesSignalRRedis.CadenaConexion!, opciones =>
+                opciones.Configuration.ChannelPrefix = RedisChannel.Literal("CaeManager"));
+
+            services.AddHostedService<VerificacionSignalRRedisHostedService>();
+        }
+
         services.AddScoped<IClienteRepository, ClienteRepository>();
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         services.AddScoped<IEmpresaClienteRepository, EmpresaClienteRepository>();
@@ -247,6 +292,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.ApiKeys.IApiKeysQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
         services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
+        // Sin estado propio (abre una conexión Npgsql nueva por llamada) — una sola instancia sirve.
+        services.AddSingleton<IEleccionLiderService, EleccionLiderPostgresService>();
         // La clase concreta se registra además de la interfaz: las páginas de
         // administración necesitan sus listados, y los Commands solo la
         // comprobación de IDirectorioUsuariosService.
