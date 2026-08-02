@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
 using MediatR;
@@ -12,7 +13,7 @@ public record ObtenerDeteccionesPorEmpresaQuery(Guid EmpresaId) : IRequest<Resul
 public record DeteccionTrabajadorDto(
     Guid Id, TipoDeteccion Tipo, string Nombre, string Apellidos, string Dni, Guid? TrabajadorExistenteId, DateTime CreadaEnUtc);
 
-public class ObtenerDeteccionesPorEmpresaQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerDeteccionesPorEmpresaQueryHandler(ITrabajadoresQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDeteccionesPorEmpresaQuery, Result<IReadOnlyList<DeteccionTrabajadorDto>>>
 {
     public async Task<Result<IReadOnlyList<DeteccionTrabajadorDto>>> Handle(

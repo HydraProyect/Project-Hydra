@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Proyectos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +18,7 @@ public record ProyectoListaDto(
     DateOnly? FechaCierreReal,
     bool EstaAbierto);
 
-public class ObtenerProyectosQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerProyectosQueryHandler(ICentrosQueryContext centrosContext, IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerProyectosQuery, IReadOnlyList<ProyectoListaDto>>
 {
     public async Task<IReadOnlyList<ProyectoListaDto>> Handle(ObtenerProyectosQuery request, CancellationToken cancellationToken)
@@ -26,9 +28,9 @@ public class ObtenerProyectosQueryHandler(IApplicationDbContext dbContext, IAlca
             return [];
 
         var consulta =
-            from proyecto in dbContext.Proyectos
+            from proyecto in proyectosContext.Proyectos
             where proyecto.ClienteId == request.ClienteId
-            join centro in dbContext.Centros on proyecto.CentroId equals centro.Id
+            join centro in centrosContext.Centros on proyecto.CentroId equals centro.Id
             select new { proyecto, centro.Nombre };
 
         var proyectos = await consulta

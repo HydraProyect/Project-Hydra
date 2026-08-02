@@ -1,4 +1,6 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
@@ -28,7 +30,8 @@ public class EditarSubcontrataCommandHandler(
     ISubcontrataRepository repositorio,
     ISubcontrataClienteRepository subcontrataClienteRepositorio,
     ISubcontrataEmpresaRepository subcontrataEmpresaRepositorio,
-    IApplicationDbContext dbContext,
+    IClientesQueryContext clientesContext,
+    IEmpresasQueryContext empresasContext,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EditarSubcontrataCommand, Result>
 {
@@ -52,7 +55,7 @@ public class EditarSubcontrataCommandHandler(
 
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
         var clienteIdsNuevos = clienteIdsDeseados.Except(clienteIdsActuales).ToList();
-        if (await dbContext.Clientes.Where(c => clienteIdsNuevos.Contains(c.Id)).CountAsync(cancellationToken) != clienteIdsNuevos.Count)
+        if (await clientesContext.Clientes.Where(c => clienteIdsNuevos.Contains(c.Id)).CountAsync(cancellationToken) != clienteIdsNuevos.Count)
             return Result.Fallo(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));
 
         foreach (var sc in clientesActuales.Where(sc => !clienteIdsDeseados.Contains(sc.ClienteId)))
@@ -66,7 +69,7 @@ public class EditarSubcontrataCommandHandler(
         var empresaIdsActuales = empresasActuales.Select(se => se.EmpresaId).ToHashSet();
 
         var empresaIdsNuevos = empresaIdsDeseados.Except(empresaIdsActuales).ToList();
-        if (await dbContext.Empresas.Where(e => empresaIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != empresaIdsNuevos.Count)
+        if (await empresasContext.Empresas.Where(e => empresaIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != empresaIdsNuevos.Count)
             return Result.Fallo(Error.Crear("Subcontrata.EmpresaNoEncontrada", "Alguna de las empresas seleccionadas no existe."));
 
         foreach (var se in empresasActuales.Where(se => !empresaIdsDeseados.Contains(se.EmpresaId)))

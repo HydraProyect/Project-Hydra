@@ -34,7 +34,22 @@
         <label class="filtro-critico">
             <input type="checkbox" @bind="_soloCriticos" @bind:after="RecargarAsync" /> Solo críticos
         </label>
+        @if (_filtrosGuardados.Count > 0)
+        {
+            <CampoSelect Etiqueta="" Valor="" ValorChanged="AplicarFiltroGuardadoAsync">
+                <option value="">Filtros guardados…</option>
+                @foreach (var filtro in _filtrosGuardados)
+                {
+                    <option value="@filtro.Id">@filtro.Nombre</option>
+                }
+            </CampoSelect>
+        }
+        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
+            Guardar filtro
+        </Boton>
     </div>
+
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
     @if (_errorCarga)
     {
@@ -50,7 +65,15 @@
            referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
+            <QuickGrid @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                <TemplateColumn Title="" Align="Align.Center">
+                    <HeaderTemplate Context="columna">
+                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                    </ChildContent>
+                </TemplateColumn>
                 <PropertyColumn Property="@(c => c.RazonSocial)" Title="Razón social" Sortable="true" />
                 <PropertyColumn Property="@(c => c.Cif)" Title="CIF" />
                 <TemplateColumn Title="Crítico" Align="Align.Center">
@@ -137,3 +160,24 @@
     Mensaje="Se ocultará de las listas activas. Podrás recuperarlo desde Auditoría."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarLoteVisible"
+    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
+    Titulo="@($"¿Eliminar {_seleccionados.Count} cliente(s)?")"
+    Mensaje="Se ocultarán de las listas activas. Los que tengan centros activos no se podrán borrar."
+    EnProgreso="_eliminandoLote"
+    OnConfirmar="ConfirmarEliminarLoteAsync" />
+
+<Modal Visible="_mostrarGuardarFiltro" VisibleChanged="v => _mostrarGuardarFiltro = v" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
+    <ChildContent>
+        <CampoTexto Etiqueta="Nombre" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="Críticos sin CIF verificado" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => _mostrarGuardarFiltro = false">Cancelar</Boton>
+        <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
+    </Pie>
+</Modal>

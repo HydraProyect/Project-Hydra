@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -167,7 +168,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     }
 
     private async Task EjecutarMiddlewareAsync(
-        DefaultHttpContext httpContext, IClienteActivoSeleccionado seleccion, IApplicationDbContext contexto)
+        DefaultHttpContext httpContext, IClienteActivoSeleccionado seleccion, ITenantsQueryContext contexto)
     {
         var middleware = new RevalidacionClienteActivoMiddleware(_ => Task.CompletedTask);
         await middleware.InvokeAsync(

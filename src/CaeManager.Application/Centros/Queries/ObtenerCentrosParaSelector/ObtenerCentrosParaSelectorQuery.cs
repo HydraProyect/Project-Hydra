@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Empresas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,15 +12,15 @@ public record ObtenerCentrosParaSelectorQuery(Guid? ClienteId = null, Guid? Empr
 
 public record CentroSelectorDto(Guid Id, string Nombre, string ClienteRazonSocial, string EmpresaRazonSocial);
 
-public class ObtenerCentrosParaSelectorQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerCentrosParaSelectorQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCentrosParaSelectorQuery, IReadOnlyList<CentroSelectorDto>>
 {
     public async Task<IReadOnlyList<CentroSelectorDto>> Handle(
         ObtenerCentrosParaSelectorQuery request, CancellationToken cancellationToken)
     {
-        var consulta = from centro in dbContext.Centros
-                       join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
-                       join empresa in dbContext.Empresas on centro.EmpresaId equals empresa.Id
+        var consulta = from centro in centrosContext.Centros
+                       join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+                       join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
                        select new { centro, cliente, empresa };
 
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);

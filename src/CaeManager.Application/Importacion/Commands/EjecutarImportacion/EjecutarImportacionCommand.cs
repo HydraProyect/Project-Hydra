@@ -1,4 +1,11 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Importacion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
@@ -36,7 +43,7 @@ public class EjecutarImportacionCommandHandler(
     ITrabajadorRepository trabajadorRepositorio,
     IDocumentoRepository documentoRepositorio,
     IAsignacionRepository asignacionRepositorio,
-    IApplicationDbContext dbContext,
+    IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
@@ -45,15 +52,15 @@ public class EjecutarImportacionCommandHandler(
         var plan = request.Plan;
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var clientesPorNombre = await dbContext.Clientes.ToDictionaryAsync(
+        var clientesPorNombre = await clientesContext.Clientes.ToDictionaryAsync(
             c => c.RazonSocial, c => c.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
-        var centrosPorNombre = await dbContext.Centros.ToDictionaryAsync(
+        var centrosPorNombre = await centrosContext.Centros.ToDictionaryAsync(
             c => c.Nombre, c => c.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
-        var empresasPorRazonSocial = await dbContext.Empresas.ToDictionaryAsync(
+        var empresasPorRazonSocial = await empresasContext.Empresas.ToDictionaryAsync(
             e => e.RazonSocial, e => e.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
-        var trabajadoresPorDni = await dbContext.Trabajadores.ToDictionaryAsync(
+        var trabajadoresPorDni = await trabajadoresContext.Trabajadores.ToDictionaryAsync(
             t => t.Dni, t => t.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
-        var tiposDocumentoPorNombre = await dbContext.TiposDocumento.ToDictionaryAsync(
+        var tiposDocumentoPorNombre = await tiposDocumentoContext.TiposDocumento.ToDictionaryAsync(
             t => t.Nombre, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
         var clientesCreados = 0;
@@ -131,7 +138,7 @@ public class EjecutarImportacionCommandHandler(
             }
         }
 
-        var documentosExistentes = await dbContext.Documentos
+        var documentosExistentes = await documentosContext.Documentos
             .Select(d => new { d.TrabajadorId, d.TipoDocumentoId })
             .ToListAsync(cancellationToken);
         var clavesDocumentosExistentes = documentosExistentes
@@ -157,7 +164,7 @@ public class EjecutarImportacionCommandHandler(
             }
         }
 
-        var asignacionesActivasExistentes = await dbContext.Asignaciones
+        var asignacionesActivasExistentes = await asignacionesContext.Asignaciones
             .Where(a => a.FechaBaja == null)
             .Select(a => new { a.TrabajadorId, a.CentroId })
             .ToListAsync(cancellationToken);

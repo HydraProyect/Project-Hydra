@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Evaluaciones;
+using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,16 +13,16 @@ public record ObtenerEvaluacionesQuery(string? Busqueda, int Pagina = 1, int Tam
 public record EvaluacionListaDto(
     Guid Id, string CentroNombre, string? TrabajadorNombre, DateOnly Fecha, int Puntuacion);
 
-public class ObtenerEvaluacionesQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerEvaluacionesQueryHandler(ICentrosQueryContext centrosContext, IEvaluacionesQueryContext evaluacionesContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerEvaluacionesQuery, ResultadoPaginado<EvaluacionListaDto>>
 {
     public async Task<ResultadoPaginado<EvaluacionListaDto>> Handle(
         ObtenerEvaluacionesQuery request, CancellationToken cancellationToken)
     {
         var consulta =
-            from evaluacion in dbContext.Evaluaciones
-            join centro in dbContext.Centros on evaluacion.CentroId equals centro.Id
-            join trabajador in dbContext.Trabajadores on evaluacion.TrabajadorId equals trabajador.Id into trabajadores
+            from evaluacion in evaluacionesContext.Evaluaciones
+            join centro in centrosContext.Centros on evaluacion.CentroId equals centro.Id
+            join trabajador in trabajadoresContext.Trabajadores on evaluacion.TrabajadorId equals trabajador.Id into trabajadores
             from trabajador in trabajadores.DefaultIfEmpty()
             select new { evaluacion, centro, trabajador };
 

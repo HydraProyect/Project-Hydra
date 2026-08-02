@@ -1,4 +1,9 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Trabajadores;
@@ -22,7 +27,7 @@ namespace CaeManager.Application.Trabajadores.Deteccion;
 /// documento, no duplica.
 /// </summary>
 public class DeteccionTrabajadoresService(
-    IApplicationDbContext dbContext,
+    IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
     IFileStorageService almacenamiento,
     IExtraccionTrabajadoresIaService extraccion,
     IDeteccionTrabajadorRepository deteccionRepositorio,
@@ -32,12 +37,12 @@ public class DeteccionTrabajadoresService(
 {
     public async Task ProcesarDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default)
     {
-        var documento = await dbContext.Documentos.FirstOrDefaultAsync(d => d.Id == documentoId, cancellationToken);
+        var documento = await documentosContext.Documentos.FirstOrDefaultAsync(d => d.Id == documentoId, cancellationToken);
 
         if (documento is null || documento.EmpresaId is null || string.IsNullOrWhiteSpace(documento.ArchivoUrl))
             return;
 
-        var tipoDocumento = await dbContext.TiposDocumento
+        var tipoDocumento = await tiposDocumentoContext.TiposDocumento
             .FirstOrDefaultAsync(t => t.Id == documento.TipoDocumentoId, cancellationToken);
 
         if (tipoDocumento is null || !tipoDocumento.LecturaIaActiva || !tipoDocumento.DeteccionTrabajadoresActiva)
@@ -45,7 +50,7 @@ public class DeteccionTrabajadoresService(
 
         var empresaId = documento.EmpresaId.Value;
 
-        var clientesVinculados = await dbContext.EmpresasClientes
+        var clientesVinculados = await empresasContext.EmpresasClientes
             .Where(ec => ec.EmpresaId == empresaId)
             .Select(ec => ec.ClienteId)
             .ToListAsync(cancellationToken);
@@ -53,7 +58,7 @@ public class DeteccionTrabajadoresService(
         if (clientesVinculados.Count > 0 && await TodosLosClientesLoTienenDesactivadoAsync(clientesVinculados, tipoDocumento.Id, cancellationToken))
             return;
 
-        var yaHayDeteccionPendiente = await dbContext.DeteccionesTrabajador
+        var yaHayDeteccionPendiente = await trabajadoresContext.DeteccionesTrabajador
             .AnyAsync(d => d.DocumentoId == documentoId && !d.Resuelta, cancellationToken);
 
         if (yaHayDeteccionPendiente)
@@ -85,7 +90,7 @@ public class DeteccionTrabajadoresService(
         var extraidos = resultadoExtraccion.Valor;
         var dnisExtraidos = extraidos.Select(NormalizarDni).ToHashSet();
 
-        var trabajadoresActivos = await dbContext.Trabajadores
+        var trabajadoresActivos = await trabajadoresContext.Trabajadores
             .Where(t => t.EmpresaId == empresaId && !t.EstaEliminado)
             .ToListAsync(cancellationToken);
 
@@ -109,7 +114,7 @@ public class DeteccionTrabajadoresService(
     private async Task<bool> TodosLosClientesLoTienenDesactivadoAsync(
         IReadOnlyList<Guid> clientesVinculados, Guid tipoDocumentoId, CancellationToken cancellationToken)
     {
-        var overrides = await dbContext.ConfiguracionesIaDocumentoCliente
+        var overrides = await tiposDocumentoContext.ConfiguracionesIaDocumentoCliente
             .Where(c => c.TipoDocumentoId == tipoDocumentoId && clientesVinculados.Contains(c.ClienteId))
             .ToListAsync(cancellationToken);
 
@@ -120,9 +125,9 @@ public class DeteccionTrabajadoresService(
         Guid empresaId, TipoDocumento tipoDocumento, IReadOnlyList<Guid> clientesVinculados,
         int nuevos, int ausentes, CancellationToken cancellationToken)
     {
-        var empresa = await dbContext.Empresas.FirstOrDefaultAsync(e => e.Id == empresaId, cancellationToken);
+        var empresa = await empresasContext.Empresas.FirstOrDefaultAsync(e => e.Id == empresaId, cancellationToken);
 
-        var gestoresANotificar = await dbContext.Clientes
+        var gestoresANotificar = await clientesContext.Clientes
             .Where(c => clientesVinculados.Contains(c.Id) && c.EjecutivoUsuarioId != null)
             .Select(c => c.EjecutivoUsuarioId!.Value)
             .Distinct()

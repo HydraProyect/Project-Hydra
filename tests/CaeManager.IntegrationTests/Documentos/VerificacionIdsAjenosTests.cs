@@ -53,7 +53,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
     public async Task CrearAsignacion_rechaza_un_TrabajadorId_inexistente()
     {
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionCommandHandler(new AsignacionRepository(contexto), contexto, contexto);
+        var handler = new CrearAsignacionCommandHandler(new AsignacionRepository(contexto), contexto, contexto, contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionCommand(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1)),
@@ -73,8 +73,8 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var handler = new CrearDocumentoCommandHandler(
-            new DocumentoRepository(contexto), contexto, contexto,
-            new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso());
+            new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto, contexto,
+            contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(

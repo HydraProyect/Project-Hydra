@@ -1,0 +1,38 @@
+@* Componente invisible: registra los atajos j/k/x/Enter de una lista
+   (P3-31). Cada página decide qué hace con cada tecla vía OnAtajo. *@
+@implements IAsyncDisposable
+@inject IJSRuntime JsRuntime
+
+@code {
+    [Parameter] public EventCallback<string> OnAtajo { get; set; }
+
+    private IJSObjectReference? _modulo;
+    private IJSObjectReference? _suscripcion;
+    private DotNetObjectReference<AtajosListaTeclado>? _referenciaDotNet;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        _modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/atajos-lista.js");
+        _referenciaDotNet = DotNetObjectReference.Create(this);
+        _suscripcion = await _modulo.InvokeAsync<IJSObjectReference>("registrarAtajosLista", _referenciaDotNet);
+    }
+
+    [JSInvokable]
+    public Task RecibirAtajo(string tecla) => OnAtajo.InvokeAsync(tecla);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_suscripcion is not null)
+        {
+            await _suscripcion.InvokeVoidAsync("dispose");
+            await _suscripcion.DisposeAsync();
+        }
+
+        if (_modulo is not null)
+            await _modulo.DisposeAsync();
+
+        _referenciaDotNet?.Dispose();
+    }
+}

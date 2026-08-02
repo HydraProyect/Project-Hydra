@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentValidation;
@@ -33,7 +34,7 @@ public class EditarVisitaCommandValidator : AbstractValidator<EditarVisitaComman
 
 public class EditarVisitaCommandHandler(
     IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
-    IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
+    ITrabajadoresQueryContext trabajadoresContext, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarVisitaCommand, Result>
 {
     public async Task<Result> Handle(EditarVisitaCommand request, CancellationToken cancellationToken)
@@ -53,7 +54,7 @@ public class EditarVisitaCommandHandler(
 
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
         var trabajadorIdsNuevos = trabajadorIdsDeseados.Except(trabajadorIdsActuales).ToList();
-        if (await dbContext.Trabajadores.Where(t => trabajadorIdsNuevos.Contains(t.Id)).CountAsync(cancellationToken) != trabajadorIdsNuevos.Count)
+        if (await trabajadoresContext.Trabajadores.Where(t => trabajadorIdsNuevos.Contains(t.Id)).CountAsync(cancellationToken) != trabajadorIdsNuevos.Count)
             return Result.Fallo(Error.Crear("Visita.TrabajadorNoEncontrado", "Alguno de los trabajadores seleccionados no existe."));
 
         foreach (var vt in trabajadoresActuales.Where(vt => !trabajadorIdsDeseados.Contains(vt.TrabajadorId)))

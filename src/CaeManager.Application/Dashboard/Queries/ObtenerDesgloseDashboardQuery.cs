@@ -1,4 +1,13 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Subcontratas;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -41,27 +50,27 @@ public record DesgloseDashboardDto(
     IReadOnlyList<RiesgoCentroDto> CentrosEnRiesgo,
     IReadOnlyList<RiesgoEmpresaDto> EmpresasEnRiesgo);
 
-public class ObtenerDesgloseDashboardQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerDesgloseDashboardQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDesgloseDashboardQuery, DesgloseDashboardDto>
 {
     private const int MaximoFilas = 5;
 
     public async Task<DesgloseDashboardDto> Handle(ObtenerDesgloseDashboardQuery request, CancellationToken cancellationToken)
     {
-        var parametros = await dbContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
 
         var filas = await (
-            from documento in dbContext.Documentos
+            from documento in documentosContext.Documentos
             where documento.TrabajadorId != null
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
-            join trabajador in dbContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-            join empresa in dbContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
+            join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            join empresa in empresasContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
             from empresa in empresasCoincidentes.DefaultIfEmpty()
-            join subcontrata in dbContext.Subcontratas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
+            join subcontrata in subcontratasContext.Subcontratas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
             from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
             select new
             {
@@ -111,9 +120,9 @@ public class ObtenerDesgloseDashboardQueryHandler(IApplicationDbContext dbContex
             .ToList();
 
         var asignacionesActivas = await (
-            from asignacion in dbContext.Asignaciones
-            join centro in dbContext.Centros on asignacion.CentroId equals centro.Id
-            join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
+            from asignacion in asignacionesContext.Asignaciones
+            join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
+            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
             where asignacion.FechaBaja == null
             where centroIdsVisibles == null || centroIdsVisibles.Contains(centro.Id)
             select new { asignacion.TrabajadorId, CentroId = centro.Id, CentroNombre = centro.Nombre, ClienteNombre = cliente.RazonSocial })

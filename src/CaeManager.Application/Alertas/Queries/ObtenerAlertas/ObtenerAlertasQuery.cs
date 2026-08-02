@@ -1,4 +1,10 @@
+using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -38,21 +44,28 @@ public record AlertaDto(
     string? ArchivoUrl,
     string? CentroNombre);
 
-public class ObtenerAlertasQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerAlertasQueryHandler(
+    IConfiguracionQueryContext configuracionContext,
+    IDocumentosQueryContext documentosContext,
+    ITiposDocumentoQueryContext tiposDocumentoContext,
+    ITrabajadoresQueryContext trabajadoresContext,
+    IAsignacionesQueryContext asignacionesContext,
+    ICentrosQueryContext centrosContext,
+    IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerAlertasQuery, IReadOnlyList<AlertaDto>>
 {
     public async Task<IReadOnlyList<AlertaDto>> Handle(ObtenerAlertasQuery request, CancellationToken cancellationToken)
     {
-        var parametros = await dbContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
         var vigenciaFilas = await (
-            from documento in dbContext.Documentos
+            from documento in documentosContext.Documentos
             where documento.TrabajadorId != null
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
-            join trabajador in dbContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             where documento.FechaVencimiento != null
             select new
             {
@@ -102,7 +115,7 @@ public class ObtenerAlertasQueryHandler(IApplicationDbContext dbContext, IAlcanc
     {
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
 
-        var tiposObligatorios = await dbContext.TiposDocumento
+        var tiposObligatorios = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && t.EsObligatorio)
             .Select(t => new { t.Id, t.Nombre })
             .ToListAsync(cancellationToken);
@@ -114,7 +127,7 @@ public class ObtenerAlertasQueryHandler(IApplicationDbContext dbContext, IAlcanc
 
         // Centros a los que restringe cada tipo. Un tipo sin ninguna fila
         // aquí aplica a todos los Centros (ver comentario de TipoDocumentoCentro).
-        var restriccionesPorTipo = (await dbContext.TiposDocumentoCentros
+        var restriccionesPorTipo = (await tiposDocumentoContext.TiposDocumentoCentros
             .Where(tc => tipoIdsObligatorios.Contains(tc.TipoDocumentoId))
             .Select(tc => new { tc.TipoDocumentoId, tc.CentroId })
             .ToListAsync(cancellationToken))
@@ -122,12 +135,12 @@ public class ObtenerAlertasQueryHandler(IApplicationDbContext dbContext, IAlcanc
             .ToDictionary(g => g.Key, g => g.Select(tc => tc.CentroId).ToHashSet());
 
         var asignacionesActivas = await (
-            from asignacion in dbContext.Asignaciones
+            from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null
             where centroIdsVisibles == null || centroIdsVisibles.Contains(asignacion.CentroId)
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(asignacion.TrabajadorId)
-            join trabajador in dbContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
-            join centro in dbContext.Centros on asignacion.CentroId equals centro.Id
+            join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
+            join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
             select new
             {
                 TrabajadorId = trabajador.Id,
@@ -143,7 +156,7 @@ public class ObtenerAlertasQueryHandler(IApplicationDbContext dbContext, IAlcanc
 
         var trabajadorIdsConAsignacion = asignacionesActivas.Select(a => a.TrabajadorId).ToHashSet();
 
-        var documentosExistentes = await dbContext.Documentos
+        var documentosExistentes = await documentosContext.Documentos
             .Where(d => d.TrabajadorId != null
                 && trabajadorIdsConAsignacion.Contains(d.TrabajadorId!.Value)
                 && tipoIdsObligatorios.Contains(d.TipoDocumentoId))

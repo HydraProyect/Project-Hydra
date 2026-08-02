@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Proyectos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,16 +18,16 @@ public record ObtenerProyectosParaSelectorQuery : IRequest<IReadOnlyList<Proyect
 
 public record ProyectoSelectorDto(Guid Id, string Nombre, string ClienteRazonSocial, string CentroNombre, bool EstaAbierto);
 
-public class ObtenerProyectosParaSelectorQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerProyectosParaSelectorQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerProyectosParaSelectorQuery, IReadOnlyList<ProyectoSelectorDto>>
 {
     public async Task<IReadOnlyList<ProyectoSelectorDto>> Handle(
         ObtenerProyectosParaSelectorQuery request, CancellationToken cancellationToken)
     {
         var consulta =
-            from proyecto in dbContext.Proyectos
-            join cliente in dbContext.Clientes on proyecto.ClienteId equals cliente.Id
-            join centro in dbContext.Centros on proyecto.CentroId equals centro.Id
+            from proyecto in proyectosContext.Proyectos
+            join cliente in clientesContext.Clientes on proyecto.ClienteId equals cliente.Id
+            join centro in centrosContext.Centros on proyecto.CentroId equals centro.Id
             select new { proyecto, cliente.RazonSocial, centro.Nombre };
 
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);

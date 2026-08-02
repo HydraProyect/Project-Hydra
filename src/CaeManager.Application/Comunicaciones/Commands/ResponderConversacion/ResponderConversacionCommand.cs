@@ -1,6 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Integraciones;
 using FluentValidation;
 using MediatR;
 
@@ -18,16 +20,21 @@ public class ResponderConversacionCommandValidator : AbstractValidator<Responder
 }
 
 /// <summary>
-/// Agrega el mensaje Saliente al hilo pero NO lo envía por ningún canal
-/// real — este vertical slice no tiene todavía un adaptador
-/// MicrosoftGraphIntegrationProvider con CorreoBidireccional (ver
-/// ARQUITECTURA-INTEGRACIONES.md § 12.6), así que "responder" solo persiste
-/// el mensaje en Hydra. El remitente es un valor simulado hasta que exista
-/// ConexionIntegracion.ClienteId (§ 12.2) para resolver el buzón real del
-/// Cliente/Tenant que atiende la conversación.
+/// Si la conversación tiene un buzón real conectado (P3-33,
+/// ConexionIntegracionId), envía la respuesta de verdad por Graph
+/// (preservando threading vía /reply) antes de persistir el mensaje — un
+/// envío fallido no debe dejar un mensaje "fantasma" que el cliente nunca
+/// recibió. Si no hay conexión (datos sembrados, o un Cliente sin buzón
+/// todavía conectado), cae al comportamiento original: solo persiste el
+/// mensaje con un remitente simulado, sin regresión para las demos.
 /// </summary>
 public class ResponderConversacionCommandHandler(
-    IConversacionCorreoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IConversacionCorreoRepository repositorio,
+    IConexionIntegracionRepository conexionRepositorio,
+    IAlcanceDatosService alcanceDatos,
+    IMicrosoft365GraphClient graphClient,
+    AccesoGraphService accesoGraph,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<ResponderConversacionCommand, Result>
 {
     private const string RemitenteSimuladoEmail = "equipo-cae@buzon-simulado.local";
@@ -40,9 +47,50 @@ public class ResponderConversacionCommandHandler(
         if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
             return Result.Fallo(Error.Crear("ConversacionCorreo.NoEncontrada", "No encontramos esta conversación."));
 
-        conversacion.AgregarMensaje(DireccionMensaje.Saliente, RemitenteSimuladoEmail, request.CuerpoHtml);
+        if (conversacion.ConexionIntegracionId is { } conexionId)
+        {
+            var envioResultado = await EnviarPorGraphAsync(conversacion, conexionId, request.CuerpoHtml, cancellationToken);
+            if (envioResultado.EsFallido)
+                return envioResultado;
+        }
+        else
+        {
+            conversacion.AgregarMensaje(DireccionMensaje.Saliente, RemitenteSimuladoEmail, request.CuerpoHtml);
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        return Result.Exito();
+    }
+
+    private async Task<Result> EnviarPorGraphAsync(
+        ConversacionCorreo conversacion, Guid conexionId, string cuerpoHtml, CancellationToken cancellationToken)
+    {
+        var conexion = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
+        if (conexion is null || conexion.Estado != EstadoConexionIntegracion.Habilitada)
+            return Result.Fallo(Error.Crear(
+                "ConversacionCorreo.ConexionNoDisponible", "El buzón conectado a esta conversación no está disponible."));
+
+        var ultimoMensajeEntrante = conversacion.Mensajes
+            .Where(m => m.Direccion == DireccionMensaje.Entrante && m.MensajeExternoId is not null)
+            .OrderByDescending(m => m.FechaUtc)
+            .FirstOrDefault();
+        if (ultimoMensajeEntrante is null)
+            return Result.Fallo(Error.Crear(
+                "ConversacionCorreo.SinMensajeOrigen", "No hay ningún mensaje entrante al que responder en este hilo."));
+
+        var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        if (accessTokenResultado.EsFallido)
+            return Result.Fallo(accessTokenResultado.Error);
+
+        var envioResultado = await graphClient.EnviarRespuestaAsync(
+            accessTokenResultado.Valor, conexion.BuzonEmail, ultimoMensajeEntrante.MensajeExternoId!, cuerpoHtml, cancellationToken);
+        if (envioResultado.EsFallido)
+            return envioResultado;
+
+        // Sent Items no está en el recurso vigilado por la suscripción (solo
+        // Inbox) — un mensaje Saliente propio nunca vuelve por webhook, así
+        // que no necesita MensajeExternoId para idempotencia.
+        conversacion.AgregarMensaje(DireccionMensaje.Saliente, conexion.BuzonEmail, cuerpoHtml);
         return Result.Exito();
     }
 }

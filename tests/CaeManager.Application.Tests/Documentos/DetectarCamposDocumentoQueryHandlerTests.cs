@@ -25,7 +25,8 @@ public class DetectarCamposDocumentoQueryHandlerTests
         var routerQueNuncaDebeLlamarse = new RouterQueLanzaSiSeInvoca();
         var handler = new DetectarCamposDocumentoQueryHandler(
             routerQueNuncaDebeLlamarse,
-            dbContext: null!,
+            tiposDocumentoContext: null!,
+            trabajadoresContext: null!,
             Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }));
 
         var resultado = await handler.Handle(

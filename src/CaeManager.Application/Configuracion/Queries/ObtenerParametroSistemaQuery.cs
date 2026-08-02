@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +9,7 @@ public record ObtenerParametroSistemaQuery : IRequest<ParametroSistemaDto>;
 
 public record ParametroSistemaDto(int UmbralAmbarDias, int UmbralRojoDias);
 
-public class ObtenerParametroSistemaQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerParametroSistemaQueryHandler(IConfiguracionQueryContext dbContext)
     : IRequestHandler<ObtenerParametroSistemaQuery, ParametroSistemaDto>
 {
     public async Task<ParametroSistemaDto> Handle(ObtenerParametroSistemaQuery request, CancellationToken cancellationToken)
