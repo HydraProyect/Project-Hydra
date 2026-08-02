@@ -7,13 +7,13 @@ namespace CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 
 public record EliminarEmpresaCommand(Guid Id, Guid UsuarioId) : ICommand;
 
-public class EliminarEmpresaCommandHandler(IEmpresaRepository repositorio, IUnitOfWork unitOfWork)
+public class EliminarEmpresaCommandHandler(IEmpresaRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarEmpresaCommand, Result>
 {
     public async Task<Result> Handle(EliminarEmpresaCommand request, CancellationToken cancellationToken)
     {
         var empresa = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (empresa is null)
+        if (empresa is null || !await alcanceDatos.EmpresaVisibleAsync(empresa.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa."));
 
         if (await repositorio.TieneTrabajadoresAsync(request.Id, cancellationToken))
