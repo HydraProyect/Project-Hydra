@@ -108,6 +108,26 @@ Pasos para crear el App Registration en [entra.microsoft.com](https://entra.micr
 
 **Sin las cuatro variables, el envío de correo queda inerte** — las notificaciones que lo disparan (usuario pendiente de rol, confirmación de rol asignado) se registran en el log como aviso pero no impiden la acción de negocio (crear la cuenta pendiente, asignar el rol siguen funcionando igual). La plantilla/diseño final de estos correos está todavía por definir — hoy es HTML mínimo, sin estilos.
 
+### Conector de Microsoft 365 para Comunicaciones (P3-33)
+
+| Variable | Valor | Para qué |
+|---|---|---|
+| `Integraciones__Microsoft365__ClientId` | Application (client) ID de un App Registration **distinto** al de SSO/envío de correo | Consentimiento delegado por buzón (OAuth authorization code + `offline_access`), no el flujo de aplicación de las dos secciones anteriores — nunca reutilices el mismo registro |
+| `Integraciones__Microsoft365__ClientSecret` | un Client Secret del mismo App Registration | Igual que cualquier secreto de este documento, va directo aquí — nunca por chat. Caduca igual que los anteriores (máximo 24 meses) |
+
+**Sin estas dos variables, el módulo Comunicaciones sigue apagado** (`ComunicacionesOptions__Activo`, sección aparte) y la pantalla `/integraciones` no tiene nada que conectar — mismo principio "inerte por defecto" del resto de integraciones de este documento.
+
+Pasos para crear el App Registration en [entra.microsoft.com](https://entra.microsoft.com):
+1. Tipo de cuenta: **"Cuentas en cualquier directorio organizativo"** (multi-tenant) — a diferencia del App Registration de SSO, este tiene que aceptar buzones de organizaciones cliente distintas a la tuya, no solo la propia. El endpoint de autorización usa `common`, nunca un tenant fijo.
+2. Plataforma de redirección: **Web**, con la URI `https://tu-dominio.up.railway.app/integraciones/microsoft365-callback`.
+3. Permisos de API → **Microsoft Graph → Delegados**: `Mail.Read`, `Mail.Send`, `offline_access`. Delegados, no de aplicación — cada conexión actúa como el buzón que dio el consentimiento, no como la app.
+4. En **Certificados y secretos**, crea un Client Secret nuevo (anota la fecha de caducidad) — es el valor de `Integraciones__Microsoft365__ClientSecret`.
+5. No hace falta consentimiento de administrador del lado de Hydra: cada buzón se conecta desde `/integraciones` (rol Administrador), consintiendo el propio usuario del buzón en la pantalla de Microsoft.
+
+**Antes de conectar un buzón de un cliente real**, confirma que el DPA declara este acceso — el refresco automático de token y la ingesta de correo entrante son tratamiento de datos personales por cuenta del tenant, igual que el resto de accesos de soporte documentados en `RGPD-TRATAMIENTO-DATOS.md`.
+
+Las suscripciones de notificaciones de Graph expiran a los ~3 días — `RenovacionSuscripcionWebhookHostedService` las renueva sola cada 24h, no hace falta ninguna intervención manual salvo que el log muestre fallos repetidos de renovación (revisar el estado de la conexión en `/integraciones`, que pasa a "Con error").
+
 ### Datos de prueba para pruebas de carga y verificación de perfiles
 
 Con `DatosPrueba__Activo=true`, el primer arranque siembra automáticamente (solo si todavía no hay ningún Cliente — no duplica en redeploys posteriores) una cartera con la forma de un cliente fundador real — Clientes con varias Empresas contratistas cada uno, Empresas con varios Centros y Trabajadores, documentación estándar completa con fechas de vencimiento repartidas entre vencido/urgente/próximo/vigente, y datos ya preparados para probar la purga de retención (ver `ROADMAP.md` § Fase 62 para el detalle exacto y los números). Nombres de personas, empresas y lugares son de ficción a propósito, para que nada de la siembra se confunda con un dato real.

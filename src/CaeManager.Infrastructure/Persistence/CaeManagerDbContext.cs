@@ -13,6 +13,7 @@ using CaeManager.Application.Empresas;
 using CaeManager.Application.Evaluaciones;
 using CaeManager.Application.Facturacion;
 using CaeManager.Application.Incidencias;
+using CaeManager.Application.Integraciones;
 using CaeManager.Application.Notificaciones;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.RequisitosDocumentales;
@@ -38,6 +39,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Incidencias;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.RequisitosDocumentales;
@@ -66,7 +68,7 @@ public class CaeManagerDbContext(
         INotificacionesQueryContext, IAsignacionesQueryContext, IVisitasQueryContext, IVehiculosQueryContext,
         IConfiguracionQueryContext, IAuditoriaQueryContext, IRequisitosDocumentalesQueryContext, ITenantsQueryContext,
         IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext, IEvaluacionesQueryContext,
-        IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext
+        IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -74,6 +76,8 @@ public class CaeManagerDbContext(
         dataProtectionProvider.CreateProtector("CaeManager.CredencialAccesoEmpresa.Credenciales.v1");
     private readonly IDataProtector _protectorCredencialesSubcontrata =
         dataProtectionProvider.CreateProtector("CaeManager.CredencialAccesoSubcontrata.Credenciales.v1");
+    private readonly IDataProtector _protectorCredencialesIntegracion =
+        dataProtectionProvider.CreateProtector("CaeManager.CredencialIntegracion.Credenciales.v1");
 
     // Cacheados una vez por tipo: MakeGenericMethod en cada entidad del
     // bucle de OnModelCreating es barato, pero GetMethod (búsqueda por
@@ -185,6 +189,11 @@ public class CaeManagerDbContext(
     IQueryable<PreferenciaDashboardUsuario> IConfiguracionQueryContext.PreferenciasDashboardUsuario => PreferenciasDashboardUsuario;
     public DbSet<FiltroGuardado> FiltrosGuardados => Set<FiltroGuardado>();
     IQueryable<FiltroGuardado> IConfiguracionQueryContext.FiltrosGuardados => FiltrosGuardados;
+    public DbSet<ConexionIntegracion> ConexionesIntegracion => Set<ConexionIntegracion>();
+    IQueryable<ConexionIntegracion> IIntegracionesQueryContext.ConexionesIntegracion => ConexionesIntegracion;
+    public DbSet<CredencialIntegracion> CredencialesIntegracion => Set<CredencialIntegracion>();
+    public DbSet<SuscripcionWebhook> SuscripcionesWebhook => Set<SuscripcionWebhook>();
+    public DbSet<EventoWebhook> EventosWebhook => Set<EventoWebhook>();
 
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -214,6 +223,16 @@ public class CaeManagerDbContext(
 
         builder.Entity<CredencialAccesoSubcontrata>().Property(c => c.Usuario).HasConversion(conversorCredencialesSubcontrata);
         builder.Entity<CredencialAccesoSubcontrata>().Property(c => c.Contrasena).HasConversion(conversorCredencialesSubcontrata);
+
+        // Un mismo protector para las dos: RefreshToken y ClientState viven
+        // bajo el mismo agregado (ConexionIntegracion) — mismo criterio que
+        // PlataformaAcceso, compartido entre varias entidades relacionadas.
+        var conversorCredencialesIntegracion = new ValueConverter<string, string>(
+            valorPlano => _protectorCredencialesIntegracion.Protect(valorPlano),
+            valorCifrado => _protectorCredencialesIntegracion.Unprotect(valorCifrado));
+
+        builder.Entity<CredencialIntegracion>().Property(c => c.RefreshToken).HasConversion(conversorCredencialesIntegracion);
+        builder.Entity<SuscripcionWebhook>().Property(s => s.ClientState).HasConversion(conversorCredencialesIntegracion);
 
         builder.Entity<IdentityRole<Guid>>().HasData(IdentityRoleSeedData.Filas());
 

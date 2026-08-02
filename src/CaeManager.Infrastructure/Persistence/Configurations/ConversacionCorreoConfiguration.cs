@@ -13,10 +13,13 @@ public class ConversacionCorreoConfiguration : IEntityTypeConfiguration<Conversa
 
         builder.Property(c => c.Asunto).IsRequired().HasMaxLength(ConversacionCorreo.LongitudMaximaAsunto);
         builder.Property(c => c.Etiquetas).HasMaxLength(ConversacionCorreo.LongitudMaximaEtiquetas);
+        builder.Property(c => c.HiloExternoId).HasMaxLength(ConversacionCorreo.LongitudMaximaHiloExternoId);
 
         builder.HasIndex(c => new { c.TenantId, c.Estado });
         builder.HasIndex(c => new { c.TenantId, c.ClienteId });
         builder.HasIndex(c => c.FechaUltimoMensajeUtc);
+        // Único por tenant: un HiloExternoId de Graph identifica un único hilo (P3-33).
+        builder.HasIndex(c => new { c.TenantId, c.HiloExternoId }).IsUnique();
 
         // Mensajes/Participantes son colecciones de solo lectura respaldadas
         // por un campo privado (ver ConversacionCorreo) — se le dice a EF Core

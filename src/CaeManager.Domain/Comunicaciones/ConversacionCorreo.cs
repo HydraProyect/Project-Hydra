@@ -7,9 +7,11 @@ namespace CaeManager.Domain.Comunicaciones;
 /// ARQUITECTURA-INTEGRACIONES.md § 12). ClienteId null significa que el
 /// remitente todavía no se ha resuelto contra ningún Cliente — la
 /// conversación cae en la cola de triage hasta que alguien la asigna
-/// (AsignarCliente). En este vertical slice no lleva ConexionIntegracionId
-/// ni HiloExternoId: no hay ingesta real de Microsoft Graph todavía (ver
-/// § 12.6), esos campos se incorporan en la siguiente iteración.
+/// (AsignarCliente). ConexionIntegracionId/HiloExternoId (P3-33, la
+/// "siguiente iteración" que § 12.6 dejaba planteada) identifican qué buzón
+/// conectado atiende el hilo y el conversationId de Graph para el threading
+/// — null en conversaciones creadas a mano o sembradas como datos de
+/// prueba, nunca en una ingerida por webhook real.
 ///
 /// Mensajes/Participantes se exponen como colecciones de solo lectura sobre
 /// un campo privado — patrón nuevo en este repositorio (el resto de
@@ -24,6 +26,7 @@ public class ConversacionCorreo : EntidadBase
 {
     public const int LongitudMaximaAsunto = 300;
     public const int LongitudMaximaEtiquetas = 500;
+    public const int LongitudMaximaHiloExternoId = 300;
 
     private readonly List<MensajeCorreo> _mensajes = [];
     private readonly List<ParticipanteConversacion> _participantes = [];
@@ -34,6 +37,8 @@ public class ConversacionCorreo : EntidadBase
     public Guid? EjecutivoAsignadoId { get; private set; }
     public string? Etiquetas { get; private set; }
     public DateTime FechaUltimoMensajeUtc { get; private set; }
+    public Guid? ConexionIntegracionId { get; private set; }
+    public string? HiloExternoId { get; private set; }
 
     public IReadOnlyList<MensajeCorreo> Mensajes => _mensajes.AsReadOnly();
     public IReadOnlyList<ParticipanteConversacion> Participantes => _participantes.AsReadOnly();
@@ -51,16 +56,36 @@ public class ConversacionCorreo : EntidadBase
         FechaUltimoMensajeUtc = DateTime.UtcNow;
     }
 
-    public MensajeCorreo AgregarMensaje(DireccionMensaje direccion, string remitenteEmail, string cuerpoHtml, DateTime? fechaUtc = null)
+    public MensajeCorreo AgregarMensaje(
+        DireccionMensaje direccion, string remitenteEmail, string cuerpoHtml, DateTime? fechaUtc = null, string? mensajeExternoId = null)
     {
         var fecha = fechaUtc ?? DateTime.UtcNow;
-        var mensaje = new MensajeCorreo(Id, direccion, remitenteEmail, cuerpoHtml, fecha);
+        var mensaje = new MensajeCorreo(Id, direccion, remitenteEmail, cuerpoHtml, fecha, mensajeExternoId);
         _mensajes.Add(mensaje);
 
         if (fecha > FechaUltimoMensajeUtc)
             FechaUltimoMensajeUtc = fecha;
 
         return mensaje;
+    }
+
+    /// <summary>
+    /// Ata el hilo a un buzón conectado (P3-33) — solo la llama el flujo de
+    /// ingesta de webhook, nunca el alta manual ni el seeder de demo.
+    /// </summary>
+    public void AsociarConexion(Guid conexionIntegracionId, string hiloExternoId)
+    {
+        if (conexionIntegracionId == Guid.Empty)
+            throw new ArgumentException("La conexión no puede estar vacía.", nameof(conexionIntegracionId));
+        if (string.IsNullOrWhiteSpace(hiloExternoId))
+            throw new ArgumentException("El hilo externo no puede estar vacío.", nameof(hiloExternoId));
+
+        var normalizado = hiloExternoId.Trim();
+        if (normalizado.Length > LongitudMaximaHiloExternoId)
+            throw new ArgumentException($"El hilo externo no puede superar {LongitudMaximaHiloExternoId} caracteres.", nameof(hiloExternoId));
+
+        ConexionIntegracionId = conexionIntegracionId;
+        HiloExternoId = normalizado;
     }
 
     public ParticipanteConversacion AgregarParticipante(
