@@ -110,7 +110,7 @@
             </div>
         }
 
-        <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearCentroCommand.Nombre))" />
+        <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" OnBlur="ValidarNombreAsync" MensajeError="@ObtenerError(nameof(CrearCentroCommand.Nombre))" />
         <CampoTexto Etiqueta="Código de centro" Valor="@_codigoCentro" ValorChanged="v => _codigoCentro = v" />
         <CampoTexto Etiqueta="Dirección" Valor="@_direccion" ValorChanged="v => _direccion = v" />
         <CampoTexto Etiqueta="Contacto" Valor="@_contacto" ValorChanged="v => _contacto = v" />

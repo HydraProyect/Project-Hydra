@@ -1,14 +1,17 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Subcontratas.Commands.EditarSubcontrata;
 
 public record EditarSubcontrataCommand(
     Guid Id, string RazonSocial, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds,
-    Guid Version = default) : IRequest<Result>;
+    Guid Version = default) : ICommand;
 
 public class EditarSubcontrataCommandValidator : AbstractValidator<EditarSubcontrataCommand>
 {
@@ -27,6 +30,8 @@ public class EditarSubcontrataCommandHandler(
     ISubcontrataRepository repositorio,
     ISubcontrataClienteRepository subcontrataClienteRepositorio,
     ISubcontrataEmpresaRepository subcontrataEmpresaRepositorio,
+    IClientesQueryContext clientesContext,
+    IEmpresasQueryContext empresasContext,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EditarSubcontrataCommand, Result>
 {
@@ -48,20 +53,29 @@ public class EditarSubcontrataCommandHandler(
         var clienteIdsDeseados = request.ClienteIds.Distinct().ToHashSet();
         var clienteIdsActuales = clientesActuales.Select(sc => sc.ClienteId).ToHashSet();
 
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        var clienteIdsNuevos = clienteIdsDeseados.Except(clienteIdsActuales).ToList();
+        if (await clientesContext.Clientes.Where(c => clienteIdsNuevos.Contains(c.Id)).CountAsync(cancellationToken) != clienteIdsNuevos.Count)
+            return Result.Fallo(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));
+
         foreach (var sc in clientesActuales.Where(sc => !clienteIdsDeseados.Contains(sc.ClienteId)))
             subcontrataClienteRepositorio.Eliminar(sc);
 
-        foreach (var clienteId in clienteIdsDeseados.Except(clienteIdsActuales))
+        foreach (var clienteId in clienteIdsNuevos)
             subcontrataClienteRepositorio.Agregar(new SubcontrataCliente(subcontrata.Id, clienteId));
 
         var empresasActuales = await subcontrataEmpresaRepositorio.ObtenerPorSubcontrataAsync(subcontrata.Id, cancellationToken);
         var empresaIdsDeseados = request.EmpresaIds.Distinct().ToHashSet();
         var empresaIdsActuales = empresasActuales.Select(se => se.EmpresaId).ToHashSet();
 
+        var empresaIdsNuevos = empresaIdsDeseados.Except(empresaIdsActuales).ToList();
+        if (await empresasContext.Empresas.Where(e => empresaIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != empresaIdsNuevos.Count)
+            return Result.Fallo(Error.Crear("Subcontrata.EmpresaNoEncontrada", "Alguna de las empresas seleccionadas no existe."));
+
         foreach (var se in empresasActuales.Where(se => !empresaIdsDeseados.Contains(se.EmpresaId)))
             subcontrataEmpresaRepositorio.Eliminar(se);
 
-        foreach (var empresaId in empresaIdsDeseados.Except(empresaIdsActuales))
+        foreach (var empresaId in empresaIdsNuevos)
             subcontrataEmpresaRepositorio.Agregar(new SubcontrataEmpresa(subcontrata.Id, empresaId));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

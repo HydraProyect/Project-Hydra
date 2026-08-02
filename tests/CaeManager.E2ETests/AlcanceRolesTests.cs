@@ -15,6 +15,14 @@ namespace CaeManager.E2ETests;
 [Collection("AppCollection")]
 public partial class AlcanceRolesTests(WebAppFixture fixture)
 {
+    // La cuarentena de GestorCae_ve_solo_su_cartera_acotada y
+    // Consulta_ve_todo_pero_no_puede_crear_un_cliente (Fase 69: "cuelgue
+    // intermitente sin causa identificada") se levantó al encontrar la causa
+    // raíz: el rate limiting de /cuenta/* devolvía 429 al POST de login
+    // cuando la suite acumulaba más de 10 POST anónimos por minuto desde
+    // 127.0.0.1 — ver el comentario en WebAppFixture, que es donde vive el
+    // arreglo (techo del limitador configurable para la suite).
+
     [GeneratedRegex(@"\d+ items")]
     private static partial Regex PatronContadorElementos();
 
@@ -102,7 +110,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
         var contador = page.GetByText(PatronContadorElementos()).First;
-        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
 
         var total = ExtraerTotalElementos(await contador.InnerTextAsync());
         Assert.Equal(3, total);
@@ -118,7 +126,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
         var contador = page.GetByText(PatronContadorElementos()).First;
-        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
         // Consulta ve la cartera entera del tenant: los 9 clientes de la
         // siembra determinista (ver DatosPruebaSeeder), no una cartera acotada.
         Assert.Equal(9, ExtraerTotalElementos(await contador.InnerTextAsync()));
@@ -150,7 +158,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/");
 
         var nav = page.Locator(".nav-principal");
-        await nav.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await nav.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
         var textoNav = await nav.InnerTextAsync();
 
         Assert.DoesNotContain("Asignaciones", textoNav);

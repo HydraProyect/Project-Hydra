@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Web.Services;
@@ -86,6 +87,21 @@ public class CurrentUserService(
         var usuario = await ObtenerUsuarioAsync();
         var valorClaim = usuario?.FindFirst(TenantClaimsPrincipalFactory.TipoClaimTenantId)?.Value;
         return Guid.TryParse(valorClaim, out var tenantId) ? tenantId : null;
+    }
+
+    // Mismo motivo que el IApplicationDbContext de ObtenerRolActualAsync:
+    // UserManager<ApplicationUser> depende en última instancia de
+    // CaeManagerDbContext (vía UserStore), que monta AuditoriaInterceptor,
+    // que depende de este mismo servicio — inyectarlo por constructor deja
+    // el grafo sin resolver.
+    public async Task<bool> TieneDobleFactorActivoAsync()
+    {
+        var usuarioId = await ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null) return false;
+
+        var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var usuario = await userManager.FindByIdAsync(usuarioId.Value.ToString());
+        return usuario is not null && await userManager.GetTwoFactorEnabledAsync(usuario);
     }
 
     // Dentro de un circuito de Blazor, AuthenticationStateProvider ya trae el

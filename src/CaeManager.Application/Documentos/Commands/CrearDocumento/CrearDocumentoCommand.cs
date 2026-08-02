@@ -1,9 +1,15 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
-using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Documentos.Verificacion;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Proyectos;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Trabajadores.Deteccion;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Vehiculos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -25,7 +31,7 @@ namespace CaeManager.Application.Documentos.Commands.CrearDocumento;
 public record CrearDocumentoCommand(
     Guid? TrabajadorId, Guid? ClienteId, Guid? EmpresaId, Guid? VehiculoId, Guid? ProyectoId, Guid TipoDocumentoId, DateOnly FechaEmision,
     DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios)
-    : IRequest<Result<Guid>>;
+    : ICommand<Guid>;
 
 public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCommand>
 {
@@ -44,13 +50,21 @@ public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCo
 }
 
 public class CrearDocumentoCommandHandler(
-    IDocumentoRepository repositorio, ITiposDocumentoQueryContext dbContext, IUnitOfWork unitOfWork,
-    IColaAnalisisDocumento colaAnalisis, ITenantActual tenantActual, ICurrentUserService currentUserService)
+    IDocumentoRepository repositorio,
+    ITiposDocumentoQueryContext tiposDocumentoContext,
+    ITrabajadoresQueryContext trabajadoresContext,
+    IClientesQueryContext clientesContext,
+    IVehiculosQueryContext vehiculosContext,
+    IProyectosQueryContext proyectosContext,
+    IEmpresasQueryContext empresasContext,
+    IUnitOfWork unitOfWork,
+    ITrabajoAnalisisDocumentoRepository colaAnalisis,
+    ICurrentUserService currentUserService)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDocumentoCommand request, CancellationToken cancellationToken)
     {
-        var tipoDocumento = await dbContext.TiposDocumento
+        var tipoDocumento = await tiposDocumentoContext.TiposDocumento
             .FirstOrDefaultAsync(t => t.Id == request.TipoDocumentoId, cancellationToken);
 
         if (tipoDocumento is null)
@@ -66,6 +80,32 @@ public class CrearDocumentoCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "Documento.AmbitoIncorrecto",
                 $"\"{tipoDocumento.Nombre}\" es un tipo de documento de {DescribirAmbito(tipoDocumento.AmbitoAplicacion)}, no de {DescribirAmbito(ambitoSolicitado)}."));
+
+        // Verificación del propietario (P0-1 de docs/business/MATURITY_REVIEW.md):
+        // sin esto, un Id de otro tenant se persistía sin error, sellado con
+        // el tenant actual — hallazgo explícito del comité sobre este mismo
+        // handler. El filtro global de EF ya deja "no encontrado" un Id ajeno.
+        var propietarioEncontrado = ambitoSolicitado switch
+        {
+            AmbitoAplicacion.Trabajador => await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == request.TrabajadorId, cancellationToken),
+            AmbitoAplicacion.Cliente => await clientesContext.Clientes.AnyAsync(c => c.Id == request.ClienteId, cancellationToken),
+            AmbitoAplicacion.Vehiculo => await vehiculosContext.Vehiculos.AnyAsync(v => v.Id == request.VehiculoId, cancellationToken),
+            AmbitoAplicacion.Proyecto => await proyectosContext.Proyectos.AnyAsync(p => p.Id == request.ProyectoId, cancellationToken),
+            _ => await empresasContext.Empresas.AnyAsync(e => e.Id == request.EmpresaId, cancellationToken)
+        };
+
+        if (!propietarioEncontrado)
+        {
+            var mensaje = ambitoSolicitado switch
+            {
+                AmbitoAplicacion.Trabajador => "No encontramos este trabajador.",
+                AmbitoAplicacion.Cliente => "No encontramos este cliente.",
+                AmbitoAplicacion.Vehiculo => "No encontramos este vehículo.",
+                AmbitoAplicacion.Proyecto => "No encontramos este proyecto.",
+                _ => "No encontramos esta empresa."
+            };
+            return Result.Fallo<Guid>(Error.Crear("Documento.PropietarioNoEncontrado", mensaje));
+        }
 
         var fechaVencimiento = tipoDocumento.AplicaVencimientoAutomatico
             ? CalculadoraEstadoDocumento.CalcularFechaVencimiento(request.FechaEmision, tipoDocumento.VigenciaMeses)
@@ -91,7 +131,6 @@ public class CrearDocumentoCommandHandler(
         };
 
         repositorio.Agregar(documento);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Los dos análisis pesados se encolan en vez de ejecutarse aquí: son
         // llamadas a un modelo externo, con su latencia, y hacerlas dentro del
@@ -99,14 +138,16 @@ public class CrearDocumentoCommandHandler(
         // esperaba a que "terminara de subir" algo que en realidad ya estaba
         // guardado.
         //
-        // No cambia ninguna garantía: ambos ya eran mejor esfuerzo — un fallo
-        // solo se registraba en el log y nunca impedía dar la subida por
-        // completada. Lo que cambia es quién espera. Al terminar, el
-        // procesador avisa por la campana.
-        //
-        // El tenant y el usuario se resuelven aquí, todavía dentro del
-        // circuito, y viajan en el encargo: fuera de él no hay claim de sesión
-        // que leer (ver EncargoAnalisisDocumento).
+        // El trabajo se agrega al mismo SaveChangesAsync que el Documento —
+        // no en una llamada aparte después — para que los dos se confirmen
+        // juntos o ninguno: antes, un fallo justo entre el guardado del
+        // Documento y el encolado en memoria perdía el encargo sin que nadie
+        // se enterase, y el propio proceso reiniciándose con encargos
+        // pendientes ya los perdía siempre (cola en memoria). No cambia
+        // ninguna garantía de negocio: el análisis en sí sigue siendo mejor
+        // esfuerzo — un fallo se reintenta unas pocas veces y luego se marca
+        // como definitivamente fallido, nunca invalida el Documento ya
+        // guardado. Al terminar, el procesador avisa por la campana.
         var necesitaDeteccion = ambitoSolicitado == AmbitoAplicacion.Empresa
             && tipoDocumento.DeteccionTrabajadoresActiva && !string.IsNullOrWhiteSpace(request.ArchivoUrl);
         var necesitaVerificacion = ambitoSolicitado == AmbitoAplicacion.Trabajador
@@ -116,20 +157,14 @@ public class CrearDocumentoCommandHandler(
         {
             var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
-            // Sin tenant resuelto no hay forma de que el procesador encuentre
-            // el documento, así que no se encola nada: fallo cerrado y
-            // silencioso, igual que antes lo era un fallo del análisis.
-            if (tenantActual.TenantId is { } tenantId)
-            {
-                if (necesitaDeteccion)
-                    colaAnalisis.Encolar(new EncargoAnalisisDocumento(
-                        documento.Id, tenantId, usuarioId, TipoAnalisisDocumento.DeteccionTrabajadores));
+            if (necesitaDeteccion)
+                colaAnalisis.Agregar(new TrabajoAnalisisDocumento(documento.Id, usuarioId, TipoAnalisisDocumento.DeteccionTrabajadores));
 
-                if (necesitaVerificacion)
-                    colaAnalisis.Encolar(new EncargoAnalisisDocumento(
-                        documento.Id, tenantId, usuarioId, TipoAnalisisDocumento.VerificacionIa));
-            }
+            if (necesitaVerificacion)
+                colaAnalisis.Agregar(new TrabajoAnalisisDocumento(documento.Id, usuarioId, TipoAnalisisDocumento.VerificacionIa));
         }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(documento.Id);
     }

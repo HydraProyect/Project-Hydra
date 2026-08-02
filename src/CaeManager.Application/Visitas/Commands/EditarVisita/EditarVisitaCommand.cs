@@ -1,15 +1,17 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Visitas.Commands.EditarVisita;
 
 public record EditarVisitaCommand(
     Guid Id, DateOnly FechaInicio, DateOnly FechaFin, IReadOnlyList<Guid> TrabajadorIds, string? Notas,
     Guid Version = default)
-    : IRequest<Result>;
+    : ICommand;
 
 public class EditarVisitaCommandValidator : AbstractValidator<EditarVisitaCommand>
 {
@@ -31,7 +33,8 @@ public class EditarVisitaCommandValidator : AbstractValidator<EditarVisitaComman
 }
 
 public class EditarVisitaCommandHandler(
-    IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio, IUnitOfWork unitOfWork)
+    IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
+    ITrabajadoresQueryContext trabajadoresContext, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarVisitaCommand, Result>
 {
     public async Task<Result> Handle(EditarVisitaCommand request, CancellationToken cancellationToken)
@@ -49,10 +52,15 @@ public class EditarVisitaCommandHandler(
         var trabajadorIdsDeseados = request.TrabajadorIds.Distinct().ToHashSet();
         var trabajadorIdsActuales = trabajadoresActuales.Select(vt => vt.TrabajadorId).ToHashSet();
 
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        var trabajadorIdsNuevos = trabajadorIdsDeseados.Except(trabajadorIdsActuales).ToList();
+        if (await trabajadoresContext.Trabajadores.Where(t => trabajadorIdsNuevos.Contains(t.Id)).CountAsync(cancellationToken) != trabajadorIdsNuevos.Count)
+            return Result.Fallo(Error.Crear("Visita.TrabajadorNoEncontrado", "Alguno de los trabajadores seleccionados no existe."));
+
         foreach (var vt in trabajadoresActuales.Where(vt => !trabajadorIdsDeseados.Contains(vt.TrabajadorId)))
             visitaTrabajadorRepositorio.Eliminar(vt);
 
-        foreach (var trabajadorId in trabajadorIdsDeseados.Except(trabajadorIdsActuales))
+        foreach (var trabajadorId in trabajadorIdsNuevos)
             visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadorId));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

@@ -1,3 +1,4 @@
+using System.Reflection;
 using CaeManager.Application.ApiKeys;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Auditoria;
@@ -74,6 +75,24 @@ public class CaeManagerDbContext(
     private readonly IDataProtector _protectorCredencialesSubcontrata =
         dataProtectionProvider.CreateProtector("CaeManager.CredencialAccesoSubcontrata.Credenciales.v1");
 
+    // Cacheados una vez por tipo: MakeGenericMethod en cada entidad del
+    // bucle de OnModelCreating es barato, pero GetMethod (búsqueda por
+    // nombre) no hace falta repetirlo en cada arranque del modelo.
+    private static readonly MethodInfo MetodoAplicarFiltroTenant =
+        typeof(CaeManagerDbContext).GetMethod(nameof(AplicarFiltroTenant), BindingFlags.NonPublic | BindingFlags.Instance)!;
+    private static readonly MethodInfo MetodoAplicarFiltroTenantConSoftDelete =
+        typeof(CaeManagerDbContext).GetMethod(nameof(AplicarFiltroTenantConSoftDelete), BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+    // Lambdas C# reales (no Expression.Constant manual) — ver el comentario
+    // en OnModelCreating sobre por qué esto es lo que hace que el filtro se
+    // revincule contra el DbContext real de cada request en vez de quedar
+    // congelado en el modelo cacheado.
+    private void AplicarFiltroTenant<TEntidad>(ModelBuilder builder) where TEntidad : EntidadConTenant =>
+        builder.Entity<TEntidad>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+
+    private void AplicarFiltroTenantConSoftDelete<TEntidad>(ModelBuilder builder) where TEntidad : EntidadBase =>
+        builder.Entity<TEntidad>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+
     public DbSet<Cliente> Clientes => Set<Cliente>();
     IQueryable<Cliente> IClientesQueryContext.Clientes => Clientes;
     public DbSet<Centro> Centros => Set<Centro>();
@@ -112,6 +131,7 @@ public class CaeManagerDbContext(
     IQueryable<ExtraccionIaCache> IDocumentosIaQueryContext.ExtraccionesIaCache => ExtraccionesIaCache;
     public DbSet<AuditoriaExtraccionIa> AuditoriasExtraccionIa => Set<AuditoriaExtraccionIa>();
     IQueryable<AuditoriaExtraccionIa> IDocumentosIaQueryContext.AuditoriasExtraccionIa => AuditoriasExtraccionIa;
+    public DbSet<TrabajoAnalisisDocumento> TrabajosAnalisisDocumento => Set<TrabajoAnalisisDocumento>();
     public DbSet<NotificacionUsuario> NotificacionesUsuario => Set<NotificacionUsuario>();
     IQueryable<NotificacionUsuario> INotificacionesQueryContext.NotificacionesUsuario => NotificacionesUsuario;
     public DbSet<Documento> Documentos => Set<Documento>();
@@ -195,63 +215,63 @@ public class CaeManagerDbContext(
 
         builder.Entity<IdentityRole<Guid>>().HasData(IdentityRoleSeedData.Filas());
 
-        // Filtro global de aislamiento por tenant, centralizado aquí (no en
-        // cada *Configuration.cs) — ver docs/MULTITENANCY.md § 4.2: EF Core
-        // solo admite un HasQueryFilter por entidad, así que ponerlo en un
-        // único lugar evita que un segundo HasQueryFilter futuro reemplace
-        // silenciosamente este sin que nadie lo note. Los 16 agregados con
-        // soft delete combinan ambos filtros; los 23 restantes (tablas de
-        // unión/satélite sin ciclo de vida propio) solo llevan el de tenant.
-        // Las dos listas cubren las 39 entidades que heredan de
-        // EntidadConTenant/EntidadBase, sin excepción: es la invariante que
-        // enuncia docs/MULTITENANCY.md ("ninguna tabla sin filtro global") y
-        // la cubre AislamientoPorAgregadoTests. Toda entidad nueva añade aquí
-        // su línea y allí su test.
-        // AspNetUsers queda deliberadamente sin filtro — el login necesita
-        // poder resolver el usuario (y por tanto su tenant) antes de
-        // conocerlo, ver TenantClaimsPrincipalFactory.
-        builder.Entity<Cliente>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<Centro>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<Documento>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<Empresa>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<RequisitoDocumental>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<Subcontrata>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<Trabajador>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<Vehiculo>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<Visita>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<Proyecto>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<Evaluacion>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<Incidencia>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<TarifaCliente>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<ConversacionCorreo>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<MacroRespuesta>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-        builder.Entity<ClaveApi>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+        // Filtro global de aislamiento por tenant, aplicado por reflexión
+        // sobre el modelo (P2 #27 de docs/business/MATURITY_REVIEW.md — ver
+        // docs/MULTITENANCY.md § 4.2). Antes eran ~40 líneas de
+        // HasQueryFilter enumeradas a mano, una trampa ya demostrada dos
+        // veces: TarifaCliente y AprobacionDocumento se quedaron sin filtro
+        // porque alguien olvidó su línea (hallazgos A-1 y M-1 de
+        // docs/archive/INFORME-AUDITORIA-TECNICA.md). Recorrer el modelo en
+        // busca de EntidadConTenant — mismo patrón que ya usaba el bucle de
+        // Version de aquí abajo — hace estructuralmente imposible que una
+        // entidad nueva se quede fuera: basta con heredar de
+        // EntidadConTenant, no hay una segunda línea que recordar añadir.
+        // Los agregados con soft delete (EntidadBase) combinan ambos
+        // filtros; el resto (tablas de unión/satélite) solo lleva el de
+        // tenant. AislamientoPorAgregadoTests sigue cubriendo el
+        // comportamiento por agregado; ModeloTenantTests verifica que
+        // ninguna EntidadConTenant se quede sin filtro en el modelo, sea
+        // cual sea la forma en que se aplique.
+        //
+        // EF Core solo admite un filtro (sin nombre) por entidad — igual que
+        // antes, este es el único sitio del código que llama a
+        // SetQueryFilter, para que un HasQueryFilter futuro en otro lugar no
+        // lo reemplace en silencio sin que nadie lo note.
+        //
+        // AspNetUsers queda deliberadamente sin filtro (no hereda de
+        // EntidadConTenant) — el login necesita poder resolver el usuario
+        // (y por tanto su tenant) antes de conocerlo, ver
+        // TenantClaimsPrincipalFactory. Tenant, DelegacionTenant y
+        // AsignacionOperadorDelegado tampoco heredan de EntidadConTenant:
+        // son catálogos globales por diseño (docs/MULTITENANCY.md § 7-8),
+        // no un olvido.
+        //
+        // El filtro de cada entidad se construye con un método genérico real
+        // (AplicarFiltroTenant/ConSoftDelete), invocado por reflexión — nunca
+        // con Expression.Constant(tenantActual). Una lambda C# escrita a mano
+        // que referencia "tenantActual" cierra sobre el campo de ESTA
+        // instancia de DbContext, y EF Core reconoce ese patrón para
+        // revincular el filtro contra la instancia real en cada consulta.
+        // Expression.Constant(tenantActual), en cambio, hornea la instancia
+        // de ITenantActual de la primera vez que se construyó el modelo como
+        // constante del modelo cacheado (por tipo de DbContext, no por
+        // instancia) — todo DbContext posterior, con un tenant scoped
+        // distinto, seguiría evaluando contra ese ITenantActual congelado.
+        // Regresión real encontrada en auditoría de PR #49 (43/53 tests de
+        // AislamientoPorAgregadoTests fallando), confirmada reproduciendo el
+        // fallo. La reflexión aquí solo elige a qué método genérico llamar
+        // por cada tipo — el árbol de expresión en sí lo construye el
+        // compilador de C#, no código manual.
+        foreach (var tipoEntidadTenant in builder.Model.GetEntityTypes()
+                     .Where(t => typeof(EntidadConTenant).IsAssignableFrom(t.ClrType)))
+        {
+            var metodo = (typeof(EntidadBase).IsAssignableFrom(tipoEntidadTenant.ClrType)
+                    ? MetodoAplicarFiltroTenantConSoftDelete
+                    : MetodoAplicarFiltroTenant)
+                .MakeGenericMethod(tipoEntidadTenant.ClrType);
 
-        builder.Entity<Alerta>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<Asignacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<RegistroAuditoria>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<CanalGestionDocumental>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<ParametroSistema>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<ConfiguracionIaDocumentoCliente>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<TipoDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<TipoDocumentoCentro>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<CredencialAccesoEmpresa>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<EmpresaCliente>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<NotificacionUsuario>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<CredencialAccesoSubcontrata>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<SubcontrataCliente>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<SubcontrataEmpresa>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<DeteccionTrabajador>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<ExtraccionIaCache>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<AuditoriaExtraccionIa>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<VisitaTrabajador>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<RevisionIaDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<ProyectoTecnico>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<AprobacionDocumento>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<MensajeCorreo>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<ParticipanteConversacion>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<CaeManager.Domain.Soporte.RegistroActividadSoporte>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
-        builder.Entity<CaeManager.Domain.Retencion.SolicitudPurga>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
+            metodo.Invoke(this, [builder]);
+        }
 
         // Concurrencia optimista sobre todo agregado con ciclo de vida
         // propio. Se recorre el modelo en vez de enumerar las 15 entidades

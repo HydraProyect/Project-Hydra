@@ -13,7 +13,7 @@ namespace CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpres
 /// actualiza según exista o no ya un registro para esa Empresa.
 /// </summary>
 public record GuardarCredencialAccesoEmpresaCommand(
-    Guid EmpresaId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : IRequest<Result>;
+    Guid EmpresaId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : ICommand;
 
 public class GuardarCredencialAccesoEmpresaCommandValidator : AbstractValidator<GuardarCredencialAccesoEmpresaCommand>
 {

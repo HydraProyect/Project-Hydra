@@ -7,7 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Dashboard.Commands;
 
-public record GuardarPreferenciaDashboardCommand(IReadOnlyList<string> CodigosKpi) : IRequest<Result>;
+public record GuardarPreferenciaDashboardCommand(IReadOnlyList<string> CodigosKpi) : ICommand;
 
 public class GuardarPreferenciaDashboardCommandValidator : AbstractValidator<GuardarPreferenciaDashboardCommand>
 {

@@ -163,6 +163,56 @@ public class DeteccionPurgaTests : IAsyncLifetime
             .Should().Be(0);
     }
 
+    /// <summary>
+    /// P0-3 de docs/business/MATURITY_REVIEW.md: el filtro global
+    /// (!EstaEliminado) ocultaba también estas filas de la propia detección
+    /// de retención — un trabajador dado de baja Y eliminado lógicamente (el
+    /// caso más claro de "ya no hay relación") no entraba nunca en la purga.
+    /// Decisión confirmada por el propietario: las filas EstaEliminado sí
+    /// deben purgarse.
+    /// </summary>
+    [Fact]
+    public async Task Un_trabajador_de_baja_y_eliminado_logicamente_tambien_se_propone()
+    {
+        var trabajadorId = await SembrarTrabajadorAsync(fechaBaja: _hoy.AddYears(-CincoAnios).AddDays(-1));
+
+        await using (var contextoEliminar = CrearContexto())
+        {
+            var trabajador = await contextoEliminar.Trabajadores.FirstAsync(t => t.Id == trabajadorId);
+            trabajador.MarcarComoEliminado(Guid.NewGuid());
+            await contextoEliminar.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto();
+        await CrearServicio(contexto).DetectarAsync(_hoy);
+
+        var solicitud = await contexto.SolicitudesPurga
+            .SingleAsync(s => s.TipoDato == TipoDatoPurgable.TrabajadoresDadosDeBaja);
+
+        solicitud.RegistrosAfectados.Should().Be(1);
+    }
+
+    /// <summary>Mismo hallazgo P0-3, categoría Documentos.</summary>
+    [Fact]
+    public async Task Un_documento_vencido_y_eliminado_logicamente_tambien_se_propone()
+    {
+        var documentoId = await SembrarDocumentoAsync(vencimiento: _hoy.AddYears(-CincoAnios).AddDays(-1));
+
+        await using (var contextoEliminar = CrearContexto())
+        {
+            var documento = await contextoEliminar.Documentos.FirstAsync(d => d.Id == documentoId);
+            documento.MarcarComoEliminado(Guid.NewGuid());
+            await contextoEliminar.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto();
+        var creadas = await CrearServicio(contexto).DetectarAsync(_hoy);
+
+        creadas.Should().Be(1);
+        var solicitud = await contexto.SolicitudesPurga.SingleAsync(s => s.TipoDato == TipoDatoPurgable.Documentos);
+        solicitud.RegistrosAfectados.Should().Be(1);
+    }
+
     [Fact]
     public async Task Sin_plazo_configurado_no_se_purga_ningun_trabajador()
     {
@@ -195,7 +245,7 @@ public class DeteccionPurgaTests : IAsyncLifetime
         return documento.Id;
     }
 
-    private async Task SembrarTrabajadorAsync(DateOnly? fechaBaja)
+    private async Task<Guid> SembrarTrabajadorAsync(DateOnly? fechaBaja)
     {
         await using var contexto = CrearContexto();
 
@@ -213,6 +263,8 @@ public class DeteccionPurgaTests : IAsyncLifetime
 
         contexto.Asignaciones.Add(asignacion);
         await contexto.SaveChangesAsync();
+
+        return trabajador.Id;
     }
 
     private DeteccionPurgaService CrearServicio(CaeManagerDbContext contexto, int? aniosTrabajadores = CincoAnios) =>
@@ -223,6 +275,7 @@ public class DeteccionPurgaTests : IAsyncLifetime
                 AniosRetencionDocumentos = CincoAnios,
                 AniosRetencionTrabajadores = aniosTrabajadores
             }),
+            new TenantActualAmbiental { TenantId = _tenant },
             contexto);
 
     private CaeManagerDbContext CrearContexto()

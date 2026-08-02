@@ -5,6 +5,7 @@ using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using MediatR;
@@ -23,7 +24,7 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacionCombina
 /// asociaciones nuevas, nunca quita ni sobrescribe un dato ya presente.
 /// </summary>
 public record EjecutarImportacionCombinadaCommand(PlanImportacionCombinadaDto Plan, bool ReemplazarExistentes)
-    : IRequest<ResultadoImportacionCombinadaDto>;
+    : ICommand<ResultadoImportacionCombinadaDto>;
 
 public record ResultadoImportacionCombinadaDto(
     int ClientesCreados,
@@ -45,9 +46,9 @@ public class EjecutarImportacionCombinadaCommandHandler(
     ITrabajadorRepository trabajadorRepositorio,
     ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
     IUnitOfWork unitOfWork)
-    : IRequestHandler<EjecutarImportacionCombinadaCommand, ResultadoImportacionCombinadaDto>
+    : IRequestHandler<EjecutarImportacionCombinadaCommand, Result<ResultadoImportacionCombinadaDto>>
 {
-    public async Task<ResultadoImportacionCombinadaDto> Handle(
+    public async Task<Result<ResultadoImportacionCombinadaDto>> Handle(
         EjecutarImportacionCombinadaCommand request, CancellationToken cancellationToken)
     {
         var plan = request.Plan;

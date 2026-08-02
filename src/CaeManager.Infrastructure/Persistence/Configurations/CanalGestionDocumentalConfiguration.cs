@@ -21,5 +21,11 @@ public class CanalGestionDocumentalConfiguration : IEntityTypeConfiguration<Cana
         // porque necesita el IDataProtector inyectado en el propio DbContext.
 
         builder.HasIndex(c => new { c.TenantId, c.CentroId }).IsUnique();
+
+        // FK real — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        builder.HasOne<Centro>().WithMany()
+            .HasForeignKey(canal => new { canal.TenantId, canal.CentroId })
+            .HasPrincipalKey(centro => new { centro.TenantId, centro.Id })
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

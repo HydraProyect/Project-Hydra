@@ -6,7 +6,7 @@ using MediatR;
 namespace CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal;
 
 /// <summary>Nivel 1 (Administrador): activa/desactiva la lectura automática por IA de un TipoDocumento para todos los Clientes — ver TipoDocumento.LecturaIaActiva.</summary>
-public record ActualizarLecturaIaGlobalCommand(Guid TipoDocumentoId, bool Activa) : IRequest<Result>;
+public record ActualizarLecturaIaGlobalCommand(Guid TipoDocumentoId, bool Activa) : ICommand;
 
 public class ActualizarLecturaIaGlobalCommandHandler(
     ITipoDocumentoRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService currentUserService)

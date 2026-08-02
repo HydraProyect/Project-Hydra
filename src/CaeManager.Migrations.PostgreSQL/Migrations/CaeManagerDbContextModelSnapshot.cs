@@ -47,6 +47,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("DocumentoId");
 
+                    b.HasIndex("TenantId", "DocumentoId");
+
                     b.ToTable("Alertas", (string)null);
                 });
 
@@ -133,6 +135,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CentroId");
+
+                    b.HasIndex("TenantId", "CentroId");
 
                     b.HasIndex("TenantId", "TrabajadorId", "CentroId", "FechaAlta")
                         .IsUnique();
@@ -289,6 +293,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("EmpresaId");
 
+                    b.HasIndex("TenantId", "ClienteId");
+
+                    b.HasIndex("TenantId", "EmpresaId");
+
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
+
                     b.ToTable("Centros", (string)null);
                 });
 
@@ -344,6 +355,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("RazonSocial");
 
                     b.HasIndex("TenantId", "Cif")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "Id")
                         .IsUnique();
 
                     b.ToTable("Clientes", (string)null);
@@ -694,6 +708,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("ProyectoId", "TipoDocumentoId");
 
+                    b.HasIndex("TenantId", "ClienteId");
+
+                    b.HasIndex("TenantId", "EmpresaId");
+
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ProyectoId");
+
+                    b.HasIndex("TenantId", "TipoDocumentoId");
+
+                    b.HasIndex("TenantId", "TrabajadorId");
+
+                    b.HasIndex("TenantId", "VehiculoId");
+
                     b.HasIndex("TrabajadorId", "TipoDocumentoId");
 
                     b.HasIndex("VehiculoId", "TipoDocumentoId");
@@ -808,6 +837,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
 
                     b.HasIndex("TenantId", "Nombre")
                         .IsUnique();
@@ -1828,6 +1860,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("CentroId");
 
+                    b.HasIndex("TenantId", "CentroId");
+
                     b.HasIndex("TenantId", "TipoDocumentoId", "CentroId")
                         .IsUnique();
 
@@ -1918,6 +1952,52 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ExtraccionesIaCache", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.DocumentosIa.TrabajoAnalisisDocumento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("IniciadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Intentos")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UltimoError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid?>("UsuarioSolicitanteId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Estado", "CreadoEnUtc");
+
+                    b.ToTable("TrabajosAnalisisDocumento", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Empresas.CredencialAccesoEmpresa", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1995,6 +2075,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "Cif")
                         .IsUnique();
 
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
+
                     b.HasIndex("TenantId", "RazonSocial")
                         .IsUnique();
 
@@ -2019,6 +2102,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ClienteId");
+
+                    b.HasIndex("TenantId", "ClienteId");
 
                     b.HasIndex("TenantId", "EmpresaId", "ClienteId")
                         .IsUnique();
@@ -2072,6 +2157,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("CentroId");
 
                     b.HasIndex("TrabajadorId");
+
+                    b.HasIndex("TenantId", "CentroId");
+
+                    b.HasIndex("TenantId", "TrabajadorId");
 
                     b.ToTable("Evaluaciones", (string)null);
                 });
@@ -2185,6 +2274,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TrabajadorId");
 
+                    b.HasIndex("TenantId", "CentroId");
+
+                    b.HasIndex("TenantId", "TrabajadorId");
+
                     b.ToTable("Incidencias", (string)null);
                 });
 
@@ -2282,6 +2375,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("CentroId");
 
+                    b.HasIndex("TenantId", "CentroId");
+
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
+
                     b.HasIndex("TenantId", "ClienteId", "Nombre")
                         .IsUnique()
                         .HasFilter("NOT \"EstaEliminado\"");
@@ -2313,6 +2411,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TrabajadorId");
+
+                    b.HasIndex("TenantId", "TrabajadorId");
 
                     b.HasIndex("TenantId", "ProyectoId", "TrabajadorId", "FechaAlta")
                         .IsUnique();
@@ -2367,6 +2467,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CentroId");
+
+                    b.HasIndex("TenantId", "CentroId");
 
                     b.ToTable("RequisitosDocumentales", (string)null);
                 });
@@ -2526,6 +2628,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
+
                     b.HasIndex("TenantId", "RazonSocial")
                         .IsUnique();
 
@@ -2551,6 +2656,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("ClienteId");
 
+                    b.HasIndex("TenantId", "ClienteId");
+
                     b.HasIndex("TenantId", "SubcontrataId", "ClienteId")
                         .IsUnique();
 
@@ -2575,6 +2682,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("EmpresaId");
+
+                    b.HasIndex("TenantId", "EmpresaId");
 
                     b.HasIndex("TenantId", "SubcontrataId", "EmpresaId")
                         .IsUnique();
@@ -2815,6 +2924,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "Dni")
                         .IsUnique();
 
+                    b.HasIndex("TenantId", "EmpresaId");
+
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "SubcontrataId");
+
                     b.ToTable("Trabajadores", (string)null);
                 });
 
@@ -2870,8 +2986,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("SubcontrataId");
 
+                    b.HasIndex("TenantId", "EmpresaId");
+
                     b.HasIndex("TenantId", "NumeroPlaca")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "SubcontrataId");
 
                     b.ToTable("Vehiculos", (string)null);
                 });
@@ -2923,6 +3043,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("FechaFin");
 
+                    b.HasIndex("TenantId", "CentroId");
+
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
+
                     b.ToTable("Visitas", (string)null);
                 });
 
@@ -2946,6 +3071,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TrabajadorId");
 
                     b.HasIndex("VisitaId");
+
+                    b.HasIndex("TenantId", "TrabajadorId");
 
                     b.HasIndex("TenantId", "VisitaId", "TrabajadorId")
                         .IsUnique();
@@ -3216,6 +3343,60 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Alertas.Alerta", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Documentos.Documento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DocumentoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Asignaciones.Asignacion", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Centros.CanalGestionDocumental", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Centros.Centro", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.MensajeCorreo", b =>
                 {
                     b.HasOne("CaeManager.Domain.Comunicaciones.ConversacionCorreo", null)
@@ -3231,6 +3412,257 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .WithMany("Participantes")
                         .HasForeignKey("ConversacionCorreoId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.Documento", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Proyectos.Proyecto", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ProyectoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Documentos.TipoDocumento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TipoDocumentoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Vehiculos.Vehiculo", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "VehiculoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.TipoDocumentoCentro", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Documentos.TipoDocumento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TipoDocumentoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Empresas.EmpresaCliente", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Evaluaciones.Evaluacion", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Facturacion.TarifaCliente", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Incidencias.Incidencia", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Proyectos.Proyecto", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Proyectos.ProyectoTecnico", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Proyectos.Proyecto", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ProyectoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.RequisitosDocumentales.RequisitoDocumental", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Subcontratas.SubcontrataCliente", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Subcontratas.Subcontrata", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SubcontrataId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Subcontratas.SubcontrataEmpresa", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Subcontratas.Subcontrata", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SubcontrataId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Trabajadores.Trabajador", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Subcontratas.Subcontrata", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SubcontrataId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Vehiculos.Vehiculo", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Subcontratas.Subcontrata", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SubcontrataId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Visitas.Visita", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Visitas.VisitaTrabajador", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Visitas.Visita", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "VisitaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

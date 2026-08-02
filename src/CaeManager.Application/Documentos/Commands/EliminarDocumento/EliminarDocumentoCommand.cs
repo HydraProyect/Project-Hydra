@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Documentos.Commands.EliminarDocumento;
 
-public record EliminarDocumentoCommand(Guid Id, Guid UsuarioId) : IRequest<Result>;
+public record EliminarDocumentoCommand(Guid Id, Guid UsuarioId) : ICommand;
 
 public class EliminarDocumentoCommandHandler(IDocumentoRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarDocumentoCommand, Result>

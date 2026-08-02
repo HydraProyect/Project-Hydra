@@ -5,6 +5,7 @@ using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -51,6 +52,8 @@ public partial class Vehiculos : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
     private GridItemsProvider<VehiculoListaDto>? _proveedorElementos;
 
     protected override async Task OnInitializedAsync()
@@ -58,11 +61,21 @@ public partial class Vehiculos : ComponentBase
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
 
-        if (!string.IsNullOrWhiteSpace(TerminoBusquedaInicial))
-            _busqueda = TerminoBusquedaInicial;
-
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
         _subcontratasDisponibles = await Mediator.Send(new ObtenerSubcontratasParaSelectorQuery());
+    }
+
+    /// <summary>
+    /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
+    /// compartir la URL, volver atrás) — no solo en el primer render — para
+    /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
+    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
+        if (deLaUrl != _busqueda)
+            _busqueda = deLaUrl;
     }
 
     private async ValueTask<GridItemsProviderResult<VehiculoListaDto>> ProveerElementosAsync(
@@ -115,6 +128,7 @@ public partial class Vehiculos : ComponentBase
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
 
