@@ -90,9 +90,10 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // soporte antes de generar la actividad que se comprueba después.
         await page.Locator(".aviso-sesion-soporte").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
-        // Navegación real a /documentos: Navegacion nueva vía
-        // TrazaSoporte.OnInitializedAsync/LocationChanged.
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
+        // Navegación real a /clientes: Navegacion nueva vía
+        // TrazaSoporte.OnInitializedAsync/LocationChanged — y la página
+        // donde vive el botón "+ Nuevo cliente" del siguiente paso.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
         // Interacción sin navegar: "+ Nuevo cliente" abre un drawer (ningún
         // Command se despacha solo con abrirlo, así que es seguro incluso en
