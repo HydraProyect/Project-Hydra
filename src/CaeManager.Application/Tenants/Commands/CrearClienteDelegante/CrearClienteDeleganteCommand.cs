@@ -31,7 +31,7 @@ namespace CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
 /// de alta uno a uno tras crear el tenant, sin forzar una copia completa que
 /// nadie pidió (YAGNI, ver PROJECT.md).
 /// </summary>
-public record CrearClienteDeleganteCommand(string NombreTenantCliente) : IRequest<Result<Guid>>;
+public record CrearClienteDeleganteCommand(string NombreTenantCliente) : ICommand<Guid>;
 
 public class CrearClienteDeleganteCommandValidator : AbstractValidator<CrearClienteDeleganteCommand>
 {
