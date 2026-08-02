@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Web.Services;
@@ -34,7 +35,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         HttpContext contexto,
         IClienteActivoSeleccionado clienteActivoSeleccionado,
         ICurrentUserService currentUserService,
-        IApplicationDbContext dbContext)
+        ITenantsQueryContext dbContext)
     {
         // Sin cookie no hay nada que revalidar: cero coste para el usuario
         // normal, que es la inmensa mayoría.

@@ -1,4 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,17 +19,17 @@ public record AsignacionListaDto(
     DateOnly FechaAlta,
     DateOnly? FechaBaja);
 
-public class ObtenerAsignacionesQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerAsignacionesQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerAsignacionesQuery, ResultadoPaginado<AsignacionListaDto>>
 {
     public async Task<ResultadoPaginado<AsignacionListaDto>> Handle(
         ObtenerAsignacionesQuery request, CancellationToken cancellationToken)
     {
         var consulta =
-            from asignacion in dbContext.Asignaciones
-            join trabajador in dbContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
-            join centro in dbContext.Centros on asignacion.CentroId equals centro.Id
-            join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
+            from asignacion in asignacionesContext.Asignaciones
+            join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
+            join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
+            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
             select new { asignacion, trabajador, centro, cliente };
 
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);

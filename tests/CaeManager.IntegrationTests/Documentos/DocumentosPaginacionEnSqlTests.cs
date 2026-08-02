@@ -86,7 +86,9 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
     public async Task El_filtro_en_SQL_devuelve_exactamente_lo_que_calcula_la_calculadora(EstadoDocumento estado)
     {
         await using var contexto = CrearContexto();
-        var handler = new ObtenerDocumentosQueryHandler(contexto, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerDocumentosQueryHandler(
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+            new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(
             new ObtenerDocumentosQuery(null, null, null, estado, Pagina: 1, TamanoPagina: 50), CancellationToken.None);
@@ -107,7 +109,9 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
     public async Task Sin_filtro_de_estado_se_devuelven_todos_con_su_semaforo()
     {
         await using var contexto = CrearContexto();
-        var handler = new ObtenerDocumentosQueryHandler(contexto, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerDocumentosQueryHandler(
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+            new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(
             new ObtenerDocumentosQuery(null, null, null, null, Pagina: 1, TamanoPagina: 50), CancellationToken.None);
@@ -123,7 +127,9 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         // distintas: si el filtro se aplicara solo a una, el paginador
         // mentiría.
         await using var contexto = CrearContexto();
-        var handler = new ObtenerDocumentosQueryHandler(contexto, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerDocumentosQueryHandler(
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+            new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(
             new ObtenerDocumentosQuery(null, null, null, null, Pagina: 1, TamanoPagina: 2), CancellationToken.None);

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -66,7 +67,7 @@ public class CurrentUserService(
 
         // Se comprueba contra la delegación viva, no contra lo que dijera el
         // token al emitirse — una revocación tiene que notarse aquí.
-        var dbContext = serviceProvider.GetRequiredService<IApplicationDbContext>();
+        var dbContext = serviceProvider.GetRequiredService<ITenantsQueryContext>();
 
         return await (
             from asignacion in dbContext.AsignacionesOperadorDelegado

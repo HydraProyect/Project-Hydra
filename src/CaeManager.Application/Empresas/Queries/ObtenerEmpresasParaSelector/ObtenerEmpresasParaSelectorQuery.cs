@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,7 +15,7 @@ public record ObtenerEmpresasParaSelectorQuery(Guid? ClienteId = null) : IReques
 
 public record EmpresaSelectorDto(Guid Id, string RazonSocial);
 
-public class ObtenerEmpresasParaSelectorQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerEmpresasParaSelectorQueryHandler(IEmpresasQueryContext dbContext)
     : IRequestHandler<ObtenerEmpresasParaSelectorQuery, IReadOnlyList<EmpresaSelectorDto>>
 {
     public async Task<IReadOnlyList<EmpresaSelectorDto>> Handle(

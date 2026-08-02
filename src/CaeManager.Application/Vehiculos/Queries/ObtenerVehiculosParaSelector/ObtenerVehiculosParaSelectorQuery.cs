@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Vehiculos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +9,7 @@ public record ObtenerVehiculosParaSelectorQuery : IRequest<IReadOnlyList<Vehicul
 
 public record VehiculoSelectorDto(Guid Id, string Nombre, string NumeroPlaca);
 
-public class ObtenerVehiculosParaSelectorQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerVehiculosParaSelectorQueryHandler(IVehiculosQueryContext dbContext)
     : IRequestHandler<ObtenerVehiculosParaSelectorQuery, IReadOnlyList<VehiculoSelectorDto>>
 {
     public async Task<IReadOnlyList<VehiculoSelectorDto>> Handle(

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Clientes;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +16,7 @@ public record BuscarClientePorCifQuery(string Cif) : IRequest<ClientePorCifDto?>
 
 public record ClientePorCifDto(Guid Id, string RazonSocial, string Cif);
 
-public class BuscarClientePorCifQueryHandler(IApplicationDbContext dbContext)
+public class BuscarClientePorCifQueryHandler(IClientesQueryContext dbContext)
     : IRequestHandler<BuscarClientePorCifQuery, ClientePorCifDto?>
 {
     public async Task<ClientePorCifDto?> Handle(BuscarClientePorCifQuery request, CancellationToken cancellationToken)

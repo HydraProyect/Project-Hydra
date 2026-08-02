@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Retencion;
 using CaeManager.Domain.Retencion;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -33,7 +34,7 @@ public record SolicitudPurgaDto(
         DateOnly.FromDateTime(DateTime.UtcNow) >= fecha;
 }
 
-public class ObtenerSolicitudesPurgaQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerSolicitudesPurgaQueryHandler(IRetencionQueryContext dbContext)
     : IRequestHandler<ObtenerSolicitudesPurgaQuery, IReadOnlyList<SolicitudPurgaDto>>
 {
     public async Task<IReadOnlyList<SolicitudPurgaDto>> Handle(

@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Retencion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -22,7 +25,7 @@ namespace CaeManager.Application.Retencion;
 /// tiempo transcurrido entre la autorización y la ejecución.
 /// </summary>
 public class EjecucionPurgaService(
-    IApplicationDbContext dbContext,
+    IAsignacionesQueryContext asignacionesContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext,
     ISolicitudPurgaRepository solicitudRepositorio,
     IFileStorageService almacenamiento,
     IUnitOfWork unitOfWork,
@@ -60,7 +63,7 @@ public class EjecucionPurgaService(
     private async Task<int> AnonimizarDocumentosAsync(
         DateOnly fechaCorte, DateTime ahora, CancellationToken cancellationToken)
     {
-        var documentos = await dbContext.Documentos
+        var documentos = await documentosContext.Documentos
             .Where(d => d.AnonimizadoEnUtc == null)
             .Where(d => d.FechaVencimiento != null
                 ? d.FechaVencimiento <= fechaCorte
@@ -97,11 +100,11 @@ public class EjecucionPurgaService(
     private async Task<int> AnonimizarTrabajadoresAsync(
         DateOnly fechaCorte, DateTime ahora, CancellationToken cancellationToken)
     {
-        var trabajadores = await dbContext.Trabajadores
+        var trabajadores = await trabajadoresContext.Trabajadores
             .Where(t => t.AnonimizadoEnUtc == null)
-            .Where(t => dbContext.Asignaciones.Any(a => a.TrabajadorId == t.Id))
-            .Where(t => !dbContext.Asignaciones.Any(a => a.TrabajadorId == t.Id && a.FechaBaja == null))
-            .Where(t => dbContext.Asignaciones
+            .Where(t => asignacionesContext.Asignaciones.Any(a => a.TrabajadorId == t.Id))
+            .Where(t => !asignacionesContext.Asignaciones.Any(a => a.TrabajadorId == t.Id && a.FechaBaja == null))
+            .Where(t => asignacionesContext.Asignaciones
                 .Where(a => a.TrabajadorId == t.Id)
                 .Max(a => a.FechaBaja) <= fechaCorte)
             .ToListAsync(cancellationToken);

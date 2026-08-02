@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +25,7 @@ namespace CaeManager.Web.Services;
 public class TrazaSoporteService(
     IClienteActivoSeleccionado clienteActivoSeleccionado,
     ICurrentUserService currentUserService,
-    IApplicationDbContext dbContext,
+    ITenantsQueryContext dbContext,
     IRegistroActividadSoporteRepository repositorio,
     IUnitOfWork unitOfWork,
     PuertaAccesoDatos puertaAccesoDatos)
