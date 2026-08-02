@@ -72,6 +72,10 @@ El modelo de negocio es la raíz: el ICP nace de él (a quién le sirve ese mode
 
 `MATURITY_REVIEW.md` es un informe de madurez del producto (snapshot fechado, comité de revisión técnica externo al contenido de negocio). Como `DECISION_LOG.md`, no es un documento temático: no define decisiones, las **alimenta** — su ranking de prioridades P0-P3 es insumo para `ROADMAP_BUSINESS.md` y `PRODUCT_STRATEGY.md`, y cualquier decisión que derive de él se registra en `DECISION_LOG.md`. Un informe futuro se añade como snapshot nuevo fechado, no editando el existente.
 
+## Paquete legal público
+
+`docs/business/legal/` contiene el inventario y los borradores del paquete legal público que Hydra necesita para lanzar comercialmente (Aviso Legal, Política de Privacidad, DPA, Términos y Condiciones, y el resto de piezas de `docs/business/legal/LEGAL_FRAMEWORK.md` § 1). Son borradores de trabajo, no texto legal final — ver `docs/business/legal/README.md` para el estado de cada pieza y qué requiere revisión legal antes de poder considerarse cerrada.
+
 ## Reglas de esta carpeta
 
 - Esta carpeta es la fuente oficial de toda decisión comercial. Ningún otro documento del repositorio debe definir pricing, planes, unit economics, ICP, competencia o roadmap comercial — debe referenciar el documento correspondiente aquí.

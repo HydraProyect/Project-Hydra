@@ -44,3 +44,4 @@
 - `RGPD-TRATAMIENTO-DATOS.md` — tratamiento de datos personales, base legal, subencargados.
 - `docs/MULTITENANCY.md` — mecanismo técnico de aislamiento que hace cumplible este compromiso.
 - `ADR-003-saas-multitenant.md` § "Condiciones de salida a producción SaaS" — DPA y Términos de Uso como bloqueantes.
+- `docs/business/legal/` — borradores completos del DPA y los Términos de Uso derivados de este compromiso comercial (`docs/business/legal/LEGAL_FRAMEWORK.md` § 1), pendientes de revisión legal.
