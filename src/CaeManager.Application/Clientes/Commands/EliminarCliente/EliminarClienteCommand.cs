@@ -7,13 +7,13 @@ namespace CaeManager.Application.Clientes.Commands.EliminarCliente;
 
 public record EliminarClienteCommand(Guid Id, Guid UsuarioId) : ICommand;
 
-public class EliminarClienteCommandHandler(IClienteRepository repositorio, IUnitOfWork unitOfWork)
+public class EliminarClienteCommandHandler(IClienteRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarClienteCommand, Result>
 {
     public async Task<Result> Handle(EliminarClienteCommand request, CancellationToken cancellationToken)
     {
         var cliente = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (cliente is null)
+        if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
 
         if (await repositorio.TieneCentrosActivosAsync(request.Id, cancellationToken))

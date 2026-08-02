@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
@@ -18,8 +19,8 @@ public class EliminarTrabajadoresCommandHandlerTests
         var repositorio = new TrabajadorRepositorioFalso();
         repositorio.Agregar(uno);
         repositorio.Agregar(dos);
-        var unitOfWork = new Clientes.UnitOfWorkFalso();
-        var handler = new EliminarTrabajadoresCommandHandler(repositorio, unitOfWork);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new EliminarTrabajadoresCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new EliminarTrabajadoresCommand([uno.Id, dos.Id], Guid.NewGuid()), CancellationToken.None);
 
@@ -36,8 +37,8 @@ public class EliminarTrabajadoresCommandHandlerTests
         var existente = CrearTrabajador("12345678Z");
         var repositorio = new TrabajadorRepositorioFalso();
         repositorio.Agregar(existente);
-        var unitOfWork = new Clientes.UnitOfWorkFalso();
-        var handler = new EliminarTrabajadoresCommandHandler(repositorio, unitOfWork);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new EliminarTrabajadoresCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new EliminarTrabajadoresCommand([existente.Id, Guid.NewGuid()], Guid.NewGuid()), CancellationToken.None);
@@ -45,5 +46,23 @@ public class EliminarTrabajadoresCommandHandlerTests
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(1);
         resultado.Valor.Errores.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task No_elimina_un_trabajador_fuera_de_la_cartera()
+    {
+        var trabajador = CrearTrabajador("12345678Z");
+        var repositorio = new TrabajadorRepositorioFalso();
+        repositorio.Agregar(trabajador);
+        var unitOfWork = new UnitOfWorkFalso();
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: []);
+        var handler = new EliminarTrabajadoresCommandHandler(repositorio, alcance, unitOfWork);
+
+        var resultado = await handler.Handle(new EliminarTrabajadoresCommand([trabajador.Id], Guid.NewGuid()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Eliminados.Should().Be(0);
+        resultado.Valor.Errores.Should().ContainSingle();
+        trabajador.EstaEliminado.Should().BeFalse();
     }
 }
