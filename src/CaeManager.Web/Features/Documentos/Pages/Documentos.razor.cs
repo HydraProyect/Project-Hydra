@@ -370,6 +370,20 @@ public partial class Documentos : ComponentBase
                 contenidos.Add((memoria.ToArray(), archivo.Name));
             }
 
+            // La comprobación de arriba solo mira el nombre — un archivo
+            // renombrado a mano pasaría ese filtro. Esta mira los primeros
+            // bytes del contenido real antes de convertirlo o guardarlo.
+            foreach (var (contenido, nombreArchivo) in contenidos)
+            {
+                if (!ValidadorFirmaArchivo.TieneFirmaValida(contenido, nombreArchivo))
+                {
+                    ToastService.Mostrar(
+                        $"\"{nombreArchivo}\" no es realmente un PDF, JPG, PNG ni Word (.docx) — su contenido no coincide con la extensión.",
+                        TonoToast.Error);
+                    return;
+                }
+            }
+
             var pdfUnificado = await ConversorArchivosPdf.UnificarAsync(contenidos, ConversorWordPdf);
 
             using var flujoPdf = new MemoryStream(pdfUnificado);
