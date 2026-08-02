@@ -108,6 +108,13 @@
             return;
         }
 
+        // Ver ManejarBlurAsync: Cancel() y el propio vencimiento del delay
+        // pueden solaparse — el temporizador puede completar sin lanzar
+        // justo cuando el blur ya está cancelando, y sin esto los dos
+        // notificarían el mismo valor (bug real, visto en CI: ValorChanged
+        // invocado dos veces con el mismo valor tras perder el foco).
+        if (cts.Token.IsCancellationRequested) return;
+
         _ultimoValorNotificado = _ultimoValor;
         await ValorChanged.InvokeAsync(_ultimoValor);
     }
