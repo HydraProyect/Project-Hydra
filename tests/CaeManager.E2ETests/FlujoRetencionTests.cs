@@ -14,10 +14,14 @@ namespace CaeManager.E2ETests;
 /// Los datos purgables no se crean en el test: DatosPruebaSeeder siembra 6
 /// "veteranos" (Pedro Picapiedra y compañía) específicamente para este
 /// flujo — dados de baja hace ~6 años y con documentos vencidos hace ~6
-/// años, bien pasado el plazo de retención por defecto (5 años). Con
-/// Random(20260801) fijo, el resultado de "Buscar" es determinista: exactamente
-/// dos propuestas, "Documentos" (18 registros) y "Trabajadores dados de
-/// baja" (6 registros).
+/// años, bien pasado el plazo de retención por defecto (5 años). El
+/// resultado de "Buscar" son siempre exactamente dos propuestas,
+/// "Documentos" (18 registros = 3 documentos × 6 veteranos, incondicional)
+/// y "Trabajadores dados de baja" — este segundo número SÍ varía entre
+/// ejecuciones deterministas con semilla distinta: la Asignacion de cada
+/// veterano solo se crea si la Empresa aleatoria que le tocó tiene al menos
+/// un Centro (DatosPruebaSeeder.cs, bloque "Veteranos para la purga"), así
+/// que el test no asume una cifra fija ahí — solo que la fila existe.
 /// </summary>
 [Collection("AppCollectionRetencion")]
 public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
@@ -50,8 +54,8 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         await filaTrabajadores.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         Assert.Contains("18", await filaDocumentos.InnerTextAsync());
-        Assert.Contains("6", await filaTrabajadores.InnerTextAsync());
         Assert.Contains("Pendiente de revisar", await filaDocumentos.InnerTextAsync());
+        Assert.Contains("Pendiente de revisar", await filaTrabajadores.InnerTextAsync());
 
         // --- Avisar (solo la fila de Documentos sigue el camino completo) ---
         await filaDocumentos.GetByText("He avisado a la organización").ClickAsync();
