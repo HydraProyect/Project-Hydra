@@ -71,11 +71,24 @@ public class WebAppFixture : IAsyncLifetime
         _proceso = Process.Start(infoInicio)
             ?? throw new InvalidOperationException("No se pudo arrancar el proceso de CaeManager.Web.");
 
-        // No dejamos que los buffers de stdout/stderr se llenen y bloqueen al
-        // proceso hijo — se descartan, pero si arrancar falla el mensaje de
-        // EsperarArranqueAsync (timeout) sigue siendo diagnosticable desde ahí.
+        // stderr se reenvía (prefijado con el puerto, para distinguir las 4
+        // fixtures que pueden estar corriendo en la misma suite) en vez de
+        // descartarse: una excepción no controlada mientras la app ya está
+        // arrancada y sirviendo peticiones no dejaba ningún rastro en el log
+        // de CI — un test E2E que falla por timeout esperando contenido daba
+        // exactamente el mismo síntoma tanto si la página tardaba de más
+        // como si el servidor había reventado al renderizarla, y no había
+        // forma de distinguirlos. stdout sigue descartado a propósito: es
+        // ruido de logging normal (Information/Debug) que no ayuda a
+        // diagnosticar un fallo — leer los buffers con BeginOutputReadLine
+        // ya evita que se llenen y bloqueen al proceso hijo, se escriba o no
+        // lo que traen.
         _proceso.OutputDataReceived += (_, _) => { };
-        _proceso.ErrorDataReceived += (_, _) => { };
+        _proceso.ErrorDataReceived += (_, e) =>
+        {
+            if (!string.IsNullOrEmpty(e.Data))
+                Console.Error.WriteLine($"[CaeManager.Web:{puerto}] {e.Data}");
+        };
         _proceso.BeginOutputReadLine();
         _proceso.BeginErrorReadLine();
 
