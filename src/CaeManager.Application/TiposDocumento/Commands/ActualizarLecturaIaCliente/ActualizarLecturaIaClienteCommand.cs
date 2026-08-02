@@ -1,3 +1,4 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -10,7 +11,7 @@ namespace CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaClie
 public record ActualizarLecturaIaClienteCommand(Guid ClienteId, Guid TipoDocumentoId, bool Activa) : ICommand;
 
 public class ActualizarLecturaIaClienteCommandHandler(
-    IConfiguracionIaDocumentoClienteRepository repositorio, IApplicationDbContext dbContext,
+    IConfiguracionIaDocumentoClienteRepository repositorio, IClientesQueryContext clientesContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     IUnitOfWork unitOfWork, IAlcanceDatosService alcanceDatosService)
     : IRequestHandler<ActualizarLecturaIaClienteCommand, Result>
 {
@@ -22,14 +23,14 @@ public class ActualizarLecturaIaClienteCommandHandler(
             if (clienteIdsVisibles is null || !clienteIdsVisibles.Contains(request.ClienteId))
                 return Result.Fallo(Error.Crear("LecturaIa.SinAcceso", "No tienes acceso a este cliente."));
         }
-        else if (!await dbContext.Clientes.AnyAsync(c => c.Id == request.ClienteId, cancellationToken))
+        else if (!await clientesContext.Clientes.AnyAsync(c => c.Id == request.ClienteId, cancellationToken))
         {
             // Con acceso total (Administrador) el chequeo de arriba no corre —
             // verificación de Ids ajenos, ver P0-1 de docs/business/MATURITY_REVIEW.md.
             return Result.Fallo(Error.Crear("LecturaIa.ClienteNoEncontrado", "No encontramos este cliente."));
         }
 
-        if (!await dbContext.TiposDocumento.AnyAsync(t => t.Id == request.TipoDocumentoId, cancellationToken))
+        if (!await tiposDocumentoContext.TiposDocumento.AnyAsync(t => t.Id == request.TipoDocumentoId, cancellationToken))
             return Result.Fallo(Error.Crear("LecturaIa.TipoDocumentoNoEncontrado", "No encontramos este tipo de documento."));
 
         var existente = await repositorio.ObtenerAsync(request.ClienteId, request.TipoDocumentoId, cancellationToken);

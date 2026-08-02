@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Auditoria;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -28,7 +29,7 @@ public record RegistroAuditoriaDto(
     string? DatosAntes,
     string? DatosDespues);
 
-public class ObtenerAuditoriaQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerAuditoriaQueryHandler(IAuditoriaQueryContext dbContext)
     : IRequestHandler<ObtenerAuditoriaQuery, ResultadoPaginado<RegistroAuditoriaDto>>
 {
     public async Task<ResultadoPaginado<RegistroAuditoriaDto>> Handle(ObtenerAuditoriaQuery request, CancellationToken cancellationToken)

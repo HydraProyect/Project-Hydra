@@ -153,6 +153,12 @@
     transition: background-color var(--transition-fast);
 }
 
+/* Fila con foco de teclado (atajos j/k, P3-31) */
+.fila-enfocada td {
+    background-color: var(--color-primary-50);
+    box-shadow: inset 2px 0 0 var(--color-primary-400);
+}
+
 .celda-acciones-revision {
     display: flex;
     flex-direction: column;

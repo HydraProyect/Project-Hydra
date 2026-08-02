@@ -1,6 +1,12 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Verificacion;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Proyectos;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Trabajadores.Deteccion;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Vehiculos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
@@ -44,13 +50,21 @@ public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCo
 }
 
 public class CrearDocumentoCommandHandler(
-    IDocumentoRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork,
-    ITrabajoAnalisisDocumentoRepository colaAnalisis, ICurrentUserService currentUserService)
+    IDocumentoRepository repositorio,
+    ITiposDocumentoQueryContext tiposDocumentoContext,
+    ITrabajadoresQueryContext trabajadoresContext,
+    IClientesQueryContext clientesContext,
+    IVehiculosQueryContext vehiculosContext,
+    IProyectosQueryContext proyectosContext,
+    IEmpresasQueryContext empresasContext,
+    IUnitOfWork unitOfWork,
+    ITrabajoAnalisisDocumentoRepository colaAnalisis,
+    ICurrentUserService currentUserService)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDocumentoCommand request, CancellationToken cancellationToken)
     {
-        var tipoDocumento = await dbContext.TiposDocumento
+        var tipoDocumento = await tiposDocumentoContext.TiposDocumento
             .FirstOrDefaultAsync(t => t.Id == request.TipoDocumentoId, cancellationToken);
 
         if (tipoDocumento is null)
@@ -73,11 +87,11 @@ public class CrearDocumentoCommandHandler(
         // handler. El filtro global de EF ya deja "no encontrado" un Id ajeno.
         var propietarioEncontrado = ambitoSolicitado switch
         {
-            AmbitoAplicacion.Trabajador => await dbContext.Trabajadores.AnyAsync(t => t.Id == request.TrabajadorId, cancellationToken),
-            AmbitoAplicacion.Cliente => await dbContext.Clientes.AnyAsync(c => c.Id == request.ClienteId, cancellationToken),
-            AmbitoAplicacion.Vehiculo => await dbContext.Vehiculos.AnyAsync(v => v.Id == request.VehiculoId, cancellationToken),
-            AmbitoAplicacion.Proyecto => await dbContext.Proyectos.AnyAsync(p => p.Id == request.ProyectoId, cancellationToken),
-            _ => await dbContext.Empresas.AnyAsync(e => e.Id == request.EmpresaId, cancellationToken)
+            AmbitoAplicacion.Trabajador => await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == request.TrabajadorId, cancellationToken),
+            AmbitoAplicacion.Cliente => await clientesContext.Clientes.AnyAsync(c => c.Id == request.ClienteId, cancellationToken),
+            AmbitoAplicacion.Vehiculo => await vehiculosContext.Vehiculos.AnyAsync(v => v.Id == request.VehiculoId, cancellationToken),
+            AmbitoAplicacion.Proyecto => await proyectosContext.Proyectos.AnyAsync(p => p.Id == request.ProyectoId, cancellationToken),
+            _ => await empresasContext.Empresas.AnyAsync(e => e.Id == request.EmpresaId, cancellationToken)
         };
 
         if (!propietarioEncontrado)

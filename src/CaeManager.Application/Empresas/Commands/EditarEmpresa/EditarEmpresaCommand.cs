@@ -1,3 +1,4 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
@@ -35,7 +36,7 @@ public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaComm
 
 public class EditarEmpresaCommandHandler(
     IEmpresaRepository repositorio, IEmpresaClienteRepository empresaClienteRepositorio,
-    IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
+    IClientesQueryContext clientesContext, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarEmpresaCommand, Result>
 {
     public async Task<Result> Handle(EditarEmpresaCommand request, CancellationToken cancellationToken)
@@ -63,7 +64,7 @@ public class EditarEmpresaCommandHandler(
         // Solo hace falta verificar las vinculaciones NUEVAS: las que ya
         // estaban antes ya pasaron por esta comprobación cuando se crearon.
         var clienteIdsNuevos = deseados.Except(actualesClienteIds).ToList();
-        var clientesNuevosEncontrados = await dbContext.Clientes
+        var clientesNuevosEncontrados = await clientesContext.Clientes
             .Where(c => clienteIdsNuevos.Contains(c.Id))
             .CountAsync(cancellationToken);
 

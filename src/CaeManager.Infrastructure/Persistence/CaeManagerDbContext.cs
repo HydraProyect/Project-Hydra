@@ -1,6 +1,31 @@
 using System.Reflection;
+using CaeManager.Application.ApiKeys;
+using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Auditoria;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.DocumentosIa;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Evaluaciones;
+using CaeManager.Application.Facturacion;
+using CaeManager.Application.Incidencias;
+using CaeManager.Application.Integraciones;
+using CaeManager.Application.Notificaciones;
+using CaeManager.Application.Proyectos;
+using CaeManager.Application.RequisitosDocumentales;
+using CaeManager.Application.Retencion;
+using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Tenants;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Vehiculos;
+using CaeManager.Application.Visitas;
 using CaeManager.Domain.Alertas;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Auditoria;
@@ -14,6 +39,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Incidencias;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.RequisitosDocumentales;
@@ -36,7 +62,13 @@ public class CaeManagerDbContext(
     DbContextOptions<CaeManagerDbContext> options,
     IDataProtectionProvider dataProtectionProvider,
     ITenantActual tenantActual)
-    : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options), IApplicationDbContext, IUnitOfWork
+    : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options), IUnitOfWork,
+        IClientesQueryContext, IEmpresasQueryContext, ISubcontratasQueryContext, ICentrosQueryContext,
+        ITrabajadoresQueryContext, ITiposDocumentoQueryContext, IDocumentosQueryContext, IDocumentosIaQueryContext,
+        INotificacionesQueryContext, IAsignacionesQueryContext, IVisitasQueryContext, IVehiculosQueryContext,
+        IConfiguracionQueryContext, IAuditoriaQueryContext, IRequisitosDocumentalesQueryContext, ITenantsQueryContext,
+        IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext, IEvaluacionesQueryContext,
+        IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -44,6 +76,8 @@ public class CaeManagerDbContext(
         dataProtectionProvider.CreateProtector("CaeManager.CredencialAccesoEmpresa.Credenciales.v1");
     private readonly IDataProtector _protectorCredencialesSubcontrata =
         dataProtectionProvider.CreateProtector("CaeManager.CredencialAccesoSubcontrata.Credenciales.v1");
+    private readonly IDataProtector _protectorCredencialesIntegracion =
+        dataProtectionProvider.CreateProtector("CaeManager.CredencialIntegracion.Credenciales.v1");
 
     // Cacheados una vez por tipo: MakeGenericMethod en cada entidad del
     // bucle de OnModelCreating es barato, pero GetMethod (búsqueda por
@@ -64,95 +98,103 @@ public class CaeManagerDbContext(
         builder.Entity<TEntidad>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
 
     public DbSet<Cliente> Clientes => Set<Cliente>();
+    IQueryable<Cliente> IClientesQueryContext.Clientes => Clientes;
     public DbSet<Centro> Centros => Set<Centro>();
+    IQueryable<Centro> ICentrosQueryContext.Centros => Centros;
     public DbSet<CanalGestionDocumental> CanalesGestionDocumental => Set<CanalGestionDocumental>();
-    IQueryable<CanalGestionDocumental> IApplicationDbContext.CanalesGestionDocumental => CanalesGestionDocumental;
+    IQueryable<CanalGestionDocumental> ICentrosQueryContext.CanalesGestionDocumental => CanalesGestionDocumental;
     public DbSet<Empresa> Empresas => Set<Empresa>();
+    IQueryable<Empresa> IEmpresasQueryContext.Empresas => Empresas;
     public DbSet<EmpresaCliente> EmpresasClientes => Set<EmpresaCliente>();
+    IQueryable<EmpresaCliente> IEmpresasQueryContext.EmpresasClientes => EmpresasClientes;
     public DbSet<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Set<CredencialAccesoEmpresa>();
+    IQueryable<CredencialAccesoEmpresa> IEmpresasQueryContext.CredencialesAccesoEmpresa => CredencialesAccesoEmpresa;
     public DbSet<Subcontrata> Subcontratas => Set<Subcontrata>();
+    IQueryable<Subcontrata> ISubcontratasQueryContext.Subcontratas => Subcontratas;
     public DbSet<SubcontrataCliente> SubcontratasClientes => Set<SubcontrataCliente>();
+    IQueryable<SubcontrataCliente> ISubcontratasQueryContext.SubcontratasClientes => SubcontratasClientes;
     public DbSet<SubcontrataEmpresa> SubcontratasEmpresas => Set<SubcontrataEmpresa>();
+    IQueryable<SubcontrataEmpresa> ISubcontratasQueryContext.SubcontratasEmpresas => SubcontratasEmpresas;
     public DbSet<CredencialAccesoSubcontrata> CredencialesAccesoSubcontrata => Set<CredencialAccesoSubcontrata>();
+    IQueryable<CredencialAccesoSubcontrata> ISubcontratasQueryContext.CredencialesAccesoSubcontrata => CredencialesAccesoSubcontrata;
     public DbSet<Trabajador> Trabajadores => Set<Trabajador>();
+    IQueryable<Trabajador> ITrabajadoresQueryContext.Trabajadores => Trabajadores;
     public DbSet<DeteccionTrabajador> DeteccionesTrabajador => Set<DeteccionTrabajador>();
+    IQueryable<DeteccionTrabajador> ITrabajadoresQueryContext.DeteccionesTrabajador => DeteccionesTrabajador;
     public DbSet<TipoDocumento> TiposDocumento => Set<TipoDocumento>();
+    IQueryable<TipoDocumento> ITiposDocumentoQueryContext.TiposDocumento => TiposDocumento;
     public DbSet<TipoDocumentoCentro> TiposDocumentoCentros => Set<TipoDocumentoCentro>();
+    IQueryable<TipoDocumentoCentro> ITiposDocumentoQueryContext.TiposDocumentoCentros => TiposDocumentoCentros;
     public DbSet<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente => Set<ConfiguracionIaDocumentoCliente>();
+    IQueryable<ConfiguracionIaDocumentoCliente> ITiposDocumentoQueryContext.ConfiguracionesIaDocumentoCliente => ConfiguracionesIaDocumentoCliente;
     public DbSet<RevisionIaDocumento> RevisionesIaDocumento => Set<RevisionIaDocumento>();
+    IQueryable<RevisionIaDocumento> IDocumentosQueryContext.RevisionesIaDocumento => RevisionesIaDocumento;
     public DbSet<AprobacionDocumento> AprobacionesDocumento => Set<AprobacionDocumento>();
+    IQueryable<AprobacionDocumento> IDocumentosQueryContext.AprobacionesDocumento => AprobacionesDocumento;
     public DbSet<ExtraccionIaCache> ExtraccionesIaCache => Set<ExtraccionIaCache>();
+    IQueryable<ExtraccionIaCache> IDocumentosIaQueryContext.ExtraccionesIaCache => ExtraccionesIaCache;
     public DbSet<AuditoriaExtraccionIa> AuditoriasExtraccionIa => Set<AuditoriaExtraccionIa>();
+    IQueryable<AuditoriaExtraccionIa> IDocumentosIaQueryContext.AuditoriasExtraccionIa => AuditoriasExtraccionIa;
     public DbSet<TrabajoAnalisisDocumento> TrabajosAnalisisDocumento => Set<TrabajoAnalisisDocumento>();
     public DbSet<NotificacionUsuario> NotificacionesUsuario => Set<NotificacionUsuario>();
+    IQueryable<NotificacionUsuario> INotificacionesQueryContext.NotificacionesUsuario => NotificacionesUsuario;
     public DbSet<Documento> Documentos => Set<Documento>();
+    IQueryable<Documento> IDocumentosQueryContext.Documentos => Documentos;
     public DbSet<Asignacion> Asignaciones => Set<Asignacion>();
+    IQueryable<Asignacion> IAsignacionesQueryContext.Asignaciones => Asignaciones;
     public DbSet<Visita> Visitas => Set<Visita>();
+    IQueryable<Visita> IVisitasQueryContext.Visitas => Visitas;
     public DbSet<VisitaTrabajador> VisitasTrabajadores => Set<VisitaTrabajador>();
+    IQueryable<VisitaTrabajador> IVisitasQueryContext.VisitasTrabajadores => VisitasTrabajadores;
     public DbSet<Vehiculo> Vehiculos => Set<Vehiculo>();
+    IQueryable<Vehiculo> IVehiculosQueryContext.Vehiculos => Vehiculos;
     public DbSet<RequisitoDocumental> RequisitosDocumentales => Set<RequisitoDocumental>();
-    IQueryable<RequisitoDocumental> IApplicationDbContext.RequisitosDocumentales => RequisitosDocumentales;
+    IQueryable<RequisitoDocumental> IRequisitosDocumentalesQueryContext.RequisitosDocumentales => RequisitosDocumentales;
     public DbSet<Alerta> Alertas => Set<Alerta>();
     public DbSet<ParametroSistema> ParametrosSistema => Set<ParametroSistema>();
+    IQueryable<ParametroSistema> IConfiguracionQueryContext.ParametrosSistema => ParametrosSistema;
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
+    IQueryable<RegistroAuditoria> IAuditoriaQueryContext.RegistrosAuditoria => RegistrosAuditoria;
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    IQueryable<Tenant> ITenantsQueryContext.Tenants => Tenants;
     public DbSet<TarifaCliente> TarifasCliente => Set<TarifaCliente>();
+    IQueryable<TarifaCliente> IFacturacionQueryContext.TarifasCliente => TarifasCliente;
     public DbSet<Proyecto> Proyectos => Set<Proyecto>();
+    IQueryable<Proyecto> IProyectosQueryContext.Proyectos => Proyectos;
     public DbSet<ProyectoTecnico> ProyectosTecnicos => Set<ProyectoTecnico>();
+    IQueryable<ProyectoTecnico> IProyectosQueryContext.ProyectosTecnicos => ProyectosTecnicos;
     public DbSet<DelegacionTenant> DelegacionesTenant => Set<DelegacionTenant>();
+    IQueryable<DelegacionTenant> ITenantsQueryContext.DelegacionesTenant => DelegacionesTenant;
     public DbSet<CaeManager.Domain.Soporte.RegistroActividadSoporte> RegistrosActividadSoporte => Set<CaeManager.Domain.Soporte.RegistroActividadSoporte>();
+    IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> ITenantsQueryContext.RegistrosActividadSoporte => RegistrosActividadSoporte;
     public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
+    IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
     public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();
+    IQueryable<AsignacionOperadorDelegado> ITenantsQueryContext.AsignacionesOperadorDelegado => AsignacionesOperadorDelegado;
     public DbSet<Evaluacion> Evaluaciones => Set<Evaluacion>();
+    IQueryable<Evaluacion> IEvaluacionesQueryContext.Evaluaciones => Evaluaciones;
     public DbSet<Incidencia> Incidencias => Set<Incidencia>();
+    IQueryable<Incidencia> IIncidenciasQueryContext.Incidencias => Incidencias;
     public DbSet<ConversacionCorreo> ConversacionesCorreo => Set<ConversacionCorreo>();
+    IQueryable<ConversacionCorreo> IComunicacionesQueryContext.ConversacionesCorreo => ConversacionesCorreo;
     public DbSet<MensajeCorreo> MensajesCorreo => Set<MensajeCorreo>();
+    IQueryable<MensajeCorreo> IComunicacionesQueryContext.MensajesCorreo => MensajesCorreo;
     public DbSet<ParticipanteConversacion> ParticipantesConversacion => Set<ParticipanteConversacion>();
+    IQueryable<ParticipanteConversacion> IComunicacionesQueryContext.ParticipantesConversacion => ParticipantesConversacion;
     public DbSet<MacroRespuesta> MacrosRespuesta => Set<MacroRespuesta>();
+    IQueryable<MacroRespuesta> IComunicacionesQueryContext.MacrosRespuesta => MacrosRespuesta;
+    public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();
+    IQueryable<ClaveApi> IApiKeysQueryContext.ClavesApi => ClavesApi;
     public DbSet<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario => Set<PreferenciaDashboardUsuario>();
+    IQueryable<PreferenciaDashboardUsuario> IConfiguracionQueryContext.PreferenciasDashboardUsuario => PreferenciasDashboardUsuario;
+    public DbSet<FiltroGuardado> FiltrosGuardados => Set<FiltroGuardado>();
+    IQueryable<FiltroGuardado> IConfiguracionQueryContext.FiltrosGuardados => FiltrosGuardados;
+    public DbSet<ConexionIntegracion> ConexionesIntegracion => Set<ConexionIntegracion>();
+    IQueryable<ConexionIntegracion> IIntegracionesQueryContext.ConexionesIntegracion => ConexionesIntegracion;
+    public DbSet<CredencialIntegracion> CredencialesIntegracion => Set<CredencialIntegracion>();
+    public DbSet<SuscripcionWebhook> SuscripcionesWebhook => Set<SuscripcionWebhook>();
+    public DbSet<EventoWebhook> EventosWebhook => Set<EventoWebhook>();
 
-    IQueryable<Cliente> IApplicationDbContext.Clientes => Clientes;
-    IQueryable<Empresa> IApplicationDbContext.Empresas => Empresas;
-    IQueryable<EmpresaCliente> IApplicationDbContext.EmpresasClientes => EmpresasClientes;
-    IQueryable<CredencialAccesoEmpresa> IApplicationDbContext.CredencialesAccesoEmpresa => CredencialesAccesoEmpresa;
-    IQueryable<Subcontrata> IApplicationDbContext.Subcontratas => Subcontratas;
-    IQueryable<SubcontrataCliente> IApplicationDbContext.SubcontratasClientes => SubcontratasClientes;
-    IQueryable<SubcontrataEmpresa> IApplicationDbContext.SubcontratasEmpresas => SubcontratasEmpresas;
-    IQueryable<CredencialAccesoSubcontrata> IApplicationDbContext.CredencialesAccesoSubcontrata => CredencialesAccesoSubcontrata;
-    IQueryable<Centro> IApplicationDbContext.Centros => Centros;
-    IQueryable<Trabajador> IApplicationDbContext.Trabajadores => Trabajadores;
-    IQueryable<DeteccionTrabajador> IApplicationDbContext.DeteccionesTrabajador => DeteccionesTrabajador;
-    IQueryable<TipoDocumento> IApplicationDbContext.TiposDocumento => TiposDocumento;
-    IQueryable<TipoDocumentoCentro> IApplicationDbContext.TiposDocumentoCentros => TiposDocumentoCentros;
-    IQueryable<ConfiguracionIaDocumentoCliente> IApplicationDbContext.ConfiguracionesIaDocumentoCliente => ConfiguracionesIaDocumentoCliente;
-    IQueryable<RevisionIaDocumento> IApplicationDbContext.RevisionesIaDocumento => RevisionesIaDocumento;
-    IQueryable<AprobacionDocumento> IApplicationDbContext.AprobacionesDocumento => AprobacionesDocumento;
-    IQueryable<ExtraccionIaCache> IApplicationDbContext.ExtraccionesIaCache => ExtraccionesIaCache;
-    IQueryable<AuditoriaExtraccionIa> IApplicationDbContext.AuditoriasExtraccionIa => AuditoriasExtraccionIa;
-    IQueryable<TrabajoAnalisisDocumento> IApplicationDbContext.TrabajosAnalisisDocumento => TrabajosAnalisisDocumento;
-    IQueryable<NotificacionUsuario> IApplicationDbContext.NotificacionesUsuario => NotificacionesUsuario;
-    IQueryable<Documento> IApplicationDbContext.Documentos => Documentos;
-    IQueryable<Asignacion> IApplicationDbContext.Asignaciones => Asignaciones;
-    IQueryable<Visita> IApplicationDbContext.Visitas => Visitas;
-    IQueryable<VisitaTrabajador> IApplicationDbContext.VisitasTrabajadores => VisitasTrabajadores;
-    IQueryable<Vehiculo> IApplicationDbContext.Vehiculos => Vehiculos;
-    IQueryable<ParametroSistema> IApplicationDbContext.ParametrosSistema => ParametrosSistema;
-    IQueryable<RegistroAuditoria> IApplicationDbContext.RegistrosAuditoria => RegistrosAuditoria;
-    IQueryable<Tenant> IApplicationDbContext.Tenants => Tenants;
-    IQueryable<TarifaCliente> IApplicationDbContext.TarifasCliente => TarifasCliente;
-    IQueryable<Proyecto> IApplicationDbContext.Proyectos => Proyectos;
-    IQueryable<ProyectoTecnico> IApplicationDbContext.ProyectosTecnicos => ProyectosTecnicos;
-    IQueryable<DelegacionTenant> IApplicationDbContext.DelegacionesTenant => DelegacionesTenant;
-    IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> IApplicationDbContext.RegistrosActividadSoporte => RegistrosActividadSoporte;
-    IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IApplicationDbContext.SolicitudesPurga => SolicitudesPurga;
-    IQueryable<AsignacionOperadorDelegado> IApplicationDbContext.AsignacionesOperadorDelegado => AsignacionesOperadorDelegado;
-    IQueryable<Evaluacion> IApplicationDbContext.Evaluaciones => Evaluaciones;
-    IQueryable<Incidencia> IApplicationDbContext.Incidencias => Incidencias;
-    IQueryable<ConversacionCorreo> IApplicationDbContext.ConversacionesCorreo => ConversacionesCorreo;
-    IQueryable<MensajeCorreo> IApplicationDbContext.MensajesCorreo => MensajesCorreo;
-    IQueryable<ParticipanteConversacion> IApplicationDbContext.ParticipantesConversacion => ParticipantesConversacion;
-    IQueryable<MacroRespuesta> IApplicationDbContext.MacrosRespuesta => MacrosRespuesta;
-    IQueryable<PreferenciaDashboardUsuario> IApplicationDbContext.PreferenciasDashboardUsuario => PreferenciasDashboardUsuario;
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -181,6 +223,16 @@ public class CaeManagerDbContext(
 
         builder.Entity<CredencialAccesoSubcontrata>().Property(c => c.Usuario).HasConversion(conversorCredencialesSubcontrata);
         builder.Entity<CredencialAccesoSubcontrata>().Property(c => c.Contrasena).HasConversion(conversorCredencialesSubcontrata);
+
+        // Un mismo protector para las dos: RefreshToken y ClientState viven
+        // bajo el mismo agregado (ConexionIntegracion) — mismo criterio que
+        // PlataformaAcceso, compartido entre varias entidades relacionadas.
+        var conversorCredencialesIntegracion = new ValueConverter<string, string>(
+            valorPlano => _protectorCredencialesIntegracion.Protect(valorPlano),
+            valorCifrado => _protectorCredencialesIntegracion.Unprotect(valorCifrado));
+
+        builder.Entity<CredencialIntegracion>().Property(c => c.RefreshToken).HasConversion(conversorCredencialesIntegracion);
+        builder.Entity<SuscripcionWebhook>().Property(s => s.ClientState).HasConversion(conversorCredencialesIntegracion);
 
         builder.Entity<IdentityRole<Guid>>().HasData(IdentityRoleSeedData.Filas());
 

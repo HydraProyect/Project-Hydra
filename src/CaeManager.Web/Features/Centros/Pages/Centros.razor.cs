@@ -61,12 +61,23 @@ public partial class Centros : ComponentBase
     [Inject] private IValidator<CrearCentroCommand> ValidadorCrear { get; set; } = default!;
     [Inject] private IValidator<EditarCentroCommand> ValidadorEditar { get; set; } = default!;
 
+    /// <summary>Comando del palette "Crear centro «nombre»" (P3-31): abre el Drawer con el nombre precargado.</summary>
+    [SupplyParameterFromQuery] public string? Accion { get; set; }
+    [SupplyParameterFromQuery] public string? Nombre { get; set; }
+
     private GridItemsProvider<CentroListaDto>? _proveedorElementos;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
+
+        if (Accion == "crear")
+        {
+            await AbrirCrearAsync();
+            if (!string.IsNullOrWhiteSpace(Nombre))
+                _nombre = Nombre;
+        }
     }
 
     /// <summary>

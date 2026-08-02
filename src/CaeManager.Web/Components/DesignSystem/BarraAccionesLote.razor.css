@@ -1,0 +1,21 @@
+.barra-acciones-lote {
+    position: fixed;
+    left: 50%;
+    bottom: var(--space-5);
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    background-color: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-overlay);
+    border: var(--border-default);
+    padding: var(--space-3) var(--space-4);
+    z-index: 1040;
+}
+
+.barra-acciones-lote-cantidad {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}

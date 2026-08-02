@@ -1,0 +1,23 @@
+@* Barra flotante de acciones en lote (P3-31) — aparece al seleccionar filas
+   en una tabla. No dispara el Command ella misma: cada página sigue usando
+   su propio DialogoConfirmacion antes de llamar al Command en lote, mismo
+   patrón de confirmación que el borrado individual. *@
+@if (Cantidad > 0)
+{
+    <div class="barra-acciones-lote" role="toolbar">
+        <span class="barra-acciones-lote-cantidad">@Cantidad seleccionado@(Cantidad == 1 ? "" : "s")</span>
+        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="Eliminando" OnClick="OnLimpiar">
+            Cancelar
+        </Boton>
+        <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno" Cargando="Eliminando" OnClick="OnEliminar">
+            Eliminar seleccionados
+        </Boton>
+    </div>
+}
+
+@code {
+    [Parameter] public int Cantidad { get; set; }
+    [Parameter] public bool Eliminando { get; set; }
+    [Parameter] public EventCallback OnLimpiar { get; set; }
+    [Parameter] public EventCallback OnEliminar { get; set; }
+}

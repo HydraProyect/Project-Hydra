@@ -56,7 +56,22 @@
             <option value="@nameof(EstadoDocumento.Vigente)">Vigente</option>
             <option value="@nameof(EstadoDocumento.NoAplica)">No aplica</option>
         </CampoSelect>
+        @if (_filtrosGuardados.Count > 0)
+        {
+            <CampoSelect Etiqueta="" Valor="" ValorChanged="AplicarFiltroGuardadoAsync">
+                <option value="">Filtros guardados…</option>
+                @foreach (var filtro in _filtrosGuardados)
+                {
+                    <option value="@filtro.Id">@filtro.Nombre</option>
+                }
+            </CampoSelect>
+        }
+        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
+            Guardar filtro
+        </Boton>
     </div>
+
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
     @if (_errorCarga)
     {
@@ -69,7 +84,15 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
+            <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                <TemplateColumn Title="" Align="Align.Center">
+                    <HeaderTemplate Context="columna">
+                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                    </ChildContent>
+                </TemplateColumn>
                 <PropertyColumn Property="@(d => d.PropietarioNombre)" Title="Propietario" Sortable="true" />
                 <TemplateColumn Title="Ámbito">
                     <Badge>@context.Ambito</Badge>
@@ -300,3 +323,24 @@
     TextoBotonConfirmar="Continuar de todas formas"
     EnProgreso="_procesandoConfirmacionVigencia"
     OnConfirmar="ConfirmarGuardarConVigenciaAnteriorAsync" />
+
+<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarLoteVisible"
+    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
+    Titulo="@($"¿Eliminar {_seleccionados.Count} documento(s)?")"
+    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría."
+    EnProgreso="_eliminandoLote"
+    OnConfirmar="ConfirmarEliminarLoteAsync" />
+
+<Modal Visible="_mostrarGuardarFiltro" VisibleChanged="v => _mostrarGuardarFiltro = v" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
+    <ChildContent>
+        <CampoTexto Etiqueta="Nombre" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="Vencidos de trabajadores" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => _mostrarGuardarFiltro = false">Cancelar</Boton>
+        <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
+    </Pie>
+</Modal>
