@@ -1,4 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -25,21 +29,21 @@ public record AlertaDto(
     EstadoDocumento Estado,
     string? ArchivoUrl);
 
-public class ObtenerAlertasQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerAlertasQueryHandler(IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerAlertasQuery, IReadOnlyList<AlertaDto>>
 {
     public async Task<IReadOnlyList<AlertaDto>> Handle(ObtenerAlertasQuery request, CancellationToken cancellationToken)
     {
-        var parametros = await dbContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
         var filas = await (
-            from documento in dbContext.Documentos
+            from documento in documentosContext.Documentos
             where documento.TrabajadorId != null
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
-            join trabajador in dbContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             where documento.FechaVencimiento != null
             select new
             {

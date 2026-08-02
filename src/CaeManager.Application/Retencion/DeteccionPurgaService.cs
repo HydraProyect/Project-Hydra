@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Retencion;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +24,7 @@ namespace CaeManager.Application.Retencion;
 /// explícito por tenant (docs/MULTITENANCY.md § 8.4).
 /// </summary>
 public class DeteccionPurgaService(
-    IApplicationDbContext dbContext,
+    IAsignacionesQueryContext asignacionesContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext,
     ISolicitudPurgaRepository solicitudRepositorio,
     IOptions<RetencionDatosOptions> opciones,
     IUnitOfWork unitOfWork)
@@ -62,7 +65,7 @@ public class DeteccionPurgaService(
         // AnonimizadoEnUtc y no EstaAnonimizado: la segunda es calculada y EF
         // no la traduce a SQL, así que filtrar por ella traería el histórico
         // entero a memoria.
-        var candidatos = await dbContext.Documentos
+        var candidatos = await documentosContext.Documentos
             .Where(d => d.AnonimizadoEnUtc == null)
             .Where(d => d.FechaVencimiento != null
                 ? d.FechaVencimiento <= limite
@@ -92,11 +95,11 @@ public class DeteccionPurgaService(
         //
         // Con subconsultas y no con un 'let': EF no traduce un IQueryable
         // proyectado, y dejarlo así traería todas las asignaciones a memoria.
-        var candidatos = await dbContext.Trabajadores
+        var candidatos = await trabajadoresContext.Trabajadores
             .Where(t => t.AnonimizadoEnUtc == null)
-            .Where(t => dbContext.Asignaciones.Any(a => a.TrabajadorId == t.Id))
-            .Where(t => !dbContext.Asignaciones.Any(a => a.TrabajadorId == t.Id && a.FechaBaja == null))
-            .Where(t => dbContext.Asignaciones
+            .Where(t => asignacionesContext.Asignaciones.Any(a => a.TrabajadorId == t.Id))
+            .Where(t => !asignacionesContext.Asignaciones.Any(a => a.TrabajadorId == t.Id && a.FechaBaja == null))
+            .Where(t => asignacionesContext.Asignaciones
                 .Where(a => a.TrabajadorId == t.Id)
                 .Max(a => a.FechaBaja) <= limite)
             .CountAsync(cancellationToken);

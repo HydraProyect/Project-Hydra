@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,14 +23,14 @@ public record TrabajadorDetalleDto(
     string? Alias,
     Guid Version);
 
-public class ObtenerTrabajadorPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTrabajadorPorIdQuery, TrabajadorDetalleDto?>
 {
     public async Task<TrabajadorDetalleDto?> Handle(ObtenerTrabajadorPorIdQuery request, CancellationToken cancellationToken)
     {
         if (!await alcanceDatos.TrabajadorVisibleAsync(request.Id, cancellationToken)) return null;
 
-        var trabajador = await dbContext.Trabajadores
+        var trabajador = await trabajadoresContext.Trabajadores
             .Where(t => t.Id == request.Id)
             .Select(t => new
             {
@@ -48,8 +51,8 @@ public class ObtenerTrabajadorPorIdQueryHandler(IApplicationDbContext dbContext,
         if (trabajador is null) return null;
 
         var empleadorNombre = trabajador.EmpresaId is not null
-            ? await dbContext.Empresas.Where(e => e.Id == trabajador.EmpresaId).Select(e => e.RazonSocial).FirstAsync(cancellationToken)
-            : await dbContext.Subcontratas.Where(s => s.Id == trabajador.SubcontrataId).Select(s => s.RazonSocial).FirstAsync(cancellationToken);
+            ? await empresasContext.Empresas.Where(e => e.Id == trabajador.EmpresaId).Select(e => e.RazonSocial).FirstAsync(cancellationToken)
+            : await subcontratasContext.Subcontratas.Where(s => s.Id == trabajador.SubcontrataId).Select(s => s.RazonSocial).FirstAsync(cancellationToken);
 
         return new TrabajadorDetalleDto(
             trabajador.Id, trabajador.EmpresaId, trabajador.SubcontrataId, empleadorNombre, trabajador.Nombre, trabajador.Apellidos,

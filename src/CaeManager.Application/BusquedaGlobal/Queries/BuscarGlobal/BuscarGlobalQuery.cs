@@ -1,4 +1,9 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,7 +31,7 @@ public record ResultadoBusquedaGlobalDto(
         Clientes.Count > 0 || Empresas.Count > 0 || Subcontratas.Count > 0 || Centros.Count > 0 || Trabajadores.Count > 0;
 }
 
-public class BuscarGlobalQueryHandler(IApplicationDbContext dbContext) : IRequestHandler<BuscarGlobalQuery, ResultadoBusquedaGlobalDto>
+public class BuscarGlobalQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, ITrabajadoresQueryContext trabajadoresContext) : IRequestHandler<BuscarGlobalQuery, ResultadoBusquedaGlobalDto>
 {
     private const int LimitePorCategoria = 5;
 
@@ -39,35 +44,35 @@ public class BuscarGlobalQueryHandler(IApplicationDbContext dbContext) : IReques
 
         var terminoMayus = termino.ToUpper();
 
-        var clientes = await dbContext.Clientes
+        var clientes = await clientesContext.Clientes
             .Where(c => c.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(c => c.RazonSocial)
             .Take(LimitePorCategoria)
             .Select(c => new ItemBusquedaDto(c.Id, c.RazonSocial, "Cliente", $"/clientes?q={Uri.EscapeDataString(c.RazonSocial)}"))
             .ToListAsync(cancellationToken);
 
-        var empresas = await dbContext.Empresas
+        var empresas = await empresasContext.Empresas
             .Where(e => e.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(e => e.RazonSocial)
             .Take(LimitePorCategoria)
             .Select(e => new ItemBusquedaDto(e.Id, e.RazonSocial, "Empresa", $"/empresas?q={Uri.EscapeDataString(e.RazonSocial)}"))
             .ToListAsync(cancellationToken);
 
-        var subcontratas = await dbContext.Subcontratas
+        var subcontratas = await subcontratasContext.Subcontratas
             .Where(s => s.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(s => s.RazonSocial)
             .Take(LimitePorCategoria)
             .Select(s => new ItemBusquedaDto(s.Id, s.RazonSocial, "Subcontrata", $"/subcontratas?q={Uri.EscapeDataString(s.RazonSocial)}"))
             .ToListAsync(cancellationToken);
 
-        var centros = await dbContext.Centros
+        var centros = await centrosContext.Centros
             .Where(c => c.Nombre.ToUpper().Contains(terminoMayus))
             .OrderBy(c => c.Nombre)
             .Take(LimitePorCategoria)
             .Select(c => new ItemBusquedaDto(c.Id, c.Nombre, "Centro", $"/centros?q={Uri.EscapeDataString(c.Nombre)}"))
             .ToListAsync(cancellationToken);
 
-        var trabajadores = await dbContext.Trabajadores
+        var trabajadores = await trabajadoresContext.Trabajadores
             .Where(t =>
                 t.Nombre.ToUpper().Contains(terminoMayus) ||
                 t.Apellidos.ToUpper().Contains(terminoMayus) ||

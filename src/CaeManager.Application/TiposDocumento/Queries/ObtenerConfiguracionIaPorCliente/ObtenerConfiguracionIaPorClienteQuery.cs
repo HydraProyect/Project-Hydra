@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.TiposDocumento;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,7 +13,7 @@ public record ConfiguracionIaTipoDocumentoDto(Guid TipoDocumentoId, string Nombr
 
 public record ObtenerConfiguracionIaPorClienteQuery(Guid ClienteId) : IRequest<IReadOnlyList<ConfiguracionIaTipoDocumentoDto>>;
 
-public class ObtenerConfiguracionIaPorClienteQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerConfiguracionIaPorClienteQueryHandler(ITiposDocumentoQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerConfiguracionIaPorClienteQuery, IReadOnlyList<ConfiguracionIaTipoDocumentoDto>>
 {
     public async Task<IReadOnlyList<ConfiguracionIaTipoDocumentoDto>> Handle(

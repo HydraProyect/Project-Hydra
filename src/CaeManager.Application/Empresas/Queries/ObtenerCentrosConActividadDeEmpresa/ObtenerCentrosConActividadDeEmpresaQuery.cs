@@ -1,5 +1,8 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +19,7 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEm
 /// </summary>
 public record ObtenerCentrosConActividadDeEmpresaQuery(Guid EmpresaId) : IRequest<IReadOnlyList<CentroConActividadDto>>;
 
-public class ObtenerCentrosConActividadDeEmpresaQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerCentrosConActividadDeEmpresaQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCentrosConActividadDeEmpresaQuery, IReadOnlyList<CentroConActividadDto>>
 {
     public async Task<IReadOnlyList<CentroConActividadDto>> Handle(
@@ -26,12 +29,12 @@ public class ObtenerCentrosConActividadDeEmpresaQueryHandler(IApplicationDbConte
             return [];
 
         var filas = await (
-            from asignacion in dbContext.Asignaciones
+            from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null
-            join trabajador in dbContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
+            join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             where trabajador.EmpresaId == request.EmpresaId
-            join centro in dbContext.Centros on asignacion.CentroId equals centro.Id
-            join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
+            join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
+            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
             select new FilaActividadCentro(centro.Id, centro.Nombre, cliente.RazonSocial, trabajador.Id))
             .ToListAsync(cancellationToken);
 

@@ -1,4 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
@@ -39,7 +43,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
     IEmpresaClienteRepository empresaClienteRepositorio,
     ICentroRepository centroRepositorio,
     ITrabajadorRepository trabajadorRepositorio,
-    IApplicationDbContext dbContext,
+    ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EjecutarImportacionCombinadaCommand, ResultadoImportacionCombinadaDto>
 {
@@ -50,7 +54,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
         var reemplazar = request.ReemplazarExistentes;
         var omitidosEnEscritura = new List<ItemImportacionDto>();
 
-        var clientesPorCif = await dbContext.Clientes.ToDictionaryAsync(c => c.Cif, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        var clientesPorCif = await clientesContext.Clientes.ToDictionaryAsync(c => c.Cif, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
         // Indexado por razón social para que Empresas/Centros/Trabajadores puedan
         // referenciar un Cliente por nombre. Incluye tanto el nombre real que
@@ -95,8 +99,8 @@ public class EjecutarImportacionCombinadaCommandHandler(
             }
         }
 
-        var empresasPorRazonSocial = await dbContext.Empresas.ToDictionaryAsync(e => e.RazonSocial, StringComparer.OrdinalIgnoreCase, cancellationToken);
-        var asociacionesActuales = await dbContext.EmpresasClientes.ToListAsync(cancellationToken);
+        var empresasPorRazonSocial = await empresasContext.Empresas.ToDictionaryAsync(e => e.RazonSocial, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        var asociacionesActuales = await empresasContext.EmpresasClientes.ToListAsync(cancellationToken);
 
         var empresasCreadas = 0;
         var empresasActualizadas = 0;
@@ -158,7 +162,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
         var empresasIdPorRazonSocial = empresasPorRazonSocial.Values.ToDictionary(e => e.RazonSocial, e => e.Id, StringComparer.OrdinalIgnoreCase);
 
-        var centrosExistentes = await dbContext.Centros.ToListAsync(cancellationToken);
+        var centrosExistentes = await centrosContext.Centros.ToListAsync(cancellationToken);
         var centrosPorClienteYNombre = centrosExistentes.ToDictionary(
             c => (c.ClienteId, c.Nombre.ToUpperInvariant()), c => c);
 
@@ -216,7 +220,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
             }
         }
 
-        var trabajadoresExistentes = await dbContext.Trabajadores.ToDictionaryAsync(
+        var trabajadoresExistentes = await trabajadoresContext.Trabajadores.ToDictionaryAsync(
             t => t.Dni, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
         var trabajadoresCreados = 0;

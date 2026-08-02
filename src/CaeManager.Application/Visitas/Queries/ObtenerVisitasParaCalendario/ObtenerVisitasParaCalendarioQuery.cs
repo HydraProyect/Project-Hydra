@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Visitas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,7 +24,7 @@ public record VisitaCalendarioDto(
     int TotalTrabajadores,
     bool NotificadoCliente);
 
-public class ObtenerVisitasParaCalendarioQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVisitasParaCalendarioQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVisitasParaCalendarioQuery, IReadOnlyList<VisitaCalendarioDto>>
 {
     public async Task<IReadOnlyList<VisitaCalendarioDto>> Handle(ObtenerVisitasParaCalendarioQuery request, CancellationToken cancellationToken)
@@ -31,9 +34,9 @@ public class ObtenerVisitasParaCalendarioQueryHandler(IApplicationDbContext dbCo
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
 
         var visitas = await (
-            from visita in dbContext.Visitas
-            join centro in dbContext.Centros on visita.CentroId equals centro.Id
-            join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
+            from visita in visitasContext.Visitas
+            join centro in centrosContext.Centros on visita.CentroId equals centro.Id
+            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
             where visita.FechaInicio <= ultimoDia && visita.FechaFin >= primerDia
             where centroIdsVisibles == null || centroIdsVisibles.Contains(centro.Id)
             select new
@@ -50,7 +53,7 @@ public class ObtenerVisitasParaCalendarioQueryHandler(IApplicationDbContext dbCo
         if (visitas.Count == 0) return [];
 
         var visitaIds = visitas.Select(v => v.Id).ToList();
-        var conteoTrabajadores = await dbContext.VisitasTrabajadores
+        var conteoTrabajadores = await visitasContext.VisitasTrabajadores
             .Where(vt => visitaIds.Contains(vt.VisitaId))
             .GroupBy(vt => vt.VisitaId)
             .Select(g => new { VisitaId = g.Key, Total = g.Count() })

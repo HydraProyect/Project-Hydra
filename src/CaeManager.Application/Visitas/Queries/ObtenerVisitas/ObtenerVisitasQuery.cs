@@ -1,4 +1,11 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Visitas;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -32,17 +39,17 @@ public record VisitaListaDto(
 /// (al menos un Documento y todos Vigente/NoAplica) porque EsObligatorio
 /// todavía no se aplica a documentos de Trabajador.
 /// </summary>
-public class ObtenerVisitasQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVisitasQuery, ResultadoPaginado<VisitaListaDto>>
 {
     public async Task<ResultadoPaginado<VisitaListaDto>> Handle(ObtenerVisitasQuery request, CancellationToken cancellationToken)
     {
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var consulta = from visita in dbContext.Visitas
-                       join centro in dbContext.Centros on visita.CentroId equals centro.Id
-                       join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
-                       join empresa in dbContext.Empresas on centro.EmpresaId equals empresa.Id
+        var consulta = from visita in visitasContext.Visitas
+                       join centro in centrosContext.Centros on visita.CentroId equals centro.Id
+                       join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+                       join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
                        select new { visita, centro, cliente, empresa };
 
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
@@ -88,7 +95,7 @@ public class ObtenerVisitasQueryHandler(IApplicationDbContext dbContext, IAlcanc
 
         var visitaIds = pagina.Select(p => p.Id).ToList();
 
-        var trabajadoresPorVisita = await dbContext.VisitasTrabajadores
+        var trabajadoresPorVisita = await visitasContext.VisitasTrabajadores
             .Where(vt => visitaIds.Contains(vt.VisitaId))
             .Select(vt => new { vt.VisitaId, vt.TrabajadorId })
             .ToListAsync(cancellationToken);
@@ -96,19 +103,19 @@ public class ObtenerVisitasQueryHandler(IApplicationDbContext dbContext, IAlcanc
         var trabajadorIdsImplicados = trabajadoresPorVisita.Select(t => t.TrabajadorId).Distinct().ToList();
         var empresaIdsImplicadas = pagina.Select(p => p.EmpresaId).Distinct().ToList();
 
-        var parametros = await dbContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
 
-        var vencimientosTrabajadores = await dbContext.Documentos
+        var vencimientosTrabajadores = await documentosContext.Documentos
             .Where(d => d.TrabajadorId != null && trabajadorIdsImplicados.Contains(d.TrabajadorId!.Value))
             .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
 
-        var vencimientosEmpresas = await dbContext.Documentos
+        var vencimientosEmpresas = await documentosContext.Documentos
             .Where(d => d.EmpresaId != null && empresaIdsImplicadas.Contains(d.EmpresaId!.Value))
             .Select(d => new { EmpresaId = d.EmpresaId!.Value, d.TipoDocumentoId, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
 
-        var tiposObligatoriosEmpresa = await dbContext.TiposDocumento
+        var tiposObligatoriosEmpresa = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa && t.EsObligatorio)
             .Select(t => t.Id)
             .ToListAsync(cancellationToken);

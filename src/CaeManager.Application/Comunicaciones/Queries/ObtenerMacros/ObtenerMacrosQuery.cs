@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,7 +21,7 @@ public record ObtenerMacrosQuery(Guid? ClienteId = null) : IRequest<IReadOnlyLis
 public record MacroListaDto(
     Guid Id, Guid? ClienteId, string? ClienteRazonSocial, string Titulo, string CuerpoHtml, Guid Version);
 
-public class ObtenerMacrosQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerMacrosQueryHandler(IClientesQueryContext clientesContext, IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerMacrosQuery, IReadOnlyList<MacroListaDto>>
 {
     public async Task<IReadOnlyList<MacroListaDto>> Handle(ObtenerMacrosQuery request, CancellationToken cancellationToken)
@@ -33,12 +35,12 @@ public class ObtenerMacrosQueryHandler(IApplicationDbContext dbContext, IAlcance
             : null;
 
         var consulta = clienteId is null
-            ? dbContext.MacrosRespuesta.Where(m => m.ClienteId == null)
-            : dbContext.MacrosRespuesta.Where(m => m.ClienteId == null || m.ClienteId == clienteId);
+            ? comunicacionesContext.MacrosRespuesta.Where(m => m.ClienteId == null)
+            : comunicacionesContext.MacrosRespuesta.Where(m => m.ClienteId == null || m.ClienteId == clienteId);
 
         return await (
             from macro in consulta
-            join cliente in dbContext.Clientes on macro.ClienteId equals cliente.Id into clientesUnidos
+            join cliente in clientesContext.Clientes on macro.ClienteId equals cliente.Id into clientesUnidos
             from cliente in clientesUnidos.DefaultIfEmpty()
             orderby macro.Titulo
             select new MacroListaDto(

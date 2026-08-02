@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -29,7 +30,7 @@ public class RenovarDocumentoCommandValidator : AbstractValidator<RenovarDocumen
 }
 
 public class RenovarDocumentoCommandHandler(
-    IDocumentoRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
+    IDocumentoRepository repositorio, ITiposDocumentoQueryContext dbContext, IUnitOfWork unitOfWork)
     : IRequestHandler<RenovarDocumentoCommand, Result>
 {
     public async Task<Result> Handle(RenovarDocumentoCommand request, CancellationToken cancellationToken)

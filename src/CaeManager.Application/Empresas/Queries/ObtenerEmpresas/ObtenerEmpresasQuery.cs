@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,7 +10,7 @@ public record ObtenerEmpresasQuery(string? Busqueda, int Pagina = 1, int TamanoP
 
 public record EmpresaListaDto(Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc);
 
-public class ObtenerEmpresasQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerEmpresasQueryHandler(IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerEmpresasQuery, ResultadoPaginado<EmpresaListaDto>>
 {
     public async Task<ResultadoPaginado<EmpresaListaDto>> Handle(ObtenerEmpresasQuery request, CancellationToken cancellationToken)

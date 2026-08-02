@@ -55,7 +55,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
     }
 
     private VerificacionIaDocumentoService CrearServicio(IExtraccionMetadatosDocumentoIaService extraccion, IFileStorageService? almacenamiento = null) =>
-        new(_dbContext, almacenamiento ?? new AlmacenamientoFalso(), extraccion,
+        new(_dbContext, _dbContext, almacenamiento ?? new AlmacenamientoFalso(), extraccion,
             new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext), _dbContext,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<VerificacionIaDocumentoService>.Instance);
 

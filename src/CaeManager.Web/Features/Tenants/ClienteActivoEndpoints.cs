@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
@@ -27,7 +28,7 @@ public static class ClienteActivoEndpoints
         // navegación de nivel superior provocada desde fuera ya no basta.
         endpoints.MapPost("/cuenta/cliente-activo", async (
             [FromForm] Guid tenantId, [FromForm] string? returnUrl, HttpContext httpContext,
-            IApplicationDbContext dbContext, ICurrentUserService currentUserService,
+            ITenantsQueryContext dbContext, ICurrentUserService currentUserService,
             IDataProtectionProvider dataProtectionProvider,
             CancellationToken cancellationToken) =>
         {

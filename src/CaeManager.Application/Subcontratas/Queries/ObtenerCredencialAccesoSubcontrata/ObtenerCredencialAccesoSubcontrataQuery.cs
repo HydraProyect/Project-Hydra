@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Subcontratas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +9,7 @@ public record ObtenerCredencialAccesoSubcontrataQuery(Guid SubcontrataId) : IReq
 
 public record CredencialAccesoSubcontrataDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas);
 
-public class ObtenerCredencialAccesoSubcontrataQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerCredencialAccesoSubcontrataQueryHandler(ISubcontratasQueryContext dbContext)
     : IRequestHandler<ObtenerCredencialAccesoSubcontrataQuery, CredencialAccesoSubcontrataDto?>
 {
     public Task<CredencialAccesoSubcontrataDto?> Handle(ObtenerCredencialAccesoSubcontrataQuery request, CancellationToken cancellationToken) =>

@@ -1,4 +1,11 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Proyectos;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Vehiculos;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,12 +29,12 @@ public record DocumentoDetalleDto(
     string? TipoDocumentoSeSolicitaA,
     string? TipoDocumentoObservaciones);
 
-public class ObtenerDocumentoPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerDocumentoPorIdQueryHandler(IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentoPorIdQuery, DocumentoDetalleDto?>
 {
     public async Task<DocumentoDetalleDto?> Handle(ObtenerDocumentoPorIdQuery request, CancellationToken cancellationToken)
     {
-        var documento = await dbContext.Documentos
+        var documento = await documentosContext.Documentos
             .Where(d => d.Id == request.Id)
             .Select(d => new
             {
@@ -53,7 +60,7 @@ public class ObtenerDocumentoPorIdQueryHandler(IApplicationDbContext dbContext, 
         // Documento de Trabajador es el caso más sensible: incluye archivos de
         // vigilancia de la salud (categoría especial Art. 9 RGPD).
         var proyectoClienteId = documento.ProyectoId is { } proyectoIdVisibilidad
-            ? await dbContext.Proyectos.Where(p => p.Id == proyectoIdVisibilidad).Select(p => (Guid?)p.ClienteId).FirstOrDefaultAsync(cancellationToken)
+            ? await proyectosContext.Proyectos.Where(p => p.Id == proyectoIdVisibilidad).Select(p => (Guid?)p.ClienteId).FirstOrDefaultAsync(cancellationToken)
             : null;
 
         var visible = documento.TrabajadorId is { } trabajadorId
@@ -68,7 +75,7 @@ public class ObtenerDocumentoPorIdQueryHandler(IApplicationDbContext dbContext, 
 
         if (!visible) return null;
 
-        var tipoDocumento = await dbContext.TiposDocumento
+        var tipoDocumento = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.Id == documento.TipoDocumentoId)
             .Select(t => new
             {
@@ -84,26 +91,26 @@ public class ObtenerDocumentoPorIdQueryHandler(IApplicationDbContext dbContext, 
         if (tipoDocumento is null) return null;
 
         var (ambito, propietarioNombre) = documento.TrabajadorId is not null
-            ? (AmbitoAplicacion.Trabajador, await dbContext.Trabajadores
+            ? (AmbitoAplicacion.Trabajador, await trabajadoresContext.Trabajadores
                 .Where(t => t.Id == documento.TrabajadorId)
                 .Select(t => t.Nombre + " " + t.Apellidos)
                 .FirstAsync(cancellationToken))
             : documento.ClienteId is not null
-                ? (AmbitoAplicacion.Cliente, await dbContext.Clientes
+                ? (AmbitoAplicacion.Cliente, await clientesContext.Clientes
                     .Where(c => c.Id == documento.ClienteId)
                     .Select(c => c.RazonSocial)
                     .FirstAsync(cancellationToken))
                 : documento.VehiculoId is not null
-                    ? (AmbitoAplicacion.Vehiculo, await dbContext.Vehiculos
+                    ? (AmbitoAplicacion.Vehiculo, await vehiculosContext.Vehiculos
                         .Where(v => v.Id == documento.VehiculoId)
                         .Select(v => v.Nombre + " (" + v.NumeroPlaca + ")")
                         .FirstAsync(cancellationToken))
                     : documento.ProyectoId is not null
-                        ? (AmbitoAplicacion.Proyecto, await dbContext.Proyectos
+                        ? (AmbitoAplicacion.Proyecto, await proyectosContext.Proyectos
                             .Where(p => p.Id == documento.ProyectoId)
                             .Select(p => p.Nombre)
                             .FirstAsync(cancellationToken))
-                        : (AmbitoAplicacion.Empresa, await dbContext.Empresas
+                        : (AmbitoAplicacion.Empresa, await empresasContext.Empresas
                             .Where(e => e.Id == documento.EmpresaId)
                             .Select(e => e.RazonSocial)
                             .FirstAsync(cancellationToken));
