@@ -23,6 +23,17 @@
     margin: var(--space-2) 0;
 }
 
+.qr-2fa {
+    display: block;
+    width: 220px;
+    height: 220px;
+    margin: var(--space-4) auto;
+    padding: var(--space-2);
+    background-color: var(--color-neutral-0);
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+}
+
 .texto-2fa-exito {
     color: var(--color-success-500);
     font-weight: 600;

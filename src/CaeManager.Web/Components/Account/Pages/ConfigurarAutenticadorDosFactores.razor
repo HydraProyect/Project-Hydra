@@ -10,9 +10,11 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
+@using QRCoder
 @inject UserManager<ApplicationUser> UserManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ILoggerFactory LoggerFactory
+@inject NavigationManager NavigationManager
 
 <PageTitle>Autenticación en dos pasos — CAE Manager</PageTitle>
 
@@ -35,11 +37,15 @@
     {
         <div class="tarjeta-2fa">
             <p>
-                Escanea la clave con una aplicación autenticadora compatible con TOTP
-                (Google Authenticator, Microsoft Authenticator, 1Password, etc.) o
-                introdúcela manualmente:
+                Escanea este código QR con una aplicación autenticadora compatible con TOTP
+                (Google Authenticator, Microsoft Authenticator, 1Password, etc.):
             </p>
 
+            <img class="qr-2fa" src="@_qrCodeDataUri" alt="Código QR para configurar la app autenticadora" width="220" height="220" />
+
+            <p class="texto-vacio-seccion">
+                ¿No puedes escanear el código? Introduce esta clave manualmente:
+            </p>
             <p class="clave-manual"><code>@_claveCompartida</code></p>
 
             <p class="texto-vacio-seccion">
@@ -70,6 +76,7 @@
     private bool _dosFactoresActivo;
     private string? _claveCompartida;
     private string? _uriOtpAuth;
+    private string? _qrCodeDataUri;
     private string? mensajeError;
     private ApplicationUser? _usuario;
 
@@ -115,6 +122,23 @@
 
         _claveCompartida = FormatearClave(claveSinFormato!);
         _uriOtpAuth = GenerarUriOtpAuth(usuario.Email ?? usuario.UserName ?? string.Empty, claveSinFormato!);
+        _qrCodeDataUri = GenerarQrCodeDataUri(_uriOtpAuth);
+    }
+
+    /// <summary>
+    /// PNG generado en el propio proceso (PngByteQRCode, sin System.Drawing
+    /// — evita depender de libgdiplus dentro del contenedor Linux del
+    /// Dockerfile) y embebido como data URI: nada de la clave viaja a
+    /// ningún servicio externo para dibujar el código.
+    /// </summary>
+    private static string GenerarQrCodeDataUri(string uriOtpAuth)
+    {
+        using var generador = new QRCodeGenerator();
+        using var datosQr = generador.CreateQrCode(uriOtpAuth, QRCodeGenerator.ECCLevel.M);
+        var qrCode = new PngByteQRCode(datosQr);
+        var bytesPng = qrCode.GetGraphic(10);
+
+        return $"data:image/png;base64,{Convert.ToBase64String(bytesPng)}";
     }
 
     private async Task VerificarAsync()
@@ -133,11 +157,18 @@
         }
 
         await UserManager.SetTwoFactorEnabledAsync(_usuario, true);
-        _dosFactoresActivo = true;
         mensajeError = null;
 
         LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
             .LogInformation("2FA activado: {UsuarioId}", _usuario.Id);
+
+        // Sin esto, quien llega aquí forzado por MainLayout (2FA obligatoria
+        // para Administrador/soporte) se queda atrapado en esta pantalla tras
+        // activarlo — nunca vuelve a la app. forceLoad: true porque el resto
+        // del layout (menú, gates de rol) depende de una claims transformation
+        // que solo se recalcula en una carga de página nueva, no en una
+        // navegación interna de Blazor.
+        NavigationManager.NavigateTo("/", forceLoad: true);
     }
 
     /// <summary>
