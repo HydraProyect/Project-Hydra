@@ -145,6 +145,7 @@ public class CrearClienteDeleganteTests : IAsyncLifetime
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(usuarioId);
         public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>(null);
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(tenantOrigenId);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
     private sealed class TenantActualDesdeAmbitoExplicito : ITenantActual

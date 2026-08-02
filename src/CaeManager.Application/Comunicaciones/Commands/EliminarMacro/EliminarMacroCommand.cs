@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CaeManager.Application.Comunicaciones.Commands.EliminarMacro;
 
-public record EliminarMacroCommand(Guid Id, Guid UsuarioId) : IRequest<Result>;
+public record EliminarMacroCommand(Guid Id, Guid UsuarioId) : ICommand;
 
 /// <summary>
 /// Era el único comando del módulo sin validador (hallazgo N-13 de

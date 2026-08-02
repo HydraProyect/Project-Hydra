@@ -59,21 +59,33 @@ var rutaLogsAbsoluta = Path.IsPathRooted(rutaLogs)
     ? rutaLogs
     : Path.Combine(builder.Environment.ContentRootPath, rutaLogs);
 
-builder.Host.UseSerilog((context, services, loggerConfiguration) => loggerConfiguration
-    .ReadFrom.Configuration(context.Configuration)
-    .ReadFrom.Services(services)
-    .Enrich.FromLogContext()
-    .WriteTo.Console()
-    .WriteTo.File(rutaLogsAbsoluta, rollingInterval: RollingInterval.Day, retainedFileCountLimit: 31));
+// Sink de logs en la nube (Seq): inerte mientras "Serilog:Seq:ServerUrl" no
+// esté configurado — mismo patrón "funciona sin configurar, se endurece con
+// una variable de entorno en producción" que Sentry, KMS o Backups. Sin él,
+// los logs viven solo en el volumen del contenedor y desaparecen con él, que
+// es justo lo que hace indiagnosticable un incidente (P1-10 de
+// docs/business/MATURITY_REVIEW.md). Seq acepta tanto una instancia propia
+// como Seq cloud; la ApiKey es opcional porque una instancia sin
+// autenticación no la pide.
+var urlSeq = builder.Configuration["Serilog:Seq:ServerUrl"];
+var apiKeySeq = builder.Configuration["Serilog:Seq:ApiKey"];
 
-// Para añadir un sink en la nube (Seq, Axiom, etc.) más adelante: agregar el
-// paquete NuGet correspondiente y un .WriteTo.Xxx(...) condicionado a que su
-// clave de configuración (p. ej. "Serilog:Seq:ServerUrl") esté presente en
-// builder.Configuration — mismo patrón "funciona sin configurar, se
-// endurece con una variable de entorno en producción" que
-// DataProtection/AlmacenamientoArchivos. Ningún paquete de sink en la nube
-// está referenciado todavía porque no hay cuenta provisionada (ver
-// RUNBOOK-CLAVES.md / ROADMAP.md).
+builder.Host.UseSerilog((context, services, loggerConfiguration) =>
+{
+    loggerConfiguration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        // Sin esto, los eventos de varias réplicas o de varios despliegues
+        // se mezclan sin poder separarse una vez en la nube.
+        .Enrich.WithProperty("Aplicacion", "CaeManager")
+        .Enrich.WithProperty("Entorno", context.HostingEnvironment.EnvironmentName)
+        .WriteTo.Console()
+        .WriteTo.File(rutaLogsAbsoluta, rollingInterval: RollingInterval.Day, retainedFileCountLimit: 31);
+
+    if (!string.IsNullOrWhiteSpace(urlSeq))
+        loggerConfiguration.WriteTo.Seq(urlSeq, apiKey: apiKeySeq);
+});
 
 // Error tracking con Sentry — si "Sentry:Dsn" no está configurado (hoy, en
 // todos los entornos: no hay cuenta de Sentry provisionada todavía), la SDK
@@ -174,6 +186,16 @@ builder.Services.AddAuthorization(options =>
 // repetidas. Limitador en memoria: suficiente mientras el techo sea 1
 // réplica (autodocumentado en ARCHITECTURE.md); con multi-réplica habría que
 // moverlo a un almacén compartido, igual que el resto de estado de proceso.
+// Techos configurables con los mismos valores de siempre por defecto: la
+// suite E2E hace logins reales en serie (cada login del Administrador son
+// DOS POST anónimos: credenciales + código 2FA) y supera los 10/min desde
+// 127.0.0.1 — exactamente el patrón de fuerza bruta que este límite corta,
+// solo que aquí es tráfico legítimo de test. El fixture E2E sube el techo
+// por variable de entorno (ver WebAppFixture); en producción no hay ninguna
+// configuración y aplican los valores de siempre.
+var limiteCuentaAnonimo = builder.Configuration.GetValue("RateLimiting:Cuenta:LimiteAnonimo", 10);
+var limiteCuentaAutenticado = builder.Configuration.GetValue("RateLimiting:Cuenta:LimiteAutenticado", 60);
+
 builder.Services.AddRateLimiter(opciones =>
 {
     opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -188,7 +210,7 @@ builder.Services.AddRateLimiter(opciones =>
         // Con sesión iniciada (cambio de Delegated Workspace vía
         // /cuenta/cliente-activo, cerrar sesión) el margen es holgado — el
         // objetivo son los anónimos que martillean el login.
-        var limite = contexto.User.Identity?.IsAuthenticated == true ? 60 : 10;
+        var limite = contexto.User.Identity?.IsAuthenticated == true ? limiteCuentaAutenticado : limiteCuentaAnonimo;
 
         // La IP real ya está resuelta: UseForwardedHeaders corre al principio
         // del pipeline (ver más abajo) y el middleware de rate limiting actúa
@@ -277,6 +299,7 @@ using (var scope = app.Services.CreateScope())
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+    var userStore = scope.ServiceProvider.GetRequiredService<IUserStore<ApplicationUser>>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     // Sin sesión de usuario en el arranque no hay tenant que resolver por
@@ -284,7 +307,7 @@ using (var scope = app.Services.CreateScope())
     // como tenant #1 (ver AmbitoTenantExplicito, docs/MULTITENANCY.md § 8.4).
     using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
     {
-        await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration, app.Environment);
+        await IdentitySeeder.SeedAsync(userManager, roleManager, userStore, logger, app.Configuration, app.Environment);
     }
 
     // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
@@ -297,7 +320,7 @@ using (var scope = app.Services.CreateScope())
     // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
     // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
     // que SegundoTenant:Activo esté configurado explícitamente.
-    await SegundoTenantSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
+    await SegundoTenantSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, logger);
 
     // Al final a propósito: aprovisiona la delegación de soporte —apagada—
     // de todo tenant que exista, incluidos los que acaben de sembrarse.
@@ -310,7 +333,26 @@ using (var scope = app.Services.CreateScope())
 // Registrado antes del manejo de excepciones para envolverlo por completo:
 // una petición que termina en 500 vía UseExceptionHandler se sigue
 // registrando aquí con su código de estado final, no como si hubiera ido bien.
-app.UseSerilogRequestLogging();
+//
+// EnrichDiagnosticContext corre al cerrar la petición, cuando el tenant ya
+// está resuelto — por eso los servicios se piden a ctx.RequestServices y no
+// por constructor: ITenantActual es scoped y este callback lo comparte un
+// middleware singleton. Es lo que hace que la traza HTTP (descargas de
+// documentos, exports, endpoints de identidad) salga correlacionada con el
+// tenant igual que la de MediatR, que se correlaciona en LoggingBehavior.
+app.UseSerilogRequestLogging(opciones =>
+{
+    opciones.EnrichDiagnosticContext = (contextoDiagnostico, contextoHttp) =>
+    {
+        var tenantActual = contextoHttp.RequestServices.GetService<ITenantActual>();
+        if (tenantActual?.TenantId is { } tenantId)
+            contextoDiagnostico.Set("TenantId", tenantId);
+
+        var usuarioId = contextoHttp.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(usuarioId))
+            contextoDiagnostico.Set("UsuarioId", usuarioId);
+    };
+});
 
 if (!app.Environment.IsDevelopment())
 {

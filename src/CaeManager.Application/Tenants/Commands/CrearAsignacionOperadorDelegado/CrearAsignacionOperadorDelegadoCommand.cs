@@ -12,7 +12,7 @@ namespace CaeManager.Application.Tenants.Commands.CrearAsignacionOperadorDelegad
 /// (ADR-004 § 5.3 — un mismo usuario puede tener roles distintos en
 /// delegaciones distintas).
 /// </summary>
-public record CrearAsignacionOperadorDelegadoCommand(Guid DelegacionTenantId, Guid UsuarioId, string Rol) : IRequest<Result<Guid>>;
+public record CrearAsignacionOperadorDelegadoCommand(Guid DelegacionTenantId, Guid UsuarioId, string Rol) : ICommand<Guid>;
 
 public class CrearAsignacionOperadorDelegadoCommandValidator : AbstractValidator<CrearAsignacionOperadorDelegadoCommand>
 {

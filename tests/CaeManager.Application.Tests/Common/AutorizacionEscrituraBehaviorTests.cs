@@ -8,11 +8,19 @@ namespace CaeManager.Application.Tests.Common;
 
 public class AutorizacionEscrituraBehaviorTests
 {
-    // Nombres terminados en "Command"/"Query" a propósito — el behavior
-    // distingue por convención de nombre (ver AutorizacionEscrituraBehavior).
-    private record FalsoCommand : IRequest<Result>;
-    private record FalsoConValorCommand : IRequest<Result<Guid>>;
+    // Lo que decide es la interfaz ICommand, no el sufijo del nombre — ver
+    // AutorizacionEscrituraBehavior y el test de al lado que lo demuestra.
+    private record FalsoCommand : ICommand;
+    private record FalsoConValorCommand : ICommand<Guid>;
     private record FalsaQuery : IRequest<string>;
+
+    // Se llama "Command" pero no implementa ICommand: el behavior lo deja
+    // pasar. Es exactamente el agujero que antes abría un typo en el nombre,
+    // solo que ahora al revés — y quien lo cierra es ArquitecturaCommandsTests,
+    // que falla si un tipo *Command del ensamblado de Application no
+    // implementa ICommand. Este test existe para dejar constancia de que la
+    // red de seguridad es ese test de arquitectura, no el behavior.
+    private record FalsoSinInterfazCommand : IRequest<Result>;
 
     [Theory]
     [InlineData("Consulta")]
@@ -94,5 +102,20 @@ public class AutorizacionEscrituraBehaviorTests
         var resultado = await behavior.Handle(new FalsaQuery(), _ => Task.FromResult("ok"), CancellationToken.None);
 
         resultado.Should().Be("ok");
+    }
+
+    [Fact]
+    public async Task Un_tipo_llamado_Command_sin_ICommand_no_lo_autoriza_el_behavior()
+    {
+        // No es el comportamiento deseable, es el comportamiento real: el
+        // behavior ya no mira nombres. Quien impide que esto exista en el
+        // código de producción es ArquitecturaCommandsTests.
+        var behavior = new AutorizacionEscrituraBehavior<FalsoSinInterfazCommand, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Consulta"));
+
+        var resultado = await behavior.Handle(
+            new FalsoSinInterfazCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
     }
 }

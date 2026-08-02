@@ -76,4 +76,28 @@ public class CampoTextoTests : BunitContext
         await tareaInput;
         valoresRecibidos.Should().ContainSingle();
     }
+
+    /// <summary>
+    /// P1-18 de docs/business/MATURITY_REVIEW.md: OnBlur es lo que permite
+    /// al padre validar "al salir del campo" sin acoplar este componente a
+    /// FluentValidation. Debe dispararse al perder el foco, independiente de
+    /// ValorChanged, y no antes (mientras el usuario todavía escribe).
+    /// </summary>
+    [Fact]
+    public async Task OnBlur_se_dispara_al_perder_el_foco_y_no_antes()
+    {
+        var vecesDisparado = 0;
+        var cut = Render<CampoTexto>(parametros => parametros
+            .Add(p => p.Valor, string.Empty)
+            .Add(p => p.ValorChanged, _ => { })
+            .Add(p => p.OnBlur, () => vecesDisparado++));
+
+        var input = cut.Find("input");
+
+        await input.InputAsync("algo");
+        vecesDisparado.Should().Be(0, "todavía no perdió el foco");
+
+        await input.BlurAsync(new FocusEventArgs());
+        vecesDisparado.Should().Be(1);
+    }
 }

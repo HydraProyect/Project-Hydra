@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Empresas.Commands.CrearEmpresa;
 
-public record CrearEmpresaCommand(string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds) : IRequest<Result<Guid>>;
+public record CrearEmpresaCommand(string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds) : ICommand<Guid>;
 
 public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaCommand>
 {
