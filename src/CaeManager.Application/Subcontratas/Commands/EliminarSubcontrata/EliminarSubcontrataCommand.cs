@@ -7,13 +7,13 @@ namespace CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 
 public record EliminarSubcontrataCommand(Guid Id, Guid UsuarioId) : ICommand;
 
-public class EliminarSubcontrataCommandHandler(ISubcontrataRepository repositorio, IUnitOfWork unitOfWork)
+public class EliminarSubcontrataCommandHandler(ISubcontrataRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarSubcontrataCommand, Result>
 {
     public async Task<Result> Handle(EliminarSubcontrataCommand request, CancellationToken cancellationToken)
     {
         var subcontrata = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (subcontrata is null)
+        if (subcontrata is null || !await alcanceDatos.SubcontrataVisibleAsync(subcontrata.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 
         if (await repositorio.TieneTrabajadoresAsync(request.Id, cancellationToken))
