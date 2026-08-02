@@ -1,0 +1,62 @@
+using CaeManager.Application.Integraciones;
+using CaeManager.Domain.Common;
+
+namespace CaeManager.Application.Tests.Integraciones;
+
+/// <summary>Fake en memoria — nunca llama a red real (ver CODING_STANDARDS.md).</summary>
+public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
+{
+    public bool FallaRefresco { get; set; }
+    public bool FallaEnvio { get; set; }
+    public bool FallaCreacionSuscripcion { get; set; }
+    public string AccessTokenDevuelto { get; set; } = "access-token-falso";
+    public string RefreshTokenDevuelto { get; set; } = "refresh-token-falso";
+    public string? UltimoMensajeExternoIdRespondido { get; private set; }
+    public MensajeGraphDto? MensajeADevolver { get; set; }
+    public IReadOnlyList<string> MensajeIdsADevolver { get; set; } = [];
+    public string? ClientStateADevolver { get; set; }
+
+    public string ConstruirUrlAutorizacion(string redirectUri, string state) => $"https://login.microsoftonline.com/common/authorize?state={state}";
+
+    public Task<Result<TokensGraphDto>> IntercambiarCodigoPorTokensAsync(string code, string redirectUri, CancellationToken cancellationToken) =>
+        Task.FromResult(Result.Exito(new TokensGraphDto(AccessTokenDevuelto, RefreshTokenDevuelto)));
+
+    public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken) =>
+        Task.FromResult(FallaRefresco
+            ? Result.Fallo<TokensGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "fallo simulado"))
+            : Result.Exito(new TokensGraphDto(AccessTokenDevuelto, RefreshTokenDevuelto)));
+
+    public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
+        Task.FromResult(Result.Exito("buzon@cliente-falso.test"));
+
+    public Task<Result> EnviarRespuestaAsync(
+        string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml, CancellationToken cancellationToken)
+    {
+        UltimoMensajeExternoIdRespondido = mensajeExternoIdOrigen;
+        return Task.FromResult(FallaEnvio
+            ? Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "fallo simulado"))
+            : Result.Exito());
+    }
+
+    public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
+        string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken) =>
+        Task.FromResult(MensajeADevolver is null
+            ? Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "sin mensaje configurado"))
+            : Result.Exito(MensajeADevolver));
+
+    public Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
+        string accessToken, string buzonEmail, string notificationUrl, string clientState, CancellationToken cancellationToken) =>
+        Task.FromResult(FallaCreacionSuscripcion
+            ? Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "fallo simulado"))
+            : Result.Exito(new SuscripcionGraphDto("suscripcion-falsa", DateTime.UtcNow.AddDays(3))));
+
+    public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
+        Task.FromResult(Result.Exito(new SuscripcionGraphDto(graphSubscriptionId, DateTime.UtcNow.AddDays(3))));
+
+    public Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
+        Task.FromResult(Result.Exito());
+
+    public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => MensajeIdsADevolver;
+
+    public string? ExtraerClientStateDeNotificacion(string payloadJson) => ClientStateADevolver;
+}
