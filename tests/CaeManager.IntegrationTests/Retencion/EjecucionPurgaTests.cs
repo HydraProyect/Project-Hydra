@@ -92,6 +92,8 @@ public class EjecucionPurgaTests : IAsyncLifetime
         {
             var servicioDeteccion = new DeteccionPurgaService(
                 contextoDeteccion,
+                contextoDeteccion,
+                contextoDeteccion,
                 new SolicitudPurgaRepository(contextoDeteccion),
                 Microsoft.Extensions.Options.Options.Create(new RetencionDatosOptions
                 {
@@ -118,6 +120,8 @@ public class EjecucionPurgaTests : IAsyncLifetime
         await using (var contextoEjecucion = CrearContexto())
         {
             var servicioEjecucion = new EjecucionPurgaService(
+                contextoEjecucion,
+                contextoEjecucion,
                 contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),

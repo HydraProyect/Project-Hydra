@@ -114,7 +114,7 @@ Ninguno de los tres modos anteriores cubre a una **Consultora** externa (p. ej. 
 
 - **Autenticación / login (limitación v1 aceptada)**: con resolución por claim, el formulario de login no conoce el tenant antes de autenticar. Para que "email → usuario" sea determinista, **el email de login se mantiene único globalmente en v1** (la misma persona no puede tener cuenta en dos tenants con el mismo email). Es una limitación consciente y reversible: desaparece cuando se adopten subdominios (el login sabrá el tenant por el host y la unicidad pasará a `(TenantId, Email)`). Se acepta porque el caso "misma persona en dos tenants" es marginal hasta que haya decenas de tenants.
 - **Autorización**: el claim alimenta la capa 1 de § 6; las capas 2–4 no cambian.
-- **API futura**: cuando exista API pública, el tenant se resolverá del token (scope/claim emitido en el flujo OAuth del tenant), nunca de un parámetro del cliente.
+- **API pública** (implementada, P3-29 — `/api/v1`, no publicada todavía): el tenant se resuelve del token, exactamente como se predijo aquí — no de un header ni de un parámetro suelto. No es OAuth: es una API key por tenant (`ClaveApi`, hash SHA-256), y `ApiKeyAuthenticationHandler` (Infrastructure) rellena el mismo claim `tenant_id` que ya lee `ITenantActual` — el aislamiento existente se hereda sin tocar el mecanismo de resolución.
 - **Despliegue**: v1 sin cambios de infraestructura. La adopción de subdominios (junto con SSO por tenant y PostgreSQL) forma parte de las condiciones/deudas de salida SaaS listadas en `ADR-003` — decisión separada, no implícita.
 
 ## 9. Buenas prácticas (reglas de trabajo para cualquier sesión futura)

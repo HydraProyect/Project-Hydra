@@ -1,4 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Proyectos;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Vehiculos;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -30,7 +38,7 @@ public record DocumentoListaDto(
 /// usan el Dashboard y RenovarDocumentoCommand — para que nunca haya dos
 /// sitios de la aplicación mostrando vigencias distintas (ver DATABASE.md).
 /// </summary>
-public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerDocumentosQueryHandler(IClientesQueryContext clientesContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentosQuery, ResultadoPaginado<DocumentoListaDto>>
 {
     public async Task<ResultadoPaginado<DocumentoListaDto>> Handle(ObtenerDocumentosQuery request, CancellationToken cancellationToken)
@@ -41,11 +49,11 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
         var vehiculoIdsVisibles = await alcanceDatos.ObtenerVehiculoIdsVisiblesAsync(cancellationToken);
 
         var deTrabajador =
-            from documento in dbContext.Documentos
+            from documento in documentosContext.Documentos
             where documento.TrabajadorId != null
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
-            join trabajador in dbContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new
             {
                 documento.Id,
@@ -60,11 +68,11 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
             };
 
         var deCliente =
-            from documento in dbContext.Documentos
+            from documento in documentosContext.Documentos
             where documento.ClienteId != null
             where clienteIdsVisibles == null || clienteIdsVisibles.Contains(documento.ClienteId!.Value)
-            join cliente in dbContext.Clientes on documento.ClienteId!.Value equals cliente.Id
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            join cliente in clientesContext.Clientes on documento.ClienteId!.Value equals cliente.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new
             {
                 documento.Id,
@@ -79,11 +87,11 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
             };
 
         var deEmpresa =
-            from documento in dbContext.Documentos
+            from documento in documentosContext.Documentos
             where documento.EmpresaId != null
             where empresaIdsVisibles == null || empresaIdsVisibles.Contains(documento.EmpresaId!.Value)
-            join empresa in dbContext.Empresas on documento.EmpresaId!.Value equals empresa.Id
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            join empresa in empresasContext.Empresas on documento.EmpresaId!.Value equals empresa.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new
             {
                 documento.Id,
@@ -98,11 +106,11 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
             };
 
         var deVehiculo =
-            from documento in dbContext.Documentos
+            from documento in documentosContext.Documentos
             where documento.VehiculoId != null
             where vehiculoIdsVisibles == null || vehiculoIdsVisibles.Contains(documento.VehiculoId!.Value)
-            join vehiculo in dbContext.Vehiculos on documento.VehiculoId!.Value equals vehiculo.Id
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            join vehiculo in vehiculosContext.Vehiculos on documento.VehiculoId!.Value equals vehiculo.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new
             {
                 documento.Id,
@@ -117,11 +125,11 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
             };
 
         var deProyecto =
-            from documento in dbContext.Documentos
+            from documento in documentosContext.Documentos
             where documento.ProyectoId != null
-            join proyecto in dbContext.Proyectos on documento.ProyectoId!.Value equals proyecto.Id
+            join proyecto in proyectosContext.Proyectos on documento.ProyectoId!.Value equals proyecto.Id
             where clienteIdsVisibles == null || clienteIdsVisibles.Contains(proyecto.ClienteId)
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new
             {
                 documento.Id,
@@ -154,7 +162,7 @@ public class ObtenerDocumentosQueryHandler(IApplicationDbContext dbContext, IAlc
                 x.TipoDocumentoNombre.ToUpper().Contains(busqueda));
         }
 
-        var parametros = await dbContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
         // El Estado se sigue calculando con CalculadoraEstadoDocumento —

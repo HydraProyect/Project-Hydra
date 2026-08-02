@@ -1,4 +1,9 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Vehiculos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +22,7 @@ public record ObtenerVehiculosConActividadDeCentroQuery(Guid CentroId) : IReques
 
 public record VehiculoConActividadDto(Guid Id, string Nombre, string Modelo, string NumeroPlaca, string EmpleadorNombre);
 
-public class ObtenerVehiculosConActividadDeCentroQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVehiculosConActividadDeCentroQueryHandler(IAsignacionesQueryContext asignacionesContext, IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVehiculosConActividadDeCentroQuery, IReadOnlyList<VehiculoConActividadDto>>
 {
     public async Task<IReadOnlyList<VehiculoConActividadDto>> Handle(
@@ -27,9 +32,9 @@ public class ObtenerVehiculosConActividadDeCentroQueryHandler(IApplicationDbCont
             return [];
 
         var empleadores = await (
-            from asignacion in dbContext.Asignaciones
+            from asignacion in asignacionesContext.Asignaciones
             where asignacion.CentroId == request.CentroId && asignacion.FechaBaja == null
-            join trabajador in dbContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
+            join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             select new { trabajador.EmpresaId, trabajador.SubcontrataId })
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -41,12 +46,12 @@ public class ObtenerVehiculosConActividadDeCentroQueryHandler(IApplicationDbCont
             return [];
 
         return await (
-            from vehiculo in dbContext.Vehiculos
+            from vehiculo in vehiculosContext.Vehiculos
             where (vehiculo.EmpresaId != null && empresaIds.Contains(vehiculo.EmpresaId.Value))
                || (vehiculo.SubcontrataId != null && subcontrataIds.Contains(vehiculo.SubcontrataId.Value))
-            join empresa in dbContext.Empresas on vehiculo.EmpresaId equals empresa.Id into empresasCoincidentes
+            join empresa in empresasContext.Empresas on vehiculo.EmpresaId equals empresa.Id into empresasCoincidentes
             from empresa in empresasCoincidentes.DefaultIfEmpty()
-            join subcontrata in dbContext.Subcontratas on vehiculo.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
+            join subcontrata in subcontratasContext.Subcontratas on vehiculo.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
             from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
             orderby vehiculo.Nombre
             select new VehiculoConActividadDto(

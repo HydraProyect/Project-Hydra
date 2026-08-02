@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,7 +21,7 @@ public record RevisionIaDocumentoDto(
     string Motivo,
     DateTime CreadaEnUtc);
 
-public class ObtenerRevisionesIaPendientesQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerRevisionesIaPendientesQueryHandler(IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerRevisionesIaPendientesQuery, IReadOnlyList<RevisionIaDocumentoDto>>
 {
     public async Task<IReadOnlyList<RevisionIaDocumentoDto>> Handle(
@@ -27,11 +30,11 @@ public class ObtenerRevisionesIaPendientesQueryHandler(IApplicationDbContext dbC
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
         var consulta =
-            from revision in dbContext.RevisionesIaDocumento
+            from revision in documentosContext.RevisionesIaDocumento
             where !revision.Resuelta
-            join documento in dbContext.Documentos on revision.DocumentoId equals documento.Id
-            join trabajador in dbContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            join documento in documentosContext.Documentos on revision.DocumentoId equals documento.Id
+            join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(trabajador.Id)
             orderby revision.CreadaEnUtc descending
             select new RevisionIaDocumentoDto(

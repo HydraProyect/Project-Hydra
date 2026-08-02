@@ -1,3 +1,4 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -47,7 +48,7 @@ public class CrearTipoDocumentoCommandValidator : AbstractValidator<CrearTipoDoc
 
 public class CrearTipoDocumentoCommandHandler(
     ITipoDocumentoRepository repositorio, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
-    IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
+    ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearTipoDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearTipoDocumentoCommand request, CancellationToken cancellationToken)
@@ -61,7 +62,7 @@ public class CrearTipoDocumentoCommandHandler(
         if (request.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
         {
             var centroIds = request.CentroIds.Distinct().ToList();
-            var centrosEncontrados = await dbContext.Centros.Where(c => centroIds.Contains(c.Id)).CountAsync(cancellationToken);
+            var centrosEncontrados = await centrosContext.Centros.Where(c => centroIds.Contains(c.Id)).CountAsync(cancellationToken);
 
             if (centrosEncontrados != centroIds.Count)
                 return Result.Fallo<Guid>(Error.Crear("TipoDocumento.CentroNoEncontrado", "Alguno de los centros seleccionados no existe."));

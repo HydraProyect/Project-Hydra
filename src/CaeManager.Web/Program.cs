@@ -1,11 +1,14 @@
 using ApexCharts;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
+using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.DependencyInjection;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
+using CaeManager.Web.Api.Integraciones;
+using CaeManager.Web.Api.V1;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Components.DesignSystem;
@@ -14,6 +17,7 @@ using CaeManager.Web.Features.Auditoria;
 using CaeManager.Web.Features.BusquedaGlobal;
 using CaeManager.Web.Features.Clientes;
 using CaeManager.Web.Features.Documentos;
+using CaeManager.Web.Features.Integraciones.Endpoints;
 using CaeManager.Web.Features.Tenants;
 using CaeManager.Web.Reportes;
 using CaeManager.Web.Services;
@@ -22,11 +26,13 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using PdfSharp.Fonts;
 using Serilog;
 using System.Globalization;
+using System.Threading.RateLimiting;
 
 // El resolver de fuentes de PDFsharp 6 es global e independiente del ciclo de
 // vida de DI — se registra una sola vez al arrancar (ver EmbeddedFontResolver).
@@ -131,6 +137,14 @@ var authenticationBuilder = builder.Services
     });
 authenticationBuilder.AddIdentityCookies();
 
+// API pública (P3-29, docs/business/MATURITY_REVIEW.md) — todavía no
+// anunciada/publicada, pero completa: esquema propio para no heredar el
+// FallbackPolicy de cookie (ver policy "ApiPublica" más abajo). El tenant se
+// resuelve del claim que rellena el propio handler a partir de la clave, no
+// de un parámetro suelto — ver docs/MULTITENANCY.md § 8.
+authenticationBuilder.AddScheme<ApiKeyAuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
+    ApiKeyAuthenticationSchemeOptions.NombreEsquema, options => { });
+
 // Login corporativo vía Microsoft Entra ID (SSO), opcional — ver
 // AzureAdOptions y RestriccionLoginLocalClaimsTransformation. Sin las tres
 // variables configuradas, este proveedor externo ni se registra: el login
@@ -168,6 +182,35 @@ builder.Services.AddAuthorization(options =>
     options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();
+
+    // Solo el esquema ApiKey — sin esto, el FallbackPolicy (que no fija
+    // esquema) aceptaría también la cookie de Identity, y un usuario con
+    // sesión de navegador podría llamar a /api/v1 sin clave.
+    options.AddPolicy("ApiPublica", policy => policy
+        .AddAuthenticationSchemes(ApiKeyAuthenticationSchemeOptions.NombreEsquema)
+        .RequireAuthenticatedUser());
+});
+
+// Rate limiting de la API pública, por tenant (no por IP — varias
+// integraciones del mismo cliente comparten cupo, coherente con "por tenant"
+// del ítem P3-29). Configurable sin recompilar, mismo patrón que
+// RetencionDatosOptions.
+var rateLimitPorMinuto = builder.Configuration.GetValue("ApiPublica:RateLimitPorMinuto", 300);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("ApiPublica", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: httpContext.User.FindFirst(TenantClaimsPrincipalFactory.TipoClaimTenantId)?.Value ?? "sin-tenant",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = rateLimitPorMinuto,
+            Window = TimeSpan.FromMinutes(1),
+        }));
+});
+
+builder.Services.AddOpenApi("v1", options =>
+{
+    options.AddDocumentTransformer<ApiKeySecuritySchemeTransformer>();
 });
 
 // Rate limiting por IP sobre los POST de autenticación en /cuenta/* (login
@@ -378,6 +421,7 @@ app.UseAuthentication();
 app.UseRateLimiter();
 
 app.UseAuthorization();
+app.UseRateLimiter();
 app.UseAntiforgery();
 
 // Después de UseAuthentication (hace falta el usuario resuelto) y antes de
@@ -397,6 +441,25 @@ app.MapDocumentosEndpoints();
 app.MapReportesEndpoints();
 app.MapAuditoriaEndpoints();
 app.MapClienteActivoEndpoints();
+app.MapConectarMicrosoft365Endpoints();
+app.MapWebhookMicrosoft365Endpoints();
+
+// API pública v1 (P3-29) — solo lectura, no publicada todavía. Un único
+// grupo con la política de auth/rate-limit aplicada una vez, en vez de por
+// endpoint: ningún MapXxxApiEndpoints necesita saber que existen.
+var apiV1 = app.MapGroup("/api/v1")
+    .RequireAuthorization("ApiPublica")
+    .RequireRateLimiting("ApiPublica");
+apiV1.MapClientesApiEndpoints();
+apiV1.MapCentrosApiEndpoints();
+apiV1.MapTrabajadoresApiEndpoints();
+apiV1.MapDocumentosApiEndpoints();
+apiV1.MapAsignacionesApiEndpoints();
+
+// El documento OpenAPI no expone datos, solo forma — no requiere auth
+// (misma práctica habitual que /swagger.json en una API privada).
+app.MapOpenApi("/api/v1/openapi.json").AllowAnonymous();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

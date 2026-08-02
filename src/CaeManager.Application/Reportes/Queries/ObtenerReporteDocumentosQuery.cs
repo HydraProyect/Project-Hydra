@@ -1,4 +1,10 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Subcontratas;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -23,22 +29,22 @@ public record FilaReporteDocumentoDto(
     DateOnly? FechaVencimiento,
     EstadoDocumento Estado);
 
-public class ObtenerReporteDocumentosQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerReporteDocumentosQueryHandler(IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext)
     : IRequestHandler<ObtenerReporteDocumentosQuery, IReadOnlyList<FilaReporteDocumentoDto>>
 {
     public async Task<IReadOnlyList<FilaReporteDocumentoDto>> Handle(ObtenerReporteDocumentosQuery request, CancellationToken cancellationToken)
     {
-        var parametros = await dbContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
         var filas = await (
-            from documento in dbContext.Documentos
+            from documento in documentosContext.Documentos
             where documento.TrabajadorId != null
-            join trabajador in dbContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-            join empresa in dbContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
+            join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            join empresa in empresasContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
             from empresa in empresasCoincidentes.DefaultIfEmpty()
-            join subcontrata in dbContext.Subcontratas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
+            join subcontrata in subcontratasContext.Subcontratas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
             from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
             select new
             {

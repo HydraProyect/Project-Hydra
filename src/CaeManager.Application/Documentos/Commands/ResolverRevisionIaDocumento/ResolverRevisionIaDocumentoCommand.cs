@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -16,7 +17,7 @@ public record ResolverRevisionIaDocumentoCommand(Guid RevisionId) : ICommand;
 public class ResolverRevisionIaDocumentoCommandHandler(
     IRevisionIaDocumentoRepository revisionRepositorio,
     IAprobacionDocumentoRepository aprobacionRepositorio,
-    IApplicationDbContext dbContext,
+    IDocumentosQueryContext dbContext,
     IAlcanceDatosService alcanceDatos,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)

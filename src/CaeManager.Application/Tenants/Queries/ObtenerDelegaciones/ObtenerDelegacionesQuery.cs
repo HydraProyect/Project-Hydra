@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Tenants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -49,7 +50,7 @@ public record DelegacionDto(
     public bool AccesoVigente => Activa && !VentanaCaducada;
 }
 
-public class ObtenerDelegacionesQueryHandler(IApplicationDbContext dbContext, ICurrentUserService currentUserService)
+public class ObtenerDelegacionesQueryHandler(ITenantsQueryContext dbContext, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerDelegacionesQuery, IReadOnlyList<DelegacionDto>>
 {
     public async Task<IReadOnlyList<DelegacionDto>> Handle(

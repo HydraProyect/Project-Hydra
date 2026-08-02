@@ -268,7 +268,7 @@ public class DeteccionPurgaTests : IAsyncLifetime
     }
 
     private DeteccionPurgaService CrearServicio(CaeManagerDbContext contexto, int? aniosTrabajadores = CincoAnios) =>
-        new(contexto,
+        new(contexto, contexto, contexto,
             new SolicitudPurgaRepository(contexto),
             Options.Create(new RetencionDatosOptions
             {

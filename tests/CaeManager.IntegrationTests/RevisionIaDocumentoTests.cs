@@ -72,7 +72,7 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
     public async Task La_query_solo_devuelve_revisiones_de_trabajadores_visibles()
     {
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisible.Id]);
-        var handler = new ObtenerRevisionesIaPendientesQueryHandler(_dbContext, alcance);
+        var handler = new ObtenerRevisionesIaPendientesQueryHandler(_dbContext, _dbContext, _dbContext, alcance);
 
         var resultado = await handler.Handle(new ObtenerRevisionesIaPendientesQuery(), CancellationToken.None);
 

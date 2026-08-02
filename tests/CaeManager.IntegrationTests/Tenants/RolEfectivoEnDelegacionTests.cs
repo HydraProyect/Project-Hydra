@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -97,7 +98,7 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
     }
 
     private CurrentUserService CrearServicio(
-        IApplicationDbContext contexto, Guid? tenantSeleccionado, Guid? usuarioId = null)
+        ITenantsQueryContext contexto, Guid? tenantSeleccionado, Guid? usuarioId = null)
     {
         var identidad = new ClaimsIdentity(
             [

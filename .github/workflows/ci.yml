@@ -83,6 +83,9 @@ jobs:
           dotnet test tests/CaeManager.Application.Tests --no-restore --logger "console;verbosity=normal"
           --collect "XPlat Code Coverage" --results-directory ./coverage/application
 
+      - name: Tests de arquitectura
+        run: dotnet test tests/CaeManager.Architecture.Tests --no-restore --logger "console;verbosity=normal"
+
       - name: Tests de integración
         run: >
           dotnet test tests/CaeManager.IntegrationTests --no-restore --logger "console;verbosity=normal"

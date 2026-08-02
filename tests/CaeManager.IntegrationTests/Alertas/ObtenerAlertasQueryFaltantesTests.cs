@@ -69,7 +69,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
     public async Task Un_tipo_obligatorio_sin_ningun_documento_genera_alerta_de_faltante()
     {
         await using var contexto = CrearContexto();
-        var handler = new ObtenerAlertasQueryHandler(contexto, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerAlertasQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 
@@ -91,7 +91,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         }
 
         await using var lectura = CrearContexto();
-        var handler = new ObtenerAlertasQueryHandler(lectura, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerAlertasQueryHandler(lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso());
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 
@@ -109,7 +109,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         }
 
         await using var lectura = CrearContexto();
-        var handler = new ObtenerAlertasQueryHandler(lectura, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerAlertasQueryHandler(lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso());
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 

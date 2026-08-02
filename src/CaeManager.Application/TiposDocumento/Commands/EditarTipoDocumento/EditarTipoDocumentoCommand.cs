@@ -1,3 +1,4 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -49,7 +50,7 @@ public class EditarTipoDocumentoCommandValidator : AbstractValidator<EditarTipoD
 
 public class EditarTipoDocumentoCommandHandler(
     ITipoDocumentoRepository repositorio, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
-    IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
+    ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarTipoDocumentoCommand, Result>
 {
     public async Task<Result> Handle(EditarTipoDocumentoCommand request, CancellationToken cancellationToken)
@@ -82,7 +83,7 @@ public class EditarTipoDocumentoCommandHandler(
         // vinculaciones NUEVAS: las que ya estaban antes ya pasaron por esta
         // comprobación cuando se crearon.
         var centroIdsNuevos = deseados.Except(actualesCentroIds).ToList();
-        if (await dbContext.Centros.Where(c => centroIdsNuevos.Contains(c.Id)).CountAsync(cancellationToken) != centroIdsNuevos.Count)
+        if (await centrosContext.Centros.Where(c => centroIdsNuevos.Contains(c.Id)).CountAsync(cancellationToken) != centroIdsNuevos.Count)
             return Result.Fallo(Error.Crear("TipoDocumento.CentroNoEncontrado", "Alguno de los centros seleccionados no existe."));
 
         foreach (var tc in actuales.Where(tc => !deseados.Contains(tc.CentroId)))

@@ -3,6 +3,7 @@ using System.IO.Compression;
 using Amazon;
 using Amazon.S3;
 using Amazon.S3.Transfer;
+using CaeManager.Infrastructure.Coordinacion;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -27,6 +28,7 @@ public class BackupHostedService(
     IConfiguration configuration,
     IHostEnvironment entorno,
     IOptions<BackupsOptions> opciones,
+    IEleccionLiderService eleccionLider,
     ILogger<BackupHostedService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -62,13 +64,22 @@ public class BackupHostedService(
         // Un primer backup al arrancar, no solo tras el primer intervalo —
         // así un redeploy no deja el sistema sin ningún backup reciente
         // durante horas si el proceso se reinicia a menudo.
-        await EjecutarBackupAsync(config, nombreServicio, stoppingToken);
+        await EjecutarBackupComoLiderAsync(config, nombreServicio, stoppingToken);
 
         while (await periodicTimer.WaitForNextTickAsync(stoppingToken))
         {
-            await EjecutarBackupAsync(config, nombreServicio, stoppingToken);
+            await EjecutarBackupComoLiderAsync(config, nombreServicio, stoppingToken);
         }
     }
+
+    // Elección de líder entre réplicas (P3-30 de docs/business/MATURITY_REVIEW.md):
+    // con N réplicas, cada una dispara este tick a la vez — sin esto, N
+    // pg_dump concurrentes contra la misma base de datos, todos subiendo su
+    // propia copia a S3. Solo la que gana el advisory lock ejecuta el backup;
+    // las demás lo saltan en silencio, no es un fallo.
+    private Task EjecutarBackupComoLiderAsync(BackupsOptions config, string nombreServicio, CancellationToken cancellationToken) =>
+        eleccionLider.IntentarEjecutarComoLiderAsync(
+            "backup-automatico", ct => EjecutarBackupAsync(config, nombreServicio, ct), cancellationToken);
 
     private async Task EjecutarBackupAsync(BackupsOptions config, string nombreServicio, CancellationToken cancellationToken)
     {

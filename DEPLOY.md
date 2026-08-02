@@ -4,7 +4,7 @@ Guía para dejar CAE Manager accesible por navegador para todo el equipo (piloto
 
 ## Por qué Railway
 
-CAE Manager usa PostgreSQL (servicio gestionado aparte, ver más abajo) y guarda los PDFs adjuntos en disco local (ver `ARCHITECTURE.md`). Railway encaja bien con eso: despliega directo desde el repo de GitHub, sirve HTTPS automáticamente, soporta un volumen persistente sencillo para la app y ofrece Postgres como servicio adicional del mismo proyecto. **No escales el servicio de la app a más de 1 réplica todavía** — no es ya una limitación de la base de datos, sino de otras piezas que siguen atadas al proceso (backplane de SignalR, cola de análisis IA en memoria, elección de líder para los `BackgroundService` — ver `ROADMAP.md` § migración a PostgreSQL, epílogo).
+CAE Manager usa PostgreSQL (servicio gestionado aparte, ver más abajo) y guarda los PDFs adjuntos en disco local (ver `ARCHITECTURE.md`). Railway encaja bien con eso: despliega directo desde el repo de GitHub, sirve HTTPS automáticamente, soporta un volumen persistente sencillo para la app y ofrece Postgres como servicio adicional del mismo proyecto. **Escalar a más de 1 réplica** (P3-30 de `docs/business/MATURITY_REVIEW.md`) ya es posible, pero exige activar antes `SignalR__Redis__*` y `DataProtection__S3__*` (ver § "Notas para producción real" más abajo) — sin ellos, sigue siendo un despliegue de una sola réplica.
 
 ## 1. Crear el proyecto en Railway
 
@@ -59,6 +59,15 @@ En la pestaña **Variables** del servicio de la **app**, añade:
 
 Las cuatro variables de `DataProtection__Kms__*` van juntas: si falta cualquiera, el cifrado queda apagado y el arranque lo advierte por log. Con todas puestas, el arranque hace un cifrado/descifrado de prueba y deja dicho si la clave responde — busca `cifrado con AWS KMS operativo` en el log del despliegue.
 
+| `DataProtection__S3__Activo` | `true` (opcional, por defecto `false`) | Guarda el llavero de Data Protection en S3 en vez de en el volumen local (P3-30) — necesario para más de una réplica, donde cada réplica genera/lee su propio juego de claves en disco local |
+| `DataProtection__S3__AccessKeyId` / `DataProtection__S3__SecretAccessKey` | credenciales de un usuario IAM **distinto** de los de Backups/KMS/AlmacenamientoS3 | Mismo criterio que el resto: que se filtren unas no da acceso a lo que protegen las otras |
+| `DataProtection__S3__BucketName` | bucket S3, puede ser el mismo que `AlmacenamientoS3__BucketName` (usa un prefijo `dataprotection-keys/` distinto) o uno propio | |
+| `DataProtection__S3__Region` | región del bucket, p. ej. `eu-south-2` | |
+| `SignalR__Redis__Activo` | `true` (opcional, por defecto `false`) | Backplane de SignalR (P3-30) — necesario para más de una réplica: sin él, un circuito de Blazor Server no sobrevive a que el balanceador cambie de réplica a mitad de sesión |
+| `SignalR__Redis__CadenaConexion` | cadena de conexión del servicio Redis (add-on de Railway u otro) | |
+
+Las tres piezas de multi-réplica (`AlmacenamientoS3`, `DataProtection__S3`, `SignalR__Redis`) arrancan con una verificación de conectividad que deja constancia en el log de despliegue — revísalo tras activarlas y antes de escalar el servicio a más de una réplica. La elección de líder entre réplicas para `BackupHostedService`/`ProcesadorAnalisisDocumentoHostedService` (`pg_try_advisory_lock` de PostgreSQL) no tiene variable propia — usa siempre el mismo `ConnectionStrings__CaeManagerDb`, así que está activa desde ya.
+
 Producción y staging pueden usar las mismas variables de `Backups__Aws__*` (mismo bucket) sin pisarse los backups entre sí — cada uno sube a su propia carpeta dentro del bucket, identificada automáticamente por el nombre del servicio en Railway.
 
 | Variable | Valor | Para qué |
@@ -99,6 +108,26 @@ Pasos para crear el App Registration en [entra.microsoft.com](https://entra.micr
 
 **Sin las cuatro variables, el envío de correo queda inerte** — las notificaciones que lo disparan (usuario pendiente de rol, confirmación de rol asignado) se registran en el log como aviso pero no impiden la acción de negocio (crear la cuenta pendiente, asignar el rol siguen funcionando igual). La plantilla/diseño final de estos correos está todavía por definir — hoy es HTML mínimo, sin estilos.
 
+### Conector de Microsoft 365 para Comunicaciones (P3-33)
+
+| Variable | Valor | Para qué |
+|---|---|---|
+| `Integraciones__Microsoft365__ClientId` | Application (client) ID de un App Registration **distinto** al de SSO/envío de correo | Consentimiento delegado por buzón (OAuth authorization code + `offline_access`), no el flujo de aplicación de las dos secciones anteriores — nunca reutilices el mismo registro |
+| `Integraciones__Microsoft365__ClientSecret` | un Client Secret del mismo App Registration | Igual que cualquier secreto de este documento, va directo aquí — nunca por chat. Caduca igual que los anteriores (máximo 24 meses) |
+
+**Sin estas dos variables, el módulo Comunicaciones sigue apagado** (`ComunicacionesOptions__Activo`, sección aparte) y la pantalla `/integraciones` no tiene nada que conectar — mismo principio "inerte por defecto" del resto de integraciones de este documento.
+
+Pasos para crear el App Registration en [entra.microsoft.com](https://entra.microsoft.com):
+1. Tipo de cuenta: **"Cuentas en cualquier directorio organizativo"** (multi-tenant) — a diferencia del App Registration de SSO, este tiene que aceptar buzones de organizaciones cliente distintas a la tuya, no solo la propia. El endpoint de autorización usa `common`, nunca un tenant fijo.
+2. Plataforma de redirección: **Web**, con la URI `https://tu-dominio.up.railway.app/integraciones/microsoft365-callback`.
+3. Permisos de API → **Microsoft Graph → Delegados**: `Mail.Read`, `Mail.Send`, `offline_access`. Delegados, no de aplicación — cada conexión actúa como el buzón que dio el consentimiento, no como la app.
+4. En **Certificados y secretos**, crea un Client Secret nuevo (anota la fecha de caducidad) — es el valor de `Integraciones__Microsoft365__ClientSecret`.
+5. No hace falta consentimiento de administrador del lado de Hydra: cada buzón se conecta desde `/integraciones` (rol Administrador), consintiendo el propio usuario del buzón en la pantalla de Microsoft.
+
+**Antes de conectar un buzón de un cliente real**, confirma que el DPA declara este acceso — el refresco automático de token y la ingesta de correo entrante son tratamiento de datos personales por cuenta del tenant, igual que el resto de accesos de soporte documentados en `RGPD-TRATAMIENTO-DATOS.md`.
+
+Las suscripciones de notificaciones de Graph expiran a los ~3 días — `RenovacionSuscripcionWebhookHostedService` las renueva sola cada 24h, no hace falta ninguna intervención manual salvo que el log muestre fallos repetidos de renovación (revisar el estado de la conexión en `/integraciones`, que pasa a "Con error").
+
 ### Datos de prueba para pruebas de carga y verificación de perfiles
 
 Con `DatosPrueba__Activo=true`, el primer arranque siembra automáticamente (solo si todavía no hay ningún Cliente — no duplica en redeploys posteriores) una cartera con la forma de un cliente fundador real — Clientes con varias Empresas contratistas cada uno, Empresas con varios Centros y Trabajadores, documentación estándar completa con fechas de vencimiento repartidas entre vencido/urgente/próximo/vigente, y datos ya preparados para probar la purga de retención (ver `ROADMAP.md` § Fase 62 para el detalle exacto y los números). Nombres de personas, empresas y lugares son de ficción a propósito, para que nada de la siembra se confunda con un dato real.
@@ -133,6 +162,6 @@ Los dos mecanismos ya están activos — uno por código, el otro activado a man
 
 ## Notas para producción real (fuera de alcance de un piloto)
 
-- **Una sola réplica.** La migración a PostgreSQL (`ADR-003`) ya está hecha; las migraciones de esquema ya pueden desacoplarse del arranque de cada réplica (ver más arriba, § 4); la cola de análisis IA ya es durable en PostgreSQL en vez de vivir en memoria del proceso (`TrabajoAnalisisDocumento`, P2 #22) — un redeploy ya no pierde encargos pendientes; y los PDFs de Documento ya pueden vivir en S3 en vez de en el volumen local de cada réplica (`AlmacenamientoS3__Activo`, misma sección). Lo que sigue atando la app a una sola réplica: backplane de SignalR y elección de líder para los `BackgroundService` (sin ella, N réplicas del procesador de la cola competirían por el mismo trabajo pendiente en vez de repartírselo). Ver `ROADMAP.md` § migración a PostgreSQL, epílogo.
+- **Multi-réplica (P3-30).** Las piezas que ataban la app a una sola réplica ya están resueltas: `TrabajoAnalisisDocumento` (P2 #22) hace la cola de IA durable en PostgreSQL, `AlmacenamientoS3__Activo` saca los PDFs del volumen local, la elección de líder (`pg_try_advisory_lock`, sin configuración — siempre activa) evita que dos réplicas de `BackupHostedService`/`ProcesadorAnalisisDocumentoHostedService` compitan por el mismo trabajo, y el llavero de Data Protection puede vivir en S3 en vez del disco local de cada réplica (`DataProtection__S3__Activo`/`AccessKeyId`/`SecretAccessKey`/`BucketName`/`Region`, credenciales propias). Lo único que sigue exigiendo configuración explícita antes de escalar: el backplane de SignalR (`SignalR__Redis__Activo=true` + `SignalR__Redis__CadenaConexion`, servicio Redis de Railway u otro) — sin él, un circuito de Blazor Server no sobrevive a que el balanceador cambie de réplica a mitad de sesión. Los tres arrancan con verificación de conectividad en el log (mismo patrón que KMS/AlmacenamientoS3): revisa el arranque tras activarlos antes de escalar de verdad.
 - **Backups.** Automatizados con `Backups__Activo=true` (`pg_dump` de la base de datos + `dataprotection-keys/` a S3, ver `RUNBOOK-CLAVES.md`) — no dependen de la política de backups de volúmenes de Railway.
 - **Cifrado de las claves de Data Protection en reposo.** Con `DataProtection__Kms__*` configurado (ver tabla más arriba y `RUNBOOK-CLAVES.md` § KMS), las claves se cifran con AWS KMS antes de escribirse al volumen — confírmalo en el log de arranque (`cifrado con AWS KMS operativo`). Sin esas variables, quedan sin cifrar (advertencia esperada en los logs).
