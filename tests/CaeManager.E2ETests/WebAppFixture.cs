@@ -272,3 +272,19 @@ public sealed class WebAppFixtureConSegundoTenant : WebAppFixture
 
 [CollectionDefinition("AppCollectionMultiTenant")]
 public class AppCollectionMultiTenant : ICollectionFixture<WebAppFixtureConSegundoTenant>;
+
+/// <summary>
+/// Arranca CaeManager.Web con la política de retención activa
+/// (RetencionDatos:Activa, apagada por defecto en cualquier otro sitio —
+/// ver CLAUDE.md) para poder ejercitar /retencion de verdad con Playwright
+/// (P1-19 de docs/business/MATURITY_REVIEW.md). En su propia colección: el
+/// resto de la suite E2E no necesita ni debe activar retención.
+/// </summary>
+public sealed class WebAppFixtureConRetencionActiva : WebAppFixture
+{
+    protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
+        new Dictionary<string, string> { ["RetencionDatos__Activa"] = "true" };
+}
+
+[CollectionDefinition("AppCollectionRetencion")]
+public class AppCollectionRetencion : ICollectionFixture<WebAppFixtureConRetencionActiva>;

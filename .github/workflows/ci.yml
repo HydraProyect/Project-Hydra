@@ -240,6 +240,83 @@ jobs:
       - name: Tests E2E
         run: dotnet test tests/CaeManager.E2ETests --no-build --logger "console;verbosity=normal"
 
+  load-test:
+    name: Prueba de carga base (k6)
+    runs-on: ubuntu-latest
+    # No bloqueante a propósito, igual que el escaneo de Trivy: es la
+    # primera cifra real de carga que existe en el repo (P1-19 de
+    # docs/business/MATURITY_REVIEW.md, antes no había ninguna) — sin un
+    # historial de resultados todavía no hay umbral defendible que hacer
+    # fallar el build, solo visibilidad.
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Compilar
+        run: dotnet build CaeManager.slnx --no-restore
+
+      - name: Instalar k6
+        uses: grafana/setup-k6-action@v1
+
+      # Arranca el mismo binario que despliega Railway, en segundo plano,
+      # contra el Postgres del job — mismo patrón que WebAppFixture en los
+      # tests E2E (ver esa clase), pero como proceso de shell porque este
+      # job no es un proyecto de test .NET.
+      - name: Arrancar la app
+        run: |
+          ASPNETCORE_ENVIRONMENT=Development \
+          ASPNETCORE_URLS=http://127.0.0.1:5000 \
+          ConnectionStrings__CaeManagerDb="Host=localhost;Port=5432;Database=caemanager_carga;Username=postgres;Password=postgres" \
+          DatosPrueba__Activo=true \
+          nohup dotnet src/CaeManager.Web/bin/Debug/net10.0/CaeManager.Web.dll > app.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:5000/salud > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          echo "La app no respondió /salud a tiempo:"
+          cat app.log
+          exit 1
+
+      # scripts/carga-basica.js explica por qué k6 y no un paquete NuGet
+      # (NBomber exige suscripción comercial para uso organizacional —
+      # mismo motivo por el que ARCHITECTURE.md ya había descartado
+      # QuestPDF). Sin --scenario-thresholds: el resumen es la primera
+      # cifra real, no hay una anterior con la que decidir un umbral.
+      - name: Prueba de carga (k6)
+        run: k6 run scripts/carga-basica.js | tee k6-resumen.txt
+        env:
+          BASE_URL: http://127.0.0.1:5000
+
+      - name: Publicar resumen
+        if: always()
+        run: |
+          {
+            echo "## Prueba de carga base (k6)"
+            echo '```'
+            cat k6-resumen.txt 2>/dev/null || echo "Sin resumen — revisa el log del paso anterior."
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   gitleaks:
     name: Escaneo de secretos (gitleaks)
     runs-on: ubuntu-latest
