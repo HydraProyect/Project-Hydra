@@ -1,5 +1,6 @@
 @page "/facturacion"
 @rendermode InteractiveServer
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}")]
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente
 @using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion
