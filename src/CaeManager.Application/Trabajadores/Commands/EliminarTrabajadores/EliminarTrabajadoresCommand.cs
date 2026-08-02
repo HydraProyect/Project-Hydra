@@ -8,7 +8,7 @@ using MediatR;
 namespace CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
 
 /// <summary>Borrado en lote (P3-31) — ver EliminarClientesCommand para el criterio de éxito parcial.</summary>
-public record EliminarTrabajadoresCommand(IReadOnlyList<Guid> Ids, Guid UsuarioId) : IRequest<Result<ResultadoEliminacionLoteDto>>;
+public record EliminarTrabajadoresCommand(IReadOnlyList<Guid> Ids, Guid UsuarioId) : ICommand<ResultadoEliminacionLoteDto>;
 
 public class EliminarTrabajadoresCommandValidator : AbstractValidator<EliminarTrabajadoresCommand>
 {
