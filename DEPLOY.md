@@ -4,7 +4,7 @@ Guía para dejar CAE Manager accesible por navegador para todo el equipo (piloto
 
 ## Por qué Railway
 
-CAE Manager usa PostgreSQL (servicio gestionado aparte, ver más abajo) y guarda los PDFs adjuntos en disco local (ver `ARCHITECTURE.md`). Railway encaja bien con eso: despliega directo desde el repo de GitHub, sirve HTTPS automáticamente, soporta un volumen persistente sencillo para la app y ofrece Postgres como servicio adicional del mismo proyecto. **No escales el servicio de la app a más de 1 réplica todavía** — no es ya una limitación de la base de datos, sino de otras piezas que siguen atadas al proceso (backplane de SignalR, cola de análisis IA en memoria, elección de líder para los `BackgroundService` — ver `ROADMAP.md` § migración a PostgreSQL, epílogo).
+CAE Manager usa PostgreSQL (servicio gestionado aparte, ver más abajo) y guarda los PDFs adjuntos en disco local (ver `ARCHITECTURE.md`). Railway encaja bien con eso: despliega directo desde el repo de GitHub, sirve HTTPS automáticamente, soporta un volumen persistente sencillo para la app y ofrece Postgres como servicio adicional del mismo proyecto. **Escalar a más de 1 réplica** (P3-30 de `docs/business/MATURITY_REVIEW.md`) ya es posible, pero exige activar antes `SignalR__Redis__*` y `DataProtection__S3__*` (ver § "Notas para producción real" más abajo) — sin ellos, sigue siendo un despliegue de una sola réplica.
 
 ## 1. Crear el proyecto en Railway
 
@@ -58,6 +58,15 @@ En la pestaña **Variables** del servicio de la **app**, añade:
 | `DataProtection__Kms__Region` | región de la clave, p. ej. `eu-south-2` | Debe coincidir con la región donde se creó la clave |
 
 Las cuatro variables de `DataProtection__Kms__*` van juntas: si falta cualquiera, el cifrado queda apagado y el arranque lo advierte por log. Con todas puestas, el arranque hace un cifrado/descifrado de prueba y deja dicho si la clave responde — busca `cifrado con AWS KMS operativo` en el log del despliegue.
+
+| `DataProtection__S3__Activo` | `true` (opcional, por defecto `false`) | Guarda el llavero de Data Protection en S3 en vez de en el volumen local (P3-30) — necesario para más de una réplica, donde cada réplica genera/lee su propio juego de claves en disco local |
+| `DataProtection__S3__AccessKeyId` / `DataProtection__S3__SecretAccessKey` | credenciales de un usuario IAM **distinto** de los de Backups/KMS/AlmacenamientoS3 | Mismo criterio que el resto: que se filtren unas no da acceso a lo que protegen las otras |
+| `DataProtection__S3__BucketName` | bucket S3, puede ser el mismo que `AlmacenamientoS3__BucketName` (usa un prefijo `dataprotection-keys/` distinto) o uno propio | |
+| `DataProtection__S3__Region` | región del bucket, p. ej. `eu-south-2` | |
+| `SignalR__Redis__Activo` | `true` (opcional, por defecto `false`) | Backplane de SignalR (P3-30) — necesario para más de una réplica: sin él, un circuito de Blazor Server no sobrevive a que el balanceador cambie de réplica a mitad de sesión |
+| `SignalR__Redis__CadenaConexion` | cadena de conexión del servicio Redis (add-on de Railway u otro) | |
+
+Las tres piezas de multi-réplica (`AlmacenamientoS3`, `DataProtection__S3`, `SignalR__Redis`) arrancan con una verificación de conectividad que deja constancia en el log de despliegue — revísalo tras activarlas y antes de escalar el servicio a más de una réplica. La elección de líder entre réplicas para `BackupHostedService`/`ProcesadorAnalisisDocumentoHostedService` (`pg_try_advisory_lock` de PostgreSQL) no tiene variable propia — usa siempre el mismo `ConnectionStrings__CaeManagerDb`, así que está activa desde ya.
 
 Producción y staging pueden usar las mismas variables de `Backups__Aws__*` (mismo bucket) sin pisarse los backups entre sí — cada uno sube a su propia carpeta dentro del bucket, identificada automáticamente por el nombre del servicio en Railway.
 
@@ -133,6 +142,6 @@ Dos mecanismos distintos, uno ya activo por código y el otro pendiente de un cl
 
 ## Notas para producción real (fuera de alcance de un piloto)
 
-- **Una sola réplica.** La migración a PostgreSQL (`ADR-003`) ya está hecha; las migraciones de esquema ya pueden desacoplarse del arranque de cada réplica (ver más arriba, § 4); la cola de análisis IA ya es durable en PostgreSQL en vez de vivir en memoria del proceso (`TrabajoAnalisisDocumento`, P2 #22) — un redeploy ya no pierde encargos pendientes; y los PDFs de Documento ya pueden vivir en S3 en vez de en el volumen local de cada réplica (`AlmacenamientoS3__Activo`, misma sección). Lo que sigue atando la app a una sola réplica: backplane de SignalR y elección de líder para los `BackgroundService` (sin ella, N réplicas del procesador de la cola competirían por el mismo trabajo pendiente en vez de repartírselo). Ver `ROADMAP.md` § migración a PostgreSQL, epílogo.
+- **Multi-réplica (P3-30).** Las piezas que ataban la app a una sola réplica ya están resueltas: `TrabajoAnalisisDocumento` (P2 #22) hace la cola de IA durable en PostgreSQL, `AlmacenamientoS3__Activo` saca los PDFs del volumen local, la elección de líder (`pg_try_advisory_lock`, sin configuración — siempre activa) evita que dos réplicas de `BackupHostedService`/`ProcesadorAnalisisDocumentoHostedService` compitan por el mismo trabajo, y el llavero de Data Protection puede vivir en S3 en vez del disco local de cada réplica (`DataProtection__S3__Activo`/`AccessKeyId`/`SecretAccessKey`/`BucketName`/`Region`, credenciales propias). Lo único que sigue exigiendo configuración explícita antes de escalar: el backplane de SignalR (`SignalR__Redis__Activo=true` + `SignalR__Redis__CadenaConexion`, servicio Redis de Railway u otro) — sin él, un circuito de Blazor Server no sobrevive a que el balanceador cambie de réplica a mitad de sesión. Los tres arrancan con verificación de conectividad en el log (mismo patrón que KMS/AlmacenamientoS3): revisa el arranque tras activarlos antes de escalar de verdad.
 - **Backups.** Automatizados con `Backups__Activo=true` (`pg_dump` de la base de datos + `dataprotection-keys/` a S3, ver `RUNBOOK-CLAVES.md`) — no dependen de la política de backups de volúmenes de Railway.
 - **Cifrado de las claves de Data Protection en reposo.** Con `DataProtection__Kms__*` configurado (ver tabla más arriba y `RUNBOOK-CLAVES.md` § KMS), las claves se cifran con AWS KMS antes de escribirse al volumen — confírmalo en el log de arranque (`cifrado con AWS KMS operativo`). Sin esas variables, quedan sin cifrar (advertencia esperada en los logs).
