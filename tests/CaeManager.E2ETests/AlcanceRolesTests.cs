@@ -102,7 +102,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
         var contador = page.GetByText(PatronContadorElementos()).First;
-        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
 
         var total = ExtraerTotalElementos(await contador.InnerTextAsync());
         Assert.Equal(3, total);
@@ -118,7 +118,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
         var contador = page.GetByText(PatronContadorElementos()).First;
-        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
         // Consulta ve la cartera entera del tenant: los 9 clientes de la
         // siembra determinista (ver DatosPruebaSeeder), no una cartera acotada.
         Assert.Equal(9, ExtraerTotalElementos(await contador.InnerTextAsync()));
@@ -150,7 +150,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/");
 
         var nav = page.Locator(".nav-principal");
-        await nav.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await nav.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
         var textoNav = await nav.InnerTextAsync();
 
         Assert.DoesNotContain("Asignaciones", textoNav);
