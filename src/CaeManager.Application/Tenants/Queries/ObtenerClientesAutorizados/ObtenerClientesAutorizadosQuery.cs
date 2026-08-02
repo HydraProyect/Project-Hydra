@@ -50,8 +50,18 @@ public class ObtenerClientesAutorizadosQueryHandler(IApplicationDbContext dbCont
             // método de dominio no se traduce a SQL).
             where asignacion.UsuarioId == usuarioId.Value && delegacion.Activa
                   && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > ahora)
-            orderby tenant.Nombre
+            // Distinct por tenant: un operador puede tener más de una
+            // AsignacionOperadorDelegado activa hacia el mismo Cliente
+            // Delegante (p. ej. una Comercial y una de Soporte, como el
+            // Administrador de la siembra de demo) — sin esto,
+            // SelectorClienteActivo.razor pinta dos <option> idénticas para
+            // el mismo tenant, y Ayudas.CambiarClienteActivoAsync (E2E)
+            // revienta con "strict mode violation: resolved to 2 elements"
+            // (visto en CI, FlujoSoporteTests). El acceso es el mismo
+            // workspace, sin importar cuántas delegaciones lo conceden.
             select new ClienteAutorizadoDto(tenant.Id, tenant.Nombre, false))
+            .Distinct()
+            .OrderBy(c => c.Nombre)
             .ToListAsync(cancellationToken);
 
         resultado.AddRange(delegados);
