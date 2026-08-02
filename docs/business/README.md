@@ -1,7 +1,7 @@
 # docs/business — Documentación de negocio de Hydra
 
 **Tipo**: Índice
-**Estado**: Draft — estructura creada (2026-07-25), contenido pendiente de desarrollo. Ningún documento de esta carpeta tiene todavía decisiones de negocio confirmadas.
+**Estado**: Draft en conjunto — la mayoría de los documentos temáticos siguen sin decisiones de negocio confirmadas, pero ya no ninguno: `UBIQUITOUS_LANGUAGE.md` tiene términos `Approved` (Cliente/Cliente Directo/Cliente Delegante/Delegated Workspace, `DECISION_LOG.md` 2026-07-25), y `docs/business/legal/` tiene 16 borradores completos del paquete legal (pendientes de revisión legal, no de redacción — ver `docs/business/legal/README.md`).
 
 ## Por qué existe esta carpeta
 
