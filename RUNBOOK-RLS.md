@@ -6,7 +6,7 @@ Este documento cubre el punto P2 #21 de `docs/business/MATURITY_REVIEW.md`: Row-
 
 La migración `HabilitarRlsPostgres` (`src/CaeManager.Migrations.PostgreSQL/Migrations/20260801120000_HabilitarRlsPostgres.cs`), aplicada automáticamente al arrancar como cualquier otra migración:
 
-1. Habilita `ROW LEVEL SECURITY` con `FORCE` en las 40 tablas que llevan `TenantId` (las mismas de `CaeManagerDbContext.OnModelCreating` — ni una más ni una menos).
+1. Habilita `ROW LEVEL SECURITY` con `FORCE` en las 40 tablas que llevan `TenantId` (las mismas de `CaeManagerDbContext.OnModelCreating` — ni una más ni una menos). `ClavesApi` (P3-29) se creó después de esta migración y se quedó fuera de la lista hasta `20260802165602_HabilitarRlsClavesApi`, que la añade con la misma política — son 41 tablas en total desde entonces.
 2. Crea una política `aislamiento_tenant` por tabla: solo son visibles/escribibles las filas cuyo `TenantId` coincide con la variable de sesión `app.tenant_id`.
 3. Crea el rol `cae_app_runtime` — **sin contraseña (`NOLOGIN`)**, así que hoy no lo usa nadie — con `NOSUPERUSER` y sin `BYPASSRLS`, y le concede los privilegios de DML (`SELECT`/`INSERT`/`UPDATE`/`DELETE`) sobre todas las tablas, incluidas las que no llevan `TenantId` (Identity, `Tenants`, `DelegacionesTenant`...).
 4. `TenantRlsConnectionInterceptor` (`src/CaeManager.Infrastructure/Persistence/Interceptors/`) fija `app.tenant_id` en cada conexión abierta, leyendo el mismo `ITenantActual` que ya usa el filtro global de EF.

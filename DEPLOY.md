@@ -68,6 +68,8 @@ Las cuatro variables de `DataProtection__Kms__*` van juntas: si falta cualquiera
 
 Las tres piezas de multi-réplica (`AlmacenamientoS3`, `DataProtection__S3`, `SignalR__Redis`) arrancan con una verificación de conectividad que deja constancia en el log de despliegue — revísalo tras activarlas y antes de escalar el servicio a más de una réplica. La elección de líder entre réplicas para `BackupHostedService`/`ProcesadorAnalisisDocumentoHostedService` (`pg_try_advisory_lock` de PostgreSQL) no tiene variable propia — usa siempre el mismo `ConnectionStrings__CaeManagerDb`, así que está activa desde ya.
 
+**Antes de activar `DataProtection__S3__Activo=true` en un despliegue que ya tiene claves en el volumen local**: migra `dataprotection-keys/` a S3 primero (súbelas a mano al bucket con el mismo prefijo, o deja que la app las regenere si no hay ninguna credencial cifrada en BD todavía que dependa de las viejas). Activar S3 sin migrar dejaría las claves viejas —y cualquier `CredencialAccesoEmpresa`/`CredencialAccesoSubcontrata` cifrada con ellas— irrecuperables (ver `RUNBOOK-CLAVES.md` § "las claves de Data Protection no son solo para las cookies"), y además `BackupHostedService` seguiría zipeando el directorio local de `dataprotection-keys/` — que quedaría vacío en cuanto la app arranque a leer/escribir en S3 — sin ningún aviso, así que el backup de claves dejaría de servir para nada en silencio.
+
 Producción y staging pueden usar las mismas variables de `Backups__Aws__*` (mismo bucket) sin pisarse los backups entre sí — cada uno sube a su propia carpeta dentro del bucket, identificada automáticamente por el nombre del servicio en Railway.
 
 | Variable | Valor | Para qué |
