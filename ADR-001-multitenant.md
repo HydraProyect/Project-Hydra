@@ -1,7 +1,7 @@
 # ADR-001 — Modelo multi-tenant
 
 > ✅ **REACTIVADO (2026-07-23) por `ADR-003-saas-multitenant.md`.**
-> La pausa de 2026-07-18 (`ADR-002`) quedó superseded: la vía SaaS multi-tenant es de nuevo el objetivo del producto y se implementa in-place en este repositorio. Este ADR vuelve a ser la **guía técnica vigente** de implementación (modelo `TenantId` por fila, filtro global, interceptor de sellado, índices compuestos). El documento normativo de multi-tenancy es `docs/MULTITENANCY.md`; la auditoría de queries de abajo (39 en su momento) debe re-certificarse — hoy son 46 (ver `docs/archive/INFORME-MULTITENANT.md` § 2.5).
+> La pausa de 2026-07-18 (`ADR-002`) quedó superseded: la vía SaaS multi-tenant es de nuevo el objetivo del producto y se implementa in-place en este repositorio. Este ADR vuelve a ser la **guía técnica vigente** de implementación (modelo `TenantId` por fila, filtro global, interceptor de sellado, índices compuestos). El documento normativo de multi-tenancy es `docs/MULTITENANCY.md`; la auditoría de queries de abajo (39 en su momento) quedó desactualizada ya una vez — pasó a 46 (ver `docs/archive/INFORME-MULTITENANT.md` § 2.5) y hoy son más de 80 (`find src/CaeManager.Application -iname "*Query.cs" | wc -l`, verificado 2026-08-02) — el número concreto no importa: lo que protege el filtro global es "todas, cualquiera que sea la cifra actual", ver `docs/MULTITENANCY.md`.
 
 **Estado**: Decidido (2026-07-17) · en pausa 2026-07-18 (`ADR-002`) · **reactivado 2026-07-23 (`ADR-003`)**.
 
