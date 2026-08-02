@@ -18,8 +18,20 @@ public static class NavigationManagerExtensions
     /// dejarlo como cadena vacía en la URL.
     /// </summary>
     public static void ActualizarFiltroEnUrl(this NavigationManager navigation, string nombreParametro, string? valor) =>
-        navigation.NavigateTo(
-            navigation.GetUriWithQueryParameters(
-                new Dictionary<string, object?> { [nombreParametro] = string.IsNullOrWhiteSpace(valor) ? null : valor }),
-            replace: true);
+        navigation.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { [nombreParametro] = valor });
+
+    /// <summary>
+    /// Igual que <see cref="ActualizarFiltroEnUrl"/> pero para varios
+    /// parámetros a la vez, en una única navegación — llamarlo varias veces
+    /// seguidas (uno por filtro) arriesga que cada `NavigateTo` lea la URL
+    /// todavía sin el cambio del anterior y se pisen entre sí.
+    /// </summary>
+    public static void ActualizarFiltrosEnUrl(this NavigationManager navigation, IReadOnlyDictionary<string, string?> parametros)
+    {
+        var normalizados = new Dictionary<string, object?>();
+        foreach (var (nombreParametro, valor) in parametros)
+            normalizados[nombreParametro] = string.IsNullOrWhiteSpace(valor) ? null : valor;
+
+        navigation.NavigateTo(navigation.GetUriWithQueryParameters(normalizados), replace: true);
+    }
 }

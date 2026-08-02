@@ -2,6 +2,7 @@ using System.Text.Json;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Components;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
@@ -18,6 +19,10 @@ public partial class Auditoria : ComponentBase
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    [SupplyParameterFromQuery(Name = "entidad")]
+    public string? EntidadTipoInicial { get; set; }
 
     private ResultadoPaginado<RegistroAuditoriaDto>? _resultado;
     private Dictionary<Guid, string> _usuariosPorId = new();
@@ -27,7 +32,28 @@ public partial class Auditoria : ComponentBase
     private int _pagina = 1;
     private const int TamanoPagina = 30;
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    protected override Task OnInitializedAsync()
+    {
+        // Los [Parameter] ya están asignados en este punto (SetParametersAsync
+        // corre antes de OnInitialized) — se lee aquí y no solo en
+        // OnParametersSet porque en el primer render OnInitializedAsync se
+        // ejecuta ANTES que OnParametersSet, y esta carga inicial necesita el
+        // filtro ya resuelto.
+        _filtroEntidadTipo = string.IsNullOrWhiteSpace(EntidadTipoInicial) ? null : EntidadTipoInicial;
+        return CargarAsync();
+    }
+
+    /// <summary>
+    /// Re-sincroniza el filtro con la URL en navegaciones posteriores dentro
+    /// de la propia página (volver atrás, compartir la URL) — la recarga de
+    /// datos la sigue disparando explícitamente cada manejador de filtro, no
+    /// este método, para no depender del timing del router (P1-18 de
+    /// docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        _filtroEntidadTipo = string.IsNullOrWhiteSpace(EntidadTipoInicial) ? null : EntidadTipoInicial;
+    }
 
     private async Task CargarAsync()
     {
@@ -71,6 +97,7 @@ public partial class Auditoria : ComponentBase
     {
         _filtroEntidadTipo = string.IsNullOrWhiteSpace(entidadTipo) ? null : entidadTipo;
         _pagina = 1;
+        NavigationManager.ActualizarFiltroEnUrl("entidad", entidadTipo);
         return CargarAsync();
     }
 
