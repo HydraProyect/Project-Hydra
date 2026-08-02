@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
 using CaeManager.Domain.Centros;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +25,7 @@ public record CanalGestionResumenDto(
     string? Notas,
     bool TieneCredenciales);
 
-public class ObtenerCanalGestionDeCentroQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerCanalGestionDeCentroQueryHandler(ICentrosQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCanalGestionDeCentroQuery, CanalGestionResumenDto?>
 {
     public async Task<CanalGestionResumenDto?> Handle(

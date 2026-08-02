@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ public record ObtenerEstadisticasAprobacionDocumentoQuery : IRequest<Estadistica
 
 public record EstadisticasAprobacionDocumentoDto(int Automaticas, int Manuales);
 
-public class ObtenerEstadisticasAprobacionDocumentoQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerEstadisticasAprobacionDocumentoQueryHandler(IDocumentosQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerEstadisticasAprobacionDocumentoQuery, EstadisticasAprobacionDocumentoDto>
 {
     public async Task<EstadisticasAprobacionDocumentoDto> Handle(

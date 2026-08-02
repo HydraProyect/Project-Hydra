@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Vehiculos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,14 +19,14 @@ public record VehiculoDetalleDto(
     string NumeroPlaca,
     Guid Version);
 
-public class ObtenerVehiculoPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVehiculoPorIdQueryHandler(IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVehiculoPorIdQuery, VehiculoDetalleDto?>
 {
     public async Task<VehiculoDetalleDto?> Handle(ObtenerVehiculoPorIdQuery request, CancellationToken cancellationToken)
     {
         if (!await alcanceDatos.VehiculoVisibleAsync(request.Id, cancellationToken)) return null;
 
-        var vehiculo = await dbContext.Vehiculos
+        var vehiculo = await vehiculosContext.Vehiculos
             .Where(v => v.Id == request.Id)
             .Select(v => new { v.Id, v.EmpresaId, v.SubcontrataId, v.Nombre, v.Modelo, v.NumeroPlaca, v.Version })
             .FirstOrDefaultAsync(cancellationToken);
@@ -31,8 +34,8 @@ public class ObtenerVehiculoPorIdQueryHandler(IApplicationDbContext dbContext, I
         if (vehiculo is null) return null;
 
         var empleadorNombre = vehiculo.EmpresaId is not null
-            ? await dbContext.Empresas.Where(e => e.Id == vehiculo.EmpresaId).Select(e => e.RazonSocial).FirstAsync(cancellationToken)
-            : await dbContext.Subcontratas.Where(s => s.Id == vehiculo.SubcontrataId).Select(s => s.RazonSocial).FirstAsync(cancellationToken);
+            ? await empresasContext.Empresas.Where(e => e.Id == vehiculo.EmpresaId).Select(e => e.RazonSocial).FirstAsync(cancellationToken)
+            : await subcontratasContext.Subcontratas.Where(s => s.Id == vehiculo.SubcontrataId).Select(s => s.RazonSocial).FirstAsync(cancellationToken);
 
         return new VehiculoDetalleDto(
             vehiculo.Id, vehiculo.EmpresaId, vehiculo.SubcontrataId, empleadorNombre, vehiculo.Nombre, vehiculo.Modelo,

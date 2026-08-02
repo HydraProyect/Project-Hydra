@@ -1,4 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +25,7 @@ public record VencimientoCalendarioDto(
     string TipoDocumentoNombre,
     EstadoDocumento Estado);
 
-public class ObtenerVencimientosMesQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVencimientosMesQueryHandler(IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVencimientosMesQuery, IReadOnlyList<VencimientoCalendarioDto>>
 {
     public async Task<IReadOnlyList<VencimientoCalendarioDto>> Handle(ObtenerVencimientosMesQuery request, CancellationToken cancellationToken)
@@ -29,16 +33,16 @@ public class ObtenerVencimientosMesQueryHandler(IApplicationDbContext dbContext,
         var primerDia = new DateOnly(request.Anio, request.Mes, 1);
         var ultimoDia = primerDia.AddMonths(1).AddDays(-1);
 
-        var parametros = await dbContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
         var filas = await (
-            from documento in dbContext.Documentos
+            from documento in documentosContext.Documentos
             where documento.TrabajadorId != null
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
-            join trabajador in dbContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             where documento.FechaVencimiento != null
                 && documento.FechaVencimiento >= primerDia
                 && documento.FechaVencimiento <= ultimoDia

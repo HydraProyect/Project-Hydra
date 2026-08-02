@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +18,7 @@ public record ObtenerClientesAutorizadosQuery : IRequest<IReadOnlyList<ClienteAu
 
 public record ClienteAutorizadoDto(Guid TenantId, string Nombre, bool EsOrigen);
 
-public class ObtenerClientesAutorizadosQueryHandler(IApplicationDbContext dbContext, ICurrentUserService currentUserService)
+public class ObtenerClientesAutorizadosQueryHandler(ITenantsQueryContext dbContext, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerClientesAutorizadosQuery, IReadOnlyList<ClienteAutorizadoDto>>
 {
     public async Task<IReadOnlyList<ClienteAutorizadoDto>> Handle(

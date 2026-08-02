@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +9,7 @@ public record ObtenerCredencialAccesoEmpresaQuery(Guid EmpresaId) : IRequest<Cre
 
 public record CredencialAccesoEmpresaDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas);
 
-public class ObtenerCredencialAccesoEmpresaQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerCredencialAccesoEmpresaQueryHandler(IEmpresasQueryContext dbContext)
     : IRequestHandler<ObtenerCredencialAccesoEmpresaQuery, CredencialAccesoEmpresaDto?>
 {
     public Task<CredencialAccesoEmpresaDto?> Handle(ObtenerCredencialAccesoEmpresaQuery request, CancellationToken cancellationToken) =>

@@ -1,4 +1,11 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Importacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
@@ -18,7 +25,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// Nunca lanza una excepción por una fila individual mal formada — solo por
 /// un archivo que no tiene ninguna de las hojas esperadas.
 /// </summary>
-public class ClosedXmlImportacionParser(IApplicationDbContext dbContext) : IExcelImportacionParser
+public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext) : IExcelImportacionParser
 {
     private const string HojaCentros = "Centros_Plataformas";
     private const string HojaEmpleados = "Empleados";
@@ -56,33 +63,33 @@ public class ClosedXmlImportacionParser(IApplicationDbContext dbContext) : IExce
         using var libro = new XLWorkbook(archivo);
 
         var nombresClientesExistentes = new HashSet<string>(
-            await dbContext.Clientes.Select(c => c.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await clientesContext.Clientes.Select(c => c.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
         var nombresCentrosExistentes = new HashSet<string>(
-            await dbContext.Centros.Select(c => c.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await centrosContext.Centros.Select(c => c.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
         var razonesSocialesExistentes = new HashSet<string>(
-            await dbContext.Empresas.Select(e => e.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await empresasContext.Empresas.Select(e => e.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
         var dnisExistentes = new HashSet<string>(
-            await dbContext.Trabajadores.Select(t => t.Dni).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await trabajadoresContext.Trabajadores.Select(t => t.Dni).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
         var nombresTiposDocumentoValidos = new HashSet<string>(
-            await dbContext.TiposDocumento.Select(t => t.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await tiposDocumentoContext.TiposDocumento.Select(t => t.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
 
         // Pares (DNI, tipo de documento) / (DNI, centro) que ya existen en la base
         // de datos — solo para que la vista previa muestre "nuevos" con precisión;
         // EjecutarImportacionCommand vuelve a comprobar esto de forma autoritativa
         // en el momento de escribir, por si el estado cambió entre analizar y confirmar.
         var documentosExistentes = (await (
-            from documento in dbContext.Documentos
-            join trabajador in dbContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            from documento in documentosContext.Documentos
+            join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new { trabajador.Dni, tipoDocumento.Nombre })
             .ToListAsync(cancellationToken))
             .Select(x => (x.Dni, x.Nombre))
             .ToHashSet();
 
         var asignacionesActivasExistentes = (await (
-            from asignacion in dbContext.Asignaciones
-            join trabajador in dbContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
-            join centro in dbContext.Centros on asignacion.CentroId equals centro.Id
+            from asignacion in asignacionesContext.Asignaciones
+            join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
+            join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
             where asignacion.FechaBaja == null
             select new { trabajador.Dni, centro.Nombre })
             .ToListAsync(cancellationToken))

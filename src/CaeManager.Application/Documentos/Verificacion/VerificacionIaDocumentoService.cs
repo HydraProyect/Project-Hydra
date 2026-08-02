@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -22,7 +24,7 @@ namespace CaeManager.Application.Documentos.Verificacion;
 /// (ver ROADMAP.md).
 /// </summary>
 public class VerificacionIaDocumentoService(
-    IApplicationDbContext dbContext,
+    IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     IFileStorageService almacenamiento,
     IExtraccionMetadatosDocumentoIaService extraccion,
     IRevisionIaDocumentoRepository revisionRepositorio,
@@ -35,18 +37,18 @@ public class VerificacionIaDocumentoService(
 
     public async Task ProcesarDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default)
     {
-        var documento = await dbContext.Documentos.FirstOrDefaultAsync(d => d.Id == documentoId, cancellationToken);
+        var documento = await documentosContext.Documentos.FirstOrDefaultAsync(d => d.Id == documentoId, cancellationToken);
 
         if (documento is null || documento.TrabajadorId is null || string.IsNullOrWhiteSpace(documento.ArchivoUrl))
             return;
 
-        var tipoDocumento = await dbContext.TiposDocumento
+        var tipoDocumento = await tiposDocumentoContext.TiposDocumento
             .FirstOrDefaultAsync(t => t.Id == documento.TipoDocumentoId, cancellationToken);
 
         if (tipoDocumento is null || !tipoDocumento.LecturaIaActiva || !tipoDocumento.VerificacionIaActiva)
             return;
 
-        var yaHayRevisionPendiente = await dbContext.RevisionesIaDocumento
+        var yaHayRevisionPendiente = await documentosContext.RevisionesIaDocumento
             .AnyAsync(r => r.DocumentoId == documentoId && !r.Resuelta, cancellationToken);
 
         if (yaHayRevisionPendiente)
