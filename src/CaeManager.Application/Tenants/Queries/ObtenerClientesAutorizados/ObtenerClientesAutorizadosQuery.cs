@@ -51,11 +51,22 @@ public class ObtenerClientesAutorizadosQueryHandler(ITenantsQueryContext dbConte
             // método de dominio no se traduce a SQL).
             where asignacion.UsuarioId == usuarioId.Value && delegacion.Activa
                   && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > ahora)
-            orderby tenant.Nombre
             select new ClienteAutorizadoDto(tenant.Id, tenant.Nombre, false))
             .ToListAsync(cancellationToken);
 
-        resultado.AddRange(delegados);
+        // Distinct por tenant, en memoria: un operador puede tener más de una
+        // AsignacionOperadorDelegado activa hacia el mismo Cliente Delegante
+        // (p. ej. una Comercial y una de Soporte, como el Administrador de la
+        // siembra de demo) — sin esto, SelectorClienteActivo.razor pinta dos
+        // <option> idénticas para el mismo tenant, y
+        // Ayudas.CambiarClienteActivoAsync (E2E) revienta con "strict mode
+        // violation: resolved to 2 elements" (visto en CI, FlujoSoporteTests).
+        // El acceso es el mismo workspace, sin importar cuántas delegaciones
+        // lo concedan. Distinct()+OrderBy() no se pueden encadenar sobre el
+        // IQueryable (EF/Npgsql no traduce esa combinación sobre un record) —
+        // el conjunto es minúsculo (delegaciones de un único usuario), así
+        // que deduplicar tras materializar es correcto y no cuesta nada.
+        resultado.AddRange(delegados.Distinct().OrderBy(c => c.Nombre));
         return resultado;
     }
 }

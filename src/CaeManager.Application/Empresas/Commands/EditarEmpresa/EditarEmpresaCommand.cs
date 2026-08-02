@@ -1,13 +1,15 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Empresas.Commands.EditarEmpresa;
 
 public record EditarEmpresaCommand(
-    Guid Id, string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds, Guid Version = default) : IRequest<Result>;
+    Guid Id, string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds, Guid Version = default) : ICommand;
 
 public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaCommand>
 {
@@ -33,7 +35,8 @@ public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaComm
 }
 
 public class EditarEmpresaCommandHandler(
-    IEmpresaRepository repositorio, IEmpresaClienteRepository empresaClienteRepositorio, IUnitOfWork unitOfWork)
+    IEmpresaRepository repositorio, IEmpresaClienteRepository empresaClienteRepositorio,
+    IClientesQueryContext clientesContext, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarEmpresaCommand, Result>
 {
     public async Task<Result> Handle(EditarEmpresaCommand request, CancellationToken cancellationToken)
@@ -57,10 +60,21 @@ public class EditarEmpresaCommandHandler(
         var deseados = request.ClienteIds.Distinct().ToHashSet();
         var actualesClienteIds = actuales.Select(ec => ec.ClienteId).ToHashSet();
 
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Solo hace falta verificar las vinculaciones NUEVAS: las que ya
+        // estaban antes ya pasaron por esta comprobación cuando se crearon.
+        var clienteIdsNuevos = deseados.Except(actualesClienteIds).ToList();
+        var clientesNuevosEncontrados = await clientesContext.Clientes
+            .Where(c => clienteIdsNuevos.Contains(c.Id))
+            .CountAsync(cancellationToken);
+
+        if (clientesNuevosEncontrados != clienteIdsNuevos.Count)
+            return Result.Fallo(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));
+
         foreach (var ec in actuales.Where(ec => !deseados.Contains(ec.ClienteId)))
             empresaClienteRepositorio.Eliminar(ec);
 
-        foreach (var clienteId in deseados.Except(actualesClienteIds))
+        foreach (var clienteId in clienteIdsNuevos)
             empresaClienteRepositorio.Agregar(new EmpresaCliente(empresa.Id, clienteId));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

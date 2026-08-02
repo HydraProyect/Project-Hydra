@@ -8,7 +8,7 @@ namespace CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
 
 public record ActualizarProyectoCommand(
     Guid Id, string Nombre, DateOnly? FechaFinPrevista, string? Notas, Guid Version = default)
-    : IRequest<Result>;
+    : ICommand;
 
 public class ActualizarProyectoCommandValidator : AbstractValidator<ActualizarProyectoCommand>
 {

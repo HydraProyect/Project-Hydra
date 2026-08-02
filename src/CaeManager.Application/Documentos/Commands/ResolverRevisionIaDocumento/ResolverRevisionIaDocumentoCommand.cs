@@ -12,7 +12,7 @@ namespace CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento
 /// Documento en sí (ver Issue #19: la corrección, si hace falta, la hace un
 /// Gestor CAE editando el Documento por la vía normal, no este comando).
 /// </summary>
-public record ResolverRevisionIaDocumentoCommand(Guid RevisionId) : IRequest<Result>;
+public record ResolverRevisionIaDocumentoCommand(Guid RevisionId) : ICommand;
 
 public class ResolverRevisionIaDocumentoCommandHandler(
     IRevisionIaDocumentoRepository revisionRepositorio,

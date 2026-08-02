@@ -6,6 +6,7 @@ using CaeManager.Application.Visitas.Commands.EliminarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -52,10 +53,29 @@ public partial class Visitas : ComponentBase
     private string _centroAEliminar = string.Empty;
     private bool _eliminando;
 
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? TerminoBusquedaInicial { get; set; }
+
+    [SupplyParameterFromQuery(Name = "notificado")]
+    public string? NotificadoInicial { get; set; }
+
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
     private GridItemsProvider<VisitaListaDto>? _proveedorElementos;
 
     // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
     protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
+
+    /// <summary>
+    /// Se re-ejecuta en cada navegación dentro de la propia página, no solo
+    /// en el primer render — la URL como fuente de verdad de los filtros
+    /// (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        _busqueda = TerminoBusquedaInicial ?? string.Empty;
+        _filtroNotificado = NotificadoInicial ?? string.Empty;
+    }
 
     private async ValueTask<GridItemsProviderResult<VisitaListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<VisitaListaDto> request)
@@ -93,12 +113,14 @@ public partial class Visitas : ComponentBase
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
 
     private async Task FiltrarPorNotificadoAsync(string valor)
     {
         _filtroNotificado = valor;
+        NavigationManager.ActualizarFiltroEnUrl("notificado", valor);
         await RecargarAsync();
     }
 

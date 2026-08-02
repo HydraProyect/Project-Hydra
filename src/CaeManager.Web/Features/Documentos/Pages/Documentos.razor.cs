@@ -11,6 +11,7 @@ using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
 using CaeManager.Domain.Documentos;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Documentos;
 using FluentValidation;
@@ -40,6 +41,25 @@ public partial class Documentos : ComponentBase
     /// </summary>
     [SupplyParameterFromQuery] public string? Estado { get; set; }
 
+    /// <summary>
+    /// Permite llegar aquí desde Alertas con un documento "faltante" (P1-15
+    /// de docs/business/MATURITY_REVIEW.md — Trabajador con Asignación activa
+    /// a un Centro que exige un TipoDocumento obligatorio, sin ningún
+    /// Documento de ese tipo): abre el drawer de creación con el propietario
+    /// y el tipo ya elegidos, en vez de "gestionar" un Documento que todavía
+    /// no existe (DocumentoId, arriba, siempre es null en este caso).
+    /// </summary>
+    [SupplyParameterFromQuery] public Guid? TrabajadorId { get; set; }
+
+    [SupplyParameterFromQuery] public Guid? TipoDocumentoId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "q")] public string? TerminoBusquedaInicial { get; set; }
+
+    /// <summary>Ámbito del filtro de la rejilla — mismo mecanismo que <see cref="Estado"/>, ver OnParametersSet.</summary>
+    [SupplyParameterFromQuery] public string? Ambito { get; set; }
+
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
     private GridItemsProvider<DocumentoListaDto>? _proveedorElementos;
 
     protected override async Task OnInitializedAsync()
@@ -47,11 +67,25 @@ public partial class Documentos : ComponentBase
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
 
-        if (!string.IsNullOrWhiteSpace(Estado) && Enum.TryParse<EstadoDocumento>(Estado, out _))
-            _estadoFiltro = Estado;
-
         if (DocumentoId is not null)
             await AbrirEditarAsync(DocumentoId.Value);
+        else if (TrabajadorId is not null && TipoDocumentoId is not null)
+            await AbrirCrearParaFaltanteAsync(TrabajadorId.Value, TipoDocumentoId.Value);
+    }
+
+    /// <summary>
+    /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
+    /// compartir la URL, volver atrás) — no solo en el primer render — para
+    /// que la URL sea la fuente de verdad de los tres filtros de la rejilla,
+    /// no solo su semilla inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        _estadoFiltro = !string.IsNullOrWhiteSpace(Estado) && Enum.TryParse<EstadoDocumento>(Estado, out _)
+            ? Estado
+            : string.Empty;
+        _busqueda = TerminoBusquedaInicial ?? string.Empty;
+        _ambitoFiltro = Ambito ?? string.Empty;
     }
 
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
@@ -182,18 +216,21 @@ public partial class Documentos : ComponentBase
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
 
     private async Task CambiarAmbitoFiltroAsync(string valor)
     {
         _ambitoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl(nameof(Ambito), valor);
         await RecargarAsync();
     }
 
     private async Task CambiarEstadoFiltroAsync(string valor)
     {
         _estadoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl(nameof(Estado), valor);
         await RecargarAsync();
     }
 
@@ -232,6 +269,13 @@ public partial class Documentos : ComponentBase
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+    }
+
+    private async Task AbrirCrearParaFaltanteAsync(Guid trabajadorId, Guid tipoDocumentoId)
+    {
+        await AbrirCrearAsync();
+        _trabajadorId = trabajadorId.ToString();
+        CambiarTipoDocumento(tipoDocumentoId.ToString());
     }
 
     private async Task CambiarAmbitoAsync(string valor)
@@ -347,6 +391,20 @@ public partial class Documentos : ComponentBase
                 using var memoria = new MemoryStream();
                 await flujo.CopyToAsync(memoria);
                 contenidos.Add((memoria.ToArray(), archivo.Name));
+            }
+
+            // La comprobación de arriba solo mira el nombre — un archivo
+            // renombrado a mano pasaría ese filtro. Esta mira los primeros
+            // bytes del contenido real antes de convertirlo o guardarlo.
+            foreach (var (contenido, nombreArchivo) in contenidos)
+            {
+                if (!ValidadorFirmaArchivo.TieneFirmaValida(contenido, nombreArchivo))
+                {
+                    ToastService.Mostrar(
+                        $"\"{nombreArchivo}\" no es realmente un PDF, JPG, PNG ni Word (.docx) — su contenido no coincide con la extensión.",
+                        TonoToast.Error);
+                    return;
+                }
             }
 
             var pdfUnificado = await ConversorArchivosPdf.UnificarAsync(contenidos, ConversorWordPdf);

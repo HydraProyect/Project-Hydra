@@ -25,7 +25,7 @@ namespace CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 /// cliente para diagnosticar es delicado.
 /// </summary>
 public record AbrirAccesoSoporteCommand(
-    Guid DelegacionTenantId, string Motivo, int DiasDeVentana, string Rol = RolesSoporte.SoloLectura) : IRequest<Result>;
+    Guid DelegacionTenantId, string Motivo, int DiasDeVentana, string Rol = RolesSoporte.SoloLectura) : ICommand;
 
 /// <summary>
 /// Roles con los que puede entrar soporte. Coinciden con los que admite
@@ -96,6 +96,15 @@ public class AbrirAccesoSoporteCommandHandler(
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null)
             return Result.Fallo(Error.Crear("Soporte.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
+
+        // 2FA obligatoria para abrir un acceso de soporte (P1-13 de
+        // docs/business/MATURITY_REVIEW.md): quien entra en datos de un
+        // cliente ajeno con una cuenta comprometida por contraseña sola es
+        // el escenario que este acceso existe precisamente para poder
+        // rastrear y contener.
+        if (!await currentUserService.TieneDobleFactorActivoAsync())
+            return Result.Fallo(Error.Crear(
+                "Soporte.SinDobleFactor", "Activa la autenticación en dos pasos en tu cuenta antes de abrir un acceso de soporte."));
 
         var ahora = DateTime.UtcNow;
         delegacion.ActivarParaSoporte(request.Motivo, ahora.AddDays(request.DiasDeVentana), ahora);

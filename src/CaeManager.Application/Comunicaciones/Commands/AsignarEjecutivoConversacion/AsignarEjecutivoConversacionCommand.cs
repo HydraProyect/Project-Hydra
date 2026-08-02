@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CaeManager.Application.Comunicaciones.Commands.AsignarEjecutivoConversacion;
 
-public record AsignarEjecutivoConversacionCommand(Guid ConversacionId, Guid? EjecutivoId) : IRequest<Result>;
+public record AsignarEjecutivoConversacionCommand(Guid ConversacionId, Guid? EjecutivoId) : ICommand;
 
 public class AsignarEjecutivoConversacionCommandValidator : AbstractValidator<AsignarEjecutivoConversacionCommand>
 {
