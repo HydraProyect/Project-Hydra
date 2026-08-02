@@ -40,7 +40,7 @@ El Kernel **no conoce** ninguna entidad de CAE (`Cliente`, `Documento`...) — s
 | **MultiTenant** | Implementado y validado (ver `docs/MULTITENANCY.md`) | `ADR-003`, `docs/MULTITENANCY.md`, `docs/archive/INFORME-MULTITENANT.md`, `PLAN-MIGRACION-MULTITENANT.md` |
 | **Identity** | Implementado (ASP.NET Core Identity + SSO Entra ID opcional) | `ARCHITECTURE.md` |
 | **Authorization** | Implementado (roles + `IAlcanceDatosService` por cartera) | `DOMAIN.md`, `ARCHITECTURE.md` |
-| **Integrations** | Diseñado, no implementado | `ARQUITECTURA-INTEGRACIONES.md`, `docs/INTEGRATION_GUIDELINES.md` |
+| **Integrations** | Framework genérico diseñado, no implementado; excepción: primer conector real (Microsoft 365, P3-33) construido directo contra Graph, sin pasar por el framework | `ARQUITECTURA-INTEGRACIONES.md` § 12, `docs/INTEGRATION_GUIDELINES.md` |
 | **AI** | Ya sigue el patrón correcto pero acoplado a un caso de uso concreto — ver § 4 | `IExtraccionTrabajadoresIaService` (Application) / `AnthropicExtraccionTrabajadoresIaService` (Infrastructure) |
 | **Notifications** | Ya sigue el patrón correcto para dos canales — ver § 4 | `IEmailService`/`GraphEmailService`, `NotificacionUsuario` (interno) |
 | **Storage** | Ya sigue el patrón correcto, dos backends intercambiables por configuración (P2 #22 de `docs/business/MATURITY_REVIEW.md`) | `IFileStorageService` (Application), disco local o S3 según `AlmacenamientoS3:Activo` (Infrastructure, ver `DEPLOY.md`) |
