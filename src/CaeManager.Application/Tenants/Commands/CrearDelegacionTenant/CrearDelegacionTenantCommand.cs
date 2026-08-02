@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
@@ -28,7 +29,7 @@ public class CrearDelegacionTenantCommandValidator : AbstractValidator<CrearDele
 }
 
 public class CrearDelegacionTenantCommandHandler(
-    IDelegacionTenantRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
+    IDelegacionTenantRepository repositorio, ITenantsQueryContext tenantsContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearDelegacionTenantCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDelegacionTenantCommand request, CancellationToken cancellationToken)
@@ -37,10 +38,10 @@ public class CrearDelegacionTenantCommandHandler(
         // Tenant es catálogo global (Entity, no EntidadConTenant): la consulta
         // no lleva filtro de tenant a propósito, un Id de Tenant es válido
         // cross-tenant por diseño (ADR-004).
-        if (!await dbContext.Tenants.AnyAsync(t => t.Id == request.TenantConsultoraId, cancellationToken))
+        if (!await tenantsContext.Tenants.AnyAsync(t => t.Id == request.TenantConsultoraId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("DelegacionTenant.ConsultoraNoEncontrada", "No encontramos esa Consultora."));
 
-        if (!await dbContext.Tenants.AnyAsync(t => t.Id == request.TenantClienteId, cancellationToken))
+        if (!await tenantsContext.Tenants.AnyAsync(t => t.Id == request.TenantClienteId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("DelegacionTenant.ClienteNoEncontrado", "No encontramos ese Cliente Delegante."));
 
         if (await repositorio.ExisteActivaAsync(request.TenantConsultoraId, request.TenantClienteId, cancellationToken))

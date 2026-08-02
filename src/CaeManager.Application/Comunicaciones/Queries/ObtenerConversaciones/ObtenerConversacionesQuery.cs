@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using CaeManager.Application.Common;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -38,7 +40,7 @@ public record ConversacionListaDto(
     int TotalMensajes);
 
 public class ObtenerConversacionesQueryHandler(
-    IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
+    IClientesQueryContext clientesContext, IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerConversacionesQuery, IReadOnlyList<ConversacionListaDto>>
 {
     private const int LongitudPreview = 140;
@@ -51,7 +53,7 @@ public class ObtenerConversacionesQueryHandler(
     public async Task<IReadOnlyList<ConversacionListaDto>> Handle(
         ObtenerConversacionesQuery request, CancellationToken cancellationToken)
     {
-        var consulta = dbContext.ConversacionesCorreo.AsQueryable();
+        var consulta = comunicacionesContext.ConversacionesCorreo.AsQueryable();
 
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
         if (clienteIdsVisibles is not null)
@@ -101,7 +103,7 @@ public class ObtenerConversacionesQueryHandler(
 
         var conversaciones = await (
             from c in consulta
-            join cliente in dbContext.Clientes on c.ClienteId equals cliente.Id into clientesUnidos
+            join cliente in clientesContext.Clientes on c.ClienteId equals cliente.Id into clientesUnidos
             from cliente in clientesUnidos.DefaultIfEmpty()
             orderby c.FechaUltimoMensajeUtc descending
             select new
@@ -120,12 +122,12 @@ public class ObtenerConversacionesQueryHandler(
 
         var conversacionIds = conversaciones.Select(c => c.Id).ToList();
 
-        var mensajes = await dbContext.MensajesCorreo
+        var mensajes = await comunicacionesContext.MensajesCorreo
             .Where(m => conversacionIds.Contains(m.ConversacionCorreoId))
             .Select(m => new { m.ConversacionCorreoId, m.CuerpoHtml, m.FechaUtc })
             .ToListAsync(cancellationToken);
 
-        var remitentes = await dbContext.ParticipantesConversacion
+        var remitentes = await comunicacionesContext.ParticipantesConversacion
             .Where(p => conversacionIds.Contains(p.ConversacionCorreoId) && p.Rol == RolParticipante.De)
             .Select(p => new { p.ConversacionCorreoId, p.Email })
             .ToListAsync(cancellationToken);

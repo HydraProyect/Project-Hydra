@@ -1,0 +1,88 @@
+@page "/integraciones"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@using CaeManager.Domain.Integraciones
+
+<PageTitle>Conexiones de integración — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <h1 class="titulo-pagina">Conexiones de integración</h1>
+
+    <p class="descripcion-delegaciones">
+        Buzones de Microsoft 365 conectados para la bandeja de correo compartida (Comunicaciones).
+        Cada conexión pertenece a un Cliente Delegante concreto, o al propio Tenant si se deja en blanco.
+    </p>
+
+    <div class="acciones-claves-api">
+        <CampoSelect Etiqueta="Cliente (opcional)" Valor="@(_clienteSeleccionadoId?.ToString() ?? string.Empty)"
+                     ValorChanged="v => _clienteSeleccionadoId = Guid.TryParse(v, out var id) ? id : null">
+            <option value="">Buzón del propio tenant</option>
+            @foreach (var cliente in _clientes)
+            {
+                <option value="@cliente.Id">@cliente.RazonSocial</option>
+            }
+        </CampoSelect>
+
+        <a class="boton boton-primario boton-medio" href="@UrlConectar">Conectar buzón de Microsoft 365</a>
+    </div>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_conexiones.Count == 0)
+    {
+        <EstadoVacio Titulo="Sin conexiones" Descripcion="Todavía no hay ningún buzón de Microsoft 365 conectado." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Buzón</th>
+                    <th>Cliente</th>
+                    <th>Estado</th>
+                    <th>Conectada</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var conexion in _conexiones)
+                {
+                    <tr>
+                        <td>@conexion.BuzonEmail</td>
+                        <td>@(conexion.ClienteNombre ?? "Tenant propio")</td>
+                        <td><Badge Tono="@ObtenerTonoEstado(conexion.Estado)">@ObtenerEtiquetaEstado(conexion.Estado)</Badge></td>
+                        <td>@conexion.FechaConectadaUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                        <td>
+                            @if (conexion.Estado != EstadoConexionIntegracion.Deshabilitada)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
+                                       OnClick="() => _conexionADesconectar = conexion" Cargando="@(_procesandoId == conexion.Id)">
+                                    Desconectar
+                                </Boton>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<Modal Visible="_conexionADesconectar is not null" VisibleChanged="v => { if (!v) _conexionADesconectar = null; }"
+       Titulo="Desconectar el buzón" CerrarAlHacerClicFuera="!_desconectando">
+    <ChildContent>
+        @if (_conexionADesconectar is not null)
+        {
+            <p>
+                <strong>@_conexionADesconectar.BuzonEmail</strong> dejará de recibir/enviar correo desde Hydra.
+                Los hilos ya ingeridos se conservan.
+            </p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_desconectando" OnClick="() => _conexionADesconectar = null">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Destructivo" Cargando="_desconectando" OnClick="DesconectarAsync">Desconectar</Boton>
+    </Pie>
+</Modal>

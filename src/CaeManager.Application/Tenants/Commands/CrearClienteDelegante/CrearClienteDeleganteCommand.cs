@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Tenants;
@@ -48,7 +49,7 @@ public class CrearClienteDeleganteCommandHandler(
     IDelegacionTenantRepository delegacionRepositorio,
     IAsignacionOperadorDelegadoRepository asignacionRepositorio,
     IParametroSistemaRepository parametroSistemaRepositorio,
-    IApplicationDbContext dbContext,
+    ITenantsQueryContext tenantsContext,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearClienteDeleganteCommand, Result<Guid>>
@@ -81,7 +82,7 @@ public class CrearClienteDeleganteCommandHandler(
         // Delegated Workspace ya activo (mismo criterio que
         // AbrirAccesoSoporteCommand).
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
-        var esPlataforma = tenantOrigenId is not null && await dbContext.Tenants
+        var esPlataforma = tenantOrigenId is not null && await tenantsContext.Tenants
             .AnyAsync(t => t.Id == tenantOrigenId.Value && t.EsPlataforma, cancellationToken);
 
         if (!esPlataforma)

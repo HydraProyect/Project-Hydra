@@ -1,4 +1,6 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentValidation;
@@ -32,17 +34,17 @@ public class CrearVisitaCommandValidator : AbstractValidator<CrearVisitaCommand>
 
 public class CrearVisitaCommandHandler(
     IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
-    IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
+    ICentrosQueryContext centrosContext, ITrabajadoresQueryContext trabajadoresContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearVisitaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearVisitaCommand request, CancellationToken cancellationToken)
     {
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
-        if (!await dbContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
+        if (!await centrosContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Visita.CentroNoEncontrado", "No encontramos este centro."));
 
         var trabajadorIds = request.TrabajadorIds.Distinct().ToList();
-        var encontrados = await dbContext.Trabajadores
+        var encontrados = await trabajadoresContext.Trabajadores
             .Where(t => trabajadorIds.Contains(t.Id))
             .Select(t => t.Id)
             .CountAsync(cancellationToken);

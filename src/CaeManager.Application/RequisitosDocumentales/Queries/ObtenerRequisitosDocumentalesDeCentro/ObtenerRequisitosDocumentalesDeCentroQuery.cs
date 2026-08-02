@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.RequisitosDocumentales;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +16,7 @@ public record ObtenerRequisitosDocumentalesDeCentroQuery(Guid CentroId)
 public record RequisitoDocumentalDto(
     Guid Id, string Descripcion, string? PeriodicidadEspecial, bool BloqueaAcceso, string? Notas, Guid Version);
 
-public class ObtenerRequisitosDocumentalesDeCentroQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerRequisitosDocumentalesDeCentroQueryHandler(IRequisitosDocumentalesQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerRequisitosDocumentalesDeCentroQuery, IReadOnlyList<RequisitoDocumentalDto>>
 {
     public async Task<IReadOnlyList<RequisitoDocumentalDto>> Handle(

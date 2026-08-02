@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
@@ -27,7 +28,7 @@ public class CerrarAccesoSoporteCommandValidator : AbstractValidator<CerrarAcces
 public class CerrarAccesoSoporteCommandHandler(
     IDelegacionTenantRepository repositorio,
     IAsignacionOperadorDelegadoRepository asignacionRepositorio,
-    IApplicationDbContext dbContext,
+    ITenantsQueryContext dbContext,
     IRegistroActividadSoporteRepository registroRepositorio,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)

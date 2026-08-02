@@ -1,0 +1,55 @@
+using CaeManager.Application.Common;
+using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Common;
+using FluentValidation;
+using MediatR;
+
+namespace CaeManager.Application.Clientes.Commands.EliminarClientes;
+
+/// <summary>
+/// Borrado en lote (P3-31) — misma regla de negocio que
+/// <see cref="EliminarCliente.EliminarClienteCommand"/> aplicada fila a fila,
+/// una única transacción. Éxito parcial no es fallo del Command: se reporta
+/// en <see cref="ResultadoEliminacionLoteDto"/> para que la UI lo resuma.
+/// </summary>
+public record EliminarClientesCommand(IReadOnlyList<Guid> Ids, Guid UsuarioId) : ICommand<ResultadoEliminacionLoteDto>;
+
+public record ResultadoEliminacionLoteDto(int Eliminados, IReadOnlyList<string> Errores);
+
+public class EliminarClientesCommandValidator : AbstractValidator<EliminarClientesCommand>
+{
+    public EliminarClientesCommandValidator() => RuleFor(c => c.Ids).NotEmpty();
+}
+
+public class EliminarClientesCommandHandler(IClienteRepository repositorio, IUnitOfWork unitOfWork)
+    : IRequestHandler<EliminarClientesCommand, Result<ResultadoEliminacionLoteDto>>
+{
+    public async Task<Result<ResultadoEliminacionLoteDto>> Handle(EliminarClientesCommand request, CancellationToken cancellationToken)
+    {
+        var eliminados = 0;
+        var errores = new List<string>();
+
+        foreach (var id in request.Ids)
+        {
+            var cliente = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
+            if (cliente is null)
+            {
+                errores.Add("Un cliente ya no existía.");
+                continue;
+            }
+
+            if (await repositorio.TieneCentrosActivosAsync(id, cancellationToken))
+            {
+                errores.Add($"{cliente.RazonSocial}: tiene centros activos.");
+                continue;
+            }
+
+            cliente.MarcarComoEliminado(request.UsuarioId);
+            eliminados++;
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result.Exito(new ResultadoEliminacionLoteDto(eliminados, errores));
+    }
+}

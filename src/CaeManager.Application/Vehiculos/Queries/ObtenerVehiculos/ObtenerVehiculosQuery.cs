@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Vehiculos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,17 +13,17 @@ public record ObtenerVehiculosQuery(
 
 public record VehiculoListaDto(Guid Id, string Nombre, string Modelo, string NumeroPlaca, string EmpleadorNombre);
 
-public class ObtenerVehiculosQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVehiculosQueryHandler(IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVehiculosQuery, ResultadoPaginado<VehiculoListaDto>>
 {
     public async Task<ResultadoPaginado<VehiculoListaDto>> Handle(
         ObtenerVehiculosQuery request, CancellationToken cancellationToken)
     {
         var consulta =
-            from vehiculo in dbContext.Vehiculos
-            join empresa in dbContext.Empresas on vehiculo.EmpresaId equals empresa.Id into empresasCoincidentes
+            from vehiculo in vehiculosContext.Vehiculos
+            join empresa in empresasContext.Empresas on vehiculo.EmpresaId equals empresa.Id into empresasCoincidentes
             from empresa in empresasCoincidentes.DefaultIfEmpty()
-            join subcontrata in dbContext.Subcontratas on vehiculo.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
+            join subcontrata in subcontratasContext.Subcontratas on vehiculo.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
             from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
             select new { vehiculo, EmpleadorNombre = empresa != null ? empresa.RazonSocial : subcontrata!.RazonSocial };
 

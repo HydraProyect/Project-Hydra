@@ -25,13 +25,24 @@
                 {
                     <p class="buscador-mensaje">Buscando…</p>
                 }
-                else if (_resultado is not null && !_resultado.TieneResultados)
+                else if (_resultado is not null && !_resultado.TieneResultados && Comandos.Count == 0)
                 {
                     <p class="buscador-mensaje">Sin resultados para «@_termino».</p>
                 }
                 else if (_resultado is not null)
                 {
                     var indice = 0;
+                    @if (Comandos.Count > 0)
+                    {
+                        <div class="buscador-categoria">
+                            <h3>Comandos</h3>
+                            @foreach (var item in Comandos)
+                            {
+                                var indiceItem = indice++;
+                                <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">@item.Titulo</a>
+                            }
+                        </div>
+                    }
                     @if (_resultado.Clientes.Count > 0)
                     {
                         <div class="buscador-categoria">

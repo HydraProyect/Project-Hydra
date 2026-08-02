@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Proyectos;
 using FluentValidation;
@@ -23,7 +24,7 @@ public class CrearProyectoCommandValidator : AbstractValidator<CrearProyectoComm
 }
 
 public class CrearProyectoCommandHandler(
-    IProyectoRepository repositorio, IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
+    IProyectoRepository repositorio, ICentrosQueryContext dbContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearProyectoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearProyectoCommand request, CancellationToken cancellationToken)

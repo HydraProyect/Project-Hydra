@@ -1,3 +1,4 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
@@ -32,7 +33,7 @@ public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaComman
 
 public class CrearEmpresaCommandHandler(
     IEmpresaRepository repositorio, IEmpresaClienteRepository empresaClienteRepositorio,
-    IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
+    IClientesQueryContext clientesContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearEmpresaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearEmpresaCommand request, CancellationToken cancellationToken)
@@ -45,7 +46,7 @@ public class CrearEmpresaCommandHandler(
 
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
         var clienteIds = request.ClienteIds.Distinct().ToList();
-        var clientesEncontrados = await dbContext.Clientes
+        var clientesEncontrados = await clientesContext.Clientes
             .Where(c => clienteIds.Contains(c.Id))
             .CountAsync(cancellationToken);
 

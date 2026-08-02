@@ -59,12 +59,23 @@ public partial class Empresas : ComponentBase
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
+    /// <summary>Comando del palette "Crear empresa «nombre»" (P3-31): abre el Drawer con la razón social precargada.</summary>
+    [SupplyParameterFromQuery] public string? Accion { get; set; }
+    [SupplyParameterFromQuery] public string? Nombre { get; set; }
+
     private GridItemsProvider<EmpresaListaDto>? _proveedorElementos;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
+
+        if (Accion == "crear")
+        {
+            await AbrirCrear();
+            if (!string.IsNullOrWhiteSpace(Nombre))
+                _razonSocial = Nombre;
+        }
     }
 
     /// <summary>

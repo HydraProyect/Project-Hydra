@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +9,7 @@ public record ObtenerTrabajadoresParaSelectorQuery : IRequest<IReadOnlyList<Trab
 
 public record TrabajadorSelectorDto(Guid Id, string NombreCompleto, string Dni, string? Alias);
 
-public class ObtenerTrabajadoresParaSelectorQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerTrabajadoresParaSelectorQueryHandler(ITrabajadoresQueryContext dbContext)
     : IRequestHandler<ObtenerTrabajadoresParaSelectorQuery, IReadOnlyList<TrabajadorSelectorDto>>
 {
     public async Task<IReadOnlyList<TrabajadorSelectorDto>> Handle(
