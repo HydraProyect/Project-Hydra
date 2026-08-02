@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -22,7 +24,7 @@ public record DetectarCamposDocumentoQuery(byte[] Contenido, string NombreArchiv
 
 public record DeteccionCamposDocumentoDto(Guid? TipoDocumentoId, Guid? TrabajadorId, int ConfianzaGeneral);
 
-public class DetectarCamposDocumentoQueryHandler(IDocumentAIRouterService router, IApplicationDbContext dbContext)
+public class DetectarCamposDocumentoQueryHandler(IDocumentAIRouterService router, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext)
     : IRequestHandler<DetectarCamposDocumentoQuery, Result<DeteccionCamposDocumentoDto>>
 {
     private const string TipoEsperadoDesconocido = "documento CAE (tipo todavía no seleccionado por el usuario, infiérelo libremente del contenido)";
@@ -55,7 +57,7 @@ public class DetectarCamposDocumentoQueryHandler(IDocumentAIRouterService router
         if (string.IsNullOrWhiteSpace(tipoDetectado))
             return null;
 
-        var tipos = await dbContext.TiposDocumento
+        var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == ambito)
             .Select(t => new { t.Id, t.Nombre })
             .ToListAsync(cancellationToken);
@@ -75,7 +77,7 @@ public class DetectarCamposDocumentoQueryHandler(IDocumentAIRouterService router
             return null;
 
         var dniNormalizado = NormalizarDni(dniDetectado);
-        var trabajadores = await dbContext.Trabajadores
+        var trabajadores = await trabajadoresContext.Trabajadores
             .Select(t => new { t.Id, t.Dni })
             .ToListAsync(cancellationToken);
 

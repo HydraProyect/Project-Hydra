@@ -74,7 +74,7 @@ public class TarifasClienteAislamientoTests : IAsyncLifetime
         tarifasCrudas.Should().BeEmpty("el filtro global de TarifaCliente debe aislar por tenant");
 
         // ...y después el handler completo, que además valida el Cliente.
-        var handler = new ObtenerTarifasClienteQueryHandler(contexto);
+        var handler = new ObtenerTarifasClienteQueryHandler(contexto, contexto);
         var tarifas = await handler.Handle(
             new ObtenerTarifasClienteQuery(_clienteDelTenantCliente), CancellationToken.None);
 
@@ -86,7 +86,7 @@ public class TarifasClienteAislamientoTests : IAsyncLifetime
     {
         // Contrapeso: el filtro no puede romper el módulo de facturación.
         await using var contexto = CrearContexto(_tenantCliente);
-        var handler = new ObtenerTarifasClienteQueryHandler(contexto);
+        var handler = new ObtenerTarifasClienteQueryHandler(contexto, contexto);
 
         var tarifas = await handler.Handle(
             new ObtenerTarifasClienteQuery(_clienteDelTenantCliente), CancellationToken.None);
@@ -109,7 +109,7 @@ public class TarifasClienteAislamientoTests : IAsyncLifetime
         }
 
         await using var contexto = CrearContexto(_tenantCliente);
-        var handler = new ObtenerTarifasClienteQueryHandler(contexto);
+        var handler = new ObtenerTarifasClienteQueryHandler(contexto, contexto);
 
         var tarifas = await handler.Handle(
             new ObtenerTarifasClienteQuery(_clienteDelTenantCliente), CancellationToken.None);

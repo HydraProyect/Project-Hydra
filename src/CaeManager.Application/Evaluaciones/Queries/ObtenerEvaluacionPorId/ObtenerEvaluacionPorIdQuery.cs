@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Evaluaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,14 +12,14 @@ public record EvaluacionDetalleDto(
     Guid Id, Guid CentroId, string CentroNombre, Guid? TrabajadorId, DateOnly Fecha, int Puntuacion,
     string? Observaciones, Guid Version);
 
-public class ObtenerEvaluacionPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerEvaluacionPorIdQueryHandler(ICentrosQueryContext centrosContext, IEvaluacionesQueryContext evaluacionesContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerEvaluacionPorIdQuery, EvaluacionDetalleDto?>
 {
     public async Task<EvaluacionDetalleDto?> Handle(ObtenerEvaluacionPorIdQuery request, CancellationToken cancellationToken)
     {
         var evaluacion = await (
-            from e in dbContext.Evaluaciones
-            join centro in dbContext.Centros on e.CentroId equals centro.Id
+            from e in evaluacionesContext.Evaluaciones
+            join centro in centrosContext.Centros on e.CentroId equals centro.Id
             where e.Id == request.Id
             select new EvaluacionDetalleDto(
                 e.Id, e.CentroId, centro.Nombre, e.TrabajadorId, e.Fecha, e.Puntuacion, e.Observaciones, e.Version))

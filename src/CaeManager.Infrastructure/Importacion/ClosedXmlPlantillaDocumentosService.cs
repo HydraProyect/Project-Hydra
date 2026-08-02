@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Importacion;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +16,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// con motivo explícito si el DNI o el nombre del tipo no coinciden con el
 /// catálogo actual.
 /// </summary>
-public class ClosedXmlPlantillaDocumentosService(IApplicationDbContext dbContext) : IPlantillaDocumentosService
+public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext) : IPlantillaDocumentosService
 {
     private const string NombreHoja = "Documentos";
     private const int FilaCabecera = 1;
@@ -43,18 +46,18 @@ public class ClosedXmlPlantillaDocumentosService(IApplicationDbContext dbContext
 
     public async Task<PlanImportacionDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
-        var trabajadoresPorDni = await dbContext.Trabajadores
+        var trabajadoresPorDni = await trabajadoresContext.Trabajadores
             .Select(t => t.Dni)
             .ToListAsync(cancellationToken);
         var dnisExistentes = new HashSet<string>(trabajadoresPorDni, StringComparer.OrdinalIgnoreCase);
 
         var nombresTiposDocumentoValidos = new HashSet<string>(
-            await dbContext.TiposDocumento.Select(t => t.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await tiposDocumentoContext.TiposDocumento.Select(t => t.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
 
         var documentosExistentes = (await (
-            from documento in dbContext.Documentos
-            join trabajador in dbContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
-            join tipoDocumento in dbContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            from documento in documentosContext.Documentos
+            join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new { trabajador.Dni, tipoDocumento.Nombre })
             .ToListAsync(cancellationToken))
             .Select(x => (x.Dni, x.Nombre))

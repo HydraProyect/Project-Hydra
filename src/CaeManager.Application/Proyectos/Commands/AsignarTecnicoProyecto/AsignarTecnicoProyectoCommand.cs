@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Proyectos;
 using FluentValidation;
@@ -21,7 +22,7 @@ public class AsignarTecnicoProyectoCommandValidator : AbstractValidator<AsignarT
 
 public class AsignarTecnicoProyectoCommandHandler(
     IProyectoTecnicoRepository repositorio, IProyectoRepository proyectoRepositorio,
-    IApplicationDbContext dbContext, IUnitOfWork unitOfWork)
+    ITrabajadoresQueryContext dbContext, IUnitOfWork unitOfWork)
     : IRequestHandler<AsignarTecnicoProyectoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(AsignarTecnicoProyectoCommand request, CancellationToken cancellationToken)

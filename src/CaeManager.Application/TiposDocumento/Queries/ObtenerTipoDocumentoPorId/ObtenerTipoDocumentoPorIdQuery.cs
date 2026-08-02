@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,7 @@ public record TipoDocumentoDetalleDto(
     string? Observaciones,
     IReadOnlyList<Guid> CentroIds);
 
-public class ObtenerTipoDocumentoPorIdQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext dbContext)
     : IRequestHandler<ObtenerTipoDocumentoPorIdQuery, TipoDocumentoDetalleDto?>
 {
     public async Task<TipoDocumentoDetalleDto?> Handle(ObtenerTipoDocumentoPorIdQuery request, CancellationToken cancellationToken)

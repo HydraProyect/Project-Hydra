@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -32,7 +34,7 @@ public record ConversacionDetalleDto(
     IReadOnlyList<ParticipanteDetalleDto> Participantes);
 
 public class ObtenerConversacionPorIdQueryHandler(
-    IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
+    IClientesQueryContext clientesContext, IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
     ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerConversacionPorIdQuery, ConversacionDetalleDto?>
 {
@@ -42,8 +44,8 @@ public class ObtenerConversacionPorIdQueryHandler(
     public async Task<ConversacionDetalleDto?> Handle(ObtenerConversacionPorIdQuery request, CancellationToken cancellationToken)
     {
         var conversacion = await (
-            from c in dbContext.ConversacionesCorreo
-            join cliente in dbContext.Clientes on c.ClienteId equals cliente.Id into clientesUnidos
+            from c in comunicacionesContext.ConversacionesCorreo
+            join cliente in clientesContext.Clientes on c.ClienteId equals cliente.Id into clientesUnidos
             from cliente in clientesUnidos.DefaultIfEmpty()
             where c.Id == request.Id
             select new
@@ -77,7 +79,7 @@ public class ObtenerConversacionPorIdQueryHandler(
 
         // Se materializa antes de proyectar al DTO porque el saneado corre en
         // memoria: no hay forma de traducir el sanitizador a SQL.
-        var mensajesCrudos = await dbContext.MensajesCorreo
+        var mensajesCrudos = await comunicacionesContext.MensajesCorreo
             .Where(m => m.ConversacionCorreoId == request.Id)
             .OrderBy(m => m.FechaUtc)
             .Select(m => new { m.Id, m.Direccion, m.RemitenteEmail, m.CuerpoHtml, m.FechaUtc })
@@ -88,7 +90,7 @@ public class ObtenerConversacionPorIdQueryHandler(
                 m.Id, m.Direccion, m.RemitenteEmail, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc))
             .ToList();
 
-        var participantes = await dbContext.ParticipantesConversacion
+        var participantes = await comunicacionesContext.ParticipantesConversacion
             .Where(p => p.ConversacionCorreoId == request.Id)
             .Select(p => new ParticipanteDetalleDto(p.Id, p.Email, p.Rol, p.TipoOrigen, p.EntidadRelacionadaId))
             .ToListAsync(cancellationToken);

@@ -54,7 +54,8 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     }
 
     private DeteccionTrabajadoresService CrearServicio(IExtraccionTrabajadoresIaService extraccion, IFileStorageService? almacenamiento = null) =>
-        new(_dbContext, almacenamiento ?? new AlmacenamientoFalso(), extraccion,
+        new(_dbContext, _dbContext, _dbContext, _dbContext, _dbContext,
+            almacenamiento ?? new AlmacenamientoFalso(), extraccion,
             new DeteccionTrabajadorRepository(_dbContext), new NotificacionUsuarioRepository(_dbContext),
             _dbContext, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeteccionTrabajadoresService>.Instance);
 

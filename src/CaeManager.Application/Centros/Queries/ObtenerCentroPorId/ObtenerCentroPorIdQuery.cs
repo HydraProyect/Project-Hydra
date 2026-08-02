@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Empresas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,7 +22,7 @@ public record CentroDetalleDto(
     DateOnly? ContratoVigenteHasta,
     Guid Version);
 
-public class ObtenerCentroPorIdQueryHandler(IApplicationDbContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCentroPorIdQuery, CentroDetalleDto?>
 {
     public async Task<CentroDetalleDto?> Handle(ObtenerCentroPorIdQuery request, CancellationToken cancellationToken)
@@ -27,9 +30,9 @@ public class ObtenerCentroPorIdQueryHandler(IApplicationDbContext dbContext, IAl
         if (!await alcanceDatos.CentroVisibleAsync(request.Id, cancellationToken)) return null;
 
         return await (
-            from centro in dbContext.Centros
-            join cliente in dbContext.Clientes on centro.ClienteId equals cliente.Id
-            join empresa in dbContext.Empresas on centro.EmpresaId equals empresa.Id
+            from centro in centrosContext.Centros
+            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
             where centro.Id == request.Id
             select new CentroDetalleDto(
                 centro.Id, centro.ClienteId, cliente.RazonSocial, centro.EmpresaId, empresa.RazonSocial, centro.Nombre,

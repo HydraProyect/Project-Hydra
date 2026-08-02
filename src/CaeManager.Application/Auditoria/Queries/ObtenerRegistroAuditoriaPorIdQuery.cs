@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Auditoria;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,7 +7,7 @@ namespace CaeManager.Application.Auditoria.Queries;
 
 public record ObtenerRegistroAuditoriaPorIdQuery(Guid Id) : IRequest<RegistroAuditoriaDto?>;
 
-public class ObtenerRegistroAuditoriaPorIdQueryHandler(IApplicationDbContext dbContext)
+public class ObtenerRegistroAuditoriaPorIdQueryHandler(IAuditoriaQueryContext dbContext)
     : IRequestHandler<ObtenerRegistroAuditoriaPorIdQuery, RegistroAuditoriaDto?>
 {
     public Task<RegistroAuditoriaDto?> Handle(ObtenerRegistroAuditoriaPorIdQuery request, CancellationToken cancellationToken) =>
