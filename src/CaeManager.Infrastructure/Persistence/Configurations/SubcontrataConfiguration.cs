@@ -15,7 +15,11 @@ public class SubcontrataConfiguration : IEntityTypeConfiguration<Subcontrata>
             .IsRequired()
             .HasMaxLength(Subcontrata.LongitudMaximaRazonSocial);
 
+        builder.Property(s => s.Cif)
+            .HasMaxLength(Subcontrata.LongitudCif);
+
         builder.HasIndex(s => new { s.TenantId, s.RazonSocial }).IsUnique();
+        builder.HasIndex(s => new { s.TenantId, s.Cif }).IsUnique();
 
         // Prerequisito de FKs compuestas — ver P0-1 de docs/business/MATURITY_REVIEW.md.
         builder.HasIndex(s => new { s.TenantId, s.Id }).IsUnique();
