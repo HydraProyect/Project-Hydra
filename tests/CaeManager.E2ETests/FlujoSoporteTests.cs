@@ -107,7 +107,15 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // propia, nunca operando el workspace ajeno (Delegaciones.razor.cs,
         // OperandoWorkspaceAjeno). ---
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreTenantOrigenPorDefecto);
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
+
+        // Clic en el enlace de navegación, no un GotoAsync directo: el
+        // redirect que hace CambiarClienteActivoAsync puede seguir
+        // asentándose justo cuando se pediría una navegación nueva de golpe
+        // — visto en CI como "net::ERR_ABORTED" al navegar a /delegaciones.
+        // Un clic dentro de la propia página ya cargada no compite con esa
+        // navegación en curso.
+        await page.Locator(".nav-item", new PageLocatorOptions { HasText = "Delegaciones" }).ClickAsync();
+        await page.WaitForURLAsync($"{fixture.BaseUrl}/delegaciones");
 
         tarjeta = TarjetaSoporte(page, Ayudas.NombreClienteDelegadoDemo);
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
