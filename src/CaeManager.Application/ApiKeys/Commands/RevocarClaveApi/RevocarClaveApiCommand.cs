@@ -13,7 +13,7 @@ namespace CaeManager.Application.ApiKeys.Commands.RevocarClaveApi;
 /// Revoca una clave de la API pública. Mismo criterio de autorización que
 /// <see cref="GenerarClaveApi.GenerarClaveApiCommand"/> — ver ahí el porqué.
 /// </summary>
-public record RevocarClaveApiCommand(Guid DelegacionTenantId, Guid ClaveApiId) : IRequest<Result>;
+public record RevocarClaveApiCommand(Guid DelegacionTenantId, Guid ClaveApiId) : ICommand;
 
 public class RevocarClaveApiCommandValidator : AbstractValidator<RevocarClaveApiCommand>
 {

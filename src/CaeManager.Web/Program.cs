@@ -4,6 +4,7 @@ using CaeManager.Application.DependencyInjection;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.DependencyInjection;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using CaeManager.Web.Api.V1;
@@ -19,6 +20,7 @@ using CaeManager.Web.Features.Tenants;
 using CaeManager.Web.Reportes;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
@@ -61,21 +63,33 @@ var rutaLogsAbsoluta = Path.IsPathRooted(rutaLogs)
     ? rutaLogs
     : Path.Combine(builder.Environment.ContentRootPath, rutaLogs);
 
-builder.Host.UseSerilog((context, services, loggerConfiguration) => loggerConfiguration
-    .ReadFrom.Configuration(context.Configuration)
-    .ReadFrom.Services(services)
-    .Enrich.FromLogContext()
-    .WriteTo.Console()
-    .WriteTo.File(rutaLogsAbsoluta, rollingInterval: RollingInterval.Day, retainedFileCountLimit: 31));
+// Sink de logs en la nube (Seq): inerte mientras "Serilog:Seq:ServerUrl" no
+// esté configurado — mismo patrón "funciona sin configurar, se endurece con
+// una variable de entorno en producción" que Sentry, KMS o Backups. Sin él,
+// los logs viven solo en el volumen del contenedor y desaparecen con él, que
+// es justo lo que hace indiagnosticable un incidente (P1-10 de
+// docs/business/MATURITY_REVIEW.md). Seq acepta tanto una instancia propia
+// como Seq cloud; la ApiKey es opcional porque una instancia sin
+// autenticación no la pide.
+var urlSeq = builder.Configuration["Serilog:Seq:ServerUrl"];
+var apiKeySeq = builder.Configuration["Serilog:Seq:ApiKey"];
 
-// Para añadir un sink en la nube (Seq, Axiom, etc.) más adelante: agregar el
-// paquete NuGet correspondiente y un .WriteTo.Xxx(...) condicionado a que su
-// clave de configuración (p. ej. "Serilog:Seq:ServerUrl") esté presente en
-// builder.Configuration — mismo patrón "funciona sin configurar, se
-// endurece con una variable de entorno en producción" que
-// DataProtection/AlmacenamientoArchivos. Ningún paquete de sink en la nube
-// está referenciado todavía porque no hay cuenta provisionada (ver
-// RUNBOOK-CLAVES.md / ROADMAP.md).
+builder.Host.UseSerilog((context, services, loggerConfiguration) =>
+{
+    loggerConfiguration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        // Sin esto, los eventos de varias réplicas o de varios despliegues
+        // se mezclan sin poder separarse una vez en la nube.
+        .Enrich.WithProperty("Aplicacion", "CaeManager")
+        .Enrich.WithProperty("Entorno", context.HostingEnvironment.EnvironmentName)
+        .WriteTo.Console()
+        .WriteTo.File(rutaLogsAbsoluta, rollingInterval: RollingInterval.Day, retainedFileCountLimit: 31);
+
+    if (!string.IsNullOrWhiteSpace(urlSeq))
+        loggerConfiguration.WriteTo.Seq(urlSeq, apiKey: apiKeySeq);
+});
 
 // Error tracking con Sentry — si "Sentry:Dsn" no está configurado (hoy, en
 // todos los entornos: no hay cuenta de Sentry provisionada todavía), la SDK
@@ -197,10 +211,94 @@ builder.Services.AddOpenApi("v1", options =>
     options.AddDocumentTransformer<ApiKeySecuritySchemeTransformer>();
 });
 
+// Rate limiting por IP sobre los POST de autenticación en /cuenta/* (login
+// local, callback de Microsoft, verificación 2FA) — junto con el lockout de
+// Identity, cierra el hallazgo P0-2 de docs/business/MATURITY_REVIEW.md
+// (fuerza bruta sin fricción): el lockout protege cada cuenta concreta, este
+// límite frena el barrido de muchas cuentas distintas desde una misma IP.
+// Solo se limitan los POST — un GET a /cuenta/iniciar-sesion es simplemente
+// cargar la página, y limitarlo también castigaba tráfico legítimo: un
+// runner de CI (o un usuario real detrás de un NAT/proxy compartido) hace
+// varias cargas de página desde la misma IP y se quedaba sin poder ni ver el
+// formulario de login (regresión real, encontrada en los E2E de este mismo
+// cambio — devolvía 429 antes de que existiera nada que enviar). El resto de
+// la aplicación no se limita: es Blazor Server con sesión iniciada, el
+// tráfico útil viaja por el circuito SignalR, no por peticiones HTTP
+// repetidas. Limitador en memoria: suficiente mientras el techo sea 1
+// réplica (autodocumentado en ARCHITECTURE.md); con multi-réplica habría que
+// moverlo a un almacén compartido, igual que el resto de estado de proceso.
+// Techos configurables con los mismos valores de siempre por defecto: la
+// suite E2E hace logins reales en serie (cada login del Administrador son
+// DOS POST anónimos: credenciales + código 2FA) y supera los 10/min desde
+// 127.0.0.1 — exactamente el patrón de fuerza bruta que este límite corta,
+// solo que aquí es tráfico legítimo de test. El fixture E2E sube el techo
+// por variable de entorno (ver WebAppFixture); en producción no hay ninguna
+// configuración y aplican los valores de siempre.
+var limiteCuentaAnonimo = builder.Configuration.GetValue("RateLimiting:Cuenta:LimiteAnonimo", 10);
+var limiteCuentaAutenticado = builder.Configuration.GetValue("RateLimiting:Cuenta:LimiteAutenticado", 60);
+
+builder.Services.AddRateLimiter(opciones =>
+{
+    opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    opciones.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
+    {
+        var esPostDeCuenta = HttpMethods.IsPost(contexto.Request.Method)
+            && contexto.Request.Path.StartsWithSegments("/cuenta");
+
+        if (!esPostDeCuenta)
+            return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("sin-limite");
+
+        // Con sesión iniciada (cambio de Delegated Workspace vía
+        // /cuenta/cliente-activo, cerrar sesión) el margen es holgado — el
+        // objetivo son los anónimos que martillean el login.
+        var limite = contexto.User.Identity?.IsAuthenticated == true ? limiteCuentaAutenticado : limiteCuentaAnonimo;
+
+        // La IP real ya está resuelta: UseForwardedHeaders corre al principio
+        // del pipeline (ver más abajo) y el middleware de rate limiting actúa
+        // después, por petición.
+        var ip = contexto.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
+
+        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            $"{limite}:{ip}",
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = limite,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
+    });
+});
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// Health check real (P0-5 de docs/business/MATURITY_REVIEW.md): /salud
+// respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
+// cualquier uptime check externo veía un servicio sano que no podía servir
+// ni el login. Ahora ejecuta un SELECT 1 contra la base de datos: 200
+// "Healthy" solo si el proceso vive Y la BD responde. Sigue siendo anónimo
+// y barato a propósito (es lo que sondea Railway y el uptime check externo).
+builder.Services.AddHealthChecks()
+    .AddNpgSql(
+        sp => builder.Configuration.GetConnectionString("CaeManagerDb")
+            ?? throw new InvalidOperationException("Falta el connection string CaeManagerDb."),
+        name: "postgresql");
+
 var app = builder.Build();
+
+// Modo dedicado para el paso de "pre-deploy" de Railway (ver railway.json y
+// DEPLOY.md § 4 — P2 #22 de docs/business/MATURITY_REVIEW.md, una de las
+// tres cosas que desbloquean multi-réplica): aplica las migraciones
+// pendientes y termina, sin levantar Kestrel ni sembrar datos. Así el
+// esquema se cierra una única vez, antes de que arranque ninguna réplica del
+// proceso web — no N réplicas compitiendo por aplicar DDL a la vez en cada
+// redeploy/reinicio.
+if (args.Contains("--migrate-only"))
+{
+    using var scopeMigracion = app.Services.CreateScope();
+    await MigrarBaseDeDatosAsync(app.Configuration, scopeMigracion.ServiceProvider);
+    return;
+}
 
 // Detrás de un proxy inverso (Railway, cualquier despliegue en contenedor —
 // ver DEPLOY.md), Kestrel solo ve tráfico HTTP interno; sin esto,
@@ -224,11 +322,25 @@ app.UseForwardedHeaders(opcionesForwardedHeaders);
 
 using (var scope = app.Services.CreateScope())
 {
+    // Migraciones__AlArrancar=false (Railway) una vez que el
+    // preDeployCommand de railway.json esté aplicándolas de verdad — hasta
+    // entonces, por defecto (true), el arranque normal las aplica igual que
+    // siempre: con el pre-deploy sin adoptar, es la única vía que las
+    // ejecuta. Con las dos activas a la vez no hay riesgo de una sola
+    // réplica (las migraciones ya aplicadas no se repiten), pero si se
+    // escalase a varias réplicas simultáneas sí volvería la carrera que
+    // migrate-only existe para evitar — de ahí el apagador explícito en vez
+    // de dejarlo siempre encendido.
+    if (app.Configuration.GetValue("Migraciones:AlArrancar", defaultValue: true))
+    {
+        await MigrarBaseDeDatosAsync(app.Configuration, scope.ServiceProvider);
+    }
+
     var dbContext = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-    await dbContext.Database.MigrateAsync();
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+    var userStore = scope.ServiceProvider.GetRequiredService<IUserStore<ApplicationUser>>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     // Sin sesión de usuario en el arranque no hay tenant que resolver por
@@ -236,7 +348,7 @@ using (var scope = app.Services.CreateScope())
     // como tenant #1 (ver AmbitoTenantExplicito, docs/MULTITENANCY.md § 8.4).
     using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
     {
-        await IdentitySeeder.SeedAsync(userManager, roleManager, logger, app.Configuration);
+        await IdentitySeeder.SeedAsync(userManager, roleManager, userStore, logger, app.Configuration, app.Environment);
     }
 
     // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
@@ -249,7 +361,7 @@ using (var scope = app.Services.CreateScope())
     // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
     // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
     // que SegundoTenant:Activo esté configurado explícitamente.
-    await SegundoTenantSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
+    await SegundoTenantSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, logger);
 
     // Al final a propósito: aprovisiona la delegación de soporte —apagada—
     // de todo tenant que exista, incluidos los que acaben de sembrarse.
@@ -262,7 +374,26 @@ using (var scope = app.Services.CreateScope())
 // Registrado antes del manejo de excepciones para envolverlo por completo:
 // una petición que termina en 500 vía UseExceptionHandler se sigue
 // registrando aquí con su código de estado final, no como si hubiera ido bien.
-app.UseSerilogRequestLogging();
+//
+// EnrichDiagnosticContext corre al cerrar la petición, cuando el tenant ya
+// está resuelto — por eso los servicios se piden a ctx.RequestServices y no
+// por constructor: ITenantActual es scoped y este callback lo comparte un
+// middleware singleton. Es lo que hace que la traza HTTP (descargas de
+// documentos, exports, endpoints de identidad) salga correlacionada con el
+// tenant igual que la de MediatR, que se correlaciona en LoggingBehavior.
+app.UseSerilogRequestLogging(opciones =>
+{
+    opciones.EnrichDiagnosticContext = (contextoDiagnostico, contextoHttp) =>
+    {
+        var tenantActual = contextoHttp.RequestServices.GetService<ITenantActual>();
+        if (tenantActual?.TenantId is { } tenantId)
+            contextoDiagnostico.Set("TenantId", tenantId);
+
+        var usuarioId = contextoHttp.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(usuarioId))
+            contextoDiagnostico.Set("UsuarioId", usuarioId);
+    };
+});
 
 if (!app.Environment.IsDevelopment())
 {
@@ -282,6 +413,11 @@ app.UseRequestLocalization(new RequestLocalizationOptions()
     .AddSupportedUICultures(culturaEspanola.Name));
 
 app.UseAuthentication();
+
+// Tras UseAuthentication (el límite distingue anónimo/autenticado) y antes
+// de que ningún endpoint procese la petición.
+app.UseRateLimiter();
+
 app.UseAuthorization();
 app.UseRateLimiter();
 app.UseAntiforgery();
@@ -296,7 +432,7 @@ app.UseRevalidacionClienteActivo();
 // módulos JS a veces se pedían antes de que la cookie de auth completara su
 // ida y vuelta, y un import() dinámico fallido no se reintenta solo.
 app.MapStaticAssets().AllowAnonymous();
-app.MapGet("/salud", () => Results.Ok("ok")).AllowAnonymous();
+app.MapHealthChecks("/salud").AllowAnonymous();
 app.MapIdentityEndpoints();
 app.MapClientesEndpoints();
 app.MapDocumentosEndpoints();
@@ -324,3 +460,27 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+// Las migraciones (DDL: CreateTable, y desde HabilitarRlsPostgres además
+// ENABLE ROW LEVEL SECURITY / CREATE POLICY) exigen el rol propietario de
+// las tablas — el rol de runtime que RUNBOOK-RLS.md provisiona para
+// ConnectionStrings:CaeManagerDbRuntime no tiene privilegios de DDL a
+// propósito (es justo lo que hace que RLS lo restrinja de verdad). Por eso
+// las migraciones se aplican con una instancia propia apuntando siempre a
+// CaeManagerDb (el rol propietario), sin pasar por el DbContext inyectado —
+// que desde que se configura CaeManagerDbRuntime usa ese rol restringido
+// para todo lo demás (ver TenantRlsConnectionInterceptor). Mientras
+// CaeManagerDbRuntime no esté configurado (todos los entornos hoy) ambas
+// cadenas son la misma y esto es equivalente a conectar una sola vez.
+static async Task MigrarBaseDeDatosAsync(IConfiguration configuration, IServiceProvider servicios)
+{
+    var cadenaMigraciones = configuration.GetConnectionString("CaeManagerDb");
+    var opcionesMigraciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+        .UseNpgsql(cadenaMigraciones, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+        .Options;
+    await using var dbContextMigraciones = new CaeManagerDbContext(
+        opcionesMigraciones,
+        servicios.GetRequiredService<IDataProtectionProvider>(),
+        new TenantActualAmbiental());
+    await dbContextMigraciones.Database.MigrateAsync();
+}

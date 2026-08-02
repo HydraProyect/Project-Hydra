@@ -17,6 +17,9 @@ public class SubcontrataConfiguration : IEntityTypeConfiguration<Subcontrata>
 
         builder.HasIndex(s => new { s.TenantId, s.RazonSocial }).IsUnique();
 
+        // Prerequisito de FKs compuestas — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        builder.HasIndex(s => new { s.TenantId, s.Id }).IsUnique();
+
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }

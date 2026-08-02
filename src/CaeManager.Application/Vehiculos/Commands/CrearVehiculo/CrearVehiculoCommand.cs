@@ -1,8 +1,11 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Subcontratas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Vehiculos;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
 
@@ -16,7 +19,7 @@ public record CrearVehiculoCommand(
     Guid? SubcontrataId,
     string Nombre,
     string Modelo,
-    string NumeroPlaca) : IRequest<Result<Guid>>;
+    string NumeroPlaca) : ICommand<Guid>;
 
 public class CrearVehiculoCommandValidator : AbstractValidator<CrearVehiculoCommand>
 {
@@ -40,11 +43,21 @@ public class CrearVehiculoCommandValidator : AbstractValidator<CrearVehiculoComm
     }
 }
 
-public class CrearVehiculoCommandHandler(IVehiculoRepository repositorio, IUnitOfWork unitOfWork)
+public class CrearVehiculoCommandHandler(
+    IVehiculoRepository repositorio, IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearVehiculoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearVehiculoCommand request, CancellationToken cancellationToken)
     {
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        if (request.EmpresaId is { } empresaId
+            && !await empresasContext.Empresas.AnyAsync(e => e.Id == empresaId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Vehiculo.EmpresaNoEncontrada", "No encontramos esta empresa."));
+
+        if (request.SubcontrataId is { } subcontrataId
+            && !await subcontratasContext.Subcontratas.AnyAsync(s => s.Id == subcontrataId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Vehiculo.SubcontrataNoEncontrada", "No encontramos esta subcontrata."));
+
         if (await repositorio.ExisteConMatriculaAsync(request.NumeroPlaca, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Vehiculo.MatriculaDuplicada", "Ya existe un vehículo con este número de placa."));
 

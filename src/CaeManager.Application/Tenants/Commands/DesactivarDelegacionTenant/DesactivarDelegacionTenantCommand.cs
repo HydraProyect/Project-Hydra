@@ -19,7 +19,7 @@ namespace CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 /// que promete el titular del ADR — un modelo de delegación reversible — y de
 /// lo que un responsable del tratamiento debe poder garantizar.
 /// </summary>
-public record DesactivarDelegacionTenantCommand(Guid DelegacionTenantId) : IRequest<Result>;
+public record DesactivarDelegacionTenantCommand(Guid DelegacionTenantId) : ICommand;
 
 public class DesactivarDelegacionTenantCommandValidator : AbstractValidator<DesactivarDelegacionTenantCommand>
 {

@@ -14,7 +14,7 @@ namespace CaeManager.Application.Retencion.Commands;
 /// temporizador de madrugada. Convertirlo en periódico es añadir un
 /// BackgroundService que llame a este mismo Command.
 /// </summary>
-public record BuscarDatosPurgablesCommand : IRequest<Result<int>>;
+public record BuscarDatosPurgablesCommand : ICommand<int>;
 
 public class BuscarDatosPurgablesCommandHandler(
     DeteccionPurgaService deteccion, IOptions<RetencionDatosOptions> opciones)
@@ -34,7 +34,7 @@ public class BuscarDatosPurgablesCommandHandler(
 }
 
 /// <summary>Deja constancia de que se avisó al tenant antes de destruir nada.</summary>
-public record MarcarTenantAvisadoCommand(Guid SolicitudId) : IRequest<Result>;
+public record MarcarTenantAvisadoCommand(Guid SolicitudId) : ICommand;
 
 public class MarcarTenantAvisadoCommandHandler(ISolicitudPurgaRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<MarcarTenantAvisadoCommand, Result>
@@ -56,7 +56,7 @@ public class MarcarTenantAvisadoCommandHandler(ISolicitudPurgaRepository reposit
 /// Autoriza la destrucción y fija cuándo puede ejecutarse. Es el único camino
 /// hacia la ejecución.
 /// </summary>
-public record ProgramarPurgaCommand(Guid SolicitudId, DateOnly FechaEjecucion) : IRequest<Result>;
+public record ProgramarPurgaCommand(Guid SolicitudId, DateOnly FechaEjecucion) : ICommand;
 
 public class ProgramarPurgaCommandValidator : AbstractValidator<ProgramarPurgaCommand>
 {
@@ -101,7 +101,7 @@ public class ProgramarPurgaCommandHandler(
 }
 
 /// <summary>Descarta la propuesta — el caso del tenant que pide conservar sus datos más tiempo.</summary>
-public record CancelarPurgaCommand(Guid SolicitudId, string Motivo) : IRequest<Result>;
+public record CancelarPurgaCommand(Guid SolicitudId, string Motivo) : ICommand;
 
 public class CancelarPurgaCommandValidator : AbstractValidator<CancelarPurgaCommand>
 {
@@ -142,7 +142,7 @@ public class CancelarPurgaCommandHandler(ISolicitudPurgaRepository repositorio, 
 /// aunque esté autorizada: es irreversible, y que la fecha llegue no es razón
 /// para que ocurra sin que nadie mire.
 /// </summary>
-public record EjecutarPurgaCommand(Guid SolicitudId) : IRequest<Result<int>>;
+public record EjecutarPurgaCommand(Guid SolicitudId) : ICommand<int>;
 
 public class EjecutarPurgaCommandHandler(EjecucionPurgaService ejecucion)
     : IRequestHandler<EjecutarPurgaCommand, Result<int>>

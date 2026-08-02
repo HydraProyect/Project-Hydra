@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 
-public record DesasignarTecnicoProyectoCommand(Guid Id, DateOnly FechaBaja) : IRequest<Result>;
+public record DesasignarTecnicoProyectoCommand(Guid Id, DateOnly FechaBaja) : ICommand;
 
 public class DesasignarTecnicoProyectoCommandValidator : AbstractValidator<DesasignarTecnicoProyectoCommand>
 {

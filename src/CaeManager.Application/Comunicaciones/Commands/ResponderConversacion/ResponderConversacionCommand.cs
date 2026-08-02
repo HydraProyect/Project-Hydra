@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 
-public record ResponderConversacionCommand(Guid ConversacionId, string CuerpoHtml) : IRequest<Result>;
+public record ResponderConversacionCommand(Guid ConversacionId, string CuerpoHtml) : ICommand;
 
 public class ResponderConversacionCommandValidator : AbstractValidator<ResponderConversacionCommand>
 {

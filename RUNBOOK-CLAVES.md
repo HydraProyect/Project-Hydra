@@ -90,6 +90,10 @@ Data Protection cifra cada clave cuando la crea; **no vuelve atrás a cifrar las
 
 Cerrar eso del todo es una migración aparte: activar KMS, forzar la creación de una clave nueva (que ya nace cifrada), volver a guardar las credenciales existentes para que se cifren con ella, y solo entonces retirar las claves antiguas del volumen y purgar los backups viejos. Hasta que eso se haga, lo correcto es asumir que **las credenciales de portales externos anteriores a la activación siguen expuestas** en cualquier copia antigua del backup.
 
+## Ensayo periódico
+
+La restauración se ensaya con `scripts/ensayo-restauracion.sh` contra un PostgreSQL local desechable (sin tocar producción) y el resultado se anota en `docs/ENSAYO-RESTAURACION.md`, donde también viven los objetivos RPO/RTO. Un backup que nunca se ha restaurado es una hipótesis, no un plan (P0-6 de `docs/business/MATURITY_REVIEW.md`).
+
 ## Recuperación — desde un backup en S3
 
 1. En la consola de AWS → S3 → el bucket configurado → entra a la carpeta `{nombre-del-servicio}/` (el nombre que le pusiste al servicio en Railway) → elige la carpeta con la fecha-hora más reciente antes del incidente.

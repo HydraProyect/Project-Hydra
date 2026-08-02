@@ -1,5 +1,6 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Domain.Documentos;
+using CaeManager.Web.Components;
 using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Alertas.Pages;
@@ -31,12 +32,18 @@ public partial class Alertas : ComponentBase
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(AlertasFiltradas.Count / (double)TamanoPagina));
     private IReadOnlyList<AlertaDto> AlertasDePagina => AlertasFiltradas.Skip((_pagina - 1) * TamanoPagina).Take(TamanoPagina).ToList();
 
-    protected override Task OnInitializedAsync()
-    {
-        if (!string.IsNullOrWhiteSpace(Estado) && Enum.TryParse<EstadoDocumento>(Estado, out _))
-            _estadoFiltro = Estado;
+    protected override Task OnInitializedAsync() => CargarAsync();
 
-        return CargarAsync();
+    /// <summary>
+    /// Se re-ejecuta en cada navegación dentro de la propia página, no solo
+    /// en el primer render, para que la URL sea la fuente de verdad del
+    /// filtro (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        _estadoFiltro = !string.IsNullOrWhiteSpace(Estado) && Enum.TryParse<EstadoDocumento>(Estado, out _)
+            ? Estado
+            : string.Empty;
     }
 
     private Task IrAPaginaAsync(int pagina)
@@ -49,11 +56,19 @@ public partial class Alertas : ComponentBase
     {
         _estadoFiltro = valor;
         _pagina = 1;
+        NavigationManager.ActualizarFiltroEnUrl(nameof(Estado), valor);
         return Task.CompletedTask;
     }
 
-    private void GestionarDocumento(Guid documentoId) =>
-        NavigationManager.NavigateTo($"/documentos?documentoId={documentoId}");
+    /// <summary>
+    /// Un documento faltante (P1-15) no tiene DocumentoId — no hay nada que
+    /// "gestionar" todavía. Lleva al drawer de creación con el propietario y
+    /// el tipo ya elegidos en vez de a un documento inexistente.
+    /// </summary>
+    private void GestionarAlerta(AlertaDto alerta) => NavigationManager.NavigateTo(
+        alerta.DocumentoId is { } documentoId
+            ? $"/documentos?documentoId={documentoId}"
+            : $"/documentos?trabajadorId={alerta.TrabajadorId}&tipoDocumentoId={alerta.TipoDocumentoId}");
 
     private async Task CargarAsync()
     {

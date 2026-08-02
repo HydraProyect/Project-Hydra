@@ -1,8 +1,10 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento;
 
@@ -18,7 +20,7 @@ public record CrearTipoDocumentoCommand(
     string? CriteriosValidacion,
     string? SeSolicitaA,
     string? Observaciones,
-    IReadOnlyList<Guid> CentroIds) : IRequest<Result<Guid>>;
+    IReadOnlyList<Guid> CentroIds) : ICommand<Guid>;
 
 public class CrearTipoDocumentoCommandValidator : AbstractValidator<CrearTipoDocumentoCommand>
 {
@@ -45,13 +47,26 @@ public class CrearTipoDocumentoCommandValidator : AbstractValidator<CrearTipoDoc
 }
 
 public class CrearTipoDocumentoCommandHandler(
-    ITipoDocumentoRepository repositorio, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio, IUnitOfWork unitOfWork)
+    ITipoDocumentoRepository repositorio, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
+    ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearTipoDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearTipoDocumentoCommand request, CancellationToken cancellationToken)
     {
         if (await repositorio.ExisteConNombreAsync(request.Nombre, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("TipoDocumento.NombreDuplicado", "Ya existe un tipo de documento con este nombre."));
+
+        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md
+        // (hallazgo de la auditoría de PR #48: quedó fuera del barrido original
+        // pese a que TipoDocumentoCentro ya recibió FK real en el mismo commit).
+        if (request.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
+        {
+            var centroIds = request.CentroIds.Distinct().ToList();
+            var centrosEncontrados = await centrosContext.Centros.Where(c => centroIds.Contains(c.Id)).CountAsync(cancellationToken);
+
+            if (centrosEncontrados != centroIds.Count)
+                return Result.Fallo<Guid>(Error.Crear("TipoDocumento.CentroNoEncontrado", "Alguno de los centros seleccionados no existe."));
+        }
 
         var tipoDocumento = new TipoDocumento(
             request.Nombre,
