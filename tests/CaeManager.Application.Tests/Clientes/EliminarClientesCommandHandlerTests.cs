@@ -16,7 +16,7 @@ public class EliminarClientesCommandHandlerTests
         repositorio.Agregar(uno);
         repositorio.Agregar(dos);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarClientesCommandHandler(repositorio, unitOfWork);
+        var handler = new EliminarClientesCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new EliminarClientesCommand([uno.Id, dos.Id], Guid.NewGuid()), CancellationToken.None);
 
@@ -38,7 +38,7 @@ public class EliminarClientesCommandHandlerTests
         repositorio.Agregar(conCentros);
         repositorio.IdsConCentrosActivos.Add(conCentros.Id);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarClientesCommandHandler(repositorio, unitOfWork);
+        var handler = new EliminarClientesCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new EliminarClientesCommand([sinCentros.Id, conCentros.Id], Guid.NewGuid()), CancellationToken.None);
@@ -55,12 +55,35 @@ public class EliminarClientesCommandHandlerTests
     {
         var repositorio = new ClienteRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarClientesCommandHandler(repositorio, unitOfWork);
+        var handler = new EliminarClientesCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new EliminarClientesCommand([Guid.NewGuid()], Guid.NewGuid()), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(0);
         resultado.Valor.Errores.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task No_elimina_un_cliente_fuera_de_la_cartera_aunque_venga_en_el_lote()
+    {
+        // Blindaje contra un lote construido a mano (fuera de la UI, que ya
+        // filtra por cartera) con el Id de un cliente ajeno dentro del mismo tenant.
+        var propio = new Cliente("Propio S.A.", "B12345674", false);
+        var ajeno = new Cliente("Ajeno S.A.", "B12345674", false);
+        var repositorio = new ClienteRepositorioFalso { TieneCentrosActivos = false };
+        repositorio.Agregar(propio);
+        repositorio.Agregar(ajeno);
+        var unitOfWork = new UnitOfWorkFalso();
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [propio.Id]);
+        var handler = new EliminarClientesCommandHandler(repositorio, alcance, unitOfWork);
+
+        var resultado = await handler.Handle(new EliminarClientesCommand([propio.Id, ajeno.Id], Guid.NewGuid()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Eliminados.Should().Be(1);
+        resultado.Valor.Errores.Should().ContainSingle();
+        propio.EstaEliminado.Should().BeTrue();
+        ajeno.EstaEliminado.Should().BeFalse();
     }
 }
