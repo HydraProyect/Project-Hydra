@@ -246,11 +246,17 @@ jobs:
   load-test:
     name: Prueba de carga base (k6)
     runs-on: ubuntu-latest
-    # No bloqueante a propósito, igual que el escaneo de Trivy: es la
+    # No bloqueante a propósito (P1-5 de la revisión de madurez): es la
     # primera cifra real de carga que existe en el repo (P1-19 de
     # docs/business/MATURITY_REVIEW.md, antes no había ninguna) — sin un
     # historial de resultados todavía no hay umbral defendible que hacer
-    # fallar el build, solo visibilidad.
+    # fallar el build, solo visibilidad. A diferencia del escaneo de Trivy
+    # de "Build de la imagen de despliegue" (que solo afecta a su propio
+    # paso vía exit-code: "0", sin tocar el resultado del job), este
+    # continue-on-error es a nivel de job — por eso "Prueba de carga base
+    # (k6)" está deliberadamente fuera de los required status checks de la
+    # protección de rama de main: un gate marcado "informativo" en el
+    # código no debe poder bloquear un merge en GitHub.
     continue-on-error: true
     services:
       postgres:
