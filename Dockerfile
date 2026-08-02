@@ -47,8 +47,12 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # version mismatch"), así que se instala desde el repositorio oficial de
 # PostgreSQL (PGDG), que sí publica la 18. Si el Postgres de Railway sube de
 # versión mayor otra vez, hay que subir el número de aquí abajo también.
+# gosu: deja que el entrypoint arranque como root, corrija permisos del
+# volumen si hace falta, y baje de privilegios a $APP_UID sin perder el
+# manejo de señales (reemplaza el proceso, a diferencia de `su`) — ver
+# docker-entrypoint.sh.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libreoffice-writer curl ca-certificates gnupg \
+    && apt-get install -y --no-install-recommends libreoffice-writer curl ca-certificates gnupg gosu \
     && install -d /usr/share/postgresql-common/pgdg \
     && curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail \
        https://www.postgresql.org/media/keys/ACCC4CF8.asc \
@@ -60,23 +64,17 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build --chown=$APP_UID:$APP_UID /app/publish .
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 8080
 
-# Corre como el usuario no-root que ya trae la imagen base de .NET (P2 #25
-# de docs/business/MATURITY_REVIEW.md), en vez de como root por omisión.
-# $APP_UID lo define la propia imagen mcr.microsoft.com/dotnet/aspnet — no
-# hace falta declararlo aquí.
-#
-# OJO al desplegar esto por primera vez: la app escribe en el volumen
-# persistente de Railway (/data — dataprotection-keys/, y documentos/ si
-# AlmacenamientoS3 no está activo, ver DEPLOY.md). Si ese volumen ya existía
-# de antes con permisos de root, este cambio puede dejarlo sin poder
-# escribir hasta corregir la propiedad del volumen — verificar en el primer
-# despliegue tras este cambio, no asumir que funciona igual sin más.
-USER $APP_UID
-
-# El host asigna el puerto en tiempo de ejecución vía la variable PORT (p.
-# ej. Railway) — no se puede fijar en ENV porque cambia por despliegue, así
-# que se lee al arrancar el contenedor, no al construir la imagen.
-ENTRYPOINT ["sh", "-c", "dotnet CaeManager.Web.dll --urls http://+:${PORT:-8080}"]
+# No fijamos USER aquí a propósito (a diferencia de la primera versión de
+# este cambio, P2 #25 de docs/business/MATURITY_REVIEW.md): el contenedor
+# arranca como root para que el entrypoint pueda corregir la propiedad de
+# /data si el volumen persistente de Railway viene de antes de este cambio
+# (dataprotection-keys/ quedando sin permiso de escritura para $APP_UID en
+# ese caso — reproducido en producción, ver docker-entrypoint.sh), y baja de
+# privilegios a $APP_UID con gosu antes de ejecutar la app real. El proceso
+# de la app en sí sigue sin correr nunca como root.
+ENTRYPOINT ["/docker-entrypoint.sh"]
