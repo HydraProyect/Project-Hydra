@@ -391,7 +391,7 @@ public static class InfrastructureServiceCollectionExtensions
     /// al triple — la validación de <c>HttpStandardResilienceOptions</c>
     /// exige que sea al menos el doble del timeout de intento.
     /// </summary>
-    private static IHttpClientBuilder AplicarResilienciaHttp(this IHttpClientBuilder constructor, TimeSpan timeoutPorIntento) =>
+    private static IHttpStandardResiliencePipelineBuilder AplicarResilienciaHttp(this IHttpClientBuilder constructor, TimeSpan timeoutPorIntento) =>
         constructor.AddStandardResilienceHandler(opciones =>
         {
             opciones.AttemptTimeout.Timeout = timeoutPorIntento;
