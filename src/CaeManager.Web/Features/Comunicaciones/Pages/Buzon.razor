@@ -1,0 +1,194 @@
+@page "/comunicaciones/buzon"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
+@using CaeManager.Application.Integraciones
+@using Microsoft.AspNetCore.Components.Forms
+@using MediatR
+@inject IMediator Mediator
+
+<PageTitle>Buzón — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina buzon-contenedor">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Buzón</h1>
+        <div class="acciones-cabecera">
+            <a class="enlace-exportar" href="/comunicaciones">Volver a Comunicaciones</a>
+            @if (_conexionSeleccionadaId is not null)
+            {
+                <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactar">Redactar</Boton>
+            }
+        </div>
+    </div>
+
+    <p class="descripcion-buzon">
+        Estructura de carpetas e historial reales del buzón conectado — incluye Enviados, Archivo y todo lo
+        anterior a que se conectara a Hydra. Para responder a un hilo concreto ya gestionado en Comunicaciones,
+        usa la <a href="/comunicaciones">Bandeja</a>.
+    </p>
+
+    <div class="campo buzon-selector-conexion">
+        <label>Buzón conectado</label>
+        <CampoSelect Valor="@(_conexionSeleccionadaId?.ToString() ?? string.Empty)" ValorChanged="SeleccionarConexionAsync">
+            <option value="">Selecciona un buzón…</option>
+            @foreach (var conexion in _conexiones)
+            {
+                <option value="@conexion.Id">@conexion.Nombre (@conexion.BuzonEmail)@(conexion.ClienteNombre is not null ? $" — {conexion.ClienteNombre}" : "")</option>
+            }
+        </CampoSelect>
+    </div>
+
+    @if (_cargandoConexiones)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else if (_conexiones.Count == 0)
+    {
+        <EstadoVacio Titulo="Sin buzones conectados" Descripcion="Conecta un buzón de Microsoft 365 en Conexiones de integración para poder navegarlo aquí." />
+    }
+    else if (_conexionSeleccionadaId is not null)
+    {
+        <div class="buzon-layout">
+            <aside class="buzon-columna buzon-carpetas">
+                @if (_cargandoCarpetas)
+                {
+                    <EstadoCargando Filas="4" />
+                }
+                else if (_errorCarpetas is not null)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar las carpetas" Descripcion="@_errorCarpetas" />
+                }
+                else
+                {
+                    <ul class="buzon-lista-carpetas">
+                        @foreach (var carpeta in _carpetas.Where(c => c.CarpetaPadreExternoId is null || _carpetas.All(p => p.CarpetaExternoId != c.CarpetaPadreExternoId)))
+                        {
+                            <li>
+                                <button type="button" class="buzon-carpeta @(carpeta.CarpetaExternoId == _carpetaSeleccionadaId ? "buzon-carpeta-activa" : "")" @onclick="() => SeleccionarCarpetaAsync(carpeta.CarpetaExternoId)">
+                                    <span>@carpeta.Nombre</span>
+                                    @if (carpeta.ElementosNoLeidos > 0)
+                                    {
+                                        <Badge Tono="TonoBadge.Info">@carpeta.ElementosNoLeidos</Badge>
+                                    }
+                                </button>
+                                @{
+                                    var hijas = _carpetas.Where(h => h.CarpetaPadreExternoId == carpeta.CarpetaExternoId).ToList();
+                                }
+                                @if (hijas.Count > 0)
+                                {
+                                    <ul class="buzon-lista-carpetas buzon-lista-carpetas-hijas">
+                                        @foreach (var hija in hijas)
+                                        {
+                                            <li>
+                                                <button type="button" class="buzon-carpeta @(hija.CarpetaExternoId == _carpetaSeleccionadaId ? "buzon-carpeta-activa" : "")" @onclick="() => SeleccionarCarpetaAsync(hija.CarpetaExternoId)">
+                                                    <span>@hija.Nombre</span>
+                                                    @if (hija.ElementosNoLeidos > 0)
+                                                    {
+                                                        <Badge Tono="TonoBadge.Info">@hija.ElementosNoLeidos</Badge>
+                                                    }
+                                                </button>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </aside>
+
+            <section class="buzon-columna buzon-mensajes">
+                @if (_carpetaSeleccionadaId is null)
+                {
+                    <EstadoVacio Titulo="Selecciona una carpeta" Descripcion="Elige una carpeta de la izquierda para ver su historial." />
+                }
+                else if (_cargandoMensajes)
+                {
+                    <EstadoCargando Filas="6" />
+                }
+                else if (_errorMensajes is not null)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar el historial" Descripcion="@_errorMensajes">
+                        <Accion>
+                            <Boton OnClick="CargarMensajesAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (_mensajes.Count == 0)
+                {
+                    <EstadoVacio Titulo="Carpeta vacía" Descripcion="No hay mensajes en esta carpeta." />
+                }
+                else
+                {
+                    <table class="tabla-datos">
+                        <thead>
+                            <tr>
+                                <th>De</th>
+                                <th>Asunto</th>
+                                <th>Fecha</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var mensaje in _mensajes)
+                            {
+                                <tr>
+                                    <td>@mensaje.RemitenteEmail</td>
+                                    <td>@mensaje.Asunto</td>
+                                    <td>@FormatearFecha(mensaje.FechaUtc)</td>
+                                    <td>
+                                        @if (mensaje.TieneAdjuntos)
+                                        {
+                                            <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    <div class="buzon-paginador">
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_pagina <= 1" OnClick="PaginaAnteriorAsync">Anterior</Boton>
+                        <span class="buzon-pagina-actual">Página @_pagina</span>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_mensajes.Count == 0" OnClick="PaginaSiguienteAsync">Siguiente</Boton>
+                    </div>
+                }
+            </section>
+        </div>
+    }
+</div>
+
+<Drawer Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviandoRedaccion">
+    <ChildContent>
+        @if (_redactarError is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_redactarError</div>
+        }
+
+        <CampoTexto Etiqueta="Para (separados por coma)" Valor="@_redactarDestinatarios" ValorChanged="v => _redactarDestinatarios = v" Placeholder="contacto@cliente.com" />
+        <CampoTexto Etiqueta="Asunto" Valor="@_redactarAsunto" ValorChanged="v => _redactarAsunto = v" />
+        <CampoTextarea Etiqueta="Mensaje" Valor="@_redactarCuerpo" ValorChanged="v => _redactarCuerpo = v" Filas="6" />
+
+        @if (_redactarAdjuntos.Count > 0)
+        {
+            <div class="bandeja-adjuntos-pendientes">
+                @foreach (var adjunto in _redactarAdjuntos)
+                {
+                    <span class="bandeja-adjunto-chip bandeja-adjunto-chip-pendiente">
+                        <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
+                        <span class="bandeja-adjunto-nombre">@adjunto.NombreArchivo</span>
+                        <button type="button" class="bandeja-adjunto-quitar" aria-label="Quitar @adjunto.NombreArchivo" @onclick="() => QuitarAdjuntoRedactar(adjunto)">×</button>
+                    </span>
+                }
+            </div>
+        }
+
+        <label class="bandeja-boton-adjuntar">
+            <Icono Nombre="importar" Tamano="TamanoIcono.Pequeno" /> Adjuntar
+            <InputFile OnChange="ManejarArchivosRedactarAsync" multiple />
+        </label>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoRedaccion" OnClick="() => _redactarVisible = false">Cancelar</Boton>
+        <Boton Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoAsync">Enviar</Boton>
+    </Pie>
+</Drawer>

@@ -3,6 +3,7 @@ using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using FluentAssertions;
@@ -34,7 +35,8 @@ public class AlcanceEscrituraConversacionTests
         var graphClient = new Microsoft365GraphClientFalso();
         var accesoGraph = new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient);
         return new ResponderConversacionCommandHandler(
-            repositorio, new ConexionIntegracionRepositorioFalso(), alcance, graphClient, accesoGraph, unitOfWork);
+            repositorio, new ConexionIntegracionRepositorioFalso(), alcance, graphClient, accesoGraph,
+            new FileStorageServiceFalso(), unitOfWork);
     }
 
     [Fact]
