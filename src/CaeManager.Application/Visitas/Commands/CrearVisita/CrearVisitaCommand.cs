@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentValidation;
@@ -9,8 +10,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Visitas.Commands.CrearVisita;
 
+/// <summary>
+/// <paramref name="SugerenciaVisitaCorreoId"/> (opcional): cuando la visita
+/// se crea desde el botón "Crear visita" de una sugerencia detectada por IA
+/// en un correo (ver SugerenciaVisitaCorreo), viene con el Id de esa
+/// sugerencia para marcarla resuelta en la misma operación — así no queda
+/// pendiente en la Bandeja una sugerencia que ya se atendió.
+/// </summary>
 public record CrearVisitaCommand(
-    Guid CentroId, DateOnly FechaInicio, DateOnly FechaFin, IReadOnlyList<Guid> TrabajadorIds, string? Notas)
+    Guid CentroId, DateOnly FechaInicio, DateOnly FechaFin, IReadOnlyList<Guid> TrabajadorIds, string? Notas,
+    Guid? SugerenciaVisitaCorreoId = null)
     : ICommand<Guid>;
 
 public class CrearVisitaCommandValidator : AbstractValidator<CrearVisitaCommand>
@@ -34,7 +43,8 @@ public class CrearVisitaCommandValidator : AbstractValidator<CrearVisitaCommand>
 
 public class CrearVisitaCommandHandler(
     IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
-    ICentrosQueryContext centrosContext, ITrabajadoresQueryContext trabajadoresContext, IUnitOfWork unitOfWork)
+    ICentrosQueryContext centrosContext, ITrabajadoresQueryContext trabajadoresContext,
+    ISugerenciaVisitaCorreoRepository sugerenciaRepositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearVisitaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearVisitaCommand request, CancellationToken cancellationToken)
@@ -57,6 +67,12 @@ public class CrearVisitaCommandHandler(
 
         foreach (var trabajadorId in trabajadorIds)
             visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadorId));
+
+        if (request.SugerenciaVisitaCorreoId is { } sugerenciaId)
+        {
+            var sugerencia = await sugerenciaRepositorio.ObtenerPorIdAsync(sugerenciaId, cancellationToken);
+            sugerencia?.Resolver();
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
