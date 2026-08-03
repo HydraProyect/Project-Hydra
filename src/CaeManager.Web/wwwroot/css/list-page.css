@@ -269,3 +269,25 @@
         animation: none;
     }
 }
+
+/*
+  Móvil: la tabla ya no cabe con todas sus columnas en ~375-767px, y
+  table-layout:auto la aplastaría hasta ser ilegible en vez de desbordar.
+  display:block convierte el <table> en la caja que scrollea; thead/tbody
+  siguen generando su caja de tabla anónima interna con su ancho natural
+  (sin comprimirse), así que el contenido real desborda ese bloque y aquí
+  es donde aparece el scroll horizontal — sin envolver cada tabla en un div
+  nuevo por página (esta clase la comparten ~15 pantallas de listado, ver
+  cabecera del archivo).
+*/
+@media (max-width: 767px) {
+    .tabla-datos {
+        display: block;
+        overflow-x: auto;
+    }
+
+    .tabla-datos th,
+    .tabla-datos td {
+        white-space: nowrap;
+    }
+}
