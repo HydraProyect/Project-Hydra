@@ -37,6 +37,7 @@ else
             case "informacion":
                 <div class="workspace-grupo-campos">
                     <CampoInfo Etiqueta="Razón social" Valor="@_detalle.RazonSocial" />
+                    <CampoInfo Etiqueta="CIF" Valor="@_detalle.Cif" />
                     <CampoInfo Etiqueta="Clientes con los que trabaja" Valor="@_detalle.ClienteIds.Count.ToString()" />
                     <CampoInfo Etiqueta="Empresas a las que presta servicio" Valor="@_detalle.EmpresaIds.Count.ToString()" />
                     <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
