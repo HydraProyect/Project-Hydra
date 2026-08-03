@@ -33,8 +33,13 @@ public class FlujoDelegatedWorkspaceTests(WebAppFixture fixture)
         var idDelegado = await page.Locator(".selector-cliente-activo").InputValueAsync();
         Assert.NotEqual(origenId, idDelegado);
 
-        var textoSeleccionado = await page.EvalOnSelectorAsync<string>(
-            ".selector-cliente-activo", "el => el.options[el.selectedIndex].text");
+        // Locator en vez de EvalOnSelectorAsync a propósito: el <select> acaba
+        // de disparar una navegación completa (SelectOptionAsync sobre el
+        // <form> de M-8), y un Locator vuelve a resolverse contra el DOM
+        // actual en cada acción — EvalOnSelectorAsync no reintenta, así que
+        // podía toparse con "Execution context was destroyed" si la
+        // navegación no había terminado de sustituir el documento.
+        var textoSeleccionado = await page.Locator(".selector-cliente-activo option:checked").TextContentAsync();
         Assert.Equal(Ayudas.NombreClienteDelegadoDemo, textoSeleccionado);
 
         // Vuelve al tenant de origen — el selector debe reflejar exactamente
@@ -68,8 +73,13 @@ public class FlujoDelegatedWorkspaceTests(WebAppFixture fixture)
 
         Assert.NotEqual(primerId, segundoId);
 
-        var textoSeleccionado = await page.EvalOnSelectorAsync<string>(
-            ".selector-cliente-activo", "el => el.options[el.selectedIndex].text");
+        // Locator en vez de EvalOnSelectorAsync a propósito: el <select> acaba
+        // de disparar una navegación completa (SelectOptionAsync sobre el
+        // <form> de M-8), y un Locator vuelve a resolverse contra el DOM
+        // actual en cada acción — EvalOnSelectorAsync no reintenta, así que
+        // podía toparse con "Execution context was destroyed" si la
+        // navegación no había terminado de sustituir el documento.
+        var textoSeleccionado = await page.Locator(".selector-cliente-activo option:checked").TextContentAsync();
         Assert.Equal(Ayudas.NombreClienteDelegadoDemo2, textoSeleccionado);
     }
 }
