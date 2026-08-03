@@ -6,26 +6,66 @@
 }
 
 /*
-    Encabezado de grupo (Negocio/Operación/Control/Administración). No es
-    interactivo -- solo agrupa visualmente-, así que no reutiliza .nav-item:
-    tipografía más pequeña, mayúsculas y color apagado para no competir con
-    los enlaces reales, con un margen superior mayor que el gap normal entre
-    items para separar visualmente cada grupo del anterior (salvo el primero).
+    Grupo colapsable (Negocio/Operación/Control/Administración) con
+    <details>/<summary> nativo -- el navegador resuelve el toggle sin JS;
+    wwwroot/js/menu-lateral.js solo persiste qué grupos quedaron cerrados
+    entre navegaciones (ver el comentario grande de NavMenu.razor).
+*/
+.nav-grupo-detalle {
+    margin-top: var(--space-3);
+}
+
+.nav-grupo-detalle:first-child {
+    margin-top: 0;
+}
+
+/*
+    Encabezado de grupo. Reemplaza el <span> estático anterior -- misma
+    tipografía (pequeña, mayúsculas, color apagado) para no competir con los
+    enlaces reales, ahora como <summary> interactivo con el marcador nativo
+    del navegador oculto (list-style/::marker en Firefox, ::-webkit-details-marker
+    en Chrome/Edge) porque el chevron de Icono.razor ya cumple ese papel.
 */
 .nav-grupo-titulo {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
     padding: 0 var(--space-3);
-    margin-top: var(--space-3);
     font: var(--font-body-sm);
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--color-text-muted);
     opacity: 0.7;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
 }
 
-.nav-grupo-titulo:first-child {
-    margin-top: 0;
+.nav-grupo-titulo::-webkit-details-marker {
+    display: none;
+}
+
+.nav-grupo-titulo:hover {
+    opacity: 1;
+}
+
+.nav-grupo-titulo .icono {
+    flex-shrink: 0;
+    transition: transform var(--transition-fast);
+}
+
+/* Cerrado: el chevron (que apunta hacia abajo por defecto) gira a "derecha". */
+.nav-grupo-detalle:not([open]) .nav-grupo-titulo .icono {
+    transform: rotate(-90deg);
+}
+
+.nav-grupo-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
 }
 
 /*

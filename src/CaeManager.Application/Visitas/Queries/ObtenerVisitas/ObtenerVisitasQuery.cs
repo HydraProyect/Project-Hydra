@@ -7,6 +7,7 @@ using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Visitas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,7 +26,8 @@ public record VisitaListaDto(
     DateOnly FechaFin,
     int TotalTrabajadores,
     bool DocumentacionCompleta,
-    bool NotificadoCliente);
+    bool NotificadoCliente,
+    OrigenVisita Origen);
 
 /// <summary>
 /// Igual que Dashboard/Alertas, el semáforo de cada Documento se calcula en
@@ -86,7 +88,8 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICl
                 EmpresaId = x.empresa.Id,
                 x.visita.FechaInicio,
                 x.visita.FechaFin,
-                x.visita.NotificadoCliente
+                x.visita.NotificadoCliente,
+                x.visita.Origen
             })
             .ToListAsync(cancellationToken);
 
@@ -154,7 +157,7 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICl
                 p.Id, p.CentroNombre, p.ClienteRazonSocial, p.EmpresaRazonSocial,
                 p.FechaInicio, p.FechaFin, trabajadorIdsDeEstaVisita.Count,
                 DocumentacionCompleta: empresaOk && trabajadoresOk,
-                p.NotificadoCliente);
+                p.NotificadoCliente, p.Origen);
         }).ToList();
 
         return new ResultadoPaginado<VisitaListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
