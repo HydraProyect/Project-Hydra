@@ -1,6 +1,7 @@
 using CaeManager.Application.RequisitosDocumentales.Commands.CrearRequisitoDocumental;
 using CaeManager.Application.RequisitosDocumentales.Commands.EditarRequisitoDocumental;
 using CaeManager.Application.RequisitosDocumentales.Commands.EliminarRequisitoDocumental;
+using CaeManager.Application.RequisitosDocumentales.Commands.MarcarRequisitoDocumentalCumplido;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RequisitosDocumentales;
@@ -124,6 +125,34 @@ public class RequisitoDocumentalCommandsTests : IAsyncLifetime
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Concurrencia.Conflicto");
+    }
+
+    [Fact]
+    public async Task Marcar_un_requisito_como_cumplido_y_luego_reabrirlo()
+    {
+        await using var contexto = CrearContexto();
+        var repositorio = new RequisitoDocumentalRepository(contexto);
+        var alcanceDatos = new AlcanceDatosServiceFalso();
+
+        var requisito = new RequisitoDocumental(_centroId, "Formulario de acceso", null, bloqueaAcceso: true);
+        contexto.RequisitosDocumentales.Add(requisito);
+        await contexto.SaveChangesAsync();
+
+        var marcar = new MarcarRequisitoDocumentalCumplidoCommandHandler(repositorio, alcanceDatos, contexto);
+        var resultadoMarcar = await marcar.Handle(new MarcarRequisitoDocumentalCumplidoCommand(requisito.Id, Cumplido: true), CancellationToken.None);
+
+        resultadoMarcar.EsExitoso.Should().BeTrue();
+        var cumplido = await contexto.RequisitosDocumentales.SingleAsync(r => r.Id == requisito.Id);
+        cumplido.Cumplido.Should().BeTrue();
+        cumplido.FechaCumplimiento.Should().Be(DateOnly.FromDateTime(DateTime.UtcNow));
+
+        var reabrir = new MarcarRequisitoDocumentalCumplidoCommandHandler(repositorio, alcanceDatos, contexto);
+        var resultadoReabrir = await reabrir.Handle(new MarcarRequisitoDocumentalCumplidoCommand(requisito.Id, Cumplido: false), CancellationToken.None);
+
+        resultadoReabrir.EsExitoso.Should().BeTrue();
+        var reabierto = await contexto.RequisitosDocumentales.SingleAsync(r => r.Id == requisito.Id);
+        reabierto.Cumplido.Should().BeFalse();
+        reabierto.FechaCumplimiento.Should().BeNull();
     }
 
     private CaeManagerDbContext CrearContexto()

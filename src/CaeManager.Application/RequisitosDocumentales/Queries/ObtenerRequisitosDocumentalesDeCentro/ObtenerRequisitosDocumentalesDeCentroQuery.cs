@@ -15,7 +15,7 @@ public record ObtenerRequisitosDocumentalesDeCentroQuery(Guid CentroId)
 
 public record RequisitoDocumentalDto(
     Guid Id, string Descripcion, string? PeriodicidadEspecial, bool BloqueaAcceso, string? Notas, Guid Version,
-    string? ArchivoUrl, string? NombreArchivoOriginal);
+    string? ArchivoUrl, string? NombreArchivoOriginal, bool Cumplido, DateOnly? FechaCumplimiento);
 
 public class ObtenerRequisitosDocumentalesDeCentroQueryHandler(IRequisitosDocumentalesQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerRequisitosDocumentalesDeCentroQuery, IReadOnlyList<RequisitoDocumentalDto>>
@@ -31,7 +31,7 @@ public class ObtenerRequisitosDocumentalesDeCentroQueryHandler(IRequisitosDocume
             .OrderBy(r => r.Descripcion)
             .Select(r => new RequisitoDocumentalDto(
                 r.Id, r.Descripcion, r.PeriodicidadEspecial, r.BloqueaAcceso, r.Notas, r.Version,
-                r.ArchivoUrl, r.NombreArchivoOriginal))
+                r.ArchivoUrl, r.NombreArchivoOriginal, r.Cumplido, r.FechaCumplimiento))
             .ToListAsync(cancellationToken);
     }
 }
