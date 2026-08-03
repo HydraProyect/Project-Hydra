@@ -6,6 +6,8 @@ public interface ISubcontrataRepository
 
     Task<bool> ExisteConRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default);
 
+    Task<bool> ExisteConCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default);
+
     /// <summary>Una Subcontrata con Trabajadores no puede eliminarse (ver EliminarSubcontrataCommand).</summary>
     Task<bool> TieneTrabajadoresAsync(Guid subcontrataId, CancellationToken cancellationToken = default);
 

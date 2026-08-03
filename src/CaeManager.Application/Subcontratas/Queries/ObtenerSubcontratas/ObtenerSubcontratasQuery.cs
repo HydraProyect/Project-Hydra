@@ -8,7 +8,7 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 public record ObtenerSubcontratasQuery(string? Busqueda, int Pagina = 1, int TamanoPagina = 20)
     : IRequest<ResultadoPaginado<SubcontrataListaDto>>;
 
-public record SubcontrataListaDto(Guid Id, string RazonSocial, DateTime CreadoEnUtc);
+public record SubcontrataListaDto(Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc);
 
 public class ObtenerSubcontratasQueryHandler(ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerSubcontratasQuery, ResultadoPaginado<SubcontrataListaDto>>
@@ -24,7 +24,8 @@ public class ObtenerSubcontratasQueryHandler(ISubcontratasQueryContext dbContext
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
             var busqueda = request.Busqueda.ToUpper();
-            consulta = consulta.Where(s => s.RazonSocial.ToUpper().Contains(busqueda));
+            consulta = consulta.Where(s => s.RazonSocial.ToUpper().Contains(busqueda)
+                || (s.Cif != null && s.Cif.ToUpper().Contains(busqueda)));
         }
 
         var total = await consulta.CountAsync(cancellationToken);
@@ -33,7 +34,7 @@ public class ObtenerSubcontratasQueryHandler(ISubcontratasQueryContext dbContext
             .OrderBy(s => s.RazonSocial)
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
-            .Select(s => new SubcontrataListaDto(s.Id, s.RazonSocial, s.CreadoEnUtc))
+            .Select(s => new SubcontrataListaDto(s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc))
             .ToListAsync(cancellationToken);
 
         return new ResultadoPaginado<SubcontrataListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
