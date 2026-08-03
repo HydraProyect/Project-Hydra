@@ -100,4 +100,49 @@ public class CampoTextoTests : BunitContext
         await input.BlurAsync(new FocusEventArgs());
         vecesDisparado.Should().Be(1);
     }
+
+    /// <summary>
+    /// Reporte de campo (worktree dni-field-character-loss): escribir una
+    /// cadena larga de un tirón dejaba el valor final recortado por el
+    /// final. Hipótesis descartada aquí: que el settle de una pulsación
+    /// antigua (cuyo Task.Delay ya estaba en curso) se aplicara *después*
+    /// del settle de una pulsación más reciente y pisara el valor completo
+    /// con uno más corto. Cancel() en ManejarCambioAsync es síncrono y se
+    /// ejecuta antes de crear el CTS de la pulsación siguiente, así que el
+    /// Task.Delay de toda pulsación salvo la última se cancela antes de
+    /// poder resolverse — no hay ventana para que un valor viejo gane. Este
+    /// test dispara 195 pulsaciones reales y solapadas (sin esperar a que
+    /// cada una notifique) y comprueba que ninguna notificación intermedia
+    /// llega recortada y que la única notificación final es la cadena
+    /// completa.
+    /// </summary>
+    [Fact]
+    public async Task Rafaga_de_pulsaciones_sin_esperar_el_debounce_no_pierde_los_ultimos_caracteres()
+    {
+        var valoresRecibidos = new List<string>();
+        var cut = Render<CampoTexto>(parametros => parametros
+            .Add(p => p.Valor, string.Empty)
+            .Add(p => p.ValorChanged, v => valoresRecibidos.Add(v)));
+
+        var input = cut.Find("input");
+
+        var textoCompleto = string.Concat(Enumerable.Range(0, 195).Select(i => (char)('A' + (i % 26))));
+
+        var tareas = new List<Task>();
+        for (var i = 1; i <= textoCompleto.Length; i++)
+        {
+            // 5ms entre pulsaciones: mucho más rápido que el debounce
+            // (300ms), como una escritura sostenida real, sin esperar a que
+            // cada InputAsync complete su propio round-trip antes de
+            // disparar la siguiente tecla.
+            tareas.Add(input.InputAsync(textoCompleto[..i]));
+            await Task.Delay(5);
+        }
+
+        await Task.WhenAll(tareas);
+
+        valoresRecibidos.Should().OnlyContain(v => v == textoCompleto,
+            "ninguna notificación (ni siquiera una intermedia) debería llegar con menos caracteres que los ya tecleados en ese momento");
+        valoresRecibidos.Should().ContainSingle().Which.Should().Be(textoCompleto);
+    }
 }

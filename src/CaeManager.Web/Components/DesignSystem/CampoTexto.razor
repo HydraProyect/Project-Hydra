@@ -91,8 +91,20 @@
 
     private async Task ManejarCambioAsync(ChangeEventArgs e)
     {
+        // _valorMostrado (lo que se re-pinta en el <input>) NO se toca aquí
+        // a propósito: el navegador ya tiene el valor correcto en su propio
+        // DOM porque el usuario lo acaba de teclear. Si lo reflejáramos de
+        // vuelta en cada pulsación, cada tecla dispara un render que reenvía
+        // "value" al cliente — y bajo latencia, un render en cola de una
+        // pulsación anterior puede aplicarse después de uno más reciente,
+        // pisando visualmente lo que el usuario ya ve con una versión más
+        // corta (bug real, visto con tecla mantenida + latencia simulada:
+        // el servidor procesa todo en orden perfecto, pero el cliente llega
+        // a mostrar un valor más corto un instante antes de alcanzar el
+        // real). _valorMostrado solo se actualiza en OnParametersSet, es
+        // decir, cuando el valor cambia por una razón ajena a esta misma
+        // pulsación.
         _ultimoValor = e.Value?.ToString() ?? string.Empty;
-        _valorMostrado = _ultimoValor;
 
         _debounceCts?.Cancel();
         _debounceCts?.Dispose();

@@ -8,6 +8,9 @@ retryButton.addEventListener("click", retry);
 const resumeButton = document.getElementById("components-resume-button");
 resumeButton.addEventListener("click", resume);
 
+const rejectedButton = document.getElementById("components-reconnect-rejected-button");
+rejectedButton.addEventListener("click", () => location.reload());
+
 function handleReconnectStateChanged(event) {
     if (event.detail.state === "show") {
         reconnectModal.showModal();
@@ -16,8 +19,26 @@ function handleReconnectStateChanged(event) {
     } else if (event.detail.state === "failed") {
         document.addEventListener("visibilitychange", retryWhenDocumentBecomesVisible);
     } else if (event.detail.state === "rejected") {
-        location.reload();
+        mostrarSesionPerdida();
     }
+}
+
+/**
+ * El servidor está disponible pero no pudo recuperar la sesión (circuito
+ * desconocido/expirado) — recargar es la única salida, pero hacerlo con
+ * location.reload() sin avisar borra de golpe cualquier campo que el
+ * usuario tuviera a medio escribir, sin que lo vea venir. En vez de eso, se
+ * muestra el aviso y se espera un clic explícito en "Recargar la página".
+ */
+function mostrarSesionPerdida() {
+    document.removeEventListener("visibilitychange", retryWhenDocumentBecomesVisible);
+    reconnectModal.classList.remove(
+        "components-reconnect-retrying",
+        "components-reconnect-failed",
+        "components-reconnect-paused",
+        "components-reconnect-resume-failed");
+    reconnectModal.classList.add("components-reconnect-rejected");
+    if (!reconnectModal.open) reconnectModal.showModal();
 }
 
 async function retry() {
@@ -30,11 +51,12 @@ async function retry() {
         // - exception to mean we didn't reach the server (this can be sync or async)
         const successful = await Blazor.reconnect();
         if (!successful) {
-            // We have been able to reach the server, but the circuit is no longer available.
-            // We'll reload the page so the user can continue using the app as quickly as possible.
+            // Se ha podido contactar al servidor, pero el circuito ya no
+            // existe — ver mostrarSesionPerdida() para el motivo de no
+            // recargar en silencio aquí.
             const resumeSuccessful = await Blazor.resumeCircuit();
             if (!resumeSuccessful) {
-                location.reload();
+                mostrarSesionPerdida();
             } else {
                 reconnectModal.close();
             }
@@ -49,7 +71,7 @@ async function resume() {
     try {
         const successful = await Blazor.resumeCircuit();
         if (!successful) {
-            location.reload();
+            mostrarSesionPerdida();
         }
     } catch {
         reconnectModal.classList.replace("components-reconnect-paused", "components-reconnect-resume-failed");

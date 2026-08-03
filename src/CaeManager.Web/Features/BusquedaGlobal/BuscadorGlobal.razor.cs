@@ -17,6 +17,20 @@ public partial class BuscadorGlobal : ComponentBase
 
     private bool _visible;
     private string _termino = string.Empty;
+
+    /// <summary>
+    /// Lo que se pinta en value="@_valorMostrado" del input — deliberadamente
+    /// separado de _termino (que sí se actualiza en cada tecla para dirigir
+    /// la búsqueda). Reflejar _termino directamente en el value del mismo
+    /// input que lo genera es lo que permite que, bajo latencia, un render
+    /// en cola de una pulsación anterior se aplique después de una más
+    /// reciente y sobrescriba visualmente el campo con una versión más
+    /// corta — el navegador ya tiene el valor correcto en su DOM, no hace
+    /// falta devolvérselo en cada tecla. Solo se toca al abrir/cerrar el
+    /// buscador (reinicio externo legítimo), igual que CampoTexto.
+    /// </summary>
+    private string _valorMostrado = string.Empty;
+
     private bool _buscando;
     private ResultadoBusquedaGlobalDto? _resultado;
     private CancellationTokenSource? _debounceCts;
@@ -123,6 +137,7 @@ public partial class BuscadorGlobal : ComponentBase
     {
         _visible = true;
         _termino = string.Empty;
+        _valorMostrado = string.Empty;
         _resultado = null;
         _indiceSeleccionado = -1;
         StateHasChanged();
