@@ -4,12 +4,15 @@
 @using CaeManager.Application.Visitas.Commands.EditarVisita
 @using CaeManager.Application.Visitas.Commands.EliminarVisita
 @using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente
+@using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita
 @using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId
 @using CaeManager.Application.Visitas.Queries.ObtenerVisitas
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Application.Common
+@using CaeManager.Domain.Documentos
 @using CaeManager.Domain.Visitas
+@using CaeManager.Web.Components.Workspace
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
@@ -54,7 +57,11 @@
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
-                <PropertyColumn Property="@(v => v.CentroNombre)" Title="Centro" Sortable="true" />
+                <TemplateColumn Title="Centro" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
+                    <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirDetalleAsync(context.Id)">
+                        @context.CentroNombre
+                    </button>
+                </TemplateColumn>
                 <TemplateColumn Title="Cliente / Empresa">
                     @context.ClienteRazonSocial — @context.EmpresaRazonSocial
                 </TemplateColumn>
@@ -91,6 +98,9 @@
                     </label>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirDetalleAsync(context.Id)">
+                        Ver
+                    </Boton>
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
                         Editar
                     </Boton>
@@ -168,6 +178,59 @@
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>
+    </Pie>
+</Drawer>
+
+<Drawer Visible="_detalleVisible" VisibleChanged="v => _detalleVisible = v" Titulo="Detalle de la visita">
+    <ChildContent>
+        @if (_cargandoDetalle)
+        {
+            <EstadoCargando Filas="4" />
+        }
+        else if (_detalle is not null)
+        {
+            <div class="campo">
+                <label>Centro</label>
+                <p class="texto-vacio-seccion">@_detalle.CentroNombre (@_detalle.ClienteRazonSocial — @_detalle.EmpresaRazonSocial)</p>
+            </div>
+            <div class="campo">
+                <label>Fechas</label>
+                <p class="texto-vacio-seccion">@_detalle.FechaInicio.ToString("dd/MM/yyyy") – @_detalle.FechaFin.ToString("dd/MM/yyyy")</p>
+            </div>
+            <div class="campo">
+                <label>Notificado al cliente</label>
+                <p class="texto-vacio-seccion">@(_detalle.NotificadoCliente ? "Sí" : "No")</p>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_detalle.Notas))
+            {
+                <div class="campo">
+                    <label>Notas</label>
+                    <p class="texto-vacio-seccion">@_detalle.Notas</p>
+                </div>
+            }
+
+            <h3 class="detalle-visita-subtitulo">Documentación de la empresa</h3>
+            <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="_detalle.EmpresaId" />
+
+            <h3 class="detalle-visita-subtitulo">Trabajadores que entran (@_detalle.Trabajadores.Count)</h3>
+            @if (_detalle.Trabajadores.Count == 0)
+            {
+                <EstadoVacio Titulo="Sin trabajadores" Descripcion="Esta visita todavía no tiene trabajadores asignados." />
+            }
+            else
+            {
+                @foreach (var trabajador in _detalle.Trabajadores)
+                {
+                    <div class="detalle-visita-trabajador">
+                        <h4>@trabajador.NombreCompleto (@trabajador.Dni)</h4>
+                        <PestanaDocumentacion Ambito="AmbitoAplicacion.Trabajador" PropietarioId="trabajador.Id" />
+                    </div>
+                }
+            }
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">Cerrar</Boton>
     </Pie>
 </Drawer>
 

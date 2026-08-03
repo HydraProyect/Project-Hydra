@@ -33,7 +33,7 @@ public static class ValidadorFirmaArchivo
         if (ConversorArchivosPdf.EsImagen(nombreArchivo))
             return EmpiezaCon(contenido, FirmaJpeg) || EmpiezaCon(contenido, FirmaPng);
 
-        if (ConversorArchivosPdf.EsWord(nombreArchivo))
+        if (ConversorArchivosPdf.EsWord(nombreArchivo) || ExtractorZip.EsZip(nombreArchivo))
             return EmpiezaCon(contenido, FirmaZip);
 
         return false;
