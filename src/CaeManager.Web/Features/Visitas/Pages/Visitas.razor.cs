@@ -5,6 +5,7 @@ using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.EliminarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
+using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Web.Components;
@@ -62,6 +63,10 @@ public partial class Visitas : ComponentBase
     private Guid _idAEliminar;
     private string _centroAEliminar = string.Empty;
     private bool _eliminando;
+
+    private bool _detalleVisible;
+    private bool _cargandoDetalle;
+    private DetalleVisitaDto? _detalle;
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
@@ -216,6 +221,29 @@ public partial class Visitas : ComponentBase
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+    }
+
+    /// <summary>Vista de solo lectura — quién entra y el estado de su documentación (reutiliza PestanaDocumentacion del Context Workspace).</summary>
+    private async Task AbrirDetalleAsync(Guid id)
+    {
+        _detalleVisible = true;
+        _cargandoDetalle = true;
+        _detalle = null;
+
+        try
+        {
+            _detalle = await Mediator.Send(new ObtenerDetalleVisitaQuery(id));
+            if (_detalle is null)
+                ToastService.Mostrar("No encontramos esta visita. Puede que ya se haya eliminado.", TonoToast.Error);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos cargar el detalle de la visita. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _cargandoDetalle = false;
+        }
     }
 
     private void AlternarTrabajador(Guid trabajadorId, bool seleccionado)
