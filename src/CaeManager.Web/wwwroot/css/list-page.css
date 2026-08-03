@@ -117,6 +117,29 @@
     font: var(--font-body-md);
 }
 
+/*
+  Click en el nombre/identificador de una fila = misma acción que el botón
+  "Ver" de esa fila — evita tener que mover el ratón hasta la columna de
+  Acciones para abrir el detalle. Se ve como el texto normal de la celda
+  (no como un enlace azul de manual): el cursor y el subrayado al pasar por
+  encima son la única pista de que es interactivo.
+*/
+.enlace-nombre-fila {
+    display: inline;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.enlace-nombre-fila:hover {
+    text-decoration: underline;
+}
+
 .tabla-datos {
     width: 100%;
     border-collapse: collapse;
