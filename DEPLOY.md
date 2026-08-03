@@ -108,7 +108,16 @@ Pasos para crear el App Registration en [entra.microsoft.com](https://entra.micr
 | `Graph__TenantId` / `Graph__ClientId` / `Graph__ClientSecret` | mismos valores que `AzureAd__*` si reutilizas el mismo App Registration, o los de uno distinto | Requiere el permiso de **aplicación** (no delegado) `Mail.Send` en Entra ID, con **consentimiento de administrador** concedido — a diferencia del login SSO, este envío no depende de que haya ningún usuario con sesión iniciada |
 | `Graph__BuzonRemitente` | UPN de un buzón real del tenant (ej. `notificaciones@empresa.com`) | Remitente de los correos — debe existir como buzón real con licencia de correo |
 
-**Sin las cuatro variables, el envío de correo queda inerte** — las notificaciones que lo disparan (usuario pendiente de rol, confirmación de rol asignado) se registran en el log como aviso pero no impiden la acción de negocio (crear la cuenta pendiente, asignar el rol siguen funcionando igual). La plantilla/diseño final de estos correos está todavía por definir — hoy es HTML mínimo, sin estilos.
+**Sin las cuatro variables, el envío de correo queda inerte** — las notificaciones que lo disparan (usuario pendiente de rol, confirmación de rol asignado, bienvenida al crear Usuario) se registran en el log como aviso pero no impiden la acción de negocio (crear la cuenta pendiente, asignar el rol, crear el usuario siguen funcionando igual). La plantilla/diseño final de estos correos está todavía por definir — hoy es HTML mínimo, sin estilos.
+
+### Resumen diario de alertas de vencimiento por correo (Issue #2)
+
+| Variable | Valor | Para qué |
+|---|---|---|
+| `AlertasPorCorreo__Activo` | `true` / `false` (por defecto `false`) | Interruptor del job en sí — independiente de si `Graph__*` está configurado. Enviar un correo real a Administrador/DireccionCae cada día es una decisión aparte de tener el envío de correo disponible para otra cosa (la bienvenida de arriba) |
+| `AlertasPorCorreo__UrlBase` | ej. `https://tu-dominio.up.railway.app` | Opcional — construye el enlace a `/alertas` dentro del correo. Sin configurar, el resumen se envía igual, solo que sin enlace clicable |
+
+Con `Activo=true`, un job en segundo plano (envuelto en elección de líder, igual que el resto de jobs multi-réplica de este documento) recorre los tenants activos una vez al día y manda un resumen (documentos vencidos/próximos a vencer/obligatorios sin subir) a los usuarios en rol Administrador y DireccionCae de cada uno — acotado a esos dos roles de visión total, no a la cartera de cada Gestor CAE (ver el comentario de `EnvioAlertasVencimientoHostedService` sobre por qué esa atribución no es trivial con el modelo actual). Sin alertas pendientes en un tenant, no se envía nada ese día.
 
 ### Conector de Microsoft 365 para Comunicaciones (P3-33)
 

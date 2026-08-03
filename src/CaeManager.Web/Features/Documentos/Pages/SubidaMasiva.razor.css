@@ -1,0 +1,101 @@
+.descripcion-subida-masiva {
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+    max-width: 70ch;
+    margin-bottom: var(--space-4);
+}
+
+.resumen-subida-masiva {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin: var(--space-4) 0;
+}
+
+.lista-items-subida-masiva {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.item-subida-masiva {
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    padding: var(--space-3);
+}
+
+.item-subida-masiva-fila {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.miniatura-subida-masiva {
+    width: 56px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: var(--border-default);
+    flex-shrink: 0;
+}
+
+.miniatura-subida-masiva-vacia {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+    background-color: var(--color-surface-hover);
+}
+
+.item-subida-masiva-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    flex: 1;
+    min-width: 0;
+}
+
+.item-subida-masiva-nombre {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.item-subida-masiva-badges {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.item-subida-masiva-error {
+    color: var(--color-danger-700);
+    font: var(--font-body-sm);
+}
+
+.item-subida-masiva-acciones {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+.item-subida-masiva-confirmacion {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: var(--border-default);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.item-subida-masiva-formulario {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-width: 480px;
+}

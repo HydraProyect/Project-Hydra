@@ -40,6 +40,7 @@ public partial class Subcontratas : ComponentBase
     // detectar que otra persona guardo mientras el formulario estaba abierto.
     private Guid _versionEditando;
     private string _razonSocial = string.Empty;
+    private string _cif = string.Empty;
     private HashSet<Guid> _clienteIdsSeleccionados = [];
     private HashSet<Guid> _empresaIdsSeleccionados = [];
     private bool _guardando;
@@ -140,6 +141,7 @@ public partial class Subcontratas : ComponentBase
 
         _editandoId = null;
         _razonSocial = string.Empty;
+        _cif = string.Empty;
         _clienteIdsSeleccionados = [];
         _empresaIdsSeleccionados = [];
         _erroresCampo = new Dictionary<string, string>();
@@ -169,6 +171,7 @@ public partial class Subcontratas : ComponentBase
         _editandoId = subcontrata.Id;
         _versionEditando = subcontrata.Version;
         _razonSocial = subcontrata.RazonSocial;
+        _cif = subcontrata.Cif ?? string.Empty;
         _clienteIdsSeleccionados = subcontrata.ClienteIds.ToHashSet();
         _empresaIdsSeleccionados = subcontrata.EmpresaIds.ToHashSet();
         _erroresCampo = new Dictionary<string, string>();
@@ -253,11 +256,12 @@ public partial class Subcontratas : ComponentBase
         {
             var clienteIds = _clienteIdsSeleccionados.ToList();
             var empresaIds = _empresaIdsSeleccionados.ToList();
+            var cif = string.IsNullOrWhiteSpace(_cif) ? null : _cif;
             var eraCreacion = _editandoId is null;
 
             if (eraCreacion)
             {
-                var resultado = await Mediator.Send(new CrearSubcontrataCommand(_razonSocial, clienteIds, empresaIds));
+                var resultado = await Mediator.Send(new CrearSubcontrataCommand(_razonSocial, cif, clienteIds, empresaIds));
                 if (resultado.EsFallido)
                 {
                     _mensajeErrorFormulario = resultado.Error.Mensaje;
@@ -271,7 +275,7 @@ public partial class Subcontratas : ComponentBase
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarSubcontrataCommand(_editandoId!.Value, _razonSocial, clienteIds, empresaIds, _versionEditando));
+                var resultado = await Mediator.Send(new EditarSubcontrataCommand(_editandoId!.Value, _razonSocial, cif, clienteIds, empresaIds, _versionEditando));
                 if (resultado.EsFallido)
                 {
                     _mensajeErrorFormulario = resultado.Error.Mensaje;

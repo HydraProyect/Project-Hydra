@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260802232925_AgregarCifASubcontrata")]
+    partial class AgregarCifASubcontrata
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -363,43 +366,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("Clientes", (string)null);
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.AdjuntoMensajeCorreo", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ArchivoUrl")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Guid>("MensajeCorreoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("NombreArchivo")
-                        .IsRequired()
-                        .HasMaxLength(260)
-                        .HasColumnType("character varying(260)");
-
-                    b.Property<long>("TamanoBytes")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TipoContenido")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MensajeCorreoId");
-
-                    b.ToTable("AdjuntosMensajeCorreo", (string)null);
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ConversacionCorreo", b =>
                 {
                     b.Property<Guid>("Id")
@@ -585,45 +551,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("ConversacionCorreoId");
 
                     b.ToTable("ParticipantesConversacion", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.SugerenciaVisitaCorreo", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("CentroId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreadaEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateOnly?>("FechaFinSugerida")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly?>("FechaInicioSugerida")
-                        .HasColumnType("date");
-
-                    b.Property<Guid>("MensajeCorreoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("Resuelta")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Resumen")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MensajeCorreoId");
-
-                    b.ToTable("SugerenciasVisitaCorreo", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Configuracion.FiltroGuardado", b =>
@@ -3317,9 +3244,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("NotificadoCliente")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("Origen")
-                        .HasColumnType("integer");
-
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
@@ -3687,15 +3611,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.AdjuntoMensajeCorreo", b =>
-                {
-                    b.HasOne("CaeManager.Domain.Comunicaciones.MensajeCorreo", null)
-                        .WithMany("Adjuntos")
-                        .HasForeignKey("MensajeCorreoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.MensajeCorreo", b =>
                 {
                     b.HasOne("CaeManager.Domain.Comunicaciones.ConversacionCorreo", null)
@@ -4021,11 +3936,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Navigation("Mensajes");
 
                     b.Navigation("Participantes");
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.MensajeCorreo", b =>
-                {
-                    b.Navigation("Adjuntos");
                 });
 #pragma warning restore 612, 618
         }
