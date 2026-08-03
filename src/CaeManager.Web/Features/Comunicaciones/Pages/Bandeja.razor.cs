@@ -7,6 +7,7 @@ using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
+using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
@@ -14,6 +15,7 @@ using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Infrastructure.Autorizacion;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Comunicaciones.Pages;
@@ -58,6 +60,8 @@ public partial class Bandeja : ComponentBase
     private string _textoRespuesta = string.Empty;
     private string _macroSeleccionadaId = string.Empty;
     private bool _enviandoRespuesta;
+    private readonly List<AdjuntoParaEnviarDto> _adjuntosPendientes = [];
+    private string? _errorAdjuntos;
     private string _ejecutivoSeleccionado = string.Empty;
     private bool _cambiandoEjecutivo;
     private bool _cambiandoEstado;
@@ -214,6 +218,8 @@ public partial class Bandeja : ComponentBase
         _textoRespuesta = string.Empty;
         _macroSeleccionadaId = string.Empty;
         _clienteTriageSeleccionado = string.Empty;
+        _adjuntosPendientes.Clear();
+        _errorAdjuntos = null;
         StateHasChanged();
 
         try
@@ -255,14 +261,46 @@ public partial class Bandeja : ComponentBase
         }
     }
 
+    /// <summary>
+    /// Mismo tope que valida `ResponderConversacionCommand` del lado del
+    /// servidor (`LimitesAdjuntosCorreo`) — comprobarlo aquí también evita
+    /// que el usuario rellene el formulario entero antes de enterarse de
+    /// que el conjunto de archivos no cabe.
+    /// </summary>
+    private async Task ManejarArchivosAdjuntosAsync(InputFileChangeEventArgs e)
+    {
+        _errorAdjuntos = null;
+        const int maximoArchivos = 5;
+
+        foreach (var archivo in e.GetMultipleFiles(maximoArchivos))
+        {
+            await using var flujo = archivo.OpenReadStream(LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes);
+            using var memoria = new MemoryStream();
+            await flujo.CopyToAsync(memoria);
+            _adjuntosPendientes.Add(new AdjuntoParaEnviarDto(archivo.Name, archivo.ContentType, memoria.ToArray()));
+        }
+
+        if (_adjuntosPendientes.Sum(a => a.Contenido.LongLength) > LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes)
+            _errorAdjuntos = "Los adjuntos superan los 3 MB en total — quita alguno antes de enviar.";
+    }
+
+    private void QuitarAdjuntoPendiente(AdjuntoParaEnviarDto adjunto)
+    {
+        _adjuntosPendientes.Remove(adjunto);
+        if (_adjuntosPendientes.Sum(a => a.Contenido.LongLength) <= LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes)
+            _errorAdjuntos = null;
+    }
+
     private async Task EnviarRespuestaAsync()
     {
         if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta)) return;
+        if (_errorAdjuntos is not null) return;
 
         _enviandoRespuesta = true;
         try
         {
-            var resultado = await Mediator.Send(new ResponderConversacionCommand(_conversacionSeleccionadaId.Value, _textoRespuesta));
+            var resultado = await Mediator.Send(new ResponderConversacionCommand(
+                _conversacionSeleccionadaId.Value, _textoRespuesta, _adjuntosPendientes.Count > 0 ? _adjuntosPendientes.ToList() : null));
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -271,6 +309,7 @@ public partial class Bandeja : ComponentBase
 
             _textoRespuesta = string.Empty;
             _macroSeleccionadaId = string.Empty;
+            _adjuntosPendientes.Clear();
             ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
 
             await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
@@ -363,6 +402,20 @@ public partial class Bandeja : ComponentBase
         EstadoConversacion.Abierta => TonoBadge.Info,
         EstadoConversacion.Pendiente => TonoBadge.Info,
         _ => TonoBadge.Neutro
+    };
+
+    /// <summary>Dos letras del correo (local-part) para el avatar — sin depender de un nombre completo, que este DTO no siempre trae.</summary>
+    private static string ObtenerIniciales(string email)
+    {
+        var local = email.Split('@')[0];
+        return local.Length >= 2 ? local[..2].ToUpperInvariant() : local.ToUpperInvariant();
+    }
+
+    private static string FormatearTamano(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024.0):0.#} MB"
     };
 
     private static string FormatearFechaRelativa(DateTime fechaUtc)
