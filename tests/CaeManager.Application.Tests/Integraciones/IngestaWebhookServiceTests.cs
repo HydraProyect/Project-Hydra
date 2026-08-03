@@ -1,5 +1,6 @@
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Comunicaciones;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
@@ -17,6 +18,8 @@ public class IngestaWebhookServiceTests
         CredencialIntegracionRepositorioFalso? credencialRepositorio = null) =>
         new(conexionRepositorio, conversacionRepositorio, graphClient,
             new AccesoGraphService(credencialRepositorio ?? new CredencialIntegracionRepositorioFalso(), graphClient),
+            new FileStorageServiceFalso(),
+            new SugerenciaVisitaCorreoServiceFalso(),
             NullLogger<IngestaWebhookService>.Instance);
 
     private static ConexionIntegracion ConexionHabilitada(Guid? clienteId = null)
@@ -38,7 +41,7 @@ public class IngestaWebhookServiceTests
             MensajeIdsADevolver = ["graph-msg-1"],
             MensajeADevolver = new MensajeGraphDto(
                 "graph-msg-1", "graph-thread-1", "Duda sobre CAE", "cliente@ejemplo.com", "<p>hola</p>", DateTime.UtcNow,
-                [new ParticipanteGraphDto("cliente@ejemplo.com", RolParticipante.De)]),
+                [new ParticipanteGraphDto("cliente@ejemplo.com", RolParticipante.De)], []),
         };
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
@@ -70,7 +73,7 @@ public class IngestaWebhookServiceTests
         {
             MensajeIdsADevolver = ["graph-msg-2"],
             MensajeADevolver = new MensajeGraphDto(
-                "graph-msg-2", "graph-thread-1", "Duda sobre CAE", "cliente@ejemplo.com", "<p>otra vez</p>", DateTime.UtcNow, []),
+                "graph-msg-2", "graph-thread-1", "Duda sobre CAE", "cliente@ejemplo.com", "<p>otra vez</p>", DateTime.UtcNow, [], []),
         };
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
@@ -98,7 +101,7 @@ public class IngestaWebhookServiceTests
         {
             MensajeIdsADevolver = ["graph-msg-1"], // Graph reenvía la misma notificación
             MensajeADevolver = new MensajeGraphDto(
-                "graph-msg-1", "graph-thread-1", "Duda sobre CAE", "cliente@ejemplo.com", "<p>ya estaba</p>", DateTime.UtcNow, []),
+                "graph-msg-1", "graph-thread-1", "Duda sobre CAE", "cliente@ejemplo.com", "<p>ya estaba</p>", DateTime.UtcNow, [], []),
         };
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
