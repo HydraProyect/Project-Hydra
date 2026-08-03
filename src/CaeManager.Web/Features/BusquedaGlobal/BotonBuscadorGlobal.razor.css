@@ -22,3 +22,17 @@
     border: var(--border-default);
     color: var(--color-text-muted);
 }
+
+/* Navbar compacta (ver MainLayout.razor.css): solo el icono de búsqueda, sin
+   la etiqueta "Buscar" ni el atajo de teclado (Ctrl+K no es relevante en
+   móvil, que no tiene teclado físico). */
+@media (max-width: 1023px) {
+    .boton-buscador-global {
+        padding: var(--space-2);
+    }
+
+    .boton-buscador-global-texto,
+    .atajo-teclado {
+        display: none;
+    }
+}

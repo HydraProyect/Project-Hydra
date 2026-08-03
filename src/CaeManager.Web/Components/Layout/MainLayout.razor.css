@@ -104,4 +104,33 @@
     .barra-lateral {
         display: none;
     }
+
+    /*
+      Navbar compacta en tablet/móvil: menos altura y padding lateral, y se
+      quita todo lo que no sea imprescindible (nombre de usuario en texto,
+      etiquetas de los botones) para dejar sitio al hamburguesa
+      (NavegacionMovil) + buscador + acciones — mismo punto de corte que
+      oculta ".barra-lateral" arriba.
+    */
+    .barra-superior {
+        height: 56px;
+        padding: 0 var(--space-4);
+        gap: var(--space-2);
+    }
+
+    .menu-usuario {
+        gap: var(--space-2);
+    }
+
+    .menu-usuario-nombre {
+        display: none;
+    }
+
+    .boton-cerrar-sesion {
+        padding: var(--space-2);
+    }
+
+    .boton-cerrar-sesion-texto {
+        display: none;
+    }
 }

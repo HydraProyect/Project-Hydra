@@ -69,3 +69,20 @@
     padding: var(--space-4) var(--space-5);
     border-top: var(--border-default);
 }
+
+/*
+  Móvil: los botones del pie (normalmente acción principal + "Cancelar", en
+  ese orden en el marcado de cada página) pasan a ocupar todo el ancho y
+  apilarse en vez de compartir la fila — más fácil de alcanzar con el
+  pulgar, y evita que dos botones lado a lado queden demasiado angostos
+  para tocar con precisión.
+*/
+@media (max-width: 640px) {
+    .modal-pie {
+        flex-direction: column;
+    }
+
+    .modal-pie .boton {
+        width: 100%;
+    }
+}
