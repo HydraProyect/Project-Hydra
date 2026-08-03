@@ -24,6 +24,7 @@ public class IngestaWebhookService(
     AccesoGraphService accesoGraph,
     IFileStorageService almacenamiento,
     ISugerenciaVisitaCorreoService sugerenciaVisita,
+    ISugerenciaGestionCorreoService sugerenciaGestion,
     ILogger<IngestaWebhookService> logger)
 {
     // Tope defensivo, no un límite real de Graph: un adjunto de correo
@@ -99,7 +100,10 @@ public class IngestaWebhookService(
         // Sin Cliente asignado no hay Centros candidatos a los que asociar
         // una sugerencia — la conversación sigue en la cola de triage.
         if (conversacion.ClienteId is { } clienteId)
+        {
             await sugerenciaVisita.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
+            await sugerenciaGestion.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
+        }
     }
 
     /// <summary>

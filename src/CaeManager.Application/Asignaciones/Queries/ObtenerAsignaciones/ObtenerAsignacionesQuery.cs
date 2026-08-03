@@ -13,8 +13,11 @@ public record ObtenerAsignacionesQuery(string? Busqueda, int Pagina = 1, int Tam
 
 public record AsignacionListaDto(
     Guid Id,
+    Guid TrabajadorId,
     string TrabajadorNombre,
+    Guid CentroId,
     string CentroNombre,
+    Guid ClienteId,
     string ClienteNombre,
     DateOnly FechaAlta,
     DateOnly? FechaBaja);
@@ -53,8 +56,11 @@ public class ObtenerAsignacionesQueryHandler(IAsignacionesQueryContext asignacio
             .Take(request.TamanoPagina)
             .Select(x => new AsignacionListaDto(
                 x.asignacion.Id,
+                x.trabajador.Id,
                 x.trabajador.Nombre + " " + x.trabajador.Apellidos,
+                x.centro.Id,
                 x.centro.Nombre,
+                x.cliente.Id,
                 x.cliente.RazonSocial,
                 x.asignacion.FechaAlta,
                 x.asignacion.FechaBaja))

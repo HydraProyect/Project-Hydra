@@ -9,6 +9,15 @@ namespace CaeManager.Domain.RequisitosDocumentales;
 /// cliente — forzar una relación estructurada con TipoDocumento sería
 /// prematuro (ver DATABASE.md).
 ///
+/// El adjunto (<see cref="ArchivoUrl"/>) es deliberadamente más simple que
+/// Documento: un identificador de almacenamiento opaco sin
+/// TipoDocumento/vencimiento/alertas, porque lo que se adjunta aquí es el
+/// propio formulario en blanco que hay que rellenar (Word/PDF, convertido y
+/// unificado igual que en Documentos — ver ConversorArchivosPdf en
+/// CaeManager.Web), no un justificante con caducidad. Forzarlo a la
+/// estructura de Documento habría exigido AmbitoAplicacion.Centro y un
+/// TipoDocumentoCentro que nada más necesita todavía.
+///
 /// No dispara alertas: la detección de "documento faltante" (ver
 /// ObtenerAlertasQuery) se apoya en TipoDocumento.EsObligatorio +
 /// TipoDocumentoCentro, no en este agregado. Un RequisitoDocumental sin
@@ -19,12 +28,16 @@ public class RequisitoDocumental : EntidadBase
     public const int LongitudMaximaDescripcion = 1000;
     public const int LongitudMaximaPeriodicidad = 300;
     public const int LongitudMaximaNotas = 1000;
+    public const int LongitudMaximaArchivoUrl = 500;
+    public const int LongitudMaximaNombreArchivo = 260;
 
     public Guid CentroId { get; private set; }
     public string Descripcion { get; private set; } = string.Empty;
     public string? PeriodicidadEspecial { get; private set; }
     public bool BloqueaAcceso { get; private set; }
     public string? Notas { get; private set; }
+    public string? ArchivoUrl { get; private set; }
+    public string? NombreArchivoOriginal { get; private set; }
 
     private RequisitoDocumental()
     {
@@ -35,7 +48,9 @@ public class RequisitoDocumental : EntidadBase
         string descripcion,
         string? periodicidadEspecial,
         bool bloqueaAcceso,
-        string? notas = null)
+        string? notas = null,
+        string? archivoUrl = null,
+        string? nombreArchivoOriginal = null)
     {
         if (centroId == Guid.Empty)
             throw new ArgumentException("El requisito debe pertenecer a un centro.", nameof(centroId));
@@ -45,14 +60,20 @@ public class RequisitoDocumental : EntidadBase
         PeriodicidadEspecial = periodicidadEspecial;
         BloqueaAcceso = bloqueaAcceso;
         Notas = notas;
+        ArchivoUrl = archivoUrl;
+        NombreArchivoOriginal = nombreArchivoOriginal;
     }
 
-    public void Actualizar(string descripcion, string? periodicidadEspecial, bool bloqueaAcceso, string? notas)
+    public void Actualizar(
+        string descripcion, string? periodicidadEspecial, bool bloqueaAcceso, string? notas,
+        string? archivoUrl, string? nombreArchivoOriginal)
     {
         EstablecerDescripcion(descripcion);
         PeriodicidadEspecial = periodicidadEspecial;
         BloqueaAcceso = bloqueaAcceso;
         Notas = notas;
+        ArchivoUrl = archivoUrl;
+        NombreArchivoOriginal = nombreArchivoOriginal;
     }
 
     private void EstablecerDescripcion(string descripcion)
