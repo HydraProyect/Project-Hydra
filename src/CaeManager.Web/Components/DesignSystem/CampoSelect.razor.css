@@ -19,3 +19,11 @@
     opacity: 0.6;
     cursor: not-allowed;
 }
+
+/* Mismo motivo que .campo-input en CampoTexto.razor.css: evitar el zoom
+   automático de iOS al enfocar un campo con font-size < 16px. */
+@media (max-width: 767px) {
+    .campo-select {
+        font-size: 1rem;
+    }
+}
