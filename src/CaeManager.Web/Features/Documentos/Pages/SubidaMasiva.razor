@@ -18,14 +18,14 @@
     </p>
 
     <div class="campo">
-        <label for="entrada-subida-masiva">Archivos</label>
-        <InputFile id="entrada-subida-masiva" multiple accept=".pdf,.jpg,.jpeg,.png,.docx,.zip" OnChange="ManejarArchivosSeleccionadosAsync" disabled="@_procesandoLote" />
+        <label>Archivos</label>
+        <ZonaSoltarArchivo
+            OnChange="ManejarArchivosSeleccionadosAsync"
+            Multiple="true"
+            Accept=".pdf,.jpg,.jpeg,.png,.docx,.zip"
+            FormatosTexto="PDF · JPG · PNG · DOCX · ZIP"
+            Cargando="_procesandoLote" />
     </div>
-
-    @if (_procesandoLote)
-    {
-        <p class="detalle-tecnico">Procesando archivos…</p>
-    }
 
     @if (_items.Count > 0)
     {
