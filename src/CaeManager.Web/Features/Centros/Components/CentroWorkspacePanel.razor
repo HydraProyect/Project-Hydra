@@ -10,16 +10,21 @@
 @using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro
 @using CaeManager.Domain.Centros
 @using CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeCentro
+@using CaeManager.Application.Common
 @using CaeManager.Application.RequisitosDocumentales.Commands.CrearRequisitoDocumental
 @using CaeManager.Application.RequisitosDocumentales.Commands.EditarRequisitoDocumental
 @using CaeManager.Application.RequisitosDocumentales.Commands.EliminarRequisitoDocumental
 @using CaeManager.Application.RequisitosDocumentales.Queries.ObtenerRequisitosDocumentalesDeCentro
 @using CaeManager.Domain.Common
+@using CaeManager.Web.Documentos
 @using FluentValidation
 @using MediatR
+@using Microsoft.AspNetCore.Components.Forms
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
+@inject IFileStorageService AlmacenamientoArchivos
+@inject ILogger<CentroWorkspacePanel> Logger
 
 @if (_cargando)
 {
@@ -95,6 +100,14 @@ else
                                 @if (!string.IsNullOrWhiteSpace(requisito.Notas))
                                 {
                                     <p class="workspace-metrica-inline">@requisito.Notas</p>
+                                }
+                                @if (requisito.ArchivoUrl is not null)
+                                {
+                                    <p class="workspace-metrica-inline">
+                                        <a href="/requisitos-documentales/@requisito.Id/archivo" target="_blank">
+                                            @(requisito.NombreArchivoOriginal ?? "Ver formulario")
+                                        </a>
+                                    </p>
                                 }
                                 <div class="workspace-tarjeta-requisito-acciones">
                                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarRequisitoAsync(requisito)">Editar</Boton>
@@ -232,10 +245,29 @@ else
                 <input type="checkbox" @bind="_bloqueaAccesoRequisito" /> Bloquea el acceso al centro mientras no se cumpla
             </label>
             <CampoTextarea Etiqueta="Notas (opcional)" Valor="@_notasRequisito" ValorChanged="v => _notasRequisito = v" />
+
+            <div class="campo">
+                <label>Formulario adjunto (Word o PDF, opcional)</label>
+                @if (_archivoUrlRequisito is not null)
+                {
+                    <p class="workspace-metrica-inline">
+                        @_nombreArchivoRequisito
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="QuitarArchivoRequisito">Quitar</Boton>
+                    </p>
+                }
+                else
+                {
+                    <InputFile OnChange="ManejarArchivoRequisitoSeleccionadoAsync" accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled="@_subiendoArchivoRequisito" />
+                }
+                @if (_subiendoArchivoRequisito)
+                {
+                    <p class="workspace-metrica-inline">Procesando archivo…</p>
+                }
+            </div>
         </ChildContent>
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerRequisitoVisible = false" Deshabilitado="_guardandoRequisito">Cancelar</Boton>
-            <Boton OnClick="GuardarRequisitoAsync" Cargando="_guardandoRequisito">Guardar</Boton>
+            <Boton OnClick="GuardarRequisitoAsync" Cargando="_guardandoRequisito" Deshabilitado="_subiendoArchivoRequisito">Guardar</Boton>
         </Pie>
     </Drawer>
 
@@ -279,8 +311,13 @@ else
     private string _periodicidadRequisito = string.Empty;
     private bool _bloqueaAccesoRequisito;
     private string _notasRequisito = string.Empty;
+    private string? _archivoUrlRequisito;
+    private string? _nombreArchivoRequisito;
+    private bool _subiendoArchivoRequisito;
     private bool _guardandoRequisito;
     private string? _mensajeErrorRequisito;
+
+    private const long TamanoMaximoArchivoRequisitoBytes = 10 * 1024 * 1024;
 
     private bool _confirmarEliminarRequisitoVisible;
     private RequisitoDocumentalDto? _requisitoAEliminar;
@@ -376,6 +413,8 @@ else
         _periodicidadRequisito = string.Empty;
         _bloqueaAccesoRequisito = false;
         _notasRequisito = string.Empty;
+        _archivoUrlRequisito = null;
+        _nombreArchivoRequisito = null;
         _mensajeErrorRequisito = null;
         _drawerRequisitoVisible = true;
         return Task.CompletedTask;
@@ -389,9 +428,75 @@ else
         _periodicidadRequisito = requisito.PeriodicidadEspecial ?? string.Empty;
         _bloqueaAccesoRequisito = requisito.BloqueaAcceso;
         _notasRequisito = requisito.Notas ?? string.Empty;
+        _archivoUrlRequisito = requisito.ArchivoUrl;
+        _nombreArchivoRequisito = requisito.NombreArchivoOriginal;
         _mensajeErrorRequisito = null;
         _drawerRequisitoVisible = true;
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Acepta PDF o Word (.docx) y lo guarda tal cual — a diferencia de
+    /// Documentos.razor.cs, aquí NO se convierte el Word a PDF: el adjunto es
+    /// el propio formulario que el destinatario tiene que poder editar en
+    /// Word, así que forzarlo a PDF le quitaría justo eso.
+    /// </summary>
+    private async Task ManejarArchivoRequisitoSeleccionadoAsync(InputFileChangeEventArgs e)
+    {
+        var archivo = e.File;
+
+        if (!ConversorArchivosPdf.EsPdf(archivo.Name) && !ConversorArchivosPdf.EsWord(archivo.Name))
+        {
+            ToastService.Mostrar($"\"{archivo.Name}\" no es un PDF ni un Word (.docx).", TonoToast.Error);
+            return;
+        }
+
+        if (archivo.Size > TamanoMaximoArchivoRequisitoBytes)
+        {
+            ToastService.Mostrar($"\"{archivo.Name}\" supera los 10 MB.", TonoToast.Error);
+            return;
+        }
+
+        _subiendoArchivoRequisito = true;
+        StateHasChanged();
+
+        try
+        {
+            byte[] contenido;
+            await using (var flujo = archivo.OpenReadStream(TamanoMaximoArchivoRequisitoBytes))
+            using (var memoria = new MemoryStream())
+            {
+                await flujo.CopyToAsync(memoria);
+                contenido = memoria.ToArray();
+            }
+
+            if (!ValidadorFirmaArchivo.TieneFirmaValida(contenido, archivo.Name))
+            {
+                ToastService.Mostrar(
+                    $"\"{archivo.Name}\" no es realmente un PDF ni un Word (.docx) — su contenido no coincide con la extensión.",
+                    TonoToast.Error);
+                return;
+            }
+
+            using var flujoOriginal = new MemoryStream(contenido);
+            _archivoUrlRequisito = await AlmacenamientoArchivos.GuardarAsync(flujoOriginal, archivo.Name);
+            _nombreArchivoRequisito = archivo.Name;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fallo al procesar el archivo subido en Requisitos del Centro");
+            ToastService.Mostrar("No pudimos procesar el archivo. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _subiendoArchivoRequisito = false;
+        }
+    }
+
+    private void QuitarArchivoRequisito()
+    {
+        _archivoUrlRequisito = null;
+        _nombreArchivoRequisito = null;
     }
 
     private async Task GuardarRequisitoAsync()
@@ -406,9 +511,11 @@ else
 
             Result resultado = _editandoRequisitoId is null
                 ? await Mediator.Send(new CrearRequisitoDocumentalCommand(
-                    EntidadId, _descripcionRequisito, periodicidad, _bloqueaAccesoRequisito, notas))
+                    EntidadId, _descripcionRequisito, periodicidad, _bloqueaAccesoRequisito, notas,
+                    _archivoUrlRequisito, _nombreArchivoRequisito))
                 : await Mediator.Send(new EditarRequisitoDocumentalCommand(
-                    _editandoRequisitoId.Value, _descripcionRequisito, periodicidad, _bloqueaAccesoRequisito, notas, _versionRequisito));
+                    _editandoRequisitoId.Value, _descripcionRequisito, periodicidad, _bloqueaAccesoRequisito, notas, _versionRequisito,
+                    _archivoUrlRequisito, _nombreArchivoRequisito));
 
             if (resultado.EsFallido)
             {

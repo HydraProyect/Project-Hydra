@@ -1,0 +1,89 @@
+@page "/gestiones"
+@rendermode InteractiveServer
+@using CaeManager.Application.Gestiones.Commands.CompletarGestion
+@using CaeManager.Application.Gestiones.Commands.EliminarGestion
+@using CaeManager.Application.Gestiones.Queries.ObtenerGestiones
+@using CaeManager.Application.Common
+@using CaeManager.Domain.Gestiones
+@using CaeManager.Web.Components.Workspace
+@using MediatR
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject ICurrentUserService CurrentUserService
+@inject ContextWorkspaceService WorkspaceService
+
+<PageTitle>Gestiones — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Gestiones</h1>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoTexto Placeholder="Buscar por trabajador, centro o documento…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <CampoSelect Etiqueta="Estado" Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync">
+            <option value="">Todas</option>
+            <option value="@nameof(EstadoGestion.Pendiente)">Pendientes</option>
+            <option value="@nameof(EstadoGestion.Completada)">Completadas</option>
+        </CampoSelect>
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las gestiones" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+            <QuickGrid @ref="_grid" TGridItem="GestionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
+                <TemplateColumn Title="Trabajador">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.TrabajadorId, context.TrabajadorNombre, "informacion")'>
+                        @context.TrabajadorNombre
+                    </button>
+                </TemplateColumn>
+                <TemplateColumn Title="Centro">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
+                        @context.CentroNombre
+                    </button>
+                </TemplateColumn>
+                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="Documento" />
+                <TemplateColumn Title="Estado" Align="Align.Center">
+                    <Badge Tono="@(context.Estado == EstadoGestion.Completada ? TonoBadge.Exito : TonoBadge.Advertencia)">
+                        @(context.Estado == EstadoGestion.Completada ? "Completada" : "Pendiente")
+                    </Badge>
+                </TemplateColumn>
+                <PropertyColumn Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="Creada" />
+                <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarEstadoAsync(context.Id, context.Estado != EstadoGestion.Completada)">
+                        @(context.Estado == EstadoGestion.Completada ? "Reabrir" : "Marcar completada")
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id)">
+                        Eliminar
+                    </Boton>
+                </TemplateColumn>
+            </QuickGrid>
+
+            <div class="paginador">
+                <Paginator State="_paginacion" />
+            </div>
+        </div>
+
+        @if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio Titulo="Sin gestiones" Descripcion="Las gestiones se generan desde la Bandeja cuando se detecta la actualización de un documento de un trabajador, o desde el propio Trabajador/Centro." />
+        }
+    }
+</div>
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarVisible"
+    VisibleChanged="v => _confirmarEliminarVisible = v"
+    Titulo="¿Eliminar esta gestión?"
+    Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
+    EnProgreso="_eliminando"
+    OnConfirmar="ConfirmarEliminarAsync" />
