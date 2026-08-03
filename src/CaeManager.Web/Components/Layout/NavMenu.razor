@@ -14,6 +14,17 @@
     lo que ya funciona": el enlace se oculta con Comunicaciones:Activo
     (apagado por defecto, P2 #26 de docs/business/MATURITY_REVIEW.md) porque
     no hay ingesta real detrás — ver ComunicacionesOptions.
+
+    Cada grupo (Negocio/Operación/Control/Administración) es un
+    <details>/<summary> nativo, no un componente interactivo: NavMenu no
+    tiene @rendermode propio (ver el comentario de MainLayout.razor sobre
+    "todo lo que vive fuera de @Body necesita su propio @rendermode
+    explícito o nunca recibe eventos interactivos") y no hace falta pagar el
+    coste de un circuito solo para colapsar un grupo — el navegador ya lo
+    resuelve gratis. wwwroot/js/menu-lateral.js solo persiste qué grupos
+    quedaron colapsados (localStorage, por navegador — no viaja con la
+    cuenta como el tema, es puramente cosmético) y lo reaplica tras cada
+    navegación "enhanced" de Blazor, mismo mecanismo que tema.js.
 *@
 @using CaeManager.Infrastructure.Comunicaciones
 @using Microsoft.Extensions.Options
@@ -34,70 +45,91 @@
             </NavLink>
         </AuthorizeView>
 
-        <span class="nav-grupo-titulo">Negocio</span>
-        <NavLink class="nav-item" href="clientes">
-            <Icono Nombre="clientes" /> Clientes
-        </NavLink>
-        <NavLink class="nav-item" href="empresas">
-            <Icono Nombre="empresas" /> Empresas
-        </NavLink>
-        <NavLink class="nav-item" href="subcontratas">
-            <Icono Nombre="subcontratas" /> Subcontratas
-        </NavLink>
-        <NavLink class="nav-item" href="centros">
-            <Icono Nombre="centros" /> Centros
-        </NavLink>
+        <details class="nav-grupo-detalle" data-grupo="negocio" open>
+            <summary class="nav-grupo-titulo">
+                <span>Negocio</span>
+                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+            </summary>
+            <div class="nav-grupo-items">
+                <NavLink class="nav-item" href="clientes">
+                    <Icono Nombre="clientes" /> Clientes
+                </NavLink>
+                <NavLink class="nav-item" href="empresas">
+                    <Icono Nombre="empresas" /> Empresas
+                </NavLink>
+                <NavLink class="nav-item" href="subcontratas">
+                    <Icono Nombre="subcontratas" /> Subcontratas
+                </NavLink>
+                <NavLink class="nav-item" href="centros">
+                    <Icono Nombre="centros" /> Centros
+                </NavLink>
+            </div>
+        </details>
 
-        <span class="nav-grupo-titulo">Operación</span>
-        <NavLink class="nav-item" href="trabajadores">
-            <Icono Nombre="trabajadores" /> Trabajadores
-        </NavLink>
-        <NavLink class="nav-item" href="vehiculos">
-            <Icono Nombre="vehiculos" /> Vehículos
-        </NavLink>
-        <NavLink class="nav-item" href="asignaciones">
-            <Icono Nombre="asignaciones" /> Asignaciones
-        </NavLink>
-        <NavLink class="nav-item" href="documentos">
-            <Icono Nombre="documentos" /> Documentos
-        </NavLink>
-        <NavLink class="nav-item" href="documentos/revision-ia">
-            <Icono Nombre="documentos" /> Revisión IA
-        </NavLink>
-        <NavLink class="nav-item" href="visitas">
-            <Icono Nombre="visitas" /> Visitas
-        </NavLink>
-        <NavLink class="nav-item" href="proyectos">
-            <Icono Nombre="proyectos" /> Proyectos
-        </NavLink>
-        <NavLink class="nav-item" href="evaluaciones">
-            <Icono Nombre="evaluaciones" /> Evaluaciones
-        </NavLink>
-        <NavLink class="nav-item" href="incidencias">
-            <Icono Nombre="incidencias" /> Incidencias
-        </NavLink>
-        @if (OpcionesComunicaciones.Value.Activo)
-        {
-            <NavLink class="nav-item" href="comunicaciones">
-                <Icono Nombre="chat" /> Comunicaciones
-            </NavLink>
-        }
+        <details class="nav-grupo-detalle" data-grupo="operacion" open>
+            <summary class="nav-grupo-titulo">
+                <span>Operación</span>
+                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+            </summary>
+            <div class="nav-grupo-items">
+                <NavLink class="nav-item" href="trabajadores">
+                    <Icono Nombre="trabajadores" /> Trabajadores
+                </NavLink>
+                <NavLink class="nav-item" href="vehiculos">
+                    <Icono Nombre="vehiculos" /> Vehículos
+                </NavLink>
+                <NavLink class="nav-item" href="asignaciones">
+                    <Icono Nombre="asignaciones" /> Asignaciones
+                </NavLink>
+                <NavLink class="nav-item" href="documentos">
+                    <Icono Nombre="documentos" /> Documentos
+                </NavLink>
+                <NavLink class="nav-item" href="documentos/revision-ia">
+                    <Icono Nombre="documentos" /> Revisión IA
+                </NavLink>
+                <NavLink class="nav-item" href="visitas">
+                    <Icono Nombre="visitas" /> Visitas
+                </NavLink>
+                <NavLink class="nav-item" href="proyectos">
+                    <Icono Nombre="proyectos" /> Proyectos
+                </NavLink>
+                <NavLink class="nav-item" href="evaluaciones">
+                    <Icono Nombre="evaluaciones" /> Evaluaciones
+                </NavLink>
+                <NavLink class="nav-item" href="incidencias">
+                    <Icono Nombre="incidencias" /> Incidencias
+                </NavLink>
+                @if (OpcionesComunicaciones.Value.Activo)
+                {
+                    <NavLink class="nav-item" href="comunicaciones">
+                        <Icono Nombre="chat" /> Comunicaciones
+                    </NavLink>
+                }
+            </div>
+        </details>
 
-        <span class="nav-grupo-titulo">Control</span>
-        <NavLink class="nav-item" href="alertas">
-            <Icono Nombre="alertas" /> Alertas
-        </NavLink>
-        <AuthorizeView Roles="@RolesDeAdministracionAmpliada" Context="authAdminControl">
-            <NavLink class="nav-item" href="facturacion">
-                <Icono Nombre="reportes" /> Facturación
-            </NavLink>
-        </AuthorizeView>
-        <NavLink class="nav-item" href="calendario">
-            <Icono Nombre="calendario" /> Calendario
-        </NavLink>
-        <NavLink class="nav-item" href="reportes">
-            <Icono Nombre="reportes" /> Reportes
-        </NavLink>
+        <details class="nav-grupo-detalle" data-grupo="control" open>
+            <summary class="nav-grupo-titulo">
+                <span>Control</span>
+                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+            </summary>
+            <div class="nav-grupo-items">
+                <NavLink class="nav-item" href="alertas">
+                    <Icono Nombre="alertas" /> Alertas
+                </NavLink>
+                <AuthorizeView Roles="@RolesDeAdministracionAmpliada" Context="authAdminControl">
+                    <NavLink class="nav-item" href="facturacion">
+                        <Icono Nombre="reportes" /> Facturación
+                    </NavLink>
+                </AuthorizeView>
+                <NavLink class="nav-item" href="calendario">
+                    <Icono Nombre="calendario" /> Calendario
+                </NavLink>
+                <NavLink class="nav-item" href="reportes">
+                    <Icono Nombre="reportes" /> Reportes
+                </NavLink>
+            </div>
+        </details>
     </AuthorizeView>
 
     <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Cliente">
@@ -121,46 +153,57 @@
         </NavLink>
     </AuthorizeView>
 
+    @* Repartido en dos AuthorizeView (DireccionCae solo ve Usuarios; solo
+       Administrador ve el resto) pero es un único grupo visual con un único
+       header — por eso el <details> envuelve a ambos en vez de duplicar
+       "Administración" dos veces para quien tiene el rol más amplio. *@
     <AuthorizeView Roles="@RolesDeAdministracionAmpliada">
-        <span class="nav-grupo-titulo">Administración</span>
-        <NavLink class="nav-item" href="usuarios">
-            <Icono Nombre="usuarios" /> Usuarios
-        </NavLink>
-    </AuthorizeView>
-    <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
-        <NavLink class="nav-item" href="roles">
-            <Icono Nombre="roles" /> Roles
-        </NavLink>
-        <NavLink class="nav-item" href="delegaciones">
-            <Icono Nombre="cartera" /> Delegaciones
-        </NavLink>
-        <NavLink class="nav-item" href="configuracion/claves-api">
-            <Icono Nombre="seguridad" /> Claves API
-        </NavLink>
-        <NavLink class="nav-item" href="integraciones">
-            <Icono Nombre="configuracion" /> Conexiones de integración
-        </NavLink>
-        <NavLink class="nav-item" href="retencion">
-            <Icono Nombre="seguridad" /> Retención de datos
-        </NavLink>
-        <NavLink class="nav-item" href="tipos-documento">
-            <Icono Nombre="tipos-documento" /> Tipos de Documento
-        </NavLink>
-        <NavLink class="nav-item" href="configuracion">
-            <Icono Nombre="configuracion" /> Configuración
-        </NavLink>
-        <NavLink class="nav-item" href="auditoria">
-            <Icono Nombre="auditoria" /> Auditoría
-        </NavLink>
-        <NavLink class="nav-item" href="auditoria-ia">
-            <Icono Nombre="auditoria" /> Auditoría IA
-        </NavLink>
-        <NavLink class="nav-item" href="importacion">
-            <Icono Nombre="importar" /> Importar desde Excel
-        </NavLink>
-        <NavLink class="nav-item" href="cuenta/configurar-2fa">
-            <Icono Nombre="seguridad" /> Verificación en dos pasos
-        </NavLink>
+        <details class="nav-grupo-detalle" data-grupo="administracion" open>
+            <summary class="nav-grupo-titulo">
+                <span>Administración</span>
+                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+            </summary>
+            <div class="nav-grupo-items">
+                <NavLink class="nav-item" href="usuarios">
+                    <Icono Nombre="usuarios" /> Usuarios
+                </NavLink>
+                <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador" Context="authAdminSolo">
+                    <NavLink class="nav-item" href="roles">
+                        <Icono Nombre="roles" /> Roles
+                    </NavLink>
+                    <NavLink class="nav-item" href="delegaciones">
+                        <Icono Nombre="cartera" /> Delegaciones
+                    </NavLink>
+                    <NavLink class="nav-item" href="configuracion/claves-api">
+                        <Icono Nombre="seguridad" /> Claves API
+                    </NavLink>
+                    <NavLink class="nav-item" href="integraciones">
+                        <Icono Nombre="configuracion" /> Conexiones de integración
+                    </NavLink>
+                    <NavLink class="nav-item" href="retencion">
+                        <Icono Nombre="seguridad" /> Retención de datos
+                    </NavLink>
+                    <NavLink class="nav-item" href="tipos-documento">
+                        <Icono Nombre="tipos-documento" /> Tipos de Documento
+                    </NavLink>
+                    <NavLink class="nav-item" href="configuracion">
+                        <Icono Nombre="configuracion" /> Configuración
+                    </NavLink>
+                    <NavLink class="nav-item" href="auditoria">
+                        <Icono Nombre="auditoria" /> Auditoría
+                    </NavLink>
+                    <NavLink class="nav-item" href="auditoria-ia">
+                        <Icono Nombre="auditoria" /> Auditoría IA
+                    </NavLink>
+                    <NavLink class="nav-item" href="importacion">
+                        <Icono Nombre="importar" /> Importar desde Excel
+                    </NavLink>
+                    <NavLink class="nav-item" href="cuenta/configurar-2fa">
+                        <Icono Nombre="seguridad" /> Verificación en dos pasos
+                    </NavLink>
+                </AuthorizeView>
+            </div>
+        </details>
     </AuthorizeView>
 </nav>
 
