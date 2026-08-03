@@ -12,6 +12,7 @@ using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Evaluaciones;
 using CaeManager.Application.Facturacion;
+using CaeManager.Application.Gestiones;
 using CaeManager.Application.Incidencias;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Notificaciones;
@@ -38,6 +39,7 @@ using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
@@ -68,7 +70,8 @@ public class CaeManagerDbContext(
         INotificacionesQueryContext, IAsignacionesQueryContext, IVisitasQueryContext, IVehiculosQueryContext,
         IConfiguracionQueryContext, IAuditoriaQueryContext, IRequisitosDocumentalesQueryContext, ITenantsQueryContext,
         IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext, IEvaluacionesQueryContext,
-        IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext
+        IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
+        IGestionesQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -187,6 +190,10 @@ public class CaeManagerDbContext(
     IQueryable<AdjuntoMensajeCorreo> IComunicacionesQueryContext.AdjuntosMensajeCorreo => AdjuntosMensajeCorreo;
     public DbSet<SugerenciaVisitaCorreo> SugerenciasVisitaCorreo => Set<SugerenciaVisitaCorreo>();
     IQueryable<SugerenciaVisitaCorreo> IComunicacionesQueryContext.SugerenciasVisitaCorreo => SugerenciasVisitaCorreo;
+    public DbSet<SugerenciaGestionCorreo> SugerenciasGestionCorreo => Set<SugerenciaGestionCorreo>();
+    IQueryable<SugerenciaGestionCorreo> IComunicacionesQueryContext.SugerenciasGestionCorreo => SugerenciasGestionCorreo;
+    public DbSet<Gestion> Gestiones => Set<Gestion>();
+    IQueryable<Gestion> IGestionesQueryContext.Gestiones => Gestiones;
     public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();
     IQueryable<ClaveApi> IApiKeysQueryContext.ClavesApi => ClavesApi;
     public DbSet<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario => Set<PreferenciaDashboardUsuario>();
