@@ -19,6 +19,7 @@ public class IngestaWebhookServiceTests
         new(conexionRepositorio, conversacionRepositorio, graphClient,
             new AccesoGraphService(credencialRepositorio ?? new CredencialIntegracionRepositorioFalso(), graphClient),
             new FileStorageServiceFalso(),
+            new SugerenciaVisitaCorreoServiceFalso(),
             NullLogger<IngestaWebhookService>.Instance);
 
     private static ConexionIntegracion ConexionHabilitada(Guid? clienteId = null)

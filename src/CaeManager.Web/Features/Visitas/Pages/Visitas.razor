@@ -112,6 +112,11 @@
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
         }
 
+        @if (_sugerenciaVisitaResumen is not null)
+        {
+            <div class="alerta-info">Prellenado desde un correo: @_sugerenciaVisitaResumen — revisa los datos y elige los trabajadores antes de guardar.</div>
+        }
+
         @if (_editandoId is null)
         {
             <CampoSelect Etiqueta="Centro" Valor="@_centroId" ValorChanged="v => _centroId = v">
