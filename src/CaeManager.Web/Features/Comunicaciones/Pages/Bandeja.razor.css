@@ -425,6 +425,17 @@ a.bandeja-adjunto-chip:hover {
     gap: var(--space-3);
 }
 
+.bandeja-respuesta-prellenados {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.bandeja-respuesta-prellenados .campo {
+    flex: 1;
+    min-width: 200px;
+}
+
 .bandeja-respuesta-acciones {
     display: flex;
     align-items: center;
