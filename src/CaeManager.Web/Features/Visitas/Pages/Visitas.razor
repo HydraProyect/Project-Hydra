@@ -3,6 +3,7 @@
 @using CaeManager.Application.Visitas.Commands.CrearVisita
 @using CaeManager.Application.Visitas.Commands.EditarVisita
 @using CaeManager.Application.Visitas.Commands.EliminarVisita
+@using CaeManager.Application.Visitas.Commands.EliminarVisitas
 @using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente
 @using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita
 @using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId
@@ -19,6 +20,7 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
+@inject ContextWorkspaceService WorkspaceService
 
 <PageTitle>Visitas — CAE Manager</PageTitle>
 
@@ -42,6 +44,8 @@
         </CampoSelect>
     </div>
 
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
     @if (_errorCarga)
     {
         <EstadoVacio Titulo="No pudimos cargar las visitas" Descripcion="Intenta nuevamente en unos segundos.">
@@ -56,14 +60,28 @@
            referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
+            <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                <TemplateColumn Title="" Align="Align.Center">
+                    <HeaderTemplate Context="columna">
+                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                    </ChildContent>
+                </TemplateColumn>
                 <TemplateColumn Title="Centro" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
-                    <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirDetalleAsync(context.Id)">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
                         @context.CentroNombre
                     </button>
                 </TemplateColumn>
                 <TemplateColumn Title="Cliente / Empresa">
-                    @context.ClienteRazonSocial — @context.EmpresaRazonSocial
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
+                        @context.ClienteRazonSocial
+                    </button>
+                    —
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.EmpresaId, context.EmpresaRazonSocial, "informacion")'>
+                        @context.EmpresaRazonSocial
+                    </button>
                 </TemplateColumn>
                 <TemplateColumn Title="Fechas">
                     @context.FechaInicio.ToString("dd/MM/yyyy") – @context.FechaFin.ToString("dd/MM/yyyy")
@@ -241,3 +259,14 @@
     Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarLoteVisible"
+    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
+    Titulo="@($"¿Eliminar {_seleccionados.Count} visita(s)?")"
+    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlas desde Auditoría."
+    EnProgreso="_eliminandoLote"
+    OnConfirmar="ConfirmarEliminarLoteAsync" />
