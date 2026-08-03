@@ -3,6 +3,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
 using CaeManager.Application.Comunicaciones.Commands.AsignarEjecutivoConversacion;
 using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
+using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaVisita;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
@@ -394,6 +395,30 @@ public partial class Bandeja : ComponentBase
         finally
         {
             _asignandoCliente = false;
+        }
+    }
+
+    private void IrACrearVisitaDesdeSugerencia(Guid sugerenciaId) =>
+        NavigationManager.NavigateTo($"/visitas?sugerenciaId={sugerenciaId}");
+
+    private async Task DescartarSugerenciaVisitaAsync(Guid sugerenciaId)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new DescartarSugerenciaVisitaCorreoCommand(sugerenciaId));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            if (_conversacionSeleccionadaId is not null)
+                await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al descartar la sugerencia de visita {SugerenciaId}.", sugerenciaId);
+            ToastService.Mostrar("No pudimos descartar la sugerencia. Intenta nuevamente.", TonoToast.Error);
         }
     }
 

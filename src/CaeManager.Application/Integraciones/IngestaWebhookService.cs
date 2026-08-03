@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using Microsoft.Extensions.Logging;
@@ -22,6 +23,7 @@ public class IngestaWebhookService(
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
     IFileStorageService almacenamiento,
+    ISugerenciaVisitaCorreoService sugerenciaVisita,
     ILogger<IngestaWebhookService> logger)
 {
     // Tope defensivo, no un límite real de Graph: un adjunto de correo
@@ -93,6 +95,11 @@ public class IngestaWebhookService(
 
         foreach (var adjunto in mensaje.Adjuntos)
             await DescargarYGuardarAdjuntoAsync(mensajeCreado, accessTokenResultado.Valor, mensaje.MensajeExternoId, adjunto, cancellationToken);
+
+        // Sin Cliente asignado no hay Centros candidatos a los que asociar
+        // una sugerencia — la conversación sigue en la cola de triage.
+        if (conversacion.ClienteId is { } clienteId)
+            await sugerenciaVisita.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
     }
 
     /// <summary>
