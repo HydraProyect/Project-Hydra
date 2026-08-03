@@ -10,4 +10,5 @@ public interface IComunicacionesQueryContext
     IQueryable<MacroRespuesta> MacrosRespuesta { get; }
     IQueryable<AdjuntoMensajeCorreo> AdjuntosMensajeCorreo { get; }
     IQueryable<SugerenciaVisitaCorreo> SugerenciasVisitaCorreo { get; }
+    IQueryable<SugerenciaGestionCorreo> SugerenciasGestionCorreo { get; }
 }

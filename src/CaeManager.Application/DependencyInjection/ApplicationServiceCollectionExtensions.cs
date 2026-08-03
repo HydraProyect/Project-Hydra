@@ -45,6 +45,7 @@ public static class ApplicationServiceCollectionExtensions
         // Infrastructure porque no toca nada específico de infraestructura.
         services.AddScoped<IDeteccionTrabajadoresService, DeteccionTrabajadoresService>();
         services.AddScoped<ISugerenciaVisitaCorreoService, SugerenciaVisitaCorreoService>();
+        services.AddScoped<ISugerenciaGestionCorreoService, SugerenciaGestionCorreoService>();
         services.AddScoped<IPaqueteDocumentalVisitaService, PaqueteDocumentalVisitaService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
 

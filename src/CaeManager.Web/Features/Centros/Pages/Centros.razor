@@ -3,6 +3,7 @@
 @using CaeManager.Application.Centros.Commands.CrearCentro
 @using CaeManager.Application.Centros.Commands.EditarCentro
 @using CaeManager.Application.Centros.Commands.EliminarCentro
+@using CaeManager.Application.Centros.Commands.EliminarCentros
 @using CaeManager.Application.Centros.Queries.ObtenerCentroPorId
 @using CaeManager.Application.Centros.Queries.ObtenerCentros
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
@@ -28,6 +29,8 @@
         <CampoTexto Placeholder="Buscar por nombre…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
     </div>
 
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
     @if (_errorCarga)
     {
         <EstadoVacio Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
@@ -39,7 +42,15 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="CentroListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
+            <QuickGrid @ref="_grid" TGridItem="CentroListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                <TemplateColumn Title="" Align="Align.Center">
+                    <HeaderTemplate Context="columna">
+                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                    </ChildContent>
+                </TemplateColumn>
                 <TemplateColumn Title="Nombre" Sortable="true" SortBy="@(GridSort<CentroListaDto>.ByAscending(c => c.Nombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.Id, context.Nombre, "informacion")'>
                         @context.Nombre
@@ -137,3 +148,14 @@
     Mensaje="Se ocultará de las listas activas. Podrás recuperarlo desde Auditoría."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarLoteVisible"
+    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
+    Titulo="@($"¿Eliminar {_seleccionados.Count} centro(s)?")"
+    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría."
+    EnProgreso="_eliminandoLote"
+    OnConfirmar="ConfirmarEliminarLoteAsync" />

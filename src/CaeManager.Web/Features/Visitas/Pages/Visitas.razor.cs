@@ -4,12 +4,14 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelecto
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.EliminarVisita;
+using CaeManager.Application.Visitas.Commands.EliminarVisitas;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.QuickGrid;
@@ -68,6 +70,12 @@ public partial class Visitas : ComponentBase
     private bool _cargandoDetalle;
     private DetalleVisitaDto? _detalle;
 
+    private readonly HashSet<Guid> _seleccionados = [];
+    private List<VisitaListaDto> _elementosPagina = [];
+    private Guid? _idEnfocado;
+    private bool _eliminandoLote;
+    private bool _confirmarEliminarLoteVisible;
+
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
@@ -118,7 +126,12 @@ public partial class Visitas : ComponentBase
 
             _totalElementos = resultado.TotalElementos;
 
-            return GridItemsProviderResult.From(resultado.Elementos.ToList(), resultado.TotalElementos);
+            var elementos = resultado.Elementos.ToList();
+            _elementosPagina = elementos;
+            _seleccionados.Clear();
+            _idEnfocado = null;
+
+            return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
         catch (Exception)
         {
@@ -381,5 +394,85 @@ public partial class Visitas : ComponentBase
         {
             _eliminando = false;
         }
+    }
+
+    private bool TodosSeleccionados =>
+        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+
+    private void AlternarSeleccionTodos(bool marcar)
+    {
+        if (marcar)
+            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+        else
+            _seleccionados.Clear();
+    }
+
+    private void AlternarSeleccion(Guid id, bool marcado)
+    {
+        if (marcado) _seleccionados.Add(id);
+        else _seleccionados.Remove(id);
+    }
+
+    private async Task ConfirmarEliminarLoteAsync()
+    {
+        _eliminandoLote = true;
+
+        try
+        {
+            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
+            var resultado = await Mediator.Send(new EliminarVisitasCommand(_seleccionados.ToList(), usuarioId ?? Guid.Empty));
+            var dto = resultado.Valor;
+
+            ToastService.Mostrar(
+                dto.Errores.Count == 0
+                    ? $"{dto.Eliminados} visita(s) eliminada(s)."
+                    : $"{dto.Eliminados} eliminada(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            _seleccionados.Clear();
+            _confirmarEliminarLoteVisible = false;
+            await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos eliminar las visitas seleccionadas. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _eliminandoLote = false;
+        }
+    }
+
+    private string ObtenerClaseFila(VisitaListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
+
+    private async Task ManejarAtajoAsync(string tecla)
+    {
+        if (_elementosPagina.Count == 0) return;
+
+        switch (tecla)
+        {
+            case "j":
+                {
+                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    break;
+                }
+            case "k":
+                {
+                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    break;
+                }
+            case "x":
+                if (_idEnfocado is { } idAlternar)
+                    AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                break;
+            case "Enter":
+                if (_idEnfocado is { } idAbrir)
+                    await AbrirDetalleAsync(idAbrir);
+                break;
+        }
+
+        StateHasChanged();
     }
 }
