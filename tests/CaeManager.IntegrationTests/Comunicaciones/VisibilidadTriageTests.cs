@@ -72,7 +72,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
         // Acotar solo el listado dejaba el hilo accesible por Id.
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            contexto, contexto, new AlcanceDatosServiceFalso(clienteIds: [_clientePropio]),
+            contexto, contexto, contexto, new AlcanceDatosServiceFalso(clienteIds: [_clientePropio]),
             new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "Cliente"));
 
         var detalle = await handler.Handle(
