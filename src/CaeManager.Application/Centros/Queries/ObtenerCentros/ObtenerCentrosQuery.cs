@@ -49,8 +49,12 @@ public class ObtenerCentrosQueryHandler(
             .Take(request.TamanoPagina)
             .Select(x => new
             {
-                x.centro.Id, x.centro.Nombre, x.centro.CodigoCentro, x.centro.ClienteId,
-                ClienteRazonSocial = x.cliente.RazonSocial, EmpresaRazonSocial = x.empresa.RazonSocial
+                x.centro.Id,
+                x.centro.Nombre,
+                x.centro.CodigoCentro,
+                x.centro.ClienteId,
+                ClienteRazonSocial = x.cliente.RazonSocial,
+                EmpresaRazonSocial = x.empresa.RazonSocial
             })
             .ToListAsync(cancellationToken);
 
