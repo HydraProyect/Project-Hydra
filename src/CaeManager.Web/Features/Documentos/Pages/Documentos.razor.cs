@@ -58,6 +58,9 @@ public partial class Documentos : ComponentBase
     /// </summary>
     [SupplyParameterFromQuery] public Guid? TrabajadorId { get; set; }
 
+    /// <summary>Misma idea que <see cref="TrabajadorId"/> pero para un documento "faltante" de Ámbito Empresa (ver Detalle de la visita).</summary>
+    [SupplyParameterFromQuery] public Guid? EmpresaIdFaltante { get; set; }
+
     [SupplyParameterFromQuery] public Guid? TipoDocumentoId { get; set; }
 
     [SupplyParameterFromQuery(Name = "q")] public string? TerminoBusquedaInicial { get; set; }
@@ -95,6 +98,8 @@ public partial class Documentos : ComponentBase
             await AbrirEditarAsync(DocumentoId.Value);
         else if (TrabajadorId is not null && TipoDocumentoId is not null)
             await AbrirCrearParaFaltanteAsync(TrabajadorId.Value, TipoDocumentoId.Value);
+        else if (EmpresaIdFaltante is not null && TipoDocumentoId is not null)
+            await AbrirCrearParaFaltanteEmpresaAsync(EmpresaIdFaltante.Value, TipoDocumentoId.Value);
         else if (Accion == "crear")
             await AbrirCrearAsync();
 
@@ -158,6 +163,9 @@ public partial class Documentos : ComponentBase
     private string? _aliasSugerido;
     private Guid? _trabajadorIdParaAliasSugerido;
     private bool _asignandoAliasSugerido;
+    private bool _confirmarTipoSospechosoVisible;
+    private string _tipoSospechosoDetectadoNombre = string.Empty;
+    private string _tipoSospechosoSeleccionadoNombre = string.Empty;
     private string _comentarios = string.Empty;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
@@ -304,6 +312,7 @@ public partial class Documentos : ComponentBase
         _glosarioObservaciones = null;
         _aliasSugerido = null;
         _trabajadorIdParaAliasSugerido = null;
+        _confirmarTipoSospechosoVisible = false;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
@@ -313,6 +322,14 @@ public partial class Documentos : ComponentBase
     {
         await AbrirCrearAsync();
         _trabajadorId = trabajadorId.ToString();
+        CambiarTipoDocumento(tipoDocumentoId.ToString());
+    }
+
+    private async Task AbrirCrearParaFaltanteEmpresaAsync(Guid empresaId, Guid tipoDocumentoId)
+    {
+        await AbrirCrearAsync();
+        await CambiarAmbitoAsync(nameof(AmbitoAplicacion.Empresa));
+        _empresaId = empresaId.ToString();
         CambiarTipoDocumento(tipoDocumentoId.ToString());
     }
 
@@ -525,10 +542,22 @@ public partial class Documentos : ComponentBase
             var huboSugerencia = false;
 
             if (deteccion.TipoDocumentoId is { } tipoDetectadoId
-                && _tiposDisponibles.Any(t => t.Id == tipoDetectadoId))
+                && _tiposDisponibles.FirstOrDefault(t => t.Id == tipoDetectadoId) is { } tipoDetectadoDto)
             {
-                CambiarTipoDocumento(tipoDetectadoId.ToString());
-                huboSugerencia = true;
+                if (string.IsNullOrEmpty(_tipoDocumentoId))
+                {
+                    CambiarTipoDocumento(tipoDetectadoId.ToString());
+                    huboSugerencia = true;
+                }
+                else if (_tipoDocumentoId != tipoDetectadoId.ToString())
+                {
+                    // El usuario ya había elegido un tipo antes de subir el
+                    // archivo — no se lo pisamos en silencio (huboSugerencia
+                    // del alias/trabajador sí puede seguir, esto es aparte).
+                    _tipoSospechosoDetectadoNombre = tipoDetectadoDto.Nombre;
+                    _tipoSospechosoSeleccionadoNombre = _tiposDisponibles.FirstOrDefault(t => t.Id.ToString() == _tipoDocumentoId)?.Nombre ?? "el tipo seleccionado";
+                    _confirmarTipoSospechosoVisible = true;
+                }
             }
 
             if (deteccion.TrabajadorId is { } trabajadorDetectadoId
