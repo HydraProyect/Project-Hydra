@@ -1,0 +1,87 @@
+@*
+    Zona de arrastrar/soltar/pegar para subir archivos — envuelve el
+    InputFile de Blazor sin tocar su pipeline: arrastrar y soltar, o pegar
+    con Ctrl+V, solo rellenan el <input type=file> subyacente y disparan
+    'change' (ver zona-soltar-archivo.js), así que OnChange dispara
+    exactamente el mismo InputFileChangeEventArgs que el selector nativo.
+    Quien la usa no cambia una sola línea de su lógica de procesamiento.
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="zona-soltar-archivo @(Cargando ? "zona-soltar-archivo-deshabilitada" : "")" @ref="_zonaRef" tabindex="@(Cargando ? "-1" : "0")">
+    <label for="@_inputId" class="zona-soltar-archivo-superficie">
+        <span class="zona-soltar-archivo-icono">
+            <Icono Nombre="imagen" Tamano="TamanoIcono.Grande" />
+        </span>
+        <p class="zona-soltar-archivo-titulo">@Titulo</p>
+        <p class="zona-soltar-archivo-subtitulo">
+            o <span class="zona-soltar-archivo-enlace">busca archivos</span> · o pega con <kbd>Ctrl</kbd> + <kbd>V</kbd>
+        </p>
+        @if (!string.IsNullOrWhiteSpace(FormatosTexto))
+        {
+            <p class="zona-soltar-archivo-formatos">@FormatosTexto</p>
+        }
+    </label>
+    <InputFile id="@_inputId" @ref="_inputFileRef" OnChange="OnChange" multiple="@Multiple" accept="@Accept" disabled="@Cargando" class="zona-soltar-archivo-input" />
+</div>
+
+@if (Cargando)
+{
+    <span class="detalle-tecnico">Procesando…</span>
+}
+else if (!string.IsNullOrWhiteSpace(NombreArchivoActual))
+{
+    <span class="detalle-tecnico">@NombreArchivoActual</span>
+}
+
+@code {
+    private readonly string _inputId = $"zona-soltar-archivo-{Guid.NewGuid():N}";
+    private ElementReference _zonaRef;
+    private InputFile? _inputFileRef;
+    private IJSObjectReference? _modulo;
+    private IJSObjectReference? _instancia;
+
+    [Parameter] public string Titulo { get; set; } = "Suelta tu archivo aquí";
+    [Parameter] public string? FormatosTexto { get; set; }
+    [Parameter] public string? Accept { get; set; }
+    [Parameter] public bool Multiple { get; set; }
+    [Parameter] public bool Cargando { get; set; }
+    [Parameter] public string? NombreArchivoActual { get; set; }
+    [Parameter, EditorRequired] public EventCallback<InputFileChangeEventArgs> OnChange { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _inputFileRef?.Element is not { } inputElement) return;
+
+        try
+        {
+            _modulo = await JS.InvokeAsync<IJSObjectReference>("import", "./js/zona-soltar-archivo.js");
+            _instancia = await _modulo.InvokeAsync<IJSObjectReference>("inicializar", _zonaRef, inputElement);
+        }
+        catch (Exception)
+        {
+            // Mejor esfuerzo: sin JS interop (circuito cerrándose, o bUnit sin
+            // navegador real) el "busca archivos" nativo del label sigue
+            // funcionando — solo se pierde arrastrar/soltar y pegar.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_instancia is not null)
+            {
+                await _instancia.InvokeVoidAsync("dispose");
+                await _instancia.DisposeAsync();
+            }
+
+            if (_modulo is not null)
+                await _modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

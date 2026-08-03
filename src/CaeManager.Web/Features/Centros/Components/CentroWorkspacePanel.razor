@@ -302,11 +302,11 @@ else
                 }
                 else
                 {
-                    <InputFile OnChange="ManejarArchivoRequisitoSeleccionadoAsync" accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled="@_subiendoArchivoRequisito" />
-                }
-                @if (_subiendoArchivoRequisito)
-                {
-                    <p class="workspace-metrica-inline">Procesando archivo…</p>
+                    <ZonaSoltarArchivo
+                        OnChange="ManejarArchivoRequisitoSeleccionadoAsync"
+                        Accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        FormatosTexto="PDF · DOCX"
+                        Cargando="_subiendoArchivoRequisito" />
                 }
             </div>
         </ChildContent>
