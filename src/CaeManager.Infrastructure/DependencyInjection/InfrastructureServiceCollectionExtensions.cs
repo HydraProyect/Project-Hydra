@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -22,6 +23,7 @@ using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Visitas;
 using CaeManager.Application.Importacion;
 using Microsoft.AspNetCore.Authentication;
+using CaeManager.Infrastructure.Alertas;
 using CaeManager.Infrastructure.AsistenteIa;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
@@ -287,6 +289,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IIncidenciaRepository, IncidenciaRepository>();
         services.AddScoped<IConversacionCorreoRepository, ConversacionCorreoRepository>();
         services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
+        services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ISuscripcionWebhookRepository, SuscripcionWebhookRepository>();
@@ -414,6 +417,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
+        services.AddHttpClient<IDeteccionVisitaCorreoService, AnthropicDeteccionVisitaCorreoService>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(60));
         // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
         // implementación directa de Anthropic aquí — RouterExtraccionMetadatosDocumentoIaService
         // (Application) la satisface delegando en IDocumentAIRouterService,
@@ -463,6 +469,17 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<IEmailService, GraphEmailService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
+
+        // Resumen diario de alertas de vencimiento por correo (Issue #2):
+        // apagado por defecto — ver AlertasPorCorreoOptions. Independiente
+        // de si Graph:* está configurado (IEmailService ya degrada solo si
+        // no lo está); este interruptor decide si el job en sí corre.
+        var opcionesAlertasPorCorreo = new AlertasPorCorreoOptions();
+        configuration.GetSection(AlertasPorCorreoOptions.SeccionConfiguracion).Bind(opcionesAlertasPorCorreo);
+        services.Configure<AlertasPorCorreoOptions>(configuration.GetSection(AlertasPorCorreoOptions.SeccionConfiguracion));
+
+        if (opcionesAlertasPorCorreo.Activo)
+            services.AddHostedService<EnvioAlertasVencimientoHostedService>();
 
         // Comunicaciones (P2 #26): apagado por defecto — ver ComunicacionesOptions.
         services.Configure<ComunicacionesOptions>(configuration.GetSection(ComunicacionesOptions.SeccionConfiguracion));

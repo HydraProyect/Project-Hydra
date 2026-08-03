@@ -8,7 +8,8 @@ using MediatR;
 
 namespace CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 
-public record ResponderConversacionCommand(Guid ConversacionId, string CuerpoHtml) : ICommand;
+public record ResponderConversacionCommand(
+    Guid ConversacionId, string CuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto>? Adjuntos = null) : ICommand;
 
 public class ResponderConversacionCommandValidator : AbstractValidator<ResponderConversacionCommand>
 {
@@ -16,6 +17,10 @@ public class ResponderConversacionCommandValidator : AbstractValidator<Responder
     {
         RuleFor(c => c.ConversacionId).NotEmpty().WithMessage("La respuesta debe pertenecer a una conversación.");
         RuleFor(c => c.CuerpoHtml).NotEmpty().WithMessage("La respuesta no puede estar vacía.");
+
+        RuleFor(c => c.Adjuntos)
+            .Must(a => a is null || a.Sum(x => x.Contenido.LongLength) <= LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes)
+            .WithMessage("Los adjuntos no pueden superar 3 MB en total.");
     }
 }
 
@@ -34,6 +39,7 @@ public class ResponderConversacionCommandHandler(
     IAlcanceDatosService alcanceDatos,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
+    IFileStorageService almacenamiento,
     IUnitOfWork unitOfWork)
     : IRequestHandler<ResponderConversacionCommand, Result>
 {
@@ -47,27 +53,48 @@ public class ResponderConversacionCommandHandler(
         if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
             return Result.Fallo(Error.Crear("ConversacionCorreo.NoEncontrada", "No encontramos esta conversación."));
 
+        MensajeCorreo mensajeCreado;
+
         if (conversacion.ConexionIntegracionId is { } conexionId)
         {
-            var envioResultado = await EnviarPorGraphAsync(conversacion, conexionId, request.CuerpoHtml, cancellationToken);
+            var envioResultado = await EnviarPorGraphAsync(conversacion, conexionId, request.CuerpoHtml, request.Adjuntos, cancellationToken);
             if (envioResultado.EsFallido)
-                return envioResultado;
+                return Result.Fallo(envioResultado.Error);
+            mensajeCreado = envioResultado.Valor;
         }
         else
         {
-            conversacion.AgregarMensaje(DireccionMensaje.Saliente, RemitenteSimuladoEmail, request.CuerpoHtml);
+            mensajeCreado = conversacion.AgregarMensaje(DireccionMensaje.Saliente, RemitenteSimuladoEmail, request.CuerpoHtml);
         }
+
+        // Los adjuntos se guardan en el propio storage independientemente de
+        // si hubo envío real por Graph — el registro de "qué se adjuntó en
+        // este hilo" no debe depender de que hubiera buzón conectado (mismo
+        // criterio "sin regresión para las demos" del resto del handler).
+        if (request.Adjuntos is { Count: > 0 })
+            await GuardarAdjuntosAsync(mensajeCreado, request.Adjuntos, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
     }
 
-    private async Task<Result> EnviarPorGraphAsync(
-        ConversacionCorreo conversacion, Guid conexionId, string cuerpoHtml, CancellationToken cancellationToken)
+    private async Task GuardarAdjuntosAsync(
+        MensajeCorreo mensaje, IReadOnlyList<AdjuntoParaEnviarDto> adjuntos, CancellationToken cancellationToken)
+    {
+        foreach (var adjunto in adjuntos)
+        {
+            using var flujo = new MemoryStream(adjunto.Contenido);
+            var archivoUrl = await almacenamiento.GuardarAsync(flujo, adjunto.NombreArchivo, cancellationToken);
+            mensaje.AgregarAdjunto(adjunto.NombreArchivo, adjunto.TipoContenido, adjunto.Contenido.LongLength, archivoUrl);
+        }
+    }
+
+    private async Task<Result<MensajeCorreo>> EnviarPorGraphAsync(
+        ConversacionCorreo conversacion, Guid conexionId, string cuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
     {
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
         if (conexion is null || conexion.Estado != EstadoConexionIntegracion.Habilitada)
-            return Result.Fallo(Error.Crear(
+            return Result.Fallo<MensajeCorreo>(Error.Crear(
                 "ConversacionCorreo.ConexionNoDisponible", "El buzón conectado a esta conversación no está disponible."));
 
         var ultimoMensajeEntrante = conversacion.Mensajes
@@ -75,22 +102,21 @@ public class ResponderConversacionCommandHandler(
             .OrderByDescending(m => m.FechaUtc)
             .FirstOrDefault();
         if (ultimoMensajeEntrante is null)
-            return Result.Fallo(Error.Crear(
+            return Result.Fallo<MensajeCorreo>(Error.Crear(
                 "ConversacionCorreo.SinMensajeOrigen", "No hay ningún mensaje entrante al que responder en este hilo."));
 
         var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
         if (accessTokenResultado.EsFallido)
-            return Result.Fallo(accessTokenResultado.Error);
+            return Result.Fallo<MensajeCorreo>(accessTokenResultado.Error);
 
         var envioResultado = await graphClient.EnviarRespuestaAsync(
-            accessTokenResultado.Valor, conexion.BuzonEmail, ultimoMensajeEntrante.MensajeExternoId!, cuerpoHtml, cancellationToken);
+            accessTokenResultado.Valor, conexion.BuzonEmail, ultimoMensajeEntrante.MensajeExternoId!, cuerpoHtml, adjuntos, cancellationToken);
         if (envioResultado.EsFallido)
-            return envioResultado;
+            return Result.Fallo<MensajeCorreo>(envioResultado.Error);
 
         // Sent Items no está en el recurso vigilado por la suscripción (solo
         // Inbox) — un mensaje Saliente propio nunca vuelve por webhook, así
         // que no necesita MensajeExternoId para idempotencia.
-        conversacion.AgregarMensaje(DireccionMensaje.Saliente, conexion.BuzonEmail, cuerpoHtml);
-        return Result.Exito();
+        return Result.Exito(conversacion.AgregarMensaje(DireccionMensaje.Saliente, conexion.BuzonEmail, cuerpoHtml));
     }
 }
