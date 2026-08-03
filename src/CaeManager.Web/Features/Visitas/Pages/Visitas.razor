@@ -9,6 +9,7 @@
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Application.Common
+@using CaeManager.Domain.Visitas
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
@@ -59,6 +60,16 @@
                 </TemplateColumn>
                 <TemplateColumn Title="Fechas">
                     @context.FechaInicio.ToString("dd/MM/yyyy") – @context.FechaFin.ToString("dd/MM/yyyy")
+                </TemplateColumn>
+                <TemplateColumn Title="Origen" Align="Align.Center">
+                    @if (context.Origen == OrigenVisita.Correo)
+                    {
+                        <Badge Tono="TonoBadge.Info">Correo</Badge>
+                    }
+                    else
+                    {
+                        <Badge Tono="TonoBadge.Neutro">Plataforma</Badge>
+                    }
                 </TemplateColumn>
                 <TemplateColumn Title="Trabajadores" Align="Align.Center">
                     @context.TotalTrabajadores
