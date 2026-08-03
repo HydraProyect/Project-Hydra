@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -287,6 +288,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IIncidenciaRepository, IncidenciaRepository>();
         services.AddScoped<IConversacionCorreoRepository, ConversacionCorreoRepository>();
         services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
+        services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ISuscripcionWebhookRepository, SuscripcionWebhookRepository>();
@@ -414,6 +416,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
+        services.AddHttpClient<IDeteccionVisitaCorreoService, AnthropicDeteccionVisitaCorreoService>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(60));
         // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
         // implementación directa de Anthropic aquí — RouterExtraccionMetadatosDocumentoIaService
         // (Application) la satisface delegando en IDocumentAIRouterService,
