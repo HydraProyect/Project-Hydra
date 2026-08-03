@@ -34,6 +34,19 @@
     font-size: 0.8125rem;
 }
 
+/*
+  36px es intencional en escritorio (fila de tabla densa, puntero preciso),
+  pero por debajo del objetivo táctil de 44px que pide WCAG 2.5.5 — y este
+  es el tamaño que usan los botones "Ver/Editar/Eliminar" de cada fila en
+  ~27 pantallas de listado. pointer:coarse cubre también una tablet/portátil
+  táctil que no esté por debajo de 767px.
+*/
+@media (max-width: 767px), (pointer: coarse) {
+    .boton-pequeno {
+        min-height: 44px;
+    }
+}
+
 .boton-primario {
     background-color: var(--color-primary-500);
     border-color: var(--color-primary-500);
