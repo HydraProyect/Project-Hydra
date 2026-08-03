@@ -15,6 +15,9 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public MensajeGraphDto? MensajeADevolver { get; set; }
     public IReadOnlyList<string> MensajeIdsADevolver { get; set; } = [];
     public string? ClientStateADevolver { get; set; }
+    public IReadOnlyList<CarpetaGraphDto> CarpetasADevolver { get; set; } = [];
+    public IReadOnlyList<MensajeResumenGraphDto> MensajesADevolver { get; set; } = [];
+    public byte[] ContenidoAdjuntoADevolver { get; set; } = [];
 
     public string ConstruirUrlAutorizacion(string redirectUri, string state) => $"https://login.microsoftonline.com/common/authorize?state={state}";
 
@@ -30,7 +33,8 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
         Task.FromResult(Result.Exito("buzon@cliente-falso.test"));
 
     public Task<Result> EnviarRespuestaAsync(
-        string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml, CancellationToken cancellationToken)
+        string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml,
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
     {
         UltimoMensajeExternoIdRespondido = mensajeExternoIdOrigen;
         return Task.FromResult(FallaEnvio
@@ -38,11 +42,29 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
             : Result.Exito());
     }
 
+    public Task<Result> EnviarNuevoMensajeAsync(
+        string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken) =>
+        Task.FromResult(FallaEnvio
+            ? Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "fallo simulado"))
+            : Result.Exito());
+
     public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
         string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken) =>
         Task.FromResult(MensajeADevolver is null
             ? Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "sin mensaje configurado"))
             : Result.Exito(MensajeADevolver));
+
+    public Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
+        string accessToken, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>
+        Task.FromResult(Result.Exito(ContenidoAdjuntoADevolver));
+
+    public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, CancellationToken cancellationToken) =>
+        Task.FromResult(Result.Exito(CarpetasADevolver));
+
+    public Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(
+        string accessToken, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) =>
+        Task.FromResult(Result.Exito(MensajesADevolver));
 
     public Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
         string accessToken, string buzonEmail, string notificationUrl, string clientState, CancellationToken cancellationToken) =>
