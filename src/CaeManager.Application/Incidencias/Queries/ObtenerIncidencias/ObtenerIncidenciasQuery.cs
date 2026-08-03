@@ -12,7 +12,7 @@ public record ObtenerIncidenciasQuery(string? Busqueda, bool SoloSinResolver, in
     : IRequest<ResultadoPaginado<IncidenciaListaDto>>;
 
 public record IncidenciaListaDto(
-    Guid Id, string CentroNombre, string? TrabajadorNombre, TipoIncidencia Tipo,
+    Guid Id, Guid CentroId, string CentroNombre, Guid? TrabajadorId, string? TrabajadorNombre, TipoIncidencia Tipo,
     GravedadIncidencia Gravedad, DateOnly FechaOcurrencia, bool Resuelta);
 
 public class ObtenerIncidenciasQueryHandler(ICentrosQueryContext centrosContext, IIncidenciasQueryContext incidenciasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
@@ -52,7 +52,9 @@ public class ObtenerIncidenciasQueryHandler(ICentrosQueryContext centrosContext,
             .Take(request.TamanoPagina)
             .Select(x => new IncidenciaListaDto(
                 x.incidencia.Id,
+                x.centro.Id,
                 x.centro.Nombre,
+                x.trabajador == null ? null : (Guid?)x.trabajador.Id,
                 x.trabajador == null ? null : x.trabajador.Nombre + " " + x.trabajador.Apellidos,
                 x.incidencia.Tipo,
                 x.incidencia.Gravedad,
