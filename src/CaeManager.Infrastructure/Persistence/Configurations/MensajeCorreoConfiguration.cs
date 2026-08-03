@@ -20,6 +20,14 @@ public class MensajeCorreoConfiguration : IEntityTypeConfiguration<MensajeCorreo
         // Único por tenant: idempotencia ante reintentos de notificación de webhook (P3-33).
         builder.HasIndex(m => new { m.TenantId, m.MensajeExternoId }).IsUnique();
 
+        // Colección de solo lectura respaldada por campo privado — mismo
+        // patrón que ConversacionCorreo.Mensajes/Participantes.
+        builder.HasMany(m => m.Adjuntos)
+            .WithOne()
+            .HasForeignKey(a => a.MensajeCorreoId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(m => m.Adjuntos).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }
