@@ -83,7 +83,7 @@ public class ResponderConversacionCommandHandler(
             return Result.Fallo(accessTokenResultado.Error);
 
         var envioResultado = await graphClient.EnviarRespuestaAsync(
-            accessTokenResultado.Valor, conexion.BuzonEmail, ultimoMensajeEntrante.MensajeExternoId!, cuerpoHtml, cancellationToken);
+            accessTokenResultado.Valor, conexion.BuzonEmail, ultimoMensajeEntrante.MensajeExternoId!, cuerpoHtml, adjuntos: null, cancellationToken);
         if (envioResultado.EsFallido)
             return envioResultado;
 
