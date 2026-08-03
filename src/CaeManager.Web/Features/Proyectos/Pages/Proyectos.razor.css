@@ -36,6 +36,17 @@
     .rejilla-formulario {
         grid-template-columns: 1fr;
     }
+
+    /* Guardar/Cancelar a todo el ancho y apilados (Guardar arriba, ya es el
+       primero en el marcado) — más fácil de alcanzar con el pulgar que dos
+       botones lado a lado. */
+    .acciones-formulario {
+        flex-direction: column;
+    }
+
+    .acciones-formulario .boton {
+        width: 100%;
+    }
 }
 
 .acciones-formulario {
