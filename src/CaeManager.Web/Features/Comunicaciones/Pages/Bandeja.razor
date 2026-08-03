@@ -9,6 +9,7 @@
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
 @using CaeManager.Domain.Comunicaciones
 @using CaeManager.Web.Features.Comunicaciones.Components
+@using Microsoft.AspNetCore.Components.Forms
 @using MediatR
 @inject IMediator Mediator
 @inject ToastService ToastService
@@ -19,6 +20,7 @@
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">Comunicaciones</h1>
         <div class="acciones-cabecera">
+            <a class="enlace-exportar" href="/comunicaciones/buzon">Ver buzón completo</a>
             <a class="enlace-exportar" href="/comunicaciones/macros">Gestionar macros</a>
         </div>
     </div>
@@ -166,24 +168,59 @@
                 <div class="bandeja-mensajes">
                     @foreach (var mensaje in _detalle.Mensajes)
                     {
-                        <div class="bandeja-mensaje bandeja-mensaje-@mensaje.Direccion.ToString().ToLowerInvariant()">
-                            <div class="bandeja-mensaje-cabecera">
-                                <span class="bandeja-mensaje-remitente">@mensaje.RemitenteEmail</span>
-                                @{
-                                    var participante = _detalle.Participantes.FirstOrDefault(p => p.Email == mensaje.RemitenteEmail);
-                                }
-                                @if (participante is not null && _detalle.Participantes.Select(p => p.TipoOrigen).Distinct().Count() > 1)
+                        <div class="bandeja-mensaje-fila bandeja-mensaje-fila-@mensaje.Direccion.ToString().ToLowerInvariant()">
+                            <span class="bandeja-avatar" title="@mensaje.RemitenteEmail" aria-hidden="true">@ObtenerIniciales(mensaje.RemitenteEmail)</span>
+                            <div class="bandeja-mensaje bandeja-mensaje-@mensaje.Direccion.ToString().ToLowerInvariant()">
+                                <div class="bandeja-mensaje-cabecera">
+                                    <span class="bandeja-mensaje-remitente">@mensaje.RemitenteEmail</span>
+                                    @{
+                                        var participante = _detalle.Participantes.FirstOrDefault(p => p.Email == mensaje.RemitenteEmail);
+                                    }
+                                    @if (participante is not null && _detalle.Participantes.Select(p => p.TipoOrigen).Distinct().Count() > 1)
+                                    {
+                                        <Badge Tono="TonoBadge.Neutro">@participante.TipoOrigen</Badge>
+                                    }
+                                    <span class="bandeja-mensaje-fecha">@FormatearFechaRelativa(mensaje.FechaUtc)</span>
+                                </div>
+                                @* MarkupString solo es admisible aquí porque el cuerpo llega
+                                   ya saneado desde ObtenerConversacionPorIdQuery — ver
+                                   MensajeDetalleDto. No saneamos en la vista a propósito: si
+                                   mañana hay otra pantalla o una API, la protección tiene que
+                                   venir de la capa por la que pasan todas. *@
+                                <div class="bandeja-mensaje-cuerpo">@((MarkupString)mensaje.CuerpoHtml)</div>
+
+                                @if (mensaje.Adjuntos.Count > 0)
                                 {
-                                    <Badge Tono="TonoBadge.Neutro">@participante.TipoOrigen</Badge>
+                                    <div class="bandeja-mensaje-adjuntos">
+                                        @foreach (var adjunto in mensaje.Adjuntos)
+                                        {
+                                            <a class="bandeja-adjunto-chip" href="@($"/comunicaciones/adjuntos/{adjunto.Id}/archivo")" target="_blank">
+                                                <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
+                                                <span class="bandeja-adjunto-nombre">@adjunto.NombreArchivo</span>
+                                                <span class="bandeja-adjunto-tamano">@FormatearTamano(adjunto.TamanoBytes)</span>
+                                            </a>
+                                        }
+                                    </div>
                                 }
-                                <span class="bandeja-mensaje-fecha">@FormatearFechaRelativa(mensaje.FechaUtc)</span>
+
+                                @if (mensaje.SugerenciaVisita is { } sugerencia)
+                                {
+                                    <div class="bandeja-sugerencia-visita">
+                                        <div class="bandeja-sugerencia-visita-texto">
+                                            <Icono Nombre="calendario" Tamano="TamanoIcono.Pequeno" />
+                                            <span>@sugerencia.Resumen</span>
+                                        </div>
+                                        <div class="bandeja-sugerencia-visita-acciones">
+                                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => DescartarSugerenciaVisitaAsync(sugerencia.Id)">
+                                                Descartar
+                                            </Boton>
+                                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => IrACrearVisitaDesdeSugerencia(sugerencia.Id)">
+                                                Crear visita
+                                            </Boton>
+                                        </div>
+                                    </div>
+                                }
                             </div>
-                            @* MarkupString solo es admisible aquí porque el cuerpo llega
-                               ya saneado desde ObtenerConversacionPorIdQuery — ver
-                               MensajeDetalleDto. No saneamos en la vista a propósito: si
-                               mañana hay otra pantalla o una API, la protección tiene que
-                               venir de la capa por la que pasan todas. *@
-                            <div class="bandeja-mensaje-cuerpo">@((MarkupString)mensaje.CuerpoHtml)</div>
                         </div>
                     }
                 </div>
@@ -209,16 +246,52 @@
                 else
                 {
                     <div class="bandeja-respuesta">
-                        <CampoSelect Etiqueta="Usar macro" Valor="@_macroSeleccionadaId" ValorChanged="AplicarMacro">
-                            <option value="">Sin macro</option>
-                            @foreach (var macro in _macrosDisponibles)
+                        <div class="bandeja-respuesta-prellenados">
+                            <CampoSelect Etiqueta="Usar macro" Valor="@_macroSeleccionadaId" ValorChanged="AplicarMacro">
+                                <option value="">Sin macro</option>
+                                @foreach (var macro in _macrosDisponibles)
+                                {
+                                    <option value="@macro.Id">@macro.Titulo</option>
+                                }
+                            </CampoSelect>
+
+                            @if (_centrosClienteActivo.Count > 0)
                             {
-                                <option value="@macro.Id">@macro.Titulo</option>
+                                <CampoSelect Etiqueta="Compartir formatos de centro" Valor="@_centroFormatosSeleccionado" ValorChanged="CompartirFormatosCentroAsync">
+                                    <option value="">Selecciona un centro…</option>
+                                    @foreach (var centro in _centrosClienteActivo)
+                                    {
+                                        <option value="@centro.Id">@centro.Nombre</option>
+                                    }
+                                </CampoSelect>
                             }
-                        </CampoSelect>
+                        </div>
                         <CampoTextarea Valor="@_textoRespuesta" ValorChanged="v => _textoRespuesta = v" Filas="4" Placeholder="Escribe tu respuesta…" />
+
+                        @if (_adjuntosPendientes.Count > 0)
+                        {
+                            <div class="bandeja-adjuntos-pendientes">
+                                @foreach (var adjunto in _adjuntosPendientes)
+                                {
+                                    <span class="bandeja-adjunto-chip bandeja-adjunto-chip-pendiente">
+                                        <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
+                                        <span class="bandeja-adjunto-nombre">@adjunto.NombreArchivo</span>
+                                        <button type="button" class="bandeja-adjunto-quitar" aria-label="Quitar @adjunto.NombreArchivo" @onclick="() => QuitarAdjuntoPendiente(adjunto)">×</button>
+                                    </span>
+                                }
+                            </div>
+                        }
+                        @if (_errorAdjuntos is not null)
+                        {
+                            <p class="bandeja-adjuntos-error">@_errorAdjuntos</p>
+                        }
+
                         <div class="bandeja-respuesta-acciones">
-                            <Boton Cargando="_enviandoRespuesta" Deshabilitado="string.IsNullOrWhiteSpace(_textoRespuesta)" OnClick="EnviarRespuestaAsync">
+                            <label class="bandeja-boton-adjuntar">
+                                <Icono Nombre="importar" Tamano="TamanoIcono.Pequeno" /> Adjuntar
+                                <InputFile OnChange="ManejarArchivosAdjuntosAsync" multiple />
+                            </label>
+                            <Boton Cargando="_enviandoRespuesta" Deshabilitado="string.IsNullOrWhiteSpace(_textoRespuesta) || _errorAdjuntos is not null" OnClick="EnviarRespuestaAsync">
                                 Enviar
                             </Boton>
                         </div>
