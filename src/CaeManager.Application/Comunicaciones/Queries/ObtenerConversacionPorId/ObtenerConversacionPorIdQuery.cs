@@ -1,3 +1,4 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Comunicaciones;
@@ -16,7 +17,15 @@ public record ObtenerConversacionPorIdQuery(Guid Id) : IRequest<ConversacionDeta
 /// como <c>MarkupString</c>. Quien añada otra ruta de lectura del cuerpo tiene
 /// que sanear igual (hallazgo N-1 de INFORME-AUDITORIA-2.md).
 /// </summary>
-public record MensajeDetalleDto(Guid Id, DireccionMensaje Direccion, string RemitenteEmail, string CuerpoHtml, DateTime FechaUtc);
+public record AdjuntoDetalleDto(Guid Id, string NombreArchivo, string TipoContenido, long TamanoBytes);
+
+/// <summary>Solo se expone mientras está pendiente (Resuelta = false) — ver ObtenerConversacionPorIdQueryHandler.</summary>
+public record SugerenciaVisitaDetalleDto(
+    Guid Id, Guid? CentroId, string? CentroNombre, DateOnly? FechaInicioSugerida, DateOnly? FechaFinSugerida, string Resumen);
+
+public record MensajeDetalleDto(
+    Guid Id, DireccionMensaje Direccion, string RemitenteEmail, string CuerpoHtml, DateTime FechaUtc,
+    IReadOnlyList<AdjuntoDetalleDto> Adjuntos, SugerenciaVisitaDetalleDto? SugerenciaVisita);
 
 public record ParticipanteDetalleDto(
     Guid Id, string Email, RolParticipante Rol, TipoParticipanteOrigen TipoOrigen, Guid? EntidadRelacionadaId);
@@ -34,7 +43,8 @@ public record ConversacionDetalleDto(
     IReadOnlyList<ParticipanteDetalleDto> Participantes);
 
 public class ObtenerConversacionPorIdQueryHandler(
-    IClientesQueryContext clientesContext, IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
+    IClientesQueryContext clientesContext, ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
+    IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
     ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerConversacionPorIdQuery, ConversacionDetalleDto?>
 {
@@ -85,9 +95,33 @@ public class ObtenerConversacionPorIdQueryHandler(
             .Select(m => new { m.Id, m.Direccion, m.RemitenteEmail, m.CuerpoHtml, m.FechaUtc })
             .ToListAsync(cancellationToken);
 
+        var adjuntosPorMensaje = (await comunicacionesContext.AdjuntosMensajeCorreo
+            .Where(a => mensajesCrudos.Select(m => m.Id).Contains(a.MensajeCorreoId))
+            .Select(a => new { a.MensajeCorreoId, a.Id, a.NombreArchivo, a.TipoContenido, a.TamanoBytes })
+            .ToListAsync(cancellationToken))
+            .GroupBy(a => a.MensajeCorreoId)
+            .ToDictionary(g => g.Key, g => g.Select(a => new AdjuntoDetalleDto(a.Id, a.NombreArchivo, a.TipoContenido, a.TamanoBytes)).ToList());
+
+        var sugerenciasPendientes = await comunicacionesContext.SugerenciasVisitaCorreo
+            .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeCorreoId) && !s.Resuelta)
+            .ToListAsync(cancellationToken);
+
+        var centroIdsSugeridos = sugerenciasPendientes.Where(s => s.CentroId is not null).Select(s => s.CentroId!.Value).ToList();
+        var nombresCentro = await centrosContext.Centros
+            .Where(c => centroIdsSugeridos.Contains(c.Id))
+            .Select(c => new { c.Id, c.Nombre })
+            .ToDictionaryAsync(c => c.Id, c => c.Nombre, cancellationToken);
+
+        var sugerenciasPorMensaje = sugerenciasPendientes.ToDictionary(
+            s => s.MensajeCorreoId,
+            s => new SugerenciaVisitaDetalleDto(
+                s.Id, s.CentroId, s.CentroId is not null ? nombresCentro.GetValueOrDefault(s.CentroId.Value) : null,
+                s.FechaInicioSugerida, s.FechaFinSugerida, s.Resumen));
+
         var mensajes = mensajesCrudos
             .Select(m => new MensajeDetalleDto(
-                m.Id, m.Direccion, m.RemitenteEmail, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc))
+                m.Id, m.Direccion, m.RemitenteEmail, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
+                adjuntosPorMensaje.GetValueOrDefault(m.Id, []), sugerenciasPorMensaje.GetValueOrDefault(m.Id)))
             .ToList();
 
         var participantes = await comunicacionesContext.ParticipantesConversacion
