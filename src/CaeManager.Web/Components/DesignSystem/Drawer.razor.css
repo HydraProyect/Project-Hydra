@@ -73,3 +73,16 @@
     padding: var(--space-4) var(--space-5);
     border-top: var(--border-default);
 }
+
+/* Mismo criterio que .modal-pie en Modal.razor.css: en móvil los botones
+   del pie (acción principal + "Cancelar", en ese orden en el marcado de
+   cada página) ocupan todo el ancho y se apilan en vez de compartir fila. */
+@media (max-width: 640px) {
+    .drawer-pie {
+        flex-direction: column;
+    }
+
+    .drawer-pie .boton {
+        width: 100%;
+    }
+}

@@ -41,3 +41,13 @@
     font: var(--font-body-sm);
     color: var(--color-danger-500);
 }
+
+/* iOS hace zoom automático al enfocar un input con font-size < 16px — el
+   14px de --font-body-md es ilegible como motivo para forzar zoom en cada
+   campo del formulario en un iPhone. Solo el tamaño de fuente, nada más
+   cambia (min-height ya era 48px). */
+@media (max-width: 767px) {
+    .campo-input {
+        font-size: 1rem;
+    }
+}
