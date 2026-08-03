@@ -199,6 +199,10 @@
             <line x1="4" y1="18" x2="20" y2="18" />
         </g>,
 
+        // Apunta hacia abajo por defecto; NavMenu la rota -90° con CSS
+        // cuando el grupo está colapsado, en vez de mantener dos variantes.
+        "chevron" => @<polyline points="6 9 12 15 18 9" />,
+
         _ => @<g></g>
     };
 }
