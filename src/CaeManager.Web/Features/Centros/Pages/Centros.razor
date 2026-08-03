@@ -40,7 +40,11 @@
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="CentroListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
-                <PropertyColumn Property="@(c => c.Nombre)" Sortable="true" />
+                <TemplateColumn Title="Nombre" Sortable="true" SortBy="@(GridSort<CentroListaDto>.ByAscending(c => c.Nombre))">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.Id, context.Nombre, "informacion")'>
+                        @context.Nombre
+                    </button>
+                </TemplateColumn>
                 <PropertyColumn Property="@(c => c.ClienteRazonSocial)" Title="Cliente" Sortable="true" />
                 <PropertyColumn Property="@(c => c.EmpresaRazonSocial)" Title="Empresa" />
                 <PropertyColumn Property="@(c => c.CodigoCentro)" Title="Código" />
