@@ -9,9 +9,36 @@ public record SuscripcionGraphDto(string GraphSubscriptionId, DateTime FechaExpi
 
 public record ParticipanteGraphDto(string Email, RolParticipante Rol);
 
+public record AdjuntoGraphDto(string AdjuntoExternoId, string NombreArchivo, string TipoContenido, long TamanoBytes);
+
+/// <summary>Entrada para enviar un adjunto — el contenido va inline en base64 (límite de Graph sin sesión de subida, ver <see cref="IMicrosoft365GraphClient"/>).</summary>
+public record AdjuntoParaEnviarDto(string NombreArchivo, string TipoContenido, byte[] Contenido);
+
 public record MensajeGraphDto(
     string MensajeExternoId, string HiloExternoId, string Asunto, string RemitenteEmail, string CuerpoHtml, DateTime FechaUtc,
-    IReadOnlyList<ParticipanteGraphDto> Participantes);
+    IReadOnlyList<ParticipanteGraphDto> Participantes, IReadOnlyList<AdjuntoGraphDto> Adjuntos);
+
+/// <summary>Fila ligera para el historial de una carpeta — sin cuerpo, para que listar no cargue el HTML completo de cada mensaje.</summary>
+public record MensajeResumenGraphDto(
+    string MensajeExternoId, string HiloExternoId, string Asunto, string RemitenteEmail, DateTime FechaUtc, bool TieneAdjuntos);
+
+/// <summary>Carpeta del buzón (Bandeja de entrada, Enviados, y las subcarpetas propias del cliente) — ver § "estructura de carpetas".</summary>
+public record CarpetaGraphDto(
+    string CarpetaExternoId, string Nombre, string? CarpetaPadreExternoId, int ElementosNoLeidos, int TotalElementos);
+
+public static class LimitesAdjuntosCorreo
+{
+    /// <summary>
+    /// Límite real de Microsoft Graph para adjuntos inline en sendMail/reply
+    /// sin usar una sesión de subida (<c>createUploadSession</c>) — por
+    /// encima de esto Graph rechaza la petición. No se implementa sesión de
+    /// subida en este slice (YAGNI): un correo de gestión CAE con más de
+    /// 3 MB de adjuntos es el caso raro, no el común. El llamador (Application)
+    /// debe validar contra esto antes de invocar
+    /// <see cref="IMicrosoft365GraphClient.EnviarRespuestaAsync"/>/<see cref="IMicrosoft365GraphClient.EnviarNuevoMensajeAsync"/>.
+    /// </summary>
+    public const long TamanoMaximoTotalAdjuntosBytes = 3 * 1024 * 1024;
+}
 
 /// <summary>
 /// El "proveedor de integración" de este slice (ver ARQUITECTURA-INTEGRACIONES.md
@@ -37,12 +64,42 @@ public interface IMicrosoft365GraphClient
 
     Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken);
 
-    /// <summary>Usa el endpoint /reply de Graph — preserva threading automáticamente, nunca reconstruye In-Reply-To/References a mano.</summary>
+    /// <summary>
+    /// Usa el endpoint /reply de Graph — preserva threading automáticamente,
+    /// nunca reconstruye In-Reply-To/References a mano. <paramref name="adjuntos"/>
+    /// va inline en base64 (sin sesión de subida) — respeta
+    /// <see cref="LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes"/>
+    /// del lado del llamador antes de invocar esto.
+    /// </summary>
     Task<Result> EnviarRespuestaAsync(
-        string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml, CancellationToken cancellationToken);
+        string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml,
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken);
 
+    /// <summary>Redactar un mensaje nuevo (no una respuesta a un hilo existente) — <c>/me/sendMail</c>, sin conversationId previo que preservar.</summary>
+    Task<Result> EnviarNuevoMensajeAsync(
+        string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken);
+
+    /// <summary>Incluye los adjuntos del mensaje (metadatos, no el contenido — ver <see cref="ObtenerContenidoAdjuntoAsync"/>).</summary>
     Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
         string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken);
+
+    /// <summary>Contenido binario de un adjunto ya listado en <see cref="MensajeGraphDto.Adjuntos"/> — llamada aparte porque Graph no lo trae en el GET del mensaje.</summary>
+    Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
+        string accessToken, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Estructura de carpetas del buzón — dos niveles (carpetas de primer
+    /// nivel + sus subcarpetas inmediatas), suficiente para el uso real de
+    /// un buzón de gestión CAE (Bandeja de entrada/Enviados/Archivo con
+    /// como mucho una subcarpeta propia) sin la complejidad de recorrer un
+    /// árbol de profundidad arbitraria.
+    /// </summary>
+    Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, CancellationToken cancellationToken);
+
+    /// <summary>Historial de una carpeta (más recientes primero) — para consultar cadenas antiguas sin salir a Outlook.</summary>
+    Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(
+        string accessToken, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken);
 
     Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
         string accessToken, string buzonEmail, string notificationUrl, string clientState, CancellationToken cancellationToken);
