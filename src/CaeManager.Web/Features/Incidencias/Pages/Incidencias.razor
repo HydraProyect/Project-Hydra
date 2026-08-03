@@ -3,6 +3,7 @@
 @using CaeManager.Application.Incidencias.Commands.CrearIncidencia
 @using CaeManager.Application.Incidencias.Commands.EditarIncidencia
 @using CaeManager.Application.Incidencias.Commands.EliminarIncidencia
+@using CaeManager.Application.Incidencias.Commands.EliminarIncidencias
 @using CaeManager.Application.Incidencias.Commands.MarcarResueltaIncidencia
 @using CaeManager.Application.Incidencias.Queries.ObtenerIncidenciaPorId
 @using CaeManager.Application.Incidencias.Queries.ObtenerIncidencias
@@ -13,9 +14,11 @@
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
+@using CaeManager.Web.Components.Workspace
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
+@inject ContextWorkspaceService WorkspaceService
 
 <PageTitle>Incidencias — CAE Manager</PageTitle>
 
@@ -34,6 +37,8 @@
         </label>
     </div>
 
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
     @if (_errorCarga)
     {
         <EstadoVacio Titulo="No pudimos cargar las incidencias" Descripcion="Intenta nuevamente en unos segundos.">
@@ -45,9 +50,32 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="IncidenciaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
-                <PropertyColumn Property="@(i => i.CentroNombre)" Title="Centro" Sortable="true" />
-                <TemplateColumn Title="Trabajador">@(context.TrabajadorNombre ?? "—")</TemplateColumn>
+            <QuickGrid @ref="_grid" TGridItem="IncidenciaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                <TemplateColumn Title="" Align="Align.Center">
+                    <HeaderTemplate Context="columna">
+                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                    </ChildContent>
+                </TemplateColumn>
+                <TemplateColumn Title="Centro" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.CentroNombre))">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
+                        @context.CentroNombre
+                    </button>
+                </TemplateColumn>
+                <TemplateColumn Title="Trabajador">
+                    @if (context.TrabajadorId is null)
+                    {
+                        @:—
+                    }
+                    else
+                    {
+                        <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.TrabajadorId!.Value, context.TrabajadorNombre!, "informacion")'>
+                            @context.TrabajadorNombre
+                        </button>
+                    }
+                </TemplateColumn>
                 <TemplateColumn Title="Tipo">@ObtenerEtiquetaTipo(context.Tipo)</TemplateColumn>
                 <TemplateColumn Title="Gravedad" Align="Align.Center">
                     <Badge Tono="@GravedadTono(context.Gravedad)">@ObtenerEtiquetaGravedad(context.Gravedad)</Badge>
@@ -151,3 +179,14 @@
     Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarLoteVisible"
+    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
+    Titulo="@($"¿Eliminar {_seleccionados.Count} incidencia(s)?")"
+    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlas desde Auditoría."
+    EnProgreso="_eliminandoLote"
+    OnConfirmar="ConfirmarEliminarLoteAsync" />
