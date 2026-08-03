@@ -11,9 +11,12 @@
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Application.Common
+@using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita
 @using CaeManager.Domain.Documentos
 @using CaeManager.Domain.Visitas
 @using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
@@ -227,22 +230,84 @@
                 </div>
             }
 
-            <h3 class="detalle-visita-subtitulo">Documentación de la empresa</h3>
-            <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="_detalle.EmpresaId" />
-
-            <h3 class="detalle-visita-subtitulo">Trabajadores que entran (@_detalle.Trabajadores.Count)</h3>
-            @if (_detalle.Trabajadores.Count == 0)
+            <h3 class="detalle-visita-subtitulo">Documentación</h3>
+            @if (_cargandoDocumentacion)
             {
-                <EstadoVacio Titulo="Sin trabajadores" Descripcion="Esta visita todavía no tiene trabajadores asignados." />
+                <EstadoCargando Filas="3" />
             }
-            else
+            else if (_errorDocumentacion)
             {
-                @foreach (var trabajador in _detalle.Trabajadores)
+                <EstadoVacio Titulo="No pudimos cargar la documentación" Descripcion="Intenta nuevamente en unos segundos.">
+                    <Accion>
+                        <Boton OnClick="() => CargarDocumentacionAsync(_detalle.Id)">Reintentar</Boton>
+                    </Accion>
+                </EstadoVacio>
+            }
+            else if (_documentacion is not null)
+            {
+                <SeccionColapsable Titulo="Documentación de la empresa">
+                    <Encabezado>
+                        <Badge Tono="EstadoDocumentoUi.Tono(_documentacion.Empresa.PeorEstado)">@EstadoDocumentoUi.Texto(_documentacion.Empresa.PeorEstado)</Badge>
+                    </Encabezado>
+                    <ChildContent>
+                        @if (_documentacion.Empresa.Documentos.Count == 0)
+                        {
+                            <EstadoVacio Titulo="Todo en orden" Descripcion="No hay documentación de empresa pendiente para este centro." />
+                        }
+                        else
+                        {
+                            <ul class="workspace-lista-entidades">
+                                @foreach (var item in _documentacion.Empresa.Documentos)
+                                {
+                                    <FilaEntidadRelacionada
+                                        @key="item.TipoDocumentoId"
+                                        Titulo="@item.TipoDocumentoNombre"
+                                        Subtitulo="@(item.FechaVencimiento is null ? "—" : $"Vence: {item.FechaVencimiento:dd/MM/yyyy}")"
+                                        OnClic="() => AbrirDocumento(item)">
+                                        <Badge Tono="EstadoDocumentoUi.Tono(item.Estado)">@EstadoDocumentoUi.Texto(item.Estado)</Badge>
+                                    </FilaEntidadRelacionada>
+                                }
+                            </ul>
+                        }
+                    </ChildContent>
+                </SeccionColapsable>
+
+                <h3 class="detalle-visita-subtitulo">Trabajadores que entran (@_documentacion.Trabajadores.Count)</h3>
+                @if (_documentacion.Trabajadores.Count == 0)
                 {
-                    <div class="detalle-visita-trabajador">
-                        <h4>@trabajador.NombreCompleto (@trabajador.Dni)</h4>
-                        <PestanaDocumentacion Ambito="AmbitoAplicacion.Trabajador" PropietarioId="trabajador.Id" />
-                    </div>
+                    <EstadoVacio Titulo="Sin trabajadores" Descripcion="Esta visita todavía no tiene trabajadores asignados." />
+                }
+                else
+                {
+                    @foreach (var trabajador in _documentacion.Trabajadores)
+                    {
+                        <SeccionColapsable Titulo="@($"{trabajador.NombreCompleto} ({trabajador.Dni}) — {trabajador.EmpleadorNombre}")">
+                            <Encabezado>
+                                <Badge Tono="EstadoDocumentoUi.Tono(trabajador.Documentacion.PeorEstado)">@EstadoDocumentoUi.Texto(trabajador.Documentacion.PeorEstado)</Badge>
+                            </Encabezado>
+                            <ChildContent>
+                                @if (trabajador.Documentacion.Documentos.Count == 0)
+                                {
+                                    <EstadoVacio Titulo="Todo en orden" Descripcion="No hay documentación pendiente para este centro." />
+                                }
+                                else
+                                {
+                                    <ul class="workspace-lista-entidades">
+                                        @foreach (var item in trabajador.Documentacion.Documentos)
+                                        {
+                                            <FilaEntidadRelacionada
+                                                @key="item.TipoDocumentoId"
+                                                Titulo="@item.TipoDocumentoNombre"
+                                                Subtitulo="@(item.FechaVencimiento is null ? "—" : $"Vence: {item.FechaVencimiento:dd/MM/yyyy}")"
+                                                OnClic="() => AbrirDocumento(item)">
+                                                <Badge Tono="EstadoDocumentoUi.Tono(item.Estado)">@EstadoDocumentoUi.Texto(item.Estado)</Badge>
+                                            </FilaEntidadRelacionada>
+                                        }
+                                    </ul>
+                                }
+                            </ChildContent>
+                        </SeccionColapsable>
+                    }
                 }
             }
         }
@@ -251,6 +316,8 @@
         <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">Cerrar</Boton>
     </Pie>
 </Drawer>
+
+<VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
