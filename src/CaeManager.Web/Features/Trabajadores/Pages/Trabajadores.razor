@@ -81,8 +81,16 @@
                         <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
                     </ChildContent>
                 </TemplateColumn>
-                <PropertyColumn Property="@(t => t.Apellidos)" Sortable="true" />
-                <PropertyColumn Property="@(t => t.Nombre)" Sortable="true" />
+                <TemplateColumn Title="Apellidos" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Apellidos))">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.Id, NombreCompleto(context), "informacion")'>
+                        @context.Apellidos
+                    </button>
+                </TemplateColumn>
+                <TemplateColumn Title="Nombre" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Nombre))">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.Id, NombreCompleto(context), "informacion")'>
+                        @context.Nombre
+                    </button>
+                </TemplateColumn>
                 <PropertyColumn Property="@(t => t.Dni)" Title="DNI" />
                 <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="Empresa / Subcontrata" Sortable="true" />
                 <TemplateColumn Title="Acciones" Align="Align.End">
