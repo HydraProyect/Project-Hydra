@@ -1,0 +1,32 @@
+@*
+    Visor inline de un Documento ya subido — todo Documento se convierte a
+    PDF al ingresar (ver ManejarArchivoSeleccionadoAsync en Documentos.razor.cs,
+    ConversorArchivosPdf.UnificarAsync), así que el visor solo necesita
+    saber renderizar PDF, nunca imágenes sueltas.
+
+    "Actualizar documento" no duplica el formulario de renovación — navega a
+    /documentos?documentoId=X, que ya abre ese Documento en el drawer de
+    edición existente (mismo mecanismo que usan Alertas/Calendario).
+*@
+@inject NavigationManager Navegacion
+
+<Modal Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" Ancho="AnchoModal.Grande">
+    <ChildContent>
+        <iframe src="/documentos/@DocumentoId/archivo" class="visor-documento-iframe" title="@Titulo"></iframe>
+    </ChildContent>
+    <Pie>
+        <a class="boton boton-secundario boton-medio" href="/documentos/@DocumentoId/archivo" target="_blank">
+            Abrir en pestaña nueva
+        </a>
+        <Boton OnClick="ActualizarDocumento">Actualizar documento</Boton>
+    </Pie>
+</Modal>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter, EditorRequired] public Guid DocumentoId { get; set; }
+    [Parameter] public string Titulo { get; set; } = "Documento";
+
+    private void ActualizarDocumento() => Navegacion.NavigateTo($"/documentos?documentoId={DocumentoId}");
+}

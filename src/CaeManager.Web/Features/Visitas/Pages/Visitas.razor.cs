@@ -7,6 +7,7 @@ using CaeManager.Application.Visitas.Commands.EliminarVisita;
 using CaeManager.Application.Visitas.Commands.EliminarVisitas;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Web.Components;
@@ -69,6 +70,14 @@ public partial class Visitas : ComponentBase
     private bool _detalleVisible;
     private bool _cargandoDetalle;
     private DetalleVisitaDto? _detalle;
+
+    private bool _cargandoDocumentacion;
+    private bool _errorDocumentacion;
+    private DocumentacionVisitaDto? _documentacion;
+
+    private bool _visorVisible;
+    private Guid _visorDocumentoId;
+    private string _visorTitulo = string.Empty;
 
     private readonly HashSet<Guid> _seleccionados = [];
     private List<VisitaListaDto> _elementosPagina = [];
@@ -236,7 +245,13 @@ public partial class Visitas : ComponentBase
         _drawerVisible = true;
     }
 
-    /// <summary>Vista de solo lectura — quién entra y el estado de su documentación (reutiliza PestanaDocumentacion del Context Workspace).</summary>
+    /// <summary>
+    /// Vista de solo lectura — quién entra y el estado de su documentación.
+    /// A diferencia de la versión anterior (PestanaDocumentacion, sin
+    /// filtrar por Centro), ObtenerDocumentacionVisitaQuery solo trae lo que
+    /// aplica al Centro de esta visita, incluye "Faltante" y viene ordenada
+    /// por severidad — ver el comentario de esa Query.
+    /// </summary>
     private async Task AbrirDetalleAsync(Guid id)
     {
         _detalleVisible = true;
@@ -247,7 +262,12 @@ public partial class Visitas : ComponentBase
         {
             _detalle = await Mediator.Send(new ObtenerDetalleVisitaQuery(id));
             if (_detalle is null)
+            {
                 ToastService.Mostrar("No encontramos esta visita. Puede que ya se haya eliminado.", TonoToast.Error);
+                return;
+            }
+
+            await CargarDocumentacionAsync(id);
         }
         catch (Exception)
         {
@@ -257,6 +277,59 @@ public partial class Visitas : ComponentBase
         {
             _cargandoDetalle = false;
         }
+    }
+
+    private async Task CargarDocumentacionAsync(Guid visitaId)
+    {
+        _cargandoDocumentacion = true;
+        _errorDocumentacion = false;
+        _documentacion = null;
+
+        try
+        {
+            _documentacion = await Mediator.Send(new ObtenerDocumentacionVisitaQuery(visitaId));
+        }
+        catch (Exception)
+        {
+            _errorDocumentacion = true;
+        }
+        finally
+        {
+            _cargandoDocumentacion = false;
+        }
+    }
+
+    /// <summary>
+    /// Un Documento existente abre el visor inline. Un hueco "Faltante" lleva
+    /// directo al alta manual con el propietario y el tipo ya elegidos — ver
+    /// AbrirCrearParaFaltanteAsync/AbrirCrearParaFaltanteEmpresaAsync en
+    /// Documentos.razor.cs. Un Documento sin ArchivoUrl (se puede dar de alta
+    /// sin adjuntar archivo, ver CrearDocumentoCommand) tampoco tiene nada
+    /// que previsualizar — va directo a editar en vez de abrir un visor vacío.
+    /// </summary>
+    private void AbrirDocumento(DocumentoVisitaItemDto item)
+    {
+        if (item.DocumentoId is { } documentoId)
+        {
+            if (item.ArchivoUrl is null)
+            {
+                NavigationManager.NavigateTo($"/documentos?documentoId={documentoId}");
+                return;
+            }
+
+            _visorDocumentoId = documentoId;
+            _visorTitulo = item.TipoDocumentoNombre;
+            _visorVisible = true;
+            return;
+        }
+
+        if (item.TrabajadorId is { } trabajadorId)
+        {
+            NavigationManager.NavigateTo($"/documentos?trabajadorId={trabajadorId}&tipoDocumentoId={item.TipoDocumentoId}");
+            return;
+        }
+
+        NavigationManager.NavigateTo($"/documentos?empresaIdFaltante={_documentacion!.EmpresaId}&tipoDocumentoId={item.TipoDocumentoId}");
     }
 
     private void AlternarTrabajador(Guid trabajadorId, bool seleccionado)
