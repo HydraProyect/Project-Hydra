@@ -183,6 +183,10 @@ public class CaeManagerDbContext(
     IQueryable<ParticipanteConversacion> IComunicacionesQueryContext.ParticipantesConversacion => ParticipantesConversacion;
     public DbSet<MacroRespuesta> MacrosRespuesta => Set<MacroRespuesta>();
     IQueryable<MacroRespuesta> IComunicacionesQueryContext.MacrosRespuesta => MacrosRespuesta;
+    public DbSet<AdjuntoMensajeCorreo> AdjuntosMensajeCorreo => Set<AdjuntoMensajeCorreo>();
+    IQueryable<AdjuntoMensajeCorreo> IComunicacionesQueryContext.AdjuntosMensajeCorreo => AdjuntosMensajeCorreo;
+    public DbSet<SugerenciaVisitaCorreo> SugerenciasVisitaCorreo => Set<SugerenciaVisitaCorreo>();
+    IQueryable<SugerenciaVisitaCorreo> IComunicacionesQueryContext.SugerenciasVisitaCorreo => SugerenciasVisitaCorreo;
     public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();
     IQueryable<ClaveApi> IApiKeysQueryContext.ClavesApi => ClavesApi;
     public DbSet<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario => Set<PreferenciaDashboardUsuario>();

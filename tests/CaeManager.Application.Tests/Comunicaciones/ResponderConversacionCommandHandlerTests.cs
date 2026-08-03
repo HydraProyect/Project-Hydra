@@ -1,6 +1,7 @@
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
@@ -17,7 +18,8 @@ public class ResponderConversacionCommandHandlerTests
         var graphClient = new Microsoft365GraphClientFalso();
         var accesoGraph = new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient);
         return new ResponderConversacionCommandHandler(
-            repositorio, new ConexionIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(), graphClient, accesoGraph, unitOfWork);
+            repositorio, new ConexionIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
+            new FileStorageServiceFalso(), unitOfWork);
     }
 
     private static ResponderConversacionCommandHandler CrearHandlerConConexion(
@@ -31,7 +33,8 @@ public class ResponderConversacionCommandHandlerTests
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
         var accesoGraph = new AccesoGraphService(credencialRepositorio, graphClient);
         return new ResponderConversacionCommandHandler(
-            repositorio, conexionRepositorio, new AlcanceDatosServiceFalso(), graphClient, accesoGraph, unitOfWork);
+            repositorio, conexionRepositorio, new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
+            new FileStorageServiceFalso(), unitOfWork);
     }
 
     [Fact]
@@ -50,6 +53,24 @@ public class ResponderConversacionCommandHandlerTests
         conversacion.Mensajes.Should().ContainSingle(m =>
             m.Direccion == DireccionMensaje.Saliente && m.CuerpoHtml == "<p>Ya está todo en regla.</p>");
         unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Guarda_los_adjuntos_en_el_mensaje_saliente()
+    {
+        var conversacion = new ConversacionCorreo("Duda sobre vigencia documental", clienteId: Guid.NewGuid());
+        var repositorio = new ConversacionCorreoRepositorioFalso();
+        repositorio.Agregar(conversacion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(repositorio, unitOfWork);
+        var adjuntos = new[] { new AdjuntoParaEnviarDto("formato-centro.pdf", "application/pdf", [1, 2, 3]) };
+
+        var resultado = await handler.Handle(
+            new ResponderConversacionCommand(conversacion.Id, "<p>Adjunto el formato.</p>", adjuntos), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var mensaje = conversacion.Mensajes.Should().ContainSingle().Which;
+        mensaje.Adjuntos.Should().ContainSingle(a => a.NombreArchivo == "formato-centro.pdf" && a.TamanoBytes == 3);
     }
 
     [Fact]

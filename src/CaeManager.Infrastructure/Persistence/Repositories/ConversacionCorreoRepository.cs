@@ -7,13 +7,13 @@ public class ConversacionCorreoRepository(CaeManagerDbContext dbContext) : IConv
 {
     public Task<ConversacionCorreo?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.ConversacionesCorreo
-            .Include(c => c.Mensajes)
+            .Include(c => c.Mensajes).ThenInclude(m => m.Adjuntos)
             .Include(c => c.Participantes)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
     public Task<ConversacionCorreo?> ObtenerPorHiloExternoAsync(string hiloExternoId, CancellationToken cancellationToken = default) =>
         dbContext.ConversacionesCorreo
-            .Include(c => c.Mensajes)
+            .Include(c => c.Mensajes).ThenInclude(m => m.Adjuntos)
             .Include(c => c.Participantes)
             .FirstOrDefaultAsync(c => c.HiloExternoId == hiloExternoId, cancellationToken);
 

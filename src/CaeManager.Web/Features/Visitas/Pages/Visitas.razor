@@ -11,6 +11,7 @@
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Application.Common
 @using CaeManager.Domain.Documentos
+@using CaeManager.Domain.Visitas
 @using CaeManager.Web.Components.Workspace
 @using FluentValidation
 @using MediatR
@@ -67,6 +68,16 @@
                 <TemplateColumn Title="Fechas">
                     @context.FechaInicio.ToString("dd/MM/yyyy") – @context.FechaFin.ToString("dd/MM/yyyy")
                 </TemplateColumn>
+                <TemplateColumn Title="Origen" Align="Align.Center">
+                    @if (context.Origen == OrigenVisita.Correo)
+                    {
+                        <Badge Tono="TonoBadge.Info">Correo</Badge>
+                    }
+                    else
+                    {
+                        <Badge Tono="TonoBadge.Neutro">Plataforma</Badge>
+                    }
+                </TemplateColumn>
                 <TemplateColumn Title="Trabajadores" Align="Align.Center">
                     @context.TotalTrabajadores
                 </TemplateColumn>
@@ -120,6 +131,11 @@
         @if (_mensajeErrorFormulario is not null)
         {
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        @if (_sugerenciaVisitaResumen is not null)
+        {
+            <div class="alerta-info">Prellenado desde un correo: @_sugerenciaVisitaResumen — revisa los datos y elige los trabajadores antes de guardar.</div>
         }
 
         @if (_editandoId is null)
