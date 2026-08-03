@@ -13,13 +13,15 @@ namespace CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 
 /// <summary>
 /// Se calcula en vivo sobre Documentos en cada petición, en vez de leer de
-/// una tabla Alerta sincronizada por un job en segundo plano — todavía no
-/// existe infraestructura de jobs programados en el proyecto, y una vista
+/// una tabla Alerta sincronizada por un job en segundo plano — una vista
 /// calculada nunca puede desincronizarse del estado real (ver ROADMAP.md).
 /// La entidad Alerta del dominio queda preparada para cuando se necesite
-/// marcar alertas como leídas por usuario. Solo cubre Documentos de
-/// Trabajador — los de Cliente/Empresa (ver Documento.Ambito) no generan
-/// alerta todavía; ampliar esta vista queda fuera de alcance por ahora.
+/// marcar alertas como leídas por usuario. <c>EnvioAlertasVencimientoHostedService</c>
+/// (Infrastructure, Issue #2) sí llama a esto periódicamente para el resumen
+/// por correo, pero sigue siendo cálculo en vivo en cada ejecución — no una
+/// tabla propia. Solo cubre Documentos de Trabajador — los de Cliente/Empresa
+/// (ver Documento.Ambito) no generan alerta todavía; ampliar esta vista queda
+/// fuera de alcance por ahora.
 ///
 /// P1-15 de docs/business/MATURITY_REVIEW.md añade el segundo bloque:
 /// "documento faltante" — un Trabajador con Asignación activa a un Centro
@@ -56,9 +58,27 @@ public class ObtenerAlertasQueryHandler(
 {
     public async Task<IReadOnlyList<AlertaDto>> Handle(ObtenerAlertasQuery request, CancellationToken cancellationToken)
     {
+        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+
+        return await CalcularAsync(trabajadorIdsVisibles, centroIdsVisibles, cancellationToken);
+    }
+
+    /// <summary>
+    /// Punto de entrada explícito (sin pasar por MediatR ni por
+    /// <see cref="IAlcanceDatosService"/>, que depende del usuario de la
+    /// sesión actual y no existe fuera de una petición HTTP/circuito) para
+    /// quien ya sabe qué alcance quiere aplicar — <c>null</c> en cualquiera
+    /// de los dos significa "sin restricción". Usado por
+    /// <c>EnvioAlertasVencimientoHostedService</c> (Infrastructure) para un
+    /// resumen diario por correo sin cartera, dentro de un
+    /// <c>AmbitoTenantExplicito</c> ya establecido por tenant.
+    /// </summary>
+    public async Task<IReadOnlyList<AlertaDto>> CalcularAsync(
+        IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
+    {
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
-        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
         var vigenciaFilas = await (
             from documento in documentosContext.Documentos
@@ -88,7 +108,7 @@ public class ObtenerAlertasQueryHandler(
                 f.ArchivoUrl, CentroNombre: null))
             .Where(a => a.Estado is EstadoDocumento.Proximo or EstadoDocumento.Urgente or EstadoDocumento.Vencido);
 
-        var alertasFaltantes = await ObtenerFaltantesAsync(trabajadorIdsVisibles, cancellationToken);
+        var alertasFaltantes = await ObtenerFaltantesAsync(trabajadorIdsVisibles, centroIdsVisibles, cancellationToken);
 
         return alertasVigencia
             .Concat(alertasFaltantes)
@@ -111,10 +131,8 @@ public class ObtenerAlertasQueryHandler(
     /// a un único SELECT.
     /// </summary>
     private async Task<List<AlertaDto>> ObtenerFaltantesAsync(
-        IReadOnlyList<Guid>? trabajadorIdsVisibles, CancellationToken cancellationToken)
+        IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
     {
-        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
-
         var tiposObligatorios = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && t.EsObligatorio)
             .Select(t => new { t.Id, t.Nombre })

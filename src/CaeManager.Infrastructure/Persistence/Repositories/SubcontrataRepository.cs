@@ -14,6 +14,11 @@ public class SubcontrataRepository(CaeManagerDbContext dbContext) : ISubcontrata
             s => s.RazonSocial.ToUpper() == razonSocial.ToUpper() && (excluirId == null || s.Id != excluirId),
             cancellationToken);
 
+    public Task<bool> ExisteConCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
+        dbContext.Subcontratas.AnyAsync(
+            s => s.Cif != null && s.Cif.ToUpper() == cif.ToUpper() && (excluirId == null || s.Id != excluirId),
+            cancellationToken);
+
     public Task<bool> TieneTrabajadoresAsync(Guid subcontrataId, CancellationToken cancellationToken = default) =>
         dbContext.Set<Trabajador>().AnyAsync(t => t.SubcontrataId == subcontrataId, cancellationToken);
 
