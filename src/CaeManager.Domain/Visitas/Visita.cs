@@ -23,13 +23,16 @@ public class Visita : EntidadBase
     public bool NotificadoCliente { get; private set; }
     public string? Notas { get; private set; }
 
+    /// <summary>Cómo llegó la petición de agendar esta visita (Correo cuando viene de una SugerenciaVisitaCorreo confirmada) — no afecta al flujo de alta, solo de dónde nació la solicitud.</summary>
+    public OrigenVisita Origen { get; private set; }
+
     public bool EstaActiva(DateOnly hoy) => FechaFin >= hoy;
 
     private Visita()
     {
     }
 
-    public Visita(Guid centroId, DateOnly fechaInicio, DateOnly fechaFin, string? notas)
+    public Visita(Guid centroId, DateOnly fechaInicio, DateOnly fechaFin, string? notas, OrigenVisita origen = OrigenVisita.Plataforma)
     {
         if (centroId == Guid.Empty)
             throw new ArgumentException("La visita debe tener un centro.", nameof(centroId));
@@ -37,6 +40,7 @@ public class Visita : EntidadBase
         CentroId = centroId;
         EstablecerFechas(fechaInicio, fechaFin);
         EstablecerNotas(notas);
+        Origen = origen;
     }
 
     public void Actualizar(DateOnly fechaInicio, DateOnly fechaFin, string? notas)
