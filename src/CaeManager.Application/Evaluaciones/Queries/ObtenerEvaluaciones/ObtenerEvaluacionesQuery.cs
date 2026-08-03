@@ -11,7 +11,7 @@ public record ObtenerEvaluacionesQuery(string? Busqueda, int Pagina = 1, int Tam
     : IRequest<ResultadoPaginado<EvaluacionListaDto>>;
 
 public record EvaluacionListaDto(
-    Guid Id, string CentroNombre, string? TrabajadorNombre, DateOnly Fecha, int Puntuacion);
+    Guid Id, Guid CentroId, string CentroNombre, Guid? TrabajadorId, string? TrabajadorNombre, DateOnly Fecha, int Puntuacion);
 
 public class ObtenerEvaluacionesQueryHandler(ICentrosQueryContext centrosContext, IEvaluacionesQueryContext evaluacionesContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerEvaluacionesQuery, ResultadoPaginado<EvaluacionListaDto>>
@@ -46,7 +46,9 @@ public class ObtenerEvaluacionesQueryHandler(ICentrosQueryContext centrosContext
             .Take(request.TamanoPagina)
             .Select(x => new EvaluacionListaDto(
                 x.evaluacion.Id,
+                x.centro.Id,
                 x.centro.Nombre,
+                x.trabajador == null ? null : (Guid?)x.trabajador.Id,
                 x.trabajador == null ? null : x.trabajador.Nombre + " " + x.trabajador.Apellidos,
                 x.evaluacion.Fecha,
                 x.evaluacion.Puntuacion))

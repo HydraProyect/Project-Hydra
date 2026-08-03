@@ -9,8 +9,10 @@
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
+@using CaeManager.Web.Components.Workspace
 @inject IMediator Mediator
 @inject ToastService ToastService
+@inject ContextWorkspaceService WorkspaceService
 
 <PageTitle>Asignaciones — CAE Manager</PageTitle>
 
@@ -36,9 +38,21 @@
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="AsignacionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
-                <PropertyColumn Property="@(a => a.TrabajadorNombre)" Title="Trabajador" Sortable="true" />
-                <PropertyColumn Property="@(a => a.CentroNombre)" Title="Centro" />
-                <PropertyColumn Property="@(a => a.ClienteNombre)" Title="Cliente" />
+                <TemplateColumn Title="Trabajador" Sortable="true" SortBy="@(GridSort<AsignacionListaDto>.ByAscending(a => a.TrabajadorNombre))">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.TrabajadorId, context.TrabajadorNombre, "informacion")'>
+                        @context.TrabajadorNombre
+                    </button>
+                </TemplateColumn>
+                <TemplateColumn Title="Centro">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
+                        @context.CentroNombre
+                    </button>
+                </TemplateColumn>
+                <TemplateColumn Title="Cliente">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteNombre, "informacion")'>
+                        @context.ClienteNombre
+                    </button>
+                </TemplateColumn>
                 <PropertyColumn Property="@(a => a.FechaAlta)" Format="dd/MM/yyyy" Title="Alta" />
                 <TemplateColumn Title="Estado">
                     @if (context.FechaBaja is null)

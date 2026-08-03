@@ -220,6 +220,27 @@
                                         </div>
                                     </div>
                                 }
+
+                                @if (mensaje.SugerenciaGestion is { } sugerenciaGestion)
+                                {
+                                    <div class="bandeja-sugerencia-visita">
+                                        <div class="bandeja-sugerencia-visita-texto">
+                                            <Icono Nombre="incidencias" Tamano="TamanoIcono.Pequeno" />
+                                            <span>@sugerenciaGestion.Resumen</span>
+                                        </div>
+                                        <div class="bandeja-sugerencia-visita-acciones">
+                                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => DescartarSugerenciaGestionAsync(sugerenciaGestion.Id)">
+                                                Descartar
+                                            </Boton>
+                                            @if (sugerenciaGestion.TrabajadorId is not null && sugerenciaGestion.TipoDocumentoId is not null)
+                                            {
+                                                <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => GenerarGestionesDesdeSugerenciaAsync(sugerenciaGestion.Id, sugerenciaGestion.TrabajadorId.Value, sugerenciaGestion.TipoDocumentoId.Value)">
+                                                    Generar gestiones
+                                                </Boton>
+                                            }
+                                        </div>
+                                    </div>
+                                }
                             </div>
                         </div>
                     }
