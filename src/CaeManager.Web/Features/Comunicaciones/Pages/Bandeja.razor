@@ -246,13 +246,26 @@
                 else
                 {
                     <div class="bandeja-respuesta">
-                        <CampoSelect Etiqueta="Usar macro" Valor="@_macroSeleccionadaId" ValorChanged="AplicarMacro">
-                            <option value="">Sin macro</option>
-                            @foreach (var macro in _macrosDisponibles)
+                        <div class="bandeja-respuesta-prellenados">
+                            <CampoSelect Etiqueta="Usar macro" Valor="@_macroSeleccionadaId" ValorChanged="AplicarMacro">
+                                <option value="">Sin macro</option>
+                                @foreach (var macro in _macrosDisponibles)
+                                {
+                                    <option value="@macro.Id">@macro.Titulo</option>
+                                }
+                            </CampoSelect>
+
+                            @if (_centrosClienteActivo.Count > 0)
                             {
-                                <option value="@macro.Id">@macro.Titulo</option>
+                                <CampoSelect Etiqueta="Compartir formatos de centro" Valor="@_centroFormatosSeleccionado" ValorChanged="CompartirFormatosCentroAsync">
+                                    <option value="">Selecciona un centro…</option>
+                                    @foreach (var centro in _centrosClienteActivo)
+                                    {
+                                        <option value="@centro.Id">@centro.Nombre</option>
+                                    }
+                                </CampoSelect>
                             }
-                        </CampoSelect>
+                        </div>
                         <CampoTextarea Valor="@_textoRespuesta" ValorChanged="v => _textoRespuesta = v" Filas="4" Placeholder="Escribe tu respuesta…" />
 
                         @if (_adjuntosPendientes.Count > 0)
