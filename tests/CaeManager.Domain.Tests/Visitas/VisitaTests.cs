@@ -21,6 +21,15 @@ public class VisitaTests
         visita.FechaFin.Should().Be(fin);
         visita.Notas.Should().Be("Revisión anual");
         visita.NotificadoCliente.Should().BeFalse();
+        visita.Origen.Should().Be(OrigenVisita.Plataforma);
+    }
+
+    [Fact]
+    public void Origen_es_Correo_cuando_se_indica_explicitamente()
+    {
+        var visita = new Visita(CentroIdValido, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 5), null, OrigenVisita.Correo);
+
+        visita.Origen.Should().Be(OrigenVisita.Correo);
     }
 
     [Fact]
