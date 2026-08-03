@@ -16,7 +16,11 @@ public record ObtenerConversacionPorIdQuery(Guid Id) : IRequest<ConversacionDeta
 /// como <c>MarkupString</c>. Quien añada otra ruta de lectura del cuerpo tiene
 /// que sanear igual (hallazgo N-1 de INFORME-AUDITORIA-2.md).
 /// </summary>
-public record MensajeDetalleDto(Guid Id, DireccionMensaje Direccion, string RemitenteEmail, string CuerpoHtml, DateTime FechaUtc);
+public record AdjuntoDetalleDto(Guid Id, string NombreArchivo, string TipoContenido, long TamanoBytes);
+
+public record MensajeDetalleDto(
+    Guid Id, DireccionMensaje Direccion, string RemitenteEmail, string CuerpoHtml, DateTime FechaUtc,
+    IReadOnlyList<AdjuntoDetalleDto> Adjuntos);
 
 public record ParticipanteDetalleDto(
     Guid Id, string Email, RolParticipante Rol, TipoParticipanteOrigen TipoOrigen, Guid? EntidadRelacionadaId);
@@ -85,9 +89,17 @@ public class ObtenerConversacionPorIdQueryHandler(
             .Select(m => new { m.Id, m.Direccion, m.RemitenteEmail, m.CuerpoHtml, m.FechaUtc })
             .ToListAsync(cancellationToken);
 
+        var adjuntosPorMensaje = (await comunicacionesContext.AdjuntosMensajeCorreo
+            .Where(a => mensajesCrudos.Select(m => m.Id).Contains(a.MensajeCorreoId))
+            .Select(a => new { a.MensajeCorreoId, a.Id, a.NombreArchivo, a.TipoContenido, a.TamanoBytes })
+            .ToListAsync(cancellationToken))
+            .GroupBy(a => a.MensajeCorreoId)
+            .ToDictionary(g => g.Key, g => g.Select(a => new AdjuntoDetalleDto(a.Id, a.NombreArchivo, a.TipoContenido, a.TamanoBytes)).ToList());
+
         var mensajes = mensajesCrudos
             .Select(m => new MensajeDetalleDto(
-                m.Id, m.Direccion, m.RemitenteEmail, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc))
+                m.Id, m.Direccion, m.RemitenteEmail, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
+                adjuntosPorMensaje.GetValueOrDefault(m.Id, [])))
             .ToList();
 
         var participantes = await comunicacionesContext.ParticipantesConversacion
