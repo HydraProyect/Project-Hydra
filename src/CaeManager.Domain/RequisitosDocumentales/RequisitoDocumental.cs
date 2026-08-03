@@ -20,8 +20,14 @@ namespace CaeManager.Domain.RequisitosDocumentales;
 ///
 /// No dispara alertas: la detección de "documento faltante" (ver
 /// ObtenerAlertasQuery) se apoya en TipoDocumento.EsObligatorio +
-/// TipoDocumentoCentro, no en este agregado. Un RequisitoDocumental sin
-/// cumplir (incluido uno con BloqueaAcceso) no aparece hoy en /alertas.
+/// TipoDocumentoCentro, no en este agregado — un RequisitoDocumental sin
+/// cumplir no aparece hoy en /alertas. Sí participa en
+/// CalculadoraEstadoCentro: uno con BloqueaAcceso y sin Cumplido fuerza el
+/// Centro a EstadoCentro.Bloqueado, porque a diferencia de Documento (donde
+/// el propio ArchivoUrl es el justificante) aquí ArchivoUrl es solo la
+/// plantilla en blanco — <see cref="Cumplido"/> es el único campo que
+/// certifica que el cliente devolvió el formulario relleno, y lo marca el
+/// Gestor a mano.
 /// </summary>
 public class RequisitoDocumental : EntidadBase
 {
@@ -38,6 +44,8 @@ public class RequisitoDocumental : EntidadBase
     public string? Notas { get; private set; }
     public string? ArchivoUrl { get; private set; }
     public string? NombreArchivoOriginal { get; private set; }
+    public bool Cumplido { get; private set; }
+    public DateOnly? FechaCumplimiento { get; private set; }
 
     private RequisitoDocumental()
     {
@@ -74,6 +82,18 @@ public class RequisitoDocumental : EntidadBase
         Notas = notas;
         ArchivoUrl = archivoUrl;
         NombreArchivoOriginal = nombreArchivoOriginal;
+    }
+
+    public void MarcarCumplido(DateOnly fecha)
+    {
+        Cumplido = true;
+        FechaCumplimiento = fecha;
+    }
+
+    public void DesmarcarCumplido()
+    {
+        Cumplido = false;
+        FechaCumplimiento = null;
     }
 
     private void EstablecerDescripcion(string descripcion)

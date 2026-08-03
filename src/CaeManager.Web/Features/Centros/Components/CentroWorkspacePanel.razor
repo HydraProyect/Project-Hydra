@@ -7,6 +7,7 @@
 *@
 @using CaeManager.Application.Centros.Queries.ObtenerCentroPorId
 @using CaeManager.Application.Centros.Queries.ObtenerCanalGestionDeCentro
+@using CaeManager.Application.Centros.Queries.ObtenerEstadoCentro
 @using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro
 @using CaeManager.Domain.Centros
 @using CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeCentro
@@ -14,7 +15,10 @@
 @using CaeManager.Application.RequisitosDocumentales.Commands.CrearRequisitoDocumental
 @using CaeManager.Application.RequisitosDocumentales.Commands.EditarRequisitoDocumental
 @using CaeManager.Application.RequisitosDocumentales.Commands.EliminarRequisitoDocumental
+@using CaeManager.Application.RequisitosDocumentales.Commands.MarcarRequisitoDocumentalCumplido
 @using CaeManager.Application.RequisitosDocumentales.Queries.ObtenerRequisitosDocumentalesDeCentro
+@using CaeManager.Web.Features.Centros
+@using CaeManager.Web.Features.Documentos
 @using CaeManager.Domain.Common
 @using CaeManager.Web.Documentos
 @using FluentValidation
@@ -42,6 +46,10 @@ else
 {
     <div class="workspace-cabecera-entidad">
         <h2 class="workspace-titulo-entidad">@_detalle.Nombre</h2>
+        @if (_estadoCentro is not null)
+        {
+            <Badge Tono="EstadoCentroUi.Tono(_estadoCentro.Estado)">@EstadoCentroUi.Texto(_estadoCentro.Estado)</Badge>
+        }
     </div>
 
     <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del centro">
@@ -56,6 +64,32 @@ else
                     <CampoInfo Etiqueta="Contacto" Valor="@_detalle.Contacto" />
                     <CampoInfo Etiqueta="Contrato vigente hasta" Valor="@(_detalle.ContratoVigenteHasta?.ToString("dd/MM/yyyy"))" />
                 </div>
+                @if (_cargandoEstado)
+                {
+                    <EstadoCargando Filas="2" />
+                }
+                else if (_estadoCentro is { Estado: not EstadoCentro.Vigente, Causas.Count: > 0 })
+                {
+                    <div class="workspace-cabecera-seccion">
+                        <h3>Por qué no está Vigente</h3>
+                    </div>
+                    <ul class="workspace-lista-entidades">
+                        @foreach (var causa in _estadoCentro.Causas)
+                        {
+                            <li class="workspace-tarjeta-requisito">
+                                <span>@causa.Descripcion</span>
+                                @if (causa.Bloqueante)
+                                {
+                                    <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
+                                }
+                                else if (causa.Estado is { } estadoDocumento)
+                                {
+                                    <Badge Tono="EstadoDocumentoUi.Tono(estadoDocumento)">@EstadoDocumentoUi.Texto(estadoDocumento)</Badge>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
                 break;
 
             case "requisitos":
@@ -92,6 +126,14 @@ else
                                     {
                                         <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
                                     }
+                                    @if (requisito.Cumplido)
+                                    {
+                                        <Badge Tono="TonoBadge.Exito">Cumplido@(requisito.FechaCumplimiento is { } fecha ? $" ({fecha:dd/MM/yyyy})" : "")</Badge>
+                                    }
+                                    else
+                                    {
+                                        <Badge Tono="TonoBadge.Neutro">Pendiente</Badge>
+                                    }
                                 </div>
                                 @if (!string.IsNullOrWhiteSpace(requisito.PeriodicidadEspecial))
                                 {
@@ -110,6 +152,9 @@ else
                                     </p>
                                 }
                                 <div class="workspace-tarjeta-requisito-acciones">
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarCumplidoRequisitoAsync(requisito)">
+                                        @(requisito.Cumplido ? "Marcar pendiente" : "Marcar cumplido")
+                                    </Boton>
                                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarRequisitoAsync(requisito)">Editar</Boton>
                                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminarRequisito(requisito)">Eliminar</Boton>
                                 </div>
@@ -300,6 +345,9 @@ else
     private bool _error;
     private Guid _idCargado;
 
+    private EstadoCentroDto? _estadoCentro;
+    private bool _cargandoEstado;
+
     private IReadOnlyList<RequisitoDocumentalDto>? _requisitos;
     private bool _cargandoRequisitos;
     private bool _errorRequisitos;
@@ -346,7 +394,9 @@ else
             _errorVehiculos = false;
             _plataformaCargada = false;
             _errorPlataforma = false;
+            _estadoCentro = null;
             await CargarCabeceraAsync();
+            await CargarEstadoAsync();
         }
 
         if (PestanaActiva == "requisitos" && _requisitos is null && !_errorRequisitos && !_cargandoRequisitos)
@@ -379,6 +429,45 @@ else
         {
             _cargando = false;
         }
+    }
+
+    private async Task CargarEstadoAsync()
+    {
+        var idSolicitado = EntidadId;
+        _cargandoEstado = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerEstadoCentroQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _estadoCentro = resultado;
+        }
+        catch (Exception)
+        {
+            // El badge de cumplimiento es informativo — si falla, simplemente no se muestra.
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoEstado = false;
+        }
+    }
+
+    private async Task AlternarCumplidoRequisitoAsync(RequisitoDocumentalDto requisito)
+    {
+        var resultado = await Mediator.Send(new MarcarRequisitoDocumentalCumplidoCommand(requisito.Id, !requisito.Cumplido));
+        if (resultado.EsFallido)
+        {
+            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            return;
+        }
+
+        ToastService.Mostrar(
+            requisito.Cumplido ? "Requisito marcado como pendiente." : "Requisito marcado como cumplido.",
+            TonoToast.Exito);
+
+        await CargarRequisitosAsync();
+        await CargarEstadoAsync();
     }
 
     private async Task CargarRequisitosAsync()
@@ -529,6 +618,7 @@ else
 
             _drawerRequisitoVisible = false;
             await CargarRequisitosAsync();
+            await CargarEstadoAsync();
         }
         catch (ValidationException ex)
         {
@@ -568,6 +658,7 @@ else
             ToastService.Mostrar("Requisito eliminado.", TonoToast.Exito);
             _confirmarEliminarRequisitoVisible = false;
             await CargarRequisitosAsync();
+            await CargarEstadoAsync();
         }
         finally
         {
