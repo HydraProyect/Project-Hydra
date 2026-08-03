@@ -168,11 +168,25 @@
                     Etiqueta="Trabajador"
                     Marcador="Escribe un nombre o DNI para buscar…"
                     Valor="@_trabajadorId"
-                    ValorChanged="v => _trabajadorId = v"
+                    ValorChanged="CambiarTrabajadorSeleccionado"
                     Opciones="@OpcionesTrabajadores" />
                 @if (_detectandoCampos)
                 {
                     <span class="detalle-tecnico">Leyendo el archivo para sugerir trabajador y tipo de documento…</span>
+                }
+                @if (_aliasSugerido is not null)
+                {
+                    <div class="workspace-nota-contextual">
+                        El documento identifica a este trabajador como "@_aliasSugerido", que no coincide con su nombre registrado.
+                        <div class="workspace-tarjeta-requisito-acciones">
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _aliasSugerido = null" Deshabilitado="_asignandoAliasSugerido">
+                                Descartar
+                            </Boton>
+                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="AceptarAliasSugeridoAsync" Cargando="_asignandoAliasSugerido">
+                                Añadir como alias
+                            </Boton>
+                        </div>
+                    </div>
                 }
             }
             else if (_ambitoAplicacion == nameof(AmbitoAplicacion.Cliente))

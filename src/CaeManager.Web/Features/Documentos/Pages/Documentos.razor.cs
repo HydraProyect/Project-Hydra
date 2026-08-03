@@ -13,6 +13,7 @@ using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectosParaSelector;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Trabajadores.Commands.AsignarAliasTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
 using CaeManager.Domain.Documentos;
@@ -154,6 +155,9 @@ public partial class Documentos : ComponentBase
     private string? _archivoUrl;
     private bool _subiendoArchivo;
     private bool _detectandoCampos;
+    private string? _aliasSugerido;
+    private Guid? _trabajadorIdParaAliasSugerido;
+    private bool _asignandoAliasSugerido;
     private string _comentarios = string.Empty;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
@@ -298,6 +302,8 @@ public partial class Documentos : ComponentBase
         _glosarioCriteriosValidacion = null;
         _glosarioSeSolicitaA = null;
         _glosarioObservaciones = null;
+        _aliasSugerido = null;
+        _trabajadorIdParaAliasSugerido = null;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
@@ -318,6 +324,8 @@ public partial class Documentos : ComponentBase
         _empresaId = string.Empty;
         _vehiculoId = string.Empty;
         _proyectoId = string.Empty;
+        _aliasSugerido = null;
+        _trabajadorIdParaAliasSugerido = null;
 
         var ambito = Enum.Parse<AmbitoAplicacion>(valor);
 
@@ -381,6 +389,39 @@ public partial class Documentos : ComponentBase
     }
 
     private void CopiarFechaEmisionAVencimiento() => _fechaVencimientoManual = _fechaEmision;
+
+    /// <summary>Si el usuario cambia el trabajador a mano, la sugerencia de alias detectada para el anterior deja de tener sentido.</summary>
+    private void CambiarTrabajadorSeleccionado(string valor)
+    {
+        _trabajadorId = valor;
+        if (valor != _trabajadorIdParaAliasSugerido?.ToString())
+            _aliasSugerido = null;
+    }
+
+    private async Task AceptarAliasSugeridoAsync()
+    {
+        if (_aliasSugerido is null || _trabajadorIdParaAliasSugerido is not { } trabajadorId
+            || _trabajadorId != trabajadorId.ToString())
+            return;
+
+        _asignandoAliasSugerido = true;
+        try
+        {
+            var resultado = await Mediator.Send(new AsignarAliasTrabajadorCommand(trabajadorId, _aliasSugerido));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar("Alias añadido al trabajador.", TonoToast.Exito);
+            _aliasSugerido = null;
+        }
+        finally
+        {
+            _asignandoAliasSugerido = false;
+        }
+    }
 
     /// <summary>
     /// Acepta PDF, JPG, PNG y Word (.docx). Las imágenes y los Word se
@@ -495,6 +536,12 @@ public partial class Documentos : ComponentBase
             {
                 _trabajadorId = trabajadorDetectadoId.ToString();
                 huboSugerencia = true;
+
+                if (deteccion.AliasSugerido is not null)
+                {
+                    _aliasSugerido = deteccion.AliasSugerido;
+                    _trabajadorIdParaAliasSugerido = trabajadorDetectadoId;
+                }
             }
 
             if (huboSugerencia)
