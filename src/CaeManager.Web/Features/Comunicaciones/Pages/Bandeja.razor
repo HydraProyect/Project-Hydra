@@ -202,6 +202,24 @@
                                         }
                                     </div>
                                 }
+
+                                @if (mensaje.SugerenciaVisita is { } sugerencia)
+                                {
+                                    <div class="bandeja-sugerencia-visita">
+                                        <div class="bandeja-sugerencia-visita-texto">
+                                            <Icono Nombre="calendario" Tamano="TamanoIcono.Pequeno" />
+                                            <span>@sugerencia.Resumen</span>
+                                        </div>
+                                        <div class="bandeja-sugerencia-visita-acciones">
+                                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => DescartarSugerenciaVisitaAsync(sugerencia.Id)">
+                                                Descartar
+                                            </Boton>
+                                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => IrACrearVisitaDesdeSugerencia(sugerencia.Id)">
+                                                Crear visita
+                                            </Boton>
+                                        </div>
+                                    </div>
+                                }
                             </div>
                         </div>
                     }
