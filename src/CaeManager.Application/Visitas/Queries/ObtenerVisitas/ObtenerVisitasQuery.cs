@@ -19,8 +19,11 @@ public record ObtenerVisitasQuery(
 
 public record VisitaListaDto(
     Guid Id,
+    Guid CentroId,
     string CentroNombre,
+    Guid ClienteId,
     string ClienteRazonSocial,
+    Guid EmpresaId,
     string EmpresaRazonSocial,
     DateOnly FechaInicio,
     DateOnly FechaFin,
@@ -82,7 +85,9 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICl
             .Select(x => new
             {
                 x.visita.Id,
+                CentroId = x.centro.Id,
                 CentroNombre = x.centro.Nombre,
+                ClienteId = x.cliente.Id,
                 ClienteRazonSocial = x.cliente.RazonSocial,
                 EmpresaRazonSocial = x.empresa.RazonSocial,
                 EmpresaId = x.empresa.Id,
@@ -154,7 +159,7 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICl
                     vencimientosTrabajadores.Where(v => v.TrabajadorId == trabajadorId).Select(v => v.FechaVencimiento)));
 
             return new VisitaListaDto(
-                p.Id, p.CentroNombre, p.ClienteRazonSocial, p.EmpresaRazonSocial,
+                p.Id, p.CentroId, p.CentroNombre, p.ClienteId, p.ClienteRazonSocial, p.EmpresaId, p.EmpresaRazonSocial,
                 p.FechaInicio, p.FechaFin, trabajadorIdsDeEstaVisita.Count,
                 DocumentacionCompleta: empresaOk && trabajadoresOk,
                 p.NotificadoCliente, p.Origen);
