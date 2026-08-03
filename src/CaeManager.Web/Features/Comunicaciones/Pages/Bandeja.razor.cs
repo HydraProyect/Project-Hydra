@@ -2,11 +2,13 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
 using CaeManager.Application.Comunicaciones.Commands.AsignarEjecutivoConversacion;
+using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
 using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaVisita;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Comunicaciones;
@@ -57,9 +59,11 @@ public partial class Bandeja : ComponentBase
     private bool _cargandoDetalle;
     private ClienteDetalleDto? _clienteActivo;
     private IReadOnlyList<MacroListaDto> _macrosDisponibles = [];
+    private IReadOnlyList<CentroSelectorDto> _centrosClienteActivo = [];
 
     private string _textoRespuesta = string.Empty;
     private string _macroSeleccionadaId = string.Empty;
+    private string _centroFormatosSeleccionado = string.Empty;
     private bool _enviandoRespuesta;
     private readonly List<AdjuntoParaEnviarDto> _adjuntosPendientes = [];
     private string? _errorAdjuntos;
@@ -221,6 +225,7 @@ public partial class Bandeja : ComponentBase
         _clienteTriageSeleccionado = string.Empty;
         _adjuntosPendientes.Clear();
         _errorAdjuntos = null;
+        _centroFormatosSeleccionado = string.Empty;
         StateHasChanged();
 
         try
@@ -232,11 +237,13 @@ public partial class Bandeja : ComponentBase
             {
                 _clienteActivo = await Mediator.Send(new ObtenerClientePorIdQuery(_detalle.ClienteId.Value));
                 _macrosDisponibles = await Mediator.Send(new ObtenerMacrosQuery(_detalle.ClienteId));
+                _centrosClienteActivo = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(ClienteId: _detalle.ClienteId));
             }
             else
             {
                 _clienteActivo = null;
                 _macrosDisponibles = [];
+                _centrosClienteActivo = [];
             }
         }
         catch (Exception ex)
@@ -259,6 +266,30 @@ public partial class Bandeja : ComponentBase
             var macro = _macrosDisponibles.FirstOrDefault(m => m.Id == macroId);
             if (macro is not null)
                 _textoRespuesta = macro.CuerpoHtml;
+        }
+    }
+
+    /// <summary>Genera el resumen de documentación exigida por el Centro elegido y lo añade a la respuesta en curso — mismo patrón de prellenado que AplicarMacro.</summary>
+    private async Task CompartirFormatosCentroAsync(string centroIdTexto)
+    {
+        _centroFormatosSeleccionado = centroIdTexto;
+        if (!Guid.TryParse(centroIdTexto, out var centroId)) return;
+
+        try
+        {
+            var formatos = await Mediator.Send(new ObtenerFormatosRequeridosCentroQuery(centroId));
+            if (formatos is null)
+            {
+                ToastService.Mostrar("Este centro no tiene requisitos documentales configurados.", TonoToast.Info);
+                return;
+            }
+
+            _textoRespuesta = string.IsNullOrWhiteSpace(_textoRespuesta) ? formatos : $"{_textoRespuesta}{formatos}";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al generar los formatos requeridos del centro {CentroId}.", centroId);
+            ToastService.Mostrar("No pudimos generar el resumen de documentación. Intenta nuevamente.", TonoToast.Error);
         }
     }
 
