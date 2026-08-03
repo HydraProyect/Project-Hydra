@@ -1,5 +1,6 @@
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Comunicaciones;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
@@ -17,6 +18,7 @@ public class IngestaWebhookServiceTests
         CredencialIntegracionRepositorioFalso? credencialRepositorio = null) =>
         new(conexionRepositorio, conversacionRepositorio, graphClient,
             new AccesoGraphService(credencialRepositorio ?? new CredencialIntegracionRepositorioFalso(), graphClient),
+            new FileStorageServiceFalso(),
             NullLogger<IngestaWebhookService>.Instance);
 
     private static ConexionIntegracion ConexionHabilitada(Guid? clienteId = null)
