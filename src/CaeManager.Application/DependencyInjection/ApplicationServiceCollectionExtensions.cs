@@ -1,9 +1,11 @@
 using System.Reflection;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Application.Trabajadores.Deteccion;
+using CaeManager.Application.Visitas.PaqueteDocumental;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -42,6 +44,8 @@ public static class ApplicationServiceCollectionExtensions
         // DeteccionTrabajadoresService) — se registra aquí y no en
         // Infrastructure porque no toca nada específico de infraestructura.
         services.AddScoped<IDeteccionTrabajadoresService, DeteccionTrabajadoresService>();
+        services.AddScoped<ISugerenciaVisitaCorreoService, SugerenciaVisitaCorreoService>();
+        services.AddScoped<IPaqueteDocumentalVisitaService, PaqueteDocumentalVisitaService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
 
         // Factory pura (Application) — cada IDocumentAIProvider real se
