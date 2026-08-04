@@ -29,5 +29,14 @@ public class ConversacionCorreoRepositorioFalso : IConversacionCorreoRepository
     public Task<MensajeCorreo?> ObtenerMensajePorExternoIdAsync(string mensajeExternoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones.SelectMany(c => c.Mensajes).FirstOrDefault(m => m.MensajeExternoId == mensajeExternoId));
 
+    public Task<IReadOnlyDictionary<Guid, int>> ContarWhatsAppVivasPorEjecutivoAsync(
+        IReadOnlyCollection<Guid> ejecutivoIds, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, int>>(Conversaciones
+            .Where(c => c.Canal == CanalConversacion.WhatsApp
+                        && (c.Estado == EstadoConversacion.Abierta || c.Estado == EstadoConversacion.Pendiente)
+                        && c.EjecutivoAsignadoId is { } id && ejecutivoIds.Contains(id))
+            .GroupBy(c => c.EjecutivoAsignadoId!.Value)
+            .ToDictionary(g => g.Key, g => g.Count()));
+
     public void Agregar(ConversacionCorreo conversacion) => Conversaciones.Add(conversacion);
 }

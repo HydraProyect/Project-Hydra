@@ -17,5 +17,9 @@ public interface IConversacionCorreoRepository
     /// <summary>Para los statuses[] de WhatsApp (delivered/read/failed): localiza el mensaje saliente por su wamid.</summary>
     Task<MensajeCorreo?> ObtenerMensajePorExternoIdAsync(string mensajeExternoId, CancellationToken cancellationToken = default);
 
+    /// <summary>Reparto equitativo del pool inbound: conversaciones WhatsApp vivas (Abierta/Pendiente) asignadas a cada uno de los ejecutivos dados. Los ejecutivos sin ninguna no aparecen en el diccionario.</summary>
+    Task<IReadOnlyDictionary<Guid, int>> ContarWhatsAppVivasPorEjecutivoAsync(
+        IReadOnlyCollection<Guid> ejecutivoIds, CancellationToken cancellationToken = default);
+
     void Agregar(ConversacionCorreo conversacion);
 }
