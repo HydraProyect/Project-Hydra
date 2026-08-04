@@ -75,8 +75,8 @@
                     </ChildContent>
                 </TemplateColumn>
                 <PropertyColumn Property="@(c => c.RazonSocial)" Title="Razón social" Sortable="true" />
-                <PropertyColumn Property="@(c => c.Cif)" Title="CIF" />
-                <TemplateColumn Title="Crítico" Align="Align.Center">
+                <PropertyColumn Property="@(c => c.Cif)" Title="CIF" Sortable="true" />
+                <TemplateColumn Title="Crítico" Align="Align.Center" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EsCritico))">
                     @if (context.EsCritico)
                     {
                         <Badge Tono="TonoBadge.Peligro">Crítico</Badge>

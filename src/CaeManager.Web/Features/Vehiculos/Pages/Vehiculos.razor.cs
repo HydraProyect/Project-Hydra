@@ -7,6 +7,7 @@ using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Web.Components;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
@@ -21,6 +22,7 @@ public partial class Vehiculos : ComponentBase
     private QuickGrid<VehiculoListaDto>? _grid;
 
     private string _busqueda = string.Empty;
+    private string _estadoFiltro = string.Empty;
     private string _filtroEmpresaId = string.Empty;
     private string _filtroSubcontrataId = string.Empty;
     private bool _cargando = true;
@@ -60,6 +62,13 @@ public partial class Vehiculos : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    /// <summary>
+    /// Filtro de estado documental (ver ICalculoEstadoDocumentalService) — esta
+    /// entidad no tiene estado propio en el modelo, se deriva de sus Documentos.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoInicial { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     private GridItemsProvider<VehiculoListaDto>? _proveedorElementos;
@@ -84,6 +93,19 @@ public partial class Vehiculos : ComponentBase
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (deLaUrl != _busqueda)
             _busqueda = deLaUrl;
+
+        var estadoDeLaUrl = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial)
+            ? EstadoInicial!
+            : string.Empty;
+        if (estadoDeLaUrl != _estadoFiltro)
+            _estadoFiltro = estadoDeLaUrl;
+    }
+
+    private async Task CambiarEstadoAsync(string valor)
+    {
+        _estadoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
+        await RecargarAsync();
     }
 
     private async ValueTask<GridItemsProviderResult<VehiculoListaDto>> ProveerElementosAsync(
@@ -95,13 +117,17 @@ public partial class Vehiculos : ComponentBase
         try
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
             var resultado = await Mediator.Send(new ObtenerVehiculosQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
                 SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
                 Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage));
+                TamanoPagina: _paginacion.ItemsPerPage,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente,
+                EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
 
             _totalElementos = resultado.TotalElementos;
 

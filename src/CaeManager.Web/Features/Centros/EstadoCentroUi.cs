@@ -21,6 +21,25 @@ public static class EstadoCentroUi
         _ => TonoBadge.Neutro
     };
 
+    /// <summary>
+    /// Opciones del filtro de estado de <c>/centros</c>, de peor a mejor: lo
+    /// que el gestor busca cuando filtra es lo que le urge, no lo que está en
+    /// orden. Se derivan de <see cref="Texto"/> para que un cambio de
+    /// etiqueta no tenga que replicarse aquí.
+    /// </summary>
+    public static IReadOnlyList<OpcionEstado> Opciones { get; } =
+        new[]
+        {
+            EstadoCentro.Bloqueado,
+            EstadoCentro.Faltante,
+            EstadoCentro.Vencido,
+            EstadoCentro.Urgente,
+            EstadoCentro.Proximo,
+            EstadoCentro.Vigente
+        }
+        .Select(e => new OpcionEstado(e.ToString(), Texto(e)))
+        .ToList();
+
     public static string Texto(EstadoCentro estado) => estado switch
     {
         EstadoCentro.Vigente => "Vigente",

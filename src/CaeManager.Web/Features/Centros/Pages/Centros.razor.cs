@@ -6,6 +6,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -21,6 +22,7 @@ public partial class Centros : ComponentBase
     private QuickGrid<CentroListaDto>? _grid;
 
     private string _busqueda = string.Empty;
+    private string _estadoFiltro = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -59,6 +61,9 @@ public partial class Centros : ComponentBase
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
+
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -99,6 +104,10 @@ public partial class Centros : ComponentBase
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (deLaUrl != _busqueda)
             _busqueda = deLaUrl;
+
+        var estadoDeLaUrl = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
+        if (estadoDeLaUrl != _estadoFiltro)
+            _estadoFiltro = estadoDeLaUrl;
     }
 
     private async ValueTask<GridItemsProviderResult<CentroListaDto>> ProveerElementosAsync(
@@ -110,10 +119,14 @@ public partial class Centros : ComponentBase
         try
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
             var resultado = await Mediator.Send(new ObtenerCentrosQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 ClienteId: null,
+                Estado: Enum.TryParse<EstadoCentro>(_estadoFiltro, out var estado) ? estado : null,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente,
                 Pagina: pagina,
                 TamanoPagina: _paginacion.ItemsPerPage));
 
@@ -142,6 +155,13 @@ public partial class Centros : ComponentBase
     {
         _busqueda = valor;
         NavigationManager.ActualizarFiltroEnUrl("q", valor);
+        await RecargarAsync();
+    }
+
+    private async Task CambiarEstadoAsync(string valor)
+    {
+        _estadoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         await RecargarAsync();
     }
 
