@@ -24,7 +24,8 @@ public record ObtenerConversacionesQuery(
     Guid? ClienteId = null,
     bool SoloAsignadasAMi = false,
     bool SoloSinAsignar = false,
-    string? Busqueda = null)
+    string? Busqueda = null,
+    CanalConversacion? Canal = null)
     : IRequest<IReadOnlyList<ConversacionListaDto>>;
 
 public record ConversacionListaDto(
@@ -37,7 +38,9 @@ public record ConversacionListaDto(
     string RemitentePrincipal,
     string PreviewUltimoMensaje,
     DateTime FechaUltimoMensajeUtc,
-    int TotalMensajes);
+    int TotalMensajes,
+    CanalConversacion Canal,
+    string? TelefonoContacto);
 
 public class ObtenerConversacionesQueryHandler(
     IClientesQueryContext clientesContext, IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
@@ -79,6 +82,9 @@ public class ObtenerConversacionesQueryHandler(
         if (request.Estado is not null)
             consulta = consulta.Where(c => c.Estado == request.Estado);
 
+        if (request.Canal is not null)
+            consulta = consulta.Where(c => c.Canal == request.Canal);
+
         if (request.Anio is not null && request.Mes is not null)
             consulta = consulta.Where(c =>
                 c.FechaUltimoMensajeUtc.Year == request.Anio && c.FechaUltimoMensajeUtc.Month == request.Mes);
@@ -114,7 +120,9 @@ public class ObtenerConversacionesQueryHandler(
                 c.Asunto,
                 c.Estado,
                 c.EjecutivoAsignadoId,
-                c.FechaUltimoMensajeUtc
+                c.FechaUltimoMensajeUtc,
+                c.Canal,
+                c.TelefonoContacto
             })
             .ToListAsync(cancellationToken);
 
@@ -142,9 +150,10 @@ public class ObtenerConversacionesQueryHandler(
 
             return new ConversacionListaDto(
                 c.Id, c.ClienteId, c.ClienteRazonSocial, c.Asunto, c.Estado, c.EjecutivoAsignadoId,
-                remitentesPorConversacion.GetValueOrDefault(c.Id) ?? "Remitente desconocido",
+                // WhatsApp no tiene participantes de correo: el remitente es el teléfono del contacto.
+                remitentesPorConversacion.GetValueOrDefault(c.Id) ?? c.TelefonoContacto ?? "Remitente desconocido",
                 TruncarParaPreview(ultimoMensaje?.CuerpoHtml),
-                c.FechaUltimoMensajeUtc, mensajesDeConversacion.Count);
+                c.FechaUltimoMensajeUtc, mensajesDeConversacion.Count, c.Canal, c.TelefonoContacto);
         }).ToList();
     }
 

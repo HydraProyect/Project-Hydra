@@ -320,6 +320,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Integraciones.IWebhookWhatsAppTenantResolver, WebhookWhatsAppTenantResolver>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookWhatsAppService>();
         services.AddSingleton<CaeManager.Application.Integraciones.ISenalIngestaWhatsApp, SenalIngestaWhatsApp>();
+        services.AddSingleton<CaeManager.Application.Comunicaciones.Eventos.INotificadorMensajesTiempoReal, NotificadorMensajesTiempoReal>();
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Clientes.IClientesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());

@@ -1,0 +1,152 @@
+@page "/comunicaciones/chat"
+@rendermode InteractiveServer
+@* Mismos roles que Bandeja: pantalla de gestión CAE, el rol Cliente no entra
+   (la query vuelve a acotar por cartera de todos modos — doble puerta). *@
+@attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
+@using CaeManager.Domain.Comunicaciones
+@implements IDisposable
+
+<PageTitle>Chat WhatsApp — CAE Manager</PageTitle>
+
+<div class="chat-pagina">
+    <aside class="chat-lista">
+        <div class="chat-lista-cabecera">
+            <h1 class="chat-titulo">Chat WhatsApp</h1>
+            <CampoSelect Valor="@_filtro" ValorChanged="v => CambiarFiltroAsync(v)">
+                <option value="">Todas</option>
+                <option value="mias">Mías</option>
+                <option value="triage">Sin cliente (triage)</option>
+                <option value="sin-asignar">Sin gestor</option>
+            </CampoSelect>
+        </div>
+
+        @if (_cargandoLista)
+        {
+            <EstadoCargando Filas="4" />
+        }
+        else if (_conversaciones.Count == 0)
+        {
+            <EstadoVacio Titulo="Sin conversaciones" Descripcion="Cuando un contacto escriba a una línea conectada, su chat aparecerá aquí." />
+        }
+        else
+        {
+            <ul class="chat-conversaciones">
+                @foreach (var conversacion in _conversaciones)
+                {
+                    <li class="chat-conversacion @(conversacion.Id == _conversacionSeleccionadaId ? "seleccionada" : null)"
+                        @onclick="() => SeleccionarAsync(conversacion.Id)">
+                        <div class="chat-conversacion-linea1">
+                            <span class="chat-contacto">@(conversacion.ClienteRazonSocial ?? conversacion.TelefonoContacto ?? conversacion.RemitentePrincipal)</span>
+                            <span class="chat-hora">@FormatearHora(conversacion.FechaUltimoMensajeUtc)</span>
+                        </div>
+                        <div class="chat-conversacion-linea2">
+                            <span class="chat-preview">@conversacion.PreviewUltimoMensaje</span>
+                            @if (conversacion.ClienteId is null)
+                            {
+                                <Badge Tono="TonoBadge.Advertencia">Triage</Badge>
+                            }
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </aside>
+
+    <section class="chat-detalle">
+        @if (_detalle is null)
+        {
+            <EstadoVacio Titulo="Elige una conversación" Descripcion="Selecciona un chat de la lista para verlo aquí." />
+        }
+        else
+        {
+            <header class="chat-detalle-cabecera">
+                <div>
+                    <strong>@(_detalle.ClienteRazonSocial ?? _detalle.TelefonoContacto)</strong>
+                    <span class="texto-secundario">@_detalle.TelefonoContacto</span>
+                </div>
+                <div class="chat-detalle-acciones">
+                    @if (_detalle.ClienteId is null)
+                    {
+                        <CampoSelect Valor="@_clienteTriageSeleccionado" ValorChanged="v => _clienteTriageSeleccionado = v">
+                            <option value="">Asignar cliente…</option>
+                            @foreach (var cliente in _clientesSelector)
+                            {
+                                <option value="@cliente.Id">@cliente.RazonSocial</option>
+                            }
+                        </CampoSelect>
+                        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                               Deshabilitado="@(string.IsNullOrEmpty(_clienteTriageSeleccionado))"
+                               Cargando="_asignandoCliente" OnClick="AsignarClienteAsync">Asignar</Boton>
+                    }
+                    <CampoSelect Valor="@(_detalle.EjecutivoAsignadoId?.ToString() ?? string.Empty)"
+                                 ValorChanged="v => CambiarEjecutivoAsync(v)">
+                        <option value="">Sin gestor</option>
+                        @foreach (var gestor in _gestores)
+                        {
+                            <option value="@gestor.Id">@gestor.NombreCompleto</option>
+                        }
+                    </CampoSelect>
+                    <CampoSelect Valor="@_detalle.Estado.ToString()" ValorChanged="v => CambiarEstadoAsync(v)">
+                        <option value="@EstadoConversacion.Abierta">Abierta</option>
+                        <option value="@EstadoConversacion.Pendiente">Pendiente</option>
+                        <option value="@EstadoConversacion.Resuelta">Resuelta</option>
+                        <option value="@EstadoConversacion.Cerrada">Cerrada</option>
+                    </CampoSelect>
+                </div>
+            </header>
+
+            <div class="chat-mensajes">
+                @* column-reverse + orden invertido = pegado abajo sin JS. *@
+                @foreach (var mensaje in _detalle.Mensajes.OrderByDescending(m => m.FechaUtc))
+                {
+                    <div class="chat-burbuja @(mensaje.Direccion == DireccionMensaje.Saliente ? "saliente" : "entrante")">
+                        <span class="chat-burbuja-texto">@QuitarHtml(mensaje.CuerpoHtml)</span>
+                        @foreach (var adjunto in mensaje.Adjuntos)
+                        {
+                            <a class="chat-adjunto" href="/comunicaciones/adjuntos/@adjunto.Id/archivo" target="_blank">
+                                📎 @adjunto.NombreArchivo
+                            </a>
+                        }
+                        <span class="chat-burbuja-meta">
+                            @mensaje.FechaUtc.ToLocalTime().ToString("dd/MM HH:mm")
+                            @if (mensaje.Direccion == DireccionMensaje.Saliente)
+                            {
+                                <span class="chat-ticks @(mensaje.EstadoEntrega == EstadoEntregaMensaje.Leido ? "leido" : null)"
+                                      title="@DescribirEstadoEntrega(mensaje)">@TicksEstadoEntrega(mensaje)</span>
+                            }
+                        </span>
+                        @if (mensaje.EstadoEntrega == EstadoEntregaMensaje.Fallido)
+                        {
+                            <span class="chat-error-entrega">No entregado: @(mensaje.ErrorEntrega ?? "error desconocido")</span>
+                        }
+                    </div>
+                }
+            </div>
+
+            @if (VentanaAbierta)
+            {
+                <div class="chat-banner ventana-abierta">
+                    Ventana de respuesta abierta — se cierra @CierreVentanaLocal.
+                </div>
+            }
+            else
+            {
+                <div class="chat-banner ventana-cerrada">
+                    Han pasado más de 24 h desde el último mensaje del contacto. WhatsApp solo permite reabrir con una
+                    plantilla aprobada (próximamente) — el envío libre está bloqueado.
+                </div>
+            }
+
+            <footer class="chat-composer">
+                <textarea class="chat-composer-input" rows="2" placeholder="Escribe un mensaje…"
+                          disabled="@(!VentanaAbierta || _enviando)"
+                          @bind="_textoRespuesta" @bind:event="oninput" @onkeydown="ManejarTeclaComposer"></textarea>
+                <Boton Variante="VarianteBoton.Primario" Cargando="_enviando"
+                       Deshabilitado="@(!VentanaAbierta || string.IsNullOrWhiteSpace(_textoRespuesta))"
+                       OnClick="EnviarAsync">Enviar</Boton>
+            </footer>
+        }
+    </section>
+</div>
