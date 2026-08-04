@@ -32,9 +32,7 @@
 
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por centro, trabajador o descripción…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <label class="filtro-critico">
-            <input type="checkbox" @bind="_soloSinResolver" @bind:after="RecargarAsync" /> Solo sin resolver
-        </label>
+        <FiltroEstado Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" />
     </div>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -64,7 +62,7 @@
                         @context.CentroNombre
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Trabajador">
+                <TemplateColumn Title="Trabajador" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.TrabajadorNombre))">
                     @if (context.TrabajadorId is null)
                     {
                         @:—
@@ -76,12 +74,12 @@
                         </button>
                     }
                 </TemplateColumn>
-                <TemplateColumn Title="Tipo">@ObtenerEtiquetaTipo(context.Tipo)</TemplateColumn>
-                <TemplateColumn Title="Gravedad" Align="Align.Center">
+                <TemplateColumn Title="Tipo" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.Tipo))">@ObtenerEtiquetaTipo(context.Tipo)</TemplateColumn>
+                <TemplateColumn Title="Gravedad" Align="Align.Center" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.Gravedad))">
                     <Badge Tono="@GravedadTono(context.Gravedad)">@ObtenerEtiquetaGravedad(context.Gravedad)</Badge>
                 </TemplateColumn>
-                <TemplateColumn Title="Fecha">@context.FechaOcurrencia.ToString("dd/MM/yyyy")</TemplateColumn>
-                <TemplateColumn Title="Estado" Align="Align.Center">
+                <TemplateColumn Title="Fecha" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.FechaOcurrencia))">@context.FechaOcurrencia.ToString("dd/MM/yyyy")</TemplateColumn>
+                <TemplateColumn Title="Estado" Align="Align.Center" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.Resuelta))">
                     <Badge Tono="@(context.Resuelta ? TonoBadge.Exito : TonoBadge.Advertencia)">
                         @(context.Resuelta ? "Resuelta" : "Sin resolver")
                     </Badge>

@@ -219,6 +219,7 @@ public partial class Documentos : ComponentBase
         try
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
             var ambitoFiltro = Enum.TryParse<AmbitoAplicacion>(_ambitoFiltro, out var ambito) ? ambito : (AmbitoAplicacion?)null;
             var estadoFiltro = Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado) ? estado : (EstadoDocumento?)null;
@@ -229,7 +230,9 @@ public partial class Documentos : ComponentBase
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 Estado: estadoFiltro,
                 Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage));
+                TamanoPagina: _paginacion.ItemsPerPage,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente));
 
             _totalElementos = resultado.TotalElementos;
 

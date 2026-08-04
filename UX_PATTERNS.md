@@ -36,6 +36,11 @@ Buscador global fijo en la barra superior (`Cmd/Ctrl+K`), busca por nombre/DNI/c
 ### Filtrar
 Panel de filtros junto a cada tabla, nunca oculto en un menú de tres puntos. Filtros activos se muestran como chips removibles sobre la tabla. Estado de filtros persiste en la URL (query string) para que se pueda compartir/recargar sin perder el contexto.
 
+Toda lista con un estado ofrece su **filtro de estado** en la barra de filtros, con el componente compartido `FiltroEstado` y las opciones ordenadas **de peor a mejor**: al filtrar, lo que el usuario busca es lo que le urge. Las entidades que no tienen estado en el modelo (Trabajador, Empresa, Vehículo) usan el **estado documental derivado** — el peor estado de vigencia de sus documentos, con el mismo semáforo que el resto del sistema —, y "sin documentos" es siempre una opción propia, nunca se muestra como si estuviera al día.
+
+### Ordenar
+Toda columna con un criterio de orden con sentido es ordenable, y ordena **de verdad en el servidor** — nunca solo reordenando la página ya cargada. Cada Query acepta el nombre de columna contra una lista blanca: un valor desconocido cae al orden por defecto, jamás llega a la consulta. El orden se cierra siempre con un desempate estable por Id, porque sin un criterio total la paginación puede repetir o perder filas. El orden no se persiste en la URL (los filtros sí).
+
 ### Subir documentos
 Zona de drag-and-drop + botón explícito "Seleccionar archivo", solo PDF, tamaño máximo indicado antes de intentar subir. Barra de progreso durante la subida. Tras subir: vista previa inmediata (no hace falta recargar para confirmar que se adjuntó bien).
 

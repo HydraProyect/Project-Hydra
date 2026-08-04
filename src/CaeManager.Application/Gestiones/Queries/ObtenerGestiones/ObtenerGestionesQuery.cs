@@ -8,7 +8,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 
-public record ObtenerGestionesQuery(string? Busqueda, EstadoGestion? Estado, Guid? TrabajadorId, int Pagina = 1, int TamanoPagina = 20)
+public record ObtenerGestionesQuery(
+    string? Busqueda, EstadoGestion? Estado, Guid? TrabajadorId, int Pagina = 1, int TamanoPagina = 20,
+    string? OrdenarPor = null, bool Descendente = false)
     : IRequest<ResultadoPaginado<GestionListaDto>>;
 
 public record GestionListaDto(
@@ -51,8 +53,28 @@ public class ObtenerGestionesQueryHandler(
 
         var total = await consulta.CountAsync(cancellationToken);
 
-        var elementos = await consulta
-            .OrderByDescending(x => x.gestion.CreadoEnUtc)
+        // Lista blanca de columnas ordenables — ver ObtenerClientesQuery.
+        var ordenada = (request.OrdenarPor, request.Descendente) switch
+        {
+            (nameof(GestionListaDto.TrabajadorNombre), false) => consulta.OrderBy(x => x.trabajador.Apellidos).ThenBy(x => x.trabajador.Nombre),
+            (nameof(GestionListaDto.TrabajadorNombre), true) => consulta.OrderByDescending(x => x.trabajador.Apellidos).ThenByDescending(x => x.trabajador.Nombre),
+            (nameof(GestionListaDto.CentroNombre), false) => consulta.OrderBy(x => x.centro.Nombre),
+            (nameof(GestionListaDto.CentroNombre), true) => consulta.OrderByDescending(x => x.centro.Nombre),
+            (nameof(GestionListaDto.TipoDocumentoNombre), false) => consulta.OrderBy(x => x.tipoDocumento.Nombre),
+            (nameof(GestionListaDto.TipoDocumentoNombre), true) => consulta.OrderByDescending(x => x.tipoDocumento.Nombre),
+            (nameof(GestionListaDto.Estado), false) => consulta.OrderBy(x => x.gestion.Estado).ThenByDescending(x => x.gestion.CreadoEnUtc),
+            (nameof(GestionListaDto.Estado), true) => consulta.OrderByDescending(x => x.gestion.Estado).ThenByDescending(x => x.gestion.CreadoEnUtc),
+            (nameof(GestionListaDto.CreadoEnUtc), false) => consulta.OrderBy(x => x.gestion.CreadoEnUtc),
+            _ => consulta.OrderByDescending(x => x.gestion.CreadoEnUtc)
+        };
+        // Desempate estable: sin un criterio total, PostgreSQL puede devolver
+        // las filas empatadas en distinto orden entre una página y otra, y al
+        // paginar en SQL eso hace que una fila aparezca dos veces o no
+        // aparezca nunca. El Id no se ordena nunca por sí solo — solo cierra
+        // el orden que haya elegido el usuario.
+        ordenada = ordenada.ThenBy(x => x.gestion.Id);
+
+        var elementos = await ordenada
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
             .Select(x => new GestionListaDto(

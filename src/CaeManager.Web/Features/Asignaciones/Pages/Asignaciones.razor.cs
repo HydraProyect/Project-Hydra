@@ -3,6 +3,7 @@ using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignacion;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignaciones;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -16,9 +17,25 @@ public partial class Asignaciones : ComponentBase
     private QuickGrid<AsignacionListaDto>? _grid;
 
     private string _busqueda = string.Empty;
+    private string _estadoFiltro = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
+
+    /// <summary>
+    /// Opciones del filtro de estado: una Asignación no tiene columna de
+    /// estado — "activa" es no tener FechaBaja (ver DOMAIN.md).
+    /// </summary>
+    private static readonly IReadOnlyList<OpcionEstado> OpcionesEstado =
+    [
+        new("Activa", "Activa"),
+        new("DeBaja", "De baja")
+    ];
+
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoInicial { get; set; }
 
     private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
     private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
@@ -42,6 +59,25 @@ public partial class Asignaciones : ComponentBase
     // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
     protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
 
+    /// <summary>
+    /// La URL es la fuente de verdad del filtro, no solo su semilla inicial
+    /// (P1-18 de docs/business/MATURITY_REVIEW.md) — mismo patrón que el resto
+    /// de listados.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        var deLaUrl = OpcionesEstado.Any(o => o.Valor == EstadoInicial) ? EstadoInicial! : string.Empty;
+        if (deLaUrl != _estadoFiltro)
+            _estadoFiltro = deLaUrl;
+    }
+
+    private async Task CambiarEstadoAsync(string valor)
+    {
+        _estadoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
+        await RecargarAsync();
+    }
+
     private async ValueTask<GridItemsProviderResult<AsignacionListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<AsignacionListaDto> request)
     {
@@ -51,11 +87,15 @@ public partial class Asignaciones : ComponentBase
         try
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
             var resultado = await Mediator.Send(new ObtenerAsignacionesQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+                Activa: _estadoFiltro switch { "Activa" => true, "DeBaja" => false, _ => (bool?)null },
                 Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage));
+                TamanoPagina: _paginacion.ItemsPerPage,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente));
 
             _totalElementos = resultado.TotalElementos;
 

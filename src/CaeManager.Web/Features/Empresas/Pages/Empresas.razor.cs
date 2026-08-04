@@ -8,6 +8,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Web.Components;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
@@ -22,6 +23,7 @@ public partial class Empresas : ComponentBase
     private QuickGrid<EmpresaListaDto>? _grid;
 
     private string _busqueda = string.Empty;
+    private string _estadoFiltro = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -65,6 +67,13 @@ public partial class Empresas : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    /// <summary>
+    /// Filtro de estado documental (ver ICalculoEstadoDocumentalService) — esta
+    /// entidad no tiene estado propio en el modelo, se deriva de sus Documentos.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoInicial { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     /// <summary>Comando del palette "Crear empresa «nombre»" (P3-31): abre el Drawer con la razón social precargada.</summary>
@@ -97,6 +106,19 @@ public partial class Empresas : ComponentBase
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (deLaUrl != _busqueda)
             _busqueda = deLaUrl;
+
+        var estadoDeLaUrl = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial)
+            ? EstadoInicial!
+            : string.Empty;
+        if (estadoDeLaUrl != _estadoFiltro)
+            _estadoFiltro = estadoDeLaUrl;
+    }
+
+    private async Task CambiarEstadoAsync(string valor)
+    {
+        _estadoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
+        await RecargarAsync();
     }
 
     private async ValueTask<GridItemsProviderResult<EmpresaListaDto>> ProveerElementosAsync(
@@ -108,11 +130,15 @@ public partial class Empresas : ComponentBase
         try
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
             var resultado = await Mediator.Send(new ObtenerEmpresasQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage));
+                TamanoPagina: _paginacion.ItemsPerPage,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente,
+                EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
 
             _totalElementos = resultado.TotalElementos;
 

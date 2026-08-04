@@ -22,11 +22,7 @@
 
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por trabajador, centro o documento…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <CampoSelect Etiqueta="Estado" Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync">
-            <option value="">Todas</option>
-            <option value="@nameof(EstadoGestion.Pendiente)">Pendientes</option>
-            <option value="@nameof(EstadoGestion.Completada)">Completadas</option>
-        </CampoSelect>
+        <FiltroEstado Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync" Opciones="OpcionesEstado" TextoTodos="Todas" />
     </div>
 
     @if (_errorCarga)
@@ -41,23 +37,23 @@
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="GestionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
-                <TemplateColumn Title="Trabajador">
+                <TemplateColumn Title="Trabajador" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.TrabajadorNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.TrabajadorId, context.TrabajadorNombre, "informacion")'>
                         @context.TrabajadorNombre
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Centro">
+                <TemplateColumn Title="Centro" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.CentroNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
                         @context.CentroNombre
                     </button>
                 </TemplateColumn>
-                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="Documento" />
-                <TemplateColumn Title="Estado" Align="Align.Center">
+                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="Documento" Sortable="true" />
+                <TemplateColumn Title="Estado" Align="Align.Center" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
                     <Badge Tono="@(context.Estado == EstadoGestion.Completada ? TonoBadge.Exito : TonoBadge.Advertencia)">
                         @(context.Estado == EstadoGestion.Completada ? "Completada" : "Pendiente")
                     </Badge>
                 </TemplateColumn>
-                <PropertyColumn Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="Creada" />
+                <PropertyColumn Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="Creada" Sortable="true" />
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarEstadoAsync(context.Id, context.Estado != EstadoGestion.Completada)">
                         @(context.Estado == EstadoGestion.Completada ? "Reabrir" : "Marcar completada")

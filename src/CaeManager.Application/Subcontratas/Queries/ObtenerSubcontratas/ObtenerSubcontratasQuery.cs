@@ -5,7 +5,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 
-public record ObtenerSubcontratasQuery(string? Busqueda, int Pagina = 1, int TamanoPagina = 20)
+public record ObtenerSubcontratasQuery(
+    string? Busqueda, int Pagina = 1, int TamanoPagina = 20,
+    string? OrdenarPor = null, bool Descendente = false)
     : IRequest<ResultadoPaginado<SubcontrataListaDto>>;
 
 public record SubcontrataListaDto(Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc);
@@ -30,8 +32,24 @@ public class ObtenerSubcontratasQueryHandler(ISubcontratasQueryContext dbContext
 
         var total = await consulta.CountAsync(cancellationToken);
 
-        var elementos = await consulta
-            .OrderBy(s => s.RazonSocial)
+        // Lista blanca de columnas ordenables — ver ObtenerClientesQuery.
+        var ordenada = (request.OrdenarPor, request.Descendente) switch
+        {
+            (nameof(SubcontrataListaDto.RazonSocial), true) => consulta.OrderByDescending(s => s.RazonSocial),
+            (nameof(SubcontrataListaDto.Cif), false) => consulta.OrderBy(s => s.Cif),
+            (nameof(SubcontrataListaDto.Cif), true) => consulta.OrderByDescending(s => s.Cif),
+            (nameof(SubcontrataListaDto.CreadoEnUtc), false) => consulta.OrderBy(s => s.CreadoEnUtc),
+            (nameof(SubcontrataListaDto.CreadoEnUtc), true) => consulta.OrderByDescending(s => s.CreadoEnUtc),
+            _ => consulta.OrderBy(s => s.RazonSocial)
+        };
+        // Desempate estable: sin un criterio total, PostgreSQL puede devolver
+        // las filas empatadas en distinto orden entre una página y otra, y al
+        // paginar en SQL eso hace que una fila aparezca dos veces o no
+        // aparezca nunca. El Id no se ordena nunca por sí solo — solo cierra
+        // el orden que haya elegido el usuario.
+        ordenada = ordenada.ThenBy(s => s.Id);
+
+        var elementos = await ordenada
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
             .Select(s => new SubcontrataListaDto(s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc))
