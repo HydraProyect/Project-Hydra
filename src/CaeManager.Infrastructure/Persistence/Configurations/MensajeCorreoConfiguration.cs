@@ -14,6 +14,7 @@ public class MensajeCorreoConfiguration : IEntityTypeConfiguration<MensajeCorreo
         builder.Property(m => m.RemitenteEmail).IsRequired().HasMaxLength(320);
         builder.Property(m => m.CuerpoHtml).IsRequired();
         builder.Property(m => m.MensajeExternoId).HasMaxLength(MensajeCorreo.LongitudMaximaMensajeExternoId);
+        builder.Property(m => m.ErrorEntrega).HasMaxLength(MensajeCorreo.LongitudMaximaErrorEntrega);
 
         builder.HasIndex(m => m.ConversacionCorreoId);
         builder.HasIndex(m => m.FechaUtc);
