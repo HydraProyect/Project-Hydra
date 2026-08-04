@@ -257,6 +257,9 @@ public static class InfrastructureServiceCollectionExtensions
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
 
+        if (opcionesWhatsApp.EstaConfigurado)
+            services.AddHostedService<IngestaWebhookWhatsAppHostedService>();
+
         services.AddScoped<IClienteRepository, ClienteRepository>();
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         services.AddScoped<IEmpresaClienteRepository, EmpresaClienteRepository>();
@@ -314,6 +317,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
         services.AddScoped<CaeManager.Application.Integraciones.IWebhookTenantResolver, WebhookTenantResolver>();
+        services.AddScoped<CaeManager.Application.Integraciones.IWebhookWhatsAppTenantResolver, WebhookWhatsAppTenantResolver>();
+        services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookWhatsAppService>();
+        services.AddSingleton<CaeManager.Application.Integraciones.ISenalIngestaWhatsApp, SenalIngestaWhatsApp>();
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Clientes.IClientesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
