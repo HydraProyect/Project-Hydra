@@ -1,0 +1,217 @@
+.chat-pagina {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 0;
+    height: calc(100vh - 6rem);
+    border: 1px solid var(--color-borde, #e5e7eb);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background: var(--color-fondo-tarjeta, #fff);
+}
+
+/* --- Lista --- */
+.chat-lista {
+    border-right: 1px solid var(--color-borde, #e5e7eb);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.chat-lista-cabecera {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--color-borde, #e5e7eb);
+}
+
+.chat-titulo {
+    font-size: 1.1rem;
+    margin: 0 0 0.5rem;
+}
+
+.chat-conversaciones {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.chat-conversacion {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--color-borde, #f3f4f6);
+    cursor: pointer;
+}
+
+.chat-conversacion:hover {
+    background: var(--color-fondo-hover, #f9fafb);
+}
+
+.chat-conversacion.seleccionada {
+    background: var(--color-fondo-seleccion, #eef2ff);
+}
+
+.chat-conversacion-linea1 {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.chat-contacto {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-hora {
+    color: var(--color-texto-secundario, #6b7280);
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+.chat-conversacion-linea2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.chat-preview {
+    color: var(--color-texto-secundario, #6b7280);
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* --- Detalle --- */
+.chat-detalle {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.chat-detalle-cabecera {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--color-borde, #e5e7eb);
+    flex-wrap: wrap;
+}
+
+.chat-detalle-cabecera .texto-secundario {
+    color: var(--color-texto-secundario, #6b7280);
+    margin-left: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.chat-detalle-acciones {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* column-reverse: los mensajes se renderizan en orden inverso y el scroll
+   queda pegado abajo de forma nativa, sin interop JS. */
+.chat-mensajes {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 0.4rem;
+    padding: 1rem;
+    background: var(--color-fondo-chat, #f6f6f4);
+}
+
+.chat-burbuja {
+    max-width: 70%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.92rem;
+    box-shadow: 0 1px 1px rgb(0 0 0 / 6%);
+}
+
+.chat-burbuja.entrante {
+    align-self: flex-start;
+    background: #fff;
+    border-bottom-left-radius: 0.2rem;
+}
+
+.chat-burbuja.saliente {
+    align-self: flex-end;
+    background: var(--color-burbuja-saliente, #d9fdd3);
+    border-bottom-right-radius: 0.2rem;
+}
+
+.chat-burbuja-texto {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.chat-burbuja-meta {
+    align-self: flex-end;
+    font-size: 0.72rem;
+    color: var(--color-texto-secundario, #6b7280);
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+}
+
+.chat-ticks.leido {
+    color: #34b7f1;
+}
+
+.chat-error-entrega {
+    color: var(--color-peligro, #b91c1c);
+    font-size: 0.78rem;
+}
+
+.chat-adjunto {
+    font-size: 0.85rem;
+    text-decoration: none;
+}
+
+/* --- Banner ventana 24h --- */
+.chat-banner {
+    padding: 0.45rem 1rem;
+    font-size: 0.85rem;
+    border-top: 1px solid var(--color-borde, #e5e7eb);
+}
+
+.chat-banner.ventana-abierta {
+    background: #ecfdf5;
+    color: #065f46;
+}
+
+.chat-banner.ventana-cerrada {
+    background: #fffbeb;
+    color: #92400e;
+}
+
+/* --- Composer --- */
+.chat-composer {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--color-borde, #e5e7eb);
+    align-items: flex-end;
+}
+
+.chat-composer-input {
+    flex: 1;
+    resize: none;
+    border: 1px solid var(--color-borde, #d1d5db);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font: inherit;
+}
+
+.chat-composer-input:disabled {
+    background: var(--color-fondo-deshabilitado, #f3f4f6);
+}
