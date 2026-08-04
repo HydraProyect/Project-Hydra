@@ -16,5 +16,18 @@ public class ConversacionCorreoRepositorioFalso : IConversacionCorreoRepository
     public Task<bool> ExisteMensajeExternoAsync(string mensajeExternoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones.SelectMany(c => c.Mensajes).Any(m => m.MensajeExternoId == mensajeExternoId));
 
+    public Task<ConversacionCorreo?> ObtenerAbiertaPorTelefonoAsync(
+        Guid conexionIntegracionId, string telefonoContacto, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Conversaciones
+            .Where(c => c.Canal == CanalConversacion.WhatsApp
+                        && c.ConexionIntegracionId == conexionIntegracionId
+                        && c.TelefonoContacto == telefonoContacto
+                        && c.Estado != EstadoConversacion.Cerrada)
+            .OrderByDescending(c => c.FechaUltimoMensajeUtc)
+            .FirstOrDefault());
+
+    public Task<MensajeCorreo?> ObtenerMensajePorExternoIdAsync(string mensajeExternoId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Conversaciones.SelectMany(c => c.Mensajes).FirstOrDefault(m => m.MensajeExternoId == mensajeExternoId));
+
     public void Agregar(ConversacionCorreo conversacion) => Conversaciones.Add(conversacion);
 }
