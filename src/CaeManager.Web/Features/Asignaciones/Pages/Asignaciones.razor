@@ -24,6 +24,7 @@
 
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por trabajador o centro…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <FiltroEstado Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" />
     </div>
 
     @if (_errorCarga)
@@ -43,18 +44,18 @@
                         @context.TrabajadorNombre
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Centro">
+                <TemplateColumn Title="Centro" Sortable="true" SortBy="@(GridSort<AsignacionListaDto>.ByAscending(a => a.CentroNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
                         @context.CentroNombre
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Cliente">
+                <TemplateColumn Title="Cliente" Sortable="true" SortBy="@(GridSort<AsignacionListaDto>.ByAscending(a => a.ClienteNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteNombre, "informacion")'>
                         @context.ClienteNombre
                     </button>
                 </TemplateColumn>
-                <PropertyColumn Property="@(a => a.FechaAlta)" Format="dd/MM/yyyy" Title="Alta" />
-                <TemplateColumn Title="Estado">
+                <PropertyColumn Property="@(a => a.FechaAlta)" Format="dd/MM/yyyy" Title="Alta" Sortable="true" />
+                <TemplateColumn Title="Estado" Sortable="true" SortBy="@(GridSort<AsignacionListaDto>.ByAscending(a => a.FechaBaja))">
                     @if (context.FechaBaja is null)
                     {
                         <Badge Tono="TonoBadge.Exito">Activa</Badge>

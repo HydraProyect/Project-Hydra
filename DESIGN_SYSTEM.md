@@ -159,6 +159,7 @@ Un único set de iconos **outline** en todo el sistema (trazo 1.75px, sin rellen
 | Modal / DialogoConfirmacion | `src/CaeManager.Web/Components/DesignSystem/Modal.razor`, `DialogoConfirmacion.razor` |
 | Drawer | `src/CaeManager.Web/Components/DesignSystem/Drawer.razor` |
 | SelectorMultiple (checkboxes con buscador + paginación + "solo relacionados") | `src/CaeManager.Web/Components/DesignSystem/SelectorMultiple.razor` |
+| FiltroEstado | `src/CaeManager.Web/Components/DesignSystem/FiltroEstado.razor` (+ `OpcionEstado.cs`) — filtro de estado de una lista, en la barra de filtros y con las opciones de peor a mejor. Las opciones concretas las aporta el `Estado*Ui` de cada entidad, que ya es el único sitio donde un estado se traduce a texto y color; el componente solo fija el sitio, la opción "Todos" y el microcopy. |
 | Layout (barra lateral + barra superior) | `src/CaeManager.Web/Components/Layout/MainLayout.razor`, `NavMenu.razor` |
 | DataTable | Se adopta `Microsoft.AspNetCore.Components.QuickGrid` (oficial de .NET) en vez de reimplementar ordenamiento/paginación — se tematiza con la clase compartida `tabla-datos` (`wwwroot/css/list-page.css`), consumida tanto por QuickGrid como por tablas HTML simples. |
 | SeccionColapsable (Accordion) | `src/CaeManager.Web/Components/DesignSystem/SeccionColapsable.razor` — cabecera con título + contenido opcional (Badge de estado) + chevron, colapsada por defecto. |
