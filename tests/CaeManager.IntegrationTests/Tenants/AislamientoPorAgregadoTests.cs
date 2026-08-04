@@ -13,6 +13,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Incidencias;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.RequisitosDocumentales;
@@ -32,7 +33,7 @@ namespace CaeManager.IntegrationTests.Tenants;
 
 /// <summary>
 /// Cierre de la Etapa 5 de PLAN-MIGRACION-MULTITENANT.md: test de
-/// aislamiento por cada uno de los <b>39</b> tipos que heredan de
+/// aislamiento por cada uno de los <b>42</b> tipos que heredan de
 /// <c>EntidadConTenant</c>/<c>EntidadBase</c> — uno por cada línea de
 /// <c>HasQueryFilter</c> de <c>CaeManagerDbContext</c>, sin excepciones
 /// (regla de docs/MULTITENANCY.md § 9 — "los tests de aislamiento se
@@ -441,6 +442,50 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     public Task Aislamiento_RegistroActividadSoporte() => VerificarAislamientoAsync(
         () => new RegistroActividadSoporte(
             Guid.NewGuid(), Guid.NewGuid(), TipoActividadSoporte.Navegacion, "/documentos"));
+
+    [Fact]
+    public async Task Aislamiento_LineaWhatsApp()
+    {
+        var conexionId = Guid.Empty;
+
+        await VerificarAislamientoAsync(
+            () => new LineaWhatsApp(conexionId, $"pni-{Interlocked.Increment(ref _contadorSiembra)}", "waba-1",
+                "+34600000001", "token-de-prueba", ModoAsignacionLinea.PoolInbound),
+            async contexto => conexionId = await SembrarConexionIntegracionAsync(contexto));
+    }
+
+    [Fact]
+    public async Task Aislamiento_MiembroPoolLinea()
+    {
+        var lineaId = Guid.Empty;
+
+        await VerificarAislamientoAsync(
+            () => new MiembroPoolLinea(lineaId, Guid.NewGuid()),
+            async contexto => lineaId = await SembrarLineaWhatsAppAsync(contexto));
+    }
+
+    [Fact]
+    public Task Aislamiento_ContactoWhatsApp() => VerificarAislamientoAsync(
+        () => new ContactoWhatsApp($"+3460000{Interlocked.Increment(ref _contadorSiembra):D4}", Guid.NewGuid()));
+
+    private static async Task<Guid> SembrarConexionIntegracionAsync(CaeManagerDbContext contexto)
+    {
+        var conexion = new ConexionIntegracion(
+            $"buzon{Interlocked.Increment(ref _contadorSiembra)}@ejemplo.com", $"Conexión {_contadorSiembra}");
+        contexto.ConexionesIntegracion.Add(conexion);
+        await contexto.SaveChangesAsync();
+        return conexion.Id;
+    }
+
+    private static async Task<Guid> SembrarLineaWhatsAppAsync(CaeManagerDbContext contexto)
+    {
+        var conexionId = await SembrarConexionIntegracionAsync(contexto);
+        var linea = new LineaWhatsApp(conexionId, $"pni-semilla-{Interlocked.Increment(ref _contadorSiembra)}",
+            "waba-1", "+34600000002", "token-de-prueba", ModoAsignacionLinea.PoolInbound);
+        contexto.LineasWhatsApp.Add(linea);
+        await contexto.SaveChangesAsync();
+        return linea.Id;
+    }
 
     private static async Task<Guid> SembrarConversacionAsync(CaeManagerDbContext contexto)
     {
