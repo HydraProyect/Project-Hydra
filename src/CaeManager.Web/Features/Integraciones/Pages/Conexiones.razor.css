@@ -1,0 +1,17 @@
+.titulo-seccion-lineas {
+    margin-top: 2.5rem;
+    font-size: 1.15rem;
+}
+
+.texto-secundario {
+    color: var(--color-texto-secundario, #6b7280);
+    font-size: 0.85rem;
+}
+
+.opcion-pool-linea {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+    font-weight: normal;
+}

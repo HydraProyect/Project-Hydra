@@ -244,6 +244,22 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
         }
 
+        // Segundo conector de mensajería: WhatsApp Cloud API (Meta). Mismo
+        // patrón "inerte por defecto": sin AppSecret/VerifyToken no se
+        // registra el consumidor y el webhook rechaza todo. El cliente HTTP
+        // se registra siempre (las pantallas de configuración lo necesitan
+        // para validar el alta aunque el webhook aún no esté configurado).
+        var opcionesWhatsApp = new WhatsAppCloudApiOptions();
+        configuration.GetSection(WhatsAppCloudApiOptions.SeccionConfiguracion).Bind(opcionesWhatsApp);
+        services.Configure<WhatsAppCloudApiOptions>(configuration.GetSection(WhatsAppCloudApiOptions.SeccionConfiguracion));
+
+        services.AddHttpClient<CaeManager.Application.Integraciones.IWhatsAppCloudApiClient, WhatsAppCloudApiClient>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
+
+        if (opcionesWhatsApp.EstaConfigurado)
+            services.AddHostedService<IngestaWebhookWhatsAppHostedService>();
+
         services.AddScoped<IClienteRepository, ClienteRepository>();
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         services.AddScoped<IEmpresaClienteRepository, EmpresaClienteRepository>();
@@ -296,9 +312,15 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ISuscripcionWebhookRepository, SuscripcionWebhookRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IEventoWebhookRepository, EventoWebhookRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.ILineaWhatsAppRepository, LineaWhatsAppRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IContactoWhatsAppRepository, ContactoWhatsAppRepository>();
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
         services.AddScoped<CaeManager.Application.Integraciones.IWebhookTenantResolver, WebhookTenantResolver>();
+        services.AddScoped<CaeManager.Application.Integraciones.IWebhookWhatsAppTenantResolver, WebhookWhatsAppTenantResolver>();
+        services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookWhatsAppService>();
+        services.AddSingleton<CaeManager.Application.Integraciones.ISenalIngestaWhatsApp, SenalIngestaWhatsApp>();
+        services.AddSingleton<CaeManager.Application.Comunicaciones.Eventos.INotificadorMensajesTiempoReal, NotificadorMensajesTiempoReal>();
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Clientes.IClientesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
