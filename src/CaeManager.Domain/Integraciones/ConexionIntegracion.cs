@@ -24,22 +24,31 @@ public class ConexionIntegracion : EntidadBase
     public const int LongitudMaximaUltimoError = 1000;
 
     public Guid? ClienteId { get; private set; }
+
+    /// <summary>Identificador de display de la conexión: el buzón en Microsoft 365, el número E.164 en WhatsApp (deuda nominal documentada — la clave operativa WhatsApp es LineaWhatsApp.PhoneNumberId).</summary>
     public string BuzonEmail { get; private set; } = string.Empty;
+
     public string Nombre { get; private set; } = string.Empty;
     public EstadoConexionIntegracion Estado { get; private set; }
     public string? UltimoError { get; private set; }
     public DateTime FechaConectadaUtc { get; private set; }
 
+    /// <summary>Default Microsoft365: todas las conexiones existentes antes del segundo proveedor (WhatsApp, 2026-08-04) eran de Graph.</summary>
+    public ProveedorIntegracion Proveedor { get; private set; }
+
     private ConexionIntegracion()
     {
     }
 
-    public ConexionIntegracion(string buzonEmail, string nombre, Guid? clienteId = null)
+    public ConexionIntegracion(
+        string buzonEmail, string nombre, Guid? clienteId = null,
+        ProveedorIntegracion proveedor = ProveedorIntegracion.Microsoft365)
     {
         EstablecerBuzonEmail(buzonEmail);
         EstablecerNombre(nombre);
         ClienteId = clienteId;
         Estado = EstadoConexionIntegracion.Habilitada;
+        Proveedor = proveedor;
         FechaConectadaUtc = DateTime.UtcNow;
     }
 
