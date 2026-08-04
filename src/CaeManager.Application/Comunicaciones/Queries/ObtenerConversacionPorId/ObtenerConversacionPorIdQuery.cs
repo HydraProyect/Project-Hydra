@@ -32,7 +32,7 @@ public record SugerenciaGestionDetalleDto(
 public record MensajeDetalleDto(
     Guid Id, DireccionMensaje Direccion, string RemitenteEmail, string CuerpoHtml, DateTime FechaUtc,
     IReadOnlyList<AdjuntoDetalleDto> Adjuntos, SugerenciaVisitaDetalleDto? SugerenciaVisita,
-    SugerenciaGestionDetalleDto? SugerenciaGestion);
+    SugerenciaGestionDetalleDto? SugerenciaGestion, EstadoEntregaMensaje? EstadoEntrega = null, string? ErrorEntrega = null);
 
 public record ParticipanteDetalleDto(
     Guid Id, string Email, RolParticipante Rol, TipoParticipanteOrigen TipoOrigen, Guid? EntidadRelacionadaId);
@@ -47,7 +47,10 @@ public record ConversacionDetalleDto(
     string? Etiquetas,
     DateTime FechaUltimoMensajeUtc,
     IReadOnlyList<MensajeDetalleDto> Mensajes,
-    IReadOnlyList<ParticipanteDetalleDto> Participantes);
+    IReadOnlyList<ParticipanteDetalleDto> Participantes,
+    CanalConversacion Canal = CanalConversacion.Correo,
+    string? TelefonoContacto = null,
+    DateTime? FechaUltimoMensajeEntranteUtc = null);
 
 public class ObtenerConversacionPorIdQueryHandler(
     IClientesQueryContext clientesContext, ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
@@ -75,7 +78,10 @@ public class ObtenerConversacionPorIdQueryHandler(
                 c.Estado,
                 c.EjecutivoAsignadoId,
                 c.Etiquetas,
-                c.FechaUltimoMensajeUtc
+                c.FechaUltimoMensajeUtc,
+                c.Canal,
+                c.TelefonoContacto,
+                c.FechaUltimoMensajeEntranteUtc
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -100,7 +106,7 @@ public class ObtenerConversacionPorIdQueryHandler(
         var mensajesCrudos = await comunicacionesContext.MensajesCorreo
             .Where(m => m.ConversacionCorreoId == request.Id)
             .OrderBy(m => m.FechaUtc)
-            .Select(m => new { m.Id, m.Direccion, m.RemitenteEmail, m.CuerpoHtml, m.FechaUtc })
+            .Select(m => new { m.Id, m.Direccion, m.RemitenteEmail, m.CuerpoHtml, m.FechaUtc, m.EstadoEntrega, m.ErrorEntrega })
             .ToListAsync(cancellationToken);
 
         var adjuntosPorMensaje = (await comunicacionesContext.AdjuntosMensajeCorreo
@@ -153,7 +159,7 @@ public class ObtenerConversacionPorIdQueryHandler(
             .Select(m => new MensajeDetalleDto(
                 m.Id, m.Direccion, m.RemitenteEmail, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
                 adjuntosPorMensaje.GetValueOrDefault(m.Id, []), sugerenciasPorMensaje.GetValueOrDefault(m.Id),
-                sugerenciasGestionPorMensaje.GetValueOrDefault(m.Id)))
+                sugerenciasGestionPorMensaje.GetValueOrDefault(m.Id), m.EstadoEntrega, m.ErrorEntrega))
             .ToList();
 
         var participantes = await comunicacionesContext.ParticipantesConversacion
@@ -164,6 +170,6 @@ public class ObtenerConversacionPorIdQueryHandler(
         return new ConversacionDetalleDto(
             conversacion.Id, conversacion.ClienteId, conversacion.ClienteRazonSocial, conversacion.Asunto,
             conversacion.Estado, conversacion.EjecutivoAsignadoId, conversacion.Etiquetas, conversacion.FechaUltimoMensajeUtc,
-            mensajes, participantes);
+            mensajes, participantes, conversacion.Canal, conversacion.TelefonoContacto, conversacion.FechaUltimoMensajeEntranteUtc);
     }
 }
