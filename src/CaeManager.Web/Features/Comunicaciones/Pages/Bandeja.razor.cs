@@ -150,7 +150,8 @@ public partial class Bandeja : ComponentBase
                 ClienteId: Guid.TryParse(_clienteIdFiltro, out var clienteId) ? clienteId : null,
                 SoloAsignadasAMi: _soloAsignadasAMi,
                 SoloSinAsignar: _soloSinAsignar,
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda));
+                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+                Canal: CanalConversacion.Correo)); // el chat de WhatsApp vive en /comunicaciones/chat
         }
         catch (Exception ex)
         {
