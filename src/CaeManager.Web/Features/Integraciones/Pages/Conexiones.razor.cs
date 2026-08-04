@@ -1,27 +1,52 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
+using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
+using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
+using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Integraciones.Pages;
 
-/// <summary>Administración de conexiones de Microsoft 365 (P3-33) — solo Administrador, ver ConectarMicrosoft365Endpoints para el flujo OAuth.</summary>
+/// <summary>Administración de conexiones de Microsoft 365 (P3-33) y líneas WhatsApp — solo Administrador.</summary>
 public partial class Conexiones : ComponentBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Conexiones> Logger { get; set; } = default!;
+    [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
 
     [SupplyParameterFromQuery] public bool? Conectado { get; set; }
     [SupplyParameterFromQuery] public string? Error { get; set; }
 
+    private record GestorSelectorDto(Guid Id, string NombreCompleto);
+
     private IReadOnlyList<ClienteSelectorDto> _clientes = [];
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
+    private IReadOnlyList<LineaWhatsAppListaDto> _lineas = [];
+    private IReadOnlyList<GestorSelectorDto> _gestores = [];
     private bool _cargando = true;
     private Guid? _clienteSeleccionadoId;
+
+    // --- Modal de línea WhatsApp (alta/edición) ---
+    private bool _modalLineaVisible;
+    private bool _guardandoLinea;
+    private LineaWhatsAppListaDto? _lineaEnEdicion;
+    private string _lineaNombre = string.Empty;
+    private string _lineaNumero = string.Empty;
+    private string _lineaPhoneNumberId = string.Empty;
+    private string _lineaWabaId = string.Empty;
+    private string _lineaToken = string.Empty;
+    private ModoAsignacionLinea _lineaModo = ModoAsignacionLinea.GestorFijo;
+    private Guid? _lineaComercialId;
+    private readonly HashSet<Guid> _lineaMiembros = [];
+    private Guid? _lineaClienteId;
+    private string _lineaMensajeAutoTriage = string.Empty;
 
     private ConexionIntegracionListaDto? _conexionADesconectar;
     private bool _desconectando;
@@ -41,6 +66,10 @@ public partial class Conexiones : ComponentBase
         try
         {
             _clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+
+            var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae);
+            _gestores = gestores.Select(u => new GestorSelectorDto(u.Id, u.NombreCompleto)).ToList();
+
             await CargarConexionesAsync();
         }
         catch (Exception ex)
@@ -57,6 +86,92 @@ public partial class Conexiones : ComponentBase
     private async Task CargarConexionesAsync()
     {
         _conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery());
+        _lineas = await Mediator.Send(new ObtenerLineasWhatsAppQuery());
+    }
+
+    private string DescribirAsignacion(LineaWhatsAppListaDto linea) => linea.Modo switch
+    {
+        ModoAsignacionLinea.GestorFijo =>
+            $"Gestor fijo: {_gestores.FirstOrDefault(g => g.Id == linea.ComercialAsignadoId)?.NombreCompleto ?? "—"}",
+        _ => $"Pool inbound ({linea.MiembrosPool.Count} gestores)",
+    };
+
+    private void AbrirAltaLinea()
+    {
+        _lineaEnEdicion = null;
+        _lineaNombre = _lineaNumero = _lineaPhoneNumberId = _lineaWabaId = _lineaToken = string.Empty;
+        _lineaModo = ModoAsignacionLinea.GestorFijo;
+        _lineaComercialId = null;
+        _lineaMiembros.Clear();
+        _lineaClienteId = null;
+        _lineaMensajeAutoTriage = string.Empty;
+        _modalLineaVisible = true;
+    }
+
+    private void AbrirEdicionLinea(LineaWhatsAppListaDto linea)
+    {
+        _lineaEnEdicion = linea;
+        _lineaToken = string.Empty;
+        _lineaModo = linea.Modo;
+        _lineaComercialId = linea.ComercialAsignadoId;
+        _lineaMiembros.Clear();
+        foreach (var miembro in linea.MiembrosPool) _lineaMiembros.Add(miembro);
+        _lineaMensajeAutoTriage = linea.MensajeAutoTriage ?? string.Empty;
+        _modalLineaVisible = true;
+    }
+
+    private void CerrarModalLinea()
+    {
+        if (_guardandoLinea) return;
+        _modalLineaVisible = false;
+        _lineaEnEdicion = null;
+    }
+
+    private void AlternarMiembroPool(Guid usuarioId, bool marcado)
+    {
+        if (marcado) _lineaMiembros.Add(usuarioId);
+        else _lineaMiembros.Remove(usuarioId);
+    }
+
+    private async Task GuardarLineaAsync()
+    {
+        _guardandoLinea = true;
+        StateHasChanged();
+
+        try
+        {
+            var mensajeAutoTriage = string.IsNullOrWhiteSpace(_lineaMensajeAutoTriage) ? null : _lineaMensajeAutoTriage;
+            var resultadoError = _lineaEnEdicion is null
+                ? (await Mediator.Send(new CrearLineaWhatsAppCommand(
+                    _lineaNombre, _lineaNumero, _lineaPhoneNumberId, _lineaWabaId, _lineaToken, _lineaModo,
+                    _lineaComercialId, _lineaMiembros.ToList(), _lineaClienteId, mensajeAutoTriage)))
+                    is { EsFallido: true } fallosAlta ? fallosAlta.Error : null
+                : (await Mediator.Send(new ActualizarLineaWhatsAppCommand(
+                    _lineaEnEdicion.LineaId, _lineaEnEdicion.Version,
+                    string.IsNullOrWhiteSpace(_lineaToken) ? null : _lineaToken, _lineaModo,
+                    _lineaComercialId, _lineaMiembros.ToList(), mensajeAutoTriage)))
+                    is { EsFallido: true } fallosEdicion ? fallosEdicion.Error : null;
+
+            if (resultadoError is not null)
+            {
+                ToastService.Mostrar(resultadoError.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar(_lineaEnEdicion is null ? "Línea creada." : "Línea actualizada.", TonoToast.Exito);
+            _modalLineaVisible = false;
+            _lineaEnEdicion = null;
+            await CargarConexionesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al guardar la línea de WhatsApp.");
+            ToastService.Mostrar("No pudimos guardar la línea.", TonoToast.Error);
+        }
+        finally
+        {
+            _guardandoLinea = false;
+        }
     }
 
     private async Task DesconectarAsync()

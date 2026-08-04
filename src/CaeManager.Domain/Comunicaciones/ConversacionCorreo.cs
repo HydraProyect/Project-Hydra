@@ -27,6 +27,10 @@ public class ConversacionCorreo : EntidadBase
     public const int LongitudMaximaAsunto = 300;
     public const int LongitudMaximaEtiquetas = 500;
     public const int LongitudMaximaHiloExternoId = 300;
+    public const int LongitudMaximaTelefonoContacto = 20;
+
+    /// <summary>Ventana de servicio de WhatsApp (Meta): fuera de las 24 h desde el último entrante solo se pueden enviar plantillas aprobadas.</summary>
+    public static readonly TimeSpan DuracionVentanaServicio = TimeSpan.FromHours(24);
 
     private readonly List<MensajeCorreo> _mensajes = [];
     private readonly List<ParticipanteConversacion> _participantes = [];
@@ -39,6 +43,13 @@ public class ConversacionCorreo : EntidadBase
     public DateTime FechaUltimoMensajeUtc { get; private set; }
     public Guid? ConexionIntegracionId { get; private set; }
     public string? HiloExternoId { get; private set; }
+    public CanalConversacion Canal { get; private set; }
+
+    /// <summary>Teléfono E.164 del contacto — solo canal WhatsApp. El "hilo" WhatsApp es (ConexionIntegracionId, TelefonoContacto) + estado, no HiloExternoId (su índice único impediría reabrir conversación con el mismo teléfono tras cerrar la anterior).</summary>
+    public string? TelefonoContacto { get; private set; }
+
+    /// <summary>Fecha del último mensaje ENTRANTE — ancla de la ventana de servicio de 24 h de Meta (canal WhatsApp).</summary>
+    public DateTime? FechaUltimoMensajeEntranteUtc { get; private set; }
 
     public IReadOnlyList<MensajeCorreo> Mensajes => _mensajes.AsReadOnly();
     public IReadOnlyList<ParticipanteConversacion> Participantes => _participantes.AsReadOnly();
@@ -53,7 +64,36 @@ public class ConversacionCorreo : EntidadBase
         EstablecerEtiquetas(etiquetas);
         ClienteId = clienteId;
         Estado = EstadoConversacion.Abierta;
+        Canal = CanalConversacion.Correo;
         FechaUltimoMensajeUtc = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Crea una conversación del canal WhatsApp — solo la llama el flujo de
+    /// ingesta del webhook. El ejecutivo llega ya resuelto por el
+    /// enrutamiento híbrido (contacto conocido→gestor de cartera, o modo de
+    /// la línea); null solo si la línea quedó mal configurada (pool vacío).
+    /// </summary>
+    public static ConversacionCorreo CrearWhatsApp(
+        string telefonoContacto, Guid conexionIntegracionId, Guid? clienteId, Guid? ejecutivoId)
+    {
+        if (string.IsNullOrWhiteSpace(telefonoContacto))
+            throw new ArgumentException("La conversación WhatsApp debe tener el teléfono del contacto.", nameof(telefonoContacto));
+        if (conexionIntegracionId == Guid.Empty)
+            throw new ArgumentException("La conversación WhatsApp debe pertenecer a una conexión.", nameof(conexionIntegracionId));
+
+        var telefono = telefonoContacto.Trim();
+        if (telefono.Length > LongitudMaximaTelefonoContacto)
+            throw new ArgumentException($"El teléfono no puede superar {LongitudMaximaTelefonoContacto} caracteres.", nameof(telefonoContacto));
+
+        var conversacion = new ConversacionCorreo($"WhatsApp {telefono}", clienteId)
+        {
+            Canal = CanalConversacion.WhatsApp,
+            TelefonoContacto = telefono,
+            ConexionIntegracionId = conexionIntegracionId,
+            EjecutivoAsignadoId = ejecutivoId
+        };
+        return conversacion;
     }
 
     public MensajeCorreo AgregarMensaje(
@@ -66,8 +106,23 @@ public class ConversacionCorreo : EntidadBase
         if (fecha > FechaUltimoMensajeUtc)
             FechaUltimoMensajeUtc = fecha;
 
+        if (direccion == DireccionMensaje.Entrante &&
+            (FechaUltimoMensajeEntranteUtc is null || fecha > FechaUltimoMensajeEntranteUtc))
+            FechaUltimoMensajeEntranteUtc = fecha;
+
         return mensaje;
     }
+
+    /// <summary>
+    /// True si aún puede enviarse un mensaje libre (texto/imagen) por WhatsApp:
+    /// Meta solo lo permite dentro de las 24 h siguientes al último mensaje
+    /// entrante del contacto; fuera de la ventana solo plantillas aprobadas
+    /// (no soportadas en v1 — el envío se bloquea).
+    /// </summary>
+    public bool VentanaServicioAbierta(DateTime ahoraUtc) =>
+        Canal == CanalConversacion.WhatsApp &&
+        FechaUltimoMensajeEntranteUtc is { } ultimoEntrante &&
+        ahoraUtc - ultimoEntrante < DuracionVentanaServicio;
 
     /// <summary>
     /// Ata el hilo a un buzón conectado (P3-33) — solo la llama el flujo de
