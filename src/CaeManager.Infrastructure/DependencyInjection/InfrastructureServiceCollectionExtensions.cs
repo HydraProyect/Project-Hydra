@@ -296,6 +296,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ISuscripcionWebhookRepository, SuscripcionWebhookRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IEventoWebhookRepository, EventoWebhookRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.ILineaWhatsAppRepository, LineaWhatsAppRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IContactoWhatsAppRepository, ContactoWhatsAppRepository>();
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
         services.AddScoped<CaeManager.Application.Integraciones.IWebhookTenantResolver, WebhookTenantResolver>();
