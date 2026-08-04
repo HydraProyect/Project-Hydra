@@ -64,7 +64,10 @@
             <header class="chat-detalle-cabecera">
                 <div>
                     <strong>@(_detalle.ClienteRazonSocial ?? _detalle.TelefonoContacto)</strong>
-                    <span class="texto-secundario">@_detalle.TelefonoContacto</span>
+                    @if (_detalle.ClienteRazonSocial is not null)
+                    {
+                        <span class="texto-secundario">@_detalle.TelefonoContacto</span>
+                    }
                 </div>
                 <div class="chat-detalle-acciones">
                     @if (_detalle.ClienteId is null)
