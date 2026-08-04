@@ -77,7 +77,7 @@
                         @context.CentroNombre
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Cliente / Empresa">
+                <TemplateColumn Title="Cliente / Empresa" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.ClienteRazonSocial))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
                         @context.ClienteRazonSocial
                     </button>
@@ -86,10 +86,10 @@
                         @context.EmpresaRazonSocial
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Fechas">
+                <TemplateColumn Title="Fechas" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.FechaInicio))">
                     @context.FechaInicio.ToString("dd/MM/yyyy") – @context.FechaFin.ToString("dd/MM/yyyy")
                 </TemplateColumn>
-                <TemplateColumn Title="Origen" Align="Align.Center">
+                <TemplateColumn Title="Origen" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
                     @if (context.Origen == OrigenVisita.Correo)
                     {
                         <Badge Tono="TonoBadge.Info">Correo</Badge>
@@ -112,7 +112,7 @@
                         <Badge Tono="TonoBadge.Peligro">Por gestionar</Badge>
                     }
                 </TemplateColumn>
-                <TemplateColumn Title="Notificado al cliente" Align="Align.Center">
+                <TemplateColumn Title="Notificado al cliente" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
                     <label class="campo-checkbox">
                         <input type="checkbox" checked="@context.NotificadoCliente"
                                @onchange="e => AlternarNotificadoAsync(context.Id, e.Value is bool marcado && marcado)" />

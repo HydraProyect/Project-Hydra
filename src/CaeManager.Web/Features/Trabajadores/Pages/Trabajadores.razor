@@ -10,6 +10,7 @@
 @using CaeManager.Application.Common
 @using FluentValidation
 @using MediatR
+@using CaeManager.Web.Features.Documentos
 @using Microsoft.AspNetCore.Components.QuickGrid
 @inject IMediator Mediator
 @inject ToastService ToastService
@@ -26,6 +27,8 @@
 
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por nombre, apellidos, alias o DNI…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <FiltroEstado Etiqueta="Documentación" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                      Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
         <div class="filtro-empresa">
             <CampoSelect Etiqueta="Empresa" Valor="@_filtroEmpresaId" ValorChanged="FiltrarPorEmpresaAsync">
                 <option value="">Todas las empresas</option>
@@ -91,8 +94,13 @@
                         @context.Nombre
                     </button>
                 </TemplateColumn>
-                <PropertyColumn Property="@(t => t.Dni)" Title="DNI" />
+                <PropertyColumn Property="@(t => t.Dni)" Title="DNI" Sortable="true" />
                 <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="Empresa / Subcontrata" Sortable="true" />
+                <TemplateColumn Title="Documentación" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.EstadoDocumental))">
+                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)">
+                        @EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)
+                    </Badge>
+                </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.Id, NombreCompleto(context), "informacion")'>
                         Ver

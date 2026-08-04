@@ -14,7 +14,8 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 
 public record ObtenerVisitasQuery(
-    string? Busqueda, bool SoloActivas, bool? NotificadoCliente, int Pagina = 1, int TamanoPagina = 20)
+    string? Busqueda, bool SoloActivas, bool? NotificadoCliente, int Pagina = 1, int TamanoPagina = 20,
+    string? OrdenarPor = null, bool Descendente = false)
     : IRequest<ResultadoPaginado<VisitaListaDto>>;
 
 public record VisitaListaDto(
@@ -78,8 +79,34 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICl
 
         var total = await consulta.CountAsync(cancellationToken);
 
-        var pagina = await consulta
-            .OrderBy(x => x.visita.FechaInicio)
+        // Lista blanca de columnas ordenables — ver ObtenerClientesQuery.
+        // DocumentacionCompleta no se ordena aquí: se calcula en memoria más
+        // abajo, después de paginar.
+        var ordenada = (request.OrdenarPor, request.Descendente) switch
+        {
+            (nameof(VisitaListaDto.CentroNombre), false) => consulta.OrderBy(x => x.centro.Nombre),
+            (nameof(VisitaListaDto.CentroNombre), true) => consulta.OrderByDescending(x => x.centro.Nombre),
+            (nameof(VisitaListaDto.ClienteRazonSocial), false) => consulta.OrderBy(x => x.cliente.RazonSocial).ThenBy(x => x.visita.FechaInicio),
+            (nameof(VisitaListaDto.ClienteRazonSocial), true) => consulta.OrderByDescending(x => x.cliente.RazonSocial).ThenBy(x => x.visita.FechaInicio),
+            (nameof(VisitaListaDto.EmpresaRazonSocial), false) => consulta.OrderBy(x => x.empresa.RazonSocial).ThenBy(x => x.visita.FechaInicio),
+            (nameof(VisitaListaDto.EmpresaRazonSocial), true) => consulta.OrderByDescending(x => x.empresa.RazonSocial).ThenBy(x => x.visita.FechaInicio),
+            (nameof(VisitaListaDto.FechaInicio), true) => consulta.OrderByDescending(x => x.visita.FechaInicio),
+            (nameof(VisitaListaDto.FechaFin), false) => consulta.OrderBy(x => x.visita.FechaFin),
+            (nameof(VisitaListaDto.FechaFin), true) => consulta.OrderByDescending(x => x.visita.FechaFin),
+            (nameof(VisitaListaDto.NotificadoCliente), false) => consulta.OrderBy(x => x.visita.NotificadoCliente).ThenBy(x => x.visita.FechaInicio),
+            (nameof(VisitaListaDto.NotificadoCliente), true) => consulta.OrderByDescending(x => x.visita.NotificadoCliente).ThenBy(x => x.visita.FechaInicio),
+            (nameof(VisitaListaDto.Origen), false) => consulta.OrderBy(x => x.visita.Origen).ThenBy(x => x.visita.FechaInicio),
+            (nameof(VisitaListaDto.Origen), true) => consulta.OrderByDescending(x => x.visita.Origen).ThenBy(x => x.visita.FechaInicio),
+            _ => consulta.OrderBy(x => x.visita.FechaInicio)
+        };
+        // Desempate estable: sin un criterio total, PostgreSQL puede devolver
+        // las filas empatadas en distinto orden entre una página y otra, y al
+        // paginar en SQL eso hace que una fila aparezca dos veces o no
+        // aparezca nunca. El Id no se ordena nunca por sí solo — solo cierra
+        // el orden que haya elegido el usuario.
+        ordenada = ordenada.ThenBy(x => x.visita.Id);
+
+        var pagina = await ordenada
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
             .Select(x => new
