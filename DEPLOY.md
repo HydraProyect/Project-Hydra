@@ -139,6 +139,25 @@ Pasos para crear el App Registration en [entra.microsoft.com](https://entra.micr
 
 Las suscripciones de notificaciones de Graph expiran a los ~3 días — `RenovacionSuscripcionWebhookHostedService` las renueva sola cada 24h, no hace falta ninguna intervención manual salvo que el log muestre fallos repetidos de renovación (revisar el estado de la conexión en `/integraciones`, que pasa a "Con error").
 
+### WhatsApp Cloud API (líneas de WhatsApp del chat)
+
+| Variable | Valor | Para qué |
+|---|---|---|
+| `Integraciones__WhatsApp__AppSecret` | App Secret de la app de Meta (App Dashboard → Configuración → Básica) | Verificación de la firma `X-Hub-Signature-256` de cada POST del webhook — sin él, el endpoint rechaza todo con 401 |
+| `Integraciones__WhatsApp__VerifyToken` | un valor aleatorio largo que eliges tú (p. ej. `openssl rand -hex 32`) | El handshake GET de verificación del callback: tiene que coincidir con el que pegues en el App Dashboard |
+| `Integraciones__WhatsApp__VersionApi` | opcional, por defecto `v23.0` | Versión de Graph API de Meta para el envío saliente y la descarga de media |
+
+**Sin `AppSecret` + `VerifyToken`, el consumidor de ingesta de WhatsApp no se registra y el webhook responde 403/401 a todo** — mismo principio "inerte por defecto". El token POR LÍNEA (System User token) no va aquí: se pega al dar de alta la línea en `/integraciones` y se guarda cifrado en base de datos.
+
+Pasos en [developers.facebook.com](https://developers.facebook.com) (app de tipo Business con el producto WhatsApp):
+1. WhatsApp → Configuración → Webhook: URL `https://tu-dominio.up.railway.app/api/integraciones/webhooks/whatsapp`, verify token = el valor de `Integraciones__WhatsApp__VerifyToken`, y suscribir el campo **`messages`** (trae mensajes entrantes y statuses de entrega). La URL es única para todas las líneas: el sistema identifica la línea receptora por el `phone_number_id` del payload.
+2. Crear un **System User** en Meta Business Suite con acceso a la WABA y generar un token de larga duración con permisos `whatsapp_business_messaging` y `whatsapp_business_management` — ese token es el que se pega por línea en `/integraciones`.
+3. Por cada línea, anotar su **Phone Number ID** y **WABA ID** (WhatsApp → Configuración de API) — se piden en el alta de la línea.
+
+**Antes de usar una línea con contactos reales**, confirma que el DPA declara este canal — la ingesta de mensajes y teléfonos de contacto es tratamiento de datos personales por cuenta del tenant, igual que el conector de Microsoft 365 (ver `RGPD-TRATAMIENTO-DATOS.md`).
+
+Recordatorio de pricing de Meta (por mensaje, desde jul-2025): recibir es gratis; responder con texto libre es gratis **solo dentro de la ventana de 24 h** abierta por el último mensaje del contacto (la UI y el servidor bloquean el envío fuera de ella); reabrir fuera de ventana exige plantillas aprobadas (no soportadas en v1).
+
 ### Datos de prueba para pruebas de carga y verificación de perfiles
 
 Con `DatosPrueba__Activo=true`, el primer arranque siembra automáticamente (solo si todavía no hay ningún Cliente — no duplica en redeploys posteriores) una cartera con la forma de un cliente fundador real — Clientes con varias Empresas contratistas cada uno, Empresas con varios Centros y Trabajadores, documentación estándar completa con fechas de vencimiento repartidas entre vencido/urgente/próximo/vigente, y datos ya preparados para probar la purga de retención (ver `ROADMAP.md` § Fase 62 para el detalle exacto y los números). Nombres de personas, empresas y lugares son de ficción a propósito, para que nada de la siembra se confunda con un dato real.
