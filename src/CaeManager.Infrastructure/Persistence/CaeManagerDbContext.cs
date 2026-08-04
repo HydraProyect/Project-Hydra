@@ -205,6 +205,12 @@ public class CaeManagerDbContext(
     public DbSet<CredencialIntegracion> CredencialesIntegracion => Set<CredencialIntegracion>();
     public DbSet<SuscripcionWebhook> SuscripcionesWebhook => Set<SuscripcionWebhook>();
     public DbSet<EventoWebhook> EventosWebhook => Set<EventoWebhook>();
+    public DbSet<LineaWhatsApp> LineasWhatsApp => Set<LineaWhatsApp>();
+    IQueryable<LineaWhatsApp> IIntegracionesQueryContext.LineasWhatsApp => LineasWhatsApp;
+    public DbSet<MiembroPoolLinea> MiembrosPoolLinea => Set<MiembroPoolLinea>();
+    IQueryable<MiembroPoolLinea> IIntegracionesQueryContext.MiembrosPoolLinea => MiembrosPoolLinea;
+    public DbSet<ContactoWhatsApp> ContactosWhatsApp => Set<ContactoWhatsApp>();
+    IQueryable<ContactoWhatsApp> IComunicacionesQueryContext.ContactosWhatsApp => ContactosWhatsApp;
 
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -244,6 +250,10 @@ public class CaeManagerDbContext(
 
         builder.Entity<CredencialIntegracion>().Property(c => c.RefreshToken).HasConversion(conversorCredencialesIntegracion);
         builder.Entity<SuscripcionWebhook>().Property(s => s.ClientState).HasConversion(conversorCredencialesIntegracion);
+        // El System User token de WhatsApp vive bajo el mismo agregado
+        // (LineaWhatsApp es satélite de ConexionIntegracion) — mismo
+        // protector, mismo criterio que RefreshToken/ClientState.
+        builder.Entity<LineaWhatsApp>().Property(l => l.TokenAcceso).HasConversion(conversorCredencialesIntegracion);
 
         builder.Entity<IdentityRole<Guid>>().HasData(IdentityRoleSeedData.Filas());
 

@@ -11,4 +11,5 @@ public interface IComunicacionesQueryContext
     IQueryable<AdjuntoMensajeCorreo> AdjuntosMensajeCorreo { get; }
     IQueryable<SugerenciaVisitaCorreo> SugerenciasVisitaCorreo { get; }
     IQueryable<SugerenciaGestionCorreo> SugerenciasGestionCorreo { get; }
+    IQueryable<ContactoWhatsApp> ContactosWhatsApp { get; }
 }
