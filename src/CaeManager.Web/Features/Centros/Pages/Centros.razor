@@ -28,6 +28,8 @@
 
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por nombre…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <FiltroEstado Etiqueta="Cumplimiento" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                      Opciones="EstadoCentroUi.Opciones" />
     </div>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -58,9 +60,9 @@
                     </button>
                 </TemplateColumn>
                 <PropertyColumn Property="@(c => c.ClienteRazonSocial)" Title="Cliente" Sortable="true" />
-                <PropertyColumn Property="@(c => c.EmpresaRazonSocial)" Title="Empresa" />
-                <PropertyColumn Property="@(c => c.CodigoCentro)" Title="Código" />
-                <TemplateColumn Title="Cumplimiento">
+                <PropertyColumn Property="@(c => c.EmpresaRazonSocial)" Title="Empresa" Sortable="true" />
+                <PropertyColumn Property="@(c => c.CodigoCentro)" Title="Código" Sortable="true" />
+                <TemplateColumn Title="Cumplimiento" Sortable="true" SortBy="@(GridSort<CentroListaDto>.ByAscending(c => c.Estado))">
                     <Badge Tono="EstadoCentroUi.Tono(context.Estado)">@EstadoCentroUi.Texto(context.Estado)</Badge>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">

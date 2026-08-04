@@ -54,7 +54,7 @@
                     </ChildContent>
                 </TemplateColumn>
                 <PropertyColumn Property="@(s => s.RazonSocial)" Sortable="true" />
-                <PropertyColumn Property="@(s => s.Cif)" Title="CIF" />
+                <PropertyColumn Property="@(s => s.Cif)" Title="CIF" Sortable="true" />
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, context.Id, context.RazonSocial, "informacion")'>
                         Ver
