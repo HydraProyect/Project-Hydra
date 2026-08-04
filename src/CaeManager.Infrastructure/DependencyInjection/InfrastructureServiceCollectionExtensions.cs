@@ -244,6 +244,19 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
         }
 
+        // Segundo conector de mensajería: WhatsApp Cloud API (Meta). Mismo
+        // patrón "inerte por defecto": sin AppSecret/VerifyToken no se
+        // registra el consumidor y el webhook rechaza todo. El cliente HTTP
+        // se registra siempre (las pantallas de configuración lo necesitan
+        // para validar el alta aunque el webhook aún no esté configurado).
+        var opcionesWhatsApp = new WhatsAppCloudApiOptions();
+        configuration.GetSection(WhatsAppCloudApiOptions.SeccionConfiguracion).Bind(opcionesWhatsApp);
+        services.Configure<WhatsAppCloudApiOptions>(configuration.GetSection(WhatsAppCloudApiOptions.SeccionConfiguracion));
+
+        services.AddHttpClient<CaeManager.Application.Integraciones.IWhatsAppCloudApiClient, WhatsAppCloudApiClient>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
+
         services.AddScoped<IClienteRepository, ClienteRepository>();
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         services.AddScoped<IEmpresaClienteRepository, EmpresaClienteRepository>();
