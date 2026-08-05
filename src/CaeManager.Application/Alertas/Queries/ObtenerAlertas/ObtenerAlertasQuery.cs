@@ -13,13 +13,15 @@ namespace CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 
 /// <summary>
 /// Se calcula en vivo sobre Documentos en cada petición, en vez de leer de
-/// una tabla Alerta sincronizada por un job en segundo plano — todavía no
-/// existe infraestructura de jobs programados en el proyecto, y una vista
+/// una tabla Alerta sincronizada por un job en segundo plano — una vista
 /// calculada nunca puede desincronizarse del estado real (ver ROADMAP.md).
 /// La entidad Alerta del dominio queda preparada para cuando se necesite
-/// marcar alertas como leídas por usuario. Solo cubre Documentos de
-/// Trabajador — los de Cliente/Empresa (ver Documento.Ambito) no generan
-/// alerta todavía; ampliar esta vista queda fuera de alcance por ahora.
+/// marcar alertas como leídas por usuario. <c>EnvioAlertasVencimientoHostedService</c>
+/// (Infrastructure, Issue #2) sí llama a esto periódicamente para el resumen
+/// por correo, pero sigue siendo cálculo en vivo en cada ejecución — no una
+/// tabla propia. Solo cubre Documentos de Trabajador — los de Cliente/Empresa
+/// (ver Documento.Ambito) no generan alerta todavía; ampliar esta vista queda
+/// fuera de alcance por ahora.
 ///
 /// P1-15 de docs/business/MATURITY_REVIEW.md añade el segundo bloque:
 /// "documento faltante" — un Trabajador con Asignación activa a un Centro
@@ -51,14 +53,33 @@ public class ObtenerAlertasQueryHandler(
     ITrabajadoresQueryContext trabajadoresContext,
     IAsignacionesQueryContext asignacionesContext,
     ICentrosQueryContext centrosContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    IDocumentosFaltantesService documentosFaltantesService)
     : IRequestHandler<ObtenerAlertasQuery, IReadOnlyList<AlertaDto>>
 {
     public async Task<IReadOnlyList<AlertaDto>> Handle(ObtenerAlertasQuery request, CancellationToken cancellationToken)
     {
+        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+
+        return await CalcularAsync(trabajadorIdsVisibles, centroIdsVisibles, cancellationToken);
+    }
+
+    /// <summary>
+    /// Punto de entrada explícito (sin pasar por MediatR ni por
+    /// <see cref="IAlcanceDatosService"/>, que depende del usuario de la
+    /// sesión actual y no existe fuera de una petición HTTP/circuito) para
+    /// quien ya sabe qué alcance quiere aplicar — <c>null</c> en cualquiera
+    /// de los dos significa "sin restricción". Usado por
+    /// <c>EnvioAlertasVencimientoHostedService</c> (Infrastructure) para un
+    /// resumen diario por correo sin cartera, dentro de un
+    /// <c>AmbitoTenantExplicito</c> ya establecido por tenant.
+    /// </summary>
+    public async Task<IReadOnlyList<AlertaDto>> CalcularAsync(
+        IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
+    {
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
-        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
         var vigenciaFilas = await (
             from documento in documentosContext.Documentos
@@ -88,7 +109,7 @@ public class ObtenerAlertasQueryHandler(
                 f.ArchivoUrl, CentroNombre: null))
             .Where(a => a.Estado is EstadoDocumento.Proximo or EstadoDocumento.Urgente or EstadoDocumento.Vencido);
 
-        var alertasFaltantes = await ObtenerFaltantesAsync(trabajadorIdsVisibles, cancellationToken);
+        var alertasFaltantes = await ObtenerFaltantesAsync(trabajadorIdsVisibles, centroIdsVisibles, cancellationToken);
 
         return alertasVigencia
             .Concat(alertasFaltantes)
@@ -104,36 +125,14 @@ public class ObtenerAlertasQueryHandler(
     }
 
     /// <summary>
-    /// Todo el cálculo en memoria (catálogo + asignaciones + documentos ya
-    /// existentes, volumen acotado por tenant) en vez de una única consulta
-    /// LINQ con anti-join — más fácil de razonar sin poder compilar en local,
-    /// y coherente con el resto de esta Query, que ya no aspira a traducirse
-    /// a un único SELECT.
+    /// Delegado en <see cref="IDocumentosFaltantesService"/> (Fase B5): la
+    /// misma regla de "qué le falta a un Trabajador en un Centro" que ahora
+    /// también usa el preflight de asignación en lote — antes vivía
+    /// duplicada en un método privado de esta clase.
     /// </summary>
     private async Task<List<AlertaDto>> ObtenerFaltantesAsync(
-        IReadOnlyList<Guid>? trabajadorIdsVisibles, CancellationToken cancellationToken)
+        IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
     {
-        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
-
-        var tiposObligatorios = await tiposDocumentoContext.TiposDocumento
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && t.EsObligatorio)
-            .Select(t => new { t.Id, t.Nombre })
-            .ToListAsync(cancellationToken);
-
-        if (tiposObligatorios.Count == 0)
-            return [];
-
-        var tipoIdsObligatorios = tiposObligatorios.Select(t => t.Id).ToHashSet();
-
-        // Centros a los que restringe cada tipo. Un tipo sin ninguna fila
-        // aquí aplica a todos los Centros (ver comentario de TipoDocumentoCentro).
-        var restriccionesPorTipo = (await tiposDocumentoContext.TiposDocumentoCentros
-            .Where(tc => tipoIdsObligatorios.Contains(tc.TipoDocumentoId))
-            .Select(tc => new { tc.TipoDocumentoId, tc.CentroId })
-            .ToListAsync(cancellationToken))
-            .GroupBy(tc => tc.TipoDocumentoId)
-            .ToDictionary(g => g.Key, g => g.Select(tc => tc.CentroId).ToHashSet());
-
         var asignacionesActivas = await (
             from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null
@@ -154,44 +153,23 @@ public class ObtenerAlertasQueryHandler(
         if (asignacionesActivas.Count == 0)
             return [];
 
-        var trabajadorIdsConAsignacion = asignacionesActivas.Select(a => a.TrabajadorId).ToHashSet();
+        var parejas = asignacionesActivas
+            .Select(a => new ParejaTrabajadorCentro(a.TrabajadorId, a.TrabajadorNombre, a.CentroId, a.Nombre))
+            .ToList();
 
-        var documentosExistentes = await documentosContext.Documentos
-            .Where(d => d.TrabajadorId != null
-                && trabajadorIdsConAsignacion.Contains(d.TrabajadorId!.Value)
-                && tipoIdsObligatorios.Contains(d.TipoDocumentoId))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId })
-            .ToListAsync(cancellationToken);
+        var faltantes = await documentosFaltantesService.CalcularAsync(parejas, cancellationToken);
 
-        var parejasConDocumento = documentosExistentes
-            .Select(d => (d.TrabajadorId, d.TipoDocumentoId))
-            .ToHashSet();
-
-        var faltantes = new List<AlertaDto>();
-        foreach (var asignacion in asignacionesActivas)
-        {
-            foreach (var tipo in tiposObligatorios)
-            {
-                if (restriccionesPorTipo.TryGetValue(tipo.Id, out var centrosPermitidos)
-                    && !centrosPermitidos.Contains(asignacion.CentroId))
-                    continue;
-
-                if (parejasConDocumento.Contains((asignacion.TrabajadorId, tipo.Id)))
-                    continue;
-
-                faltantes.Add(new AlertaDto(
-                    DocumentoId: null,
-                    asignacion.TrabajadorId,
-                    asignacion.TrabajadorNombre,
-                    tipo.Id,
-                    tipo.Nombre,
-                    FechaVencimiento: null,
-                    EstadoDocumento.Faltante,
-                    ArchivoUrl: null,
-                    asignacion.Nombre));
-            }
-        }
-
-        return faltantes;
+        return faltantes
+            .Select(f => new AlertaDto(
+                DocumentoId: null,
+                f.TrabajadorId,
+                f.TrabajadorNombre,
+                f.TipoDocumentoId,
+                f.TipoDocumentoNombre,
+                FechaVencimiento: null,
+                EstadoDocumento.Faltante,
+                ArchivoUrl: null,
+                f.CentroNombre))
+            .ToList();
     }
 }

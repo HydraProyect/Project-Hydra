@@ -31,7 +31,7 @@ public class EditarClienteConcurrenciaTests
         var versionQueViola = Guid.NewGuid();
         versionQueViola.Should().NotBe(cliente.Version);
 
-        var handler = new EditarClienteCommandHandler(repositorio, unitOfWork);
+        var handler = new EditarClienteCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new EditarClienteCommand(cliente.Id, "Pisada S.L.", "B12345674", true, null, versionQueViola),
@@ -51,7 +51,7 @@ public class EditarClienteConcurrenciaTests
         repositorio.Agregar(cliente);
         var unitOfWork = new UnitOfWorkFalso();
 
-        var handler = new EditarClienteCommandHandler(repositorio, unitOfWork);
+        var handler = new EditarClienteCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new EditarClienteCommand(cliente.Id, "Editada S.L.", "B12345674", true, null, cliente.Version),
@@ -71,7 +71,7 @@ public class EditarClienteConcurrenciaTests
         repositorio.Agregar(cliente);
         var unitOfWork = new UnitOfWorkFalso();
 
-        var handler = new EditarClienteCommandHandler(repositorio, unitOfWork);
+        var handler = new EditarClienteCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new EditarClienteCommand(cliente.Id, "Editada Sin Version S.L.", "B12345674", false, null),

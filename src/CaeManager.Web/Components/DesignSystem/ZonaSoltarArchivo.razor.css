@@ -1,0 +1,92 @@
+.zona-soltar-archivo {
+    position: relative;
+    border: 2px dashed var(--color-neutral-300);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    transition: border-color var(--transition-base), background-color var(--transition-base);
+}
+
+.zona-soltar-archivo:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.zona-soltar-archivo-activa {
+    border-color: var(--color-primary-400);
+    background: var(--color-primary-50);
+}
+
+.zona-soltar-archivo-deshabilitada {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.zona-soltar-archivo-superficie {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-8) var(--space-4);
+    cursor: pointer;
+    text-align: center;
+}
+
+.zona-soltar-archivo-icono {
+    display: inline-flex;
+    color: var(--color-primary-400);
+    margin-bottom: var(--space-1);
+}
+
+.zona-soltar-archivo-titulo {
+    font: var(--font-body-lg);
+    font-weight: 700;
+    color: var(--color-text);
+    margin: 0;
+}
+
+.zona-soltar-archivo-subtitulo {
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.zona-soltar-archivo-enlace {
+    color: var(--color-primary-500);
+    font-weight: 600;
+}
+
+.zona-soltar-archivo-subtitulo kbd {
+    font: var(--font-body-sm);
+    background: var(--color-neutral-100);
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: 0 var(--space-1);
+}
+
+.zona-soltar-archivo-formatos {
+    font: var(--font-body-sm);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-neutral-400);
+    margin: var(--space-1) 0 0;
+}
+
+/* Oculto visualmente pero accesible (foco/teclado/lectores de pantalla) — el
+   <label for> de arriba ya cubre "clic en cualquier parte abre el selector",
+   así que el input no necesita ser el elemento clicado directamente. */
+.zona-soltar-archivo-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

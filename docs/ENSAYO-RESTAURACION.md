@@ -17,7 +17,7 @@ El ensayo requiere las credenciales de AWS del bucket de backups y acceso a un b
 | **RPO** (pérdida máxima de datos) | **24 horas** | Es el intervalo actual de `Backups:IntervaloHoras`. Ratificarlo = aceptar que un día de trabajo de documentación CAE es re-introducible. Si no es aceptable para un tenant de pago, bajar el intervalo (el backup con `pg_dump --format=custom` no bloquea al servidor) o pasar a WAL archiving — decisión de coste/operación. |
 | **RTO** (tiempo máximo de recuperación) | **4 horas laborables** | Procedimiento manual siguiendo `RUNBOOK-CLAVES.md` + este ensayo: localizar backup, restaurar dump + claves juntos, redeploy y verificación. Sin on-call, fuera de horario laboral el RTO real es "hasta la mañana siguiente" — eso debe decirse tal cual en el SLA/Términos de Uso (P0-4), no maquillarse aquí. |
 
-La cola de análisis de IA es en memoria y **queda fuera del RPO**: los encargos pendientes se pierden en cualquier reinicio (P2-22 del informe la haría durable). El usuario puede relanzar el análisis desde la ficha del documento.
+La cola de análisis de IA es durable desde P2-22 (`ITrabajoAnalisisDocumentoRepository`, consumida por `ProcesadorAnalisisDocumentoHostedService`): un reinicio del proceso ya no pierde los encargos pendientes, quedan en Postgres y se retoman al arrancar. El usuario puede además relanzar el análisis desde la ficha del documento.
 
 ## Registro de ensayos
 

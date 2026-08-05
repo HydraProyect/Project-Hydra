@@ -1,3 +1,4 @@
+using CaeManager.Application.Alertas;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -69,7 +70,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
     public async Task Un_tipo_obligatorio_sin_ningun_documento_genera_alerta_de_faltante()
     {
         await using var contexto = CrearContexto();
-        var handler = new ObtenerAlertasQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerAlertasQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(contexto, contexto));
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 
@@ -91,7 +92,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         }
 
         await using var lectura = CrearContexto();
-        var handler = new ObtenerAlertasQueryHandler(lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerAlertasQueryHandler(lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(lectura, lectura));
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 
@@ -109,7 +110,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         }
 
         await using var lectura = CrearContexto();
-        var handler = new ObtenerAlertasQueryHandler(lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerAlertasQueryHandler(lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(lectura, lectura));
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 
