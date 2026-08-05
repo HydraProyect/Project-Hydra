@@ -80,6 +80,10 @@ El modelo de negocio es la raíz: el ICP nace de él (a quién le sirve ese mode
 
 `docs/business/legal/` contiene el inventario y los borradores del paquete legal público que Hydra necesita para lanzar comercialmente (Aviso Legal, Política de Privacidad, DPA, Términos y Condiciones, y el resto de piezas de `docs/business/legal/LEGAL_FRAMEWORK.md` § 1). Son borradores de trabajo, no texto legal final — ver `docs/business/legal/README.md` para el estado de cada pieza y qué requiere revisión legal antes de poder considerarse cerrada.
 
+## Investigación de mercado Inbound
+
+`docs/business/inbound/` contiene investigación externa sobre el mercado español de plataformas Inbound (CAE: Nalanda, CTAIMA, Dokify...) — catálogo de plataformas, glosario y dominio funcional visto desde fuera, huecos de mercado y una propuesta de modelo canónico de conectores. Es investigación sin confirmar, no decisiones de producto: donde choca con `UBIQUITOUS_LANGUAGE.md`, `DOMAIN.md`, `ARQUITECTURA-INTEGRACIONES.md` o `COMPETITOR_ANALYSIS.md`, esos documentos ganan siempre — ver `docs/business/inbound/README.md` § "Regla de lectura" para el detalle completo.
+
 ## Reglas de esta carpeta
 
 - Esta carpeta es la fuente oficial de toda decisión comercial. Ningún otro documento del repositorio debe definir pricing, planes, unit economics, ICP, competencia o roadmap comercial — debe referenciar el documento correspondiente aquí.
