@@ -324,7 +324,7 @@
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
     Titulo="@($"¿Eliminar este documento?")"
-    Mensaje="@($"{_tipoDocumentoAEliminar} de {_propietarioAEliminar} se ocultará de las listas activas. Podrás recuperarlo desde Auditoría.")"
+    Mensaje="@($"{_tipoDocumentoAEliminar} de {_propietarioAEliminar} se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá.")"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
