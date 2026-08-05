@@ -7,7 +7,8 @@ using MediatR;
 namespace CaeManager.Application.RequisitosDocumentales.Commands.EditarRequisitoDocumental;
 
 public record EditarRequisitoDocumentalCommand(
-    Guid Id, string Descripcion, string? PeriodicidadEspecial, bool BloqueaAcceso, string? Notas, Guid Version = default)
+    Guid Id, string Descripcion, string? PeriodicidadEspecial, bool BloqueaAcceso, string? Notas, Guid Version = default,
+    string? ArchivoUrl = null, string? NombreArchivoOriginal = null)
     : ICommand;
 
 public class EditarRequisitoDocumentalCommandValidator : AbstractValidator<EditarRequisitoDocumentalCommand>
@@ -20,6 +21,8 @@ public class EditarRequisitoDocumentalCommandValidator : AbstractValidator<Edita
             .MaximumLength(RequisitoDocumental.LongitudMaximaDescripcion);
         RuleFor(c => c.PeriodicidadEspecial).MaximumLength(RequisitoDocumental.LongitudMaximaPeriodicidad);
         RuleFor(c => c.Notas).MaximumLength(RequisitoDocumental.LongitudMaximaNotas);
+        RuleFor(c => c.ArchivoUrl).MaximumLength(RequisitoDocumental.LongitudMaximaArchivoUrl);
+        RuleFor(c => c.NombreArchivoOriginal).MaximumLength(RequisitoDocumental.LongitudMaximaNombreArchivo);
     }
 }
 
@@ -36,7 +39,9 @@ public class EditarRequisitoDocumentalCommandHandler(
         if (ConcurrenciaOptimista.Verificar(requisito, request.Version, "este requisito") is { } conflicto)
             return Result.Fallo(conflicto);
 
-        requisito.Actualizar(request.Descripcion, request.PeriodicidadEspecial, request.BloqueaAcceso, request.Notas);
+        requisito.Actualizar(
+            request.Descripcion, request.PeriodicidadEspecial, request.BloqueaAcceso, request.Notas,
+            request.ArchivoUrl, request.NombreArchivoOriginal);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

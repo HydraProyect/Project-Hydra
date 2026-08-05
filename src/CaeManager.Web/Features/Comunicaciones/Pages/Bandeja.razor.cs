@@ -2,11 +2,17 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
 using CaeManager.Application.Comunicaciones.Commands.AsignarEjecutivoConversacion;
+using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
+using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaGestion;
+using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaVisita;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
+using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
+using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
@@ -14,6 +20,7 @@ using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Infrastructure.Autorizacion;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Comunicaciones.Pages;
@@ -54,10 +61,14 @@ public partial class Bandeja : ComponentBase
     private bool _cargandoDetalle;
     private ClienteDetalleDto? _clienteActivo;
     private IReadOnlyList<MacroListaDto> _macrosDisponibles = [];
+    private IReadOnlyList<CentroSelectorDto> _centrosClienteActivo = [];
 
     private string _textoRespuesta = string.Empty;
     private string _macroSeleccionadaId = string.Empty;
+    private string _centroFormatosSeleccionado = string.Empty;
     private bool _enviandoRespuesta;
+    private readonly List<AdjuntoParaEnviarDto> _adjuntosPendientes = [];
+    private string? _errorAdjuntos;
     private string _ejecutivoSeleccionado = string.Empty;
     private bool _cambiandoEjecutivo;
     private bool _cambiandoEstado;
@@ -139,7 +150,8 @@ public partial class Bandeja : ComponentBase
                 ClienteId: Guid.TryParse(_clienteIdFiltro, out var clienteId) ? clienteId : null,
                 SoloAsignadasAMi: _soloAsignadasAMi,
                 SoloSinAsignar: _soloSinAsignar,
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda));
+                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+                Canal: CanalConversacion.Correo)); // el chat de WhatsApp vive en /comunicaciones/chat
         }
         catch (Exception ex)
         {
@@ -214,6 +226,9 @@ public partial class Bandeja : ComponentBase
         _textoRespuesta = string.Empty;
         _macroSeleccionadaId = string.Empty;
         _clienteTriageSeleccionado = string.Empty;
+        _adjuntosPendientes.Clear();
+        _errorAdjuntos = null;
+        _centroFormatosSeleccionado = string.Empty;
         StateHasChanged();
 
         try
@@ -225,11 +240,13 @@ public partial class Bandeja : ComponentBase
             {
                 _clienteActivo = await Mediator.Send(new ObtenerClientePorIdQuery(_detalle.ClienteId.Value));
                 _macrosDisponibles = await Mediator.Send(new ObtenerMacrosQuery(_detalle.ClienteId));
+                _centrosClienteActivo = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(ClienteId: _detalle.ClienteId));
             }
             else
             {
                 _clienteActivo = null;
                 _macrosDisponibles = [];
+                _centrosClienteActivo = [];
             }
         }
         catch (Exception ex)
@@ -255,14 +272,70 @@ public partial class Bandeja : ComponentBase
         }
     }
 
+    /// <summary>Genera el resumen de documentación exigida por el Centro elegido y lo añade a la respuesta en curso — mismo patrón de prellenado que AplicarMacro.</summary>
+    private async Task CompartirFormatosCentroAsync(string centroIdTexto)
+    {
+        _centroFormatosSeleccionado = centroIdTexto;
+        if (!Guid.TryParse(centroIdTexto, out var centroId)) return;
+
+        try
+        {
+            var formatos = await Mediator.Send(new ObtenerFormatosRequeridosCentroQuery(centroId));
+            if (formatos is null)
+            {
+                ToastService.Mostrar("Este centro no tiene requisitos documentales configurados.", TonoToast.Info);
+                return;
+            }
+
+            _textoRespuesta = string.IsNullOrWhiteSpace(_textoRespuesta) ? formatos : $"{_textoRespuesta}{formatos}";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al generar los formatos requeridos del centro {CentroId}.", centroId);
+            ToastService.Mostrar("No pudimos generar el resumen de documentación. Intenta nuevamente.", TonoToast.Error);
+        }
+    }
+
+    /// <summary>
+    /// Mismo tope que valida `ResponderConversacionCommand` del lado del
+    /// servidor (`LimitesAdjuntosCorreo`) — comprobarlo aquí también evita
+    /// que el usuario rellene el formulario entero antes de enterarse de
+    /// que el conjunto de archivos no cabe.
+    /// </summary>
+    private async Task ManejarArchivosAdjuntosAsync(InputFileChangeEventArgs e)
+    {
+        _errorAdjuntos = null;
+        const int maximoArchivos = 5;
+
+        foreach (var archivo in e.GetMultipleFiles(maximoArchivos))
+        {
+            await using var flujo = archivo.OpenReadStream(LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes);
+            using var memoria = new MemoryStream();
+            await flujo.CopyToAsync(memoria);
+            _adjuntosPendientes.Add(new AdjuntoParaEnviarDto(archivo.Name, archivo.ContentType, memoria.ToArray()));
+        }
+
+        if (_adjuntosPendientes.Sum(a => a.Contenido.LongLength) > LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes)
+            _errorAdjuntos = "Los adjuntos superan los 3 MB en total — quita alguno antes de enviar.";
+    }
+
+    private void QuitarAdjuntoPendiente(AdjuntoParaEnviarDto adjunto)
+    {
+        _adjuntosPendientes.Remove(adjunto);
+        if (_adjuntosPendientes.Sum(a => a.Contenido.LongLength) <= LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes)
+            _errorAdjuntos = null;
+    }
+
     private async Task EnviarRespuestaAsync()
     {
         if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta)) return;
+        if (_errorAdjuntos is not null) return;
 
         _enviandoRespuesta = true;
         try
         {
-            var resultado = await Mediator.Send(new ResponderConversacionCommand(_conversacionSeleccionadaId.Value, _textoRespuesta));
+            var resultado = await Mediator.Send(new ResponderConversacionCommand(
+                _conversacionSeleccionadaId.Value, _textoRespuesta, _adjuntosPendientes.Count > 0 ? _adjuntosPendientes.ToList() : null));
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -271,6 +344,7 @@ public partial class Bandeja : ComponentBase
 
             _textoRespuesta = string.Empty;
             _macroSeleccionadaId = string.Empty;
+            _adjuntosPendientes.Clear();
             ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
 
             await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
@@ -358,11 +432,100 @@ public partial class Bandeja : ComponentBase
         }
     }
 
+    private void IrACrearVisitaDesdeSugerencia(Guid sugerenciaId) =>
+        NavigationManager.NavigateTo($"/visitas?sugerenciaId={sugerenciaId}");
+
+    private async Task DescartarSugerenciaVisitaAsync(Guid sugerenciaId)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new DescartarSugerenciaVisitaCorreoCommand(sugerenciaId));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            if (_conversacionSeleccionadaId is not null)
+                await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al descartar la sugerencia de visita {SugerenciaId}.", sugerenciaId);
+            ToastService.Mostrar("No pudimos descartar la sugerencia. Intenta nuevamente.", TonoToast.Error);
+        }
+    }
+
+    /// <summary>
+    /// A diferencia de "Crear visita" (que abre /visitas a que el Gestor
+    /// complete fecha y confirme), aquí no hace falta ningún dato adicional
+    /// del Gestor: Trabajador y TipoDocumento ya los resolvió la IA, y los
+    /// Centros salen de las Asignaciones activas del propio Trabajador — el
+    /// clic en el botón ya es la confirmación explícita exigida.
+    /// </summary>
+    private async Task GenerarGestionesDesdeSugerenciaAsync(Guid sugerenciaId, Guid trabajadorId, Guid tipoDocumentoId)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new CrearGestionesParaTrabajadorCommand(trabajadorId, tipoDocumentoId, sugerenciaId));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar($"Se generaron {resultado.Valor.Creadas} gestión(es).", TonoToast.Exito);
+
+            if (_conversacionSeleccionadaId is not null)
+                await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al generar gestiones desde la sugerencia {SugerenciaId}.", sugerenciaId);
+            ToastService.Mostrar("No pudimos generar las gestiones. Intenta nuevamente.", TonoToast.Error);
+        }
+    }
+
+    private async Task DescartarSugerenciaGestionAsync(Guid sugerenciaId)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new DescartarSugerenciaGestionCorreoCommand(sugerenciaId));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            if (_conversacionSeleccionadaId is not null)
+                await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al descartar la sugerencia de gestión {SugerenciaId}.", sugerenciaId);
+            ToastService.Mostrar("No pudimos descartar la sugerencia. Intenta nuevamente.", TonoToast.Error);
+        }
+    }
+
     private static TonoBadge TonoBadgeDeEstado(EstadoConversacion estado) => estado switch
     {
         EstadoConversacion.Abierta => TonoBadge.Info,
         EstadoConversacion.Pendiente => TonoBadge.Info,
         _ => TonoBadge.Neutro
+    };
+
+    /// <summary>Dos letras del correo (local-part) para el avatar — sin depender de un nombre completo, que este DTO no siempre trae.</summary>
+    private static string ObtenerIniciales(string email)
+    {
+        var local = email.Split('@')[0];
+        return local.Length >= 2 ? local[..2].ToUpperInvariant() : local.ToUpperInvariant();
+    }
+
+    private static string FormatearTamano(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024.0):0.#} MB"
     };
 
     private static string FormatearFechaRelativa(DateTime fechaUtc)

@@ -7,12 +7,14 @@ using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumentos;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
+using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectosParaSelector;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Trabajadores.Commands.AsignarAliasTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
 using CaeManager.Domain.Documentos;
@@ -57,6 +59,9 @@ public partial class Documentos : ComponentBase
     /// </summary>
     [SupplyParameterFromQuery] public Guid? TrabajadorId { get; set; }
 
+    /// <summary>Misma idea que <see cref="TrabajadorId"/> pero para un documento "faltante" de Ámbito Empresa (ver Detalle de la visita).</summary>
+    [SupplyParameterFromQuery] public Guid? EmpresaIdFaltante { get; set; }
+
     [SupplyParameterFromQuery] public Guid? TipoDocumentoId { get; set; }
 
     [SupplyParameterFromQuery(Name = "q")] public string? TerminoBusquedaInicial { get; set; }
@@ -94,6 +99,8 @@ public partial class Documentos : ComponentBase
             await AbrirEditarAsync(DocumentoId.Value);
         else if (TrabajadorId is not null && TipoDocumentoId is not null)
             await AbrirCrearParaFaltanteAsync(TrabajadorId.Value, TipoDocumentoId.Value);
+        else if (EmpresaIdFaltante is not null && TipoDocumentoId is not null)
+            await AbrirCrearParaFaltanteEmpresaAsync(EmpresaIdFaltante.Value, TipoDocumentoId.Value);
         else if (Accion == "crear")
             await AbrirCrearAsync();
 
@@ -154,6 +161,12 @@ public partial class Documentos : ComponentBase
     private string? _archivoUrl;
     private bool _subiendoArchivo;
     private bool _detectandoCampos;
+    private string? _aliasSugerido;
+    private Guid? _trabajadorIdParaAliasSugerido;
+    private bool _asignandoAliasSugerido;
+    private bool _confirmarTipoSospechosoVisible;
+    private string _tipoSospechosoDetectadoNombre = string.Empty;
+    private string _tipoSospechosoSeleccionadoNombre = string.Empty;
     private string _comentarios = string.Empty;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
@@ -207,6 +220,7 @@ public partial class Documentos : ComponentBase
         try
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
             var ambitoFiltro = Enum.TryParse<AmbitoAplicacion>(_ambitoFiltro, out var ambito) ? ambito : (AmbitoAplicacion?)null;
             var estadoFiltro = Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado) ? estado : (EstadoDocumento?)null;
@@ -217,7 +231,9 @@ public partial class Documentos : ComponentBase
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 Estado: estadoFiltro,
                 Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage));
+                TamanoPagina: _paginacion.ItemsPerPage,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente));
 
             _totalElementos = resultado.TotalElementos;
 
@@ -298,6 +314,9 @@ public partial class Documentos : ComponentBase
         _glosarioCriteriosValidacion = null;
         _glosarioSeSolicitaA = null;
         _glosarioObservaciones = null;
+        _aliasSugerido = null;
+        _trabajadorIdParaAliasSugerido = null;
+        _confirmarTipoSospechosoVisible = false;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
@@ -310,6 +329,14 @@ public partial class Documentos : ComponentBase
         CambiarTipoDocumento(tipoDocumentoId.ToString());
     }
 
+    private async Task AbrirCrearParaFaltanteEmpresaAsync(Guid empresaId, Guid tipoDocumentoId)
+    {
+        await AbrirCrearAsync();
+        await CambiarAmbitoAsync(nameof(AmbitoAplicacion.Empresa));
+        _empresaId = empresaId.ToString();
+        CambiarTipoDocumento(tipoDocumentoId.ToString());
+    }
+
     private async Task CambiarAmbitoAsync(string valor)
     {
         _ambitoAplicacion = valor;
@@ -318,6 +345,8 @@ public partial class Documentos : ComponentBase
         _empresaId = string.Empty;
         _vehiculoId = string.Empty;
         _proyectoId = string.Empty;
+        _aliasSugerido = null;
+        _trabajadorIdParaAliasSugerido = null;
 
         var ambito = Enum.Parse<AmbitoAplicacion>(valor);
 
@@ -381,6 +410,39 @@ public partial class Documentos : ComponentBase
     }
 
     private void CopiarFechaEmisionAVencimiento() => _fechaVencimientoManual = _fechaEmision;
+
+    /// <summary>Si el usuario cambia el trabajador a mano, la sugerencia de alias detectada para el anterior deja de tener sentido.</summary>
+    private void CambiarTrabajadorSeleccionado(string valor)
+    {
+        _trabajadorId = valor;
+        if (valor != _trabajadorIdParaAliasSugerido?.ToString())
+            _aliasSugerido = null;
+    }
+
+    private async Task AceptarAliasSugeridoAsync()
+    {
+        if (_aliasSugerido is null || _trabajadorIdParaAliasSugerido is not { } trabajadorId
+            || _trabajadorId != trabajadorId.ToString())
+            return;
+
+        _asignandoAliasSugerido = true;
+        try
+        {
+            var resultado = await Mediator.Send(new AsignarAliasTrabajadorCommand(trabajadorId, _aliasSugerido));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar("Alias añadido al trabajador.", TonoToast.Exito);
+            _aliasSugerido = null;
+        }
+        finally
+        {
+            _asignandoAliasSugerido = false;
+        }
+    }
 
     /// <summary>
     /// Acepta PDF, JPG, PNG y Word (.docx). Las imágenes y los Word se
@@ -484,10 +546,22 @@ public partial class Documentos : ComponentBase
             var huboSugerencia = false;
 
             if (deteccion.TipoDocumentoId is { } tipoDetectadoId
-                && _tiposDisponibles.Any(t => t.Id == tipoDetectadoId))
+                && _tiposDisponibles.FirstOrDefault(t => t.Id == tipoDetectadoId) is { } tipoDetectadoDto)
             {
-                CambiarTipoDocumento(tipoDetectadoId.ToString());
-                huboSugerencia = true;
+                if (string.IsNullOrEmpty(_tipoDocumentoId))
+                {
+                    CambiarTipoDocumento(tipoDetectadoId.ToString());
+                    huboSugerencia = true;
+                }
+                else if (_tipoDocumentoId != tipoDetectadoId.ToString())
+                {
+                    // El usuario ya había elegido un tipo antes de subir el
+                    // archivo — no se lo pisamos en silencio (huboSugerencia
+                    // del alias/trabajador sí puede seguir, esto es aparte).
+                    _tipoSospechosoDetectadoNombre = tipoDetectadoDto.Nombre;
+                    _tipoSospechosoSeleccionadoNombre = _tiposDisponibles.FirstOrDefault(t => t.Id.ToString() == _tipoDocumentoId)?.Nombre ?? "el tipo seleccionado";
+                    _confirmarTipoSospechosoVisible = true;
+                }
             }
 
             if (deteccion.TrabajadorId is { } trabajadorDetectadoId
@@ -495,6 +569,12 @@ public partial class Documentos : ComponentBase
             {
                 _trabajadorId = trabajadorDetectadoId.ToString();
                 huboSugerencia = true;
+
+                if (deteccion.AliasSugerido is not null)
+                {
+                    _aliasSugerido = deteccion.AliasSugerido;
+                    _trabajadorIdParaAliasSugerido = trabajadorDetectadoId;
+                }
             }
 
             if (huboSugerencia)
@@ -667,7 +747,8 @@ public partial class Documentos : ComponentBase
             }
             else
             {
-                ToastService.Mostrar("Documento eliminado correctamente.", TonoToast.Exito);
+                var idEliminado = _idAEliminar;
+                ToastService.Mostrar("Documento eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
             }
@@ -680,6 +761,19 @@ public partial class Documentos : ComponentBase
         {
             _eliminando = false;
         }
+    }
+
+    /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarDocumentoCommand.</summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        var resultado = await Mediator.Send(new RestaurarDocumentoCommand(id));
+
+        ToastService.Mostrar(
+            resultado.EsExitoso ? "Documento restaurado." : resultado.Error.Mensaje,
+            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+        if (resultado.EsExitoso)
+            await RecargarAsync();
     }
 
     // --- P3-31: selección múltiple ---

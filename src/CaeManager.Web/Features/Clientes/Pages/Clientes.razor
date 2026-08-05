@@ -25,6 +25,7 @@
                 <a class="enlace-exportar" href="/clientes/importar">Importar clientes</a>
                 <a class="enlace-exportar" href="/clientes/importar-combinado">Importación combinada</a>
             </AuthorizeView>
+            <a class="enlace-exportar" href="/clientes/alta-guiada">Alta guiada</a>
             <Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton>
         </div>
     </div>
@@ -75,8 +76,8 @@
                     </ChildContent>
                 </TemplateColumn>
                 <PropertyColumn Property="@(c => c.RazonSocial)" Title="Razón social" Sortable="true" />
-                <PropertyColumn Property="@(c => c.Cif)" Title="CIF" />
-                <TemplateColumn Title="Crítico" Align="Align.Center">
+                <PropertyColumn Property="@(c => c.Cif)" Title="CIF" Sortable="true" />
+                <TemplateColumn Title="Crítico" Align="Align.Center" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EsCritico))">
                     @if (context.EsCritico)
                     {
                         <Badge Tono="TonoBadge.Peligro">Crítico</Badge>
@@ -109,6 +110,9 @@
             <EstadoVacio Titulo="Aún no hay clientes" Descripcion="Crea el primero para empezar a organizar tus centros de trabajo.">
                 <Accion>
                     <Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick='() => NavigationManager.NavigateTo("/clientes/alta-guiada")'>
+                        Alta guiada (Cliente + Empresa + Centro)
+                    </Boton>
                 </Accion>
             </EstadoVacio>
         }
@@ -147,6 +151,12 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             Cancelar
         </Boton>
+        @if (_editandoId is null)
+        {
+            <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearEmpresaAsync">
+                Continuar con la empresa
+            </Boton>
+        }
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>
@@ -157,7 +167,7 @@
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
     Titulo="@($"¿Eliminar a {_razonSocialAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas. Podrás recuperarlo desde Auditoría."
+    Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 

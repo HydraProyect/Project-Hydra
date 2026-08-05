@@ -13,7 +13,8 @@ public static class AsignacionesApiEndpoints
             string? busqueda, int pagina = 1, int tamanoPagina = 20,
             IMediator mediator = default!, CancellationToken cancellationToken = default) =>
             Results.Ok(await mediator.Send(
-                new ObtenerAsignacionesQuery(busqueda, ApiV1.Pagina(pagina), ApiV1.TamanoPagina(tamanoPagina)),
+                new ObtenerAsignacionesQuery(
+                    busqueda, Pagina: ApiV1.Pagina(pagina), TamanoPagina: ApiV1.TamanoPagina(tamanoPagina)),
                 cancellationToken)));
 
         return endpoints;

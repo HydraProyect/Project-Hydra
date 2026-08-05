@@ -7,19 +7,30 @@
 *@
 @using CaeManager.Application.Centros.Queries.ObtenerCentroPorId
 @using CaeManager.Application.Centros.Queries.ObtenerCanalGestionDeCentro
+@using CaeManager.Application.Centros.Queries.ObtenerEstadoCentro
 @using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro
+@using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad
 @using CaeManager.Domain.Centros
 @using CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeCentro
+@using CaeManager.Application.Common
 @using CaeManager.Application.RequisitosDocumentales.Commands.CrearRequisitoDocumental
 @using CaeManager.Application.RequisitosDocumentales.Commands.EditarRequisitoDocumental
 @using CaeManager.Application.RequisitosDocumentales.Commands.EliminarRequisitoDocumental
+@using CaeManager.Application.RequisitosDocumentales.Commands.MarcarRequisitoDocumentalCumplido
 @using CaeManager.Application.RequisitosDocumentales.Queries.ObtenerRequisitosDocumentalesDeCentro
+@using CaeManager.Web.Features.Centros
+@using CaeManager.Web.Features.Documentos
 @using CaeManager.Domain.Common
+@using CaeManager.Web.Documentos
 @using FluentValidation
 @using MediatR
+@using Microsoft.AspNetCore.Components.Forms
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
+@inject IFileStorageService AlmacenamientoArchivos
+@inject ILogger<CentroWorkspacePanel> Logger
 
 @if (_cargando)
 {
@@ -37,6 +48,13 @@ else
 {
     <div class="workspace-cabecera-entidad">
         <h2 class="workspace-titulo-entidad">@_detalle.Nombre</h2>
+        @if (_estadoCentro is not null)
+        {
+            <Badge Tono="EstadoCentroUi.Tono(_estadoCentro.Estado)">@EstadoCentroUi.Texto(_estadoCentro.Estado)</Badge>
+        }
+        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPedirPrioridadAsync">
+            Pedir prioridad
+        </Boton>
     </div>
 
     <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del centro">
@@ -51,6 +69,32 @@ else
                     <CampoInfo Etiqueta="Contacto" Valor="@_detalle.Contacto" />
                     <CampoInfo Etiqueta="Contrato vigente hasta" Valor="@(_detalle.ContratoVigenteHasta?.ToString("dd/MM/yyyy"))" />
                 </div>
+                @if (_cargandoEstado)
+                {
+                    <EstadoCargando Filas="2" />
+                }
+                else if (_estadoCentro is { Estado: not EstadoCentro.Vigente, Causas.Count: > 0 })
+                {
+                    <div class="workspace-cabecera-seccion">
+                        <h3>Por qué no está Vigente</h3>
+                    </div>
+                    <ul class="workspace-lista-entidades">
+                        @foreach (var causa in _estadoCentro.Causas)
+                        {
+                            <li class="workspace-tarjeta-requisito">
+                                <span>@causa.Descripcion</span>
+                                @if (causa.Bloqueante)
+                                {
+                                    <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
+                                }
+                                else if (causa.Estado is { } estadoDocumento)
+                                {
+                                    <Badge Tono="EstadoDocumentoUi.Tono(estadoDocumento)">@EstadoDocumentoUi.Texto(estadoDocumento)</Badge>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
                 break;
 
             case "requisitos":
@@ -87,6 +131,14 @@ else
                                     {
                                         <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
                                     }
+                                    @if (requisito.Cumplido)
+                                    {
+                                        <Badge Tono="TonoBadge.Exito">Cumplido@(requisito.FechaCumplimiento is { } fecha ? $" ({fecha:dd/MM/yyyy})" : "")</Badge>
+                                    }
+                                    else
+                                    {
+                                        <Badge Tono="TonoBadge.Neutro">Pendiente</Badge>
+                                    }
                                 </div>
                                 @if (!string.IsNullOrWhiteSpace(requisito.PeriodicidadEspecial))
                                 {
@@ -96,7 +148,18 @@ else
                                 {
                                     <p class="workspace-metrica-inline">@requisito.Notas</p>
                                 }
+                                @if (requisito.ArchivoUrl is not null)
+                                {
+                                    <p class="workspace-metrica-inline">
+                                        <a href="/requisitos-documentales/@requisito.Id/archivo" target="_blank">
+                                            @(requisito.NombreArchivoOriginal ?? "Ver formulario")
+                                        </a>
+                                    </p>
+                                }
                                 <div class="workspace-tarjeta-requisito-acciones">
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarCumplidoRequisitoAsync(requisito)">
+                                        @(requisito.Cumplido ? "Marcar pendiente" : "Marcar cumplido")
+                                    </Boton>
                                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarRequisitoAsync(requisito)">Editar</Boton>
                                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminarRequisito(requisito)">Eliminar</Boton>
                                 </div>
@@ -232,10 +295,29 @@ else
                 <input type="checkbox" @bind="_bloqueaAccesoRequisito" /> Bloquea el acceso al centro mientras no se cumpla
             </label>
             <CampoTextarea Etiqueta="Notas (opcional)" Valor="@_notasRequisito" ValorChanged="v => _notasRequisito = v" />
+
+            <div class="campo">
+                <label>Formulario adjunto (Word o PDF, opcional)</label>
+                @if (_archivoUrlRequisito is not null)
+                {
+                    <p class="workspace-metrica-inline">
+                        @_nombreArchivoRequisito
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="QuitarArchivoRequisito">Quitar</Boton>
+                    </p>
+                }
+                else
+                {
+                    <ZonaSoltarArchivo
+                        OnChange="ManejarArchivoRequisitoSeleccionadoAsync"
+                        Accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        FormatosTexto="PDF · DOCX"
+                        Cargando="_subiendoArchivoRequisito" />
+                }
+            </div>
         </ChildContent>
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerRequisitoVisible = false" Deshabilitado="_guardandoRequisito">Cancelar</Boton>
-            <Boton OnClick="GuardarRequisitoAsync" Cargando="_guardandoRequisito">Guardar</Boton>
+            <Boton OnClick="GuardarRequisitoAsync" Cargando="_guardandoRequisito" Deshabilitado="_subiendoArchivoRequisito">Guardar</Boton>
         </Pie>
     </Drawer>
 
@@ -246,6 +328,44 @@ else
         Mensaje="@($"\"{_requisitoAEliminar?.Descripcion}\" dejará de aparecer en Requisitos del Centro.")"
         EnProgreso="_eliminandoRequisito"
         OnConfirmar="ConfirmarEliminarRequisitoAsync" />
+
+    <Drawer Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
+            Titulo="Pedir prioridad de validación"
+            CerrarAlHacerClicFuera="@(_mensajeErrorPrioridad is null && !_enviandoPrioridad)">
+        <ChildContent>
+            @if (_cargandoBorradorPrioridad)
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (_mensajeErrorPrioridad is not null && _borradorPrioridad is null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorPrioridad</div>
+            }
+            else if (_borradorPrioridad is not null)
+            {
+                @if (!_borradorPrioridad.HayConexionDisponible)
+                {
+                    <div class="alerta-formulario" role="alert">No hay ningún buzón de correo conectado — conecta uno de Microsoft 365 antes de enviar.</div>
+                }
+                @if (_borradorPrioridad.UltimaSolicitudEnviadaEnUtc is { } ultima)
+                {
+                    <p class="workspace-nota-contextual">Ya se pidió prioridad para este centro el @ultima.ToLocalTime().ToString("dd/MM/yyyy HH:mm").</p>
+                }
+                @if (_mensajeErrorPrioridad is not null)
+                {
+                    <div class="alerta-formulario" role="alert">@_mensajeErrorPrioridad</div>
+                }
+                <CampoTexto Etiqueta="Destinatarios (separados por coma)" Valor="@_destinatarioPrioridad" ValorChanged="v => _destinatarioPrioridad = v" />
+                <CampoTexto Etiqueta="Asunto" Valor="@_asuntoPrioridad" ValorChanged="v => _asuntoPrioridad = v" />
+                <CampoTextarea Etiqueta="Mensaje" Valor="@_cuerpoPrioridad" ValorChanged="v => _cuerpoPrioridad = v" Filas="10" />
+                <p class="workspace-nota-contextual">@_borradorPrioridad.TotalDocumentosPendientes documento(s) pendiente(s) incluido(s) en el mensaje. Revisa y adapta el texto antes de enviarlo — se envía desde el buzón conectado de la plataforma.</p>
+            }
+        </ChildContent>
+        <Pie>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerPrioridadVisible = false" Deshabilitado="_enviandoPrioridad">Cancelar</Boton>
+            <Boton OnClick="EnviarPrioridadAsync" Cargando="_enviandoPrioridad" Deshabilitado="_cargandoBorradorPrioridad || _borradorPrioridad is null">Enviar</Boton>
+        </Pie>
+    </Drawer>
 }
 
 @code {
@@ -268,6 +388,9 @@ else
     private bool _error;
     private Guid _idCargado;
 
+    private EstadoCentroDto? _estadoCentro;
+    private bool _cargandoEstado;
+
     private IReadOnlyList<RequisitoDocumentalDto>? _requisitos;
     private bool _cargandoRequisitos;
     private bool _errorRequisitos;
@@ -279,8 +402,13 @@ else
     private string _periodicidadRequisito = string.Empty;
     private bool _bloqueaAccesoRequisito;
     private string _notasRequisito = string.Empty;
+    private string? _archivoUrlRequisito;
+    private string? _nombreArchivoRequisito;
+    private bool _subiendoArchivoRequisito;
     private bool _guardandoRequisito;
     private string? _mensajeErrorRequisito;
+
+    private const long TamanoMaximoArchivoRequisitoBytes = 10 * 1024 * 1024;
 
     private bool _confirmarEliminarRequisitoVisible;
     private RequisitoDocumentalDto? _requisitoAEliminar;
@@ -296,6 +424,15 @@ else
     private bool _cargandoPlataforma;
     private bool _errorPlataforma;
 
+    private bool _drawerPrioridadVisible;
+    private bool _cargandoBorradorPrioridad;
+    private bool _enviandoPrioridad;
+    private string? _mensajeErrorPrioridad;
+    private BorradorPedirPrioridadDto? _borradorPrioridad;
+    private string _destinatarioPrioridad = string.Empty;
+    private string _asuntoPrioridad = string.Empty;
+    private string _cuerpoPrioridad = string.Empty;
+
     protected override async Task OnParametersSetAsync()
     {
         if (EntidadId != _idCargado)
@@ -309,7 +446,9 @@ else
             _errorVehiculos = false;
             _plataformaCargada = false;
             _errorPlataforma = false;
+            _estadoCentro = null;
             await CargarCabeceraAsync();
+            await CargarEstadoAsync();
         }
 
         if (PestanaActiva == "requisitos" && _requisitos is null && !_errorRequisitos && !_cargandoRequisitos)
@@ -344,6 +483,45 @@ else
         }
     }
 
+    private async Task CargarEstadoAsync()
+    {
+        var idSolicitado = EntidadId;
+        _cargandoEstado = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerEstadoCentroQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _estadoCentro = resultado;
+        }
+        catch (Exception)
+        {
+            // El badge de cumplimiento es informativo — si falla, simplemente no se muestra.
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoEstado = false;
+        }
+    }
+
+    private async Task AlternarCumplidoRequisitoAsync(RequisitoDocumentalDto requisito)
+    {
+        var resultado = await Mediator.Send(new MarcarRequisitoDocumentalCumplidoCommand(requisito.Id, !requisito.Cumplido));
+        if (resultado.EsFallido)
+        {
+            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            return;
+        }
+
+        ToastService.Mostrar(
+            requisito.Cumplido ? "Requisito marcado como pendiente." : "Requisito marcado como cumplido.",
+            TonoToast.Exito);
+
+        await CargarRequisitosAsync();
+        await CargarEstadoAsync();
+    }
+
     private async Task CargarRequisitosAsync()
     {
         var idSolicitado = EntidadId;
@@ -376,6 +554,8 @@ else
         _periodicidadRequisito = string.Empty;
         _bloqueaAccesoRequisito = false;
         _notasRequisito = string.Empty;
+        _archivoUrlRequisito = null;
+        _nombreArchivoRequisito = null;
         _mensajeErrorRequisito = null;
         _drawerRequisitoVisible = true;
         return Task.CompletedTask;
@@ -389,9 +569,75 @@ else
         _periodicidadRequisito = requisito.PeriodicidadEspecial ?? string.Empty;
         _bloqueaAccesoRequisito = requisito.BloqueaAcceso;
         _notasRequisito = requisito.Notas ?? string.Empty;
+        _archivoUrlRequisito = requisito.ArchivoUrl;
+        _nombreArchivoRequisito = requisito.NombreArchivoOriginal;
         _mensajeErrorRequisito = null;
         _drawerRequisitoVisible = true;
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Acepta PDF o Word (.docx) y lo guarda tal cual — a diferencia de
+    /// Documentos.razor.cs, aquí NO se convierte el Word a PDF: el adjunto es
+    /// el propio formulario que el destinatario tiene que poder editar en
+    /// Word, así que forzarlo a PDF le quitaría justo eso.
+    /// </summary>
+    private async Task ManejarArchivoRequisitoSeleccionadoAsync(InputFileChangeEventArgs e)
+    {
+        var archivo = e.File;
+
+        if (!ConversorArchivosPdf.EsPdf(archivo.Name) && !ConversorArchivosPdf.EsWord(archivo.Name))
+        {
+            ToastService.Mostrar($"\"{archivo.Name}\" no es un PDF ni un Word (.docx).", TonoToast.Error);
+            return;
+        }
+
+        if (archivo.Size > TamanoMaximoArchivoRequisitoBytes)
+        {
+            ToastService.Mostrar($"\"{archivo.Name}\" supera los 10 MB.", TonoToast.Error);
+            return;
+        }
+
+        _subiendoArchivoRequisito = true;
+        StateHasChanged();
+
+        try
+        {
+            byte[] contenido;
+            await using (var flujo = archivo.OpenReadStream(TamanoMaximoArchivoRequisitoBytes))
+            using (var memoria = new MemoryStream())
+            {
+                await flujo.CopyToAsync(memoria);
+                contenido = memoria.ToArray();
+            }
+
+            if (!ValidadorFirmaArchivo.TieneFirmaValida(contenido, archivo.Name))
+            {
+                ToastService.Mostrar(
+                    $"\"{archivo.Name}\" no es realmente un PDF ni un Word (.docx) — su contenido no coincide con la extensión.",
+                    TonoToast.Error);
+                return;
+            }
+
+            using var flujoOriginal = new MemoryStream(contenido);
+            _archivoUrlRequisito = await AlmacenamientoArchivos.GuardarAsync(flujoOriginal, archivo.Name);
+            _nombreArchivoRequisito = archivo.Name;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fallo al procesar el archivo subido en Requisitos del Centro");
+            ToastService.Mostrar("No pudimos procesar el archivo. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _subiendoArchivoRequisito = false;
+        }
+    }
+
+    private void QuitarArchivoRequisito()
+    {
+        _archivoUrlRequisito = null;
+        _nombreArchivoRequisito = null;
     }
 
     private async Task GuardarRequisitoAsync()
@@ -406,9 +652,11 @@ else
 
             Result resultado = _editandoRequisitoId is null
                 ? await Mediator.Send(new CrearRequisitoDocumentalCommand(
-                    EntidadId, _descripcionRequisito, periodicidad, _bloqueaAccesoRequisito, notas))
+                    EntidadId, _descripcionRequisito, periodicidad, _bloqueaAccesoRequisito, notas,
+                    _archivoUrlRequisito, _nombreArchivoRequisito))
                 : await Mediator.Send(new EditarRequisitoDocumentalCommand(
-                    _editandoRequisitoId.Value, _descripcionRequisito, periodicidad, _bloqueaAccesoRequisito, notas, _versionRequisito));
+                    _editandoRequisitoId.Value, _descripcionRequisito, periodicidad, _bloqueaAccesoRequisito, notas, _versionRequisito,
+                    _archivoUrlRequisito, _nombreArchivoRequisito));
 
             if (resultado.EsFallido)
             {
@@ -422,6 +670,7 @@ else
 
             _drawerRequisitoVisible = false;
             await CargarRequisitosAsync();
+            await CargarEstadoAsync();
         }
         catch (ValidationException ex)
         {
@@ -461,6 +710,7 @@ else
             ToastService.Mostrar("Requisito eliminado.", TonoToast.Exito);
             _confirmarEliminarRequisitoVisible = false;
             await CargarRequisitosAsync();
+            await CargarEstadoAsync();
         }
         finally
         {
@@ -548,4 +798,70 @@ else
 
     private Task AbrirVehiculoAsync(VehiculoConActividadDto vehiculo) =>
         WorkspaceService.NavegarAAsync(EntidadWorkspace.Vehiculo, vehiculo.Id, vehiculo.Nombre, "informacion");
+
+    private async Task AbrirPedirPrioridadAsync()
+    {
+        _drawerPrioridadVisible = true;
+        _cargandoBorradorPrioridad = true;
+        _mensajeErrorPrioridad = null;
+        _borradorPrioridad = null;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerBorradorPedirPrioridadQuery(EntidadId));
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorPrioridad = resultado.Error.Mensaje;
+                return;
+            }
+
+            _borradorPrioridad = resultado.Valor;
+            _destinatarioPrioridad = resultado.Valor.DestinatarioSugerido ?? string.Empty;
+            _asuntoPrioridad = resultado.Valor.Asunto;
+            _cuerpoPrioridad = resultado.Valor.CuerpoHtml;
+        }
+        catch (Exception)
+        {
+            _mensajeErrorPrioridad = "No pudimos preparar el borrador. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _cargandoBorradorPrioridad = false;
+        }
+    }
+
+    private async Task EnviarPrioridadAsync()
+    {
+        var destinatarios = _destinatarioPrioridad
+            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        if (destinatarios.Count == 0)
+        {
+            _mensajeErrorPrioridad = "Indica al menos un destinatario.";
+            return;
+        }
+
+        _enviandoPrioridad = true;
+        _mensajeErrorPrioridad = null;
+
+        try
+        {
+            var resultado = await Mediator.Send(
+                new PedirPrioridadValidacionCommand(EntidadId, destinatarios, _asuntoPrioridad, _cuerpoPrioridad));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorPrioridad = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Solicitud de prioridad enviada.", TonoToast.Exito);
+            _drawerPrioridadVisible = false;
+        }
+        finally
+        {
+            _enviandoPrioridad = false;
+        }
+    }
 }

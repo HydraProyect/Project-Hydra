@@ -1,0 +1,60 @@
+@* Stepper genérico (Fase 85/A1) — primer consumidor del componente
+   "Wizard/Stepper" que el Design System no tenía todavía (los 3 flujos de
+   importación lo hacen hoy a mano con @if sobre estado local; se migran
+   cuando toque, no en esta entrega — YAGNI). Solo indica progreso: no es
+   responsable de qué contenido se muestra por paso, eso lo decide la página
+   que lo usa con su propio @if/switch sobre PasoActual. *@
+<ol class="indicador-pasos" aria-label="@EtiquetaGrupo">
+    @for (var i = 0; i < Pasos.Count; i++)
+    {
+        var indice = i;
+        var paso = Pasos[i];
+        var completado = PasosCompletados.Contains(paso.Clave);
+        var activo = paso.Clave == PasoActual;
+        var clicable = PermitirVolver && completado && !activo;
+
+        <li class="indicador-pasos-item @(activo ? "indicador-pasos-activo" : "") @(completado ? "indicador-pasos-completado" : "")">
+            @if (clicable)
+            {
+                <button type="button" class="indicador-pasos-boton" @onclick="() => PasoSeleccionadoAsync(paso.Clave)">
+                    @RenderCirculo(indice, completado)
+                    <span class="indicador-pasos-titulo">@paso.Titulo</span>
+                </button>
+            }
+            else
+            {
+                <span class="indicador-pasos-boton indicador-pasos-boton-fijo" aria-current="@(activo ? "step" : null)">
+                    @RenderCirculo(indice, completado)
+                    <span class="indicador-pasos-titulo">@paso.Titulo</span>
+                </span>
+            }
+        </li>
+    }
+</ol>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<PasoDefinicion> Pasos { get; set; } = [];
+    [Parameter, EditorRequired] public string PasoActual { get; set; } = string.Empty;
+    [Parameter] public IReadOnlySet<string> PasosCompletados { get; set; } = new HashSet<string>();
+    [Parameter] public bool PermitirVolver { get; set; }
+    [Parameter] public EventCallback<string> OnPasoSeleccionado { get; set; }
+    [Parameter] public string EtiquetaGrupo { get; set; } = "Pasos";
+
+    private Task PasoSeleccionadoAsync(string clave) => OnPasoSeleccionado.InvokeAsync(clave);
+
+    private static RenderFragment RenderCirculo(int indice, bool completado) => builder =>
+    {
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", "indicador-pasos-circulo");
+        builder.AddAttribute(2, "aria-hidden", "true");
+        if (completado)
+        {
+            builder.AddContent(3, "✓");
+        }
+        else
+        {
+            builder.AddContent(4, (indice + 1).ToString());
+        }
+        builder.CloseElement();
+    };
+}

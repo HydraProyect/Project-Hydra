@@ -1,4 +1,5 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
+using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
 using Microsoft.AspNetCore.Components;
@@ -8,6 +9,7 @@ namespace CaeManager.Web.Features.Alertas.Pages;
 public partial class Alertas : ComponentBase
 {
     private const int TamanoPagina = 20;
+    private const int MaximoItemsBandejaEnAlertas = 5;
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -24,6 +26,9 @@ public partial class Alertas : ComponentBase
     private bool _errorCarga;
     private int _pagina = 1;
 
+    private IReadOnlyList<ItemBandejaDto> _itemsBandeja = [];
+    private bool _cargandoBandeja = true;
+
     private IReadOnlyList<AlertaDto> AlertasFiltradas =>
         Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado)
             ? _alertas.Where(a => a.Estado == estado).ToList()
@@ -32,7 +37,14 @@ public partial class Alertas : ComponentBase
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(AlertasFiltradas.Count / (double)TamanoPagina));
     private IReadOnlyList<AlertaDto> AlertasDePagina => AlertasFiltradas.Skip((_pagina - 1) * TamanoPagina).Take(TamanoPagina).ToList();
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    // Secuencial a propósito, no Task.WhenAll: el DbContext scoped al
+    // circuito no admite dos llamadas EF concurrentes sobre la misma
+    // instancia (mismo motivo que ObtenerDashboardEjecutivoQueryHandler).
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarAsync();
+        await CargarBandejaAsync();
+    }
 
     /// <summary>
     /// Se re-ejecuta en cada navegación dentro de la propia página, no solo
@@ -88,6 +100,32 @@ public partial class Alertas : ComponentBase
         finally
         {
             _cargando = false;
+        }
+    }
+
+    /// <summary>
+    /// Fase C: la misma cola priorizada de <c>/bandeja</c>, en miniatura —
+    /// solo los primeros <see cref="MaximoItemsBandejaEnAlertas"/>, con
+    /// enlace a la bandeja completa. Un fallo aquí no debe tumbar la tabla
+    /// de Alertas de siempre, por eso corre en su propio try/catch.
+    /// </summary>
+    private async Task CargarBandejaAsync()
+    {
+        _cargandoBandeja = true;
+        StateHasChanged();
+
+        try
+        {
+            var items = await Mediator.Send(new ObtenerBandejaGestorQuery());
+            _itemsBandeja = items.Take(MaximoItemsBandejaEnAlertas).ToList();
+        }
+        catch (Exception)
+        {
+            _itemsBandeja = [];
+        }
+        finally
+        {
+            _cargandoBandeja = false;
         }
     }
 }

@@ -1,10 +1,13 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
@@ -12,12 +15,14 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 public class ResponderConversacionCommandHandlerTests
 {
     private static ResponderConversacionCommandHandler CrearHandler(
-        ConversacionCorreoRepositorioFalso repositorio, UnitOfWorkFalso unitOfWork)
+        ConversacionCorreoRepositorioFalso repositorio, UnitOfWorkFalso unitOfWork, bool permitirRemitenteSimulado = false)
     {
         var graphClient = new Microsoft365GraphClientFalso();
         var accesoGraph = new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient);
+        var opciones = Options.Create(new ComunicacionesRemitenteOptions { PermitirRemitenteSimulado = permitirRemitenteSimulado });
         return new ResponderConversacionCommandHandler(
-            repositorio, new ConexionIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(), graphClient, accesoGraph, unitOfWork);
+            repositorio, new ConexionIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
+            new FileStorageServiceFalso(), opciones, unitOfWork);
     }
 
     private static ResponderConversacionCommandHandler CrearHandlerConConexion(
@@ -30,12 +35,14 @@ public class ResponderConversacionCommandHandlerTests
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
         var accesoGraph = new AccesoGraphService(credencialRepositorio, graphClient);
+        var opciones = Options.Create(new ComunicacionesRemitenteOptions());
         return new ResponderConversacionCommandHandler(
-            repositorio, conexionRepositorio, new AlcanceDatosServiceFalso(), graphClient, accesoGraph, unitOfWork);
+            repositorio, conexionRepositorio, new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
+            new FileStorageServiceFalso(), opciones, unitOfWork);
     }
 
     [Fact]
-    public async Task Agrega_mensaje_saliente_y_actualiza_fecha_ultimo_mensaje()
+    public async Task Sin_conexion_y_sin_permitir_remitente_simulado_devuelve_fallo_y_no_persiste_nada()
     {
         var conversacion = new ConversacionCorreo("Duda sobre vigencia documental", clienteId: Guid.NewGuid());
         var repositorio = new ConversacionCorreoRepositorioFalso();
@@ -46,10 +53,46 @@ public class ResponderConversacionCommandHandlerTests
         var resultado = await handler.Handle(
             new ResponderConversacionCommand(conversacion.Id, "<p>Ya está todo en regla.</p>"), CancellationToken.None);
 
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("ConversacionCorreo.SinBuzonConectado");
+        conversacion.Mensajes.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Con_remitente_simulado_permitido_agrega_mensaje_saliente_y_actualiza_fecha_ultimo_mensaje()
+    {
+        var conversacion = new ConversacionCorreo("Duda sobre vigencia documental", clienteId: Guid.NewGuid());
+        var repositorio = new ConversacionCorreoRepositorioFalso();
+        repositorio.Agregar(conversacion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(repositorio, unitOfWork, permitirRemitenteSimulado: true);
+
+        var resultado = await handler.Handle(
+            new ResponderConversacionCommand(conversacion.Id, "<p>Ya está todo en regla.</p>"), CancellationToken.None);
+
         resultado.EsExitoso.Should().BeTrue();
         conversacion.Mensajes.Should().ContainSingle(m =>
             m.Direccion == DireccionMensaje.Saliente && m.CuerpoHtml == "<p>Ya está todo en regla.</p>");
         unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Con_remitente_simulado_permitido_guarda_los_adjuntos_en_el_mensaje_saliente()
+    {
+        var conversacion = new ConversacionCorreo("Duda sobre vigencia documental", clienteId: Guid.NewGuid());
+        var repositorio = new ConversacionCorreoRepositorioFalso();
+        repositorio.Agregar(conversacion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(repositorio, unitOfWork, permitirRemitenteSimulado: true);
+        var adjuntos = new[] { new AdjuntoParaEnviarDto("formato-centro.pdf", "application/pdf", [1, 2, 3]) };
+
+        var resultado = await handler.Handle(
+            new ResponderConversacionCommand(conversacion.Id, "<p>Adjunto el formato.</p>", adjuntos), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var mensaje = conversacion.Mensajes.Should().ContainSingle().Which;
+        mensaje.Adjuntos.Should().ContainSingle(a => a.NombreArchivo == "formato-centro.pdf" && a.TamanoBytes == 3);
     }
 
     [Fact]

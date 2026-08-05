@@ -71,7 +71,7 @@ El Nivel Tenant nunca sabe que existe el Nivel Consultora (un usuario nativo de 
 
 ## 4. Por qué esto no toca el mecanismo de aislamiento ya auditado
 
-Consecuencia directa del principio de § 2: el filtro global de EF Core (`TenantId == tenantActual.TenantId`) y el interceptor de sellado en escritura (`TenantSelladoInterceptor`) **no cambian una sola línea**. Siguen siendo exactamente un `TenantId` por query, sellado en cada fila nueva, fallo cerrado. Lo único que cambia es **de dónde sale ese `TenantId`** para una sesión de un Operador Delegado — el mecanismo que ya tiene 25 tests de aislamiento por agregado no se reabre.
+Consecuencia directa del principio de § 2: el filtro global de EF Core (`TenantId == tenantActual.TenantId`) y el interceptor de sellado en escritura (`TenantSelladoInterceptor`) **no cambian una sola línea**. Siguen siendo exactamente un `TenantId` por query, sellado en cada fila nueva, fallo cerrado. Lo único que cambia es **de dónde sale ese `TenantId`** para una sesión de un Operador Delegado — el mecanismo que ya tiene ~40 tests de aislamiento por agregado (`AislamientoPorAgregadoTests`, cifra que crece con cada entidad nueva) no se reabre.
 
 Esto es deliberado: es la forma más segura de añadir esta capacidad sin arriesgar la garantía ya probada. La delegación vive **por encima** de la Capa 1 (Tenant) de `docs/MULTITENANCY.md` § 6 — es una Capa 0 nueva ("¿puede este usuario resolver este tenant en absoluto?"), no una modificación de las capas 1-4 existentes. El Nivel Consultora de § 3 (reporting transversal) tampoco la toca — ver § 7, es la pieza que explica cómo se consigue una vista entre tenants sin que ninguna query individual cruce la frontera.
 
@@ -188,7 +188,7 @@ Las Capas 0/0-R deciden **si** se entra o se agrega; las capas 2-4 deciden **qu�
 
 ## 10. Compatibilidad con lo ya construido
 
-- **Aislamiento por tenant** (`ADR-003`, 25 tests): sin cambios, ver § 4.
+- **Aislamiento por tenant** (`ADR-003`, ~40 tests): sin cambios, ver § 4.
 - **`IAlcanceDatosService`** (cartera por rol): sin cambios — opera siempre dentro del Delegated Workspace ya resuelto, sea nativo o delegado.
 - **Unicidad de login por email global** (`docs/MULTITENANCY.md` § 8, limitación v1): sin cambios — una cuenta por persona, nunca duplicada por Cliente Delegante.
 - **`AmbitoTenantExplicito`** (jobs de fondo, Modo 2 de § 8): sin cambios de contrato — se **reutiliza** como mecanismo del fan-out de § 7.2, no se modifica.
@@ -212,7 +212,7 @@ Las Capas 0/0-R deciden **si** se entra o se agrega; las capas 2-4 deciden **qu�
 4. **Expiración/renovación de delegaciones**: ¿`DelegacionTenant` necesita fecha de fin automática o es puramente manual (on/off)? No especificado.
 5. **Alcance exacto de la Capa de Reporting (§ 7)** — **parcialmente resuelto en `ROADMAP.md` Fase 63 (2026-08-01)**: catálogo v1 de 14 KPIs agregados con el mecanismo de fan-out+merge de este § 7.2, autorizado con la lista plana de `ObtenerClientesAutorizadosQuery` (sin la jerarquía Gestor/Coordinador/Director de § 7.3, que sigue sin implementar) y **sin caché/paginación** (decisión consciente del usuario, YAGNI hasta que un Director tenga delegación sobre decenas de tenants — revisar entonces).
 6. ~~**Migración de datos existentes**~~ — **Resuelto (2026-07-30), confirmado con el usuario**: los datos operativos que tenía el tenant #1 eran datos de prueba, no datos reales de producción — se eliminaron y se restructuró el seed. El tenant #1 queda como Consultora sin datos operativos propios (§ 5.1) y un tenant nuevo ("Ibertec S.A. (Cliente Delegante demo)", creado por `DelegacionDemoSeeder`) concentra todos los datos CAE de prueba, con una `DelegacionTenant` activa entre ambos. Esto resuelve el caso demo — si en el futuro hay un tenant #1 con datos operativos **reales** en producción, esta decisión no aplica sin confirmación nueva del usuario.
-7. **Relación con las condiciones de salida de `ADR-003`**: la migración a PostgreSQL y el DPA/Términos de Uso (pendientes) probablemente necesiten contemplar explícitamente el caso "Cliente Delegante delega su gestión en una Consultora" en el propio DPA — no es solo Hydra-como-encargado-del-cliente, ahora hay una tercera parte (la Consultora) operando sobre los datos del cliente. Revisión legal, no implementación unilateral (regla de `CLAUDE.md`). Ver § 13 y § 14.
+7. **Relación con las condiciones de salida de `ADR-003`**: la migración a PostgreSQL ya se ejecutó en producción (2026-08-01, ver `docs/archive/RUNBOOK-MIGRACION-POSTGRESQL.md`); el DPA/Términos de Uso (único pendiente real) probablemente necesite contemplar explícitamente el caso "Cliente Delegante delega su gestión en una Consultora" en el propio texto — no es solo Hydra-como-encargado-del-cliente, ahora hay una tercera parte (la Consultora) operando sobre los datos del cliente. Revisión legal, no implementación unilateral (regla de `CLAUDE.md`). Ver § 13 y § 14.
 8. **Graduar `Consultora`/`Operador Delegado`/`Delegación` de `Draft` a `Approved`** en `docs/business/UBIQUITOUS_LANGUAGE.md`: este documento provee el desarrollo funcional que esas entradas esperaban — falta la confirmación explícita del propietario del producto y su registro en `DECISION_LOG.md` (regla del propio documento, no se hace unilateralmente aquí).
 
 ## 13. Hipótesis de trabajo adoptadas — pendientes de confirmación legal

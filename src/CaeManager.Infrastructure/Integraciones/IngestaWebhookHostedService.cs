@@ -72,7 +72,7 @@ public class IngestaWebhookHostedService(
             using var _ = AmbitoTenantExplicito.Establecer(tenantId);
 
             var eventoRepositorio = ambito.ServiceProvider.GetRequiredService<IEventoWebhookRepository>();
-            var evento = await eventoRepositorio.ObtenerSiguientePendienteAsync(stoppingToken);
+            var evento = await eventoRepositorio.ObtenerSiguientePendienteAsync(ProveedorIntegracion.Microsoft365, stoppingToken);
             if (evento is null) return;
 
             var ingesta = ambito.ServiceProvider.GetRequiredService<IngestaWebhookService>();

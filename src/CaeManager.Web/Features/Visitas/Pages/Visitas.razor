@@ -3,18 +3,28 @@
 @using CaeManager.Application.Visitas.Commands.CrearVisita
 @using CaeManager.Application.Visitas.Commands.EditarVisita
 @using CaeManager.Application.Visitas.Commands.EliminarVisita
+@using CaeManager.Application.Visitas.Commands.EliminarVisitas
 @using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente
+@using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita
 @using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId
 @using CaeManager.Application.Visitas.Queries.ObtenerVisitas
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Application.Common
+@using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita
+@using CaeManager.Domain.Documentos
+@using CaeManager.Domain.Visitas
+@using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Visitas
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
+@inject ContextWorkspaceService WorkspaceService
 
 <PageTitle>Visitas — CAE Manager</PageTitle>
 
@@ -31,12 +41,17 @@
         <label class="filtro-critico">
             <input type="checkbox" @bind="_soloActivas" @bind:after="RecargarAsync" /> Solo activas
         </label>
+        <label class="filtro-critico">
+            <input type="checkbox" @bind="_soloUrgentes" @bind:after="RecargarAsync" /> Solo urgentes
+        </label>
         <CampoSelect Etiqueta="Notificado al cliente" Valor="@_filtroNotificado" ValorChanged="FiltrarPorNotificadoAsync">
             <option value="">Todas</option>
             <option value="si">Sí</option>
             <option value="no">No</option>
         </CampoSelect>
     </div>
+
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
     @if (_errorCarga)
     {
@@ -52,13 +67,51 @@
            referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
-                <PropertyColumn Property="@(v => v.CentroNombre)" Title="Centro" Sortable="true" />
-                <TemplateColumn Title="Cliente / Empresa">
-                    @context.ClienteRazonSocial — @context.EmpresaRazonSocial
+            <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                <TemplateColumn Title="" Align="Align.Center">
+                    <HeaderTemplate Context="columna">
+                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                    </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="Fechas">
+                <TemplateColumn Title="Centro" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
+                        @context.CentroNombre
+                    </button>
+                </TemplateColumn>
+                <TemplateColumn Title="Cliente / Empresa" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.ClienteRazonSocial))">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
+                        @context.ClienteRazonSocial
+                    </button>
+                    —
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.EmpresaId, context.EmpresaRazonSocial, "informacion")'>
+                        @context.EmpresaRazonSocial
+                    </button>
+                </TemplateColumn>
+                <TemplateColumn Title="Fechas" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.FechaInicio))">
                     @context.FechaInicio.ToString("dd/MM/yyyy") – @context.FechaFin.ToString("dd/MM/yyyy")
+                </TemplateColumn>
+                <TemplateColumn Title="Urgencia" Align="Align.Center">
+                    @if (context.NivelUrgencia != NivelUrgenciaVisita.Normal)
+                    {
+                        <Badge Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)</Badge>
+                    }
+                </TemplateColumn>
+                <TemplateColumn Title="Origen" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
+                    @if (context.Origen == OrigenVisita.Correo)
+                    {
+                        <Badge Tono="TonoBadge.Info">Correo</Badge>
+                    }
+                    else if (context.Origen == OrigenVisita.WhatsApp)
+                    {
+                        <Badge Tono="TonoBadge.Exito">WhatsApp</Badge>
+                    }
+                    else
+                    {
+                        <Badge Tono="TonoBadge.Neutro">Plataforma</Badge>
+                    }
                 </TemplateColumn>
                 <TemplateColumn Title="Trabajadores" Align="Align.Center">
                     @context.TotalTrabajadores
@@ -73,13 +126,16 @@
                         <Badge Tono="TonoBadge.Peligro">Por gestionar</Badge>
                     }
                 </TemplateColumn>
-                <TemplateColumn Title="Notificado al cliente" Align="Align.Center">
+                <TemplateColumn Title="Notificado al cliente" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
                     <label class="campo-checkbox">
                         <input type="checkbox" checked="@context.NotificadoCliente"
                                @onchange="e => AlternarNotificadoAsync(context.Id, e.Value is bool marcado && marcado)" />
                     </label>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirDetalleAsync(context.Id)">
+                        Ver
+                    </Boton>
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
                         Editar
                     </Boton>
@@ -110,6 +166,11 @@
         @if (_mensajeErrorFormulario is not null)
         {
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        @if (_sugerenciaVisitaResumen is not null)
+        {
+            <div class="alerta-info">Prellenado desde un correo: @_sugerenciaVisitaResumen — revisa los datos y elige los trabajadores antes de guardar.</div>
         }
 
         @if (_editandoId is null)
@@ -155,6 +216,123 @@
     </Pie>
 </Drawer>
 
+<Drawer Visible="_detalleVisible" VisibleChanged="v => _detalleVisible = v" Titulo="Detalle de la visita">
+    <ChildContent>
+        @if (_cargandoDetalle)
+        {
+            <EstadoCargando Filas="4" />
+        }
+        else if (_detalle is not null)
+        {
+            <div class="campo">
+                <label>Centro</label>
+                <p class="texto-vacio-seccion">@_detalle.CentroNombre (@_detalle.ClienteRazonSocial — @_detalle.EmpresaRazonSocial)</p>
+            </div>
+            <div class="campo">
+                <label>Fechas</label>
+                <p class="texto-vacio-seccion">@_detalle.FechaInicio.ToString("dd/MM/yyyy") – @_detalle.FechaFin.ToString("dd/MM/yyyy")</p>
+            </div>
+            <div class="campo">
+                <label>Notificado al cliente</label>
+                <p class="texto-vacio-seccion">@(_detalle.NotificadoCliente ? "Sí" : "No")</p>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_detalle.Notas))
+            {
+                <div class="campo">
+                    <label>Notas</label>
+                    <p class="texto-vacio-seccion">@_detalle.Notas</p>
+                </div>
+            }
+
+            <h3 class="detalle-visita-subtitulo">Documentación</h3>
+            @if (_cargandoDocumentacion)
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (_errorDocumentacion)
+            {
+                <EstadoVacio Titulo="No pudimos cargar la documentación" Descripcion="Intenta nuevamente en unos segundos.">
+                    <Accion>
+                        <Boton OnClick="() => CargarDocumentacionAsync(_detalle.Id)">Reintentar</Boton>
+                    </Accion>
+                </EstadoVacio>
+            }
+            else if (_documentacion is not null)
+            {
+                <SeccionColapsable Titulo="Documentación de la empresa">
+                    <Encabezado>
+                        <Badge Tono="EstadoDocumentoUi.Tono(_documentacion.Empresa.PeorEstado)">@EstadoDocumentoUi.Texto(_documentacion.Empresa.PeorEstado)</Badge>
+                    </Encabezado>
+                    <ChildContent>
+                        @if (_documentacion.Empresa.Documentos.Count == 0)
+                        {
+                            <EstadoVacio Titulo="Todo en orden" Descripcion="No hay documentación de empresa pendiente para este centro." />
+                        }
+                        else
+                        {
+                            <ul class="workspace-lista-entidades">
+                                @foreach (var item in _documentacion.Empresa.Documentos)
+                                {
+                                    <FilaEntidadRelacionada
+                                        @key="item.TipoDocumentoId"
+                                        Titulo="@item.TipoDocumentoNombre"
+                                        Subtitulo="@(item.FechaVencimiento is null ? "—" : $"Vence: {item.FechaVencimiento:dd/MM/yyyy}")"
+                                        OnClic="() => AbrirDocumento(item)">
+                                        <Badge Tono="EstadoDocumentoUi.Tono(item.Estado)">@EstadoDocumentoUi.Texto(item.Estado)</Badge>
+                                    </FilaEntidadRelacionada>
+                                }
+                            </ul>
+                        }
+                    </ChildContent>
+                </SeccionColapsable>
+
+                <h3 class="detalle-visita-subtitulo">Trabajadores que entran (@_documentacion.Trabajadores.Count)</h3>
+                @if (_documentacion.Trabajadores.Count == 0)
+                {
+                    <EstadoVacio Titulo="Sin trabajadores" Descripcion="Esta visita todavía no tiene trabajadores asignados." />
+                }
+                else
+                {
+                    @foreach (var trabajador in _documentacion.Trabajadores)
+                    {
+                        <SeccionColapsable Titulo="@($"{trabajador.NombreCompleto} ({trabajador.Dni}) — {trabajador.EmpleadorNombre}")">
+                            <Encabezado>
+                                <Badge Tono="EstadoDocumentoUi.Tono(trabajador.Documentacion.PeorEstado)">@EstadoDocumentoUi.Texto(trabajador.Documentacion.PeorEstado)</Badge>
+                            </Encabezado>
+                            <ChildContent>
+                                @if (trabajador.Documentacion.Documentos.Count == 0)
+                                {
+                                    <EstadoVacio Titulo="Todo en orden" Descripcion="No hay documentación pendiente para este centro." />
+                                }
+                                else
+                                {
+                                    <ul class="workspace-lista-entidades">
+                                        @foreach (var item in trabajador.Documentacion.Documentos)
+                                        {
+                                            <FilaEntidadRelacionada
+                                                @key="item.TipoDocumentoId"
+                                                Titulo="@item.TipoDocumentoNombre"
+                                                Subtitulo="@(item.FechaVencimiento is null ? "—" : $"Vence: {item.FechaVencimiento:dd/MM/yyyy}")"
+                                                OnClic="() => AbrirDocumento(item)">
+                                                <Badge Tono="EstadoDocumentoUi.Tono(item.Estado)">@EstadoDocumentoUi.Texto(item.Estado)</Badge>
+                                            </FilaEntidadRelacionada>
+                                        }
+                                    </ul>
+                                }
+                            </ChildContent>
+                        </SeccionColapsable>
+                    }
+                }
+            }
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">Cerrar</Boton>
+    </Pie>
+</Drawer>
+
+<VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
+
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
@@ -162,3 +340,14 @@
     Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarLoteVisible"
+    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
+    Titulo="@($"¿Eliminar {_seleccionados.Count} visita(s)?")"
+    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlas desde Auditoría."
+    EnProgreso="_eliminandoLote"
+    OnConfirmar="ConfirmarEliminarLoteAsync" />

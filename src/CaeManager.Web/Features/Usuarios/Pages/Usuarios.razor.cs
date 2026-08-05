@@ -10,6 +10,7 @@ using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.Usuarios.Pages;
 
@@ -26,6 +27,9 @@ public partial class Usuarios : ComponentBase
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private IEmailService EmailService { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private ILogger<Usuarios> Logger { get; set; } = default!;
 
     private const int TamanoPagina = 20;
 
@@ -283,8 +287,35 @@ public partial class Usuarios : ComponentBase
         await PuertaAccesoDatos.EjecutarAsync(() => UserManager.AddToRoleAsync(usuario, _rol));
 
         ToastService.Mostrar("Usuario creado correctamente.", TonoToast.Exito);
+        await EnviarCorreoBienvenidaAsync(_email, _nombreCompleto, _password);
         _drawerVisible = false;
         await CargarAsync();
+    }
+
+    /// <summary>
+    /// Best-effort (Issue #2): un fallo de envío no debe deshacer el alta,
+    /// que ya se guardó. La contraseña que se envía es la temporal que
+    /// acaba de escribir el Administrador — <see cref="ApplicationUser.DebeCambiarContrasena"/>
+    /// ya obliga a cambiarla en el primer inicio de sesión real.
+    /// </summary>
+    private async Task EnviarCorreoBienvenidaAsync(string email, string nombreCompleto, string contrasenaTemporal)
+    {
+        var urlAcceso = NavigationManager.BaseUri.TrimEnd('/');
+
+        var cuerpo = $"""
+            <p>Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)},</p>
+            <p>Se ha creado tu acceso a CAE Manager:</p>
+            <ul>
+                <li>Correo: {System.Net.WebUtility.HtmlEncode(email)}</li>
+                <li>Contraseña temporal: {System.Net.WebUtility.HtmlEncode(contrasenaTemporal)}</li>
+            </ul>
+            <p>Se te pedirá cambiarla en tu primer inicio de sesión.</p>
+            <p><a href="{System.Net.WebUtility.HtmlEncode(urlAcceso)}">Entrar a CAE Manager</a></p>
+            """;
+
+        var resultado = await EmailService.EnviarAsync(email, "Tu acceso a CAE Manager", cuerpo);
+        if (resultado.EsFallido)
+            Logger.LogWarning("No se pudo enviar el correo de bienvenida a {Email}.", email);
     }
 
     private async Task EditarUsuarioAsync(Guid id)
