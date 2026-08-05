@@ -1,8 +1,10 @@
 using CaeManager.Application.Alertas;
+using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
+using CaeManager.Application.Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Web.Components;
@@ -17,10 +19,17 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     [Parameter, EditorRequired] public Guid CentroId { get; set; }
     [Parameter, EditorRequired] public string CentroNombre { get; set; } = string.Empty;
 
+    /// <summary>Próxima visita activa del centro (Centros.razor la resuelve en lote) — null si no tiene ninguna.</summary>
+    [Parameter] public Guid? VisitaId { get; set; }
+    [Parameter] public DateOnly? VisitaFechaFin { get; set; }
+
     private bool _cargando = true;
     private bool _errorCarga;
     private IReadOnlyList<TrabajadorAsignacionDocumentacionDto> _trabajadores = [];
     private readonly HashSet<Guid> _seleccionados = [];
+
+    private IReadOnlyList<TrabajadorSinAsignacionDto> _trabajadoresVisitaSinAsignacion = [];
+    private readonly HashSet<Guid> _asignandoDesdeVisita = [];
 
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanasAlta =
     [
@@ -68,8 +77,12 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
 
         try
         {
-            _trabajadores = await Mediator.Send(new ObtenerAsignacionesDocumentacionPorCentroQuery(CentroId));
+            _trabajadores = await Mediator.Send(new ObtenerAsignacionesDocumentacionPorCentroQuery(CentroId, VisitaFechaFin));
             _seleccionados.Clear();
+
+            _trabajadoresVisitaSinAsignacion = VisitaId is { } visitaId
+                ? await Mediator.Send(new ObtenerTrabajadoresVisitaSinAsignacionQuery(visitaId, CentroId))
+                : [];
         }
         catch (Exception)
         {
@@ -79,6 +92,47 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
         {
             _cargando = false;
             StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// "Asignación rápida desde visita" (§ 0.3): el trabajador ya está
+    /// identificado por <c>VisitaTrabajador</c> — no hace falta un selector,
+    /// solo confirmar la fecha de alta (hoy) y avisar si le faltará algún
+    /// documento obligatorio, mismo preflight no bloqueante que el drawer N×M.
+    /// </summary>
+    private async Task AsignarDesdeVisitaAsync(TrabajadorSinAsignacionDto trabajador)
+    {
+        _asignandoDesdeVisita.Add(trabajador.TrabajadorId);
+        StateHasChanged();
+
+        try
+        {
+            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var faltantes = await Mediator.Send(new ObtenerDocumentosFaltantesParaAsignacionQuery([trabajador.TrabajadorId], [CentroId]));
+
+            var resultado = await Mediator.Send(new CrearAsignacionCommand(trabajador.TrabajadorId, CentroId, hoy));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar(
+                faltantes.Count == 0
+                    ? $"{trabajador.TrabajadorNombre} asignado a {CentroNombre}."
+                    : $"{trabajador.TrabajadorNombre} asignado a {CentroNombre} — le faltan {faltantes.Count} documento(s) obligatorio(s).",
+                faltantes.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            await CargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos asignar al trabajador. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            _asignandoDesdeVisita.Remove(trabajador.TrabajadorId);
         }
     }
 
