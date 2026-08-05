@@ -1,8 +1,10 @@
 @page "/asignaciones"
 @rendermode InteractiveServer
-@using CaeManager.Application.Asignaciones.Commands.CrearAsignacion
+@using CaeManager.Application.Alertas
+@using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones
 @using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignacion
 @using CaeManager.Application.Asignaciones.Queries.ObtenerAsignaciones
+@using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Application.Common
@@ -24,6 +26,7 @@
 
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por trabajador o centro…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <FiltroEstado Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" />
     </div>
 
     @if (_errorCarga)
@@ -43,18 +46,18 @@
                         @context.TrabajadorNombre
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Centro">
+                <TemplateColumn Title="Centro" Sortable="true" SortBy="@(GridSort<AsignacionListaDto>.ByAscending(a => a.CentroNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
                         @context.CentroNombre
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Cliente">
+                <TemplateColumn Title="Cliente" Sortable="true" SortBy="@(GridSort<AsignacionListaDto>.ByAscending(a => a.ClienteNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteNombre, "informacion")'>
                         @context.ClienteNombre
                     </button>
                 </TemplateColumn>
-                <PropertyColumn Property="@(a => a.FechaAlta)" Format="dd/MM/yyyy" Title="Alta" />
-                <TemplateColumn Title="Estado">
+                <PropertyColumn Property="@(a => a.FechaAlta)" Format="dd/MM/yyyy" Title="Alta" Sortable="true" />
+                <TemplateColumn Title="Estado" Sortable="true" SortBy="@(GridSort<AsignacionListaDto>.ByAscending(a => a.FechaBaja))">
                     @if (context.FechaBaja is null)
                     {
                         <Badge Tono="TonoBadge.Exito">Activa</Badge>
@@ -97,30 +100,93 @@
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
         }
 
-        <CampoSelect Etiqueta="Trabajador" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
-            <option value="">Selecciona un trabajador…</option>
-            @foreach (var trabajador in _trabajadoresDisponibles)
-            {
-                <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
-            }
-        </CampoSelect>
-
-        <CampoSelect Etiqueta="Centro" Valor="@_centroId" ValorChanged="v => _centroId = v">
-            <option value="">Selecciona un centro…</option>
-            @foreach (var centro in _centrosDisponibles)
-            {
-                <option value="@centro.Id">@centro.Nombre (@centro.ClienteRazonSocial)</option>
-            }
-        </CampoSelect>
-
         <CampoTexto Etiqueta="Fecha de alta" Type="date" Valor="@_fechaAlta" ValorChanged="v => _fechaAlta = v" />
+
+        <Pestanas Definiciones="_pestanasAlta" PestanaActiva="@_vistaAlta" PestanaActivaChanged="v => _vistaAlta = v" EtiquetaGrupo="Vista de alta">
+            @if (_vistaAlta == "Lista")
+            {
+                <SelectorMultiple Etiqueta="Trabajadores"
+                                   Elementos="@_trabajadoresComoOpciones"
+                                   Seleccionados="@_trabajadorIdsSeleccionados"
+                                   OnAlternar="args => AlternarTrabajadorAsync(args.Id, args.Marcado)"
+                                   TextoVacio="No hay trabajadores dados de alta." />
+
+                <SelectorMultiple Etiqueta="Centros"
+                                   Elementos="@_centrosComoOpciones"
+                                   Seleccionados="@_centroIdsSeleccionados"
+                                   OnAlternar="args => AlternarCentroAsync(args.Id, args.Marcado)"
+                                   TextoVacio="No hay centros dados de alta." />
+            }
+            else
+            {
+                @if (_trabajadorIdsSeleccionados.Count == 0 || _centroIdsSeleccionados.Count == 0)
+                {
+                    <EstadoVacio Titulo="Selecciona trabajadores y centros"
+                                  Descripcion="Marca al menos un trabajador y un centro en la pestaña Lista para ver la matriz." />
+                }
+                else
+                {
+                    <p class="texto-ayuda-matriz">Desmarca una celda para excluir esa combinación del alta.</p>
+                    <div class="matriz-asignaciones-contenedor">
+                        <table class="matriz-asignaciones">
+                            <thead>
+                                <tr>
+                                    <th></th>
+                                    @foreach (var centro in _centrosSeleccionadosOrdenados)
+                                    {
+                                        <th>@centro.Nombre</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var trabajador in _trabajadoresSeleccionadosOrdenados)
+                                {
+                                    <tr>
+                                        <th scope="row">@trabajador.NombreCompleto</th>
+                                        @foreach (var centro in _centrosSeleccionadosOrdenados)
+                                        {
+                                            var t = trabajador.Id;
+                                            var c = centro.Id;
+                                            <td>
+                                                <input type="checkbox"
+                                                       checked="@(!_celdasExcluidas.Contains((t, c)))"
+                                                       @onchange="e => AlternarCeldaMatriz(t, c, e.Value is bool marcado && marcado)" />
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+        </Pestanas>
+
+        @if (_documentosFaltantes.Count > 0)
+        {
+            <div class="alerta-preflight-asignacion" role="status">
+                <p>
+                    <strong>@_documentosFaltantes.Count combinación(es)</strong> quedarán sin este documento obligatorio al confirmar:
+                </p>
+                <ul>
+                    @foreach (var faltante in _documentosFaltantes.Take(5))
+                    {
+                        <li>@faltante.TrabajadorNombre — @faltante.TipoDocumentoNombre (@faltante.CentroNombre)</li>
+                    }
+                </ul>
+                @if (_documentosFaltantes.Count > 5)
+                {
+                    <p>y @(_documentosFaltantes.Count - 5) más…</p>
+                }
+            </div>
+        }
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerVisible = false">
             Cancelar
         </Boton>
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
-            Guardar
+            @(_documentosFaltantes.Count > 0 ? "Asignar igualmente" : "Guardar")
         </Boton>
     </Pie>
 </Drawer>

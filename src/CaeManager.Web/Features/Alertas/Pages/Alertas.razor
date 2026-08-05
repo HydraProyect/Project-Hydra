@@ -2,7 +2,9 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Alertas.Queries.ObtenerAlertas
+@using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Web.Features.Documentos
 @using MediatR
 @inject IMediator Mediator
@@ -11,6 +13,27 @@
 
 <div class="contenedor-pagina">
     <h1 class="titulo-pagina">Alertas</h1>
+
+    <SeccionColapsable Titulo="Bandeja priorizada" ExpandidaPorDefecto="true">
+        @if (_cargandoBandeja)
+        {
+            <EstadoCargando Filas="3" />
+        }
+        else if (_itemsBandeja.Count == 0)
+        {
+            <p class="texto-vacio-seccion">Nada pendiente ahora mismo.</p>
+        }
+        else
+        {
+            <div class="lista-bandeja">
+                @foreach (var item in _itemsBandeja)
+                {
+                    <PanelResolverItem Item="item" />
+                }
+            </div>
+            <a href="/bandeja" class="enlace-nombre-fila">Ver la bandeja completa →</a>
+        }
+    </SeccionColapsable>
 
     <div class="barra-filtros">
         <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync">

@@ -1,0 +1,20 @@
+@* Filtro de estado de una lista. Vive en el Design System porque las 12
+   pantallas de listado lo montan igual: mismo sitio (la barra-filtros, nunca
+   escondido en un menú — UX_PATTERNS.md § Filtrar), misma opción "Todos" y
+   mismo microcopy. Las opciones concretas las aporta el Estado*Ui de cada
+   entidad, que ya es el único sitio donde un estado se traduce a texto. *@
+<CampoSelect Etiqueta="@Etiqueta" Valor="@Valor" ValorChanged="ValorChanged">
+    <option value="">@TextoTodos</option>
+    @foreach (var opcion in Opciones)
+    {
+        <option value="@opcion.Valor">@opcion.Texto</option>
+    }
+</CampoSelect>
+
+@code {
+    [Parameter] public string Valor { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValorChanged { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<OpcionEstado> Opciones { get; set; } = [];
+    [Parameter] public string Etiqueta { get; set; } = "Estado";
+    [Parameter] public string TextoTodos { get; set; } = "Todos";
+}
