@@ -265,5 +265,13 @@ public partial class AltaGuiada : ComponentBase
     private Task AnadirRequisitosAsync() =>
         _ultimoCentroId is null ? Task.CompletedTask : WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, _ultimoCentroId.Value, _ultimoCentroNombre, "requisitos");
 
+    /// <summary>
+    /// Asignar ya no es una página aparte (Centro 360, PLAN-EJECUCION-UX.md
+    /// § 0.1) — lleva a /centros filtrado por el nombre de este centro, listo
+    /// para expandir su acordeón y usar "+ Asignar trabajador".
+    /// </summary>
+    private void IrAAsignarTrabajadores() =>
+        NavigationManager.NavigateTo($"/centros?q={Uri.EscapeDataString(_ultimoCentroNombre)}");
+
     private static string? ObtenerError(Dictionary<string, string> errores, string campo) => errores.GetValueOrDefault(campo);
 }

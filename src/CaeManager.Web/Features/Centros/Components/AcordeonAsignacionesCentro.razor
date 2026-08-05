@@ -1,0 +1,210 @@
+@*
+    Contenido del acordeón "Asignaciones" de una fila de /centros (Centro 360,
+    PLAN-EJECUCION-UX.md § 0.1/0.2). Autocontenido: solo se instancia cuando
+    el usuario expande la fila (SeccionColapsable no renderiza su
+    ChildContent hasta entonces), así que la Query de este componente ya es
+    en sí misma la carga perezosa — no hace falta ningún guard adicional.
+
+    Sustituye a la página /asignaciones para este Centro: mismo drawer de
+    alta N×M (matriz + preflight) que tenía esa página, ahora con el Centro
+    de esta fila pre-marcado, más la baja en lote (DarDeBajaAsignacionesCommand,
+    antes sin ningún caller) y el tercer nivel de documentación requerida por
+    trabajador.
+*@
+@using CaeManager.Application.Alertas
+@using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones
+@using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones
+@using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro
+@using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos
+@using FluentValidation
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject NavigationManager NavigationManager
+
+@if (_errorCarga)
+{
+    <EstadoVacio Titulo="No pudimos cargar las asignaciones" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else
+{
+    <div class="acordeon-asignaciones-cabecera">
+        <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirDrawerAltaAsync">+ Asignar trabajador</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_seleccionados.Count == 0" OnClick="AbrirConfirmarBajaLoteAsync">
+            Dar de baja seleccionados
+        </Boton>
+    </div>
+
+    @if (_trabajadores.Count == 0)
+    {
+        <EstadoVacio Titulo="Sin trabajadores asignados" Descripcion="Ningún trabajador tiene una asignación activa en este centro." />
+    }
+    else
+    {
+        <div class="lista-trabajadores-acordeon">
+            @foreach (var trabajador in _trabajadores)
+            {
+                <div class="fila-trabajador-acordeon" @key="trabajador.AsignacionId">
+                    <input type="checkbox" checked="@_seleccionados.Contains(trabajador.AsignacionId)"
+                           @onchange="e => AlternarSeleccion(trabajador.AsignacionId, (bool)e.Value!)" />
+                    <div class="seccion-colapsable-envoltorio">
+                        <SeccionColapsable Titulo="@trabajador.TrabajadorNombre">
+                            <Encabezado>
+                                <span class="tarjeta-fila-acordeon-meta">desde @trabajador.FechaAlta.ToString("dd/MM/yyyy")</span>
+                                <Badge Tono="EstadoDocumentoUi.Tono(trabajador.PeorEstado)">@EstadoDocumentoUi.Texto(trabajador.PeorEstado)</Badge>
+                            </Encabezado>
+                            <ChildContent>
+                                @if (trabajador.Documentos.Count == 0)
+                                {
+                                    <p class="texto-vacio-seccion">Este centro no exige documentación específica a este trabajador.</p>
+                                }
+                                else
+                                {
+                                    <div class="lista-documentos-requeridos">
+                                        @foreach (var documento in trabajador.Documentos)
+                                        {
+                                            <div class="fila-documento-requerido" @key="documento.TipoDocumentoId">
+                                                <span class="fila-documento-requerido-nombre">@documento.TipoDocumentoNombre</span>
+                                                <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
+                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                       OnClick="() => Gestionar(trabajador.TrabajadorId, documento)">
+                                                    Gestionar
+                                                </Boton>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </ChildContent>
+                        </SeccionColapsable>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+<Drawer Visible="_drawerAltaVisible" VisibleChanged="v => _drawerAltaVisible = v" Titulo="Asignar trabajador"
+        CerrarAlHacerClicFuera="@(_mensajeErrorAlta is null && !_guardandoAlta)">
+    <ChildContent>
+        @if (_mensajeErrorAlta is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorAlta</div>
+        }
+
+        <CampoTexto Etiqueta="Fecha de alta" Type="date" Valor="@_fechaAlta" ValorChanged="v => _fechaAlta = v" />
+
+        <Pestanas Definiciones="_pestanasAlta" PestanaActiva="@_vistaAlta" PestanaActivaChanged="v => _vistaAlta = v" EtiquetaGrupo="Vista de alta">
+            @if (_vistaAlta == "Lista")
+            {
+                <SelectorMultiple Etiqueta="Trabajadores"
+                                   Elementos="@_trabajadoresComoOpciones"
+                                   Seleccionados="@_trabajadorIdsSeleccionados"
+                                   OnAlternar="args => AlternarTrabajadorAsync(args.Id, args.Marcado)"
+                                   TextoVacio="No hay trabajadores dados de alta." />
+
+                <SelectorMultiple Etiqueta="Centros"
+                                   Elementos="@_centrosComoOpciones"
+                                   Seleccionados="@_centroIdsSeleccionados"
+                                   OnAlternar="args => AlternarCentroAsync(args.Id, args.Marcado)"
+                                   TextoVacio="No hay centros dados de alta." />
+            }
+            else
+            {
+                @if (_trabajadorIdsSeleccionados.Count == 0 || _centroIdsSeleccionados.Count == 0)
+                {
+                    <EstadoVacio Titulo="Selecciona trabajadores y centros"
+                                  Descripcion="Marca al menos un trabajador y un centro en la pestaña Lista para ver la matriz." />
+                }
+                else
+                {
+                    <p class="texto-ayuda-matriz">Desmarca una celda para excluir esa combinación del alta.</p>
+                    <div class="matriz-asignaciones-contenedor">
+                        <table class="matriz-asignaciones">
+                            <thead>
+                                <tr>
+                                    <th></th>
+                                    @foreach (var centro in _centrosSeleccionadosOrdenados)
+                                    {
+                                        <th>@centro.Nombre</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var trabajador in _trabajadoresSeleccionadosOrdenados)
+                                {
+                                    <tr>
+                                        <th scope="row">@trabajador.NombreCompleto</th>
+                                        @foreach (var centro in _centrosSeleccionadosOrdenados)
+                                        {
+                                            var t = trabajador.Id;
+                                            var c = centro.Id;
+                                            <td>
+                                                <input type="checkbox"
+                                                       checked="@(!_celdasExcluidas.Contains((t, c)))"
+                                                       @onchange="e => AlternarCeldaMatriz(t, c, e.Value is bool marcado && marcado)" />
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+        </Pestanas>
+
+        @if (_documentosFaltantes.Count > 0)
+        {
+            <div class="alerta-preflight-asignacion" role="status">
+                <p>
+                    <strong>@_documentosFaltantes.Count combinación(es)</strong> quedarán sin este documento obligatorio al confirmar:
+                </p>
+                <ul>
+                    @foreach (var faltante in _documentosFaltantes.Take(5))
+                    {
+                        <li>@faltante.TrabajadorNombre — @faltante.TipoDocumentoNombre (@faltante.CentroNombre)</li>
+                    }
+                </ul>
+                @if (_documentosFaltantes.Count > 5)
+                {
+                    <p>y @(_documentosFaltantes.Count - 5) más…</p>
+                }
+            </div>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoAlta" OnClick="() => _drawerAltaVisible = false">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_guardandoAlta" OnClick="GuardarAltaAsync">
+            @(_documentosFaltantes.Count > 0 ? "Asignar igualmente" : "Guardar")
+        </Boton>
+    </Pie>
+</Drawer>
+
+<Modal Visible="_confirmarBajaLoteVisible" VisibleChanged="v => _confirmarBajaLoteVisible = v" Titulo="@($"Dar de baja a {_seleccionados.Count} trabajador(es)")">
+    <ChildContent>
+        <p>Dejarán de estar activos en @CentroNombre a partir de la fecha indicada. El historial de la asignación se conserva.</p>
+        <CampoTexto Etiqueta="Fecha de baja" Type="date" Valor="@_fechaBajaLote" ValorChanged="v => _fechaBajaLote = v" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesandoBajaLote" OnClick="() => _confirmarBajaLoteVisible = false">
+            Cancelar
+        </Boton>
+        <Boton Variante="VarianteBoton.Destructivo" Cargando="_procesandoBajaLote" OnClick="ConfirmarBajaLoteAsync">
+            Dar de baja
+        </Boton>
+    </Pie>
+</Modal>
