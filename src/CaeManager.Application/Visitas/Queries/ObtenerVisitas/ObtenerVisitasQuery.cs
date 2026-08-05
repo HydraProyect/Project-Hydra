@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 
 public record ObtenerVisitasQuery(
-    string? Busqueda, bool SoloActivas, bool? NotificadoCliente, int Pagina = 1, int TamanoPagina = 20,
+    string? Busqueda, bool SoloActivas, bool? NotificadoCliente, bool SoloUrgentes = false, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false)
     : IRequest<ResultadoPaginado<VisitaListaDto>>;
 
@@ -31,7 +31,8 @@ public record VisitaListaDto(
     int TotalTrabajadores,
     bool DocumentacionCompleta,
     bool NotificadoCliente,
-    OrigenVisita Origen);
+    OrigenVisita Origen,
+    NivelUrgenciaVisita NivelUrgencia);
 
 /// <summary>
 /// Igual que Dashboard/Alertas, el semáforo de cada Documento se calcula en
@@ -51,6 +52,7 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICl
     public async Task<ResultadoPaginado<VisitaListaDto>> Handle(ObtenerVisitasQuery request, CancellationToken cancellationToken)
     {
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
 
         var consulta = from visita in visitasContext.Visitas
                        join centro in centrosContext.Centros on visita.CentroId equals centro.Id
@@ -67,6 +69,17 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICl
 
         if (request.NotificadoCliente is not null)
             consulta = consulta.Where(x => x.visita.NotificadoCliente == request.NotificadoCliente);
+
+        if (request.SoloUrgentes)
+        {
+            // Mismo criterio que CalculadoraUrgenciaVisita, expresado en SQL
+            // para poder filtrar antes de paginar: activa (FechaFin >= hoy,
+            // cubre también "en curso") y su inicio cae dentro de la ventana
+            // de aviso (en días completos — Visita no registra hora, ver el
+            // comentario de la propia calculadora).
+            var limiteAviso = hoy.AddDays(parametros.HorasAvisoVisita / 24);
+            consulta = consulta.Where(x => x.visita.FechaFin >= hoy && x.visita.FechaInicio <= limiteAviso);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
@@ -138,8 +151,6 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICl
         var trabajadorIdsImplicados = trabajadoresPorVisita.Select(t => t.TrabajadorId).Distinct().ToList();
         var empresaIdsImplicadas = pagina.Select(p => p.EmpresaId).Distinct().ToList();
 
-        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-
         var vencimientosTrabajadores = await documentosContext.Documentos
             .Where(d => d.TrabajadorId != null && trabajadorIdsImplicados.Contains(d.TrabajadorId!.Value))
             .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.FechaVencimiento })
@@ -189,7 +200,9 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICl
                 p.Id, p.CentroId, p.CentroNombre, p.ClienteId, p.ClienteRazonSocial, p.EmpresaId, p.EmpresaRazonSocial,
                 p.FechaInicio, p.FechaFin, trabajadorIdsDeEstaVisita.Count,
                 DocumentacionCompleta: empresaOk && trabajadoresOk,
-                p.NotificadoCliente, p.Origen);
+                p.NotificadoCliente, p.Origen,
+                NivelUrgencia: CalculadoraUrgenciaVisita.Calcular(
+                    p.FechaInicio, p.FechaFin, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita));
         }).ToList();
 
         return new ResultadoPaginado<VisitaListaDto>(elementos, total, request.Pagina, request.TamanoPagina);

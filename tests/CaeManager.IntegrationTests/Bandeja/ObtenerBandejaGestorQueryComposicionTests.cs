@@ -4,11 +4,13 @@ using CaeManager.Application.DependencyInjection;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -65,6 +67,8 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         servicios.AddSingleton<CaeManager.Application.Asignaciones.IAsignacionesQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Configuracion.IConfiguracionQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.RequisitosDocumentales.IRequisitosDocumentalesQueryContext>(_dbContext);
+        servicios.AddSingleton<CaeManager.Application.Visitas.IVisitasQueryContext>(_dbContext);
+        servicios.AddSingleton<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(_dbContext);
         servicios.AddSingleton<IAlcanceDatosService>(new AlcanceDatosServiceFalso());
         servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: _tenant));
         _servicios = servicios.BuildServiceProvider();
@@ -92,6 +96,18 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         // Requisito bloqueante sin cumplir.
         _dbContext.RequisitosDocumentales.Add(new RequisitoDocumental(centro.Id, "PSS firmado", null, bloqueaAcceso: true));
 
+        // Fase F: Visita confirmada dentro de la ventana crítica (mañana).
+        var manana = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        _dbContext.Visitas.Add(new Visita(centro.Id, manana, manana, notas: null));
+
+        // Fase F: sugerencia de visita sorpresa sin resolver, mismo día.
+        var conversacion = new ConversacionCorreo("Solicitud urgente de entrada");
+        _dbContext.ConversacionesCorreo.Add(conversacion);
+        await _dbContext.SaveChangesAsync();
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, "cliente@ejemplo.com", "Necesitamos entrar hoy mismo");
+        await _dbContext.SaveChangesAsync();
+        _dbContext.SugerenciasVisitaCorreo.Add(new SugerenciaVisitaCorreo(mensaje.Id, centro.Id, null, null, "Pide entrar hoy mismo"));
+
         await _dbContext.SaveChangesAsync();
     }
 
@@ -103,14 +119,16 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Compone_faltantes_y_requisitos_pendientes_en_una_sola_cola_priorizada()
+    public async Task Compone_faltantes_requisitos_visitas_urgentes_y_sugerencias_en_una_sola_cola_priorizada()
     {
         var mediator = _servicios.GetRequiredService<IMediator>();
 
         var resultado = await mediator.Send(new ObtenerBandejaGestorQuery());
 
-        resultado.Should().HaveCount(2);
-        resultado[0].Tipo.Should().Be(TipoItemBandeja.Faltante, "Faltante tiene la prioridad más alta");
-        resultado[1].Tipo.Should().Be(TipoItemBandeja.RequisitoPendiente);
+        resultado.Select(i => i.Tipo).Should().Equal(
+            TipoItemBandeja.SugerenciaVisitaUrgente,
+            TipoItemBandeja.Faltante,
+            TipoItemBandeja.VisitaUrgente,
+            TipoItemBandeja.RequisitoPendiente);
     }
 }

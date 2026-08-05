@@ -18,6 +18,8 @@ public class ParametroSistemaConfiguration : IEntityTypeConfiguration<ParametroS
             Id = ParametroSistemaSeedData.IdUnico,
             UmbralAmbarDias = ParametroSistemaSeedData.UmbralAmbarDias,
             UmbralRojoDias = ParametroSistemaSeedData.UmbralRojoDias,
+            HorasAvisoVisita = ParametroSistemaSeedData.HorasAvisoVisita,
+            HorasCriticasVisita = ParametroSistemaSeedData.HorasCriticasVisita,
             // Un tenant nuevo siembra su propia fila al aprovisionarse (ver
             // docs/MULTITENANCY.md § 7) — esta es la del tenant #1.
             TenantId = TenantSeedData.IdPorDefecto
