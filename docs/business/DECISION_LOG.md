@@ -69,6 +69,23 @@ Una entrada nunca se edita para cambiar lo que se decidió en su momento — si 
 
 **Estado**: Vigente
 
+## 2026-08-05 — Centro 360: rediseño de Asignaciones/Centros como panel operativo único, retirada de Evaluaciones
+
+**Decisión**:
+1. `/asignaciones` deja de ser una página independiente. Se convierte en un acordeón por Centro dentro de `/centros` (contraído por defecto, carga perezosa), con el drawer de alta N×M (matriz + preflight) y la baja en lote conservados como acciones del acordeón, más un export plano de asignaciones activas.
+2. Cada Centro muestra si tiene una visita programada sin cambiar de pantalla; el estado de cada documento gana un modificador visual cuando es válido hoy pero caduca dentro de la ventana de la próxima visita del centro (sigue siendo estado derivado, solo cambia la fecha de referencia).
+3. La documentación requerida de un Centro pasa a ser configurable en ambos sentidos (incluir tipos adicionales y excluir tipos globalmente obligatorios) — hoy `TipoDocumentoCentro` solo permite restringir, no excluir.
+4. **El módulo Evaluaciones se retira.** La puntuación de un centro/trabajador pasa a calcularse automáticamente como % de documentación requerida al día — nunca fue una puntuación manual con sentido de uso real.
+5. `CanalGestionDocumental` pasa de 1:1 con el Centro a **N accesos por Centro** con etiqueta de propósito libre (ej. distinguir credenciales de trabajadores extranjeros de la gestión general, aunque compartan URL).
+
+**Motivo**: La operación diaria del Gestor CAE ocurre por Centro, no por lista plana de asignaciones — agrupar ahí reduce el ruido visual reportado con datos reales (298 asignaciones, 48 centros) y responde en una sola pantalla las preguntas que hoy exigen saltar entre `/asignaciones`, `/visitas` y `/centros`. La puntuación manual de Evaluaciones nunca reflejó nada objetivo; sustituirla por un cálculo derivado de documentación requerida es coherente con la regla ya vigente de que lo calculado nunca se edita a mano. La restricción-only de `TipoDocumentoCentro` no cubre el caso real de plataformas Inbound que piden menos documentación de la estándar. Un único canal por Centro no cubre credenciales distintas para el mismo link.
+
+**Alternativas descartadas**: mantener `/asignaciones` como página aparte y solo añadir el badge de visita en `/centros` (no resuelve el ruido visual de la lista plana); conservar Evaluaciones como juicio de campo manual en paralelo al % calculado (dos números que responden la misma pregunta con distinta fuente confunden más de lo que ayudan — si en el futuro hace falta un juicio de campo real, es una decisión nueva y separada); invertir directamente la semántica de `TipoDocumentoCentro` sin tabla de exclusión explícita (se decide en la sesión de implementación, con test que cubra ambos sentidos).
+
+**Impacto**: `docs/ux-audit/PLAN-EJECUCION-UX.md` § Parte 0 "Centro 360" (nueva, prioridad 1 del plan, por delante de los quick wins sueltos); `docs/ux-audit/ROADMAP-UX.md` (nota de repriorización); pendiente al implementar: alta de un badge "vigente con riesgo en ventana de visita" en `DESIGN_SYSTEM.md`/`UX_PATTERNS.md`; baja formal de la ruta/entidad `Evaluacion` (no solo ocultar el menú).
+
+**Estado**: Vigente
+
 ## Documentos relacionados
 
 - Todos los documentos de `docs/business/` — cualquiera puede generar una entrada aquí cuando su contenido pasa de `Draft`/`In Progress` a `Approved`.
