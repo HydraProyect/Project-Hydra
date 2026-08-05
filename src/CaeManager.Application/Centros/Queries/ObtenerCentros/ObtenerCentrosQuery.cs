@@ -61,35 +61,69 @@ public class ObtenerCentrosQueryHandler(
         if (request.ClienteId is not null)
             consulta = consulta.Where(x => x.centro.ClienteId == request.ClienteId);
 
-        var proyeccion = consulta.Select(x => new FilaCentro(
-            x.centro.Id,
-            x.centro.Nombre,
-            x.centro.CodigoCentro,
-            x.centro.ClienteId,
-            x.cliente.RazonSocial,
-            x.empresa.RazonSocial));
-
         var necesitaEstadoCompleto =
             request.Estado is not null ||
             string.Equals(request.OrdenarPor, nameof(CentroListaDto.Estado), StringComparison.Ordinal);
 
-        return necesitaEstadoCompleto
-            ? await ResolverConEstadoAsync(proyeccion, request, cancellationToken)
-            : await ResolverEnSqlAsync(proyeccion, request, cancellationToken);
-    }
+        if (necesitaEstadoCompleto)
+        {
+            var todas = await consulta
+                .Select(x => new FilaCentro(
+                    x.centro.Id, x.centro.Nombre, x.centro.CodigoCentro, x.centro.ClienteId,
+                    x.cliente.RazonSocial, x.empresa.RazonSocial))
+                .ToListAsync(cancellationToken);
 
-    private async Task<ResultadoPaginado<CentroListaDto>> ResolverEnSqlAsync(
-        IQueryable<FilaCentro> proyeccion, ObtenerCentrosQuery request, CancellationToken cancellationToken)
-    {
-        var total = await proyeccion.CountAsync(cancellationToken);
+            var estadosTodas = await calculoEstadoCentro.CalcularAsync(todas.Select(c => c.Id).ToList(), cancellationToken);
+            var conEstado = todas.Select(c => AplicarEstado(c, estadosTodas));
 
-        // ThenBy(Id) cierra el orden: sin un criterio total, las filas
-        // empatadas pueden salir en distinto orden entre página y página y,
-        // al paginar en SQL, una fila se repetiría o no aparecería nunca.
-        var pagina = await Ordenar(proyeccion, request.OrdenarPor, request.Descendente)
-            .ThenBy(c => c.Id)
+            if (request.Estado is not null)
+                conEstado = conEstado.Where(c => c.Estado == request.Estado);
+
+            var ordenados = OrdenarEnMemoria(conEstado, request.OrdenarPor, request.Descendente)
+                .ThenBy(c => c.Id)
+                .ToList();
+
+            return new ResultadoPaginado<CentroListaDto>(
+                ordenados.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList(),
+                ordenados.Count,
+                request.Pagina,
+                request.TamanoPagina);
+        }
+
+        var total = await consulta.CountAsync(cancellationToken);
+
+        // Lista blanca de columnas ordenables: un OrdenarPor desconocido cae
+        // al orden por defecto en vez de fallar o de acabar interpolado en
+        // SQL. Los nombres son los de las propiedades de CentroListaDto, que
+        // es lo que QuickGrid envía. Se ordena sobre las entidades del join,
+        // no sobre la proyección a FilaCentro: EF Core no traduce un OrderBy
+        // que llega después de un Select con constructor (a diferencia de un
+        // tipo anónimo), así que la proyección va al final, tras paginar.
+        var ordenada = (request.OrdenarPor, request.Descendente) switch
+        {
+            (nameof(CentroListaDto.Nombre), false) => consulta.OrderBy(x => x.centro.Nombre),
+            (nameof(CentroListaDto.Nombre), true) => consulta.OrderByDescending(x => x.centro.Nombre),
+            (nameof(CentroListaDto.CodigoCentro), false) => consulta.OrderBy(x => x.centro.CodigoCentro),
+            (nameof(CentroListaDto.CodigoCentro), true) => consulta.OrderByDescending(x => x.centro.CodigoCentro),
+            (nameof(CentroListaDto.ClienteRazonSocial), false) => consulta.OrderBy(x => x.cliente.RazonSocial).ThenBy(x => x.centro.Nombre),
+            (nameof(CentroListaDto.ClienteRazonSocial), true) => consulta.OrderByDescending(x => x.cliente.RazonSocial).ThenBy(x => x.centro.Nombre),
+            (nameof(CentroListaDto.EmpresaRazonSocial), false) => consulta.OrderBy(x => x.empresa.RazonSocial).ThenBy(x => x.centro.Nombre),
+            (nameof(CentroListaDto.EmpresaRazonSocial), true) => consulta.OrderByDescending(x => x.empresa.RazonSocial).ThenBy(x => x.centro.Nombre),
+            _ => consulta.OrderBy(x => x.cliente.RazonSocial).ThenBy(x => x.centro.Nombre)
+        };
+        // Desempate estable: sin un criterio total, PostgreSQL puede devolver
+        // las filas empatadas en distinto orden entre una página y otra, y al
+        // paginar en SQL eso hace que una fila aparezca dos veces o no
+        // aparezca nunca. El Id no se ordena nunca por sí solo — solo cierra
+        // el orden que haya elegido el usuario.
+        ordenada = ordenada.ThenBy(x => x.centro.Id);
+
+        var pagina = await ordenada
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
+            .Select(x => new FilaCentro(
+                x.centro.Id, x.centro.Nombre, x.centro.CodigoCentro, x.centro.ClienteId,
+                x.cliente.RazonSocial, x.empresa.RazonSocial))
             .ToListAsync(cancellationToken);
 
         var estados = await calculoEstadoCentro.CalcularAsync(pagina.Select(c => c.Id).ToList(), cancellationToken);
@@ -98,51 +132,9 @@ public class ObtenerCentrosQueryHandler(
             pagina.Select(c => AplicarEstado(c, estados)).ToList(), total, request.Pagina, request.TamanoPagina);
     }
 
-    private async Task<ResultadoPaginado<CentroListaDto>> ResolverConEstadoAsync(
-        IQueryable<FilaCentro> proyeccion, ObtenerCentrosQuery request, CancellationToken cancellationToken)
-    {
-        var filas = await proyeccion.ToListAsync(cancellationToken);
-        var estados = await calculoEstadoCentro.CalcularAsync(filas.Select(c => c.Id).ToList(), cancellationToken);
-
-        var conEstado = filas.Select(c => AplicarEstado(c, estados));
-
-        if (request.Estado is not null)
-            conEstado = conEstado.Where(c => c.Estado == request.Estado);
-
-        var ordenados = OrdenarEnMemoria(conEstado, request.OrdenarPor, request.Descendente)
-            .ThenBy(c => c.Id)
-            .ToList();
-
-        return new ResultadoPaginado<CentroListaDto>(
-            ordenados.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList(),
-            ordenados.Count,
-            request.Pagina,
-            request.TamanoPagina);
-    }
-
     private static CentroListaDto AplicarEstado(FilaCentro fila, IReadOnlyDictionary<Guid, ResultadoEstadoCentro> estados) =>
         new(fila.Id, fila.Nombre, fila.CodigoCentro, fila.ClienteId, fila.ClienteRazonSocial, fila.EmpresaRazonSocial,
             estados.TryGetValue(fila.Id, out var resultado) ? resultado.Estado : EstadoCentro.Vigente);
-
-    /// <summary>
-    /// Lista blanca de columnas ordenables: un <c>OrdenarPor</c> desconocido
-    /// cae al orden por defecto en vez de fallar o de acabar interpolado en
-    /// SQL. Los nombres son los de las propiedades de
-    /// <see cref="CentroListaDto"/>, que es lo que QuickGrid envía.
-    /// </summary>
-    private static IOrderedQueryable<FilaCentro> Ordenar(IQueryable<FilaCentro> consulta, string? ordenarPor, bool descendente) =>
-        (ordenarPor, descendente) switch
-        {
-            (nameof(CentroListaDto.Nombre), false) => consulta.OrderBy(x => x.Nombre),
-            (nameof(CentroListaDto.Nombre), true) => consulta.OrderByDescending(x => x.Nombre),
-            (nameof(CentroListaDto.CodigoCentro), false) => consulta.OrderBy(x => x.CodigoCentro),
-            (nameof(CentroListaDto.CodigoCentro), true) => consulta.OrderByDescending(x => x.CodigoCentro),
-            (nameof(CentroListaDto.ClienteRazonSocial), false) => consulta.OrderBy(x => x.ClienteRazonSocial).ThenBy(x => x.Nombre),
-            (nameof(CentroListaDto.ClienteRazonSocial), true) => consulta.OrderByDescending(x => x.ClienteRazonSocial).ThenBy(x => x.Nombre),
-            (nameof(CentroListaDto.EmpresaRazonSocial), false) => consulta.OrderBy(x => x.EmpresaRazonSocial).ThenBy(x => x.Nombre),
-            (nameof(CentroListaDto.EmpresaRazonSocial), true) => consulta.OrderByDescending(x => x.EmpresaRazonSocial).ThenBy(x => x.Nombre),
-            _ => consulta.OrderBy(x => x.ClienteRazonSocial).ThenBy(x => x.Nombre)
-        };
 
     private static IOrderedEnumerable<CentroListaDto> OrdenarEnMemoria(
         IEnumerable<CentroListaDto> elementos, string? ordenarPor, bool descendente) =>
