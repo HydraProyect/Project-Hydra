@@ -6,10 +6,17 @@
     {
         <div class="toast toast-@toast.Tono.ToString().ToLowerInvariant()" role="status">
             <span>@toast.Mensaje</span>
+            @if (toast.TextoAccion is not null)
+            {
+                <button type="button" class="toast-accion" @onclick="() => ToastService.EjecutarAccionAsync(toast.Id)">@toast.TextoAccion</button>
+            }
             <button type="button" aria-label="Cerrar" @onclick="() => ToastService.Descartar(toast.Id)">×</button>
             @if (toast.Tono != TonoToast.Error)
             {
-                <div class="toast-progreso" style="animation-duration:@((int)ToastService.DuracionAutoDescarte.TotalMilliseconds)ms"></div>
+                var duracionMs = toast.TextoAccion is not null
+                    ? (int)ToastService.DuracionAutoDescarteConAccion.TotalMilliseconds
+                    : (int)ToastService.DuracionAutoDescarte.TotalMilliseconds;
+                <div class="toast-progreso" style="animation-duration:@(duracionMs)ms"></div>
             }
         </div>
     }

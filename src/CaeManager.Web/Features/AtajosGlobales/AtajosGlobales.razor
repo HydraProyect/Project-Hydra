@@ -1,0 +1,38 @@
+@namespace CaeManager.Web.Features.AtajosGlobales
+
+<Modal Visible="_ayudaVisible" VisibleChanged="v => _ayudaVisible = v" Titulo="Atajos de teclado">
+    <ChildContent>
+        <div class="chuleta-atajos">
+            <section>
+                <h3>Navegación</h3>
+                @foreach (var atajo in CatalogoAtajos.Navegacion)
+                {
+                    <div class="chuleta-atajos-fila">
+                        <kbd>@atajo.Tecla</kbd>
+                        <span>@atajo.Descripcion</span>
+                    </div>
+                }
+            </section>
+            <section>
+                <h3>Acciones</h3>
+                @foreach (var atajo in CatalogoAtajos.Acciones)
+                {
+                    <div class="chuleta-atajos-fila">
+                        <kbd>@atajo.Tecla</kbd>
+                        <span>@atajo.Descripcion</span>
+                    </div>
+                }
+            </section>
+            <section>
+                <h3>Dentro de una lista</h3>
+                @foreach (var atajo in CatalogoAtajos.Lista)
+                {
+                    <div class="chuleta-atajos-fila">
+                        <kbd>@atajo.Tecla</kbd>
+                        <span>@atajo.Descripcion</span>
+                    </div>
+                }
+            </section>
+        </div>
+    </ChildContent>
+</Modal>
