@@ -59,7 +59,18 @@ opera un centro sin salir de la pantalla: quién está de alta, con qué estado,
 próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plana de
 `/asignaciones`, que desaparece como página independiente.
 
-### (0.1) Acordeón de asignaciones dentro de `/centros`
+> **Secuenciación en lotes (añadido en la sesión de implementación de 0.1/0.2)**: los 7
+> sub-ítems no caben en un único PR sin mezclar refactors independientes (regla del propio
+> "Modo de trabajo" de este documento) — 0.5 retira una entidad completa con migración, 0.6
+> construye desde cero la capa de Application para `CanalGestionDocumental` (hoy solo existe el
+> modelo de dominio) y cambia su cardinalidad, y 0.4 decide una semántica de modelo nueva para
+> `TipoDocumentoCentro`. Se ejecuta en lotes ordenados, cada uno su propia rama/PR, merge en
+> verde antes del siguiente: **Lote 0-A** = 0.1 + 0.2 (✅ hecho, ver estado abajo) · **Lote 0-B**
+> = 0.3 (visita) · **Lote 0-C** = 0.4 + 0.5 (requisitos configurables + retirada de Evaluaciones,
+> van juntos porque 0.5 depende del modelo que decide 0.4) · **Lote 0-D** = 0.6 + 0.7 (N accesos
+> de plataforma + copy de criterios de validación).
+
+### (0.1) Acordeón de asignaciones dentro de `/centros` — ✅ hecho (Lote 0-A)
 
 - Cada fila de Centro es un `<details>`/acordeón — **contraído por defecto**, sin coste de
   render hasta que se expande (carga perezosa al abrir, mismo criterio de "no pagar por lo que
@@ -74,13 +85,33 @@ próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plan
   cierra el quick win 9 de la Parte 1 en el mismo movimiento).
 - Se conserva un **export plano** de todas las asignaciones activas (mismo dato, vista tabla)
   para auditoría/"dónde está Juan hoy" — no todo uso es por-centro.
+- **Estado**: hecho. `Centros.razor` pasó de `QuickGrid` a lista paginada en servidor (mismo
+  patrón que `Usuarios.razor`) con cada fila envuelta en `SeccionColapsable`; el drawer N×M de
+  `Asignaciones.razor` se trasladó a `AcordeonAsignacionesCentro.razor` (con el Centro de la
+  fila pre-marcado); `DarDeBajaAsignacionesCommand` tiene ya su primer caller; export nuevo en
+  `/asignaciones/exportar.xlsx`. `/asignaciones` se retiró (página, entrada de menú, atajo `g a`
+  ahora apunta a `/centros`). Verificado en navegador con datos de demo (34 centros, 268
+  trabajadores): alta, baja en lote y export probados end-to-end.
+- **Hallazgo de datos, no de código**: el catálogo maestro de `TipoDocumento`
+  (`TipoDocumentoSeedData.cs`) tiene `EsObligatorio = false` en **todos** los tipos de Trabajador
+  — como el tercer nivel (0.2) reutiliza `IDocumentosFaltantesService` tal como pedía este ítem,
+  hoy muestra "Este centro no exige documentación específica" para prácticamente cualquier
+  trabajador, aunque el badge de cumplimiento del Centro sí refleje vencimientos reales (ese
+  cálculo no filtra por obligatorio). Es el comportamiento correcto dado el modelo actual — no
+  se tocó `EsObligatorio` en este lote (decisión de datos/negocio, fuera de alcance) — pero
+  conviene que el propietario lo revise: si se espera que el tercer nivel muestre algo en la
+  mayoría de centros, hace falta marcar como obligatorios los tipos que correspondan.
 
-### (0.2) Documentación requerida como tercer nivel, dentro del acordeón de cada trabajador
+### (0.2) Documentación requerida como tercer nivel, dentro del acordeón de cada trabajador — ✅ hecho (Lote 0-A)
 
 - Al expandir un trabajador dentro de un centro: sus documentos **requeridos por ese centro**
   (base + adicionales, ver 0.4), con su estado. Igual que el nivel de centro, **contraído por
   defecto** — validar en implementación que no rompe la densidad visual (el propio propietario
   lo marca como "a probar", no como cerrado).
+- **Estado**: hecho, degradación a resumen no hizo falta — con los datos de demo (hasta 14
+  trabajadores por centro) la densidad se sostiene bien anidada; a revisar de nuevo si en
+  producción aparece un centro con muchos más trabajadores y documentos con estado real (ver
+  hallazgo de `EsObligatorio` arriba, que hoy oculta la mayoría de filas).
 - Acción "Gestionar" reutiliza el patrón crear-desde-faltante ya existente
   (`?trabajadorId=&tipoDocumentoId=`).
 
