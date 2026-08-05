@@ -21,7 +21,8 @@ public record KpisDashboardDto(
     int DocumentosVigentes,
     int VisitasProgramadas,
     int TasaCumplimientoDocumental,
-    int VisitasUrgentes = 0);
+    int VisitasUrgentes = 0,
+    bool SinCarteraAsignada = false);
 
 /// <summary>
 /// Los seis KPI del Dashboard (ver DATABASE.md, hoja "Dashboard" del Excel
@@ -37,6 +38,13 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
 {
     public async Task<KpisDashboardDto> Handle(ObtenerKpisDashboardQuery request, CancellationToken cancellationToken)
     {
+        // Un rol restringido (GestorCae/CoordinadorCae/Cliente) sin ningún
+        // Cliente asignado en la cartera actual devuelve lista vacía (nunca
+        // null, ver IAlcanceDatosService) — hay que distinguirlo del "todo
+        // vigente" para no mostrar SLA 100% en verde sobre un alcance vacío.
+        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var sinCarteraAsignada = clienteIdsVisibles is { Count: 0 };
+
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
 
@@ -88,6 +96,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             DocumentosVigentes: vigentes,
             VisitasProgramadas: visitasProgramadas,
             TasaCumplimientoDocumental: tasa,
-            VisitasUrgentes: visitasUrgentes);
+            VisitasUrgentes: visitasUrgentes,
+            SinCarteraAsignada: sinCarteraAsignada);
     }
 }

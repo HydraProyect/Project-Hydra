@@ -63,7 +63,7 @@ public partial class Dashboard : ComponentBase
 
             _kpis = await Mediator.Send(new ObtenerKpisDashboardQuery());
 
-            if (_mostrarDocumentosAtencion)
+            if (_mostrarDocumentosAtencion && !_kpis.SinCarteraAsignada)
             {
                 _desglose = await Mediator.Send(new ObtenerDesgloseDashboardQuery());
                 _estadisticasAprobacion = await Mediator.Send(new ObtenerEstadisticasAprobacionDocumentoQuery());
