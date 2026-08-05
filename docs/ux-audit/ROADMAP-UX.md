@@ -1,6 +1,14 @@
 # Auditoría UX Hydra — Consolidación final y roadmap
 
 > Cierra la Fase 1 (16 sesiones, `00-INVENTARIO.md` § 5) ejecutada el 2026-08-05 **sobre la aplicación corriendo** con datos de demo (3 tenants, 371 trabajadores, 3.114 documentos) y capturas propias; los módulos solo-Administrador finales se auditaron sobre código al congelarse el panel del navegador. Marco vinculante: § 0 del inventario (MVP = CAE Outbound; vara: "¿más rápido y fiable que Excel + operar los portales?"; benchmark Konvergia; Dokify/Nalanda/eCoordina/CTAIMA solo como principios).
+>
+> **Repriorización 2026-08-05**: tras cerrar esta consolidación, el propietario decidió elevar
+> el rediseño de Centros/Asignaciones ("Centro 360": acordeón por centro, visitas, % de
+> cumplimiento, N accesos por plataforma) a **prioridad 1 de ejecución**, por delante de los
+> quick wins sueltos del Horizonte 1. El detalle vive en
+> [`PLAN-EJECUCION-UX.md`](PLAN-EJECUCION-UX.md) § Parte 0 y en `docs/business/DECISION_LOG.md`
+> (entrada 2026-08-05, "Centro 360"). Este documento se mantiene íntegro tal como se auditó —
+> el plan de ejecución es quien manda a partir de ahora sobre el orden real de trabajo.
 
 ## Nota global
 
