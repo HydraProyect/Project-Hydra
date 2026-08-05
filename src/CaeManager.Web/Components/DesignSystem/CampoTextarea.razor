@@ -9,7 +9,7 @@
               placeholder="@Placeholder"
               disabled="@Deshabilitado"
               @oninput="ManejarCambioAsync"
-              @onblur="() => OnBlur.InvokeAsync()">@Valor</textarea>
+              @onblur="() => OnBlur.InvokeAsync()">@_valorMostrado</textarea>
     @if (TieneError)
     {
         <span class="campo-mensaje-error" role="alert">@MensajeError</span>
@@ -18,6 +18,8 @@
 
 @code {
     private readonly string _id = $"campo-textarea-{Guid.NewGuid():N}";
+    private string _valorMostrado = string.Empty;
+    private string _ultimoValorNotificado = string.Empty;
 
     [Parameter] public string? Etiqueta { get; set; }
     [Parameter] public string Valor { get; set; } = string.Empty;
@@ -32,5 +34,25 @@
 
     private bool TieneError => !string.IsNullOrWhiteSpace(MensajeError);
 
-    private Task ManejarCambioAsync(ChangeEventArgs e) => ValorChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+    /// <summary>Ver CampoTexto.OnParametersSet — mismo motivo y misma guarda.</summary>
+    protected override void OnParametersSet()
+    {
+        if (Valor != _ultimoValorNotificado)
+        {
+            _valorMostrado = Valor;
+            _ultimoValorNotificado = Valor;
+        }
+    }
+
+    private Task ManejarCambioAsync(ChangeEventArgs e)
+    {
+        // _valorMostrado no se toca aquí — ver el comentario equivalente en
+        // CampoTexto.ManejarCambioAsync: el navegador ya tiene el valor
+        // correcto, y reflejarlo de vuelta en cada pulsación es lo que
+        // permite que un render en cola bajo latencia lo sobrescriba con
+        // una versión más corta.
+        var valor = e.Value?.ToString() ?? string.Empty;
+        _ultimoValorNotificado = valor;
+        return ValorChanged.InvokeAsync(valor);
+    }
 }

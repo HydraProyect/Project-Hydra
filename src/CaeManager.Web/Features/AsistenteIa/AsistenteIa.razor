@@ -45,7 +45,7 @@
             <div class="asistente-entrada">
                 <textarea class="asistente-textarea"
                           placeholder="Escribe tu pregunta…"
-                          value="@_pregunta"
+                          value="@_valorMostrado"
                           disabled="@_enviando"
                           @oninput="e => _pregunta = e.Value?.ToString() ?? string.Empty"
                           @onkeydown="ManejarTeclaAsync"></textarea>
