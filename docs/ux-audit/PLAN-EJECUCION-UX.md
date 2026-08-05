@@ -1,8 +1,8 @@
-# Plan de ejecución del roadmap UX (post-auditoría) + bloque Acreditación MVP1
+# Plan de ejecución del roadmap UX (post-auditoría) + Centro 360 + Acreditación MVP1
 
 > **Tipo**: Operativo — es el plan que consumen las sesiones de implementación de los arreglos
-> de la auditoría (`ROADMAP-UX.md`). Decisión de alcance registrada en
-> `docs/business/DECISION_LOG.md` (entrada 2026-08-05). Actualizar el estado aquí y en
+> de la auditoría (`ROADMAP-UX.md`). Decisiones de alcance registradas en
+> `docs/business/DECISION_LOG.md` (entradas 2026-08-05). Actualizar el estado aquí y en
 > `ROADMAP-UX.md` (✅ + nº de PR) al completar cada ítem.
 
 ## Contexto (no re-auditar)
@@ -17,6 +17,14 @@ resuelto en main — no repetir:
 
 La ficha de cada hallazgo es la fuente de verdad; si el código contradice a la ficha,
 verificar en ejecución antes de decidir.
+
+## Orden de prioridad (actualizado 2026-08-05)
+
+La **Parte 0 — Centro 360** pasa a ser la primera pieza a implementar, por delante incluso de
+los quick wins sueltos de la Parte 1: es el rediseño de `/centros` en un panel operativo único
+(asignaciones, visitas, requisitos, accesos y % de cumplimiento) y el propietario del producto
+lo considera el quick win de mayor impacto. Orden real de ejecución: **Parte 0 → Parte 1 →
+Parte 2**.
 
 ## Modo de trabajo (innegociable)
 
@@ -44,7 +52,130 @@ verificar en ejecución antes de decidir.
 - Usuarios: `admin@caemanager.local` / `CaeManager#2026` (TOTP dev `JBSWY3DPEHPK3PXP`);
   con datos: `prueba.direccioncae1@caemanager.local` / `Prueba#2026` (tenant demo Dexter).
 
+## Parte 0 — Centro 360 (PRIORIDAD 1, decidido el 2026-08-05)
+
+Rediseño de `/centros` (fichas 04, 05-H1, 06, 08-H1, 15) en el panel desde el que el gestor
+opera un centro sin salir de la pantalla: quién está de alta, con qué estado, si hay visita
+próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plana de
+`/asignaciones`, que desaparece como página independiente.
+
+### (0.1) Acordeón de asignaciones dentro de `/centros`
+
+- Cada fila de Centro es un `<details>`/acordeón — **contraído por defecto**, sin coste de
+  render hasta que se expande (carga perezosa al abrir, mismo criterio de "no pagar por lo que
+  no se ve" que ya usa `NavMenu.razor` para sus grupos). Con 48+ centros la lista no debe
+  paginar mentalmente al usuario: se despliega solo el que se está mirando.
+- Al expandir: lista de Trabajadores con Asignación activa en ese Centro, con su estado
+  **calculado solo sobre lo que ESE centro exige** (reutilizar `IDocumentosFaltantesService` /
+  `TipoDocumentoCentro`, no un cálculo nuevo).
+- Acciones en la cabecera del acordeón: **"+ Asignar trabajador"** (abre el mismo drawer N×M
+  con matriz y preflight de `/asignaciones` hoy — se conserva íntegro, solo cambia dónde vive)
+  y **"Dar de baja seleccionados"** (conecta `DarDeBajaAsignacionesCommand`, hoy sin caller —
+  cierra el quick win 9 de la Parte 1 en el mismo movimiento).
+- Se conserva un **export plano** de todas las asignaciones activas (mismo dato, vista tabla)
+  para auditoría/"dónde está Juan hoy" — no todo uso es por-centro.
+
+### (0.2) Documentación requerida como tercer nivel, dentro del acordeón de cada trabajador
+
+- Al expandir un trabajador dentro de un centro: sus documentos **requeridos por ese centro**
+  (base + adicionales, ver 0.4), con su estado. Igual que el nivel de centro, **contraído por
+  defecto** — validar en implementación que no rompe la densidad visual (el propio propietario
+  lo marca como "a probar", no como cerrado).
+- Acción "Gestionar" reutiliza el patrón crear-desde-faltante ya existente
+  (`?trabajadorId=&tipoDocumentoId=`).
+
+### (0.3) Semáforo con ventana de visita (badge nuevo del Design System)
+
+- Cada Centro con visita programada muestra un badge clicable "Visita dd/mm–dd/mm" en la
+  cabecera del acordeón (proyección de `/visitas`, sin modelo nuevo).
+- El estado de cada documento, dentro de ese contexto, gana un **modificador visual**
+  (verde con borde ámbar) cuando el documento es válido hoy pero **caduca dentro de la ventana
+  `[hoy, FechaFin]` de la próxima visita del centro** — comparar el resultado de
+  `CalculadoraEstadoDocumento` con fecha de referencia = hoy vs. fecha de referencia = fin de
+  la visita. Es un **modificador contextual, no un estado nuevo de `Documento`**: sigue siendo
+  100% derivado, solo cambia la fecha de referencia según el centro/visita que se está mirando
+  — no toca la regla central ni el resto de pantallas que usan hoy como referencia.
+  Dar de alta el patrón en `DESIGN_SYSTEM.md`/`UX_PATTERNS.md` (badge "vigente con riesgo en
+  ventana"): se reutilizará después en el preflight de asignaciones y en la Bandeja.
+- **Asignación rápida desde visita**: si un trabajador que la visita indica que asistirá no
+  tiene asignación activa en ese centro, aviso con acción que abre `SelectorEntidad` (ya
+  soporta "+ Crear «nombre»" en modal, `UX_PATTERNS.md:26`) para elegir un trabajador existente
+  o crear uno nuevo, disparando `CrearAsignacionCommand` con el preflight de siempre.
+
+### (0.4) Documentación requerida del Centro — configurable en ambos sentidos
+
+**Hallazgo de modelo real** (no solo diseño de pantalla): hoy `TipoDocumentoCentro` es una
+lista de permiso (*allow-list*) — un `TipoDocumento` sin ninguna fila ahí aplica a **todos**
+los centros; con filas, se restringe a esos centros (`TipoDocumentoCentro.cs:5-9`,
+`DocumentosFaltantesService.cs:48-55,74-76`). Este mecanismo permite que un centro exija **más**
+tipos de los que son obligatorios por defecto, pero **no permite que un centro exija menos** —
+para excluir un tipo global-obligatorio de un único centro habría que añadir filas de
+restricción a todos los demás centros del tenant, impracticable. Y el caso real que reporta
+el propietario existe: plataformas Inbound que solo piden EPIS + Apto médico, sin el resto del
+paquete estándar (Art. 18/19, etc.).
+
+- Añadir a la gestión de requisitos del Centro una vista **"Documentación requerida en este
+  centro"**: lista de los `TipoDocumento` obligatorios (heredados del catálogo del tenant) con
+  un toggle por tipo — **incluido / excluido para este centro** — más el alta de adicionales ya
+  existente (`RequisitoDocumental`, texto libre, sigue viva para lo verdaderamente ad-hoc).
+  Requiere una tabla de exclusión explícita por centro (o invertir la semántica de
+  `TipoDocumentoCentro` a "incluye/excluye" en vez de solo "restringe") — decisión de modelo a
+  tomar en la sesión de implementación, con test que cubra ambos sentidos.
+- Este es también el prerequisito real para el % de cumplimiento del punto (0.5): sin poder
+  decir "este centro solo exige 2 tipos", el % estaría contando de más para los centros que
+  piden menos.
+
+### (0.5) % de cumplimiento — sustituye al módulo Evaluaciones
+
+**Decisión del propietario, 2026-08-05: el módulo Evaluaciones se retira.** La puntuación
+manual 0-100 (`Evaluacion`, consumida hoy por `CatalogoKpis`/Dashboard Ejecutivo — sesión 08
+ya señalaba "sin semántica visible") nunca reflejó uso real: la puntuación **siempre debió ser
+automática**, derivada de la documentación requerida pendiente/vencida, no un juicio manual
+aparte. No se sustituye por una feature equivalente; se calcula donde hace falta:
+- **Por trabajador dentro de un centro**: `documentos al día / documentos requeridos por ese
+  centro` (usa 0.4) — junto al nombre en el acordeón, ej. "7/9".
+- **Por centro**: agregado de sus trabajadores — junto a la cabecera del acordeón.
+- Reutiliza el cálculo ya existente de `CalculoEstadoCentroService` (mergeado en `def009c`,
+  hoy expresado como badge Bloqueado/Faltante/Vencido/…) llevándolo a fracción/porcentaje.
+- **Retirar**: ruta `/evaluaciones`, entidad `Evaluacion` y sus Commands (con migración de
+  baja, no solo ocultar el menú — nada de "pantalla fantasma", `NavMenu.razor:2-4`), y las
+  referencias en `CatalogoKpis`/Dashboard Ejecutivo (`ObtenerDashboardEjecutivoQuery.cs`,
+  `CatalogoKpis.cs`) — sustituir esos KPI por el nuevo % agregado de cumplimiento.
+
+### (0.6) N accesos de plataforma por Centro, con etiqueta de propósito
+
+**Hallazgo de modelo real**: `CanalGestionDocumental` es hoy 1:1 con el Centro
+(`Centro.razor` / `CentroWorkspacePanel.razor` pestaña "Plataforma", sesión 04-H2/H3). Caso
+real reportado: un mismo Centro puede tener **el mismo link con credenciales distintas** según
+a quién gestiona (ej. trabajadores extranjeros de una empresa del mismo grupo pero entidad
+legal distinta — "Iberojet Alemania S.L." trabajando para "Iberojet S.L." con el canal de
+Iberojet S.L., solo cambia la credencial) — y también el caso de credenciales separadas para
+"gestión del día a día" vs. otro colectivo.
+- `CanalGestionDocumental` pasa de 1:1 a **N por Centro**, cada uno con proveedor (del catálogo
+  de Parte 2), URL, credencial y **etiqueta de propósito en texto libre** (ej. "Gestión
+  general", "Trabajadores extranjeros — Iberojet Alemania") — **no catálogo cerrado de
+  propósitos**: son ad-hoc por cliente, igual criterio que `RequisitoDocumental`. Uno marcado
+  como principal/por defecto.
+- La pestaña "Plataforma" del panel pasa a listar N accesos en vez de uno.
+
+### (0.7) Criterios de validación — puente con la documentación Inbound (sin modelo nuevo)
+
+**Ya existe**: `TipoDocumento.CriteriosValidacion` (`TipoDocumento.cs:16,26,142-152`) es
+exactamente el campo "términos de validación" que describe el propietario — hoy expuesto como
+textarea en `/tipos-documento` (`TiposDocumento.razor:202`) pero sin ningún hilo hacia el
+origen Inbound. No requiere modelo nuevo, solo dos ganchos de flujo:
+- En la ficha del `TipoDocumento`, texto de ayuda que invite explícitamente a pegar ahí los
+  criterios/términos de validación tal como los describe la plataforma Inbound del cliente
+  (mismo copy que ya usa `Facturacion.razor` citando su origen — "Corresponde a la sección…").
+- Este campo queda marcado como **fuente de referencia para la automatización de lectura IA**
+  (`VerificacionIaDocumentoService`) — sin construir la integración ahora, pero documentando la
+  intención en el propio código para que la sesión de IA que lo use no tenga que redescubrirla.
+
 ## Parte 1 — Horizonte 1, quick wins (en orden salvo indicación del propietario)
+
+> El ítem 9 ya no incluye "baja en lote de Asignaciones" — se resuelve dentro de (0.1), porque
+> `/asignaciones` como página independiente deja de existir (absorbida por el acordeón de
+> Centro 360).
 
 | # | Ítem | Ficha | Estado |
 |---|---|---|---|
@@ -52,10 +183,10 @@ verificar en ejecución antes de decidir.
 | 3 | Página Forbidden propia (`AccessDeniedPath` + pantalla con siguiente paso) | 13-H1/16-H1 | Pendiente |
 | 4 | Paginador único localizado (12 listas QuickGrid + Usuarios) | 02-H2/14-H3 | Pendiente |
 | 5 | Overflow menu (⋯) en Acciones — densidad de una línea por fila | 05-H2 | Pendiente |
-| 6 | Export en Empresas, Centros, Asignaciones, Incidencias y Auditoría + resumen de facturación (patrón `/clientes/exportar.xlsx`) | 03-H7·06-H4·08-H4·11-H2·14-H2 | Pendiente |
+| 6 | Export en Empresas, Centros, Incidencias y Auditoría + resumen de facturación (patrón `/clientes/exportar.xlsx`; el export de Asignaciones queda cubierto por (0.1)) | 03-H7·08-H4·11-H2·14-H2 | Pendiente |
 | 7 | Detecciones de personal visibles: badge en Empresas + tipo nuevo en Bandeja | 03-H2 | Pendiente |
 | 8 | Bandeja: contadores por tipo · Calendario: tema oscuro de celdas + leyenda · Dashboard Ejecutivo: colapsar "Personalizar" + tema DS en ApexCharts | 10-H2/10-H3/01-H5/01-H6 | Pendiente |
-| 9 | Lote de remates (un PR): filtros completos en URL + chips + borrar filtros guardados · placeholder "—" · header "RazonSocial" · label Notas del alta guiada · quitar pestaña "Citas" · fila clicable en Clientes · selector de tamaño de página · catch `JSDisconnectedException` (3 Dispose) · atribuir/resolver error CSP · baja en lote de Asignaciones (`DarDeBajaAsignacionesCommand`) · columna Fecha de baja | 02·03·05·06·16 | Pendiente |
+| 9 | Lote de remates (un PR): filtros completos en URL + chips + borrar filtros guardados · placeholder "—" · header "RazonSocial" · label Notas del alta guiada · quitar pestaña "Citas" · fila clicable en Clientes · selector de tamaño de página · catch `JSDisconnectedException` (3 Dispose) · atribuir/resolver error CSP | 02·03·05·16 | Pendiente |
 
 ## Parte 2 — Bloque Acreditación por plataforma destino (alcance MVP1)
 
@@ -72,10 +203,11 @@ Es la entidad ya diseñada en `ARQUITECTURA-INTEGRACIONES.md` — **no crear cat
 Global + extensión por tenant (documentar en `MULTITENANCY.md` § 7, mismo patrón que
 TipoDocumento), con dominios para identificación por URL. Migrar
 `CanalGestionDocumental.NombrePlataforma` (texto libre) a referencia del catálogo con matching
-sugerido de los strings existentes. **CTAIMACAE (legacy), Twind y e-coordina son TRES
-proveedores separados** (hay empresas que hoy operan solo en una), unidos por el grupo
-"Twind (CTAIMA Group)"; el campo "grupo empresarial" es solo para analítica, nunca lógica
-operativa.
+sugerido de los strings existentes — con el cambio de (0.6), cada uno de los N accesos por
+Centro referencia su propio proveedor del catálogo, no solo el canal único de antes.
+**CTAIMACAE (legacy), Twind y e-coordina son TRES proveedores separados** (hay empresas que hoy
+operan solo en una), unidos por el grupo "Twind (CTAIMA Group)"; el campo "grupo empresarial"
+es solo para analítica, nunca lógica operativa.
 
 **Semilla de dominios (verificada por el propietario, 2026-08-05).** La resolución matchea
 por dominio y sufijo (subdominios incluidos); multi-match ⇒ elegir entre candidatos; sin
@@ -149,19 +281,26 @@ reclamación saliente con motivo precargado.
 
 ### (h) Acción "Migrar a [plataforma]"
 
-En el canal de gestión del Centro: repunta el canal al proveedor destino con su nueva URL,
-opción de **conservar o sustituir credenciales** (caso típico: solo cambia el link), y
-pregunta "¿la plataforma destino migró la documentación presentada?" — Sí ⇒ transferir
-estados de acreditación; No ⇒ todo a "Pendiente de subir". Las acreditaciones de la
-plataforma origen quedan como historial. Cada migración persiste un registro (Centro,
-Cliente, origen→destino, fecha, quién, qué se conservó) y se deja preparada la query
-"migraciones por plataforma destino × periodo" — inteligencia interna para priorizar
-conectores. **Límite**: "migrar" = repuntar canal y re-etiquetar acreditaciones en Hydra;
-nunca mover documentación entre plataformas (eso es Fase 2 "Orquestador") — el copy debe
-dejarlo claro.
+Sobre **cada acceso de plataforma del Centro** (ver (0.6), N por centro): repunta ese acceso
+al proveedor destino con su nueva URL, opción de **conservar o sustituir credenciales** (caso
+típico: solo cambia el link), y pregunta "¿la plataforma destino migró la documentación
+presentada?" — Sí ⇒ transferir estados de acreditación; No ⇒ todo a "Pendiente de subir". Las
+acreditaciones de la plataforma origen quedan como historial. Cada migración persiste un
+registro (Centro, acceso concreto, Cliente, origen→destino, fecha, quién, qué se conservó) y
+se deja preparada la query "migraciones por plataforma destino × periodo" — inteligencia
+interna para priorizar conectores. **Límite**: "migrar" = repuntar el acceso y re-etiquetar
+acreditaciones en Hydra; nunca mover documentación entre plataformas (eso es Fase 2
+"Orquestador") — el copy debe dejarlo claro.
 
 ## Límites
 
 - El resto del Horizonte 2 de `ROADMAP-UX.md` (reclamación saliente, reportes parametrizados,
   bandeja agregada, agregados SQL) requiere petición explícita del propietario.
 - Nada de conectores/scraping contra plataformas externas — Fase 2, fuera de este alcance.
+- Evaluaciones se retira (0.5) como decisión ya tomada — no reabrir el debate; si en el futuro
+  hiciera falta un juicio de campo manual distinto del % documental, es una decisión nueva.
+- (0.2) — el tercer nivel colapsable (documentación por trabajador dentro del centro) se marca
+  explícitamente como **a validar en implementación**: si la densidad visual no aguanta un
+  tercer nivel, degradar a un resumen ("7/9 al día") con enlace a la ficha del trabajador en
+  vez de expandir inline — decisión de la sesión que lo construya, con captura de ambas
+  opciones para decidir.
