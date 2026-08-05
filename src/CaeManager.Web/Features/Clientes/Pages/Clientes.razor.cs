@@ -4,6 +4,7 @@ using CaeManager.Application.Clientes.Commands.EditarCliente;
 using CaeManager.Application.Clientes.Commands.EliminarCliente;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
+using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
@@ -131,12 +132,15 @@ public partial class Clientes : ComponentBase
         try
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
             var resultado = await Mediator.Send(new ObtenerClientesQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 SoloCriticos: _soloCriticos ? true : null,
                 Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage));
+                TamanoPagina: _paginacion.ItemsPerPage,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente));
 
             _totalElementos = resultado.TotalElementos;
 
@@ -233,7 +237,17 @@ public partial class Clientes : ComponentBase
         return Task.CompletedTask;
     }
 
-    private async Task GuardarAsync()
+    private Task GuardarAsync() => GuardarAsync(continuarACrearEmpresa: false);
+
+    /// <summary>
+    /// "Continuar con la empresa" (Fase A2): mismo guardado, pero al crear un
+    /// Cliente nuevo con éxito navega a <c>/empresas?accion=crear</c> con el
+    /// Cliente recién creado ya fijado — encadena el alta sin pasar por el
+    /// asistente completo de <c>/clientes/alta-guiada</c>.
+    /// </summary>
+    private Task GuardarYCrearEmpresaAsync() => GuardarAsync(continuarACrearEmpresa: true);
+
+    private async Task GuardarAsync(bool continuarACrearEmpresa)
     {
         _guardando = true;
         _mensajeErrorFormulario = null;
@@ -243,11 +257,14 @@ public partial class Clientes : ComponentBase
         {
             var notas = string.IsNullOrWhiteSpace(_notas) ? null : _notas;
             string? mensajeError;
+            Guid? clienteCreadoId = null;
 
             if (_editandoId is null)
             {
                 var resultado = await Mediator.Send(new CrearClienteCommand(_razonSocial, _cif, _esCritico, notas));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+                if (resultado.EsExitoso)
+                    clienteCreadoId = resultado.Valor;
             }
             else
             {
@@ -275,6 +292,13 @@ public partial class Clientes : ComponentBase
                 TonoToast.Exito);
 
             _drawerVisible = false;
+
+            if (continuarACrearEmpresa && clienteCreadoId is not null)
+            {
+                NavigationManager.NavigateTo($"/empresas?accion=crear&clienteId={clienteCreadoId}");
+                return;
+            }
+
             await RecargarAsync();
         }
         catch (ValidationException ex)
@@ -317,7 +341,8 @@ public partial class Clientes : ComponentBase
             }
             else
             {
-                ToastService.Mostrar("Cliente eliminado correctamente.", TonoToast.Exito);
+                var idEliminado = _idAEliminar;
+                ToastService.Mostrar("Cliente eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
             }
@@ -330,6 +355,19 @@ public partial class Clientes : ComponentBase
         {
             _eliminando = false;
         }
+    }
+
+    /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarClienteCommand.</summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        var resultado = await Mediator.Send(new RestaurarClienteCommand(id));
+
+        ToastService.Mostrar(
+            resultado.EsExitoso ? "Cliente restaurado." : resultado.Error.Mensaje,
+            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+        if (resultado.EsExitoso)
+            await RecargarAsync();
     }
 
     // --- P3-31: selección múltiple ---

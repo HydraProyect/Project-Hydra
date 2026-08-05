@@ -1,3 +1,4 @@
+using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
 using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Web.Components.DesignSystem;
@@ -7,10 +8,17 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 
 public partial class RevisionIa : ComponentBase
 {
+    /// <summary>Fase D ("Confirmar todos ≥85%"): umbral a partir del cual el gestor confía por defecto en la detección — mismo criterio que ya usa el badge verde de confianza (TonoConfianza).</summary>
+    private const int UmbralConfianzaLote = 85;
+
     private IReadOnlyList<RevisionIaDocumentoDto> _revisiones = [];
     private bool _cargando = true;
     private bool _errorCarga;
     private Guid? _procesandoId;
+    private bool _confirmandoLote;
+
+    private IReadOnlyList<RevisionIaDocumentoDto> RevisionesConfirmablesEnLote =>
+        _revisiones.Where(r => r.ConfianzaGeneral >= UmbralConfianzaLote && r.FechaEmisionDetectada is not null).ToList();
 
     /// <summary>Como mucho un documento a la vez — evita cargar N iframes de PDF si el usuario despliega varias filas seguidas.</summary>
     private Guid? _documentoIdExpandido;
@@ -57,6 +65,64 @@ public partial class RevisionIa : ComponentBase
         finally
         {
             _procesandoId = null;
+        }
+    }
+
+    /// <summary>Fase D ("Aceptar lo detectado por la IA") — renueva el Documento con la fecha detectada, en vez de obligar a corregirlo a mano en /documentos.</summary>
+    private async Task AceptarDeteccionAsync(Guid revisionId)
+    {
+        _procesandoId = revisionId;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(new AplicarDeteccionIaDocumentoCommand(revisionId));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar("Detección aplicada al documento.", TonoToast.Exito);
+            await CargarAsync();
+        }
+        finally
+        {
+            _procesandoId = null;
+        }
+    }
+
+    /// <summary>
+    /// Secuencial a propósito, no en paralelo: el DbContext scoped al
+    /// circuito no admite dos llamadas EF concurrentes sobre la misma
+    /// instancia (mismo motivo documentado en ObtenerDashboardEjecutivoQueryHandler).
+    /// </summary>
+    private async Task ConfirmarLoteAsync()
+    {
+        _confirmandoLote = true;
+        StateHasChanged();
+
+        try
+        {
+            var revisionIds = RevisionesConfirmablesEnLote.Select(r => r.Id).ToList();
+            var confirmadas = 0;
+            var errores = 0;
+
+            foreach (var revisionId in revisionIds)
+            {
+                var resultado = await Mediator.Send(new AplicarDeteccionIaDocumentoCommand(revisionId));
+                if (resultado.EsExitoso) confirmadas++;
+                else errores++;
+            }
+
+            var resumen = $"{confirmadas} revisión(es) confirmada(s)" + (errores > 0 ? $", {errores} no se pudieron aplicar." : ".");
+            ToastService.Mostrar(resumen, errores == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            await CargarAsync();
+        }
+        finally
+        {
+            _confirmandoLote = false;
         }
     }
 

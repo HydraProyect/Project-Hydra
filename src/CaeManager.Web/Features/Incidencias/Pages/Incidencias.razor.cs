@@ -1,3 +1,4 @@
+using CaeManager.Web.Components;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Incidencias.Commands.CrearIncidencia;
 using CaeManager.Application.Incidencias.Commands.EditarIncidencia;
@@ -22,7 +23,7 @@ public partial class Incidencias : ComponentBase
     private QuickGrid<IncidenciaListaDto>? _grid;
 
     private string _busqueda = string.Empty;
-    private bool _soloSinResolver;
+    private string _estadoFiltro = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -82,8 +83,39 @@ public partial class Incidencias : ComponentBase
 
     private GridItemsProvider<IncidenciaListaDto>? _proveedorElementos;
 
+    /// <summary>
+    /// Una Incidencia no tiene enum de estado: su estado es <c>Resuelta</c>.
+    /// Esto sustituye al antiguo checkbox "Solo sin resolver", que solo dejaba
+    /// filtrar en un sentido — no había forma de ver únicamente las resueltas.
+    /// </summary>
+    private static readonly IReadOnlyList<OpcionEstado> OpcionesEstado =
+    [
+        new("SinResolver", "Sin resolver"),
+        new("Resuelta", "Resuelta")
+    ];
+
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoInicial { get; set; }
+
     // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
     protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
+
+    /// <summary>La URL es la fuente de verdad del filtro (P1-18) — ver el resto de listados.</summary>
+    protected override void OnParametersSet()
+    {
+        var deLaUrl = OpcionesEstado.Any(o => o.Valor == EstadoInicial) ? EstadoInicial! : string.Empty;
+        if (deLaUrl != _estadoFiltro)
+            _estadoFiltro = deLaUrl;
+    }
+
+    private async Task CambiarEstadoAsync(string valor)
+    {
+        _estadoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
+        await RecargarAsync();
+    }
 
     private async ValueTask<GridItemsProviderResult<IncidenciaListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<IncidenciaListaDto> request)
@@ -95,11 +127,16 @@ public partial class Incidencias : ComponentBase
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
 
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+
             var resultado = await Mediator.Send(new ObtenerIncidenciasQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                SoloSinResolver: _soloSinResolver,
+                SoloSinResolver: false,
+                Resuelta: _estadoFiltro switch { "Resuelta" => true, "SinResolver" => false, _ => (bool?)null },
                 Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage));
+                TamanoPagina: _paginacion.ItemsPerPage,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente));
 
             _totalElementos = resultado.TotalElementos;
 

@@ -4,10 +4,12 @@ using CaeManager.Application.Empresas.Commands.EditarEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
 using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa;
+using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Web.Components;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
@@ -22,6 +24,7 @@ public partial class Empresas : ComponentBase
     private QuickGrid<EmpresaListaDto>? _grid;
 
     private string _busqueda = string.Empty;
+    private string _estadoFiltro = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -65,11 +68,25 @@ public partial class Empresas : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    /// <summary>
+    /// Filtro de estado documental (ver ICalculoEstadoDocumentalService) — esta
+    /// entidad no tiene estado propio en el modelo, se deriva de sus Documentos.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoInicial { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     /// <summary>Comando del palette "Crear empresa «nombre»" (P3-31): abre el Drawer con la razón social precargada.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
     [SupplyParameterFromQuery] public string? Nombre { get; set; }
+
+    /// <summary>
+    /// Encadenado desde "Continuar con la empresa" en /clientes (Fase A2): el
+    /// Cliente recién creado llega premarcado en el selector, para no tener
+    /// que volver a buscarlo.
+    /// </summary>
+    [SupplyParameterFromQuery] public Guid? ClienteId { get; set; }
 
     private GridItemsProvider<EmpresaListaDto>? _proveedorElementos;
 
@@ -83,6 +100,8 @@ public partial class Empresas : ComponentBase
             await AbrirCrear();
             if (!string.IsNullOrWhiteSpace(Nombre))
                 _razonSocial = Nombre;
+            if (ClienteId is not null && _clientesDisponibles.Any(c => c.Id == ClienteId))
+                _clienteIdsSeleccionados = [ClienteId.Value];
         }
     }
 
@@ -97,6 +116,19 @@ public partial class Empresas : ComponentBase
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (deLaUrl != _busqueda)
             _busqueda = deLaUrl;
+
+        var estadoDeLaUrl = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial)
+            ? EstadoInicial!
+            : string.Empty;
+        if (estadoDeLaUrl != _estadoFiltro)
+            _estadoFiltro = estadoDeLaUrl;
+    }
+
+    private async Task CambiarEstadoAsync(string valor)
+    {
+        _estadoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
+        await RecargarAsync();
     }
 
     private async ValueTask<GridItemsProviderResult<EmpresaListaDto>> ProveerElementosAsync(
@@ -108,11 +140,15 @@ public partial class Empresas : ComponentBase
         try
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
             var resultado = await Mediator.Send(new ObtenerEmpresasQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage));
+                TamanoPagina: _paginacion.ItemsPerPage,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente,
+                EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
 
             _totalElementos = resultado.TotalElementos;
 
@@ -252,7 +288,18 @@ public partial class Empresas : ComponentBase
         return Task.CompletedTask;
     }
 
-    private async Task GuardarAsync()
+    private Task GuardarAsync() => GuardarAsync(continuarACrearCentro: false);
+
+    /// <summary>
+    /// "Continuar con el centro" (Fase A2): igual que <see cref="GuardarAsync()"/>
+    /// pero, al crear una Empresa nueva con éxito, en vez de dejar el Drawer
+    /// en modo edición (el comportamiento normal — ver comentario más abajo)
+    /// navega directamente a <c>/centros?accion=crear</c> con Cliente y
+    /// Empresa ya fijados.
+    /// </summary>
+    private Task GuardarYCrearCentroAsync() => GuardarAsync(continuarACrearCentro: true);
+
+    private async Task GuardarAsync(bool continuarACrearCentro)
     {
         _guardando = true;
         _mensajeErrorFormulario = null;
@@ -263,6 +310,7 @@ public partial class Empresas : ComponentBase
             var clienteIds = _clienteIdsSeleccionados.ToList();
             var cif = string.IsNullOrWhiteSpace(_cif) ? null : _cif;
             var eraCreacion = _editandoId is null;
+            Guid? empresaCreadaId = null;
 
             if (eraCreacion)
             {
@@ -273,9 +321,13 @@ public partial class Empresas : ComponentBase
                     return;
                 }
 
+                empresaCreadaId = resultado.Valor;
+
                 // Tras crear, el drawer no se cierra — pasa a modo edición
                 // para que las credenciales de acceso queden visibles sin
-                // tener que reabrir el formulario desde la tabla.
+                // tener que reabrir el formulario desde la tabla. Salvo que
+                // el usuario haya pedido encadenar a Centro, caso en el que
+                // se navega en vez de quedarse aquí.
                 _editandoId = resultado.Valor;
             }
             else
@@ -291,6 +343,22 @@ public partial class Empresas : ComponentBase
             ToastService.Mostrar(
                 eraCreacion ? "Empresa creada correctamente." : "Empresa actualizada correctamente.",
                 TonoToast.Exito);
+
+            if (continuarACrearCentro && empresaCreadaId is not null)
+            {
+                // Prioridad: el Cliente que trajo la cadena (si sigue
+                // marcado) · si no, el único Cliente marcado en el selector ·
+                // si hay varios o ninguno, no hay uno solo que prefijar.
+                var clienteParaCentro = ClienteId is not null && clienteIds.Contains(ClienteId.Value)
+                    ? ClienteId
+                    : clienteIds.Count == 1 ? clienteIds[0] : (Guid?)null;
+
+                var destino = clienteParaCentro is null
+                    ? $"/centros?accion=crear&empresaId={empresaCreadaId}"
+                    : $"/centros?accion=crear&clienteId={clienteParaCentro}&empresaId={empresaCreadaId}";
+                NavigationManager.NavigateTo(destino);
+                return;
+            }
 
             if (!eraCreacion)
                 _drawerVisible = false;
@@ -337,7 +405,8 @@ public partial class Empresas : ComponentBase
             }
             else
             {
-                ToastService.Mostrar("Empresa eliminada correctamente.", TonoToast.Exito);
+                var idEliminado = _idAEliminar;
+                ToastService.Mostrar("Empresa eliminada correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
             }
@@ -350,6 +419,19 @@ public partial class Empresas : ComponentBase
         {
             _eliminando = false;
         }
+    }
+
+    /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarEmpresaCommand.</summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        var resultado = await Mediator.Send(new RestaurarEmpresaCommand(id));
+
+        ToastService.Mostrar(
+            resultado.EsExitoso ? "Empresa restaurada." : resultado.Error.Mensaje,
+            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+        if (resultado.EsExitoso)
+            await RecargarAsync();
     }
 
     private bool TodosSeleccionados =>
