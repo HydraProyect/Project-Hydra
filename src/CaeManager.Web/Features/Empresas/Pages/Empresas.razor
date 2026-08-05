@@ -151,6 +151,12 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             Cancelar
         </Boton>
+        @if (_editandoId is null)
+        {
+            <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearCentroAsync">
+                Guardar y crear centro
+            </Boton>
+        }
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>
