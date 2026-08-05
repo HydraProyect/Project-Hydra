@@ -51,7 +51,7 @@ La ausencia de estos flujos **no puntúa** en ninguna ficha; pertenecen al futur
 
 ### Horizonte 1 — Quick wins (semanas; casi todos S, independientes entre sí)
 1. Arreglar `/centros` (ya derivado a tarea) y añadir un smoke E2E por página que cargue cada ruta con datos.
-2. Estado "Sin cartera asignada" en Dashboard/workspace delegado (mata el verde falso, #3).
+2. ✅ Estado "Sin cartera asignada" en Dashboard/workspace delegado (mata el verde falso, #3). — [PR #100](https://github.com/christopherjp1-jpg/Project-Hydra/pull/100)
 3. Restaurar desde Auditoría o corregir el copy del borrado en lote (#4) — lo segundo es de hoy para mañana.
 4. Página Forbidden propia (#8a).
 5. Paginador único localizado (#9).
