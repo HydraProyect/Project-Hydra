@@ -7,6 +7,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
@@ -35,6 +36,8 @@ public partial class Centros : ComponentBase
     private int _pagina = 1;
 
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPagina));
+
+    private IReadOnlyDictionary<Guid, VisitaResumenDto> _visitasPorCentro = new Dictionary<Guid, VisitaResumenDto>();
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
@@ -187,6 +190,12 @@ public partial class Centros : ComponentBase
             _elementosPagina = resultado.Elementos.ToList();
             _seleccionados.Clear();
             _idEnfocado = null;
+
+            // Batch por página (no por fila) — mismo criterio que el badge de
+            // cumplimiento: evita N+1 aunque solo se pinte cuando hay visita.
+            _visitasPorCentro = _elementosPagina.Count == 0
+                ? new Dictionary<Guid, VisitaResumenDto>()
+                : await Mediator.Send(new ObtenerProximaVisitaPorCentroQuery(_elementosPagina.Select(c => c.Id).ToList()));
         }
         catch (Exception)
         {
