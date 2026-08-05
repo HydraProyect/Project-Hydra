@@ -80,6 +80,13 @@ public partial class Empresas : ComponentBase
     [SupplyParameterFromQuery] public string? Accion { get; set; }
     [SupplyParameterFromQuery] public string? Nombre { get; set; }
 
+    /// <summary>
+    /// Encadenado desde "Guardar y crear empresa" en /clientes (Fase A2): el
+    /// Cliente recién creado llega premarcado en el selector, para no tener
+    /// que volver a buscarlo.
+    /// </summary>
+    [SupplyParameterFromQuery] public Guid? ClienteId { get; set; }
+
     private GridItemsProvider<EmpresaListaDto>? _proveedorElementos;
 
     protected override async Task OnInitializedAsync()
@@ -92,6 +99,8 @@ public partial class Empresas : ComponentBase
             await AbrirCrear();
             if (!string.IsNullOrWhiteSpace(Nombre))
                 _razonSocial = Nombre;
+            if (ClienteId is not null && _clientesDisponibles.Any(c => c.Id == ClienteId))
+                _clienteIdsSeleccionados = [ClienteId.Value];
         }
     }
 
@@ -278,7 +287,18 @@ public partial class Empresas : ComponentBase
         return Task.CompletedTask;
     }
 
-    private async Task GuardarAsync()
+    private Task GuardarAsync() => GuardarAsync(continuarACrearCentro: false);
+
+    /// <summary>
+    /// "Guardar y crear centro" (Fase A2): igual que <see cref="GuardarAsync()"/>
+    /// pero, al crear una Empresa nueva con éxito, en vez de dejar el Drawer
+    /// en modo edición (el comportamiento normal — ver comentario más abajo)
+    /// navega directamente a <c>/centros?accion=crear</c> con Cliente y
+    /// Empresa ya fijados.
+    /// </summary>
+    private Task GuardarYCrearCentroAsync() => GuardarAsync(continuarACrearCentro: true);
+
+    private async Task GuardarAsync(bool continuarACrearCentro)
     {
         _guardando = true;
         _mensajeErrorFormulario = null;
@@ -289,6 +309,7 @@ public partial class Empresas : ComponentBase
             var clienteIds = _clienteIdsSeleccionados.ToList();
             var cif = string.IsNullOrWhiteSpace(_cif) ? null : _cif;
             var eraCreacion = _editandoId is null;
+            Guid? empresaCreadaId = null;
 
             if (eraCreacion)
             {
@@ -299,9 +320,13 @@ public partial class Empresas : ComponentBase
                     return;
                 }
 
+                empresaCreadaId = resultado.Valor;
+
                 // Tras crear, el drawer no se cierra — pasa a modo edición
                 // para que las credenciales de acceso queden visibles sin
-                // tener que reabrir el formulario desde la tabla.
+                // tener que reabrir el formulario desde la tabla. Salvo que
+                // el usuario haya pedido encadenar a Centro, caso en el que
+                // se navega en vez de quedarse aquí.
                 _editandoId = resultado.Valor;
             }
             else
@@ -317,6 +342,22 @@ public partial class Empresas : ComponentBase
             ToastService.Mostrar(
                 eraCreacion ? "Empresa creada correctamente." : "Empresa actualizada correctamente.",
                 TonoToast.Exito);
+
+            if (continuarACrearCentro && empresaCreadaId is not null)
+            {
+                // Prioridad: el Cliente que trajo la cadena (si sigue
+                // marcado) · si no, el único Cliente marcado en el selector ·
+                // si hay varios o ninguno, no hay uno solo que prefijar.
+                var clienteParaCentro = ClienteId is not null && clienteIds.Contains(ClienteId.Value)
+                    ? ClienteId
+                    : clienteIds.Count == 1 ? clienteIds[0] : (Guid?)null;
+
+                var destino = clienteParaCentro is null
+                    ? $"/centros?accion=crear&empresaId={empresaCreadaId}"
+                    : $"/centros?accion=crear&clienteId={clienteParaCentro}&empresaId={empresaCreadaId}";
+                NavigationManager.NavigateTo(destino);
+                return;
+            }
 
             if (!eraCreacion)
                 _drawerVisible = false;

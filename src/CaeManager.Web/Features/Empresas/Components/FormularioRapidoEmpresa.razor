@@ -1,0 +1,30 @@
+@* Crear una Empresa sin abandonar la pantalla desde la que se necesita
+   (Fase A4). Si ClienteIdParaVincular llega informado (p. ej. desde el
+   selector de Empresa de /centros, con el Cliente ya elegido), la Empresa
+   nueva nace vinculada a él — el mismo criterio que ya aplica el asistente
+   de alta guiada. *@
+@using CaeManager.Application.Empresas.Commands.CrearEmpresa
+@using FluentValidation
+@using MediatR
+@inject IMediator Mediator
+
+<Modal Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Nueva empresa" Ancho="AnchoModal.Pequeno"
+       CerrarAlHacerClicFuera="@(!_guardando)">
+    <ChildContent>
+        @if (_mensajeError is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeError</div>
+        }
+
+        <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v"
+                    MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.RazonSocial))" />
+        <CampoTexto Etiqueta="CIF" Valor="@_cif" ValorChanged="v => _cif = v"
+                    MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.Cif))" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarAsync(false)">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_guardando" OnClick="GuardarAsync">Crear</Boton>
+    </Pie>
+</Modal>
