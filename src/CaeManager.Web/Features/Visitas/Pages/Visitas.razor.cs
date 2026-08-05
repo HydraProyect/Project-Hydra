@@ -26,6 +26,7 @@ public partial class Visitas : ComponentBase
 
     private string _busqueda = string.Empty;
     private bool _soloActivas = true;
+    private bool _soloUrgentes;
     private string _filtroNotificado = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
@@ -132,6 +133,7 @@ public partial class Visitas : ComponentBase
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 SoloActivas: _soloActivas,
                 NotificadoCliente: _filtroNotificado switch { "si" => true, "no" => false, _ => null },
+                SoloUrgentes: _soloUrgentes,
                 Pagina: pagina,
                 TamanoPagina: _paginacion.ItemsPerPage,
                 OrdenarPor: ordenarPor,
