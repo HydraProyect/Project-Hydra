@@ -5,6 +5,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 
@@ -29,9 +30,10 @@ public class ResponderConversacionCommandValidator : AbstractValidator<Responder
 /// ConexionIntegracionId), envía la respuesta de verdad por Graph
 /// (preservando threading vía /reply) antes de persistir el mensaje — un
 /// envío fallido no debe dejar un mensaje "fantasma" que el cliente nunca
-/// recibió. Si no hay conexión (datos sembrados, o un Cliente sin buzón
-/// todavía conectado), cae al comportamiento original: solo persiste el
-/// mensaje con un remitente simulado, sin regresión para las demos.
+/// recibió. Si no hay conexión, falla con un error claro por defecto — ver
+/// <see cref="ComunicacionesRemitenteOptions"/> — salvo que el entorno haya
+/// activado a propósito el remitente simulado (solo pensado para datos
+/// sembrados por <c>ComunicacionesDatosPruebaSeeder</c>, nunca producción).
 /// </summary>
 public class ResponderConversacionCommandHandler(
     IConversacionCorreoRepository repositorio,
@@ -40,6 +42,7 @@ public class ResponderConversacionCommandHandler(
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
     IFileStorageService almacenamiento,
+    IOptions<ComunicacionesRemitenteOptions> opcionesRemitente,
     IUnitOfWork unitOfWork)
     : IRequestHandler<ResponderConversacionCommand, Result>
 {
@@ -62,9 +65,15 @@ public class ResponderConversacionCommandHandler(
                 return Result.Fallo(envioResultado.Error);
             mensajeCreado = envioResultado.Valor;
         }
-        else
+        else if (opcionesRemitente.Value.PermitirRemitenteSimulado)
         {
             mensajeCreado = conversacion.AgregarMensaje(DireccionMensaje.Saliente, RemitenteSimuladoEmail, request.CuerpoHtml);
+        }
+        else
+        {
+            return Result.Fallo(Error.Crear(
+                "ConversacionCorreo.SinBuzonConectado",
+                "Esta conversación no tiene un buzón de correo conectado — conecta un buzón de Microsoft 365 antes de responder."));
         }
 
         // Los adjuntos se guardan en el propio storage independientemente de
