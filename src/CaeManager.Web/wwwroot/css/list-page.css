@@ -117,6 +117,48 @@
     margin-bottom: var(--space-3);
 }
 
+/* Fase B: preflight no bloqueante al asignar en lote — ver Asignaciones.razor. */
+.alerta-preflight-asignacion {
+    background-color: var(--color-warning-50);
+    color: var(--color-warning-700);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    font: var(--font-body-sm);
+    margin-top: var(--space-3);
+}
+
+.alerta-preflight-asignacion ul {
+    margin: var(--space-2) 0 0;
+    padding-left: var(--space-5);
+}
+
+.texto-ayuda-matriz {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    margin: var(--space-2) 0;
+}
+
+.matriz-asignaciones-contenedor {
+    overflow-x: auto;
+}
+
+.matriz-asignaciones {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.matriz-asignaciones th,
+.matriz-asignaciones td {
+    padding: var(--space-2) var(--space-3);
+    border: var(--border-default);
+    text-align: center;
+    white-space: nowrap;
+}
+
+.matriz-asignaciones th[scope="row"] {
+    text-align: left;
+}
+
 .paginador {
     margin-top: var(--space-4);
 }

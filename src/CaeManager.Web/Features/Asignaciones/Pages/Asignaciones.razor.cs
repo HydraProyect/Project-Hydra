@@ -1,6 +1,8 @@
-using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
+using CaeManager.Application.Alertas;
+using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignacion;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignaciones;
+using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Web.Components;
@@ -40,12 +42,35 @@ public partial class Asignaciones : ComponentBase
     private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
     private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
 
+    private static readonly IReadOnlyList<PestanaDefinicion> _pestanasAlta =
+    [
+        new("Lista", "Lista"),
+        new("Matriz", "Matriz")
+    ];
+
     private bool _drawerVisible;
-    private string _trabajadorId = string.Empty;
-    private string _centroId = string.Empty;
+    private string _vistaAlta = "Lista";
+    private readonly HashSet<Guid> _trabajadorIdsSeleccionados = [];
+    private readonly HashSet<Guid> _centroIdsSeleccionados = [];
+    private readonly HashSet<(Guid TrabajadorId, Guid CentroId)> _celdasExcluidas = [];
     private string _fechaAlta = string.Empty;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
+    private IReadOnlyList<DocumentoFaltanteDto> _documentosFaltantes = [];
+
+    private IReadOnlyList<ElementoSeleccionable> _trabajadoresComoOpciones =>
+        _trabajadoresDisponibles.Select(t => new ElementoSeleccionable(t.Id, $"{t.NombreCompleto} ({t.Dni})")).ToList();
+
+    private IReadOnlyList<ElementoSeleccionable> _centrosComoOpciones =>
+        _centrosDisponibles.Select(c => new ElementoSeleccionable(c.Id, $"{c.Nombre} ({c.ClienteRazonSocial})")).ToList();
+
+    private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresSeleccionadosOrdenados =>
+        _trabajadoresDisponibles.Where(t => _trabajadorIdsSeleccionados.Contains(t.Id))
+            .OrderBy(t => t.NombreCompleto).ToList();
+
+    private IReadOnlyList<CentroSelectorDto> _centrosSeleccionadosOrdenados =>
+        _centrosDisponibles.Where(c => _centroIdsSeleccionados.Contains(c.Id))
+            .OrderBy(c => c.Nombre).ToList();
 
     private bool _darDeBajaVisible;
     private Guid _idParaBaja;
@@ -134,11 +159,67 @@ public partial class Asignaciones : ComponentBase
         _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
         _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
 
-        _trabajadorId = string.Empty;
-        _centroId = string.Empty;
+        _vistaAlta = "Lista";
+        _trabajadorIdsSeleccionados.Clear();
+        _centroIdsSeleccionados.Clear();
+        _celdasExcluidas.Clear();
+        _documentosFaltantes = [];
         _fechaAlta = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+    }
+
+    private async Task AlternarTrabajadorAsync(Guid trabajadorId, bool marcado)
+    {
+        if (marcado)
+            _trabajadorIdsSeleccionados.Add(trabajadorId);
+        else
+        {
+            _trabajadorIdsSeleccionados.Remove(trabajadorId);
+            _celdasExcluidas.RemoveWhere(c => c.TrabajadorId == trabajadorId);
+        }
+
+        await ActualizarPreflightAsync();
+    }
+
+    private async Task AlternarCentroAsync(Guid centroId, bool marcado)
+    {
+        if (marcado)
+            _centroIdsSeleccionados.Add(centroId);
+        else
+        {
+            _centroIdsSeleccionados.Remove(centroId);
+            _celdasExcluidas.RemoveWhere(c => c.CentroId == centroId);
+        }
+
+        await ActualizarPreflightAsync();
+    }
+
+    private void AlternarCeldaMatriz(Guid trabajadorId, Guid centroId, bool incluida)
+    {
+        if (incluida)
+            _celdasExcluidas.Remove((trabajadorId, centroId));
+        else
+            _celdasExcluidas.Add((trabajadorId, centroId));
+    }
+
+    /// <summary>
+    /// Preflight no bloqueante (Fase B): qué documentos obligatorios le
+    /// faltarían a cada trabajador en cada centro si se confirma el lote tal
+    /// cual está seleccionado. Se recalcula sobre el cruce completo de la
+    /// selección — con exclusiones puntuales de la Matriz puede sobrar algún
+    /// aviso, aceptable porque es solo informativo (nunca bloquea Guardar).
+    /// </summary>
+    private async Task ActualizarPreflightAsync()
+    {
+        if (_trabajadorIdsSeleccionados.Count == 0 || _centroIdsSeleccionados.Count == 0)
+        {
+            _documentosFaltantes = [];
+            return;
+        }
+
+        _documentosFaltantes = await Mediator.Send(new ObtenerDocumentosFaltantesParaAsignacionQuery(
+            _trabajadorIdsSeleccionados.ToList(), _centroIdsSeleccionados.ToList()));
     }
 
     private async Task GuardarAsync()
@@ -148,15 +229,15 @@ public partial class Asignaciones : ComponentBase
 
         try
         {
-            if (!Guid.TryParse(_trabajadorId, out var trabajadorId))
+            if (_trabajadorIdsSeleccionados.Count == 0)
             {
-                _mensajeErrorFormulario = "Selecciona un trabajador.";
+                _mensajeErrorFormulario = "Selecciona al menos un trabajador.";
                 return;
             }
 
-            if (!Guid.TryParse(_centroId, out var centroId))
+            if (_centroIdsSeleccionados.Count == 0)
             {
-                _mensajeErrorFormulario = "Selecciona un centro.";
+                _mensajeErrorFormulario = "Selecciona al menos un centro.";
                 return;
             }
 
@@ -166,15 +247,57 @@ public partial class Asignaciones : ComponentBase
                 return;
             }
 
-            var resultado = await Mediator.Send(new CrearAsignacionCommand(trabajadorId, centroId, fechaAlta));
+            var creadas = 0;
+            var yaActivas = 0;
+            var errores = new List<string>();
 
-            if (resultado.EsFallido)
+            if (_celdasExcluidas.Count == 0)
             {
-                _mensajeErrorFormulario = resultado.Error.Mensaje;
-                return;
+                var resultado = await Mediator.Send(new CrearAsignacionesCommand(
+                    _trabajadorIdsSeleccionados.ToList(), _centroIdsSeleccionados.ToList(), fechaAlta));
+
+                if (resultado.EsFallido)
+                {
+                    _mensajeErrorFormulario = resultado.Error.Mensaje;
+                    return;
+                }
+
+                creadas = resultado.Valor.Creadas;
+                yaActivas = resultado.Valor.YaActivas;
+                errores.AddRange(resultado.Valor.Errores);
+            }
+            else
+            {
+                // Con exclusiones puntuales de la Matriz, el cruce ya no es
+                // uniforme — un lote por Centro con los Trabajadores que le
+                // quedan tras quitar las celdas desmarcadas de esa columna.
+                foreach (var centroId in _centroIdsSeleccionados)
+                {
+                    var trabajadorIdsParaCentro = _trabajadorIdsSeleccionados
+                        .Where(t => !_celdasExcluidas.Contains((t, centroId)))
+                        .ToList();
+
+                    if (trabajadorIdsParaCentro.Count == 0) continue;
+
+                    var resultado = await Mediator.Send(new CrearAsignacionesCommand(trabajadorIdsParaCentro, [centroId], fechaAlta));
+
+                    if (resultado.EsFallido)
+                    {
+                        _mensajeErrorFormulario = resultado.Error.Mensaje;
+                        return;
+                    }
+
+                    creadas += resultado.Valor.Creadas;
+                    yaActivas += resultado.Valor.YaActivas;
+                    errores.AddRange(resultado.Valor.Errores);
+                }
             }
 
-            ToastService.Mostrar("Asignación creada correctamente.", TonoToast.Exito);
+            var resumen = $"{creadas} asignación(es) creada(s)" + (yaActivas > 0 ? $", {yaActivas} ya estaban activas." : ".");
+            ToastService.Mostrar(resumen, errores.Count > 0 ? TonoToast.Advertencia : TonoToast.Exito);
+            foreach (var error in errores)
+                ToastService.Mostrar(error, TonoToast.Advertencia);
+
             _drawerVisible = false;
             await RecargarAsync();
         }
