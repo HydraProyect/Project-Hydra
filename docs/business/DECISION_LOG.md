@@ -53,6 +53,22 @@ Una entrada nunca se edita para cambiar lo que se decidió en su momento — si 
 
 **Estado**: Vigente
 
+## 2026-08-05 — Estado del Documento derivado + Acreditación por plataforma destino (alcance MVP1, manual)
+
+**Decisión**:
+1. El estado del Documento en Hydra sigue siendo **derivado** (fecha de emisión + umbrales del tenant, `DATABASE.md`), sin workflow interno de aprobación.
+2. La acreditación de cada documento en cada plataforma Inbound destino (Dokify, Nalanda, Twind…) se modela como **entidad satélite separada por documento×plataforma** — un mismo documento puede estar vigente en Hydra, aceptado en Dokify y pendiente en Nalanda a la vez.
+3. **Alcance MVP1: registro manual** — el gestor consulta la plataforma y anota el estado una vez por renovación; los rechazos exigen causa tipificada + motivo literal de la plataforma, y su historial sobrevive a las renovaciones. Los conectores de la Fase 2 "Orquestador" (`PRODUCT_STRATEGY.md`) sincronizarán la misma entidad sin cambio de modelo.
+4. En el catálogo de proveedores (`ProveedorIntegracion`, diseño de `ARQUITECTURA-INTEGRACIONES.md`), **CTAIMACAE (legacy), Twind y e-coordina son tres proveedores separados** unidos por grupo empresarial; las migraciones de un cliente entre plataformas se registran mediante la acción "Migrar a…" (conservando credenciales cuando solo cambia el enlace) para tener inteligencia interna de qué clientes migran a qué plataformas.
+
+**Motivo**: El trabajo diario Outbound termina en las plataformas de las titulares; sin la visión del estado por plataforma, Hydra no puede ser la única pantalla desde la que el gestor garantiza que todo está al día (problema nº 2 del top-10 de `docs/ux-audit/ROADMAP-UX.md`). La causa tipificada del rechazo separa "falló Hydra" de "el documento vino mal de origen", y el registro de migraciones alimenta la priorización de conectores con datos propios.
+
+**Alternativas descartadas**: workflow interno aprobar/rechazar sobre el Documento (duplicaría la validación que ya hace la titular); campo de estado editable en el Documento (rompería la regla central de estado calculado); crear un catálogo de plataformas nuevo y paralelo (ya existe el diseño `ProveedorIntegracion`); fusionar CTAIMACAE/Twind/e-coordina en una sola entrada (hay empresas operando hoy en solo una de las tres).
+
+**Impacto**: `docs/ux-audit/PLAN-EJECUCION-UX.md` (nuevo — plan de ejecución con el bloque Acreditación (a)-(h) y la semilla de dominios verificada); `docs/ux-audit/ROADMAP-UX.md` (la cadena 1 del Horizonte 2 pasa a alcance MVP1); término **Acreditación** pendiente de alta en `UBIQUITOUS_LANGUAGE.md` al implementar (nunca "Incidencia" para lo documental — colisión registrada en `docs/business/inbound/INBOUND_DOMAIN_GLOSSARY.md`); `ARQUITECTURA-INTEGRACIONES.md` no cambia.
+
+**Estado**: Vigente
+
 ## Documentos relacionados
 
 - Todos los documentos de `docs/business/` — cualquiera puede generar una entrada aquí cuando su contenido pasa de `Draft`/`In Progress` a `Approved`.
