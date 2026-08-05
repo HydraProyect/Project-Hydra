@@ -16,8 +16,10 @@
     <div class="barra-filtros">
         <CampoSelect Etiqueta="Tipo" Valor="@_tipoFiltro" ValorChanged="CambiarFiltroAsync">
             <option value="">Todos</option>
+            <option value="@nameof(TipoItemBandeja.SugerenciaVisitaUrgente)">Visita sorpresa</option>
             <option value="@nameof(TipoItemBandeja.Faltante)">Falta</option>
             <option value="@nameof(TipoItemBandeja.Vencido)">Vencido</option>
+            <option value="@nameof(TipoItemBandeja.VisitaUrgente)">Visita próxima</option>
             <option value="@nameof(TipoItemBandeja.RequisitoPendiente)">Bloquea el centro</option>
             <option value="@nameof(TipoItemBandeja.Urgente)">Urgente</option>
             <option value="@nameof(TipoItemBandeja.RevisionIa)">Revisión IA</option>

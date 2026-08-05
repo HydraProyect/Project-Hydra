@@ -17,6 +17,13 @@ public static class AccionesBandeja
         // que ya usa GestionarAlerta en Alertas.razor.cs.
         TipoItemBandeja.RevisionIa => Navegar(navigationManager, "/documentos/revision-ia"),
         TipoItemBandeja.RequisitoPendiente => AbrirRequisitoAsync(item, workspaceService),
+        // Mismo destino que ya usa el botón "Crear visita" de la Bandeja de
+        // Comunicaciones — el Drawer de /visitas prellena los datos.
+        TipoItemBandeja.SugerenciaVisitaUrgente => Navegar(navigationManager, $"/visitas?sugerenciaId={item.SugerenciaVisitaId}"),
+        // Sin deep-link a una Visita concreta todavía (el Drawer de detalle
+        // es estado interno de /visitas, no hay ruta por Id) — abre la lista
+        // ya filtrada por urgencia es lo más cercano disponible hoy.
+        TipoItemBandeja.VisitaUrgente => Navegar(navigationManager, "/visitas"),
         _ => Navegar(navigationManager, item.DocumentoId is { } documentoId
             ? $"/documentos?documentoId={documentoId}"
             : $"/documentos?trabajadorId={item.TrabajadorId}&tipoDocumentoId={item.TipoDocumentoId}")
