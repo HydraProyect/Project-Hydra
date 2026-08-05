@@ -5,6 +5,10 @@
 @using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores
+@using CaeManager.Application.Alertas
+@using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones
+@using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector
 @using CaeManager.Application.Common
@@ -218,7 +222,13 @@
     OnConfirmar="ConfirmarEliminarAsync" />
 
 <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true">
+    <AccionesExtra>
+        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirAsignarCentroAsync">
+            Asignar a centro…
+        </Boton>
+    </AccionesExtra>
+</BarraAccionesLote>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"
@@ -227,6 +237,46 @@
     Mensaje="Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
+
+<Modal Visible="_asignarCentroVisible" VisibleChanged="v => _asignarCentroVisible = v" Titulo="@($"Asignar {_seleccionados.Count} trabajador(es) a un centro")" CerrarAlHacerClicFuera="!_asignandoLote">
+    <ChildContent>
+        <CampoBuscarSelect
+            Etiqueta="Centro"
+            Marcador="Escribe el nombre del centro…"
+            Valor="@_centroIdParaAsignar"
+            ValorChanged="CambiarCentroParaAsignarAsync"
+            Opciones="@OpcionesCentrosParaAsignar" />
+
+        <CampoTexto Etiqueta="Fecha de alta" Type="date" Valor="@_fechaAltaParaAsignar" ValorChanged="v => _fechaAltaParaAsignar = v" />
+
+        @if (_documentosFaltantesParaAsignar.Count > 0)
+        {
+            <div class="alerta-preflight-asignacion" role="status">
+                <p>
+                    <strong>@_documentosFaltantesParaAsignar.Count combinación(es)</strong> quedarán sin este documento obligatorio al confirmar:
+                </p>
+                <ul>
+                    @foreach (var faltante in _documentosFaltantesParaAsignar.Take(5))
+                    {
+                        <li>@faltante.TrabajadorNombre — @faltante.TipoDocumentoNombre</li>
+                    }
+                </ul>
+                @if (_documentosFaltantesParaAsignar.Count > 5)
+                {
+                    <p>y @(_documentosFaltantesParaAsignar.Count - 5) más…</p>
+                }
+            </div>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_asignandoLote" OnClick="() => _asignarCentroVisible = false">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_asignandoLote" OnClick="ConfirmarAsignarCentroAsync">
+            @(_documentosFaltantesParaAsignar.Count > 0 ? "Asignar igualmente" : "Asignar")
+        </Boton>
+    </Pie>
+</Modal>
 
 <Modal Visible="_mostrarGuardarFiltro" VisibleChanged="v => _mostrarGuardarFiltro = v" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
     <ChildContent>

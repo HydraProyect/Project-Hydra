@@ -1,10 +1,14 @@
 using System.Text.Json;
+using CaeManager.Application.Alertas;
+using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
+using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EditarTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
+using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
@@ -91,6 +95,18 @@ public partial class Trabajadores : ComponentBase
     private bool _mostrarGuardarFiltro;
     private string _nombreFiltroNuevo = string.Empty;
     private bool _guardandoFiltro;
+
+    // --- Fase B: "Asignar a centro…" en lote desde /trabajadores ---
+    private bool _asignarCentroVisible;
+    private IReadOnlyList<CentroSelectorDto> _centrosDisponiblesParaAsignar = [];
+    private string _centroIdParaAsignar = string.Empty;
+    private string _fechaAltaParaAsignar = string.Empty;
+    private IReadOnlyList<DocumentoFaltanteDto> _documentosFaltantesParaAsignar = [];
+    private bool _asignandoLote;
+
+    private IReadOnlyList<OpcionBuscable> OpcionesCentrosParaAsignar => _centrosDisponiblesParaAsignar
+        .Select(c => new OpcionBuscable(c.Id.ToString(), $"{c.Nombre} ({c.ClienteRazonSocial})"))
+        .ToList();
 
     private record FiltrosTrabajadoresJson(string? Busqueda, string? EmpresaId, string? SubcontrataId);
 
@@ -482,6 +498,75 @@ public partial class Trabajadores : ComponentBase
         finally
         {
             _eliminandoLote = false;
+        }
+    }
+
+    // --- Fase B: "Asignar a centro…" en lote ---
+
+    private async Task AbrirAsignarCentroAsync()
+    {
+        _centrosDisponiblesParaAsignar = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
+        _centroIdParaAsignar = string.Empty;
+        _fechaAltaParaAsignar = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        _documentosFaltantesParaAsignar = [];
+        _asignarCentroVisible = true;
+    }
+
+    private async Task CambiarCentroParaAsignarAsync(string valor)
+    {
+        _centroIdParaAsignar = valor;
+
+        if (!Guid.TryParse(valor, out var centroId))
+        {
+            _documentosFaltantesParaAsignar = [];
+            return;
+        }
+
+        _documentosFaltantesParaAsignar = await Mediator.Send(
+            new ObtenerDocumentosFaltantesParaAsignacionQuery(_seleccionados.ToList(), [centroId]));
+    }
+
+    private async Task ConfirmarAsignarCentroAsync()
+    {
+        if (!Guid.TryParse(_centroIdParaAsignar, out var centroId))
+        {
+            ToastService.Mostrar("Selecciona un centro.", TonoToast.Error);
+            return;
+        }
+
+        if (!DateOnly.TryParse(_fechaAltaParaAsignar, out var fechaAlta))
+        {
+            ToastService.Mostrar("Introduce una fecha de alta válida.", TonoToast.Error);
+            return;
+        }
+
+        _asignandoLote = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new CrearAsignacionesCommand(_seleccionados.ToList(), [centroId], fechaAlta));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            var dto = resultado.Valor;
+            var resumen = $"{dto.Creadas} asignación(es) creada(s)" + (dto.YaActivas > 0 ? $", {dto.YaActivas} ya estaban activas." : ".");
+            ToastService.Mostrar(resumen, dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            _seleccionados.Clear();
+            _asignarCentroVisible = false;
+            await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos asignar a los trabajadores seleccionados. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _asignandoLote = false;
         }
     }
 

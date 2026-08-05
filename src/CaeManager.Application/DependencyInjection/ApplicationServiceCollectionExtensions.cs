@@ -1,4 +1,5 @@
 using System.Reflection;
+using CaeManager.Application.Alertas;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Deteccion;
@@ -52,6 +53,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
         services.AddScoped<ICalculoEstadoCentroService, CalculoEstadoCentroService>();
         services.AddScoped<ICalculoEstadoDocumentalService, CalculoEstadoDocumentalService>();
+        services.AddScoped<IDocumentosFaltantesService, DocumentosFaltantesService>();
 
         // Factory pura (Application) — cada IDocumentAIProvider real se
         // registra en Infrastructure (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2).
