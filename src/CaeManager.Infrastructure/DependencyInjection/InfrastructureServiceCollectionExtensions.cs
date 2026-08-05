@@ -307,6 +307,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.ISugerenciaGestionCorreoRepository, SugerenciaGestionCorreoRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.ISolicitudPrioridadDocumentoRepository, SolicitudPrioridadDocumentoRepository>();
         services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
@@ -517,6 +518,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Comunicaciones (P2 #26): apagado por defecto — ver ComunicacionesOptions.
         services.Configure<ComunicacionesOptions>(configuration.GetSection(ComunicacionesOptions.SeccionConfiguracion));
+        // Fase G: mismo "Comunicaciones" — ver ComunicacionesRemitenteOptions (Application.Common).
+        services.Configure<ComunicacionesRemitenteOptions>(configuration.GetSection(ComunicacionesRemitenteOptions.SeccionConfiguracion));
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();
