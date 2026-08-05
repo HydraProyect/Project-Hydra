@@ -13,8 +13,8 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
     private static CatalogoKpisValoresDto Valores(
         int trabajadoresActivos = 0, int centros = 0, int visitas = 0,
         int vigentes = 0, int proximos = 0, int urgentes = 0, int vencidos = 0,
-        double? puntuacionMediaEvaluaciones = null, int totalEvaluaciones = 0,
-        IReadOnlyList<CentroRiesgoEvaluacionDto>? centrosConMasRiesgo = null,
+        double? porcentajeCumplimientoDocumental = null, int totalRequeridosCumplimiento = 0,
+        IReadOnlyList<CentroCumplimientoDto>? centrosConMenorCumplimiento = null,
         int incidenciasAbiertas = 0, IReadOnlyList<GravedadIncidenciaConteoDto>? incidenciasPorGravedad = null,
         double? tiempoMedioResolucionDias = null, int totalIncidenciasResueltas = 0,
         double? confianzaMediaIa = null, decimal costeIaMes = 0m, double? tiempoMedioMsIa = null, int totalAuditoriasIaMes = 0,
@@ -22,9 +22,9 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
         new(
             Documental: new KpisDashboardDto(trabajadoresActivos, centros, vencidos, urgentes, proximos, vigentes, visitas, 0),
             TotalDocumentosConVigencia: vigentes + proximos + urgentes + vencidos,
-            PuntuacionMediaEvaluaciones: puntuacionMediaEvaluaciones,
-            TotalEvaluaciones: totalEvaluaciones,
-            CentrosConMasRiesgo: centrosConMasRiesgo ?? [],
+            PorcentajeCumplimientoDocumental: porcentajeCumplimientoDocumental,
+            TotalRequeridosCumplimiento: totalRequeridosCumplimiento,
+            CentrosConMenorCumplimiento: centrosConMenorCumplimiento ?? [],
             IncidenciasAbiertas: incidenciasAbiertas,
             IncidenciasPorGravedad: incidenciasPorGravedad ?? [],
             TiempoMedioResolucionIncidenciasDias: tiempoMedioResolucionDias,
@@ -79,18 +79,18 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
     [Fact]
     public void Las_medias_se_ponderan_por_el_volumen_de_cada_tenant_no_por_un_promedio_simple()
     {
-        // Tenant A: media 100 sobre 1 evaluación. Tenant B: media 0 sobre 99.
+        // Tenant A: 100% sobre 1 par requerido. Tenant B: 0% sobre 99.
         // Promedio simple: (100+0)/2 = 50. Promedio ponderado por volumen: casi 0.
         var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>
         {
-            (Cliente("TenantPequeño"), Valores(puntuacionMediaEvaluaciones: 100, totalEvaluaciones: 1)),
-            (Cliente("TenantGrande"), Valores(puntuacionMediaEvaluaciones: 0, totalEvaluaciones: 99)),
+            (Cliente("TenantPequeño"), Valores(porcentajeCumplimientoDocumental: 100, totalRequeridosCumplimiento: 1)),
+            (Cliente("TenantGrande"), Valores(porcentajeCumplimientoDocumental: 0, totalRequeridosCumplimiento: 99)),
         };
 
         var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant);
 
-        resultado.PuntuacionMediaEvaluaciones.Should().NotBeNull();
-        resultado.PuntuacionMediaEvaluaciones!.Value.Should().BeApproximately(1.0, 0.1);
+        resultado.PorcentajeCumplimientoDocumental.Should().NotBeNull();
+        resultado.PorcentajeCumplimientoDocumental!.Value.Should().BeApproximately(1.0, 0.1);
     }
 
     [Fact]
@@ -104,27 +104,27 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
 
         var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant);
 
-        resultado.PuntuacionMediaEvaluaciones.Should().BeNull();
+        resultado.PorcentajeCumplimientoDocumental.Should().BeNull();
         resultado.ConfianzaMediaIa.Should().BeNull();
         resultado.TiempoMedioResolucionIncidenciasDias.Should().BeNull();
     }
 
     [Fact]
-    public void El_ranking_de_centros_con_mas_riesgo_corta_a_10_aunque_varios_tenants_aporten_mas()
+    public void El_ranking_de_centros_con_menor_cumplimiento_corta_a_10_aunque_varios_tenants_aporten_mas()
     {
         var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>();
         for (var t = 0; t < 4; t++)
         {
             var centros = Enumerable.Range(0, 5)
-                .Select(i => new CentroRiesgoEvaluacionDto(Guid.NewGuid(), $"Centro {t}-{i}", i))
+                .Select(i => new CentroCumplimientoDto(Guid.NewGuid(), $"Centro {t}-{i}", i))
                 .ToList();
-            porTenant.Add((Cliente($"Tenant{t}"), Valores(centrosConMasRiesgo: centros)));
+            porTenant.Add((Cliente($"Tenant{t}"), Valores(centrosConMenorCumplimiento: centros)));
         }
 
         var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant);
 
-        resultado.CentrosConMasRiesgo.Should().HaveCount(10);
-        resultado.CentrosConMasRiesgo.Should().BeInAscendingOrder(c => c.PuntuacionMedia);
+        resultado.CentrosConMenorCumplimiento.Should().HaveCount(10);
+        resultado.CentrosConMenorCumplimiento.Should().BeInAscendingOrder(c => c.Porcentaje);
     }
 
     [Fact]
@@ -162,6 +162,6 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
         resultado.TotalTenants.Should().Be(0);
         resultado.TrabajadoresActivos.Should().Be(0);
         resultado.TasaCumplimiento.Should().Be(100, "sin documentos con vigencia, el mismo criterio que ObtenerKpisDashboardQuery aplica: 100%, no 0%");
-        resultado.CentrosConMasRiesgo.Should().BeEmpty();
+        resultado.CentrosConMenorCumplimiento.Should().BeEmpty();
     }
 }
