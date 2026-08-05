@@ -10,7 +10,6 @@ using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Evaluaciones;
 using CaeManager.Application.Facturacion;
 using CaeManager.Application.Gestiones;
 using CaeManager.Application.Incidencias;
@@ -37,7 +36,6 @@ using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
-using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Incidencias;
@@ -69,7 +67,7 @@ public class CaeManagerDbContext(
         ITrabajadoresQueryContext, ITiposDocumentoQueryContext, IDocumentosQueryContext, IDocumentosIaQueryContext,
         INotificacionesQueryContext, IAsignacionesQueryContext, IVisitasQueryContext, IVehiculosQueryContext,
         IConfiguracionQueryContext, IAuditoriaQueryContext, IRequisitosDocumentalesQueryContext, ITenantsQueryContext,
-        IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext, IEvaluacionesQueryContext,
+        IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext,
         IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
         IGestionesQueryContext
 {
@@ -174,8 +172,6 @@ public class CaeManagerDbContext(
     IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
     public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();
     IQueryable<AsignacionOperadorDelegado> ITenantsQueryContext.AsignacionesOperadorDelegado => AsignacionesOperadorDelegado;
-    public DbSet<Evaluacion> Evaluaciones => Set<Evaluacion>();
-    IQueryable<Evaluacion> IEvaluacionesQueryContext.Evaluaciones => Evaluaciones;
     public DbSet<Incidencia> Incidencias => Set<Incidencia>();
     IQueryable<Incidencia> IIncidenciasQueryContext.Incidencias => Incidencias;
     public DbSet<ConversacionCorreo> ConversacionesCorreo => Set<ConversacionCorreo>();

@@ -39,7 +39,7 @@ public class CentroConfiguration : IEntityTypeConfiguration<Centro>
             .HasPrincipalKey(e => new { e.TenantId, e.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Prerequisito de las FKs que Visita/Proyecto/Evaluacion/... declaran
+        // Prerequisito de las FKs que Visita/Proyecto/... declaran
         // hacia Centro.
         builder.HasIndex(c => new { c.TenantId, c.Id }).IsUnique();
 

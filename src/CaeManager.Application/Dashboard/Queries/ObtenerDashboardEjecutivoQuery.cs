@@ -6,7 +6,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 
 public record ObtenerDashboardEjecutivoQuery : IRequest<DashboardEjecutivoDto>;
 
-public record CentroRiesgoEvaluacionMultiTenantDto(string TenantNombre, Guid CentroId, string CentroNombre, double PuntuacionMedia);
+public record CentroCumplimientoMultiTenantDto(string TenantNombre, Guid CentroId, string CentroNombre, int Porcentaje);
 
 public record DashboardEjecutivoDto(
     int TotalTenants,
@@ -19,8 +19,8 @@ public record DashboardEjecutivoDto(
     int DocumentosUrgentes,
     int DocumentosVencidos,
     int TasaCumplimiento,
-    double? PuntuacionMediaEvaluaciones,
-    IReadOnlyList<CentroRiesgoEvaluacionMultiTenantDto> CentrosConMasRiesgo,
+    double? PorcentajeCumplimientoDocumental,
+    IReadOnlyList<CentroCumplimientoMultiTenantDto> CentrosConMenorCumplimiento,
     int IncidenciasAbiertas,
     IReadOnlyList<GravedadIncidenciaConteoDto> IncidenciasPorGravedad,
     double? TiempoMedioResolucionIncidenciasDias,
@@ -84,10 +84,10 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator) : IReques
         var totalConVigencia = vigentes + proximos + urgentes + vencidos;
         var tasaCumplimiento = totalConVigencia == 0 ? 100 : vigentes * 100 / totalConVigencia;
 
-        var centrosConMasRiesgo = porTenant
-            .SelectMany(p => p.Valores.CentrosConMasRiesgo.Select(c =>
-                new CentroRiesgoEvaluacionMultiTenantDto(p.Cliente.Nombre, c.CentroId, c.CentroNombre, c.PuntuacionMedia)))
-            .OrderBy(c => c.PuntuacionMedia)
+        var centrosConMenorCumplimiento = porTenant
+            .SelectMany(p => p.Valores.CentrosConMenorCumplimiento.Select(c =>
+                new CentroCumplimientoMultiTenantDto(p.Cliente.Nombre, c.CentroId, c.CentroNombre, c.Porcentaje)))
+            .OrderBy(c => c.Porcentaje)
             .Take(TopCentrosConMasRiesgo)
             .ToList();
 
@@ -108,9 +108,9 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator) : IReques
             DocumentosUrgentes: urgentes,
             DocumentosVencidos: vencidos,
             TasaCumplimiento: tasaCumplimiento,
-            PuntuacionMediaEvaluaciones: PromedioPonderado(
-                porTenant.Select(p => (p.Valores.PuntuacionMediaEvaluaciones, (double)p.Valores.TotalEvaluaciones))),
-            CentrosConMasRiesgo: centrosConMasRiesgo,
+            PorcentajeCumplimientoDocumental: PromedioPonderado(
+                porTenant.Select(p => (p.Valores.PorcentajeCumplimientoDocumental, (double)p.Valores.TotalRequeridosCumplimiento))),
+            CentrosConMenorCumplimiento: centrosConMenorCumplimiento,
             IncidenciasAbiertas: porTenant.Sum(p => p.Valores.IncidenciasAbiertas),
             IncidenciasPorGravedad: incidenciasPorGravedad,
             TiempoMedioResolucionIncidenciasDias: PromedioPonderado(

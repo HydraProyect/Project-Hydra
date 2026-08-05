@@ -10,7 +10,6 @@ using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
-using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Integraciones;
@@ -196,15 +195,6 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
                 clienteId = await SembrarClienteAsync(contexto);
                 centroId = await SembrarCentroAsync(contexto);
             });
-    }
-
-    [Fact]
-    public Task Aislamiento_Evaluacion()
-    {
-        Guid centroId = default;
-        return VerificarAislamientoAsync(
-            () => new Evaluacion(centroId, null, new DateOnly(2026, 1, 1), 80, null),
-            async contexto => centroId = await SembrarCentroAsync(contexto));
     }
 
     [Fact]
