@@ -21,6 +21,18 @@ public partial class AsistenteIa : ComponentBase, IDisposable
 
     private bool _visible;
     private string _pregunta = string.Empty;
+
+    /// <summary>
+    /// Ver el comentario equivalente en BuscadorGlobal — deliberadamente
+    /// separado de _pregunta (que sí se actualiza en cada tecla para
+    /// habilitar el botón "Enviar"). Reflejar _pregunta de vuelta en el
+    /// value del mismo textarea que la genera es lo que permite que, bajo
+    /// latencia, un render en cola se aplique tarde y borre visualmente lo
+    /// que el usuario ya escribió. Solo se toca al limpiar tras enviar
+    /// (reinicio externo legítimo).
+    /// </summary>
+    private string _valorMostrado = string.Empty;
+
     private bool _enviando;
     private string? _mensajeError;
     private readonly List<MensajeChatDto> _historial = [];
@@ -56,6 +68,7 @@ public partial class AsistenteIa : ComponentBase, IDisposable
         _mensajeError = null;
         _historial.Add(new MensajeChatDto(RolMensajeChat.Usuario, textoPregunta));
         _pregunta = string.Empty;
+        _valorMostrado = string.Empty;
         _enviando = true;
         StateHasChanged();
 
