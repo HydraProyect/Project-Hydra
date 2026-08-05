@@ -102,7 +102,7 @@ public partial class Centros : ComponentBase
     [SupplyParameterFromQuery] public string? Nombre { get; set; }
 
     /// <summary>
-    /// Encadenado desde "Guardar y crear centro" en /empresas, o desde el
+    /// Encadenado desde "Continuar con el centro" en /empresas, o desde el
     /// asistente de alta guiada (Fase A2/A3): el Cliente y la Empresa llegan
     /// ya elegidos, en solo lectura, para no repetir la búsqueda.
     /// </summary>
@@ -346,7 +346,7 @@ public partial class Centros : ComponentBase
     private Task GuardarAsync() => GuardarAsync(crearOtro: false);
 
     /// <summary>
-    /// "Guardar y crear otro centro" (Fase A2): igual que
+    /// "Añadir otro centro" (Fase A2): igual que
     /// <see cref="GuardarAsync()"/>, pero al crear con éxito no cierra el
     /// Drawer — limpia solo los campos propios del Centro y mantiene
     /// Cliente/Empresa fijados, para dar de alta varios centros seguidos sin
