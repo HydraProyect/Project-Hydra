@@ -108,6 +108,105 @@
     font: var(--font-body-sm);
 }
 
+.alerta-info {
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    font: var(--font-body-sm);
+    margin-bottom: var(--space-3);
+}
+
+/* Fase B: preflight no bloqueante al asignar en lote — ver Asignaciones.razor. */
+.alerta-preflight-asignacion {
+    background-color: var(--color-warning-50);
+    color: var(--color-warning-700);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    font: var(--font-body-sm);
+    margin-top: var(--space-3);
+}
+
+.alerta-preflight-asignacion ul {
+    margin: var(--space-2) 0 0;
+    padding-left: var(--space-5);
+}
+
+.texto-ayuda-matriz {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    margin: var(--space-2) 0;
+}
+
+.matriz-asignaciones-contenedor {
+    overflow-x: auto;
+}
+
+.matriz-asignaciones {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.matriz-asignaciones th,
+.matriz-asignaciones td {
+    padding: var(--space-2) var(--space-3);
+    border: var(--border-default);
+    text-align: center;
+    white-space: nowrap;
+}
+
+.matriz-asignaciones th[scope="row"] {
+    text-align: left;
+}
+
+/* Fase C: Bandeja del gestor — ver PanelResolverItem.razor. */
+.panel-resolver-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-2);
+}
+
+.panel-resolver-item-enfocado {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 1px var(--color-primary-500);
+}
+
+.panel-resolver-item-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex: 1;
+    min-width: 0;
+}
+
+.panel-resolver-item-titulo {
+    margin: 0;
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+.panel-resolver-item-subtitulo {
+    margin: 0;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.panel-resolver-item-fecha {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    white-space: nowrap;
+}
+
+.lista-bandeja {
+    display: flex;
+    flex-direction: column;
+}
+
 .paginador {
     margin-top: var(--space-4);
 }
@@ -115,6 +214,29 @@
 .texto-vacio-seccion {
     color: var(--color-text-muted);
     font: var(--font-body-md);
+}
+
+/*
+  Click en el nombre/identificador de una fila = misma acción que el botón
+  "Ver" de esa fila — evita tener que mover el ratón hasta la columna de
+  Acciones para abrir el detalle. Se ve como el texto normal de la celda
+  (no como un enlace azul de manual): el cursor y el subrayado al pasar por
+  encima son la única pista de que es interactivo.
+*/
+.enlace-nombre-fila {
+    display: inline;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.enlace-nombre-fila:hover {
+    text-decoration: underline;
 }
 
 .tabla-datos {
@@ -235,5 +357,27 @@
     .tabla-datos tbody tr,
     .stagger-item {
         animation: none;
+    }
+}
+
+/*
+  Móvil: la tabla ya no cabe con todas sus columnas en ~375-767px, y
+  table-layout:auto la aplastaría hasta ser ilegible en vez de desbordar.
+  display:block convierte el <table> en la caja que scrollea; thead/tbody
+  siguen generando su caja de tabla anónima interna con su ancho natural
+  (sin comprimirse), así que el contenido real desborda ese bloque y aquí
+  es donde aparece el scroll horizontal — sin envolver cada tabla en un div
+  nuevo por página (esta clase la comparten ~15 pantallas de listado, ver
+  cabecera del archivo).
+*/
+@media (max-width: 767px) {
+    .tabla-datos {
+        display: block;
+        overflow-x: auto;
+    }
+
+    .tabla-datos th,
+    .tabla-datos td {
+        white-space: nowrap;
     }
 }

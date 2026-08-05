@@ -119,6 +119,7 @@ public partial class DashboardEjecutivo : ComponentBase
         CatalogoKpis.TrabajadoresActivos => _valores!.TrabajadoresActivos.ToString(),
         CatalogoKpis.Centros => _valores!.Centros.ToString(),
         CatalogoKpis.VisitasProgramadas => _valores!.VisitasProgramadas.ToString(),
+        CatalogoKpis.VisitasUrgentes => _valores!.VisitasUrgentes.ToString(),
         CatalogoKpis.TasaCumplimiento => $"{_valores!.TasaCumplimiento}%",
         CatalogoKpis.PuntuacionMediaEvaluaciones => _valores!.PuntuacionMediaEvaluaciones is { } p ? $"{p:F0}" : "—",
         CatalogoKpis.IncidenciasAbiertas => _valores!.IncidenciasAbiertas.ToString(),

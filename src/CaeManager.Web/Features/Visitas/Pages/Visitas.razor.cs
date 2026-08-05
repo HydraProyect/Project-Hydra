@@ -1,13 +1,18 @@
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciaVisitaCorreo;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.EliminarVisita;
+using CaeManager.Application.Visitas.Commands.EliminarVisitas;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
+using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.QuickGrid;
@@ -21,6 +26,7 @@ public partial class Visitas : ComponentBase
 
     private string _busqueda = string.Empty;
     private bool _soloActivas = true;
+    private bool _soloUrgentes;
     private string _filtroNotificado = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
@@ -48,10 +54,37 @@ public partial class Visitas : ComponentBase
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
 
+    // Prellenado desde "Crear visita" de una sugerencia detectada por IA en
+    // un correo (ver SugerenciaVisitaCorreo) — se manda de vuelta en
+    // CrearVisitaCommand para que el handler marque la sugerencia resuelta.
+    private Guid? _sugerenciaVisitaCorreoId;
+    private string? _sugerenciaVisitaResumen;
+
+    [SupplyParameterFromQuery(Name = "sugerenciaId")]
+    public string? SugerenciaVisitaIdInicial { get; set; }
+
     private bool _confirmarEliminarVisible;
     private Guid _idAEliminar;
     private string _centroAEliminar = string.Empty;
     private bool _eliminando;
+
+    private bool _detalleVisible;
+    private bool _cargandoDetalle;
+    private DetalleVisitaDto? _detalle;
+
+    private bool _cargandoDocumentacion;
+    private bool _errorDocumentacion;
+    private DocumentacionVisitaDto? _documentacion;
+
+    private bool _visorVisible;
+    private Guid _visorDocumentoId;
+    private string _visorTitulo = string.Empty;
+
+    private readonly HashSet<Guid> _seleccionados = [];
+    private List<VisitaListaDto> _elementosPagina = [];
+    private Guid? _idEnfocado;
+    private bool _eliminandoLote;
+    private bool _confirmarEliminarLoteVisible;
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
@@ -65,6 +98,13 @@ public partial class Visitas : ComponentBase
 
     // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
     protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
+
+    /// <summary>Abre el drawer prellenado si se llegó desde el botón "Crear visita" de una sugerencia de la Bandeja (?sugerenciaId=...).</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        if (Guid.TryParse(SugerenciaVisitaIdInicial, out var sugerenciaId))
+            await AbrirCrearDesdeSugerenciaAsync(sugerenciaId);
+    }
 
     /// <summary>
     /// Se re-ejecuta en cada navegación dentro de la propia página, no solo
@@ -87,16 +127,26 @@ public partial class Visitas : ComponentBase
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
 
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+
             var resultado = await Mediator.Send(new ObtenerVisitasQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 SoloActivas: _soloActivas,
                 NotificadoCliente: _filtroNotificado switch { "si" => true, "no" => false, _ => null },
+                SoloUrgentes: _soloUrgentes,
                 Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage));
+                TamanoPagina: _paginacion.ItemsPerPage,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente));
 
             _totalElementos = resultado.TotalElementos;
 
-            return GridItemsProviderResult.From(resultado.Elementos.ToList(), resultado.TotalElementos);
+            var elementos = resultado.Elementos.ToList();
+            _elementosPagina = elementos;
+            _seleccionados.Clear();
+            _idEnfocado = null;
+
+            return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
         catch (Exception)
         {
@@ -149,11 +199,34 @@ public partial class Visitas : ComponentBase
         _notas = string.Empty;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
+        _sugerenciaVisitaCorreoId = null;
+        _sugerenciaVisitaResumen = null;
         _drawerVisible = true;
+    }
+
+    /// <summary>Variante de AbrirCrearAsync que prellena Centro/fechas/notas con lo que detectó la IA en un correo — el Gestor sigue teniendo que elegir los trabajadores y confirmar el resto a mano.</summary>
+    private async Task AbrirCrearDesdeSugerenciaAsync(Guid sugerenciaId)
+    {
+        var sugerencia = await Mediator.Send(new ObtenerSugerenciaVisitaCorreoQuery(sugerenciaId));
+        if (sugerencia is null)
+        {
+            ToastService.Mostrar("No encontramos esta sugerencia. Puede que ya se haya resuelto.", TonoToast.Error);
+            return;
+        }
+
+        await AbrirCrearAsync();
+
+        _sugerenciaVisitaCorreoId = sugerencia.Id;
+        _sugerenciaVisitaResumen = sugerencia.Resumen;
+        _centroId = sugerencia.CentroId?.ToString() ?? string.Empty;
+        if (sugerencia.FechaInicio is not null) _fechaInicio = sugerencia.FechaInicio.Value.ToString("yyyy-MM-dd");
+        if (sugerencia.FechaFin is not null) _fechaFin = sugerencia.FechaFin.Value.ToString("yyyy-MM-dd");
     }
 
     private async Task AbrirEditarAsync(Guid id)
     {
+        _sugerenciaVisitaCorreoId = null;
+        _sugerenciaVisitaResumen = null;
         _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
 
         var visita = await Mediator.Send(new ObtenerVisitaPorIdQuery(id));
@@ -176,6 +249,93 @@ public partial class Visitas : ComponentBase
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+    }
+
+    /// <summary>
+    /// Vista de solo lectura — quién entra y el estado de su documentación.
+    /// A diferencia de la versión anterior (PestanaDocumentacion, sin
+    /// filtrar por Centro), ObtenerDocumentacionVisitaQuery solo trae lo que
+    /// aplica al Centro de esta visita, incluye "Faltante" y viene ordenada
+    /// por severidad — ver el comentario de esa Query.
+    /// </summary>
+    private async Task AbrirDetalleAsync(Guid id)
+    {
+        _detalleVisible = true;
+        _cargandoDetalle = true;
+        _detalle = null;
+
+        try
+        {
+            _detalle = await Mediator.Send(new ObtenerDetalleVisitaQuery(id));
+            if (_detalle is null)
+            {
+                ToastService.Mostrar("No encontramos esta visita. Puede que ya se haya eliminado.", TonoToast.Error);
+                return;
+            }
+
+            await CargarDocumentacionAsync(id);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos cargar el detalle de la visita. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _cargandoDetalle = false;
+        }
+    }
+
+    private async Task CargarDocumentacionAsync(Guid visitaId)
+    {
+        _cargandoDocumentacion = true;
+        _errorDocumentacion = false;
+        _documentacion = null;
+
+        try
+        {
+            _documentacion = await Mediator.Send(new ObtenerDocumentacionVisitaQuery(visitaId));
+        }
+        catch (Exception)
+        {
+            _errorDocumentacion = true;
+        }
+        finally
+        {
+            _cargandoDocumentacion = false;
+        }
+    }
+
+    /// <summary>
+    /// Un Documento existente abre el visor inline. Un hueco "Faltante" lleva
+    /// directo al alta manual con el propietario y el tipo ya elegidos — ver
+    /// AbrirCrearParaFaltanteAsync/AbrirCrearParaFaltanteEmpresaAsync en
+    /// Documentos.razor.cs. Un Documento sin ArchivoUrl (se puede dar de alta
+    /// sin adjuntar archivo, ver CrearDocumentoCommand) tampoco tiene nada
+    /// que previsualizar — va directo a editar en vez de abrir un visor vacío.
+    /// </summary>
+    private void AbrirDocumento(DocumentoVisitaItemDto item)
+    {
+        if (item.DocumentoId is { } documentoId)
+        {
+            if (item.ArchivoUrl is null)
+            {
+                NavigationManager.NavigateTo($"/documentos?documentoId={documentoId}");
+                return;
+            }
+
+            _visorDocumentoId = documentoId;
+            _visorTitulo = item.TipoDocumentoNombre;
+            _visorVisible = true;
+            return;
+        }
+
+        if (item.TrabajadorId is { } trabajadorId)
+        {
+            NavigationManager.NavigateTo($"/documentos?trabajadorId={trabajadorId}&tipoDocumentoId={item.TipoDocumentoId}");
+            return;
+        }
+
+        NavigationManager.NavigateTo($"/documentos?empresaIdFaltante={_documentacion!.EmpresaId}&tipoDocumentoId={item.TipoDocumentoId}");
     }
 
     private void AlternarTrabajador(Guid trabajadorId, bool seleccionado)
@@ -218,7 +378,7 @@ public partial class Visitas : ComponentBase
                     return;
                 }
 
-                var resultado = await Mediator.Send(new CrearVisitaCommand(centroId, fechaInicio, fechaFin, trabajadorIds, notas));
+                var resultado = await Mediator.Send(new CrearVisitaCommand(centroId, fechaInicio, fechaFin, trabajadorIds, notas, _sugerenciaVisitaCorreoId));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
             else
@@ -313,5 +473,85 @@ public partial class Visitas : ComponentBase
         {
             _eliminando = false;
         }
+    }
+
+    private bool TodosSeleccionados =>
+        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+
+    private void AlternarSeleccionTodos(bool marcar)
+    {
+        if (marcar)
+            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+        else
+            _seleccionados.Clear();
+    }
+
+    private void AlternarSeleccion(Guid id, bool marcado)
+    {
+        if (marcado) _seleccionados.Add(id);
+        else _seleccionados.Remove(id);
+    }
+
+    private async Task ConfirmarEliminarLoteAsync()
+    {
+        _eliminandoLote = true;
+
+        try
+        {
+            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
+            var resultado = await Mediator.Send(new EliminarVisitasCommand(_seleccionados.ToList(), usuarioId ?? Guid.Empty));
+            var dto = resultado.Valor;
+
+            ToastService.Mostrar(
+                dto.Errores.Count == 0
+                    ? $"{dto.Eliminados} visita(s) eliminada(s)."
+                    : $"{dto.Eliminados} eliminada(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            _seleccionados.Clear();
+            _confirmarEliminarLoteVisible = false;
+            await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos eliminar las visitas seleccionadas. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _eliminandoLote = false;
+        }
+    }
+
+    private string ObtenerClaseFila(VisitaListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
+
+    private async Task ManejarAtajoAsync(string tecla)
+    {
+        if (_elementosPagina.Count == 0) return;
+
+        switch (tecla)
+        {
+            case "j":
+                {
+                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    break;
+                }
+            case "k":
+                {
+                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    break;
+                }
+            case "x":
+                if (_idEnfocado is { } idAlternar)
+                    AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                break;
+            case "Enter":
+                if (_idEnfocado is { } idAbrir)
+                    await AbrirDetalleAsync(idAbrir);
+                break;
+        }
+
+        StateHasChanged();
     }
 }

@@ -1,0 +1,138 @@
+@page "/documentos/subida-masiva"
+@rendermode InteractiveServer
+@using CaeManager.Application.Documentos.Commands.CrearDocumento
+@using Microsoft.AspNetCore.Components.Forms
+
+<PageTitle>Subida múltiple — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Subida múltiple de documentos</h1>
+        <a class="enlace-exportar" href="/documentos">Volver a Documentos</a>
+    </div>
+
+    <p class="descripcion-subida-masiva">
+        Arrastra o selecciona varios archivos (PDF, JPG, PNG, Word) o un único .zip con varios dentro.
+        Solo documentos de Trabajador. Detectamos automáticamente el trabajador y el tipo de documento de
+        cada archivo — si estamos muy seguros, se crea directamente; si no, te lo dejamos abajo para confirmar.
+    </p>
+
+    <div class="campo">
+        <label>Archivos</label>
+        <ZonaSoltarArchivo
+            OnChange="ManejarArchivosSeleccionadosAsync"
+            Multiple="true"
+            Accept=".pdf,.jpg,.jpeg,.png,.docx,.zip"
+            FormatosTexto="PDF · JPG · PNG · DOCX · ZIP"
+            Cargando="_procesandoLote" />
+    </div>
+
+    @if (_items.Count > 0)
+    {
+        <div class="resumen-subida-masiva">
+            <Badge Tono="TonoBadge.Exito">@TotalCreados creado(s)</Badge>
+            <Badge Tono="TonoBadge.Advertencia">@TotalPendientes pendiente(s)</Badge>
+            <Badge Tono="TonoBadge.Neutro">@TotalDescartados descartado(s)</Badge>
+            @if (TotalErrores > 0)
+            {
+                <Badge Tono="TonoBadge.Peligro">@TotalErrores error(es)</Badge>
+            }
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="LimpiarResueltos">
+                Limpiar creados/descartados
+            </Boton>
+        </div>
+
+        <ul class="lista-items-subida-masiva">
+            @foreach (var item in _items)
+            {
+                <li @key="item.ClaveLocal" class="item-subida-masiva">
+                    <div class="item-subida-masiva-fila">
+                        @if (item.MiniaturaBase64 is not null)
+                        {
+                            <img class="miniatura-subida-masiva" src="@($"data:image/png;base64,{item.MiniaturaBase64}")" alt="Miniatura de @item.NombreArchivo" />
+                        }
+                        else
+                        {
+                            <div class="miniatura-subida-masiva miniatura-subida-masiva-vacia">
+                                <Icono Nombre="documentos" />
+                            </div>
+                        }
+
+                        <div class="item-subida-masiva-info">
+                            <span class="item-subida-masiva-nombre">@item.NombreArchivo</span>
+                            <div class="item-subida-masiva-badges">
+                                <Badge Tono="@ObtenerTonoEstado(item.Estado)">@ObtenerEtiquetaEstado(item.Estado)</Badge>
+                                @if (item.Confianza is { } confianza)
+                                {
+                                    <Badge Tono="@TonoConfianza(confianza)">@confianza% confianza IA</Badge>
+                                }
+                            </div>
+                            @if (item.MensajeError is not null)
+                            {
+                                <span class="item-subida-masiva-error">@item.MensajeError</span>
+                            }
+                        </div>
+
+                        <div class="item-subida-masiva-acciones">
+                            @if (item.Estado == EstadoItem.PendienteConfirmar)
+                            {
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarExpandido(item)">
+                                    @(item.Expandido ? "Ocultar" : "Confirmar…")
+                                </Boton>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => Descartar(item)">
+                                    Descartar
+                                </Boton>
+                            }
+                            else if (item.Estado is EstadoItem.Error or EstadoItem.Descartado)
+                            {
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => QuitarDeLaLista(item)">
+                                    Quitar de la lista
+                                </Boton>
+                            }
+                        </div>
+                    </div>
+
+                    @if (item.Expandido && item.Estado == EstadoItem.PendienteConfirmar)
+                    {
+                        <div class="item-subida-masiva-confirmacion">
+                            @if (item.ContenidoPdf is not null)
+                            {
+                                <iframe class="previsualizacion-documento" src="@ConstruirDataUriPdf(item.ContenidoPdf)" title="Vista previa de @item.NombreArchivo"></iframe>
+                            }
+
+                            <div class="item-subida-masiva-formulario">
+                                <CampoBuscarSelect
+                                    Etiqueta="Trabajador"
+                                    Marcador="Escribe un nombre o DNI para buscar…"
+                                    Valor="@item.TrabajadorId"
+                                    ValorChanged="v => item.TrabajadorId = v"
+                                    Opciones="@OpcionesTrabajadores" />
+
+                                <CampoSelect Etiqueta="Tipo de documento" Valor="@item.TipoDocumentoId" ValorChanged="v => item.TipoDocumentoId = v">
+                                    <option value="">Selecciona un tipo de documento…</option>
+                                    @foreach (var tipo in _tiposDisponibles)
+                                    {
+                                        <option value="@tipo.Id">@tipo.Nombre</option>
+                                    }
+                                </CampoSelect>
+
+                                <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@item.FechaEmision" ValorChanged="v => item.FechaEmision = v" />
+
+                                @if (RequiereVencimientoManual(item))
+                                {
+                                    <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@item.FechaVencimientoManual" ValorChanged="v => item.FechaVencimientoManual = v" />
+                                }
+
+                                <div class="acciones-formulario">
+                                    <Boton Cargando="@item.Confirmando" OnClick="() => ConfirmarAsync(item)">
+                                        Confirmar y crear
+                                    </Boton>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>

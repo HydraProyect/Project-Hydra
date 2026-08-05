@@ -1,0 +1,56 @@
+@page "/bandeja"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+@using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
+@using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Bandeja.Components
+@using MediatR
+@inject IMediator Mediator
+@inject ContextWorkspaceService WorkspaceService
+
+<PageTitle>Bandeja — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina">
+    <h1 class="titulo-pagina">Bandeja del gestor</h1>
+
+    <div class="barra-filtros">
+        <CampoSelect Etiqueta="Tipo" Valor="@_tipoFiltro" ValorChanged="CambiarFiltroAsync">
+            <option value="">Todos</option>
+            <option value="@nameof(TipoItemBandeja.SugerenciaVisitaUrgente)">Visita sorpresa</option>
+            <option value="@nameof(TipoItemBandeja.Faltante)">Falta</option>
+            <option value="@nameof(TipoItemBandeja.Vencido)">Vencido</option>
+            <option value="@nameof(TipoItemBandeja.VisitaUrgente)">Visita próxima</option>
+            <option value="@nameof(TipoItemBandeja.RequisitoPendiente)">Bloquea el centro</option>
+            <option value="@nameof(TipoItemBandeja.Urgente)">Urgente</option>
+            <option value="@nameof(TipoItemBandeja.RevisionIa)">Revisión IA</option>
+        </CampoSelect>
+    </div>
+
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar la bandeja" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="6" />
+    }
+    else if (ItemsFiltrados.Count == 0)
+    {
+        <EstadoVacio Titulo="Nada pendiente" Descripcion="No hay documentos vencidos, urgentes, faltantes, revisiones IA ni requisitos bloqueados." />
+    }
+    else
+    {
+        <div class="lista-bandeja">
+            @foreach (var item in ItemsFiltrados)
+            {
+                <PanelResolverItem Item="item" Enfocado="@(item.Id == _idEnfocado)" />
+            }
+        </div>
+    }
+</div>

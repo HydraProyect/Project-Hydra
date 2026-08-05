@@ -1,3 +1,5 @@
+using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using Microsoft.Extensions.Logging;
@@ -20,8 +22,16 @@ public class IngestaWebhookService(
     IConversacionCorreoRepository conversacionRepositorio,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
+    IFileStorageService almacenamiento,
+    ISugerenciaVisitaCorreoService sugerenciaVisita,
+    ISugerenciaGestionCorreoService sugerenciaGestion,
     ILogger<IngestaWebhookService> logger)
 {
+    // Tope defensivo, no un límite real de Graph: un adjunto de correo
+    // legítimo rara vez supera esto, y descargar/guardar algo mucho más
+    // grande en un job de fondo (sin límite de tiempo del request) es el
+    // vector de abuso más barato de cerrar aquí sin construir nada nuevo.
+    private const long TamanoMaximoAdjuntoEntranteBytes = 25 * 1024 * 1024;
     public async Task ProcesarAsync(EventoWebhook evento, CancellationToken cancellationToken)
     {
         try
@@ -78,10 +88,51 @@ public class IngestaWebhookService(
             conversacionRepositorio.Agregar(conversacion);
         }
 
-        conversacion.AgregarMensaje(
+        var mensajeCreado = conversacion.AgregarMensaje(
             DireccionMensaje.Entrante, mensaje.RemitenteEmail, mensaje.CuerpoHtml, mensaje.FechaUtc, mensaje.MensajeExternoId);
 
         foreach (var participante in mensaje.Participantes)
             conversacion.AgregarParticipante(participante.Email, participante.Rol, TipoParticipanteOrigen.Desconocido);
+
+        foreach (var adjunto in mensaje.Adjuntos)
+            await DescargarYGuardarAdjuntoAsync(mensajeCreado, accessTokenResultado.Valor, mensaje.MensajeExternoId, adjunto, cancellationToken);
+
+        // Sin Cliente asignado no hay Centros candidatos a los que asociar
+        // una sugerencia — la conversación sigue en la cola de triage.
+        if (conversacion.ClienteId is { } clienteId)
+        {
+            await sugerenciaVisita.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
+            await sugerenciaGestion.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Mejor esfuerzo por adjunto — un adjunto que falla al descargar no debe
+    /// perder el mensaje entero (ya persistido con su cuerpo, que es lo
+    /// esencial). Se registra y se sigue con el resto.
+    /// </summary>
+    private async Task DescargarYGuardarAdjuntoAsync(
+        MensajeCorreo mensaje, string accessToken, string mensajeExternoId, AdjuntoGraphDto adjunto, CancellationToken cancellationToken)
+    {
+        if (adjunto.TamanoBytes > TamanoMaximoAdjuntoEntranteBytes)
+        {
+            logger.LogWarning(
+                "Adjunto {NombreArchivo} del mensaje {MensajeId} omitido: {TamanoBytes} bytes supera el máximo de {Maximo}.",
+                adjunto.NombreArchivo, mensajeExternoId, adjunto.TamanoBytes, TamanoMaximoAdjuntoEntranteBytes);
+            return;
+        }
+
+        var contenidoResultado = await graphClient.ObtenerContenidoAdjuntoAsync(accessToken, mensajeExternoId, adjunto.AdjuntoExternoId, cancellationToken);
+        if (contenidoResultado.EsFallido)
+        {
+            logger.LogWarning(
+                "No se pudo descargar el adjunto {AdjuntoId} ({NombreArchivo}) del mensaje {MensajeId}: {Error}",
+                adjunto.AdjuntoExternoId, adjunto.NombreArchivo, mensajeExternoId, contenidoResultado.Error.Mensaje);
+            return;
+        }
+
+        using var flujo = new MemoryStream(contenidoResultado.Valor);
+        var archivoUrl = await almacenamiento.GuardarAsync(flujo, adjunto.NombreArchivo, cancellationToken);
+        mensaje.AgregarAdjunto(adjunto.NombreArchivo, adjunto.TipoContenido, adjunto.TamanoBytes, archivoUrl);
     }
 }

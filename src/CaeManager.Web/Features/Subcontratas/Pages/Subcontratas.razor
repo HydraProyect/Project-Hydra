@@ -3,6 +3,7 @@
 @using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.EditarSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata
+@using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas
 @using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcontrata
 @using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId
@@ -30,6 +31,8 @@
         <CampoTexto Placeholder="Buscar por razón social…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
     </div>
 
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
     @if (_errorCarga)
     {
         <EstadoVacio Titulo="No pudimos cargar las subcontratas" Descripcion="Intenta nuevamente en unos segundos.">
@@ -41,8 +44,17 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="SubcontrataListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
+            <QuickGrid @ref="_grid" TGridItem="SubcontrataListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                <TemplateColumn Title="" Align="Align.Center">
+                    <HeaderTemplate Context="columna">
+                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                    </ChildContent>
+                </TemplateColumn>
                 <PropertyColumn Property="@(s => s.RazonSocial)" Sortable="true" />
+                <PropertyColumn Property="@(s => s.Cif)" Title="CIF" Sortable="true" />
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, context.Id, context.RazonSocial, "informacion")'>
                         Ver
@@ -80,6 +92,7 @@
         }
 
         <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.RazonSocial))" />
+        <CampoTexto Etiqueta="CIF" Valor="@_cif" ValorChanged="v => _cif = v" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.Cif))" />
 
         <SelectorMultiple Etiqueta="Clientes que la contrataron"
                            Elementos="@_clientesDisponiblesSelector"
@@ -146,3 +159,14 @@
     Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarLoteVisible"
+    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
+    Titulo="@($"¿Eliminar {_seleccionados.Count} subcontrata(s)?")"
+    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlas desde Auditoría."
+    EnProgreso="_eliminandoLote"
+    OnConfirmar="ConfirmarEliminarLoteAsync" />

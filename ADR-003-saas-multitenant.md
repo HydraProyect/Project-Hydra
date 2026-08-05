@@ -29,11 +29,11 @@ La hipótesis (1) ha dejado de ser válida: la estrategia SaaS es ahora el objet
 ## Secuencia acordada (no saltarse fases)
 
 1. ✅ Consolidación documental (este ADR + documentos listados arriba).
-2. ⬜ Aprobación de la documentación por el propietario del producto.
-3. ⬜ Plan de migración detallado (etapas de `docs/archive/INFORME-MULTITENANT.md` § 12 desarrolladas a nivel de ejecución).
-4. ⬜ Implementación técnica del multitenancy.
-5. ⬜ Validación (tests de aislamiento por agregado + verificación end-to-end en navegador).
+2. ✅ Aprobación de la documentación por el propietario del producto.
+3. ✅ Plan de migración detallado (`PLAN-MIGRACION-MULTITENANT.md`, 5 etapas).
+4. ✅ Implementación técnica del multitenancy (ver `docs/MULTITENANCY.md`, `ROADMAP.md` "Decisión multi-tenant" 2026-07-24).
+5. ✅ Validación (tests de aislamiento por agregado — `AislamientoPorAgregadoTests` — + verificación end-to-end en navegador).
 
 ## Condiciones de salida a producción SaaS (bloqueantes, heredadas del análisis)
 
-Aislamiento implementado y auditado con tests "tenant A no ve a tenant B" por agregado; índices únicos compuestos; almacenamiento de archivos particionado por tenant; migración a PostgreSQL (SQLite no sostiene escritura concurrente multi-organización); DPA y Términos de Uso por tenant (con revisión legal, nunca implementación unilateral — regla de `CLAUDE.md`); sin self-signup ni billing antes de todo lo anterior (regla de `ADR-001`). El compromiso comercial de propiedad y portabilidad de datos que fundamenta el DPA vive en `docs/business/DATA_OWNERSHIP.md` (**TODO**: desarrollar antes de redactar el DPA).
+Aislamiento implementado y auditado con tests "tenant A no ve a tenant B" por agregado (✅); índices únicos compuestos (✅); almacenamiento de archivos particionado por tenant (✅); migración a PostgreSQL (✅, ejecutada en producción 2026-08-01, ver `docs/archive/RUNBOOK-MIGRACION-POSTGRESQL.md` — la rama SQLite se retiró del código); DPA y Términos de Uso por tenant (⬜ **único pendiente real** — con revisión legal, nunca implementación unilateral, regla de `CLAUDE.md`; los 16 borradores de `docs/business/legal/` cubren el contenido, falta la firma/revisión legal, y el DPA debe declarar además el acceso de soporte de la Fase 60); sin self-signup ni billing antes de todo lo anterior (regla de `ADR-001`). El compromiso comercial de propiedad y portabilidad de datos que fundamenta el DPA vive en `docs/business/DATA_OWNERSHIP.md`.

@@ -108,7 +108,16 @@ Pasos para crear el App Registration en [entra.microsoft.com](https://entra.micr
 | `Graph__TenantId` / `Graph__ClientId` / `Graph__ClientSecret` | mismos valores que `AzureAd__*` si reutilizas el mismo App Registration, o los de uno distinto | Requiere el permiso de **aplicación** (no delegado) `Mail.Send` en Entra ID, con **consentimiento de administrador** concedido — a diferencia del login SSO, este envío no depende de que haya ningún usuario con sesión iniciada |
 | `Graph__BuzonRemitente` | UPN de un buzón real del tenant (ej. `notificaciones@empresa.com`) | Remitente de los correos — debe existir como buzón real con licencia de correo |
 
-**Sin las cuatro variables, el envío de correo queda inerte** — las notificaciones que lo disparan (usuario pendiente de rol, confirmación de rol asignado) se registran en el log como aviso pero no impiden la acción de negocio (crear la cuenta pendiente, asignar el rol siguen funcionando igual). La plantilla/diseño final de estos correos está todavía por definir — hoy es HTML mínimo, sin estilos.
+**Sin las cuatro variables, el envío de correo queda inerte** — las notificaciones que lo disparan (usuario pendiente de rol, confirmación de rol asignado, bienvenida al crear Usuario) se registran en el log como aviso pero no impiden la acción de negocio (crear la cuenta pendiente, asignar el rol, crear el usuario siguen funcionando igual). La plantilla/diseño final de estos correos está todavía por definir — hoy es HTML mínimo, sin estilos.
+
+### Resumen diario de alertas de vencimiento por correo (Issue #2)
+
+| Variable | Valor | Para qué |
+|---|---|---|
+| `AlertasPorCorreo__Activo` | `true` / `false` (por defecto `false`) | Interruptor del job en sí — independiente de si `Graph__*` está configurado. Enviar un correo real a Administrador/DireccionCae cada día es una decisión aparte de tener el envío de correo disponible para otra cosa (la bienvenida de arriba) |
+| `AlertasPorCorreo__UrlBase` | ej. `https://tu-dominio.up.railway.app` | Opcional — construye el enlace a `/alertas` dentro del correo. Sin configurar, el resumen se envía igual, solo que sin enlace clicable |
+
+Con `Activo=true`, un job en segundo plano (envuelto en elección de líder, igual que el resto de jobs multi-réplica de este documento) recorre los tenants activos una vez al día y manda un resumen (documentos vencidos/próximos a vencer/obligatorios sin subir) a los usuarios en rol Administrador y DireccionCae de cada uno — acotado a esos dos roles de visión total, no a la cartera de cada Gestor CAE (ver el comentario de `EnvioAlertasVencimientoHostedService` sobre por qué esa atribución no es trivial con el modelo actual). Sin alertas pendientes en un tenant, no se envía nada ese día.
 
 ### Conector de Microsoft 365 para Comunicaciones (P3-33)
 
@@ -129,6 +138,25 @@ Pasos para crear el App Registration en [entra.microsoft.com](https://entra.micr
 **Antes de conectar un buzón de un cliente real**, confirma que el DPA declara este acceso — el refresco automático de token y la ingesta de correo entrante son tratamiento de datos personales por cuenta del tenant, igual que el resto de accesos de soporte documentados en `RGPD-TRATAMIENTO-DATOS.md`.
 
 Las suscripciones de notificaciones de Graph expiran a los ~3 días — `RenovacionSuscripcionWebhookHostedService` las renueva sola cada 24h, no hace falta ninguna intervención manual salvo que el log muestre fallos repetidos de renovación (revisar el estado de la conexión en `/integraciones`, que pasa a "Con error").
+
+### WhatsApp Cloud API (líneas de WhatsApp del chat)
+
+| Variable | Valor | Para qué |
+|---|---|---|
+| `Integraciones__WhatsApp__AppSecret` | App Secret de la app de Meta (App Dashboard → Configuración → Básica) | Verificación de la firma `X-Hub-Signature-256` de cada POST del webhook — sin él, el endpoint rechaza todo con 401 |
+| `Integraciones__WhatsApp__VerifyToken` | un valor aleatorio largo que eliges tú (p. ej. `openssl rand -hex 32`) | El handshake GET de verificación del callback: tiene que coincidir con el que pegues en el App Dashboard |
+| `Integraciones__WhatsApp__VersionApi` | opcional, por defecto `v23.0` | Versión de Graph API de Meta para el envío saliente y la descarga de media |
+
+**Sin `AppSecret` + `VerifyToken`, el consumidor de ingesta de WhatsApp no se registra y el webhook responde 403/401 a todo** — mismo principio "inerte por defecto". El token POR LÍNEA (System User token) no va aquí: se pega al dar de alta la línea en `/integraciones` y se guarda cifrado en base de datos.
+
+Pasos en [developers.facebook.com](https://developers.facebook.com) (app de tipo Business con el producto WhatsApp):
+1. WhatsApp → Configuración → Webhook: URL `https://tu-dominio.up.railway.app/api/integraciones/webhooks/whatsapp`, verify token = el valor de `Integraciones__WhatsApp__VerifyToken`, y suscribir el campo **`messages`** (trae mensajes entrantes y statuses de entrega). La URL es única para todas las líneas: el sistema identifica la línea receptora por el `phone_number_id` del payload.
+2. Crear un **System User** en Meta Business Suite con acceso a la WABA y generar un token de larga duración con permisos `whatsapp_business_messaging` y `whatsapp_business_management` — ese token es el que se pega por línea en `/integraciones`.
+3. Por cada línea, anotar su **Phone Number ID** y **WABA ID** (WhatsApp → Configuración de API) — se piden en el alta de la línea.
+
+**Antes de usar una línea con contactos reales**, confirma que el DPA declara este canal — la ingesta de mensajes y teléfonos de contacto es tratamiento de datos personales por cuenta del tenant, igual que el conector de Microsoft 365 (ver `RGPD-TRATAMIENTO-DATOS.md`).
+
+Recordatorio de pricing de Meta (por mensaje, desde jul-2025): recibir es gratis; responder con texto libre es gratis **solo dentro de la ventana de 24 h** abierta por el último mensaje del contacto (la UI y el servidor bloquean el envío fuera de ella); reabrir fuera de ventana exige plantillas aprobadas (no soportadas en v1).
 
 ### Datos de prueba para pruebas de carga y verificación de perfiles
 

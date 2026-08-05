@@ -63,6 +63,14 @@
     background-color: var(--color-danger-500);
 }
 
+/* La acción ("Deshacer") tiene que distinguirse del botón de cerrar — es la interacción esperable, no un descarte. */
+.toast-accion {
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    white-space: nowrap;
+}
+
 /*
   Barra de progreso que se vacía a la misma velocidad que el autodescarte
   (duración fijada desde ToastService.DuracionAutoDescarte vía

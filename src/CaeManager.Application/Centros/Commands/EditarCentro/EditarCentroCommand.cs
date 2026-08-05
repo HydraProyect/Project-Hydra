@@ -31,13 +31,13 @@ public class EditarCentroCommandValidator : AbstractValidator<EditarCentroComman
     }
 }
 
-public class EditarCentroCommandHandler(ICentroRepository repositorio, IUnitOfWork unitOfWork)
+public class EditarCentroCommandHandler(ICentroRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarCentroCommand, Result>
 {
     public async Task<Result> Handle(EditarCentroCommand request, CancellationToken cancellationToken)
     {
         var centro = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (centro is null)
+        if (centro is null || !await alcanceDatos.CentroVisibleAsync(centro.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Centro.NoEncontrado", "No encontramos este centro."));
 
         if (ConcurrenciaOptimista.Verificar(centro, request.Version, "este centro") is { } conflicto)
