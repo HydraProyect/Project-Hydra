@@ -15,7 +15,8 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 
 public record ObtenerDocumentosQuery(
     Guid? TrabajadorId, AmbitoAplicacion? Ambito, string? Busqueda, EstadoDocumento? Estado = null,
-    int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null)
+    int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null,
+    string? OrdenarPor = null, bool Descendente = false)
     : IRequest<ResultadoPaginado<DocumentoListaDto>>;
 
 public record DocumentoListaDto(
@@ -165,6 +166,13 @@ public class ObtenerDocumentosQueryHandler(IClientesQueryContext clientesContext
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
+        // Equivalencias con CalculadoraEstadoDocumento, que compara "días
+        // restantes" contra los umbrales: días <= umbral es lo mismo que
+        // fechaVencimiento <= hoy + umbral. Las usan tanto el filtro por
+        // Estado como el orden por Estado, así que se calculan una vez.
+        var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);
+        var limiteAmbar = hoy.AddDays(parametros.UmbralAmbarDias);
+
         // El Estado se sigue calculando con CalculadoraEstadoDocumento —
         // fuente única de verdad, ver el comentario de clase—, pero el
         // *filtro* por Estado se traduce a un rango de fechas equivalente
@@ -173,15 +181,9 @@ public class ObtenerDocumentosQueryHandler(IClientesQueryContext clientesContext
         // pantalla para paginar en memoria.
         if (request.Estado is not null)
         {
-            // Equivalencias con CalculadoraEstadoDocumento, que compara
-            // "días restantes" contra los umbrales: días <= umbral es lo mismo
-            // que fechaVencimiento <= hoy + umbral. Si alguna vez cambia la
-            // calculadora, estas cuatro líneas cambian con ella —
-            // DocumentosPaginacionEnSqlTests compara ambas para que no se
-            // separen en silencio.
-            var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);
-            var limiteAmbar = hoy.AddDays(parametros.UmbralAmbarDias);
-
+            // Si alguna vez cambia la calculadora, estas cuatro líneas cambian
+            // con ella — DocumentosPaginacionEnSqlTests compara ambas para que
+            // no se separen en silencio.
             consulta = request.Estado.Value switch
             {
                 EstadoDocumento.NoAplica => consulta.Where(x => x.FechaVencimiento == null),
@@ -195,8 +197,48 @@ public class ObtenerDocumentosQueryHandler(IClientesQueryContext clientesContext
 
         var total = await consulta.CountAsync(cancellationToken);
 
-        var pagina = await consulta
-            .OrderByDescending(x => x.FechaEmision)
+        // Lista blanca de columnas ordenables (nombres de propiedad de
+        // DocumentoListaDto, que es lo que envía QuickGrid): un OrdenarPor
+        // desconocido cae al orden por defecto, nunca se interpola en SQL.
+        // "Estado" no está persistido, pero sí lo está FechaVencimiento, así
+        // que se ordena por el mismo CASE de umbrales que usa el filtro de
+        // arriba — exacto y resuelto en la base de datos. Ascendente deja
+        // primero lo que más urge, que es lo que el gestor espera del primer
+        // clic en esa cabecera.
+        var ordenada = (request.OrdenarPor, request.Descendente) switch
+        {
+            (nameof(DocumentoListaDto.PropietarioNombre), false) => consulta.OrderBy(x => x.PropietarioNombre),
+            (nameof(DocumentoListaDto.PropietarioNombre), true) => consulta.OrderByDescending(x => x.PropietarioNombre),
+            (nameof(DocumentoListaDto.TipoDocumentoNombre), false) => consulta.OrderBy(x => x.TipoDocumentoNombre),
+            (nameof(DocumentoListaDto.TipoDocumentoNombre), true) => consulta.OrderByDescending(x => x.TipoDocumentoNombre),
+            (nameof(DocumentoListaDto.Ambito), false) => consulta.OrderBy(x => x.Ambito),
+            (nameof(DocumentoListaDto.Ambito), true) => consulta.OrderByDescending(x => x.Ambito),
+            (nameof(DocumentoListaDto.FechaEmision), false) => consulta.OrderBy(x => x.FechaEmision),
+            (nameof(DocumentoListaDto.FechaEmision), true) => consulta.OrderByDescending(x => x.FechaEmision),
+            (nameof(DocumentoListaDto.FechaVencimiento), false) => consulta.OrderBy(x => x.FechaVencimiento),
+            (nameof(DocumentoListaDto.FechaVencimiento), true) => consulta.OrderByDescending(x => x.FechaVencimiento),
+            (nameof(DocumentoListaDto.Estado), false) => consulta.OrderBy(x =>
+                x.FechaVencimiento == null ? 4
+                : x.FechaVencimiento < hoy ? 0
+                : x.FechaVencimiento <= limiteRojo ? 1
+                : x.FechaVencimiento <= limiteAmbar ? 2
+                : 3),
+            (nameof(DocumentoListaDto.Estado), true) => consulta.OrderByDescending(x =>
+                x.FechaVencimiento == null ? 4
+                : x.FechaVencimiento < hoy ? 0
+                : x.FechaVencimiento <= limiteRojo ? 1
+                : x.FechaVencimiento <= limiteAmbar ? 2
+                : 3),
+            _ => consulta.OrderByDescending(x => x.FechaEmision)
+        };
+        // Desempate estable: sin un criterio total, PostgreSQL puede devolver
+        // las filas empatadas en distinto orden entre una página y otra, y al
+        // paginar en SQL eso hace que una fila aparezca dos veces o no
+        // aparezca nunca. El Id no se ordena nunca por sí solo — solo cierra
+        // el orden que haya elegido el usuario.
+        ordenada = ordenada.ThenBy(x => x.Id);
+
+        var pagina = await ordenada
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
             .Select(x => new DocumentoListaDto(

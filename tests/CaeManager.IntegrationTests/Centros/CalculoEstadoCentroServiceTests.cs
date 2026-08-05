@@ -1,0 +1,181 @@
+using CaeManager.Application.Centros;
+using CaeManager.Domain.Asignaciones;
+using CaeManager.Domain.Centros;
+using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Configuracion;
+using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Empresas;
+using CaeManager.Domain.RequisitosDocumentales;
+using CaeManager.Domain.Trabajadores;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Persistence;
+using FluentAssertions;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
+using Xunit;
+
+namespace CaeManager.IntegrationTests.Centros;
+
+/// <summary>
+/// Pieza 5 del backlog de gestión EPI: CalculadoraEstadoCentro (Domain) ya
+/// tiene sus propios tests puros — estos verifican que
+/// CalculoEstadoCentroService reúne correctamente los datos reales
+/// (Documentos de Empresa/Trabajador, huecos obligatorios,
+/// RequisitosDocumentales bloqueantes) contra Postgres, incluyendo los joins
+/// que un test en memoria no ejercita.
+/// </summary>
+public class CalculoEstadoCentroServiceTests : IAsyncLifetime
+{
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
+    private readonly Guid _tenant = Guid.NewGuid();
+    private Guid _centroId;
+    private Guid _empresaId;
+    private Guid _trabajadorId;
+    private Guid _tipoDocumentoObligatorioId;
+
+    public async Task InitializeAsync()
+    {
+        await using var contexto = CrearContexto();
+        await contexto.Database.MigrateAsync();
+
+        if (await contexto.ParametrosSistema.SingleOrDefaultAsync() is null)
+            contexto.ParametrosSistema.Add(new ParametroSistema(30, 15));
+
+        var cliente = new Cliente("Cliente EstadoCentro S.L.", "B12345674", esCritico: false);
+        var empresa = new Empresa("Empresa EstadoCentro S.L.", "B87654323");
+        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(empresa);
+        await contexto.SaveChangesAsync();
+
+        var centro = new Centro(cliente.Id, empresa.Id, "Centro EstadoCentro");
+        contexto.Centros.Add(centro);
+
+        var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "García", "77189989B");
+        contexto.Trabajadores.Add(trabajador);
+
+        var tipoObligatorio = new TipoDocumento("EPIs", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        contexto.TiposDocumento.Add(tipoObligatorio);
+        await contexto.SaveChangesAsync();
+
+        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        await contexto.SaveChangesAsync();
+
+        _centroId = centro.Id;
+        _empresaId = empresa.Id;
+        _trabajadorId = trabajador.Id;
+        _tipoDocumentoObligatorioId = tipoObligatorio.Id;
+    }
+
+    public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
+
+    [Fact]
+    public async Task Retorna_Vigente_cuando_el_unico_trabajador_tiene_su_documento_obligatorio_al_dia()
+    {
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await CalcularAsync();
+
+        resultado.Estado.Should().Be(EstadoCentro.Vigente);
+        resultado.Causas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Retorna_Faltante_cuando_el_trabajador_no_tiene_el_documento_obligatorio()
+    {
+        var resultado = await CalcularAsync();
+
+        resultado.Estado.Should().Be(EstadoCentro.Faltante);
+        resultado.Causas.Should().ContainSingle(c => c.Estado == EstadoDocumento.Faltante && c.Descripcion.Contains("Ana García"));
+    }
+
+    [Fact]
+    public async Task Retorna_Vencido_cuando_un_documento_de_la_empresa_esta_vencido()
+    {
+        await using (var contexto = CrearContexto())
+        {
+            var tipoEmpresa = new TipoDocumento("Seguro RC", null, aplicaVencimientoAutomatico: false, 2, AmbitoAplicacion.Empresa);
+            contexto.TiposDocumento.Add(tipoEmpresa);
+            await contexto.SaveChangesAsync();
+
+            contexto.Documentos.Add(Documento.DeEmpresa(
+                _empresaId, tipoEmpresa.Id, DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1)));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await CalcularAsync();
+
+        resultado.Estado.Should().Be(EstadoCentro.Vencido);
+        resultado.Causas.Should().ContainSingle(c => c.Estado == EstadoDocumento.Vencido && c.Descripcion.Contains("Empresa"));
+    }
+
+    [Fact]
+    public async Task Retorna_Bloqueado_cuando_hay_un_requisito_bloqueante_sin_cumplir_aunque_todo_lo_demas_este_vigente()
+    {
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+            contexto.RequisitosDocumentales.Add(new RequisitoDocumental(_centroId, "Formulario de acceso", null, bloqueaAcceso: true));
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await CalcularAsync();
+
+        resultado.Estado.Should().Be(EstadoCentro.Bloqueado);
+        resultado.Causas.Should().ContainSingle(c => c.Bloqueante && c.Descripcion == "Formulario de acceso");
+    }
+
+    [Fact]
+    public async Task Marcar_el_requisito_como_cumplido_deja_de_bloquear_el_centro()
+    {
+        Guid requisitoId;
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+            var requisito = new RequisitoDocumental(_centroId, "Formulario de acceso", null, bloqueaAcceso: true);
+            contexto.RequisitosDocumentales.Add(requisito);
+            await contexto.SaveChangesAsync();
+            requisitoId = requisito.Id;
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var requisito = await contexto.RequisitosDocumentales.SingleAsync(r => r.Id == requisitoId);
+            requisito.MarcarCumplido(DateOnly.FromDateTime(DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await CalcularAsync();
+
+        resultado.Estado.Should().Be(EstadoCentro.Vigente);
+        resultado.Causas.Should().BeEmpty();
+    }
+
+    private async Task<ResultadoEstadoCentro> CalcularAsync()
+    {
+        await using var contexto = CrearContexto();
+        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto);
+
+        var resultados = await servicio.CalcularAsync([_centroId], CancellationToken.None);
+        return resultados[_centroId];
+    }
+
+    private CaeManagerDbContext CrearContexto()
+    {
+        var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
+        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
+            .Options;
+
+        return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+}

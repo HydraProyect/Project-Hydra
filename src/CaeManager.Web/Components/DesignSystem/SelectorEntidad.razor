@@ -1,0 +1,202 @@
+@* Selector con búsqueda que, a diferencia de CampoBuscarSelect (que usa
+   <datalist> y por tanto no admite una fila de acción propia), sabe ofrecer
+   "+ Crear «texto»" cuando la búsqueda no encuentra nada — el hueco entre
+   "crear una entidad" y "elegir una ya existente" que hoy obliga a
+   abandonar la pantalla (Fase A4). Combobox ARIA sin JS interop: las filas
+   usan @@onmousedown:preventDefault para que el input nunca pierda el foco
+   al hacer clic en una opción — el mismo motivo por el que Drawer.razor
+   distingue mousedown de click, sin necesitar temporizadores. *@
+<div class="campo">
+    @if (!string.IsNullOrWhiteSpace(Etiqueta))
+    {
+        <label for="@_id">@Etiqueta</label>
+    }
+    <div class="selector-entidad-envoltorio">
+        <input id="@_id"
+               type="text"
+               class="campo-input"
+               role="combobox"
+               aria-expanded="@(_abierto ? "true" : "false")"
+               aria-controls="@_listaId"
+               aria-autocomplete="list"
+               autocomplete="off"
+               value="@_filtro"
+               placeholder="@Placeholder"
+               disabled="@Deshabilitado"
+               @oninput="ManejarEntradaAsync"
+               @onfocus="AbrirAsync"
+               @onblur="CerrarAsync"
+               @onkeydown="ManejarTeclaAsync" />
+
+        @if (_abierto && (FilasFiltradas.Count > 0 || MostrarFilaCrear))
+        {
+            <ul id="@_listaId" class="selector-entidad-lista" role="listbox">
+                @{ var indice = 0; }
+                @foreach (var opcion in FilasFiltradas)
+                {
+                    var indiceFila = indice++;
+                    <li role="option"
+                        aria-selected="@(indiceFila == _indiceResaltado ? "true" : "false")"
+                        class="selector-entidad-opcion @(indiceFila == _indiceResaltado ? "selector-entidad-opcion-resaltada" : "")"
+                        @onmousedown:preventDefault="true"
+                        @onclick="() => SeleccionarOpcionAsync(opcion)">
+                        @opcion.Texto
+                    </li>
+                }
+                @if (MostrarFilaCrear)
+                {
+                    var indiceFilaCrear = indice;
+                    <li role="option"
+                        aria-selected="@(indiceFilaCrear == _indiceResaltado ? "true" : "false")"
+                        class="selector-entidad-opcion selector-entidad-opcion-crear @(indiceFilaCrear == _indiceResaltado ? "selector-entidad-opcion-resaltada" : "")"
+                        @onmousedown:preventDefault="true"
+                        @onclick="SolicitarCreacionAsync">
+                        @string.Format(TextoCrear, _filtro.Trim())
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+    @if (TieneError)
+    {
+        <span class="campo-mensaje-error" role="alert">@MensajeError</span>
+    }
+</div>
+
+@code {
+    private const int MaximoOpcionesVisibles = 8;
+
+    private readonly string _id = $"selector-entidad-{Guid.NewGuid():N}";
+    private readonly string _listaId = $"selector-entidad-lista-{Guid.NewGuid():N}";
+
+    private string _filtro = string.Empty;
+    private string _ultimoValorNotificado = string.Empty;
+    private bool _abierto;
+    private int _indiceResaltado = -1;
+
+    [Parameter] public string? Etiqueta { get; set; }
+    [Parameter] public string Valor { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValorChanged { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<OpcionBuscable> Opciones { get; set; } = [];
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public bool Deshabilitado { get; set; }
+    [Parameter] public string? MensajeError { get; set; }
+
+    /// <summary>Si se ofrece "+ Crear «texto»" cuando lo escrito no coincide con ninguna opción.</summary>
+    [Parameter] public bool PermiteCrear { get; set; }
+
+    /// <summary>Plantilla de la fila de creación — <c>{0}</c> se sustituye por el texto escrito.</summary>
+    [Parameter] public string TextoCrear { get; set; } = "+ Crear «{0}»";
+
+    [Parameter] public EventCallback<string> OnCrearSolicitado { get; set; }
+
+    private bool TieneError => !string.IsNullOrWhiteSpace(MensajeError);
+
+    private IReadOnlyList<OpcionBuscable> FilasFiltradas
+    {
+        get
+        {
+            var filtro = _filtro.Trim();
+            var coincidencias = filtro.Length == 0
+                ? Opciones
+                : Opciones.Where(o => o.Texto.Contains(filtro, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            return coincidencias.Take(MaximoOpcionesVisibles).ToList();
+        }
+    }
+
+    /// <summary>Coincidencia exacta: si lo escrito ya nombra una opción tal cual, no tiene sentido ofrecer crearla de nuevo.</summary>
+    private bool MostrarFilaCrear =>
+        PermiteCrear && _filtro.Trim().Length > 0 &&
+        !Opciones.Any(o => string.Equals(o.Texto, _filtro.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Igual que CampoBuscarSelect: solo se resincroniza el texto visible con el Id recibido cuando ese Id no vino de nuestro propio evento.</summary>
+    protected override void OnParametersSet()
+    {
+        if (Valor == _ultimoValorNotificado) return;
+
+        _ultimoValorNotificado = Valor;
+        _filtro = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto ?? string.Empty;
+    }
+
+    private Task ManejarEntradaAsync(ChangeEventArgs e)
+    {
+        _filtro = e.Value?.ToString() ?? string.Empty;
+        _abierto = true;
+        _indiceResaltado = -1;
+        return Task.CompletedTask;
+    }
+
+    private Task AbrirAsync()
+    {
+        _abierto = true;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// No hace falta distinguir "perdió el foco por elegir una opción" de
+    /// "perdió el foco por cualquier otro motivo": las opciones usan
+    /// @@onmousedown:preventDefault, así que el input nunca llega a perder el
+    /// foco al hacer clic en ellas — este blur solo ocurre para el resto de
+    /// casos (Tab, clic fuera), donde cerrar y resincronizar es lo correcto.
+    /// </summary>
+    private Task CerrarAsync()
+    {
+        _abierto = false;
+        _indiceResaltado = -1;
+        _filtro = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto ?? string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private async Task SeleccionarOpcionAsync(OpcionBuscable opcion)
+    {
+        _filtro = opcion.Texto;
+        _ultimoValorNotificado = opcion.Id;
+        _abierto = false;
+        _indiceResaltado = -1;
+        await ValorChanged.InvokeAsync(opcion.Id);
+    }
+
+    private async Task SolicitarCreacionAsync()
+    {
+        var texto = _filtro.Trim();
+        _abierto = false;
+        _indiceResaltado = -1;
+        await OnCrearSolicitado.InvokeAsync(texto);
+    }
+
+    private async Task ManejarTeclaAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        var totalFilas = FilasFiltradas.Count + (MostrarFilaCrear ? 1 : 0);
+
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                _abierto = true;
+                if (totalFilas > 0)
+                    _indiceResaltado = Math.Min(_indiceResaltado + 1, totalFilas - 1);
+                break;
+
+            case "ArrowUp":
+                if (totalFilas > 0)
+                    _indiceResaltado = Math.Max(_indiceResaltado - 1, 0);
+                break;
+
+            case "Escape":
+                _abierto = false;
+                _indiceResaltado = -1;
+                _filtro = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto ?? string.Empty;
+                break;
+
+            case "Enter":
+                if (_abierto && _indiceResaltado >= 0 && _indiceResaltado < totalFilas)
+                {
+                    if (_indiceResaltado < FilasFiltradas.Count)
+                        await SeleccionarOpcionAsync(FilasFiltradas[_indiceResaltado]);
+                    else
+                        await SolicitarCreacionAsync();
+                }
+                break;
+        }
+    }
+}

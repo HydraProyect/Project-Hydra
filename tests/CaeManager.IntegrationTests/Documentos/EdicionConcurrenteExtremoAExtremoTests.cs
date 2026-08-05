@@ -67,7 +67,7 @@ public class EdicionConcurrenteExtremoAExtremoTests : IAsyncLifetime
         // 2. A guarda.
         await using (var contexto = CrearContexto())
         {
-            var resultado = await new EditarClienteCommandHandler(new ClienteRepository(contexto), contexto)
+            var resultado = await new EditarClienteCommandHandler(new ClienteRepository(contexto), new AlcanceDatosServiceFalso(), contexto)
                 .Handle(
                     new EditarClienteCommand(_clienteId, "Guardado por A S.L.", "B12345674", false, null, versionQueVeA),
                     CancellationToken.None);
@@ -78,7 +78,7 @@ public class EdicionConcurrenteExtremoAExtremoTests : IAsyncLifetime
         // 3. B guarda con la versión que tenía en pantalla, ya caducada.
         await using (var contexto = CrearContexto())
         {
-            var resultado = await new EditarClienteCommandHandler(new ClienteRepository(contexto), contexto)
+            var resultado = await new EditarClienteCommandHandler(new ClienteRepository(contexto), new AlcanceDatosServiceFalso(), contexto)
                 .Handle(
                     new EditarClienteCommand(_clienteId, "Guardado por B S.L.", "B12345674", true, null, versionQueVeB),
                     CancellationToken.None);
@@ -103,7 +103,7 @@ public class EdicionConcurrenteExtremoAExtremoTests : IAsyncLifetime
             var detalle = await new ObtenerClientePorIdQueryHandler(contexto, new AlcanceDatosServiceFalso())
                 .Handle(new ObtenerClientePorIdQuery(_clienteId), CancellationToken.None);
 
-            await new EditarClienteCommandHandler(new ClienteRepository(contexto), contexto)
+            await new EditarClienteCommandHandler(new ClienteRepository(contexto), new AlcanceDatosServiceFalso(), contexto)
                 .Handle(
                     new EditarClienteCommand(_clienteId, "Primera edición S.L.", "B12345674", false, null, detalle!.Version),
                     CancellationToken.None);
@@ -114,7 +114,7 @@ public class EdicionConcurrenteExtremoAExtremoTests : IAsyncLifetime
             var detalleRecargado = await new ObtenerClientePorIdQueryHandler(contexto, new AlcanceDatosServiceFalso())
                 .Handle(new ObtenerClientePorIdQuery(_clienteId), CancellationToken.None);
 
-            var resultado = await new EditarClienteCommandHandler(new ClienteRepository(contexto), contexto)
+            var resultado = await new EditarClienteCommandHandler(new ClienteRepository(contexto), new AlcanceDatosServiceFalso(), contexto)
                 .Handle(
                     new EditarClienteCommand(_clienteId, "Segunda edición S.L.", "B12345674", true, null, detalleRecargado!.Version),
                     CancellationToken.None);

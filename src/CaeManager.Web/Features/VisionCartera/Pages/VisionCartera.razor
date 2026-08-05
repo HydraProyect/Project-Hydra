@@ -1,5 +1,6 @@
 @page "/vision-cartera"
 @rendermode InteractiveServer
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
 @using CaeManager.Application.Dashboard.Queries
 
 <PageTitle>Visión de cartera — CAE Manager</PageTitle>

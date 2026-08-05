@@ -68,6 +68,58 @@
             </tbody>
         </table>
     }
+
+    <h2 class="titulo-seccion-lineas">Líneas de WhatsApp</h2>
+
+    <p class="descripcion-delegaciones">
+        Líneas oficiales de WhatsApp Cloud API (Meta). Cada línea enruta sus conversaciones nuevas a su gestor
+        dueño (modo gestor fijo) o las reparte equitativamente entre un grupo (modo pool inbound).
+    </p>
+
+    <div class="acciones-claves-api">
+        <Boton Variante="VarianteBoton.Primario" OnClick="AbrirAltaLinea">Nueva línea WhatsApp</Boton>
+    </div>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else if (_lineas.Count == 0)
+    {
+        <EstadoVacio Titulo="Sin líneas" Descripcion="Todavía no hay ninguna línea de WhatsApp conectada." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Línea</th>
+                    <th>Phone Number ID</th>
+                    <th>Cliente</th>
+                    <th>Asignación</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var linea in _lineas)
+                {
+                    <tr>
+                        <td>@linea.Nombre<br /><span class="texto-secundario">@linea.NumeroTelefono</span></td>
+                        <td>@linea.PhoneNumberId</td>
+                        <td>@(linea.ClienteNombre ?? "Tenant propio")</td>
+                        <td>@DescribirAsignacion(linea)</td>
+                        <td><Badge Tono="@ObtenerTonoEstado(linea.Estado)">@ObtenerEtiquetaEstado(linea.Estado)</Badge></td>
+                        <td>
+                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => AbrirEdicionLinea(linea)">
+                                Editar
+                            </Boton>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
 </div>
 
 <Modal Visible="_conexionADesconectar is not null" VisibleChanged="v => { if (!v) _conexionADesconectar = null; }"
@@ -84,5 +136,75 @@
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_desconectando" OnClick="() => _conexionADesconectar = null">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Destructivo" Cargando="_desconectando" OnClick="DesconectarAsync">Desconectar</Boton>
+    </Pie>
+</Modal>
+
+<Modal Visible="_modalLineaVisible" VisibleChanged="v => { if (!v) CerrarModalLinea(); }"
+       Titulo="@(_lineaEnEdicion is null ? "Nueva línea WhatsApp" : "Editar línea WhatsApp")"
+       CerrarAlHacerClicFuera="!_guardandoLinea">
+    <ChildContent>
+        @if (_lineaEnEdicion is null)
+        {
+            <CampoTexto Etiqueta="Nombre" Valor="@_lineaNombre" ValorChanged="v => _lineaNombre = v"
+                        Placeholder="Línea comercial Madrid" />
+            <CampoTexto Etiqueta="Número de teléfono (E.164)" Valor="@_lineaNumero" ValorChanged="v => _lineaNumero = v"
+                        Placeholder="+34686543364" />
+            <CampoTexto Etiqueta="Phone Number ID (Meta)" Valor="@_lineaPhoneNumberId" ValorChanged="v => _lineaPhoneNumberId = v" />
+            <CampoTexto Etiqueta="WABA ID (Meta)" Valor="@_lineaWabaId" ValorChanged="v => _lineaWabaId = v" />
+
+            <CampoSelect Etiqueta="Cliente (opcional)" Valor="@(_lineaClienteId?.ToString() ?? string.Empty)"
+                         ValorChanged="v => _lineaClienteId = Guid.TryParse(v, out var id) ? id : null">
+                <option value="">Tenant propio</option>
+                @foreach (var cliente in _clientes)
+                {
+                    <option value="@cliente.Id">@cliente.RazonSocial</option>
+                }
+            </CampoSelect>
+        }
+
+        <CampoTexto Etiqueta="@(_lineaEnEdicion is null ? "Token de acceso (System User)" : "Nuevo token de acceso (vacío = conservar el actual)")"
+                    Type="password" Valor="@_lineaToken" ValorChanged="v => _lineaToken = v" />
+
+        <CampoSelect Etiqueta="Modo de asignación" Valor="@_lineaModo.ToString()"
+                     ValorChanged="v => _lineaModo = Enum.Parse<ModoAsignacionLinea>(v)">
+            <option value="@ModoAsignacionLinea.GestorFijo">Gestor fijo (línea de un comercial)</option>
+            <option value="@ModoAsignacionLinea.PoolInbound">Pool inbound (reparto equitativo)</option>
+        </CampoSelect>
+
+        @if (_lineaModo == ModoAsignacionLinea.GestorFijo)
+        {
+            <CampoSelect Etiqueta="Comercial dueño" Valor="@(_lineaComercialId?.ToString() ?? string.Empty)"
+                         ValorChanged="v => _lineaComercialId = Guid.TryParse(v, out var id) ? id : null">
+                <option value="">Elegir gestor…</option>
+                @foreach (var gestor in _gestores)
+                {
+                    <option value="@gestor.Id">@gestor.NombreCompleto</option>
+                }
+            </CampoSelect>
+        }
+        else
+        {
+            <div class="campo">
+                <label>Gestores del pool</label>
+                @foreach (var gestor in _gestores)
+                {
+                    <label class="opcion-pool-linea">
+                        <input type="checkbox" checked="@_lineaMiembros.Contains(gestor.Id)"
+                               @onchange="e => AlternarMiembroPool(gestor.Id, e.Value is true)" />
+                        @gestor.NombreCompleto
+                    </label>
+                }
+            </div>
+        }
+
+        <CampoTextarea Etiqueta="Mensaje automático de triage (vacío = desactivado)" Filas="3"
+                       Valor="@_lineaMensajeAutoTriage" ValorChanged="v => _lineaMensajeAutoTriage = v"
+                       Placeholder="¡Hola! Para atenderte mejor, dinos de qué empresa nos escribes y en qué podemos ayudarte." />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoLinea" OnClick="CerrarModalLinea">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoLinea" OnClick="GuardarLineaAsync">
+            @(_lineaEnEdicion is null ? "Crear línea" : "Guardar cambios")
+        </Boton>
     </Pie>
 </Modal>

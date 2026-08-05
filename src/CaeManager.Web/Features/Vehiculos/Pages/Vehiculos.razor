@@ -3,6 +3,7 @@
 @using CaeManager.Application.Vehiculos.Commands.CrearVehiculo
 @using CaeManager.Application.Vehiculos.Commands.EditarVehiculo
 @using CaeManager.Application.Vehiculos.Commands.EliminarVehiculo
+@using CaeManager.Application.Vehiculos.Commands.EliminarVehiculos
 @using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId
 @using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
@@ -10,6 +11,7 @@
 @using CaeManager.Application.Common
 @using FluentValidation
 @using MediatR
+@using CaeManager.Web.Features.Documentos
 @using Microsoft.AspNetCore.Components.QuickGrid
 @inject IMediator Mediator
 @inject ToastService ToastService
@@ -26,6 +28,8 @@
 
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por nombre, modelo o placa…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <FiltroEstado Etiqueta="Documentación" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                      Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
         <div class="filtro-empresa">
             <CampoSelect Etiqueta="Empresa" Valor="@_filtroEmpresaId" ValorChanged="FiltrarPorEmpresaAsync">
                 <option value="">Todas las empresas</option>
@@ -46,6 +50,8 @@
         </div>
     </div>
 
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
     @if (_errorCarga)
     {
         <EstadoVacio Titulo="No pudimos cargar los vehículos" Descripcion="Intenta nuevamente en unos segundos.">
@@ -57,11 +63,24 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="VehiculoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
+            <QuickGrid @ref="_grid" TGridItem="VehiculoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                <TemplateColumn Title="" Align="Align.Center">
+                    <HeaderTemplate Context="columna">
+                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                    </ChildContent>
+                </TemplateColumn>
                 <PropertyColumn Property="@(v => v.Nombre)" Sortable="true" />
                 <PropertyColumn Property="@(v => v.Modelo)" Sortable="true" />
-                <PropertyColumn Property="@(v => v.NumeroPlaca)" Title="Placa" />
+                <PropertyColumn Property="@(v => v.NumeroPlaca)" Title="Placa" Sortable="true" />
                 <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="Empresa / Subcontrata" Sortable="true" />
+                <TemplateColumn Title="Documentación" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))">
+                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)">
+                        @EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)
+                    </Badge>
+                </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, context.Id, context.Nombre, "informacion")'>
                         Ver
@@ -164,3 +183,14 @@
     Mensaje="Se ocultará de las listas activas. Podrás recuperarlo desde Auditoría."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarLoteVisible"
+    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
+    Titulo="@($"¿Eliminar {_seleccionados.Count} vehículo(s)?")"
+    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría."
+    EnProgreso="_eliminandoLote"
+    OnConfirmar="ConfirmarEliminarLoteAsync" />

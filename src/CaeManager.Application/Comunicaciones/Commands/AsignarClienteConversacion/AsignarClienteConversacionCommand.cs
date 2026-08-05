@@ -21,7 +21,7 @@ public class AsignarClienteConversacionCommandValidator : AbstractValidator<Asig
 
 public class AsignarClienteConversacionCommandHandler(
     IConversacionCorreoRepository conversacionRepositorio, IClienteRepository clienteRepositorio,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IContactoWhatsAppRepository contactoRepositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<AsignarClienteConversacionCommand, Result>
 {
     public async Task<Result> Handle(AsignarClienteConversacionCommand request, CancellationToken cancellationToken)
@@ -38,6 +38,19 @@ public class AsignarClienteConversacionCommandHandler(
             return Result.Fallo(Error.Crear("ConversacionCorreo.NoEncontrada", "No encontramos esta conversación."));
 
         conversacion.AsignarCliente(cliente.Id);
+
+        // Autoalimenta el catálogo teléfono→Cliente (leg 1 del enrutamiento
+        // híbrido de WhatsApp): la siguiente conversación de este teléfono ya
+        // se enrutará directamente al gestor de cartera, sin triage.
+        if (conversacion.Canal == CanalConversacion.WhatsApp && conversacion.TelefonoContacto is { } telefono)
+        {
+            var contacto = await contactoRepositorio.ObtenerPorTelefonoAsync(telefono, cancellationToken);
+            if (contacto is null)
+                contactoRepositorio.Agregar(new ContactoWhatsApp(telefono, cliente.Id));
+            else
+                contacto.ReasignarCliente(cliente.Id);
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

@@ -3,6 +3,7 @@
 @using CaeManager.Application.Empresas.Commands.CrearEmpresa
 @using CaeManager.Application.Empresas.Commands.EditarEmpresa
 @using CaeManager.Application.Empresas.Commands.EliminarEmpresa
+@using CaeManager.Application.Empresas.Commands.EliminarEmpresas
 @using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
@@ -11,6 +12,7 @@
 @using CaeManager.Application.Common
 @using FluentValidation
 @using MediatR
+@using CaeManager.Web.Features.Documentos
 @using Microsoft.AspNetCore.Components.QuickGrid
 @inject IMediator Mediator
 @inject ToastService ToastService
@@ -27,7 +29,11 @@
 
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por razón social…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <FiltroEstado Etiqueta="Documentación" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                      Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
     </div>
+
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
     @if (_errorCarga)
     {
@@ -40,9 +46,26 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="EmpresaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
-                <PropertyColumn Property="@(e => e.RazonSocial)" Title="Razón social" Sortable="true" />
-                <PropertyColumn Property="@(e => e.Cif)" Title="CIF" />
+            <QuickGrid @ref="_grid" TGridItem="EmpresaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                <TemplateColumn Title="" Align="Align.Center">
+                    <HeaderTemplate Context="columna">
+                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                    </ChildContent>
+                </TemplateColumn>
+                <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<EmpresaListaDto>.ByAscending(e => e.RazonSocial))">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.Id, context.RazonSocial, "informacion")'>
+                        @context.RazonSocial
+                    </button>
+                </TemplateColumn>
+                <PropertyColumn Property="@(e => e.Cif)" Title="CIF" Sortable="true" />
+                <TemplateColumn Title="Documentación" Sortable="true" SortBy="@(GridSort<EmpresaListaDto>.ByAscending(e => e.EstadoDocumental))">
+                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)">
+                        @EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)
+                    </Badge>
+                </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.Id, context.RazonSocial, "informacion")'>
                         Ver
@@ -128,6 +151,12 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             Cancelar
         </Boton>
+        @if (_editandoId is null)
+        {
+            <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearCentroAsync">
+                Continuar con el centro
+            </Boton>
+        }
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>
@@ -138,6 +167,17 @@
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
     Titulo="@($"¿Eliminar a {_razonSocialAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
+    Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarLoteVisible"
+    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
+    Titulo="@($"¿Eliminar {_seleccionados.Count} empresa(s)?")"
+    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlas desde Auditoría."
+    EnProgreso="_eliminandoLote"
+    OnConfirmar="ConfirmarEliminarLoteAsync" />

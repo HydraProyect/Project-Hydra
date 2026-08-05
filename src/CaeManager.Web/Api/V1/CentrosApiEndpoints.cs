@@ -14,7 +14,9 @@ public static class CentrosApiEndpoints
             string? busqueda, Guid? clienteId, int pagina = 1, int tamanoPagina = 20,
             IMediator mediator = default!, CancellationToken cancellationToken = default) =>
             Results.Ok(await mediator.Send(
-                new ObtenerCentrosQuery(busqueda, clienteId, ApiV1.Pagina(pagina), ApiV1.TamanoPagina(tamanoPagina)),
+                new ObtenerCentrosQuery(
+                    busqueda, clienteId,
+                    Pagina: ApiV1.Pagina(pagina), TamanoPagina: ApiV1.TamanoPagina(tamanoPagina)),
                 cancellationToken)));
 
         endpoints.MapGet("/centros/{id:guid}", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>

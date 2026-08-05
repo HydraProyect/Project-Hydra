@@ -1,0 +1,45 @@
+@*
+    Sección colapsable genérica — header con título + contenido opcional al
+    lado (p. ej. un Badge de estado) + chevron, colapsada por defecto.
+    Pensada para listas largas donde el usuario solo necesita abrir lo que
+    tiene una etiqueta de alerta (ver Detalle de la visita) — mostrar todo
+    expandido de entrada es ruido visual cuando la mayoría está en orden.
+*@
+<div class="seccion-colapsable">
+    <button type="button"
+            class="seccion-colapsable-cabecera"
+            aria-expanded="@(_expandida ? "true" : "false")"
+            aria-controls="@_panelId"
+            @onclick="Alternar">
+        <span class="@("seccion-colapsable-chevron" + (_expandida ? " seccion-colapsable-chevron-abierta" : ""))">
+            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+        </span>
+        <span class="seccion-colapsable-titulo">@Titulo</span>
+        @if (Encabezado is not null)
+        {
+            <span class="seccion-colapsable-encabezado">@Encabezado</span>
+        }
+    </button>
+    @if (_expandida)
+    {
+        <div class="seccion-colapsable-contenido" id="@_panelId">
+            @ChildContent
+        </div>
+    }
+</div>
+
+@code {
+    private readonly string _panelId = $"seccion-colapsable-{Guid.NewGuid():N}";
+    private bool _expandida;
+
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? Encabezado { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Colapsada por defecto — expandida solo si el llamador pasa true (p. ej. cuando hay algo en rojo que el Gestor debería ver de entrada).</summary>
+    [Parameter] public bool ExpandidaPorDefecto { get; set; }
+
+    protected override void OnInitialized() => _expandida = ExpandidaPorDefecto;
+
+    private void Alternar() => _expandida = !_expandida;
+}

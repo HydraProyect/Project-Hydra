@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Subcontratas.Commands.EditarSubcontrata;
 
 public record EditarSubcontrataCommand(
-    Guid Id, string RazonSocial, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds,
+    Guid Id, string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds,
     Guid Version = default) : ICommand;
 
 public class EditarSubcontrataCommandValidator : AbstractValidator<EditarSubcontrataCommand>
@@ -23,6 +23,16 @@ public class EditarSubcontrataCommandValidator : AbstractValidator<EditarSubcont
             .NotEmpty().WithMessage("La razón social es obligatoria.")
             .MaximumLength(Subcontrata.LongitudMaximaRazonSocial)
             .WithMessage($"La razón social no puede superar {Subcontrata.LongitudMaximaRazonSocial} caracteres.");
+
+        RuleFor(c => c.Cif)
+            .Must(EsCifValido).WithMessage("El CIF no es válido.")
+            .When(c => !string.IsNullOrWhiteSpace(c.Cif));
+    }
+
+    private static bool EsCifValido(string? cif)
+    {
+        var resultado = ValidadorIdentificacion.Analizar(cif!);
+        return resultado.Tipo == TipoIdentificacion.NifEmpresa && resultado.EsValido;
     }
 }
 
@@ -32,13 +42,14 @@ public class EditarSubcontrataCommandHandler(
     ISubcontrataEmpresaRepository subcontrataEmpresaRepositorio,
     IClientesQueryContext clientesContext,
     IEmpresasQueryContext empresasContext,
+    IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EditarSubcontrataCommand, Result>
 {
     public async Task<Result> Handle(EditarSubcontrataCommand request, CancellationToken cancellationToken)
     {
         var subcontrata = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (subcontrata is null)
+        if (subcontrata is null || !await alcanceDatos.SubcontrataVisibleAsync(subcontrata.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 
         if (ConcurrenciaOptimista.Verificar(subcontrata, request.Version, "esta subcontrata") is { } conflicto)
@@ -47,7 +58,10 @@ public class EditarSubcontrataCommandHandler(
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.RazonSocialDuplicada", "Ya existe una subcontrata con esta razón social."));
 
-        subcontrata.Actualizar(request.RazonSocial);
+        if (!string.IsNullOrWhiteSpace(request.Cif) && await repositorio.ExisteConCifAsync(request.Cif, request.Id, cancellationToken))
+            return Result.Fallo(Error.Crear("Subcontrata.CifDuplicado", "Ya existe una subcontrata con este CIF."));
+
+        subcontrata.Actualizar(request.RazonSocial, request.Cif);
 
         var clientesActuales = await subcontrataClienteRepositorio.ObtenerPorSubcontrataAsync(subcontrata.Id, cancellationToken);
         var clienteIdsDeseados = request.ClienteIds.Distinct().ToHashSet();

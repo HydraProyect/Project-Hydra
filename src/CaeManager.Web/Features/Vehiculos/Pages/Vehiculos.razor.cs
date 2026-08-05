@@ -1,12 +1,15 @@
 using CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
 using CaeManager.Application.Vehiculos.Commands.EditarVehiculo;
 using CaeManager.Application.Vehiculos.Commands.EliminarVehiculo;
+using CaeManager.Application.Vehiculos.Commands.EliminarVehiculos;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Web.Components;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.QuickGrid;
@@ -19,6 +22,7 @@ public partial class Vehiculos : ComponentBase
     private QuickGrid<VehiculoListaDto>? _grid;
 
     private string _busqueda = string.Empty;
+    private string _estadoFiltro = string.Empty;
     private string _filtroEmpresaId = string.Empty;
     private string _filtroSubcontrataId = string.Empty;
     private bool _cargando = true;
@@ -49,8 +53,21 @@ public partial class Vehiculos : ComponentBase
     private string _nombreAEliminar = string.Empty;
     private bool _eliminando;
 
+    private readonly HashSet<Guid> _seleccionados = [];
+    private List<VehiculoListaDto> _elementosPagina = [];
+    private Guid? _idEnfocado;
+    private bool _eliminandoLote;
+    private bool _confirmarEliminarLoteVisible;
+
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
+
+    /// <summary>
+    /// Filtro de estado documental (ver ICalculoEstadoDocumentalService) — esta
+    /// entidad no tiene estado propio en el modelo, se deriva de sus Documentos.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -76,6 +93,19 @@ public partial class Vehiculos : ComponentBase
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (deLaUrl != _busqueda)
             _busqueda = deLaUrl;
+
+        var estadoDeLaUrl = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial)
+            ? EstadoInicial!
+            : string.Empty;
+        if (estadoDeLaUrl != _estadoFiltro)
+            _estadoFiltro = estadoDeLaUrl;
+    }
+
+    private async Task CambiarEstadoAsync(string valor)
+    {
+        _estadoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
+        await RecargarAsync();
     }
 
     private async ValueTask<GridItemsProviderResult<VehiculoListaDto>> ProveerElementosAsync(
@@ -87,17 +117,26 @@ public partial class Vehiculos : ComponentBase
         try
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
             var resultado = await Mediator.Send(new ObtenerVehiculosQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
                 SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
                 Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage));
+                TamanoPagina: _paginacion.ItemsPerPage,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente,
+                EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
 
             _totalElementos = resultado.TotalElementos;
 
-            return GridItemsProviderResult.From(resultado.Elementos.ToList(), resultado.TotalElementos);
+            var elementos = resultado.Elementos.ToList();
+            _elementosPagina = elementos;
+            _seleccionados.Clear();
+            _idEnfocado = null;
+
+            return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
         catch (Exception)
         {
@@ -322,5 +361,89 @@ public partial class Vehiculos : ComponentBase
         {
             _eliminando = false;
         }
+    }
+
+    private bool TodosSeleccionados =>
+        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+
+    private void AlternarSeleccionTodos(bool marcar)
+    {
+        if (marcar)
+            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+        else
+            _seleccionados.Clear();
+    }
+
+    private void AlternarSeleccion(Guid id, bool marcado)
+    {
+        if (marcado) _seleccionados.Add(id);
+        else _seleccionados.Remove(id);
+    }
+
+    private async Task ConfirmarEliminarLoteAsync()
+    {
+        _eliminandoLote = true;
+
+        try
+        {
+            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
+            var resultado = await Mediator.Send(new EliminarVehiculosCommand(_seleccionados.ToList(), usuarioId ?? Guid.Empty));
+            var dto = resultado.Valor;
+
+            ToastService.Mostrar(
+                dto.Errores.Count == 0
+                    ? $"{dto.Eliminados} vehículo(s) eliminado(s)."
+                    : $"{dto.Eliminados} eliminado(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            _seleccionados.Clear();
+            _confirmarEliminarLoteVisible = false;
+            await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos eliminar los vehículos seleccionados. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _eliminandoLote = false;
+        }
+    }
+
+    private string ObtenerClaseFila(VehiculoListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
+
+    private async Task ManejarAtajoAsync(string tecla)
+    {
+        if (_elementosPagina.Count == 0) return;
+
+        switch (tecla)
+        {
+            case "j":
+                {
+                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    break;
+                }
+            case "k":
+                {
+                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    break;
+                }
+            case "x":
+                if (_idEnfocado is { } idAlternar)
+                    AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                break;
+            case "Enter":
+                if (_idEnfocado is { } idAbrir)
+                {
+                    var elemento = _elementosPagina.FirstOrDefault(e => e.Id == idAbrir);
+                    if (elemento is not null)
+                        await WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, elemento.Id, elemento.Nombre, "informacion");
+                }
+                break;
+        }
+
+        StateHasChanged();
     }
 }
