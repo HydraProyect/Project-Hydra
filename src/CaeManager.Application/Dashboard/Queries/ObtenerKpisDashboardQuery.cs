@@ -20,7 +20,8 @@ public record KpisDashboardDto(
     int DocumentosProximos,
     int DocumentosVigentes,
     int VisitasProgramadas,
-    int TasaCumplimientoDocumental);
+    int TasaCumplimientoDocumental,
+    int VisitasUrgentes = 0);
 
 /// <summary>
 /// Los seis KPI del Dashboard (ver DATABASE.md, hoja "Dashboard" del Excel
@@ -54,6 +55,10 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
 
+        // Fase F: mismo criterio SQL que ObtenerVisitasQuery(SoloUrgentes=true) — ver el comentario de CalculadoraUrgenciaVisita.
+        var limiteAvisoVisita = hoyParaVisitas.AddDays(parametros.HorasAvisoVisita / 24);
+        var visitasUrgentes = await visitasQuery.CountAsync(v => v.FechaInicio <= limiteAvisoVisita, cancellationToken);
+
         var documentosQuery = documentosContext.Documentos.Where(d => d.TrabajadorId != null);
         if (trabajadorIdsVisibles is not null) documentosQuery = documentosQuery.Where(d => trabajadorIdsVisibles.Contains(d.TrabajadorId!.Value));
 
@@ -82,6 +87,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             DocumentosProximos: proximos,
             DocumentosVigentes: vigentes,
             VisitasProgramadas: visitasProgramadas,
-            TasaCumplimientoDocumental: tasa);
+            TasaCumplimientoDocumental: tasa,
+            VisitasUrgentes: visitasUrgentes);
     }
 }

@@ -60,4 +60,28 @@ public class ToastServiceTests
 
         servicio.Mensajes.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task EjecutarAccionAsync_invoca_la_accion_y_descarta_el_toast()
+    {
+        var servicio = new ToastService();
+        var ejecutada = false;
+        servicio.Mostrar("Elemento eliminado", TonoToast.Exito, "Deshacer", () => { ejecutada = true; return Task.CompletedTask; });
+        var id = servicio.Mensajes.Single().Id;
+
+        await servicio.EjecutarAccionAsync(id);
+
+        ejecutada.Should().BeTrue();
+        servicio.Mensajes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Un_toast_con_accion_expone_el_texto_de_la_accion()
+    {
+        var servicio = new ToastService();
+
+        servicio.Mostrar("Elemento eliminado", TonoToast.Exito, "Deshacer", () => Task.CompletedTask);
+
+        servicio.Mensajes.Single().TextoAccion.Should().Be("Deshacer");
+    }
 }

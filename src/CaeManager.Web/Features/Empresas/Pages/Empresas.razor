@@ -12,6 +12,7 @@
 @using CaeManager.Application.Common
 @using FluentValidation
 @using MediatR
+@using CaeManager.Web.Features.Documentos
 @using Microsoft.AspNetCore.Components.QuickGrid
 @inject IMediator Mediator
 @inject ToastService ToastService
@@ -28,6 +29,8 @@
 
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por razón social…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <FiltroEstado Etiqueta="Documentación" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                      Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
     </div>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -57,7 +60,12 @@
                         @context.RazonSocial
                     </button>
                 </TemplateColumn>
-                <PropertyColumn Property="@(e => e.Cif)" Title="CIF" />
+                <PropertyColumn Property="@(e => e.Cif)" Title="CIF" Sortable="true" />
+                <TemplateColumn Title="Documentación" Sortable="true" SortBy="@(GridSort<EmpresaListaDto>.ByAscending(e => e.EstadoDocumental))">
+                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)">
+                        @EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)
+                    </Badge>
+                </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.Id, context.RazonSocial, "informacion")'>
                         Ver
@@ -143,6 +151,12 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             Cancelar
         </Boton>
+        @if (_editandoId is null)
+        {
+            <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearCentroAsync">
+                Continuar con el centro
+            </Boton>
+        }
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>
@@ -153,7 +167,7 @@
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
     Titulo="@($"¿Eliminar a {_razonSocialAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
+    Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 

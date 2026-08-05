@@ -31,6 +31,7 @@ public static class CatalogoKpis
     public const string TrabajadoresActivos = "doc.trabajadores-activos";
     public const string Centros = "doc.centros";
     public const string VisitasProgramadas = "doc.visitas-programadas";
+    public const string VisitasUrgentes = "doc.visitas-urgentes";
     public const string SemaforoDocumental = "doc.semaforo-documental";
     public const string TasaCumplimiento = "doc.tasa-cumplimiento";
     public const string PuntuacionMediaEvaluaciones = "eval.puntuacion-media";
@@ -48,6 +49,7 @@ public static class CatalogoKpis
         new(TrabajadoresActivos, "Trabajadores activos", "Trabajadores con al menos una asignación activa.", CategoriaKpi.Documental, TipoRenderKpi.TileNumerico),
         new(Centros, "Centros", "Centros de trabajo dados de alta.", CategoriaKpi.Documental, TipoRenderKpi.TileNumerico),
         new(VisitasProgramadas, "Visitas programadas", "Visitas cuya fecha fin todavía no ha pasado.", CategoriaKpi.Documental, TipoRenderKpi.TileNumerico),
+        new(VisitasUrgentes, "Gestiones urgentes (visitas)", "Visitas activas dentro de la ventana mínima de validación de la plataforma del cliente (horas de aviso configurables en Parámetros).", CategoriaKpi.Documental, TipoRenderKpi.TileNumerico),
         new(SemaforoDocumental, "Semáforo documental", "Distribución de documentos por estado: Vigente/Próximo/Urgente/Vencido.", CategoriaKpi.Documental, TipoRenderKpi.GraficoDonut),
         new(TasaCumplimiento, "Tasa de cumplimiento documental", "Porcentaje de documentos en estado Vigente sobre el total con vigencia.", CategoriaKpi.Documental, TipoRenderKpi.TilePorcentajeConTono),
         new(PuntuacionMediaEvaluaciones, "Puntuación media de evaluaciones", "Media de las evaluaciones de riesgo laboral (0-100).", CategoriaKpi.Evaluaciones, TipoRenderKpi.TileNumerico),
