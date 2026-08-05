@@ -16,7 +16,9 @@ public static class CatalogoAtajos
         ["e"] = "/empresas",
         ["t"] = "/trabajadores",
         ["d"] = "/documentos",
-        ["a"] = "/asignaciones",
+        // Asignaciones ya no es una página aparte — el acordeón de /centros
+        // la absorbió (Centro 360, PLAN-EJECUCION-UX.md § 0.1).
+        ["a"] = "/centros",
         ["b"] = "/bandeja"
     };
 
@@ -37,7 +39,7 @@ public static class CatalogoAtajos
         new("g e", "Ir a Empresas"),
         new("g t", "Ir a Trabajadores"),
         new("g d", "Ir a Documentos"),
-        new("g a", "Ir a Asignaciones"),
+        new("g a", "Ir a Centros"),
         new("g b", "Ir a la Bandeja del gestor")
     ];
 
