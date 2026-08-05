@@ -29,7 +29,9 @@ Botón primario arriba a la derecha de la tabla/lista ("+ Nuevo cliente"). Abre 
 Mismo formulario que crear, precargado. Se accede desde la fila de la tabla (icono de lápiz o click en la fila) o desde el detalle. Autoguardado **no** se usa en formularios con relaciones de negocio críticas (documentos, vigencias) — se guarda explícitamente para que el usuario tenga control sobre cuándo un cambio de vigencia se aplica. Sí se permite autoguardado en campos de notas/comentarios libres.
 
 ### Eliminar
-Siempre **soft delete**. Confirmación obligatoria vía **Dialog** modal (no un `confirm()` de navegador): título claro ("¿Eliminar a Juan Pérez?"), cuerpo con la consecuencia real ("Se ocultará de las listas activas. Podrás recuperarlo desde Auditoría."), botón destructivo en rojo con la acción explícita ("Eliminar"), botón secundario "Cancelar". Nunca "¿Estás seguro?" como único texto.
+Siempre **soft delete**. Confirmación obligatoria vía **Dialog** modal (no un `confirm()` de navegador): título claro ("¿Eliminar a Juan Pérez?"), cuerpo con la consecuencia real ("Se ocultará de las listas activas."), botón destructivo en rojo con la acción explícita ("Eliminar"), botón secundario "Cancelar". Nunca "¿Estás seguro?" como único texto.
+
+**Deshacer (Fase D)**: en Cliente/Empresa/Centro/Trabajador/Documento, el toast de éxito tras eliminar incluye un botón "Deshacer" que restaura la entidad in situ (`Restaurar*Command`) — no hace falta ir a Auditoría ni recrearla a mano. Un toast con acción vive 8s en vez de 5 (ver "Toasts"). Asignación no tiene este patrón: nunca se "elimina", se da de baja (`FechaBaja`), y ese ciclo ya es reversible por otra vía (volver a asignar).
 
 ### Duplicar
 Disponible en entidades con mucha repetición estructural (Centro, RequisitoDocumental). Abre el formulario de creación precargado con los datos del original, campo de nombre vacío/resaltado para forzar que el usuario lo revise antes de guardar.
@@ -66,7 +68,13 @@ Desde el detalle del Trabajador o del Centro: selector con búsqueda, fecha de a
 Solo para acciones destructivas o irreversibles en la práctica (eliminar, dar de baja, sobrescribir). Nunca para guardar un formulario normal — eso añade fricción sin proteger nada.
 
 ### Toasts
-Esquina superior derecha, auto-descartables a los 5s (excepto errores, que requieren descarte manual). Un toast por acción, nunca apilar más de 3 visibles simultáneamente. Siempre con icono + color semántico (éxito=verde, error=rojo, info=azul).
+Esquina superior derecha, auto-descartables a los 5s (excepto errores, que requieren descarte manual). Un toast con acción (p. ej. "Deshacer", Fase D) vive 8s — el usuario necesita un instante extra para decidir, no solo para leer. Un toast por acción, nunca apilar más de 3 visibles simultáneamente. Siempre con icono + color semántico (éxito=verde, error=rojo, info=azul).
+
+### Revisión IA (Fase D)
+En `/documentos/revision-ia`, cada fila tiene dos acciones independientes, nunca confundidas entre sí: "Marcar como revisado" (`ResolverRevisionIaDocumentoCommand`) cierra el aviso sin tocar el Documento — para cuando el Gestor ya corrigió el dato a mano por la vía normal; "Aceptar detección" (`AplicarDeteccionIaDocumentoCommand`, solo visible si la IA detectó una fecha de emisión) renueva el Documento directamente con lo que la IA leyó. "Confirmar todos los ≥85%" en la cabecera aplica la segunda acción en lote a las revisiones con confianza alta y fecha detectada — el umbral es el mismo verde del badge de confianza, ninguna revisión se confirma en lote si no cumple ambas condiciones.
+
+### Atajos de teclado (Fase D)
+Tres capas, sin solaparse: `Ctrl/Cmd+K` abre el buscador global desde cualquier pantalla; `g` + una letra (`c`/`e`/`t`/`d`/`a`/`b`) navega a Clientes/Empresas/Trabajadores/Documentos/Asignaciones/Bandeja, con una ventana de menos de un segundo entre las dos teclas; `n` añade `?accion=crear` a la página actual si esa página soporta creación rápida (Clientes/Empresas/Centros/Trabajadores/Documentos), y no hace nada en las que no; `j`/`k`/`x`/`Enter` navegan una lista concreta (ya documentado en cada patrón de arriba). `?` abre un chuleta con los tres. Todos ignoran el evento si el foco está en un campo de texto, para no interceptar mientras el usuario escribe.
 
 ### Errores
 Ver tabla de microcopy arriba. Errores de validación de formulario aparecen inline, junto al campo, en el momento en que el usuario sale del campo (no solo al enviar).
