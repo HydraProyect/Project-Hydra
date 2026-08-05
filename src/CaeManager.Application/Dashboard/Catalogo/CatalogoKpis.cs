@@ -3,7 +3,6 @@ namespace CaeManager.Application.Dashboard.Catalogo;
 public enum CategoriaKpi
 {
     Documental,
-    Evaluaciones,
     Incidencias,
     Ia,
     Facturacion
@@ -34,8 +33,8 @@ public static class CatalogoKpis
     public const string VisitasUrgentes = "doc.visitas-urgentes";
     public const string SemaforoDocumental = "doc.semaforo-documental";
     public const string TasaCumplimiento = "doc.tasa-cumplimiento";
-    public const string PuntuacionMediaEvaluaciones = "eval.puntuacion-media";
-    public const string CentrosConMasRiesgo = "eval.centros-riesgo";
+    public const string PorcentajeCumplimientoDocumental = "doc.pct-cumplimiento-trabajadores";
+    public const string CentrosConMenorCumplimiento = "doc.centros-menor-cumplimiento";
     public const string IncidenciasAbiertas = "inc.total-abiertas";
     public const string IncidenciasPorGravedad = "inc.por-gravedad";
     public const string TiempoMedioResolucionIncidencias = "inc.tiempo-medio-resolucion-dias";
@@ -52,8 +51,8 @@ public static class CatalogoKpis
         new(VisitasUrgentes, "Gestiones urgentes (visitas)", "Visitas activas dentro de la ventana mínima de validación de la plataforma del cliente (horas de aviso configurables en Parámetros).", CategoriaKpi.Documental, TipoRenderKpi.TileNumerico),
         new(SemaforoDocumental, "Semáforo documental", "Distribución de documentos por estado: Vigente/Próximo/Urgente/Vencido.", CategoriaKpi.Documental, TipoRenderKpi.GraficoDonut),
         new(TasaCumplimiento, "Tasa de cumplimiento documental", "Porcentaje de documentos en estado Vigente sobre el total con vigencia.", CategoriaKpi.Documental, TipoRenderKpi.TilePorcentajeConTono),
-        new(PuntuacionMediaEvaluaciones, "Puntuación media de evaluaciones", "Media de las evaluaciones de riesgo laboral (0-100).", CategoriaKpi.Evaluaciones, TipoRenderKpi.TileNumerico),
-        new(CentrosConMasRiesgo, "Centros con más riesgo", "Centros con menor puntuación media de evaluación (top 5).", CategoriaKpi.Evaluaciones, TipoRenderKpi.GraficoBarras),
+        new(PorcentajeCumplimientoDocumental, "% de cumplimiento documental (trabajadores)", "Documentos obligatorios de trabajador al día sobre el total requerido, agregado de todos los centros.", CategoriaKpi.Documental, TipoRenderKpi.TilePorcentajeConTono),
+        new(CentrosConMenorCumplimiento, "Centros con menor cumplimiento", "Centros con menor % de documentación obligatoria de trabajador al día (top 5).", CategoriaKpi.Documental, TipoRenderKpi.GraficoBarras),
         new(IncidenciasAbiertas, "Incidencias abiertas", "Incidencias operativas sin resolver.", CategoriaKpi.Incidencias, TipoRenderKpi.TileNumerico),
         new(IncidenciasPorGravedad, "Incidencias por gravedad", "Distribución de incidencias por gravedad: Leve/Grave/MuyGrave.", CategoriaKpi.Incidencias, TipoRenderKpi.GraficoBarras),
         new(TiempoMedioResolucionIncidencias, "Tiempo medio de resolución", "Días de media entre la creación de una incidencia y su resolución.", CategoriaKpi.Incidencias, TipoRenderKpi.TileNumerico),

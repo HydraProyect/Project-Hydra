@@ -13,9 +13,14 @@ public record ObtenerCentrosQuery(
     string? OrdenarPor = null, bool Descendente = false, int Pagina = 1, int TamanoPagina = 20)
     : IRequest<ResultadoPaginado<CentroListaDto>>;
 
+/// <param name="CumplimientoPorcentaje">
+/// % de cumplimiento documental de los trabajadores del centro (Centro 360,
+/// PLAN-EJECUCION-UX.md § 0.5) — <c>null</c> cuando no hay ningún par
+/// Trabajador×TipoDocumento obligatorio aplicable, ver <see cref="FraccionCumplimiento"/>.
+/// </param>
 public record CentroListaDto(
     Guid Id, string Nombre, string? CodigoCentro, Guid ClienteId, string ClienteRazonSocial, string EmpresaRazonSocial,
-    EstadoCentro Estado);
+    EstadoCentro Estado, int? CumplimientoPorcentaje);
 
 /// <summary>
 /// El <see cref="CentroListaDto.Estado"/> no está persistido — lo calcula
@@ -73,8 +78,10 @@ public class ObtenerCentrosQueryHandler(
                     x.cliente.RazonSocial, x.empresa.RazonSocial))
                 .ToListAsync(cancellationToken);
 
-            var estadosTodas = await calculoEstadoCentro.CalcularAsync(todas.Select(c => c.Id).ToList(), cancellationToken);
-            var conEstado = todas.Select(c => AplicarEstado(c, estadosTodas));
+            var idsTodas = todas.Select(c => c.Id).ToList();
+            var estadosTodas = await calculoEstadoCentro.CalcularAsync(idsTodas, cancellationToken);
+            var cumplimientoTodas = await calculoEstadoCentro.CalcularCumplimientoAsync(idsTodas, cancellationToken);
+            var conEstado = todas.Select(c => AplicarEstado(c, estadosTodas, cumplimientoTodas));
 
             if (request.Estado is not null)
                 conEstado = conEstado.Where(c => c.Estado == request.Estado);
@@ -126,15 +133,20 @@ public class ObtenerCentrosQueryHandler(
                 x.cliente.RazonSocial, x.empresa.RazonSocial))
             .ToListAsync(cancellationToken);
 
-        var estados = await calculoEstadoCentro.CalcularAsync(pagina.Select(c => c.Id).ToList(), cancellationToken);
+        var idsPagina = pagina.Select(c => c.Id).ToList();
+        var estados = await calculoEstadoCentro.CalcularAsync(idsPagina, cancellationToken);
+        var cumplimiento = await calculoEstadoCentro.CalcularCumplimientoAsync(idsPagina, cancellationToken);
 
         return new ResultadoPaginado<CentroListaDto>(
-            pagina.Select(c => AplicarEstado(c, estados)).ToList(), total, request.Pagina, request.TamanoPagina);
+            pagina.Select(c => AplicarEstado(c, estados, cumplimiento)).ToList(), total, request.Pagina, request.TamanoPagina);
     }
 
-    private static CentroListaDto AplicarEstado(FilaCentro fila, IReadOnlyDictionary<Guid, ResultadoEstadoCentro> estados) =>
+    private static CentroListaDto AplicarEstado(
+        FilaCentro fila, IReadOnlyDictionary<Guid, ResultadoEstadoCentro> estados,
+        IReadOnlyDictionary<Guid, FraccionCumplimiento> cumplimiento) =>
         new(fila.Id, fila.Nombre, fila.CodigoCentro, fila.ClienteId, fila.ClienteRazonSocial, fila.EmpresaRazonSocial,
-            estados.TryGetValue(fila.Id, out var resultado) ? resultado.Estado : EstadoCentro.Vigente);
+            estados.TryGetValue(fila.Id, out var resultado) ? resultado.Estado : EstadoCentro.Vigente,
+            cumplimiento.TryGetValue(fila.Id, out var fraccion) ? fraccion.Porcentaje : null);
 
     private static IOrderedEnumerable<CentroListaDto> OrdenarEnMemoria(
         IEnumerable<CentroListaDto> elementos, string? ordenarPor, bool descendente) =>

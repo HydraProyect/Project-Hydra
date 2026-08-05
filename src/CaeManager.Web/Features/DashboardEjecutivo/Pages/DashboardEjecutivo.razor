@@ -98,16 +98,16 @@
                             </ApexChart>
                         }
                     }
-                    else if (kpi.Codigo == CatalogoKpis.CentrosConMasRiesgo)
+                    else if (kpi.Codigo == CatalogoKpis.CentrosConMenorCumplimiento)
                     {
-                        @if (_centrosConMasRiesgo.Count == 0)
+                        @if (_centrosConMenorCumplimiento.Count == 0)
                         {
-                            <p class="texto-vacio-seccion">No hay evaluaciones registradas todavía.</p>
+                            <p class="texto-vacio-seccion">Ningún centro tiene todavía documentación obligatoria de trabajador que evaluar.</p>
                         }
                         else
                         {
                             <ApexChart TItem="SegmentoGraficoDto" Height="280" Options="OpcionesBarraHorizontal">
-                                <ApexPointSeries TItem="SegmentoGraficoDto" Items="_centrosConMasRiesgo"
+                                <ApexPointSeries TItem="SegmentoGraficoDto" Items="_centrosConMenorCumplimiento"
                                                  SeriesType="SeriesType.Bar"
                                                  XValue="@(s => s.Etiqueta)"
                                                  YValue="@(s => s.Valor)" />
