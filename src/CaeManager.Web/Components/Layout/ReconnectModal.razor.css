@@ -3,6 +3,7 @@
 .components-reconnect-failed-visible,
 .components-pause-visible,
 .components-resume-failed-visible,
+.components-reconnect-rejected-visible,
 .components-rejoining-animation {
     display: none;
 }
@@ -15,33 +16,34 @@
 #components-reconnect-modal.components-reconnect-retrying .components-reconnect-repeated-attempt-visible,
 #components-reconnect-modal.components-reconnect-retrying .components-rejoining-animation,
 #components-reconnect-modal.components-reconnect-failed,
-#components-reconnect-modal.components-reconnect-failed .components-reconnect-failed-visible {
+#components-reconnect-modal.components-reconnect-failed .components-reconnect-failed-visible,
+#components-reconnect-modal.components-reconnect-rejected,
+#components-reconnect-modal.components-reconnect-rejected .components-reconnect-rejected-visible {
     display: block;
 }
 
-
 #components-reconnect-modal {
-    background-color: white;
-    width: 20rem;
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    width: 22rem;
+    max-width: calc(100vw - var(--space-8));
     margin: 20vh auto;
-    padding: 2rem;
+    padding: var(--space-6);
     border: 0;
-    border-radius: 0.5rem;
-    box-shadow: 0 3px 6px 2px rgba(0, 0, 0, 0.3);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-overlay);
     opacity: 0;
     transition: display 0.5s allow-discrete, overlay 0.5s allow-discrete;
     animation: components-reconnect-modal-fadeOutOpacity 0.5s both;
-    &[open]
-
-{
-    animation: components-reconnect-modal-slideUp 1.5s cubic-bezier(.05, .89, .25, 1.02) 0.3s, components-reconnect-modal-fadeInOpacity 0.5s ease-in-out 0.3s;
-    animation-fill-mode: both;
 }
 
-}
+    #components-reconnect-modal[open] {
+        animation: components-reconnect-modal-slideUp 1.5s cubic-bezier(.05, .89, .25, 1.02) 0.3s, components-reconnect-modal-fadeInOpacity 0.5s ease-in-out 0.3s;
+        animation-fill-mode: both;
+    }
 
 #components-reconnect-modal::backdrop {
-    background-color: rgba(0, 0, 0, 0.4);
+    background-color: rgba(15, 23, 42, 0.45);
     animation: components-reconnect-modal-fadeInOpacity 0.5s ease-in-out;
     opacity: 1;
 }
@@ -80,28 +82,51 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1rem;
+    gap: var(--space-4);
 }
 
 #components-reconnect-modal p {
     margin: 0;
+    font: var(--font-body-lg);
     text-align: center;
 }
 
 #components-reconnect-modal button {
-    border: 0;
-    background-color: #6b9ed2;
-    color: white;
-    padding: 4px 24px;
-    border-radius: 4px;
+    border: var(--border-default);
+    background-color: var(--color-primary-500);
+    border-color: var(--color-primary-500);
+    color: var(--color-neutral-0);
+    font: var(--font-label-md);
+    padding: var(--space-2) var(--space-6);
+    min-height: 44px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background-color var(--transition-base), border-color var(--transition-base);
 }
 
     #components-reconnect-modal button:hover {
-        background-color: #3b6ea2;
+        background-color: var(--color-primary-600);
+        border-color: var(--color-primary-600);
     }
 
     #components-reconnect-modal button:active {
-        background-color: #6b9ed2;
+        background-color: var(--color-primary-500);
+        border-color: var(--color-primary-500);
+    }
+
+/*
+    El aviso de sesión perdida/rechazada es el único de los tres botones que
+    lleva a perder trabajo sin guardar (ver ReconnectModal.razor.js) — se
+    distingue con el color de peligro para que no se confunda con un simple
+    "Reintentar"/"Reanudar" de rutina.
+*/
+#components-reconnect-modal #components-reconnect-rejected-button {
+    background-color: var(--color-danger-500);
+    border-color: var(--color-danger-500);
+}
+
+    #components-reconnect-modal #components-reconnect-rejected-button:hover {
+        opacity: 0.9;
     }
 
 .components-rejoining-animation {
@@ -112,9 +137,9 @@
 
     .components-rejoining-animation div {
         position: absolute;
-        border: 3px solid #0087ff;
+        border: 3px solid var(--color-primary-500);
         opacity: 1;
-        border-radius: 50%;
+        border-radius: var(--radius-full);
         animation: components-rejoining-animation 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
     }
 
@@ -152,6 +177,13 @@
         left: 0px;
         width: 80px;
         height: 80px;
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .components-rejoining-animation div {
+        animation: none;
         opacity: 0;
     }
 }
