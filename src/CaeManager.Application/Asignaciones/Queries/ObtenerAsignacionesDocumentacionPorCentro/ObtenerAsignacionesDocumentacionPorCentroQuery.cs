@@ -21,11 +21,25 @@ namespace CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumen
 /// el tercer nivel (documentos de un trabajador concreto) no vuelve a
 /// consultar el servidor, ya tiene el desglose completo en memoria.
 /// </summary>
-public record ObtenerAsignacionesDocumentacionPorCentroQuery(Guid CentroId)
+/// <param name="VentanaVisitaFechaFin">
+/// <c>FechaFin</c> de la próxima visita activa del centro, si tiene una
+/// (§ 0.3) — permite marcar <see cref="DocumentoRequeridoDto.CaducaEnVentanaVisita"/>
+/// sin recalcular el estado del documento: sigue siendo <c>Vigente</c> con
+/// fecha de referencia = hoy, solo se compara además contra esta fecha.
+/// </param>
+public record ObtenerAsignacionesDocumentacionPorCentroQuery(Guid CentroId, DateOnly? VentanaVisitaFechaFin = null)
     : IRequest<IReadOnlyList<TrabajadorAsignacionDocumentacionDto>>;
 
+/// <param name="CaducaEnVentanaVisita">
+/// Solo relevante cuando <see cref="EstadoDocumento.Vigente"/>: el documento
+/// caduca antes de que termine la próxima visita del centro (comparando
+/// <see cref="CalculadoraEstadoDocumento"/> con fecha de referencia = fin de
+/// la visita en vez de hoy) — modificador visual "vigente con riesgo en
+/// ventana", no un estado nuevo (PLAN-EJECUCION-UX.md § 0.3).
+/// </param>
 public record DocumentoRequeridoDto(
-    Guid? DocumentoId, Guid TipoDocumentoId, string TipoDocumentoNombre, EstadoDocumento Estado, DateOnly? FechaVencimiento);
+    Guid? DocumentoId, Guid TipoDocumentoId, string TipoDocumentoNombre, EstadoDocumento Estado,
+    DateOnly? FechaVencimiento, bool CaducaEnVentanaVisita = false);
 
 public record TrabajadorAsignacionDocumentacionDto(
     Guid AsignacionId, Guid TrabajadorId, string TrabajadorNombre, DateOnly FechaAlta,
@@ -131,8 +145,17 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
                     documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
                 if (estado == EstadoDocumento.NoAplica) continue;
 
+                // Solo tiene sentido avisar de un documento que hoy está bien
+                // pero no aguantará hasta el final de la visita — uno que ya
+                // está en Próximo/Urgente/Vencido no necesita un modificador
+                // aparte, ya se ve en su propio badge.
+                var caducaEnVentana = estado == EstadoDocumento.Vigente
+                    && request.VentanaVisitaFechaFin is { } finVisita
+                    && CalculadoraEstadoDocumento.Calcular(documento.FechaVencimiento, finVisita, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
+                        is not (EstadoDocumento.Vigente or EstadoDocumento.NoAplica);
+
                 var nombreTipo = tiposRequeridosPorCentro.First(t => t.Id == documento.TipoDocumentoId).Nombre;
-                items.Add(new DocumentoRequeridoDto(documento.Id, documento.TipoDocumentoId, nombreTipo, estado, documento.FechaVencimiento));
+                items.Add(new DocumentoRequeridoDto(documento.Id, documento.TipoDocumentoId, nombreTipo, estado, documento.FechaVencimiento, caducaEnVentana));
             }
 
             foreach (var tipo in tiposRequeridosPorCentro)
