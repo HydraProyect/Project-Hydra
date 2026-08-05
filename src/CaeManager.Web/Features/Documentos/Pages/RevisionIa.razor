@@ -1,6 +1,7 @@
 @page "/documentos/revision-ia"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento
 @using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento
 @using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes
 @using MediatR
@@ -13,6 +14,12 @@
 <div class="contenedor-pagina">
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">Revisión IA</h1>
+        @if (RevisionesConfirmablesEnLote.Count > 0)
+        {
+            <Boton Variante="VarianteBoton.Secundario" Cargando="_confirmandoLote" OnClick="ConfirmarLoteAsync">
+                Confirmar todos los ≥85% (@RevisionesConfirmablesEnLote.Count)
+            </Boton>
+        }
     </div>
 
     <p class="descripcion-roles">
@@ -66,7 +73,13 @@
                             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarPrevisualizacion(revision.DocumentoId)">
                                 @(_documentoIdExpandido == revision.DocumentoId ? "Ocultar documento" : "Ver documento")
                             </Boton>
-                            <Boton Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == revision.Id)" OnClick="() => ResolverAsync(revision.Id)">
+                            @if (revision.FechaEmisionDetectada is not null)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == revision.Id)" OnClick="() => AceptarDeteccionAsync(revision.Id)">
+                                    Aceptar detección
+                                </Boton>
+                            }
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == revision.Id)" OnClick="() => ResolverAsync(revision.Id)">
                                 Marcar como revisado
                             </Boton>
                         </td>

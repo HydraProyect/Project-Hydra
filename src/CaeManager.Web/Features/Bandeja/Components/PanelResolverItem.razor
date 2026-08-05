@@ -1,0 +1,32 @@
+@*
+    Una tarjeta = un ítem de la Bandeja del gestor, con una única acción
+    primaria (Fase C) — nunca una fila de tabla con varias acciones
+    compitiendo por la atención. Reutilizado tal cual en /bandeja y en el
+    panel montado en /alertas.
+*@
+@using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
+@inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
+@inject CaeManager.Web.Components.Workspace.ContextWorkspaceService WorkspaceService
+
+<div class="panel-resolver-item @(Enfocado ? "panel-resolver-item-enfocado" : "")">
+    <div class="panel-resolver-item-info">
+        <Badge Tono="TipoItemBandejaUi.Tono(Item.Tipo)">@TipoItemBandejaUi.Texto(Item.Tipo)</Badge>
+        <div>
+            <p class="panel-resolver-item-titulo">@Item.Titulo</p>
+            <p class="panel-resolver-item-subtitulo">@Item.Subtitulo</p>
+        </div>
+    </div>
+    <div class="panel-resolver-item-fecha">
+        @(Item.Fecha?.ToString("dd/MM/yyyy") ?? "—")
+    </div>
+    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirAsync">
+        @TipoItemBandejaUi.TextoAccion(Item.Tipo)
+    </Boton>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ItemBandejaDto Item { get; set; } = default!;
+    [Parameter] public bool Enfocado { get; set; }
+
+    private Task AbrirAsync() => AccionesBandeja.AbrirAsync(Item, NavigationManager, WorkspaceService);
+}

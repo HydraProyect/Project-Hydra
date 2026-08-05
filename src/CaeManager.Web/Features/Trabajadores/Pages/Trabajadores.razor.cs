@@ -1,10 +1,15 @@
 using System.Text.Json;
+using CaeManager.Application.Alertas;
+using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
+using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EditarTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
+using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
+using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
@@ -12,6 +17,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Components;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
@@ -26,6 +32,7 @@ public partial class Trabajadores : ComponentBase
     private QuickGrid<TrabajadorListaDto>? _grid;
 
     private string _busqueda = string.Empty;
+    private string _estadoFiltro = string.Empty;
     private string _filtroEmpresaId = string.Empty;
     private string _filtroSubcontrataId = string.Empty;
     private bool _cargando = true;
@@ -63,6 +70,13 @@ public partial class Trabajadores : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    /// <summary>
+    /// Filtro de estado documental (ver ICalculoEstadoDocumentalService) — esta
+    /// entidad no tiene estado propio en el modelo, se deriva de sus Documentos.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoInicial { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     /// <summary>Comando del palette "Crear trabajador" / "Crear trabajador «nombre»" (P3-31): abre el Drawer, con el nombre precargado si viene del palette.</summary>
@@ -82,6 +96,18 @@ public partial class Trabajadores : ComponentBase
     private bool _mostrarGuardarFiltro;
     private string _nombreFiltroNuevo = string.Empty;
     private bool _guardandoFiltro;
+
+    // --- Fase B: "Asignar a centro…" en lote desde /trabajadores ---
+    private bool _asignarCentroVisible;
+    private IReadOnlyList<CentroSelectorDto> _centrosDisponiblesParaAsignar = [];
+    private string _centroIdParaAsignar = string.Empty;
+    private string _fechaAltaParaAsignar = string.Empty;
+    private IReadOnlyList<DocumentoFaltanteDto> _documentosFaltantesParaAsignar = [];
+    private bool _asignandoLote;
+
+    private IReadOnlyList<OpcionBuscable> OpcionesCentrosParaAsignar => _centrosDisponiblesParaAsignar
+        .Select(c => new OpcionBuscable(c.Id.ToString(), $"{c.Nombre} ({c.ClienteRazonSocial})"))
+        .ToList();
 
     private record FiltrosTrabajadoresJson(string? Busqueda, string? EmpresaId, string? SubcontrataId);
 
@@ -114,6 +140,19 @@ public partial class Trabajadores : ComponentBase
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (deLaUrl != _busqueda)
             _busqueda = deLaUrl;
+
+        var estadoDeLaUrl = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial)
+            ? EstadoInicial!
+            : string.Empty;
+        if (estadoDeLaUrl != _estadoFiltro)
+            _estadoFiltro = estadoDeLaUrl;
+    }
+
+    private async Task CambiarEstadoAsync(string valor)
+    {
+        _estadoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
+        await RecargarAsync();
     }
 
     private async ValueTask<GridItemsProviderResult<TrabajadorListaDto>> ProveerElementosAsync(
@@ -125,13 +164,17 @@ public partial class Trabajadores : ComponentBase
         try
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
             var resultado = await Mediator.Send(new ObtenerTrabajadoresQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
                 SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
                 Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage));
+                TamanoPagina: _paginacion.ItemsPerPage,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente,
+                EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
 
             _totalElementos = resultado.TotalElementos;
 
@@ -395,7 +438,8 @@ public partial class Trabajadores : ComponentBase
             }
             else
             {
-                ToastService.Mostrar("Trabajador eliminado correctamente.", TonoToast.Exito);
+                var idEliminado = _idAEliminar;
+                ToastService.Mostrar("Trabajador eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
             }
@@ -408,6 +452,19 @@ public partial class Trabajadores : ComponentBase
         {
             _eliminando = false;
         }
+    }
+
+    /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarTrabajadorCommand.</summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        var resultado = await Mediator.Send(new RestaurarTrabajadorCommand(id));
+
+        ToastService.Mostrar(
+            resultado.EsExitoso ? "Trabajador restaurado." : resultado.Error.Mensaje,
+            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+        if (resultado.EsExitoso)
+            await RecargarAsync();
     }
 
     // --- P3-31: selección múltiple ---
@@ -456,6 +513,75 @@ public partial class Trabajadores : ComponentBase
         finally
         {
             _eliminandoLote = false;
+        }
+    }
+
+    // --- Fase B: "Asignar a centro…" en lote ---
+
+    private async Task AbrirAsignarCentroAsync()
+    {
+        _centrosDisponiblesParaAsignar = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
+        _centroIdParaAsignar = string.Empty;
+        _fechaAltaParaAsignar = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        _documentosFaltantesParaAsignar = [];
+        _asignarCentroVisible = true;
+    }
+
+    private async Task CambiarCentroParaAsignarAsync(string valor)
+    {
+        _centroIdParaAsignar = valor;
+
+        if (!Guid.TryParse(valor, out var centroId))
+        {
+            _documentosFaltantesParaAsignar = [];
+            return;
+        }
+
+        _documentosFaltantesParaAsignar = await Mediator.Send(
+            new ObtenerDocumentosFaltantesParaAsignacionQuery(_seleccionados.ToList(), [centroId]));
+    }
+
+    private async Task ConfirmarAsignarCentroAsync()
+    {
+        if (!Guid.TryParse(_centroIdParaAsignar, out var centroId))
+        {
+            ToastService.Mostrar("Selecciona un centro.", TonoToast.Error);
+            return;
+        }
+
+        if (!DateOnly.TryParse(_fechaAltaParaAsignar, out var fechaAlta))
+        {
+            ToastService.Mostrar("Introduce una fecha de alta válida.", TonoToast.Error);
+            return;
+        }
+
+        _asignandoLote = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new CrearAsignacionesCommand(_seleccionados.ToList(), [centroId], fechaAlta));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            var dto = resultado.Valor;
+            var resumen = $"{dto.Creadas} asignación(es) creada(s)" + (dto.YaActivas > 0 ? $", {dto.YaActivas} ya estaban activas." : ".");
+            ToastService.Mostrar(resumen, dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            _seleccionados.Clear();
+            _asignarCentroVisible = false;
+            await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos asignar a los trabajadores seleccionados. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _asignandoLote = false;
         }
     }
 
