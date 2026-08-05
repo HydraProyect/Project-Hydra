@@ -4,7 +4,6 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
-using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Subcontratas;
@@ -494,18 +493,7 @@ public static class DatosPruebaSeeder
         }
         dbContext.Visitas.AddRange(visitas);
 
-        // --- Evaluaciones e incidencias ---
-        foreach (var centroId in ElementosAleatoriosUnicos(aleatorio, centrosConGente, Math.Min(18, centrosConGente.Count)))
-        {
-            var conTrabajador = aleatorio.Next(2) == 0;
-            dbContext.Evaluaciones.Add(new Evaluacion(
-                centroId,
-                conTrabajador ? ElementoAleatorio(aleatorio, trabajadoresPorCentro[centroId]).Id : null,
-                hoy.AddDays(-aleatorio.Next(1, 365)),
-                aleatorio.Next(55, 101),
-                observaciones: null));
-        }
-
+        // --- Incidencias ---
         string[] descripcionesIncidencia =
         [
             "Trabajador sin casco en zona de carga.", "Acceso al centro sin documentación en regla.",

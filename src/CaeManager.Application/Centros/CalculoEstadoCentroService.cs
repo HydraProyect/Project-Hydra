@@ -22,6 +22,22 @@ public record CausaEstadoCentro(string Descripcion, EstadoDocumento? Estado, boo
 public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEstadoCentro> Causas);
 
 /// <summary>
+/// % de cumplimiento documental de un Centro (Centro 360, PLAN-EJECUCION-UX.md
+/// § 0.5, sustituye al módulo Evaluaciones retirado) — <c>Requeridos</c> es el
+/// número de pares Trabajador×TipoDocumento obligatorio aplicables a ese
+/// Centro (misma allow-list de <c>TipoDocumentoCentro</c> que el resto de
+/// cálculos), <c>AlDia</c> cuántos de esos pares tienen hoy un Documento
+/// Vigente o NoAplica. <see cref="Porcentaje"/> es <c>null</c> cuando el
+/// centro no tiene ningún par aplicable (hoy: ningún <c>TipoDocumento</c> del
+/// tenant está marcado obligatorio) — un 0% o 100% ahí sería engañoso, "sin
+/// requisitos" es la lectura correcta.
+/// </summary>
+public record FraccionCumplimiento(int AlDia, int Requeridos)
+{
+    public int? Porcentaje => Requeridos == 0 ? null : (int)Math.Round(AlDia * 100.0 / Requeridos);
+}
+
+/// <summary>
 /// Cálculo compartido entre ObtenerCentrosQuery (badge de la tabla) y
 /// ObtenerEstadoCentroQuery (desglose del Workspace) — agrega de una sola
 /// vez los Documentos de Empresa, los Documentos y huecos obligatorios de
@@ -35,6 +51,18 @@ public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEsta
 public interface ICalculoEstadoCentroService
 {
     Task<IReadOnlyDictionary<Guid, ResultadoEstadoCentro>> CalcularAsync(
+        IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Método aparte de <see cref="CalcularAsync"/> a propósito (PLAN-EJECUCION-UX.md
+    /// § 0.5): mismas fuentes de datos (asignaciones activas, tipos
+    /// obligatorios, allow-list de <c>TipoDocumentoCentro</c>) pero una
+    /// pregunta distinta ("qué fracción" en vez de "cuál es el peor caso") —
+    /// separarlo evita arriesgar la lógica de <c>CalcularAsync</c>, ya en
+    /// producción y compartida por dos pantallas, al añadirle un cálculo
+    /// nuevo dentro del mismo método.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(
         IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken);
 }
 
@@ -205,5 +233,79 @@ public class CalculoEstadoCentroService(
 
         foreach (var requisito in requisitosBloqueantes)
             causasPorCentro[requisito.CentroId].Add(new CausaEstadoCentro(requisito.Descripcion, Estado: null, Bloqueante: true));
+    }
+
+    /// <summary>
+    /// Alcance igual al de "huecos obligatorios" de <see cref="AgregarCausasDeTrabajadorAsync"/>
+    /// (Trabajador únicamente, sin Documentos de Empresa — así lo pide
+    /// PLAN-EJECUCION-UX.md § 0.5: "por trabajador dentro de un centro"),
+    /// pero contando el universo completo de pares aplicables en vez de solo
+    /// los que fallan.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(
+        IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken)
+    {
+        var acumulado = centroIds.Distinct().ToDictionary(id => id, _ => (AlDia: 0, Requeridos: 0));
+        if (centroIds.Count == 0)
+            return acumulado.ToDictionary(p => p.Key, p => new FraccionCumplimiento(p.Value.AlDia, p.Value.Requeridos));
+
+        var asignacionesActivas = await asignacionesContext.Asignaciones
+            .Where(a => a.FechaBaja == null && centroIds.Contains(a.CentroId))
+            .Select(a => new { a.CentroId, a.TrabajadorId })
+            .ToListAsync(cancellationToken);
+
+        if (asignacionesActivas.Count == 0)
+            return acumulado.ToDictionary(p => p.Key, p => new FraccionCumplimiento(p.Value.AlDia, p.Value.Requeridos));
+
+        var tiposObligatorios = await tiposDocumentoContext.TiposDocumento
+            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && t.EsObligatorio)
+            .Select(t => t.Id)
+            .ToListAsync(cancellationToken);
+
+        if (tiposObligatorios.Count == 0)
+            return acumulado.ToDictionary(p => p.Key, p => new FraccionCumplimiento(p.Value.AlDia, p.Value.Requeridos));
+
+        var tipoIdsObligatorios = tiposObligatorios.ToHashSet();
+
+        var restriccionesPorTipo = (await tiposDocumentoContext.TiposDocumentoCentros
+            .Where(tc => tipoIdsObligatorios.Contains(tc.TipoDocumentoId))
+            .Select(tc => new { tc.TipoDocumentoId, tc.CentroId })
+            .ToListAsync(cancellationToken))
+            .GroupBy(tc => tc.TipoDocumentoId)
+            .ToDictionary(g => g.Key, g => g.Select(tc => tc.CentroId).ToHashSet());
+
+        var trabajadorIds = asignacionesActivas.Select(a => a.TrabajadorId).Distinct().ToList();
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var estadosPorPareja = (await documentosContext.Documentos
+            .Where(d => d.TrabajadorId != null
+                && trabajadorIds.Contains(d.TrabajadorId!.Value)
+                && tipoIdsObligatorios.Contains(d.TipoDocumentoId))
+            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.FechaVencimiento })
+            .ToListAsync(cancellationToken))
+            .ToDictionary(
+                d => (d.TrabajadorId, d.TipoDocumentoId),
+                d => CalculadoraEstadoDocumento.Calcular(d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
+
+        foreach (var asignacion in asignacionesActivas)
+        {
+            foreach (var tipoId in tiposObligatorios)
+            {
+                if (restriccionesPorTipo.TryGetValue(tipoId, out var centrosPermitidos)
+                    && !centrosPermitidos.Contains(asignacion.CentroId))
+                    continue;
+
+                var actual = acumulado[asignacion.CentroId];
+                var alDia = actual.AlDia;
+                if (estadosPorPareja.TryGetValue((asignacion.TrabajadorId, tipoId), out var estado)
+                    && estado is EstadoDocumento.Vigente or EstadoDocumento.NoAplica)
+                    alDia++;
+
+                acumulado[asignacion.CentroId] = (alDia, actual.Requeridos + 1);
+            }
+        }
+
+        return acumulado.ToDictionary(p => p.Key, p => new FraccionCumplimiento(p.Value.AlDia, p.Value.Requeridos));
     }
 }

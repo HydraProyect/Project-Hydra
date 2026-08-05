@@ -7,6 +7,7 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesPara
 using CaeManager.Application.Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
@@ -135,6 +136,10 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
             _asignandoDesdeVisita.Remove(trabajador.TrabajadorId);
         }
     }
+
+    /// <summary>"7/9" junto al nombre (PLAN-EJECUCION-UX.md § 0.5) — se deriva de los mismos <c>Documentos</c> ya cargados, sin consulta nueva.</summary>
+    private static int DocumentosAlDia(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        trabajador.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
 
     private void AlternarSeleccion(Guid asignacionId, bool marcado)
     {
