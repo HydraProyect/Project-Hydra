@@ -1,6 +1,6 @@
 # Modelo de Dominio — Hydra (CAE Manager)
 
-**Fuente de verdad conceptual** del dominio: agregados, relaciones e invariantes, verificados contra el código de `src/CaeManager.Domain/` (2026-07-23). `DATABASE.md` documenta la persistencia (tablas, columnas, índices); este documento explica el *modelo* — si divergen, gana el código y se corrige el documento. Para la dimensión multi-tenant ver `docs/MULTITENANCY.md`.
+**Fuente de verdad conceptual** del dominio: agregados, relaciones e invariantes, verificados contra el código de `src/CaeManager.Domain/` (2026-07-23; sección Comunicaciones/Gestiones actualizada 2026-08-05 tras Fases 84/87/88/90/91). `DATABASE.md` documenta la persistencia (tablas, columnas, índices); este documento explica el *modelo* — si divergen, gana el código y se corrige el documento. Para la dimensión multi-tenant ver `docs/MULTITENANCY.md`.
 
 ## Grafo de relaciones (verificado en código)
 
@@ -35,6 +35,10 @@ erDiagram
     TRABAJADOR ||--o{ EVALUACION : "opcional (TrabajadorId?)"
     CENTRO ||--o{ INCIDENCIA : "registra (CentroId)"
     TRABAJADOR ||--o{ INCIDENCIA : "opcional (TrabajadorId?)"
+    CLIENTE ||--o{ CONVERSACION_CORREO : "bandeja (ClienteId?, cola de triage si null)"
+    CONVERSACION_CORREO ||--o{ MENSAJE_CORREO : "contiene"
+    TRABAJADOR ||--o{ GESTION : "tarea de seguimiento (CentroId, TipoDocumentoId)"
+    CENTRO ||--o{ SOLICITUD_PRIORIDAD_DOCUMENTO : "rastro de aviso enviado"
 ```
 
 ## Conceptos y reglas estructurales
@@ -45,7 +49,9 @@ erDiagram
 - **Centro**: ubicación física. Pertenece a un único Cliente (`ClienteId`) y es operado por una Empresa (`EmpresaId`) — dos padres simultáneos, no es hijo único de nadie. Satélites: `PlataformaAcceso` (1:1, credenciales cifradas), `RequisitoDocumental` (exigencias adicionales, texto libre, CRUD completo — pestaña "Requisitos del Centro"), `TipoDocumentoCentro` (tipos exigidos).
 - **Trabajador / Vehículo**: pertenecen a una Empresa **o** una Subcontrata (`EmpresaId?`/`SubcontrataId?` mutuamente excluyentes — `EsDeSubcontrata`). **Sin `ClienteId`**: su relación con Clientes es derivada (Trabajador vía `Asignacion`+Centro; Vehículo transitiva) y puede ser múltiple simultáneamente — un `ClienteId` singular sería estructuralmente falso (decisión debatida y cerrada; ver `docs/MULTITENANCY.md` § 3).
 - **Asignacion**: N:N Trabajador↔Centro con historial (`FechaAlta`/`FechaBaja?`; activa = sin baja). Índice único `(TrabajadorId, CentroId, FechaAlta)`.
-- **Visita**: periodo (`FechaInicio`–`FechaFin`) de trabajadores en un Centro, con N:N `VisitaTrabajador`.
+- **Visita**: periodo (`FechaInicio`–`FechaFin`) de trabajadores en un Centro, con N:N `VisitaTrabajador`. `NivelUrgenciaVisita` (`EnCurso`/`Critica`/`Urgente`/`Normal`) se **calcula, nunca se almacena** — mismo patrón que el estado de Documento — comparando horas hasta `FechaInicio` contra `ParametroSistema.HorasCriticasVisita`/`HorasAvisoVisita` (24h/48h por defecto), porque las plataformas documentales de los Clientes suelen exigir un plazo mínimo de validación antes de dejar entrar a los trabajadores (Fase 90). `SolicitudPrioridadDocumento` (Comunicaciones, con tenant) registra solo el rastro de que se pidió prioridad de validación al contacto de un Centro — no bloquea reenviar, evita únicamente el "¿ya se pidió hoy?" (Fase 91).
+- **ConversacionCorreo / MensajeCorreo** (`Comunicaciones`): agregado raíz de la bandeja compartida, **multicanal sobre el mismo agregado** vía `CanalConversacion` (`Correo`/`WhatsApp`, Fase 84) — los nombres se mantienen como deuda nominal tras incorporar WhatsApp (renombrarlos es un refactor aparte). `ClienteId?` null cae en cola de triage hasta que un Gestor la asigna. Único agregado del repositorio donde las entidades hijas (`Mensajes`/`Participantes`) se exponen como colecciones de solo lectura sobre campos privados en vez de gestionarse por repositorio aparte, porque el propio diseño exige que el alta de mensaje/participante sea una operación de negocio única del agregado. Ventana de servicio de WhatsApp (24h desde `FechaUltimoMensajeEntranteUtc`, `DuracionVentanaServicio`) limita a plantillas aprobadas fuera de ese plazo. `ContactoWhatsApp` (con tenant) es un catálogo autoalimentado teléfono→Cliente que aprende del primer triage resuelto para enrutar conversaciones nuevas del mismo teléfono directamente al Gestor de cartera. `MacroRespuesta` son plantillas de respuesta reutilizables (`ClienteId?` null = genérica del tenant). `SugerenciaGestionCorreo`/`SugerenciaVisitaCorreo` (con tenant) son candidatos detectados por IA sobre un `MensajeCorreo` entrante — mismo patrón sugerencia-nunca-automática que `DeteccionTrabajador`: nunca crean una `Gestion`/`Visita` directamente, solo el Gestor confirma desde la Bandeja. Ver `ARQUITECTURA-INTEGRACIONES.md` § 12.7 para el diseño completo del canal WhatsApp.
+- **Gestion** (`Gestiones`): tarea de seguimiento documental de un Trabajador en un Centro concreto (p. ej. "renovar EPI de Juan Pérez en el Centro X") — **no crea ni referencia ningún Documento**, es solo el registro de que hace falta gestionar algo y de que ya se atendió (`EstadoGestion.Pendiente`/`Completada`). Si el mismo Trabajador está de alta en varios Centros a la vez se crea una Gestion por Centro, porque la renovación real ocurre centro a centro. `MensajeCorreoOrigenId?` enlaza con el `SugerenciaGestionCorreo` que la originó, si aplica.
 - **Documento**: instancia de un `TipoDocumento` con **propietario polimórfico excluyente** — exactamente uno de `TrabajadorId`/`ClienteId`/`EmpresaId`/`VehiculoId`. `FechaVencimiento` derivada de la vigencia del tipo; **estado nunca almacenado** (ver abajo).
 - **TipoDocumento**: catálogo documental (configurable por tenant, ver `docs/MULTITENANCY.md` § 7) con vigencia en meses, obligatoriedad, y flags de IA (`LecturaIaActiva`, `DeteccionTrabajadoresActiva`).
 - **Alerta / NotificacionUsuario / DeteccionTrabajador / RegistroAuditoria**: derivados operativos (avisos de vencimiento, notificaciones persistentes por usuario, altas/bajas detectadas por IA en documentos, auditoría de cambios).
@@ -55,7 +61,7 @@ erDiagram
 
 ## Agregados raíz
 
-Con repositorio propio (nunca `IRepository<T>` genérico): `Cliente`, `Empresa`, `Subcontrata`, `Centro`, `Trabajador`, `Vehiculo`, `Documento`, `TipoDocumento`, `Asignacion`, `Visita`, `Alerta`, `NotificacionUsuario`, `ParametroSistema`, `RegistroAuditoria`, `Evaluacion`, `Incidencia` — y `Tenant` (ver ADR-003). `DelegacionTenant`/`AsignacionOperadorDelegado` (ADR-004, Capa 0) son catálogo global sin `TenantId`, mismo tratamiento que `Tenant` — no son agregados de dominio CAE. Las tablas de unión y satélites 1:1 se gestionan a través de su raíz.
+Con repositorio propio (nunca `IRepository<T>` genérico): `Cliente`, `Empresa`, `Subcontrata`, `Centro`, `Trabajador`, `Vehiculo`, `Documento`, `TipoDocumento`, `Asignacion`, `Visita`, `Alerta`, `NotificacionUsuario`, `ParametroSistema`, `RegistroAuditoria`, `Evaluacion`, `Incidencia`, `ConversacionCorreo`, `ContactoWhatsApp`, `MacroRespuesta`, `SolicitudPrioridadDocumento`, `SugerenciaGestionCorreo`, `SugerenciaVisitaCorreo`, `Gestion` — y `Tenant` (ver ADR-003). `DelegacionTenant`/`AsignacionOperadorDelegado` (ADR-004, Capa 0) son catálogo global sin `TenantId`, mismo tratamiento que `Tenant` — no son agregados de dominio CAE. Las tablas de unión y satélites 1:1 se gestionan a través de su raíz.
 
 ## Regla de negocio central
 
