@@ -239,7 +239,7 @@ public partial class Clientes : ComponentBase
     private Task GuardarAsync() => GuardarAsync(continuarACrearEmpresa: false);
 
     /// <summary>
-    /// "Guardar y crear empresa" (Fase A2): mismo guardado, pero al crear un
+    /// "Continuar con la empresa" (Fase A2): mismo guardado, pero al crear un
     /// Cliente nuevo con éxito navega a <c>/empresas?accion=crear</c> con el
     /// Cliente recién creado ya fijado — encadena el alta sin pasar por el
     /// asistente completo de <c>/clientes/alta-guiada</c>.

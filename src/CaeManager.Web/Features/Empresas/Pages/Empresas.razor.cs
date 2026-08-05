@@ -81,7 +81,7 @@ public partial class Empresas : ComponentBase
     [SupplyParameterFromQuery] public string? Nombre { get; set; }
 
     /// <summary>
-    /// Encadenado desde "Guardar y crear empresa" en /clientes (Fase A2): el
+    /// Encadenado desde "Continuar con la empresa" en /clientes (Fase A2): el
     /// Cliente recién creado llega premarcado en el selector, para no tener
     /// que volver a buscarlo.
     /// </summary>
@@ -290,7 +290,7 @@ public partial class Empresas : ComponentBase
     private Task GuardarAsync() => GuardarAsync(continuarACrearCentro: false);
 
     /// <summary>
-    /// "Guardar y crear centro" (Fase A2): igual que <see cref="GuardarAsync()"/>
+    /// "Continuar con el centro" (Fase A2): igual que <see cref="GuardarAsync()"/>
     /// pero, al crear una Empresa nueva con éxito, en vez de dejar el Drawer
     /// en modo edición (el comportamiento normal — ver comentario más abajo)
     /// navega directamente a <c>/centros?accion=crear</c> con Cliente y
