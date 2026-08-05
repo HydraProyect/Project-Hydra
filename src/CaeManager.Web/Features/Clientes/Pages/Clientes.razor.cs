@@ -236,7 +236,17 @@ public partial class Clientes : ComponentBase
         return Task.CompletedTask;
     }
 
-    private async Task GuardarAsync()
+    private Task GuardarAsync() => GuardarAsync(continuarACrearEmpresa: false);
+
+    /// <summary>
+    /// "Guardar y crear empresa" (Fase A2): mismo guardado, pero al crear un
+    /// Cliente nuevo con éxito navega a <c>/empresas?accion=crear</c> con el
+    /// Cliente recién creado ya fijado — encadena el alta sin pasar por el
+    /// asistente completo de <c>/clientes/alta-guiada</c>.
+    /// </summary>
+    private Task GuardarYCrearEmpresaAsync() => GuardarAsync(continuarACrearEmpresa: true);
+
+    private async Task GuardarAsync(bool continuarACrearEmpresa)
     {
         _guardando = true;
         _mensajeErrorFormulario = null;
@@ -246,11 +256,14 @@ public partial class Clientes : ComponentBase
         {
             var notas = string.IsNullOrWhiteSpace(_notas) ? null : _notas;
             string? mensajeError;
+            Guid? clienteCreadoId = null;
 
             if (_editandoId is null)
             {
                 var resultado = await Mediator.Send(new CrearClienteCommand(_razonSocial, _cif, _esCritico, notas));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+                if (resultado.EsExitoso)
+                    clienteCreadoId = resultado.Valor;
             }
             else
             {
@@ -278,6 +291,13 @@ public partial class Clientes : ComponentBase
                 TonoToast.Exito);
 
             _drawerVisible = false;
+
+            if (continuarACrearEmpresa && clienteCreadoId is not null)
+            {
+                NavigationManager.NavigateTo($"/empresas?accion=crear&clienteId={clienteCreadoId}");
+                return;
+            }
+
             await RecargarAsync();
         }
         catch (ValidationException ex)

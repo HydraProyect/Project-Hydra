@@ -19,7 +19,11 @@ Todo el sistema usa exactamente los mismos patrones para las mismas acciones. Un
 ## Patrones de acción
 
 ### Crear
-Botón primario arriba a la derecha de la tabla/lista ("+ Nuevo cliente"). Abre formulario en **Drawer** lateral (no navega a otra página) para acciones simples de un solo agregado; usa página completa solo cuando el formulario tiene múltiples secciones/pestañas (p. ej. Trabajador con documentos y asignaciones). Al guardar: toast de éxito + la tabla se actualiza sin recargar página + el drawer se cierra.
+Botón primario arriba a la derecha de la tabla/lista ("+ Nuevo cliente"). Abre formulario en **Drawer** lateral (no navega a otra página) para acciones simples de un solo agregado; usa página completa solo cuando el formulario tiene múltiples secciones/pestañas (p. ej. Trabajador con documentos y asignaciones, o un asistente de varios pasos como `/clientes/alta-guiada`). Al guardar: toast de éxito + la tabla se actualiza sin recargar página + el drawer se cierra.
+
+**Alta encadenada**: cuando crear una entidad casi siempre implica crear la siguiente de la jerarquía (Cliente → Empresa → Centro), el Drawer ofrece un botón secundario "Guardar y crear X" junto al primario — guarda igual, pero en vez de cerrar navega a la creación de la siguiente entidad con el padre ya fijado en el selector (`?clienteId=…`). Un asistente de página completa con `IndicadorPasos` es la versión que hace los tres saltos seguidos sin salir de una pantalla, con guardado incremental real en cada paso — nunca una transacción larga que se pueda perder a medio camino.
+
+**Crear inline en un selector**: cuando el registro que hace falta no existe todavía, el selector (`SelectorEntidad`) ofrece una fila "+ Crear «texto»" que abre un formulario mínimo en **Modal** (nunca un Drawer anidado — un Drawer dentro de otro rompe el focus trap de ambos). Al guardar, el nuevo registro queda seleccionado sin que el usuario pierda lo que ya llevaba escrito en el formulario que lo necesitaba.
 
 ### Editar
 Mismo formulario que crear, precargado. Se accede desde la fila de la tabla (icono de lápiz o click en la fila) o desde el detalle. Autoguardado **no** se usa en formularios con relaciones de negocio críticas (documentos, vigencias) — se guarda explícitamente para que el usuario tenga control sobre cuándo un cambio de vigencia se aplica. Sí se permite autoguardado en campos de notas/comentarios libres.

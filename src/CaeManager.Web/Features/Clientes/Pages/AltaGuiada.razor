@@ -1,0 +1,147 @@
+@page "/clientes/alta-guiada"
+@rendermode InteractiveServer
+@using CaeManager.Application.Centros.Commands.CrearCentro
+@using CaeManager.Application.Clientes.Commands.CrearCliente
+@using CaeManager.Application.Empresas.Commands.CrearEmpresa
+@using CaeManager.Application.Empresas.Commands.EditarEmpresa
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
+@using CaeManager.Web.Components.Workspace
+@using FluentValidation
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject NavigationManager NavigationManager
+@inject ContextWorkspaceService WorkspaceService
+
+<PageTitle>Alta guiada — CAE Manager</PageTitle>
+
+<div class="contenedor-pagina contenedor-alta-guiada">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Alta guiada de cliente</h1>
+        <a class="enlace-exportar" href="/clientes">Volver a Clientes</a>
+    </div>
+    <p class="descripcion-importacion">
+        Da de alta el Cliente, su Empresa y el primer Centro en un solo sitio. Cada paso se guarda al confirmarlo — si
+        te detienes a mitad de camino, lo ya creado no se pierde.
+    </p>
+
+    <IndicadorPasos Pasos="Pasos" PasoActual="@_pasoActual" PasosCompletados="_pasosCompletados" EtiquetaGrupo="Alta guiada" />
+
+    <Tarjeta Class="tarjeta-alta-guiada">
+        @if (_pasoActual == "cliente")
+        {
+            <h2 class="titulo-seccion-importacion">1. Cliente</h2>
+
+            @if (_mensajeErrorCliente is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorCliente</div>
+            }
+
+            <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialCliente" ValorChanged="v => _razonSocialCliente = v"
+                        MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.RazonSocial))" />
+            <CampoTexto Etiqueta="CIF" Valor="@_cifCliente" ValorChanged="v => _cifCliente = v"
+                        MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.Cif))" />
+
+            <label class="campo-checkbox">
+                <input type="checkbox" @bind="_esCriticoCliente" /> Cliente crítico
+            </label>
+
+            <CampoTextarea Etiqueta="Notas" Valor="@_notasCliente" ValorChanged="v => _notasCliente = v" Filas="3" />
+
+            <div class="acciones-formulario">
+                <Boton Cargando="_guardandoCliente" OnClick="GuardarClienteAsync">Guardar y continuar a Empresa</Boton>
+                <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_guardandoCliente" OnClick='() => NavigationManager.NavigateTo("/clientes")'>
+                    Cancelar
+                </Boton>
+            </div>
+        }
+        else if (_pasoActual == "empresa")
+        {
+            <h2 class="titulo-seccion-importacion">2. Empresa</h2>
+            <p class="texto-vacio-seccion">Cliente: <strong>@_clienteNombre</strong></p>
+
+            @if (_mensajeErrorEmpresa is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorEmpresa</div>
+            }
+
+            <label class="campo-checkbox">
+                <input type="checkbox" @bind="_empresaExistente" /> Usar una empresa que ya existe
+            </label>
+
+            @if (_empresaExistente)
+            {
+                <CampoSelect Etiqueta="Empresa" Valor="@_empresaExistenteId" ValorChanged="v => _empresaExistenteId = v">
+                    <option value="">Selecciona una empresa…</option>
+                    @foreach (var empresa in _empresasCatalogo)
+                    {
+                        <option value="@empresa.Id">@empresa.RazonSocial</option>
+                    }
+                </CampoSelect>
+            }
+            else
+            {
+                <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialEmpresa" ValorChanged="v => _razonSocialEmpresa = v"
+                            MensajeError="@ObtenerError(_erroresEmpresa, nameof(CrearEmpresaCommand.RazonSocial))" />
+                <CampoTexto Etiqueta="CIF" Valor="@_cifEmpresa" ValorChanged="v => _cifEmpresa = v"
+                            MensajeError="@ObtenerError(_erroresEmpresa, nameof(CrearEmpresaCommand.Cif))" />
+            }
+
+            <div class="acciones-formulario">
+                <Boton Cargando="_guardandoEmpresa" OnClick="GuardarEmpresaAsync">
+                    @(_empresaExistente ? "Vincular y continuar a Centro" : "Guardar y continuar a Centro")
+                </Boton>
+                <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_guardandoEmpresa" OnClick="VerClienteAsync">
+                    Terminar aquí
+                </Boton>
+            </div>
+        }
+        else
+        {
+            <h2 class="titulo-seccion-importacion">3. Centro</h2>
+            <p class="texto-vacio-seccion">
+                Cliente: <strong>@_clienteNombre</strong> · Empresa: <strong>@_empresaNombre</strong>
+            </p>
+
+            @if (_mensajeErrorCentro is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorCentro</div>
+            }
+
+            <CampoTexto Etiqueta="Nombre" Valor="@_nombreCentro" ValorChanged="v => _nombreCentro = v"
+                        MensajeError="@ObtenerError(_erroresCentro, nameof(CrearCentroCommand.Nombre))" />
+            <CampoTexto Etiqueta="Código de centro" Valor="@_codigoCentro" ValorChanged="v => _codigoCentro = v" />
+            <CampoTexto Etiqueta="Dirección" Valor="@_direccionCentro" ValorChanged="v => _direccionCentro = v" />
+            <CampoTexto Etiqueta="Contacto" Valor="@_contactoCentro" ValorChanged="v => _contactoCentro = v" />
+            <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHasta" ValorChanged="v => _contratoVigenteHasta = v" />
+
+            <div class="acciones-formulario">
+                <Boton Cargando="_guardandoCentro" OnClick="GuardarCentroAsync">Guardar centro</Boton>
+                @if (_centrosCreados == 0)
+                {
+                    <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_guardandoCentro" OnClick="VerEmpresaAsync">
+                        Terminar aquí
+                    </Boton>
+                }
+            </div>
+
+            @if (_centrosCreados > 0)
+            {
+                <div class="resumen-alta-guiada" role="status">
+                    <p>
+                        <strong>@_ultimoCentroNombre</strong> creado.
+                        @(_centrosCreados > 1 ? $"({_centrosCreados} centros creados en esta alta.)" : "")
+                    </p>
+                    <div class="acciones-formulario">
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="VerClienteAsync">Ver el cliente</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="AnadirRequisitosAsync">Añadir requisitos documentales</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick='() => NavigationManager.NavigateTo("/asignaciones")'>
+                            Asignar trabajadores
+                        </Boton>
+                    </div>
+                </div>
+            }
+        }
+    </Tarjeta>
+</div>
