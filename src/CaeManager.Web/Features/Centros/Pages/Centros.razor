@@ -70,6 +70,7 @@
             @foreach (var centro in _elementosPagina)
             {
                 <div class="@("tarjeta-fila-acordeon" + (centro.Id == _idEnfocado ? " fila-enfocada" : ""))" @key="centro.Id">
+                    @{ var visita = _visitasPorCentro.GetValueOrDefault(centro.Id); }
                     <div class="tarjeta-fila-acordeon-cabecera">
                         <input type="checkbox" checked="@_seleccionados.Contains(centro.Id)" @onchange="e => AlternarSeleccion(centro.Id, (bool)e.Value!)" />
                         <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
@@ -77,6 +78,13 @@
                         </button>
                         <span class="tarjeta-fila-acordeon-meta">@centro.ClienteRazonSocial · @centro.EmpresaRazonSocial@(string.IsNullOrEmpty(centro.CodigoCentro) ? "" : $" · {centro.CodigoCentro}")</span>
                         <Badge Tono="EstadoCentroUi.Tono(centro.Estado)">@EstadoCentroUi.Texto(centro.Estado)</Badge>
+                        @if (visita is not null)
+                        {
+                            <button type="button" class="badge-visita"
+                                    @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
+                                Visita @visita.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
+                            </button>
+                        }
                         <div class="tarjeta-fila-acordeon-acciones">
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
                                 Ver
@@ -91,7 +99,8 @@
                     </div>
                     <SeccionColapsable Titulo="Asignaciones">
                         <ChildContent>
-                            <AcordeonAsignacionesCentro CentroId="centro.Id" CentroNombre="centro.Nombre" />
+                            <AcordeonAsignacionesCentro CentroId="centro.Id" CentroNombre="centro.Nombre"
+                                                          VisitaId="visita?.VisitaId" VisitaFechaFin="visita?.FechaFin" />
                         </ChildContent>
                     </SeccionColapsable>
                 </div>

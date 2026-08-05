@@ -256,6 +256,44 @@
     border-radius: 0;
 }
 
+/*
+  Badge "Visita dd/mm–dd/mm" (Centro 360 § 0.3) — no es <Badge> porque ese
+  componente renderiza un <span> (Badge.razor); aquí hace falta un <button>
+  real (clicable, foco de teclado) con el mismo aspecto visual. Mismos
+  tokens que .badge-info de Badge.razor.css — ese CSS está scoped al
+  componente y no llega hasta aquí.
+*/
+.badge-visita {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    font: var(--font-label-md);
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    background-color: var(--color-info-50);
+    color: var(--color-info-500);
+    border: none;
+    cursor: pointer;
+}
+
+.badge-visita:hover {
+    text-decoration: underline;
+}
+
+/*
+  Modificador "vigente con riesgo en ventana de visita" (Centro 360 § 0.3,
+  dado de alta también en DESIGN_SYSTEM.md/UX_PATTERNS.md): sigue siendo un
+  badge Exito (el documento SÍ está vigente hoy) — el borde ámbar es la
+  única señal de que caduca antes de que termine la próxima visita del
+  centro. No es un cuarto color del semáforo, es un modificador encima de
+  uno de los tres ya existentes.
+*/
+.badge-riesgo-ventana-visita {
+    box-shadow: inset 0 0 0 1.5px var(--color-warning-500);
+}
+
 .acordeon-asignaciones-cabecera {
     display: flex;
     align-items: center;
