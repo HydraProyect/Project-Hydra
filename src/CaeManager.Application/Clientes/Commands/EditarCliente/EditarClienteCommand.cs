@@ -55,13 +55,13 @@ public class EditarClienteCommandValidator : AbstractValidator<EditarClienteComm
 /// el formulario está abierto) y el token de EF cubre la corta (dos guardados
 /// en el mismo instante); ninguna de las dos sobra.
 /// </summary>
-public class EditarClienteCommandHandler(IClienteRepository repositorio, IUnitOfWork unitOfWork)
+public class EditarClienteCommandHandler(IClienteRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarClienteCommand, Result>
 {
     public async Task<Result> Handle(EditarClienteCommand request, CancellationToken cancellationToken)
     {
         var cliente = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (cliente is null)
+        if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
 
         if (ConcurrenciaOptimista.Verificar(cliente, request.Version, "este cliente") is { } conflicto)

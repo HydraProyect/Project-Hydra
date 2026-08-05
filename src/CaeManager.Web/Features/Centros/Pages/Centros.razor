@@ -3,11 +3,15 @@
 @using CaeManager.Application.Centros.Commands.CrearCentro
 @using CaeManager.Application.Centros.Commands.EditarCentro
 @using CaeManager.Application.Centros.Commands.EliminarCentro
+@using CaeManager.Application.Centros.Commands.EliminarCentros
 @using CaeManager.Application.Centros.Queries.ObtenerCentroPorId
 @using CaeManager.Application.Centros.Queries.ObtenerCentros
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
 @using CaeManager.Application.Common
+@using CaeManager.Web.Features.Centros
+@using CaeManager.Web.Features.Clientes.Components
+@using CaeManager.Web.Features.Empresas.Components
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
@@ -26,7 +30,11 @@
 
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por nombre…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <FiltroEstado Etiqueta="Cumplimiento" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                      Opciones="EstadoCentroUi.Opciones" />
     </div>
+
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
     @if (_errorCarga)
     {
@@ -39,11 +47,26 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="CentroListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos">
-                <PropertyColumn Property="@(c => c.Nombre)" Sortable="true" />
+            <QuickGrid @ref="_grid" TGridItem="CentroListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                <TemplateColumn Title="" Align="Align.Center">
+                    <HeaderTemplate Context="columna">
+                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                    </HeaderTemplate>
+                    <ChildContent>
+                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                    </ChildContent>
+                </TemplateColumn>
+                <TemplateColumn Title="Nombre" Sortable="true" SortBy="@(GridSort<CentroListaDto>.ByAscending(c => c.Nombre))">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.Id, context.Nombre, "informacion")'>
+                        @context.Nombre
+                    </button>
+                </TemplateColumn>
                 <PropertyColumn Property="@(c => c.ClienteRazonSocial)" Title="Cliente" Sortable="true" />
-                <PropertyColumn Property="@(c => c.EmpresaRazonSocial)" Title="Empresa" />
-                <PropertyColumn Property="@(c => c.CodigoCentro)" Title="Código" />
+                <PropertyColumn Property="@(c => c.EmpresaRazonSocial)" Title="Empresa" Sortable="true" />
+                <PropertyColumn Property="@(c => c.CodigoCentro)" Title="Código" Sortable="true" />
+                <TemplateColumn Title="Cumplimiento" Sortable="true" SortBy="@(GridSort<CentroListaDto>.ByAscending(c => c.Estado))">
+                    <Badge Tono="EstadoCentroUi.Tono(context.Estado)">@EstadoCentroUi.Texto(context.Estado)</Badge>
+                </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.Id, context.Nombre, "informacion")'>
                         Ver
@@ -80,25 +103,7 @@
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
         }
 
-        @if (_editandoId is null)
-        {
-            <CampoSelect Etiqueta="Cliente" Valor="@_clienteId" ValorChanged="v => _clienteId = v">
-                <option value="">Selecciona un cliente…</option>
-                @foreach (var cliente in _clientesDisponibles)
-                {
-                    <option value="@cliente.Id">@cliente.RazonSocial</option>
-                }
-            </CampoSelect>
-
-            <CampoSelect Etiqueta="Empresa" Valor="@_empresaId" ValorChanged="v => _empresaId = v">
-                <option value="">Selecciona una empresa…</option>
-                @foreach (var empresa in _empresasDisponibles)
-                {
-                    <option value="@empresa.Id">@empresa.RazonSocial</option>
-                }
-            </CampoSelect>
-        }
-        else
+        @if (_editandoId is not null || _padresFijadosPorCadena)
         {
             <div class="campo">
                 <label>Cliente</label>
@@ -108,6 +113,24 @@
                 <label>Empresa</label>
                 <span>@_empresaNombreSoloLectura</span>
             </div>
+
+            @if (_editandoId is null)
+            {
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="DesvincularPadresFijadosAsync">
+                    Cambiar cliente/empresa
+                </Boton>
+            }
+        }
+        else
+        {
+            <SelectorEntidad Etiqueta="Cliente" Placeholder="Busca o crea un cliente…" Valor="@_clienteId"
+                              ValorChanged="CambiarClienteCreacionAsync" Opciones="ClientesComoOpciones"
+                              PermiteCrear="true" OnCrearSolicitado="AbrirCrearClienteInline" />
+
+            <SelectorEntidad Etiqueta="Empresa" Placeholder="@(string.IsNullOrEmpty(_clienteId) ? "Elige primero un cliente…" : "Busca o crea una empresa…")"
+                              Valor="@_empresaId" ValorChanged="v => _empresaId = v" Opciones="EmpresasComoOpciones"
+                              Deshabilitado="@(string.IsNullOrEmpty(_clienteId))"
+                              PermiteCrear="true" OnCrearSolicitado="AbrirCrearEmpresaInline" />
         }
 
         <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" OnBlur="ValidarNombreAsync" MensajeError="@ObtenerError(nameof(CrearCentroCommand.Nombre))" />
@@ -120,16 +143,40 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             Cancelar
         </Boton>
+        @if (_editandoId is null)
+        {
+            <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearOtroAsync">
+                Añadir otro centro
+            </Boton>
+        }
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>
     </Pie>
 </Drawer>
 
+<FormularioRapidoCliente Visible="_formularioRapidoClienteVisible" VisibleChanged="v => _formularioRapidoClienteVisible = v"
+                          NombreInicial="@_nombreParaCrearCliente" OnCreado="ManejarClienteCreadoAsync" />
+
+<FormularioRapidoEmpresa Visible="_formularioRapidoEmpresaVisible" VisibleChanged="v => _formularioRapidoEmpresaVisible = v"
+                          NombreInicial="@_nombreParaCrearEmpresa" ClienteIdParaVincular="@ClienteIdParaFormularioRapido"
+                          OnCreado="ManejarEmpresaCreadaAsync" />
+
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
     Titulo="@($"¿Eliminar {_nombreAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas. Podrás recuperarlo desde Auditoría."
+    Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarLoteVisible"
+    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
+    Titulo="@($"¿Eliminar {_seleccionados.Count} centro(s)?")"
+    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría."
+    EnProgreso="_eliminandoLote"
+    OnConfirmar="ConfirmarEliminarLoteAsync" />

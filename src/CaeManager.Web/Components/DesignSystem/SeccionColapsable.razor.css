@@ -1,0 +1,59 @@
+.seccion-colapsable {
+    border: var(--border-default);
+    border-radius: var(--radius-card-sm);
+    overflow: hidden;
+}
+
+.seccion-colapsable + .seccion-colapsable {
+    margin-top: var(--space-3);
+}
+
+.seccion-colapsable-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    background: var(--color-surface);
+    border: none;
+    padding: var(--space-3) var(--space-4);
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+    cursor: pointer;
+    text-align: left;
+    transition: background-color var(--transition-fast);
+}
+
+.seccion-colapsable-cabecera:hover {
+    background: var(--color-surface-hover);
+}
+
+.seccion-colapsable-cabecera:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
+
+.seccion-colapsable-chevron {
+    display: inline-flex;
+    color: var(--color-text-muted);
+    transition: transform var(--transition-fast);
+}
+
+.seccion-colapsable-chevron-abierta {
+    transform: rotate(180deg);
+}
+
+.seccion-colapsable-titulo {
+    flex: 1;
+}
+
+.seccion-colapsable-encabezado {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.seccion-colapsable-contenido {
+    padding: var(--space-4);
+    border-top: var(--border-default);
+}

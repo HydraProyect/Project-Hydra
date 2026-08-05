@@ -23,7 +23,8 @@ namespace CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 public record DetectarCamposDocumentoQuery(byte[] Contenido, string NombreArchivo, AmbitoAplicacion Ambito)
     : IRequest<Result<DeteccionCamposDocumentoDto>>;
 
-public record DeteccionCamposDocumentoDto(Guid? TipoDocumentoId, Guid? TrabajadorId, int ConfianzaGeneral);
+public record DeteccionCamposDocumentoDto(
+    Guid? TipoDocumentoId, Guid? TrabajadorId, int ConfianzaGeneral, string? AliasSugerido = null);
 
 public class DetectarCamposDocumentoQueryHandler(
     IDocumentAIRouterService router,
@@ -58,11 +59,11 @@ public class DetectarCamposDocumentoQueryHandler(
             return Result.Exito(new DeteccionCamposDocumentoDto(null, null, extraccion.ConfianzaGeneral));
 
         var tipoDocumentoId = await DetectarTipoDocumentoAsync(extraccion.TipoDetectado, request.Ambito, cancellationToken);
-        var trabajadorId = request.Ambito == AmbitoAplicacion.Trabajador
+        (Guid? trabajadorId, string? aliasSugerido) = request.Ambito == AmbitoAplicacion.Trabajador
             ? await DetectarTrabajadorAsync(extraccion.Campos, cancellationToken)
-            : null;
+            : (null, null);
 
-        return Result.Exito(new DeteccionCamposDocumentoDto(tipoDocumentoId, trabajadorId, extraccion.ConfianzaGeneral));
+        return Result.Exito(new DeteccionCamposDocumentoDto(tipoDocumentoId, trabajadorId, extraccion.ConfianzaGeneral, aliasSugerido));
     }
 
     /// <summary>Solo sugiere si hay una única coincidencia razonable — ante cualquier ambigüedad, mejor dejarlo en blanco que arriesgar una mala sugerencia.</summary>
@@ -84,18 +85,42 @@ public class DetectarCamposDocumentoQueryHandler(
         return coincidencias.Count == 1 ? coincidencias[0].Id : null;
     }
 
-    private async Task<Guid?> DetectarTrabajadorAsync(IReadOnlyDictionary<string, string?> campos, CancellationToken cancellationToken)
+    /// <summary>
+    /// La identidad siempre se confirma por DNI, nunca por el nombre — pero
+    /// si el campo "nombreTrabajador" que ya extraen los proveedores de IA
+    /// (ver AnthropicDocumentAIProvider et al.) no coincide ni con el
+    /// Nombre+Apellidos oficiales ni con el Alias ya guardado, se devuelve
+    /// como sugerencia de alias — un clic del Gestor en vez de tener que ir
+    /// a Trabajadores a añadirlo a mano (ver Trabajador.AsignarAlias).
+    /// </summary>
+    private async Task<(Guid? TrabajadorId, string? AliasSugerido)> DetectarTrabajadorAsync(
+        IReadOnlyDictionary<string, string?> campos, CancellationToken cancellationToken)
     {
         var dniDetectado = campos.GetValueOrDefault("documentoIdentidadTrabajador");
         if (string.IsNullOrWhiteSpace(dniDetectado))
-            return null;
+            return (null, null);
 
         var dniNormalizado = NormalizarDni(dniDetectado);
         var trabajadores = await trabajadoresContext.Trabajadores
-            .Select(t => new { t.Id, t.Dni })
+            .Select(t => new { t.Id, t.Dni, t.Nombre, t.Apellidos, t.Alias })
             .ToListAsync(cancellationToken);
 
-        return trabajadores.FirstOrDefault(t => NormalizarDni(t.Dni) == dniNormalizado)?.Id;
+        var trabajador = trabajadores.FirstOrDefault(t => NormalizarDni(t.Dni) == dniNormalizado);
+        if (trabajador is null)
+            return (null, null);
+
+        var nombreDetectado = campos.GetValueOrDefault("nombreTrabajador")?.Trim();
+        if (string.IsNullOrWhiteSpace(nombreDetectado))
+            return (trabajador.Id, null);
+
+        var nombreOficial = $"{trabajador.Nombre} {trabajador.Apellidos}";
+        var coincideConOficial = string.Equals(nombreDetectado, nombreOficial, StringComparison.OrdinalIgnoreCase);
+        var coincideConAlias = trabajador.Alias is not null
+            && string.Equals(nombreDetectado, trabajador.Alias, StringComparison.OrdinalIgnoreCase);
+
+        var aliasSugerido = coincideConOficial || coincideConAlias ? null : nombreDetectado;
+
+        return (trabajador.Id, aliasSugerido);
     }
 
     private static string NormalizarDni(string dni) =>

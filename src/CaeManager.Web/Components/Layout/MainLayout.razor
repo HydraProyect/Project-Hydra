@@ -18,8 +18,8 @@
                         <span class="menu-usuario-nombre">@context.User.Identity?.Name</span>
                         <form method="post" action="/cuenta/cerrar-sesion">
                             <AntiforgeryToken />
-                            <button type="submit" class="boton-cerrar-sesion">
-                                <Icono Nombre="cerrar-sesion" Tamano="TamanoIcono.Pequeno" /> Cerrar sesión
+                            <button type="submit" class="boton-cerrar-sesion" aria-label="Cerrar sesión">
+                                <Icono Nombre="cerrar-sesion" Tamano="TamanoIcono.Pequeno" /> <span class="boton-cerrar-sesion-texto">Cerrar sesión</span>
                             </button>
                         </form>
                     </div>
@@ -53,6 +53,7 @@
         <CaeManager.Web.Features.AsistenteIa.AsistenteIa @rendermode="InteractiveServer" />
         <CaeManager.Web.Features.Notificaciones.NotificacionesPopup />
         <CaeManager.Web.Components.Workspace.ContextWorkspace @rendermode="InteractiveServer" />
+        <CaeManager.Web.Features.AtajosGlobales.AtajosGlobales @rendermode="InteractiveServer" />
     </Authorized>
 </AuthorizeView>
 

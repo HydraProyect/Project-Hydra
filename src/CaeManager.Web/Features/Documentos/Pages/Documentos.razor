@@ -34,6 +34,7 @@
             <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
                 <a class="enlace-exportar" href="/documentos/importar">Importar documentos</a>
             </AuthorizeView>
+            <a class="enlace-exportar" href="/documentos/subida-masiva">Subida múltiple</a>
             <Boton OnClick="AbrirCrearAsync">+ Nuevo documento</Boton>
         </div>
     </div>
@@ -94,15 +95,15 @@
                     </ChildContent>
                 </TemplateColumn>
                 <PropertyColumn Property="@(d => d.PropietarioNombre)" Title="Propietario" Sortable="true" />
-                <TemplateColumn Title="Ámbito">
+                <TemplateColumn Title="Ámbito" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Ambito))">
                     <Badge>@context.Ambito</Badge>
                 </TemplateColumn>
-                <PropertyColumn Property="@(d => d.TipoDocumentoNombre)" Title="Tipo de documento" />
-                <PropertyColumn Property="@(d => d.FechaEmision)" Format="dd/MM/yyyy" Title="Emisión" />
-                <TemplateColumn Title="Vencimiento">
+                <PropertyColumn Property="@(d => d.TipoDocumentoNombre)" Title="Tipo de documento" Sortable="true" />
+                <PropertyColumn Property="@(d => d.FechaEmision)" Format="dd/MM/yyyy" Title="Emisión" Sortable="true" />
+                <TemplateColumn Title="Vencimiento" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.FechaVencimiento))">
                     @(context.FechaVencimiento is null ? "—" : context.FechaVencimiento.Value.ToString("dd/MM/yyyy"))
                 </TemplateColumn>
-                <TemplateColumn Title="Estado">
+                <TemplateColumn Title="Estado" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))">
                     <Badge Tono="EstadoDocumentoUi.Tono(context.Estado)">@EstadoDocumentoUi.Texto(context.Estado)</Badge>
                 </TemplateColumn>
                 <TemplateColumn Title="Archivo">
@@ -167,11 +168,25 @@
                     Etiqueta="Trabajador"
                     Marcador="Escribe un nombre o DNI para buscar…"
                     Valor="@_trabajadorId"
-                    ValorChanged="v => _trabajadorId = v"
+                    ValorChanged="CambiarTrabajadorSeleccionado"
                     Opciones="@OpcionesTrabajadores" />
                 @if (_detectandoCampos)
                 {
                     <span class="detalle-tecnico">Leyendo el archivo para sugerir trabajador y tipo de documento…</span>
+                }
+                @if (_aliasSugerido is not null)
+                {
+                    <div class="workspace-nota-contextual">
+                        El documento identifica a este trabajador como "@_aliasSugerido", que no coincide con su nombre registrado.
+                        <div class="workspace-tarjeta-requisito-acciones">
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _aliasSugerido = null" Deshabilitado="_asignandoAliasSugerido">
+                                Descartar
+                            </Boton>
+                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="AceptarAliasSugeridoAsync" Cargando="_asignandoAliasSugerido">
+                                Añadir como alias
+                            </Boton>
+                        </div>
+                    </div>
                 }
             }
             else if (_ambitoAplicacion == nameof(AmbitoAplicacion.Cliente))
@@ -283,16 +298,14 @@
 
         <div class="campo">
             <label>Archivo (PDF, JPG, PNG o Word, máx. 10 MB por archivo)</label>
-            <InputFile OnChange="ManejarArchivoSeleccionadoAsync" multiple accept=".pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+            <ZonaSoltarArchivo
+                OnChange="ManejarArchivoSeleccionadoAsync"
+                Multiple="true"
+                Accept=".pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                FormatosTexto="PDF · JPG · PNG · DOCX"
+                Cargando="_subiendoArchivo"
+                NombreArchivoActual="@(_archivoUrl is not null ? "Archivo adjuntado correctamente." : null)" />
             <p class="texto-vacio-seccion">Puedes seleccionar varios archivos a la vez (p. ej. varias fotos) — se combinan automáticamente en un solo PDF.</p>
-            @if (_subiendoArchivo)
-            {
-                <span class="detalle-tecnico">Procesando…</span>
-            }
-            else if (_archivoUrl is not null)
-            {
-                <span class="detalle-tecnico">Archivo adjuntado correctamente.</span>
-            }
         </div>
 
         <CampoTextarea Etiqueta="Comentarios" Valor="@_comentarios" ValorChanged="v => _comentarios = v" Filas="3" />
@@ -311,7 +324,7 @@
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
     Titulo="@($"¿Eliminar este documento?")"
-    Mensaje="@($"{_tipoDocumentoAEliminar} de {_propietarioAEliminar} se ocultará de las listas activas. Podrás recuperarlo desde Auditoría.")"
+    Mensaje="@($"{_tipoDocumentoAEliminar} de {_propietarioAEliminar} se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá.")"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
@@ -323,6 +336,14 @@
     TextoBotonConfirmar="Continuar de todas formas"
     EnProgreso="_procesandoConfirmacionVigencia"
     OnConfirmar="ConfirmarGuardarConVigenciaAnteriorAsync" />
+
+<DialogoConfirmacion
+    Visible="_confirmarTipoSospechosoVisible"
+    VisibleChanged="v => _confirmarTipoSospechosoVisible = v"
+    Titulo="Este documento no parece coincidir"
+    Mensaje="@($"Detectamos que este archivo es un \"{_tipoSospechosoDetectadoNombre}\", pero estás subiéndolo como \"{_tipoSospechosoSeleccionadoNombre}\". ¿Seguro que quieres continuar?")"
+    TextoBotonConfirmar="Sí, continuar"
+    OnConfirmar="() => _confirmarTipoSospechosoVisible = false" />
 
 <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
                     OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
