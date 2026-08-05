@@ -25,6 +25,7 @@
     private readonly string _id = $"campo-buscar-{Guid.NewGuid():N}";
     private readonly string _listaId = $"campo-buscar-lista-{Guid.NewGuid():N}";
     private string _texto = string.Empty;
+    private string _ultimoTextoTecleado = string.Empty;
     private string _ultimoValorNotificado = string.Empty;
     private CancellationTokenSource? _debounceCts;
 
@@ -54,7 +55,13 @@
 
     private async Task ManejarEscrituraAsync(ChangeEventArgs e)
     {
-        _texto = e.Value?.ToString() ?? string.Empty;
+        // _texto (lo que se pinta en value="@_texto") no se toca aquí —
+        // mismo motivo que CampoTexto.ManejarCambioAsync: el navegador ya
+        // tiene el valor correcto en su propio DOM, y reflejarlo de vuelta
+        // en cada pulsación es lo que permite que un render en cola bajo
+        // latencia sobrescriba visualmente lo que el usuario ya ve con una
+        // versión más corta.
+        _ultimoTextoTecleado = e.Value?.ToString() ?? string.Empty;
 
         _debounceCts?.Cancel();
         _debounceCts?.Dispose();
@@ -70,7 +77,7 @@
             return;
         }
 
-        var coincidencia = Opciones.FirstOrDefault(o => o.Texto == _texto);
+        var coincidencia = Opciones.FirstOrDefault(o => o.Texto == _ultimoTextoTecleado);
         _ultimoValorNotificado = coincidencia?.Id ?? string.Empty;
         await ValorChanged.InvokeAsync(_ultimoValorNotificado);
     }
