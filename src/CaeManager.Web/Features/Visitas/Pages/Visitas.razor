@@ -17,6 +17,7 @@
 @using CaeManager.Web.Components.Workspace
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Visitas
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
@@ -39,6 +40,9 @@
         <CampoTexto Placeholder="Buscar por centro, cliente o empresa…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
         <label class="filtro-critico">
             <input type="checkbox" @bind="_soloActivas" @bind:after="RecargarAsync" /> Solo activas
+        </label>
+        <label class="filtro-critico">
+            <input type="checkbox" @bind="_soloUrgentes" @bind:after="RecargarAsync" /> Solo urgentes
         </label>
         <CampoSelect Etiqueta="Notificado al cliente" Valor="@_filtroNotificado" ValorChanged="FiltrarPorNotificadoAsync">
             <option value="">Todas</option>
@@ -89,10 +93,20 @@
                 <TemplateColumn Title="Fechas" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.FechaInicio))">
                     @context.FechaInicio.ToString("dd/MM/yyyy") – @context.FechaFin.ToString("dd/MM/yyyy")
                 </TemplateColumn>
+                <TemplateColumn Title="Urgencia" Align="Align.Center">
+                    @if (context.NivelUrgencia != NivelUrgenciaVisita.Normal)
+                    {
+                        <Badge Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)</Badge>
+                    }
+                </TemplateColumn>
                 <TemplateColumn Title="Origen" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
                     @if (context.Origen == OrigenVisita.Correo)
                     {
                         <Badge Tono="TonoBadge.Info">Correo</Badge>
+                    }
+                    else if (context.Origen == OrigenVisita.WhatsApp)
+                    {
+                        <Badge Tono="TonoBadge.Exito">WhatsApp</Badge>
                     }
                     else
                     {

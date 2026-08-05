@@ -415,6 +415,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITrabajoAnalisisDocumentoRepository, TrabajoAnalisisDocumentoRepository>();
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
+        // Fase F: aviso por hora (solo campana, sin correo en v1) de
+        // gestiones urgentes de visita — reutiliza ObtenerBandejaGestorQuery,
+        // sin interruptor de configuración propio (a diferencia del resumen
+        // de alertas por correo, no manda nada fuera de la aplicación).
+        services.AddHostedService<Visitas.VigilanciaVisitasUrgentesHostedService>();
+
         // Timeouts explícitos en todos los HttpClient de IA/Graph (P0-9 de
         // docs/business/MATURITY_REVIEW.md): el procesador de la cola de IA es
         // secuencial, así que una llamada colgada al proveedor detenía la cola

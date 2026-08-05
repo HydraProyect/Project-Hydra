@@ -1,8 +1,13 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
+using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Application.RequisitosDocumentales.Queries.ObtenerRequisitosDocumentalesPendientes;
+using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Visitas;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 
@@ -20,14 +25,24 @@ namespace CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 /// el mismo umbral "todavía no urgente" que ya separa `/alertas` de una
 /// cola de trabajo real — ver `EstadoDocumentoUi`. Sigue disponible completo
 /// en `/alertas`, que no pierde ninguna fila.
+///
+/// Fase F añade dos fuentes más: Visitas ya confirmadas dentro de la ventana
+/// mínima de validación de la plataforma del cliente, y sugerencias de
+/// visita (correo/WhatsApp) sin resolver todavía dentro de esa misma
+/// ventana — estas últimas son las de mayor prioridad de toda la cola: una
+/// "visita sorpresa" sin confirmar es lo más urgente de gestionar, porque
+/// hasta que alguien la confirma ni siquiera hay Visita ni documentación
+/// verificada.
 /// </summary>
 public record ObtenerBandejaGestorQuery : IRequest<IReadOnlyList<ItemBandejaDto>>;
 
 public enum TipoItemBandeja
 {
+    SugerenciaVisitaUrgente,
     Faltante,
     Vencido,
     RequisitoPendiente,
+    VisitaUrgente,
     Urgente,
     RevisionIa
 }
@@ -42,17 +57,28 @@ public record ItemBandejaDto(
     Guid? CentroId,
     Guid? DocumentoId,
     Guid? TipoDocumentoId,
-    Guid? RequisitoId);
+    Guid? RequisitoId,
+    Guid? SugerenciaVisitaId = null);
 
-public class ObtenerBandejaGestorQueryHandler(IMediator mediator) : IRequestHandler<ObtenerBandejaGestorQuery, IReadOnlyList<ItemBandejaDto>>
+public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracionQueryContext configuracionContext)
+    : IRequestHandler<ObtenerBandejaGestorQuery, IReadOnlyList<ItemBandejaDto>>
 {
     public async Task<IReadOnlyList<ItemBandejaDto>> Handle(ObtenerBandejaGestorQuery request, CancellationToken cancellationToken)
     {
         var alertas = await mediator.Send(new ObtenerAlertasQuery(), cancellationToken);
         var revisiones = await mediator.Send(new ObtenerRevisionesIaPendientesQuery(), cancellationToken);
         var requisitos = await mediator.Send(new ObtenerRequisitosDocumentalesPendientesQuery(), cancellationToken);
+        var visitasUrgentes = await mediator.Send(
+            new ObtenerVisitasQuery(Busqueda: null, SoloActivas: true, NotificadoCliente: null, SoloUrgentes: true, TamanoPagina: 200),
+            cancellationToken);
+        var sugerenciasVisita = await mediator.Send(new ObtenerSugerenciasVisitaCorreoPendientesQuery(), cancellationToken);
 
-        return Fusionar(alertas, revisiones, requisitos);
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        return Fusionar(
+            alertas, revisiones, requisitos, visitasUrgentes.Elementos, sugerenciasVisita,
+            hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita);
     }
 
     /// <summary>
@@ -64,7 +90,12 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator) : IRequestHand
     public static IReadOnlyList<ItemBandejaDto> Fusionar(
         IReadOnlyList<AlertaDto> alertas,
         IReadOnlyList<RevisionIaDocumentoDto> revisiones,
-        IReadOnlyList<RequisitoDocumentalPendienteDto> requisitos)
+        IReadOnlyList<RequisitoDocumentalPendienteDto> requisitos,
+        IReadOnlyList<VisitaListaDto> visitasUrgentes,
+        IReadOnlyList<SugerenciaVisitaCorreoPendienteDto> sugerenciasVisita,
+        DateOnly hoy,
+        int horasAvisoVisita,
+        int horasCriticasVisita)
     {
         var items = new List<ItemBandejaDto>();
 
@@ -108,18 +139,58 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator) : IRequestHand
             TipoDocumentoId: null,
             RequisitoId: rq.Id)));
 
-        // Faltante (nada subido) y Vencido compiten por el primer puesto;
-        // un Requisito que bloquea el acceso físico a un Centro entero pesa
-        // más que un Urgente individual, que a su vez pesa más que una
-        // revisión IA (ya tiene documento, solo falta confirmar el dato).
+        items.AddRange(visitasUrgentes
+            .Where(v => v.NivelUrgencia is NivelUrgenciaVisita.Urgente or NivelUrgenciaVisita.Critica)
+            .Select(v => new ItemBandejaDto(
+                Id: $"visita-{v.Id}",
+                Tipo: TipoItemBandeja.VisitaUrgente,
+                Titulo: $"Visita {(v.NivelUrgencia == NivelUrgenciaVisita.Critica ? "crítica" : "urgente")}",
+                Subtitulo: $"{v.CentroNombre} — {v.ClienteRazonSocial}",
+                Fecha: v.FechaInicio,
+                TrabajadorId: null,
+                CentroId: v.CentroId,
+                DocumentoId: null,
+                TipoDocumentoId: null,
+                RequisitoId: null)));
+
+        // Sin fecha detectada la IA no pudo precisar cuándo es — se trata
+        // como "visita sorpresa" (mismo día, sin margen) en vez de
+        // descartarla por falta de dato: el pedido original explícito es
+        // "avisar cuando llega una visita sorpresa para el mismo día".
+        items.AddRange(sugerenciasVisita
+            .Where(s => s.FechaInicioSugerida is null || CalculadoraUrgenciaVisita.Calcular(
+                s.FechaInicioSugerida.Value, s.FechaInicioSugerida.Value, hoy, horasAvisoVisita, horasCriticasVisita)
+                is not NivelUrgenciaVisita.Normal)
+            .Select(s => new ItemBandejaDto(
+                Id: $"sugerencia-visita-{s.Id}",
+                Tipo: TipoItemBandeja.SugerenciaVisitaUrgente,
+                Titulo: $"Visita sorpresa detectada ({(s.Canal == Domain.Comunicaciones.CanalConversacion.WhatsApp ? "WhatsApp" : "correo")})",
+                Subtitulo: s.CentroNombre is null ? s.Resumen : $"{s.CentroNombre} — {s.Resumen}",
+                Fecha: s.FechaInicioSugerida,
+                TrabajadorId: null,
+                CentroId: s.CentroId,
+                DocumentoId: null,
+                TipoDocumentoId: null,
+                RequisitoId: null,
+                SugerenciaVisitaId: s.Id)));
+
+        // Una sugerencia sin confirmar pesa más que cualquier otra cosa: sin
+        // confirmarla no hay ni Visita ni documentación que verificar. Entre
+        // el resto: Faltante/Vencido siguen siendo lo más urgente de lo ya
+        // conocido; una Visita confirmada dentro de la ventana pesa más que
+        // un Requisito bloqueante (tiene una fecha límite externa fija, el
+        // Requisito no), que a su vez pesa más que un documento Urgente
+        // individual o una revisión IA.
         return items
             .OrderBy(i => i.Tipo switch
             {
-                TipoItemBandeja.Faltante => 0,
-                TipoItemBandeja.Vencido => 1,
-                TipoItemBandeja.RequisitoPendiente => 2,
-                TipoItemBandeja.Urgente => 3,
-                _ => 4
+                TipoItemBandeja.SugerenciaVisitaUrgente => 0,
+                TipoItemBandeja.Faltante => 1,
+                TipoItemBandeja.Vencido => 2,
+                TipoItemBandeja.VisitaUrgente => 3,
+                TipoItemBandeja.RequisitoPendiente => 4,
+                TipoItemBandeja.Urgente => 5,
+                _ => 6
             })
             .ThenBy(i => i.Fecha)
             .ThenBy(i => i.Id)
