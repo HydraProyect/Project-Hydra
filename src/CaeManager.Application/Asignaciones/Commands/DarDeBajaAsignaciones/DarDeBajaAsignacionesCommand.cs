@@ -8,11 +8,12 @@ namespace CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 
 /// <summary>
 /// Versión en lote de <see cref="DarDeBajaAsignacion.DarDeBajaAsignacionCommand"/>
-/// — la usa la vista matriz de <c>/asignaciones</c> al desmarcar varias
-/// celdas de golpe. No es un borrado (ver el comentario del Command
-/// singular): fija <c>FechaBaja</c>, conserva el historial. Por eso el DTO
-/// de resultado no reutiliza <c>ResultadoEliminacionLoteDto</c> — esa
-/// palabra es de Eliminar/soft-delete, y una Asignación nunca se elimina.
+/// — la usa "Dar de baja seleccionados" en el acordeón de asignaciones de
+/// <c>/centros</c> (Centro 360, <c>PLAN-EJECUCION-UX.md</c> § 0.1). No es un
+/// borrado (ver el comentario del Command singular): fija
+/// <c>FechaBaja</c>, conserva el historial. Por eso el DTO de resultado no
+/// reutiliza <c>ResultadoEliminacionLoteDto</c> — esa palabra es de
+/// Eliminar/soft-delete, y una Asignación nunca se elimina.
 /// </summary>
 public record DarDeBajaAsignacionesCommand(IReadOnlyList<Guid> Ids, DateOnly FechaBaja) : ICommand<ResultadoBajaLoteDto>;
 
