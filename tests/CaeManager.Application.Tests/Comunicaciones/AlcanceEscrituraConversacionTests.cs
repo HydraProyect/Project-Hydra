@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.AsignarEjecutivoConversacion;
 using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
@@ -7,6 +8,7 @@ using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using FluentAssertions;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
@@ -30,13 +32,15 @@ public class AlcanceEscrituraConversacionTests
         new(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]);
 
     private static ResponderConversacionCommandHandler CrearHandlerResponder(
-        ConversacionCorreoRepositorioFalso repositorio, AlcanceDatosServiceFalso alcance, UnitOfWorkFalso unitOfWork)
+        ConversacionCorreoRepositorioFalso repositorio, AlcanceDatosServiceFalso alcance, UnitOfWorkFalso unitOfWork,
+        bool permitirRemitenteSimulado = false)
     {
         var graphClient = new Microsoft365GraphClientFalso();
         var accesoGraph = new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient);
+        var opciones = Options.Create(new ComunicacionesRemitenteOptions { PermitirRemitenteSimulado = permitirRemitenteSimulado });
         return new ResponderConversacionCommandHandler(
             repositorio, new ConexionIntegracionRepositorioFalso(), alcance, graphClient, accesoGraph,
-            new FileStorageServiceFalso(), unitOfWork);
+            new FileStorageServiceFalso(), opciones, unitOfWork);
     }
 
     [Fact]
@@ -136,7 +140,7 @@ public class AlcanceEscrituraConversacionTests
         // Contrapeso: el alcance no puede romper el uso normal del módulo.
         var (conversacion, repositorio, unitOfWork) = Preparar();
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [ClienteAjeno]);
-        var handler = CrearHandlerResponder(repositorio, alcance, unitOfWork);
+        var handler = CrearHandlerResponder(repositorio, alcance, unitOfWork, permitirRemitenteSimulado: true);
 
         var resultado = await handler.Handle(
             new ResponderConversacionCommand(conversacion.Id, "<p>Respondo lo mío</p>"), CancellationToken.None);
@@ -155,7 +159,7 @@ public class AlcanceEscrituraConversacionTests
         var repositorio = new ConversacionCorreoRepositorioFalso();
         repositorio.Agregar(conversacion);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = CrearHandlerResponder(repositorio, AlcanceSinElClienteAjeno(), unitOfWork);
+        var handler = CrearHandlerResponder(repositorio, AlcanceSinElClienteAjeno(), unitOfWork, permitirRemitenteSimulado: true);
 
         var resultado = await handler.Handle(
             new ResponderConversacionCommand(conversacion.Id, "<p>Pido datos</p>"), CancellationToken.None);
