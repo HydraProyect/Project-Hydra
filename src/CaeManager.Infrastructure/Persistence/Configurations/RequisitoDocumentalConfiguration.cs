@@ -15,6 +15,8 @@ public class RequisitoDocumentalConfiguration : IEntityTypeConfiguration<Requisi
         builder.Property(r => r.Descripcion).IsRequired().HasMaxLength(RequisitoDocumental.LongitudMaximaDescripcion);
         builder.Property(r => r.PeriodicidadEspecial).HasMaxLength(RequisitoDocumental.LongitudMaximaPeriodicidad);
         builder.Property(r => r.Notas).HasMaxLength(RequisitoDocumental.LongitudMaximaNotas);
+        builder.Property(r => r.ArchivoUrl).HasMaxLength(RequisitoDocumental.LongitudMaximaArchivoUrl);
+        builder.Property(r => r.NombreArchivoOriginal).HasMaxLength(RequisitoDocumental.LongitudMaximaNombreArchivo);
 
         builder.HasIndex(r => r.CentroId);
 

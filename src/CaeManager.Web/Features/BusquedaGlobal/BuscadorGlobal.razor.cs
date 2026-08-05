@@ -52,6 +52,7 @@ public partial class BuscadorGlobal : ComponentBase
         ("Ir a Documentos", "/documentos"),
         ("Ir a Dashboard", "/"),
         ("Crear cliente", "/clientes?accion=crear"),
+        ("Alta guiada de cliente", "/clientes/alta-guiada"),
         ("Crear documento", "/documentos?accion=crear"),
     ];
 

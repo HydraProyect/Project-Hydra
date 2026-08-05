@@ -15,6 +15,7 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.AsistenteIa;
 using CaeManager.Web.Features.Auditoria;
 using CaeManager.Web.Features.BusquedaGlobal;
+using CaeManager.Web.Features.Centros;
 using CaeManager.Web.Features.Clientes;
 using CaeManager.Web.Features.Comunicaciones;
 using CaeManager.Web.Features.Documentos;
@@ -438,12 +439,14 @@ app.MapHealthChecks("/salud").AllowAnonymous();
 app.MapIdentityEndpoints();
 app.MapClientesEndpoints();
 app.MapDocumentosEndpoints();
+app.MapRequisitosDocumentalesEndpoints();
 app.MapComunicacionesEndpoints();
 app.MapReportesEndpoints();
 app.MapAuditoriaEndpoints();
 app.MapClienteActivoEndpoints();
 app.MapConectarMicrosoft365Endpoints();
 app.MapWebhookMicrosoft365Endpoints();
+app.MapWebhookWhatsAppEndpoints();
 
 // API pública v1 (P3-29) — solo lectura, no publicada todavía. Un único
 // grupo con la política de auth/rate-limit aplicada una vez, en vez de por

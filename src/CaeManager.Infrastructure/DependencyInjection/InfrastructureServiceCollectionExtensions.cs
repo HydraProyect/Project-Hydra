@@ -244,6 +244,22 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
         }
 
+        // Segundo conector de mensajería: WhatsApp Cloud API (Meta). Mismo
+        // patrón "inerte por defecto": sin AppSecret/VerifyToken no se
+        // registra el consumidor y el webhook rechaza todo. El cliente HTTP
+        // se registra siempre (las pantallas de configuración lo necesitan
+        // para validar el alta aunque el webhook aún no esté configurado).
+        var opcionesWhatsApp = new WhatsAppCloudApiOptions();
+        configuration.GetSection(WhatsAppCloudApiOptions.SeccionConfiguracion).Bind(opcionesWhatsApp);
+        services.Configure<WhatsAppCloudApiOptions>(configuration.GetSection(WhatsAppCloudApiOptions.SeccionConfiguracion));
+
+        services.AddHttpClient<CaeManager.Application.Integraciones.IWhatsAppCloudApiClient, WhatsAppCloudApiClient>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
+
+        if (opcionesWhatsApp.EstaConfigurado)
+            services.AddHostedService<IngestaWebhookWhatsAppHostedService>();
+
         services.AddScoped<IClienteRepository, ClienteRepository>();
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         services.AddScoped<IEmpresaClienteRepository, EmpresaClienteRepository>();
@@ -290,13 +306,22 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IConversacionCorreoRepository, ConversacionCorreoRepository>();
         services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.ISugerenciaGestionCorreoRepository, SugerenciaGestionCorreoRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.ISolicitudPrioridadDocumentoRepository, SolicitudPrioridadDocumentoRepository>();
+        services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ISuscripcionWebhookRepository, SuscripcionWebhookRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IEventoWebhookRepository, EventoWebhookRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.ILineaWhatsAppRepository, LineaWhatsAppRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IContactoWhatsAppRepository, ContactoWhatsAppRepository>();
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
         services.AddScoped<CaeManager.Application.Integraciones.IWebhookTenantResolver, WebhookTenantResolver>();
+        services.AddScoped<CaeManager.Application.Integraciones.IWebhookWhatsAppTenantResolver, WebhookWhatsAppTenantResolver>();
+        services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookWhatsAppService>();
+        services.AddSingleton<CaeManager.Application.Integraciones.ISenalIngestaWhatsApp, SenalIngestaWhatsApp>();
+        services.AddSingleton<CaeManager.Application.Comunicaciones.Eventos.INotificadorMensajesTiempoReal, NotificadorMensajesTiempoReal>();
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Clientes.IClientesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -323,6 +348,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.ApiKeys.IApiKeysQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Integraciones.IIntegracionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Gestiones.IGestionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
         services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         // Sin estado propio (abre una conexión Npgsql nueva por llamada) — una sola instancia sirve.
@@ -390,6 +416,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITrabajoAnalisisDocumentoRepository, TrabajoAnalisisDocumentoRepository>();
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
+        // Fase F: aviso por hora (solo campana, sin correo en v1) de
+        // gestiones urgentes de visita — reutiliza ObtenerBandejaGestorQuery,
+        // sin interruptor de configuración propio (a diferencia del resumen
+        // de alertas por correo, no manda nada fuera de la aplicación).
+        services.AddHostedService<Visitas.VigilanciaVisitasUrgentesHostedService>();
+
         // Timeouts explícitos en todos los HttpClient de IA/Graph (P0-9 de
         // docs/business/MATURITY_REVIEW.md): el procesador de la cola de IA es
         // secuencial, así que una llamada colgada al proveedor detenía la cola
@@ -418,6 +450,9 @@ public static class InfrastructureServiceCollectionExtensions
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
         services.AddHttpClient<IDeteccionVisitaCorreoService, AnthropicDeteccionVisitaCorreoService>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(60));
+        services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionGestionCorreoService, AnthropicDeteccionGestionCorreoService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(60));
         // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
@@ -483,6 +518,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Comunicaciones (P2 #26): apagado por defecto — ver ComunicacionesOptions.
         services.Configure<ComunicacionesOptions>(configuration.GetSection(ComunicacionesOptions.SeccionConfiguracion));
+        // Fase G: mismo "Comunicaciones" — ver ComunicacionesRemitenteOptions (Application.Common).
+        services.Configure<ComunicacionesRemitenteOptions>(configuration.GetSection(ComunicacionesRemitenteOptions.SeccionConfiguracion));
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();

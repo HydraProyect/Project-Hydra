@@ -12,6 +12,7 @@ using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Evaluaciones;
 using CaeManager.Application.Facturacion;
+using CaeManager.Application.Gestiones;
 using CaeManager.Application.Incidencias;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Notificaciones;
@@ -38,6 +39,7 @@ using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
@@ -68,7 +70,8 @@ public class CaeManagerDbContext(
         INotificacionesQueryContext, IAsignacionesQueryContext, IVisitasQueryContext, IVehiculosQueryContext,
         IConfiguracionQueryContext, IAuditoriaQueryContext, IRequisitosDocumentalesQueryContext, ITenantsQueryContext,
         IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext, IEvaluacionesQueryContext,
-        IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext
+        IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
+        IGestionesQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -187,6 +190,12 @@ public class CaeManagerDbContext(
     IQueryable<AdjuntoMensajeCorreo> IComunicacionesQueryContext.AdjuntosMensajeCorreo => AdjuntosMensajeCorreo;
     public DbSet<SugerenciaVisitaCorreo> SugerenciasVisitaCorreo => Set<SugerenciaVisitaCorreo>();
     IQueryable<SugerenciaVisitaCorreo> IComunicacionesQueryContext.SugerenciasVisitaCorreo => SugerenciasVisitaCorreo;
+    public DbSet<SugerenciaGestionCorreo> SugerenciasGestionCorreo => Set<SugerenciaGestionCorreo>();
+    IQueryable<SugerenciaGestionCorreo> IComunicacionesQueryContext.SugerenciasGestionCorreo => SugerenciasGestionCorreo;
+    public DbSet<SolicitudPrioridadDocumento> SolicitudesPrioridadDocumento => Set<SolicitudPrioridadDocumento>();
+    IQueryable<SolicitudPrioridadDocumento> IComunicacionesQueryContext.SolicitudesPrioridadDocumento => SolicitudesPrioridadDocumento;
+    public DbSet<Gestion> Gestiones => Set<Gestion>();
+    IQueryable<Gestion> IGestionesQueryContext.Gestiones => Gestiones;
     public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();
     IQueryable<ClaveApi> IApiKeysQueryContext.ClavesApi => ClavesApi;
     public DbSet<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario => Set<PreferenciaDashboardUsuario>();
@@ -198,6 +207,12 @@ public class CaeManagerDbContext(
     public DbSet<CredencialIntegracion> CredencialesIntegracion => Set<CredencialIntegracion>();
     public DbSet<SuscripcionWebhook> SuscripcionesWebhook => Set<SuscripcionWebhook>();
     public DbSet<EventoWebhook> EventosWebhook => Set<EventoWebhook>();
+    public DbSet<LineaWhatsApp> LineasWhatsApp => Set<LineaWhatsApp>();
+    IQueryable<LineaWhatsApp> IIntegracionesQueryContext.LineasWhatsApp => LineasWhatsApp;
+    public DbSet<MiembroPoolLinea> MiembrosPoolLinea => Set<MiembroPoolLinea>();
+    IQueryable<MiembroPoolLinea> IIntegracionesQueryContext.MiembrosPoolLinea => MiembrosPoolLinea;
+    public DbSet<ContactoWhatsApp> ContactosWhatsApp => Set<ContactoWhatsApp>();
+    IQueryable<ContactoWhatsApp> IComunicacionesQueryContext.ContactosWhatsApp => ContactosWhatsApp;
 
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -237,6 +252,10 @@ public class CaeManagerDbContext(
 
         builder.Entity<CredencialIntegracion>().Property(c => c.RefreshToken).HasConversion(conversorCredencialesIntegracion);
         builder.Entity<SuscripcionWebhook>().Property(s => s.ClientState).HasConversion(conversorCredencialesIntegracion);
+        // El System User token de WhatsApp vive bajo el mismo agregado
+        // (LineaWhatsApp es satélite de ConexionIntegracion) — mismo
+        // protector, mismo criterio que RefreshToken/ClientState.
+        builder.Entity<LineaWhatsApp>().Property(l => l.TokenAcceso).HasConversion(conversorCredencialesIntegracion);
 
         builder.Entity<IdentityRole<Guid>>().HasData(IdentityRoleSeedData.Filas());
 

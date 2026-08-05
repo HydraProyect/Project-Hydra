@@ -1,0 +1,13 @@
+.contenedor-alta-guiada {
+    max-width: 720px;
+}
+
+.tarjeta-alta-guiada {
+    margin-top: var(--space-5);
+}
+
+.resumen-alta-guiada {
+    margin-top: var(--space-5);
+    padding-top: var(--space-5);
+    border-top: var(--border-default);
+}

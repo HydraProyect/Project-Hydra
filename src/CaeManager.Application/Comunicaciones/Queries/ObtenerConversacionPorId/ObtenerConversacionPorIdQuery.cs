@@ -2,6 +2,8 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -23,9 +25,14 @@ public record AdjuntoDetalleDto(Guid Id, string NombreArchivo, string TipoConten
 public record SugerenciaVisitaDetalleDto(
     Guid Id, Guid? CentroId, string? CentroNombre, DateOnly? FechaInicioSugerida, DateOnly? FechaFinSugerida, string Resumen);
 
+/// <summary>Solo se expone mientras está pendiente (Resuelta = false) — mismo criterio que SugerenciaVisitaDetalleDto.</summary>
+public record SugerenciaGestionDetalleDto(
+    Guid Id, Guid? TrabajadorId, string? TrabajadorNombre, Guid? TipoDocumentoId, string? TipoDocumentoNombre, string Resumen);
+
 public record MensajeDetalleDto(
     Guid Id, DireccionMensaje Direccion, string RemitenteEmail, string CuerpoHtml, DateTime FechaUtc,
-    IReadOnlyList<AdjuntoDetalleDto> Adjuntos, SugerenciaVisitaDetalleDto? SugerenciaVisita);
+    IReadOnlyList<AdjuntoDetalleDto> Adjuntos, SugerenciaVisitaDetalleDto? SugerenciaVisita,
+    SugerenciaGestionDetalleDto? SugerenciaGestion, EstadoEntregaMensaje? EstadoEntrega = null, string? ErrorEntrega = null);
 
 public record ParticipanteDetalleDto(
     Guid Id, string Email, RolParticipante Rol, TipoParticipanteOrigen TipoOrigen, Guid? EntidadRelacionadaId);
@@ -40,10 +47,14 @@ public record ConversacionDetalleDto(
     string? Etiquetas,
     DateTime FechaUltimoMensajeUtc,
     IReadOnlyList<MensajeDetalleDto> Mensajes,
-    IReadOnlyList<ParticipanteDetalleDto> Participantes);
+    IReadOnlyList<ParticipanteDetalleDto> Participantes,
+    CanalConversacion Canal = CanalConversacion.Correo,
+    string? TelefonoContacto = null,
+    DateTime? FechaUltimoMensajeEntranteUtc = null);
 
 public class ObtenerConversacionPorIdQueryHandler(
     IClientesQueryContext clientesContext, ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
+    ITrabajadoresQueryContext trabajadoresContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
     ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerConversacionPorIdQuery, ConversacionDetalleDto?>
@@ -67,7 +78,10 @@ public class ObtenerConversacionPorIdQueryHandler(
                 c.Estado,
                 c.EjecutivoAsignadoId,
                 c.Etiquetas,
-                c.FechaUltimoMensajeUtc
+                c.FechaUltimoMensajeUtc,
+                c.Canal,
+                c.TelefonoContacto,
+                c.FechaUltimoMensajeEntranteUtc
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -92,7 +106,7 @@ public class ObtenerConversacionPorIdQueryHandler(
         var mensajesCrudos = await comunicacionesContext.MensajesCorreo
             .Where(m => m.ConversacionCorreoId == request.Id)
             .OrderBy(m => m.FechaUtc)
-            .Select(m => new { m.Id, m.Direccion, m.RemitenteEmail, m.CuerpoHtml, m.FechaUtc })
+            .Select(m => new { m.Id, m.Direccion, m.RemitenteEmail, m.CuerpoHtml, m.FechaUtc, m.EstadoEntrega, m.ErrorEntrega })
             .ToListAsync(cancellationToken);
 
         var adjuntosPorMensaje = (await comunicacionesContext.AdjuntosMensajeCorreo
@@ -118,10 +132,34 @@ public class ObtenerConversacionPorIdQueryHandler(
                 s.Id, s.CentroId, s.CentroId is not null ? nombresCentro.GetValueOrDefault(s.CentroId.Value) : null,
                 s.FechaInicioSugerida, s.FechaFinSugerida, s.Resumen));
 
+        var sugerenciasGestionPendientes = await comunicacionesContext.SugerenciasGestionCorreo
+            .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeCorreoId) && !s.Resuelta)
+            .ToListAsync(cancellationToken);
+
+        var trabajadorIdsSugeridos = sugerenciasGestionPendientes.Where(s => s.TrabajadorId is not null).Select(s => s.TrabajadorId!.Value).ToList();
+        var nombresTrabajador = await trabajadoresContext.Trabajadores
+            .Where(t => trabajadorIdsSugeridos.Contains(t.Id))
+            .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos })
+            .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
+
+        var tipoDocumentoIdsSugeridos = sugerenciasGestionPendientes.Where(s => s.TipoDocumentoId is not null).Select(s => s.TipoDocumentoId!.Value).ToList();
+        var nombresTipoDocumento = await tiposDocumentoContext.TiposDocumento
+            .Where(t => tipoDocumentoIdsSugeridos.Contains(t.Id))
+            .Select(t => new { t.Id, t.Nombre })
+            .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
+
+        var sugerenciasGestionPorMensaje = sugerenciasGestionPendientes.ToDictionary(
+            s => s.MensajeCorreoId,
+            s => new SugerenciaGestionDetalleDto(
+                s.Id, s.TrabajadorId, s.TrabajadorId is not null ? nombresTrabajador.GetValueOrDefault(s.TrabajadorId.Value) : null,
+                s.TipoDocumentoId, s.TipoDocumentoId is not null ? nombresTipoDocumento.GetValueOrDefault(s.TipoDocumentoId.Value) : null,
+                s.Resumen));
+
         var mensajes = mensajesCrudos
             .Select(m => new MensajeDetalleDto(
                 m.Id, m.Direccion, m.RemitenteEmail, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
-                adjuntosPorMensaje.GetValueOrDefault(m.Id, []), sugerenciasPorMensaje.GetValueOrDefault(m.Id)))
+                adjuntosPorMensaje.GetValueOrDefault(m.Id, []), sugerenciasPorMensaje.GetValueOrDefault(m.Id),
+                sugerenciasGestionPorMensaje.GetValueOrDefault(m.Id), m.EstadoEntrega, m.ErrorEntrega))
             .ToList();
 
         var participantes = await comunicacionesContext.ParticipantesConversacion
@@ -132,6 +170,6 @@ public class ObtenerConversacionPorIdQueryHandler(
         return new ConversacionDetalleDto(
             conversacion.Id, conversacion.ClienteId, conversacion.ClienteRazonSocial, conversacion.Asunto,
             conversacion.Estado, conversacion.EjecutivoAsignadoId, conversacion.Etiquetas, conversacion.FechaUltimoMensajeUtc,
-            mensajes, participantes);
+            mensajes, participantes, conversacion.Canal, conversacion.TelefonoContacto, conversacion.FechaUltimoMensajeEntranteUtc);
     }
 }

@@ -4,8 +4,10 @@ using CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
 using CaeManager.Application.Comunicaciones.Commands.AsignarEjecutivoConversacion;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
+using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaGestion;
 using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaVisita;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
+using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro;
@@ -148,7 +150,8 @@ public partial class Bandeja : ComponentBase
                 ClienteId: Guid.TryParse(_clienteIdFiltro, out var clienteId) ? clienteId : null,
                 SoloAsignadasAMi: _soloAsignadasAMi,
                 SoloSinAsignar: _soloSinAsignar,
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda));
+                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+                Canal: CanalConversacion.Correo)); // el chat de WhatsApp vive en /comunicaciones/chat
         }
         catch (Exception ex)
         {
@@ -449,6 +452,57 @@ public partial class Bandeja : ComponentBase
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al descartar la sugerencia de visita {SugerenciaId}.", sugerenciaId);
+            ToastService.Mostrar("No pudimos descartar la sugerencia. Intenta nuevamente.", TonoToast.Error);
+        }
+    }
+
+    /// <summary>
+    /// A diferencia de "Crear visita" (que abre /visitas a que el Gestor
+    /// complete fecha y confirme), aquí no hace falta ningún dato adicional
+    /// del Gestor: Trabajador y TipoDocumento ya los resolvió la IA, y los
+    /// Centros salen de las Asignaciones activas del propio Trabajador — el
+    /// clic en el botón ya es la confirmación explícita exigida.
+    /// </summary>
+    private async Task GenerarGestionesDesdeSugerenciaAsync(Guid sugerenciaId, Guid trabajadorId, Guid tipoDocumentoId)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new CrearGestionesParaTrabajadorCommand(trabajadorId, tipoDocumentoId, sugerenciaId));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar($"Se generaron {resultado.Valor.Creadas} gestión(es).", TonoToast.Exito);
+
+            if (_conversacionSeleccionadaId is not null)
+                await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al generar gestiones desde la sugerencia {SugerenciaId}.", sugerenciaId);
+            ToastService.Mostrar("No pudimos generar las gestiones. Intenta nuevamente.", TonoToast.Error);
+        }
+    }
+
+    private async Task DescartarSugerenciaGestionAsync(Guid sugerenciaId)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new DescartarSugerenciaGestionCorreoCommand(sugerenciaId));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            if (_conversacionSeleccionadaId is not null)
+                await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al descartar la sugerencia de gestión {SugerenciaId}.", sugerenciaId);
             ToastService.Mostrar("No pudimos descartar la sugerencia. Intenta nuevamente.", TonoToast.Error);
         }
     }

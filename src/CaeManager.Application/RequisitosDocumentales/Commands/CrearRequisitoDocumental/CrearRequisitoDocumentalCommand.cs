@@ -7,7 +7,8 @@ using MediatR;
 namespace CaeManager.Application.RequisitosDocumentales.Commands.CrearRequisitoDocumental;
 
 public record CrearRequisitoDocumentalCommand(
-    Guid CentroId, string Descripcion, string? PeriodicidadEspecial, bool BloqueaAcceso, string? Notas = null)
+    Guid CentroId, string Descripcion, string? PeriodicidadEspecial, bool BloqueaAcceso, string? Notas = null,
+    string? ArchivoUrl = null, string? NombreArchivoOriginal = null)
     : ICommand<Guid>;
 
 public class CrearRequisitoDocumentalCommandValidator : AbstractValidator<CrearRequisitoDocumentalCommand>
@@ -20,6 +21,8 @@ public class CrearRequisitoDocumentalCommandValidator : AbstractValidator<CrearR
             .MaximumLength(RequisitoDocumental.LongitudMaximaDescripcion);
         RuleFor(c => c.PeriodicidadEspecial).MaximumLength(RequisitoDocumental.LongitudMaximaPeriodicidad);
         RuleFor(c => c.Notas).MaximumLength(RequisitoDocumental.LongitudMaximaNotas);
+        RuleFor(c => c.ArchivoUrl).MaximumLength(RequisitoDocumental.LongitudMaximaArchivoUrl);
+        RuleFor(c => c.NombreArchivoOriginal).MaximumLength(RequisitoDocumental.LongitudMaximaNombreArchivo);
     }
 }
 
@@ -33,7 +36,8 @@ public class CrearRequisitoDocumentalCommandHandler(
             return Result.Fallo<Guid>(Error.Crear("Centro.NoEncontrado", "El centro no existe o no tienes acceso."));
 
         var requisito = new RequisitoDocumental(
-            request.CentroId, request.Descripcion, request.PeriodicidadEspecial, request.BloqueaAcceso, request.Notas);
+            request.CentroId, request.Descripcion, request.PeriodicidadEspecial, request.BloqueaAcceso, request.Notas,
+            request.ArchivoUrl, request.NombreArchivoOriginal);
         repositorio.Agregar(requisito);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

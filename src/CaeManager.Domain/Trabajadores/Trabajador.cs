@@ -184,6 +184,26 @@ public class Trabajador : EntidadBase
     private void EstablecerAlias(string? alias) => Alias = string.IsNullOrWhiteSpace(alias) ? null : alias.Trim();
 
     /// <summary>
+    /// Alta de un solo clic desde la sugerencia de identidad por IA al subir
+    /// un Documento (ver DetectarCamposDocumentoQuery): el DNI del documento
+    /// coincidió con este Trabajador pero el nombre detectado no, así que el
+    /// Gestor confirma que es la firma/alias con la que aparece en ese
+    /// documento — no reemplaza Nombre/Apellidos, que siguen siendo los
+    /// datos oficiales.
+    /// </summary>
+    public void AsignarAlias(string alias)
+    {
+        if (EstaAnonimizado)
+            throw new InvalidOperationException(
+                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse.");
+
+        if (string.IsNullOrWhiteSpace(alias))
+            throw new ArgumentException("El alias no puede estar vacío.", nameof(alias));
+
+        EstablecerAlias(alias);
+    }
+
+    /// <summary>
     /// Acepta DNI, NIE, número de soporte TIE o cualquier otro documento
     /// extranjero (pasaporte) — un trabajador no tiene por qué ser español.
     /// Solo se exige el dígito de control real cuando el formato encaja con

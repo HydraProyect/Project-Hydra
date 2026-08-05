@@ -52,7 +52,9 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
     {
         var tenantId = tenantActual.TenantId;
 
-        foreach (var entrada in context.ChangeTracker.Entries<EntidadConTenant>())
+        // ToList: la rama de reclasificación de abajo cambia el State de una
+        // entrada, y eso no puede hacerse mientras se enumera el ChangeTracker.
+        foreach (var entrada in context.ChangeTracker.Entries<EntidadConTenant>().ToList())
         {
             switch (entrada.State)
             {
@@ -61,6 +63,33 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
                         throw new InvalidOperationException(
                             $"No se puede crear una entidad de tipo {entrada.Entity.GetType().Name} sin un tenant resuelto (ver ITenantActual).");
 
+                    entrada.Property(nameof(EntidadConTenant.TenantId)).CurrentValue = tenantId.Value;
+                    break;
+
+                case EntityState.Modified when (Guid)entrada.Property(nameof(EntidadConTenant.TenantId)).OriginalValue! == Guid.Empty:
+                    // Entidad NUEVA que el fixup de DetectChanges clasificó
+                    // como Modified: las entidades hijas de un agregado
+                    // cargado (p. ej. el segundo MensajeCorreo de un hilo ya
+                    // existente, vía ConversacionCorreo.AgregarMensaje) las
+                    // descubre EF por la navegación, no por un Add explícito,
+                    // y como Entity asigna el Guid en el constructor la clave
+                    // "ya está puesta" y EF asume que la fila existe. Un
+                    // TenantId ORIGINAL vacío no puede venir de la base de
+                    // datos (columna NOT NULL, sellada en el insert), así que
+                    // es la firma inequívoca de este caso — se reclasifica
+                    // como inserción y se sella. Sin esto, el segundo mensaje
+                    // de cualquier conversación cargada moría aquí con "otro
+                    // tenant" (detectado verificando WhatsApp end-to-end,
+                    // 2026-08-04; afectaba igual a la ingesta de correo M365 —
+                    // ver AgregarMensajeAConversacionCargadaTests). Una fila
+                    // REAL de otro tenant nunca entra por esta rama: su
+                    // original viene de BD y no está vacío, y sigue cayendo
+                    // al rechazo de abajo.
+                    if (tenantId is null)
+                        throw new InvalidOperationException(
+                            $"No se puede crear una entidad de tipo {entrada.Entity.GetType().Name} sin un tenant resuelto (ver ITenantActual).");
+
+                    entrada.State = EntityState.Added;
                     entrada.Property(nameof(EntidadConTenant.TenantId)).CurrentValue = tenantId.Value;
                     break;
 

@@ -1,12 +1,18 @@
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Commands.EditarCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentro;
+using CaeManager.Application.Centros.Commands.EliminarCentros;
+using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Features.Clientes.Components;
+using CaeManager.Web.Features.Empresas.Components;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.QuickGrid;
@@ -19,6 +25,7 @@ public partial class Centros : ComponentBase
     private QuickGrid<CentroListaDto>? _grid;
 
     private string _busqueda = string.Empty;
+    private string _estadoFiltro = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -35,6 +42,11 @@ public partial class Centros : ComponentBase
     private string _clienteNombreSoloLectura = string.Empty;
     private string _empresaId = string.Empty;
     private string _empresaNombreSoloLectura = string.Empty;
+    // Cliente/Empresa llegaron ya fijados desde el encadenado de otra
+    // pantalla (Fase A2) — se muestran en solo lectura hasta que el usuario
+    // pulse "cambiar". Distinto de _editandoId is null: en edición ambos son
+    // siempre de solo lectura (no se puede recolocar un centro existente).
+    private bool _padresFijadosPorCadena;
     private string _nombre = string.Empty;
     private string _codigoCentro = string.Empty;
     private string _direccion = string.Empty;
@@ -49,8 +61,33 @@ public partial class Centros : ComponentBase
     private string _nombreAEliminar = string.Empty;
     private bool _eliminando;
 
+    private readonly HashSet<Guid> _seleccionados = [];
+    private List<CentroListaDto> _elementosPagina = [];
+    private Guid? _idEnfocado;
+    private bool _eliminandoLote;
+    private bool _confirmarEliminarLoteVisible;
+
+    // Crear inline desde el propio selector (Fase A4): si el Cliente o la
+    // Empresa que hace falta no existen todavía, no hay que abandonar el
+    // Drawer para ir a darlos de alta.
+    private bool _formularioRapidoClienteVisible;
+    private string _nombreParaCrearCliente = string.Empty;
+    private bool _formularioRapidoEmpresaVisible;
+    private string _nombreParaCrearEmpresa = string.Empty;
+
+    private IReadOnlyList<OpcionBuscable> ClientesComoOpciones =>
+        _clientesDisponibles.Select(c => new OpcionBuscable(c.Id.ToString(), c.RazonSocial)).ToList();
+
+    private IReadOnlyList<OpcionBuscable> EmpresasComoOpciones =>
+        _empresasDisponibles.Select(e => new OpcionBuscable(e.Id.ToString(), e.RazonSocial)).ToList();
+
+    private Guid? ClienteIdParaFormularioRapido => Guid.TryParse(_clienteId, out var id) ? id : null;
+
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
+
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -65,6 +102,14 @@ public partial class Centros : ComponentBase
     [SupplyParameterFromQuery] public string? Accion { get; set; }
     [SupplyParameterFromQuery] public string? Nombre { get; set; }
 
+    /// <summary>
+    /// Encadenado desde "Continuar con el centro" en /empresas, o desde el
+    /// asistente de alta guiada (Fase A2/A3): el Cliente y la Empresa llegan
+    /// ya elegidos, en solo lectura, para no repetir la búsqueda.
+    /// </summary>
+    [SupplyParameterFromQuery] public Guid? ClienteId { get; set; }
+    [SupplyParameterFromQuery] public Guid? EmpresaId { get; set; }
+
     private GridItemsProvider<CentroListaDto>? _proveedorElementos;
 
     protected override async Task OnInitializedAsync()
@@ -77,6 +122,20 @@ public partial class Centros : ComponentBase
             await AbrirCrearAsync();
             if (!string.IsNullOrWhiteSpace(Nombre))
                 _nombre = Nombre;
+
+            if (ClienteId is not null && _clientesDisponibles.Any(c => c.Id == ClienteId))
+            {
+                _clienteId = ClienteId.Value.ToString();
+                _clienteNombreSoloLectura = _clientesDisponibles.First(c => c.Id == ClienteId).RazonSocial;
+                await CargarEmpresasDisponiblesAsync(ClienteId);
+
+                if (EmpresaId is not null && _empresasDisponibles.Any(e => e.Id == EmpresaId))
+                {
+                    _empresaId = EmpresaId.Value.ToString();
+                    _empresaNombreSoloLectura = _empresasDisponibles.First(e => e.Id == EmpresaId).RazonSocial;
+                    _padresFijadosPorCadena = true;
+                }
+            }
         }
     }
 
@@ -91,6 +150,10 @@ public partial class Centros : ComponentBase
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (deLaUrl != _busqueda)
             _busqueda = deLaUrl;
+
+        var estadoDeLaUrl = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
+        if (estadoDeLaUrl != _estadoFiltro)
+            _estadoFiltro = estadoDeLaUrl;
     }
 
     private async ValueTask<GridItemsProviderResult<CentroListaDto>> ProveerElementosAsync(
@@ -102,16 +165,25 @@ public partial class Centros : ComponentBase
         try
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
             var resultado = await Mediator.Send(new ObtenerCentrosQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 ClienteId: null,
+                Estado: Enum.TryParse<EstadoCentro>(_estadoFiltro, out var estado) ? estado : null,
+                OrdenarPor: ordenarPor,
+                Descendente: descendente,
                 Pagina: pagina,
                 TamanoPagina: _paginacion.ItemsPerPage));
 
             _totalElementos = resultado.TotalElementos;
 
-            return GridItemsProviderResult.From(resultado.Elementos.ToList(), resultado.TotalElementos);
+            var elementos = resultado.Elementos.ToList();
+            _elementosPagina = elementos;
+            _seleccionados.Clear();
+            _idEnfocado = null;
+
+            return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
         catch (Exception)
         {
@@ -132,6 +204,13 @@ public partial class Centros : ComponentBase
         await RecargarAsync();
     }
 
+    private async Task CambiarEstadoAsync(string valor)
+    {
+        _estadoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
+        await RecargarAsync();
+    }
+
     private async Task RecargarAsync()
     {
         await _paginacion.SetCurrentPageIndexAsync(0);
@@ -145,11 +224,11 @@ public partial class Centros : ComponentBase
     private async Task AbrirCrearAsync()
     {
         _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
-        _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
 
         _editandoId = null;
         _clienteId = string.Empty;
         _empresaId = string.Empty;
+        _padresFijadosPorCadena = false;
         _nombre = string.Empty;
         _codigoCentro = string.Empty;
         _direccion = string.Empty;
@@ -157,7 +236,43 @@ public partial class Centros : ComponentBase
         _contratoVigenteHasta = string.Empty;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
+
+        // Sin Cliente elegido todavía no hay por qué acotar: se carga el
+        // catálogo completo y CambiarClienteCreacionAsync lo recorta en
+        // cuanto el usuario elige uno (Fase A3 — antes se cargaban siempre
+        // todas las empresas de todos los clientes, aunque la Query ya sabía
+        // filtrar por ClienteId).
+        await CargarEmpresasDisponiblesAsync(null);
+
         _drawerVisible = true;
+    }
+
+    /// <summary>
+    /// Recarga el selector de Empresa acotado al Cliente elegido — o al
+    /// catálogo completo si todavía no hay Cliente. Se llama al abrir el
+    /// Drawer y cada vez que el usuario cambia el Cliente en modo creación.
+    /// </summary>
+    private async Task CargarEmpresasDisponiblesAsync(Guid? clienteId)
+    {
+        _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(clienteId));
+    }
+
+    /// <summary>
+    /// Solo aplica en modo creación con los padres editables (no fijados por
+    /// una cadena de otra pantalla): al cambiar el Cliente, el selector de
+    /// Empresa se recorta a las suyas — si la Empresa que estaba elegida ya
+    /// no pertenece al nuevo Cliente, se limpia en vez de dejar una
+    /// combinación imposible.
+    /// </summary>
+    private async Task CambiarClienteCreacionAsync(string valor)
+    {
+        _clienteId = valor;
+
+        var clienteId = Guid.TryParse(valor, out var id) ? id : (Guid?)null;
+        await CargarEmpresasDisponiblesAsync(clienteId);
+
+        if (!_empresasDisponibles.Any(e => e.Id.ToString() == _empresaId))
+            _empresaId = string.Empty;
     }
 
     private async Task AbrirEditarAsync(Guid id)
@@ -192,7 +307,55 @@ public partial class Centros : ComponentBase
         return Task.CompletedTask;
     }
 
-    private async Task GuardarAsync()
+    /// <summary>"Cambiar cliente/empresa" en un Centro llegado ya fijado por una cadena (Fase A2) — vuelve a los selectores editables con el catálogo completo.</summary>
+    private async Task DesvincularPadresFijadosAsync()
+    {
+        _padresFijadosPorCadena = false;
+        _clienteId = string.Empty;
+        _empresaId = string.Empty;
+        await CargarEmpresasDisponiblesAsync(null);
+    }
+
+    private void AbrirCrearClienteInline(string texto)
+    {
+        _nombreParaCrearCliente = texto;
+        _formularioRapidoClienteVisible = true;
+    }
+
+    /// <summary>Un Cliente recién creado no tiene ninguna Empresa todavía — CambiarClienteCreacionAsync ya deja el selector de Empresa vacío y listo para su propio "+ Crear".</summary>
+    private async Task ManejarClienteCreadoAsync(ClienteCreadoDto creado)
+    {
+        _clientesDisponibles = [.. _clientesDisponibles, new ClienteSelectorDto(creado.Id, creado.RazonSocial)];
+        await CambiarClienteCreacionAsync(creado.Id.ToString());
+        ToastService.Mostrar("Cliente creado correctamente.", TonoToast.Exito);
+    }
+
+    private void AbrirCrearEmpresaInline(string texto)
+    {
+        _nombreParaCrearEmpresa = texto;
+        _formularioRapidoEmpresaVisible = true;
+    }
+
+    private Task ManejarEmpresaCreadaAsync(EmpresaCreadaDto creada)
+    {
+        _empresasDisponibles = [.. _empresasDisponibles, new EmpresaSelectorDto(creada.Id, creada.RazonSocial)];
+        _empresaId = creada.Id.ToString();
+        ToastService.Mostrar("Empresa creada correctamente.", TonoToast.Exito);
+        return Task.CompletedTask;
+    }
+
+    private Task GuardarAsync() => GuardarAsync(crearOtro: false);
+
+    /// <summary>
+    /// "Añadir otro centro" (Fase A2): igual que
+    /// <see cref="GuardarAsync()"/>, pero al crear con éxito no cierra el
+    /// Drawer — limpia solo los campos propios del Centro y mantiene
+    /// Cliente/Empresa fijados, para dar de alta varios centros seguidos sin
+    /// repetir la búsqueda.
+    /// </summary>
+    private Task GuardarYCrearOtroAsync() => GuardarAsync(crearOtro: true);
+
+    private async Task GuardarAsync(bool crearOtro)
     {
         _guardando = true;
         _mensajeErrorFormulario = null;
@@ -241,6 +404,18 @@ public partial class Centros : ComponentBase
             ToastService.Mostrar(
                 _editandoId is null ? "Centro creado correctamente." : "Centro actualizado correctamente.",
                 TonoToast.Exito);
+
+            if (crearOtro && _editandoId is null)
+            {
+                _nombre = string.Empty;
+                _codigoCentro = string.Empty;
+                _direccion = string.Empty;
+                _contacto = string.Empty;
+                _contratoVigenteHasta = string.Empty;
+                _erroresCampo = new Dictionary<string, string>();
+                await RecargarAsync();
+                return;
+            }
 
             _drawerVisible = false;
             await RecargarAsync();
@@ -312,7 +487,8 @@ public partial class Centros : ComponentBase
             }
             else
             {
-                ToastService.Mostrar("Centro eliminado correctamente.", TonoToast.Exito);
+                var idEliminado = _idAEliminar;
+                ToastService.Mostrar("Centro eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
             }
@@ -325,5 +501,102 @@ public partial class Centros : ComponentBase
         {
             _eliminando = false;
         }
+    }
+
+    /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarCentroCommand.</summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        var resultado = await Mediator.Send(new RestaurarCentroCommand(id));
+
+        ToastService.Mostrar(
+            resultado.EsExitoso ? "Centro restaurado." : resultado.Error.Mensaje,
+            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+        if (resultado.EsExitoso)
+            await RecargarAsync();
+    }
+
+    private bool TodosSeleccionados =>
+        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+
+    private void AlternarSeleccionTodos(bool marcar)
+    {
+        if (marcar)
+            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+        else
+            _seleccionados.Clear();
+    }
+
+    private void AlternarSeleccion(Guid id, bool marcado)
+    {
+        if (marcado) _seleccionados.Add(id);
+        else _seleccionados.Remove(id);
+    }
+
+    private async Task ConfirmarEliminarLoteAsync()
+    {
+        _eliminandoLote = true;
+
+        try
+        {
+            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
+            var resultado = await Mediator.Send(new EliminarCentrosCommand(_seleccionados.ToList(), usuarioId ?? Guid.Empty));
+            var dto = resultado.Valor;
+
+            ToastService.Mostrar(
+                dto.Errores.Count == 0
+                    ? $"{dto.Eliminados} centro(s) eliminado(s)."
+                    : $"{dto.Eliminados} eliminado(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            _seleccionados.Clear();
+            _confirmarEliminarLoteVisible = false;
+            await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos eliminar los centros seleccionados. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _eliminandoLote = false;
+        }
+    }
+
+    private string ObtenerClaseFila(CentroListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
+
+    private async Task ManejarAtajoAsync(string tecla)
+    {
+        if (_elementosPagina.Count == 0) return;
+
+        switch (tecla)
+        {
+            case "j":
+                {
+                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    break;
+                }
+            case "k":
+                {
+                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    break;
+                }
+            case "x":
+                if (_idEnfocado is { } idAlternar)
+                    AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                break;
+            case "Enter":
+                if (_idEnfocado is { } idAbrir)
+                {
+                    var elemento = _elementosPagina.FirstOrDefault(e => e.Id == idAbrir);
+                    if (elemento is not null)
+                        await WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, elemento.Id, elemento.Nombre, "informacion");
+                }
+                break;
+        }
+
+        StateHasChanged();
     }
 }
