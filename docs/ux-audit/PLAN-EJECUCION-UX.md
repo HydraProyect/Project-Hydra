@@ -66,9 +66,9 @@ próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plan
 > modelo de dominio) y cambia su cardinalidad, y 0.4 decide una semántica de modelo nueva para
 > `TipoDocumentoCentro`. Se ejecuta en lotes ordenados, cada uno su propia rama/PR, merge en
 > verde antes del siguiente: **Lote 0-A** = 0.1 + 0.2 (✅ hecho, ver estado abajo) · **Lote 0-B**
-> = 0.3 (visita) · **Lote 0-C** = 0.4 + 0.5 (requisitos configurables + retirada de Evaluaciones,
-> van juntos porque 0.5 depende del modelo que decide 0.4) · **Lote 0-D** = 0.6 + 0.7 (N accesos
-> de plataforma + copy de criterios de validación).
+> = 0.3 (✅ hecho, visita) · **Lote 0-C** = 0.4 + 0.5 (requisitos configurables + retirada de
+> Evaluaciones, van juntos porque 0.5 depende del modelo que decide 0.4) · **Lote 0-D** = 0.6 +
+> 0.7 (N accesos de plataforma + copy de criterios de validación).
 
 ### (0.1) Acordeón de asignaciones dentro de `/centros` — ✅ hecho (Lote 0-A)
 
@@ -115,7 +115,7 @@ próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plan
 - Acción "Gestionar" reutiliza el patrón crear-desde-faltante ya existente
   (`?trabajadorId=&tipoDocumentoId=`).
 
-### (0.3) Semáforo con ventana de visita (badge nuevo del Design System)
+### (0.3) Semáforo con ventana de visita (badge nuevo del Design System) — ✅ hecho (Lote 0-B)
 
 - Cada Centro con visita programada muestra un badge clicable "Visita dd/mm–dd/mm" en la
   cabecera del acordeón (proyección de `/visitas`, sin modelo nuevo).
@@ -132,6 +132,17 @@ próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plan
   tiene asignación activa en ese centro, aviso con acción que abre `SelectorEntidad` (ya
   soporta "+ Crear «nombre»" en modal, `UX_PATTERNS.md:26`) para elegir un trabajador existente
   o crear uno nuevo, disparando `CrearAsignacionCommand` con el preflight de siempre.
+- **Estado**: hecho, con una simplificación de la última viñeta — `VisitaTrabajador` ya
+  referencia un `Trabajador` real (no un nombre suelto de origen Inbound), así que el aviso
+  identifica al trabajador sin ambigüedad y el botón "Asignar" dispara `CrearAsignacionCommand`
+  directamente para ese Id; no hizo falta `SelectorEntidad` (no hay nada que buscar o crear —
+  el candidato ya es conocido). Batch por página (`ObtenerProximaVisitaPorCentroQuery`), no
+  N+1 por fila. Verificado en navegador: badge con fechas correctas, click filtra `/visitas`
+  por el centro; el aviso de asignación rápida no se pudo ver en acción con los datos de demo
+  porque `DatosPruebaSeeder` construye cada `VisitaTrabajador` a partir de trabajadores que
+  YA tienen asignación activa en ese centro (nunca deja el hueco) — revisado el código de la
+  query y es correcto por inspección, pero queda pendiente una verificación visual con datos
+  reales donde sí exista el hueco.
 
 ### (0.4) Documentación requerida del Centro — configurable en ambos sentidos
 

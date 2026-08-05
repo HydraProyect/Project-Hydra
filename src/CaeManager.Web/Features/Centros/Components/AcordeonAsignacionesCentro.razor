@@ -47,6 +47,23 @@ else
         </Boton>
     </div>
 
+    @if (_trabajadoresVisitaSinAsignacion.Count > 0)
+    {
+        <div class="alerta-info" role="status">
+            <p>La próxima visita a este centro incluye a estos trabajadores sin asignación activa aquí:</p>
+            @foreach (var trabajador in _trabajadoresVisitaSinAsignacion)
+            {
+                <div class="fila-documento-requerido" @key="trabajador.TrabajadorId">
+                    <span class="fila-documento-requerido-nombre">@trabajador.TrabajadorNombre</span>
+                    <Boton Tamano="TamanoBoton.Pequeno" Cargando="_asignandoDesdeVisita.Contains(trabajador.TrabajadorId)"
+                           OnClick="() => AsignarDesdeVisitaAsync(trabajador)">
+                        Asignar
+                    </Boton>
+                </div>
+            }
+        </div>
+    }
+
     @if (_trabajadores.Count == 0)
     {
         <EstadoVacio Titulo="Sin trabajadores asignados" Descripcion="Ningún trabajador tiene una asignación activa en este centro." />
@@ -77,7 +94,11 @@ else
                                         {
                                             <div class="fila-documento-requerido" @key="documento.TipoDocumentoId">
                                                 <span class="fila-documento-requerido-nombre">@documento.TipoDocumentoNombre</span>
-                                                <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
+                                                <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)"
+                                                       class="@(documento.CaducaEnVentanaVisita ? "badge-riesgo-ventana-visita" : null)"
+                                                       title="@(documento.CaducaEnVentanaVisita ? "Vigente hoy, pero caduca antes de que termine la próxima visita" : null)">
+                                                    @EstadoDocumentoUi.Texto(documento.Estado)
+                                                </Badge>
                                                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                                        OnClick="() => Gestionar(trabajador.TrabajadorId, documento)">
                                                     Gestionar
