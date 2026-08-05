@@ -80,6 +80,12 @@ else
                         <SeccionColapsable Titulo="@trabajador.TrabajadorNombre">
                             <Encabezado>
                                 <span class="tarjeta-fila-acordeon-meta">desde @trabajador.FechaAlta.ToString("dd/MM/yyyy")</span>
+                                @if (trabajador.Documentos.Count > 0)
+                                {
+                                    <span class="tarjeta-fila-acordeon-meta" title="Documentos al día / requeridos por este centro">
+                                        @DocumentosAlDia(trabajador)/@trabajador.Documentos.Count
+                                    </span>
+                                }
                                 <Badge Tono="EstadoDocumentoUi.Tono(trabajador.PeorEstado)">@EstadoDocumentoUi.Texto(trabajador.PeorEstado)</Badge>
                             </Encabezado>
                             <ChildContent>
