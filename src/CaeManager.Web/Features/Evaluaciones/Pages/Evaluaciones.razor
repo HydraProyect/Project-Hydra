@@ -59,7 +59,7 @@
                         @context.CentroNombre
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Trabajador">
+                <TemplateColumn Title="Trabajador" Sortable="true" SortBy="@(GridSort<EvaluacionListaDto>.ByAscending(e => e.TrabajadorNombre))">
                     @if (context.TrabajadorId is null)
                     {
                         @:—
@@ -71,8 +71,8 @@
                         </button>
                     }
                 </TemplateColumn>
-                <TemplateColumn Title="Fecha">@context.Fecha.ToString("dd/MM/yyyy")</TemplateColumn>
-                <TemplateColumn Title="Puntuación" Align="Align.Center">
+                <TemplateColumn Title="Fecha" Sortable="true" SortBy="@(GridSort<EvaluacionListaDto>.ByAscending(e => e.Fecha))">@context.Fecha.ToString("dd/MM/yyyy")</TemplateColumn>
+                <TemplateColumn Title="Puntuación" Align="Align.Center" Sortable="true" SortBy="@(GridSort<EvaluacionListaDto>.ByAscending(e => e.Puntuacion))">
                     <Badge Tono="@PuntuacionTono(context.Puntuacion)">@context.Puntuacion / 100</Badge>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">

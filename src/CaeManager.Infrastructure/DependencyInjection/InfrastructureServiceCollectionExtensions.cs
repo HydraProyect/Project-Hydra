@@ -307,6 +307,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.ISugerenciaGestionCorreoRepository, SugerenciaGestionCorreoRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.ISolicitudPrioridadDocumentoRepository, SolicitudPrioridadDocumentoRepository>();
         services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
@@ -415,6 +416,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITrabajoAnalisisDocumentoRepository, TrabajoAnalisisDocumentoRepository>();
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
+        // Fase F: aviso por hora (solo campana, sin correo en v1) de
+        // gestiones urgentes de visita — reutiliza ObtenerBandejaGestorQuery,
+        // sin interruptor de configuración propio (a diferencia del resumen
+        // de alertas por correo, no manda nada fuera de la aplicación).
+        services.AddHostedService<Visitas.VigilanciaVisitasUrgentesHostedService>();
+
         // Timeouts explícitos en todos los HttpClient de IA/Graph (P0-9 de
         // docs/business/MATURITY_REVIEW.md): el procesador de la cola de IA es
         // secuencial, así que una llamada colgada al proveedor detenía la cola
@@ -511,6 +518,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Comunicaciones (P2 #26): apagado por defecto — ver ComunicacionesOptions.
         services.Configure<ComunicacionesOptions>(configuration.GetSection(ComunicacionesOptions.SeccionConfiguracion));
+        // Fase G: mismo "Comunicaciones" — ver ComunicacionesRemitenteOptions (Application.Common).
+        services.Configure<ComunicacionesRemitenteOptions>(configuration.GetSection(ComunicacionesRemitenteOptions.SeccionConfiguracion));
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();

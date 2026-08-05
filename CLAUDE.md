@@ -32,7 +32,7 @@ Las obligaciones RGPD/LOPDGDD siguen aplicando íntegras al tratamiento de datos
 - `ROADMAP.md` — historial de fases y backlog. Es largo — usa `grep` por sección en vez de leerlo entero.
 - `RGPD-TRATAMIENTO-DATOS.md` — datos personales tratados, base legal, subencargados. No sustituye revisión legal.
 - `CODING_STANDARDS.md`, `DESIGN_SYSTEM.md`, `UX_PATTERNS.md` — convenciones de código y producto, antes de escribir código o UI nueva.
-- `PLAN-MASTER-DETAIL-WORKSPACE.md` / `PLAN-CONTEXT-WORKSPACE.md` — rediseño de navegación contextual (diseño en debate, implementación pendiente).
+- `PLAN-MASTER-DETAIL-WORKSPACE.md` (propuesta previa, no implementada) / `PLAN-CONTEXT-WORKSPACE.md` — rediseño de navegación contextual. **El Context Workspace está implementado** (`src/CaeManager.Web/Components/Workspace/`), con la auditoría línea a línea contra el código en § 0 de ese plan; lo que sigue abierto son sus huecos (deep-link `?ctx=`, cierre al navegar por el menú, teclado, modo acoplado).
 
 ## Disciplina de decisión para cambios de arquitectura
 

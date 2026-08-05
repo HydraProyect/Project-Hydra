@@ -637,6 +637,31 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ParticipantesConversacion", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.SolicitudPrioridadDocumento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("EnviadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EnviadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CentroId");
+
+                    b.ToTable("SolicitudesPrioridadDocumento", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.SugerenciaGestionCorreo", b =>
                 {
                     b.Property<Guid>("Id")
@@ -751,6 +776,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("HorasAvisoVisita")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("HorasCriticasVisita")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
@@ -768,6 +799,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000001"),
+                            HorasAvisoVisita = 48,
+                            HorasCriticasVisita = 24,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             UmbralAmbarDias = 30,
                             UmbralRojoDias = 15

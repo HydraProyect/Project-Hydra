@@ -1,4 +1,5 @@
 using System.Net;
+using CaeManager.Application.Alertas;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
@@ -101,11 +102,13 @@ public class EnvioAlertasVencimientoHostedService(
 
         var dbContext = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var alcanceDatos = ambito.ServiceProvider.GetRequiredService<IAlcanceDatosService>();
+        var documentosFaltantesService = ambito.ServiceProvider.GetRequiredService<IDocumentosFaltantesService>();
         // Instanciado directo, sin pasar por MediatR: CalcularAsync es el
         // punto de entrada explícito pensado exactamente para esto (ver su
         // comentario) — MediatR no garantiza que el tipo concreto del
         // handler sea resoluble por sí mismo desde el contenedor.
-        var handler = new ObtenerAlertasQueryHandler(dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, alcanceDatos);
+        var handler = new ObtenerAlertasQueryHandler(
+            dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, alcanceDatos, documentosFaltantesService);
 
         var alertas = await handler.CalcularAsync(trabajadorIdsVisibles: null, centroIdsVisibles: null, stoppingToken);
         if (alertas.Count == 0) return;

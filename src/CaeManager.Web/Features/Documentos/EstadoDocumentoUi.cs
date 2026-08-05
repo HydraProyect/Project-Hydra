@@ -1,3 +1,4 @@
+using CaeManager.Application.Documentos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 
@@ -29,4 +30,30 @@ public static class EstadoDocumentoUi
         EstadoDocumento.Faltante => "Falta",
         _ => "No aplica"
     };
+
+    /// <summary>
+    /// Estado documental derivado de Trabajador/Empresa/Vehículo, donde null
+    /// significa "no tiene ningún documento todavía" — ver
+    /// <see cref="ICalculoEstadoDocumentalService"/>.
+    /// </summary>
+    public static TonoBadge TonoDocumental(EstadoDocumento? estado) =>
+        estado is null ? TonoBadge.Neutro : Tono(estado.Value);
+
+    public static string TextoDocumental(EstadoDocumento? estado) =>
+        estado is null ? "Sin documentos" : Texto(estado.Value);
+
+    /// <summary>
+    /// Opciones del filtro de estado documental, de peor a mejor: al filtrar,
+    /// lo que el gestor busca es lo que le urge. Mismas opciones en las tres
+    /// pantallas — es la misma pregunta sobre tres tablas distintas.
+    /// </summary>
+    public static IReadOnlyList<OpcionEstado> OpcionesDocumentales { get; } =
+    [
+        new(nameof(EstadoDocumento.Vencido), "Vencido"),
+        new(nameof(EstadoDocumento.Urgente), "Urgente"),
+        new(nameof(EstadoDocumento.Proximo), "Próximo"),
+        new(nameof(EstadoDocumento.Vigente), "Vigente"),
+        new(nameof(EstadoDocumento.NoAplica), "No aplica"),
+        new(EstadoDocumentalFiltro.SinDocumentos, "Sin documentos")
+    ];
 }
