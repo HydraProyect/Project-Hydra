@@ -29,7 +29,7 @@ public partial class DashboardEjecutivo : ComponentBase
 
     private List<SegmentoGraficoDto> _semaforoDocumental = [];
     private List<SegmentoGraficoDto> _incidenciasPorGravedad = [];
-    private List<SegmentoGraficoDto> _centrosConMasRiesgo = [];
+    private List<SegmentoGraficoDto> _centrosConMenorCumplimiento = [];
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
@@ -74,8 +74,8 @@ public partial class DashboardEjecutivo : ComponentBase
             .Select(g => new SegmentoGraficoDto(g.Gravedad.ToString(), g.Cantidad))
             .ToList();
 
-        _centrosConMasRiesgo = _valores.CentrosConMasRiesgo
-            .Select(c => new SegmentoGraficoDto($"{c.TenantNombre} · {c.CentroNombre}", (decimal)c.PuntuacionMedia))
+        _centrosConMenorCumplimiento = _valores.CentrosConMenorCumplimiento
+            .Select(c => new SegmentoGraficoDto($"{c.TenantNombre} · {c.CentroNombre}", c.Porcentaje))
             .ToList();
     }
 
@@ -121,7 +121,7 @@ public partial class DashboardEjecutivo : ComponentBase
         CatalogoKpis.VisitasProgramadas => _valores!.VisitasProgramadas.ToString(),
         CatalogoKpis.VisitasUrgentes => _valores!.VisitasUrgentes.ToString(),
         CatalogoKpis.TasaCumplimiento => $"{_valores!.TasaCumplimiento}%",
-        CatalogoKpis.PuntuacionMediaEvaluaciones => _valores!.PuntuacionMediaEvaluaciones is { } p ? $"{p:F0}" : "—",
+        CatalogoKpis.PorcentajeCumplimientoDocumental => _valores!.PorcentajeCumplimientoDocumental is { } p ? $"{p:F0}%" : "—",
         CatalogoKpis.IncidenciasAbiertas => _valores!.IncidenciasAbiertas.ToString(),
         CatalogoKpis.TiempoMedioResolucionIncidencias => _valores!.TiempoMedioResolucionIncidenciasDias is { } d ? $"{d:F1} días" : "—",
         CatalogoKpis.ConfianzaMediaIa => _valores!.ConfianzaMediaIa is { } c ? $"{c:F0}%" : "—",
@@ -134,6 +134,7 @@ public partial class DashboardEjecutivo : ComponentBase
     private TonoBadge TonoTile(string codigo) => codigo switch
     {
         CatalogoKpis.TasaCumplimiento => TonoPorcentaje(_valores!.TasaCumplimiento),
+        CatalogoKpis.PorcentajeCumplimientoDocumental when _valores!.PorcentajeCumplimientoDocumental is { } p => TonoPorcentaje((int)p),
         CatalogoKpis.ConfianzaMediaIa when _valores!.ConfianzaMediaIa is { } c => TonoPorcentaje((int)c),
         _ => TonoBadge.Neutro
     };

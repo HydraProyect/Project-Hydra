@@ -1,7 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.DocumentosIa;
-using CaeManager.Application.Evaluaciones;
 using CaeManager.Application.Facturacion;
 using CaeManager.Application.Incidencias;
 using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
@@ -13,7 +12,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 
 public record ObtenerCatalogoKpisQuery : IRequest<CatalogoKpisValoresDto>;
 
-public record CentroRiesgoEvaluacionDto(Guid CentroId, string CentroNombre, double PuntuacionMedia);
+public record CentroCumplimientoDto(Guid CentroId, string CentroNombre, int Porcentaje);
 
 public record GravedadIncidenciaConteoDto(GravedadIncidencia Gravedad, int Cantidad);
 
@@ -28,9 +27,9 @@ public record GravedadIncidenciaConteoDto(GravedadIncidencia Gravedad, int Canti
 public record CatalogoKpisValoresDto(
     KpisDashboardDto Documental,
     int TotalDocumentosConVigencia,
-    double? PuntuacionMediaEvaluaciones,
-    int TotalEvaluaciones,
-    IReadOnlyList<CentroRiesgoEvaluacionDto> CentrosConMasRiesgo,
+    double? PorcentajeCumplimientoDocumental,
+    int TotalRequeridosCumplimiento,
+    IReadOnlyList<CentroCumplimientoDto> CentrosConMenorCumplimiento,
     int IncidenciasAbiertas,
     IReadOnlyList<GravedadIncidenciaConteoDto> IncidenciasPorGravedad,
     double? TiempoMedioResolucionIncidenciasDias,
@@ -54,7 +53,7 @@ public record CatalogoKpisValoresDto(
 /// puede recibir la lista de códigos seleccionados y calcular solo esas
 /// sub-áreas.
 /// </summary>
-public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext, IDocumentosIaQueryContext documentosIaContext, IEvaluacionesQueryContext evaluacionesContext, IFacturacionQueryContext facturacionContext, IIncidenciasQueryContext incidenciasContext, IAlcanceDatosService alcanceDatos, IMediator mediator)
+public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext, IDocumentosIaQueryContext documentosIaContext, ICalculoEstadoCentroService calculoEstadoCentro, IFacturacionQueryContext facturacionContext, IIncidenciasQueryContext incidenciasContext, IAlcanceDatosService alcanceDatos, IMediator mediator)
     : IRequestHandler<ObtenerCatalogoKpisQuery, CatalogoKpisValoresDto>
 {
     public async Task<CatalogoKpisValoresDto> Handle(ObtenerCatalogoKpisQuery request, CancellationToken cancellationToken)
@@ -65,8 +64,8 @@ public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext
 
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
 
-        var (puntuacionMedia, totalEvaluaciones, centrosConMasRiesgo) =
-            await CalcularEvaluacionesAsync(centroIdsVisibles, cancellationToken);
+        var (porcentajeCumplimiento, totalRequeridos, centrosConMenorCumplimiento) =
+            await CalcularCumplimientoAsync(centroIdsVisibles, cancellationToken);
 
         var (incidenciasAbiertas, incidenciasPorGravedad, tiempoMedioResolucionDias, totalIncidenciasResueltas) =
             await CalcularIncidenciasAsync(centroIdsVisibles, cancellationToken);
@@ -78,9 +77,9 @@ public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext
         return new CatalogoKpisValoresDto(
             Documental: documental,
             TotalDocumentosConVigencia: totalConVigencia,
-            PuntuacionMediaEvaluaciones: puntuacionMedia,
-            TotalEvaluaciones: totalEvaluaciones,
-            CentrosConMasRiesgo: centrosConMasRiesgo,
+            PorcentajeCumplimientoDocumental: porcentajeCumplimiento,
+            TotalRequeridosCumplimiento: totalRequeridos,
+            CentrosConMenorCumplimiento: centrosConMenorCumplimiento,
             IncidenciasAbiertas: incidenciasAbiertas,
             IncidenciasPorGravedad: incidenciasPorGravedad,
             TiempoMedioResolucionIncidenciasDias: tiempoMedioResolucionDias,
@@ -92,28 +91,40 @@ public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext
             FacturacionEstimadaMesActual: facturacionEstimada);
     }
 
-    private async Task<(double? PuntuacionMedia, int Total, IReadOnlyList<CentroRiesgoEvaluacionDto> CentrosConMasRiesgo)>
-        CalcularEvaluacionesAsync(IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
+    /// <summary>
+    /// Reutiliza <see cref="ICalculoEstadoCentroService.CalcularCumplimientoAsync"/>
+    /// (Centro 360, PLAN-EJECUCION-UX.md § 0.5) — sustituye al antiguo KPI de
+    /// Evaluaciones (retirado). <c>TotalRequeridosCumplimiento</c> es el
+    /// denominador que <see cref="ObtenerDashboardEjecutivoQuery"/> necesita
+    /// para ponderar el % al fusionar varios tenants.
+    /// </summary>
+    private async Task<(double? Porcentaje, int TotalRequeridos, IReadOnlyList<CentroCumplimientoDto> CentrosConMenorCumplimiento)>
+        CalcularCumplimientoAsync(IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
     {
-        var evaluacionesQuery = evaluacionesContext.Evaluaciones.AsQueryable();
+        var centrosQuery = centrosContext.Centros.AsQueryable();
         if (centroIdsVisibles is not null)
-            evaluacionesQuery = evaluacionesQuery.Where(e => centroIdsVisibles.Contains(e.CentroId));
+            centrosQuery = centrosQuery.Where(c => centroIdsVisibles.Contains(c.Id));
 
-        var total = await evaluacionesQuery.CountAsync(cancellationToken);
-        if (total == 0) return (null, 0, []);
+        var centros = await centrosQuery.Select(c => new { c.Id, c.Nombre }).ToListAsync(cancellationToken);
+        if (centros.Count == 0)
+            return (null, 0, []);
 
-        var puntuacionMedia = await evaluacionesQuery.AverageAsync(e => (double)e.Puntuacion, cancellationToken);
+        var cumplimientoPorCentro = await calculoEstadoCentro.CalcularCumplimientoAsync(
+            centros.Select(c => c.Id).ToList(), cancellationToken);
 
-        var centrosConMasRiesgo = await evaluacionesQuery
-            .GroupBy(e => e.CentroId)
-            .Select(g => new { CentroId = g.Key, PuntuacionMedia = g.Average(e => (double)e.Puntuacion) })
-            .OrderBy(x => x.PuntuacionMedia)
+        var totalAlDia = cumplimientoPorCentro.Values.Sum(f => f.AlDia);
+        var totalRequeridos = cumplimientoPorCentro.Values.Sum(f => f.Requeridos);
+        double? porcentaje = totalRequeridos == 0 ? null : totalAlDia * 100.0 / totalRequeridos;
+
+        var centrosConMenorCumplimiento = centros
+            .Select(c => new { c.Id, c.Nombre, Fraccion = cumplimientoPorCentro.GetValueOrDefault(c.Id) })
+            .Where(c => c.Fraccion is { Requeridos: > 0 })
+            .OrderBy(c => c.Fraccion!.Porcentaje)
             .Take(5)
-            .Join(centrosContext.Centros, x => x.CentroId, c => c.Id,
-                (x, c) => new CentroRiesgoEvaluacionDto(c.Id, c.Nombre, x.PuntuacionMedia))
-            .ToListAsync(cancellationToken);
+            .Select(c => new CentroCumplimientoDto(c.Id, c.Nombre, c.Fraccion!.Porcentaje!.Value))
+            .ToList();
 
-        return (puntuacionMedia, total, centrosConMasRiesgo);
+        return (porcentaje, totalRequeridos, centrosConMenorCumplimiento);
     }
 
     private async Task<(int Abiertas, IReadOnlyList<GravedadIncidenciaConteoDto> PorGravedad, double? TiempoMedioResolucionDias, int TotalResueltas)>

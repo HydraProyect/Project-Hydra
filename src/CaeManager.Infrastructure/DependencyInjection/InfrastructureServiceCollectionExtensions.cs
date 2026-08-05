@@ -12,7 +12,6 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Notificaciones;
-using CaeManager.Domain.Evaluaciones;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Soporte;
@@ -301,7 +300,6 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Retencion.ISolicitudPurgaRepository, SolicitudPurgaRepository>();
         services.AddScoped<CaeManager.Application.Retencion.DeteccionPurgaService>();
         services.AddScoped<CaeManager.Application.Retencion.EjecucionPurgaService>();
-        services.AddScoped<IEvaluacionRepository, EvaluacionRepository>();
         services.AddScoped<IIncidenciaRepository, IncidenciaRepository>();
         services.AddScoped<IConversacionCorreoRepository, ConversacionCorreoRepository>();
         services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
@@ -343,7 +341,6 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Facturacion.IFacturacionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IProyectosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Retencion.IRetencionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
-        services.AddScoped<CaeManager.Application.Evaluaciones.IEvaluacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Incidencias.IIncidenciasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.ApiKeys.IApiKeysQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());

@@ -39,7 +39,7 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
             .HasPrincipalKey(s => new { s.TenantId, s.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Prerequisito de las FKs que Asignacion/Documento/Evaluacion/... declaran hacia Trabajador.
+        // Prerequisito de las FKs que Asignacion/Documento/... declaran hacia Trabajador.
         builder.HasIndex(t => new { t.TenantId, t.Id }).IsUnique();
 
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.

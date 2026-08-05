@@ -59,16 +59,25 @@ opera un centro sin salir de la pantalla: quién está de alta, con qué estado,
 próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plana de
 `/asignaciones`, que desaparece como página independiente.
 
-> **Secuenciación en lotes (añadido en la sesión de implementación de 0.1/0.2)**: los 7
-> sub-ítems no caben en un único PR sin mezclar refactors independientes (regla del propio
-> "Modo de trabajo" de este documento) — 0.5 retira una entidad completa con migración, 0.6
-> construye desde cero la capa de Application para `CanalGestionDocumental` (hoy solo existe el
-> modelo de dominio) y cambia su cardinalidad, y 0.4 decide una semántica de modelo nueva para
-> `TipoDocumentoCentro`. Se ejecuta en lotes ordenados, cada uno su propia rama/PR, merge en
-> verde antes del siguiente: **Lote 0-A** = 0.1 + 0.2 (✅ hecho, ver estado abajo) · **Lote 0-B**
-> = 0.3 (✅ hecho, visita) · **Lote 0-C** = 0.4 + 0.5 (requisitos configurables + retirada de
-> Evaluaciones, van juntos porque 0.5 depende del modelo que decide 0.4) · **Lote 0-D** = 0.6 +
-> 0.7 (N accesos de plataforma + copy de criterios de validación).
+> **Secuenciación en lotes (añadido en la sesión de implementación de 0.1/0.2; reajustado en la
+> de 0.5)**: los 7 sub-ítems no caben en un único PR sin mezclar refactors independientes (regla
+> del propio "Modo de trabajo" de este documento) — 0.5 retira una entidad completa con
+> migración, 0.6 construye desde cero la capa de Application para `CanalGestionDocumental` (hoy
+> solo existe el modelo de dominio) y cambia su cardinalidad, y 0.4 decide una semántica de
+> modelo nueva para `TipoDocumentoCentro`. Se ejecuta en lotes ordenados, cada uno su propia
+> rama/PR, merge en verde antes del siguiente: **Lote 0-A** = 0.1 + 0.2 (✅ hecho) · **Lote 0-B**
+> = 0.3 (✅ hecho, visita) · **Lote 0-C** = 0.5 (✅ hecho, retirada de Evaluaciones + % de
+> cumplimiento) · **Lote 0-D** = 0.4 (requisitos configurables incluir/excluir) · **Lote 0-E** =
+> 0.6 + 0.7 (N accesos de plataforma + copy de criterios de validación). El plan original
+> agrupaba 0.4+0.5
+> en el mismo lote asumiendo que 0.5 dependía del modelo que decide 0.4 — al implementar se
+> confirmó que el acoplamiento es más débil de lo previsto: el % de cumplimiento (0.5) puede
+> calcularse con la semántica actual de `TipoDocumentoCentro` (solo restricción/allow-list) y
+> recogerá automáticamente la exclusión el día que 0.4 la añada, sin tener que tocar el cálculo
+> de nuevo. Separarlos reduce el riesgo de cada PR (0.5 ya toca una entidad completa con
+> migración + un servicio compartido crítico; sumarle además una decisión de semántica de
+> modelo en el mismo cambio era exactamente el tipo de mezcla que el "Modo de trabajo" pide
+> evitar).
 
 ### (0.1) Acordeón de asignaciones dentro de `/centros` — ✅ hecho (Lote 0-A)
 
@@ -144,7 +153,7 @@ próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plan
   query y es correcto por inspección, pero queda pendiente una verificación visual con datos
   reales donde sí exista el hueco.
 
-### (0.4) Documentación requerida del Centro — configurable en ambos sentidos
+### (0.4) Documentación requerida del Centro — configurable en ambos sentidos — Lote 0-D (pendiente, después de 0-C)
 
 **Hallazgo de modelo real** (no solo diseño de pantalla): hoy `TipoDocumentoCentro` es una
 lista de permiso (*allow-list*) — un `TipoDocumento` sin ninguna fila ahí aplica a **todos**
@@ -167,7 +176,7 @@ paquete estándar (Art. 18/19, etc.).
   decir "este centro solo exige 2 tipos", el % estaría contando de más para los centros que
   piden menos.
 
-### (0.5) % de cumplimiento — sustituye al módulo Evaluaciones
+### (0.5) % de cumplimiento — sustituye al módulo Evaluaciones — ✅ hecho (Lote 0-C)
 
 **Decisión del propietario, 2026-08-05: el módulo Evaluaciones se retira.** La puntuación
 manual 0-100 (`Evaluacion`, consumida hoy por `CatalogoKpis`/Dashboard Ejecutivo — sesión 08
@@ -183,6 +192,22 @@ aparte. No se sustituye por una feature equivalente; se calcula donde hace falta
   baja, no solo ocultar el menú — nada de "pantalla fantasma", `NavMenu.razor:2-4`), y las
   referencias en `CatalogoKpis`/Dashboard Ejecutivo (`ObtenerDashboardEjecutivoQuery.cs`,
   `CatalogoKpis.cs`) — sustituir esos KPI por el nuevo % agregado de cumplimiento.
+- **Estado**: hecho. `ICalculoEstadoCentroService` gana `CalcularCumplimientoAsync` (método
+  aparte de `CalcularAsync` a propósito — mismas fuentes de datos, pero sin arriesgar la lógica
+  de badge ya en producción). El % de centro se muestra en `Centros.razor` junto al badge de
+  cumplimiento (`CentroListaDto.CumplimientoPorcentaje`, `null` cuando `Requeridos == 0` — "sin
+  requisitos" en vez de un 0%/100% engañoso); el "7/9" por trabajador en `AcordeonAsignacionesCentro`
+  se deriva sin consulta nueva de los `Documentos` que ya carga el Lote 0-A. `Evaluacion` retirada
+  íntegra: dominio, Commands/Queries, repositorio, configuración EF, DbSet, DI, seeding, página,
+  entrada de menú, y migración `RetirarEvaluaciones` (`DropTable`, con `Down()` reversible).
+  `CatalogoKpis`/`ObtenerCatalogoKpisQuery`/`ObtenerDashboardEjecutivoQuery` sustituyen
+  `eval.puntuacion-media`/`eval.centros-riesgo` por `doc.pct-cumplimiento-trabajadores`/
+  `doc.centros-menor-cumplimiento`, reutilizando el mismo `CalcularCumplimientoAsync`.
+  Verificado en navegador con datos de demo: badge oculto correctamente cuando no hay tipos
+  obligatorios (el hallazgo de `EsObligatorio=false` de los lotes 0-A/0-B sigue aplicando —
+  el % de cumplimiento hoy siempre da "sin requisitos" hasta que el propietario marque algún
+  `TipoDocumento` como obligatorio), `/evaluaciones` devuelve 404, KPIs nuevos visibles y
+  correctos en Dashboard Ejecutivo tras personalizar la selección.
 
 ### (0.6) N accesos de plataforma por Centro, con etiqueta de propósito
 
