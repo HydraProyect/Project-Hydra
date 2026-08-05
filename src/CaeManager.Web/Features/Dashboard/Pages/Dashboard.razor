@@ -23,6 +23,10 @@
     {
         <EstadoCargando Filas="2" />
     }
+    else if (_kpis.SinCarteraAsignada)
+    {
+        <EstadoVacio Titulo="Sin cartera asignada" Descripcion="Todavía no tienes ningún cliente asignado, así que no hay datos que mostrar. Pide a tu Coordinador o a un Administrador de la plataforma que te asigne cartera." />
+    }
     else
     {
         <div class="rejilla-kpis-criticos">
