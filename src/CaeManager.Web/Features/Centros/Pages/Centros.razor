@@ -10,11 +10,11 @@
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
 @using CaeManager.Application.Common
 @using CaeManager.Web.Features.Centros
+@using CaeManager.Web.Features.Centros.Components
 @using CaeManager.Web.Features.Clientes.Components
 @using CaeManager.Web.Features.Empresas.Components
 @using FluentValidation
 @using MediatR
-@using Microsoft.AspNetCore.Components.QuickGrid
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
@@ -25,7 +25,10 @@
 <div class="contenedor-pagina">
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">Centros</h1>
-        <Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton>
+        <div class="acciones-cabecera">
+            <a class="enlace-exportar" href="/asignaciones/exportar.xlsx">Exportar asignaciones</a>
+            <Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton>
+        </div>
     </div>
 
     <div class="barra-filtros">
@@ -40,59 +43,63 @@
     {
         <EstadoVacio Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+                <Boton OnClick="() => CargarAsync()">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando && _elementosPagina.Count == 0)
+    {
+        <EstadoCargando Filas="6" />
+    }
+    else if (_elementosPagina.Count == 0)
+    {
+        <EstadoVacio Titulo="Aún no hay centros" Descripcion="Crea el primero para empezar a asignar trabajadores.">
+            <Accion>
+                <Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton>
             </Accion>
         </EstadoVacio>
     }
     else
     {
-        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="CentroListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                <TemplateColumn Title="" Align="Align.Center">
-                    <HeaderTemplate Context="columna">
-                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
-                    </HeaderTemplate>
-                    <ChildContent>
-                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
-                    </ChildContent>
-                </TemplateColumn>
-                <TemplateColumn Title="Nombre" Sortable="true" SortBy="@(GridSort<CentroListaDto>.ByAscending(c => c.Nombre))">
-                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.Id, context.Nombre, "informacion")'>
-                        @context.Nombre
-                    </button>
-                </TemplateColumn>
-                <PropertyColumn Property="@(c => c.ClienteRazonSocial)" Title="Cliente" Sortable="true" />
-                <PropertyColumn Property="@(c => c.EmpresaRazonSocial)" Title="Empresa" Sortable="true" />
-                <PropertyColumn Property="@(c => c.CodigoCentro)" Title="Código" Sortable="true" />
-                <TemplateColumn Title="Cumplimiento" Sortable="true" SortBy="@(GridSort<CentroListaDto>.ByAscending(c => c.Estado))">
-                    <Badge Tono="EstadoCentroUi.Tono(context.Estado)">@EstadoCentroUi.Texto(context.Estado)</Badge>
-                </TemplateColumn>
-                <TemplateColumn Title="Acciones" Align="Align.End">
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.Id, context.Nombre, "informacion")'>
-                        Ver
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
-                        Editar
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.Nombre)">
-                        Eliminar
-                    </Boton>
-                </TemplateColumn>
-            </QuickGrid>
+        <label class="campo-checkbox">
+            <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+            Seleccionar todos
+        </label>
 
-            <div class="paginador">
-                <Paginator State="_paginacion" />
-            </div>
+        <div class="lista-filas-acordeon">
+            @foreach (var centro in _elementosPagina)
+            {
+                <div class="@("tarjeta-fila-acordeon" + (centro.Id == _idEnfocado ? " fila-enfocada" : ""))" @key="centro.Id">
+                    <div class="tarjeta-fila-acordeon-cabecera">
+                        <input type="checkbox" checked="@_seleccionados.Contains(centro.Id)" @onchange="e => AlternarSeleccion(centro.Id, (bool)e.Value!)" />
+                        <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
+                            @centro.Nombre
+                        </button>
+                        <span class="tarjeta-fila-acordeon-meta">@centro.ClienteRazonSocial · @centro.EmpresaRazonSocial@(string.IsNullOrEmpty(centro.CodigoCentro) ? "" : $" · {centro.CodigoCentro}")</span>
+                        <Badge Tono="EstadoCentroUi.Tono(centro.Estado)">@EstadoCentroUi.Texto(centro.Estado)</Badge>
+                        <div class="tarjeta-fila-acordeon-acciones">
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
+                                Ver
+                            </Boton>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(centro.Id)">
+                                Editar
+                            </Boton>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(centro.Id, centro.Nombre)">
+                                Eliminar
+                            </Boton>
+                        </div>
+                    </div>
+                    <SeccionColapsable Titulo="Asignaciones">
+                        <ChildContent>
+                            <AcordeonAsignacionesCentro CentroId="centro.Id" CentroNombre="centro.Nombre" />
+                        </ChildContent>
+                    </SeccionColapsable>
+                </div>
+            }
         </div>
 
-        @if (_totalElementos == 0 && !_cargando)
-        {
-            <EstadoVacio Titulo="Aún no hay centros" Descripcion="Crea el primero para empezar a asignar trabajadores.">
-                <Accion>
-                    <Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton>
-                </Accion>
-            </EstadoVacio>
-        }
+        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                          Etiqueta="centro(s)" PaginaActualChanged="CambiarPaginaAsync" />
     }
 </div>
 

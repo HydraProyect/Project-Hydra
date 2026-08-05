@@ -15,20 +15,26 @@ using CaeManager.Web.Features.Clientes.Components;
 using CaeManager.Web.Features.Empresas.Components;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Centros.Pages;
 
 public partial class Centros : ComponentBase
 {
-    private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
-    private QuickGrid<CentroListaDto>? _grid;
+    // QuickGrid no soporta filas expandibles (Centro 360, PLAN-EJECUCION-UX.md
+    // § 0.1): cada Centro es una tarjeta con SeccionColapsable anidada, así
+    // que la paginación se gestiona a mano en vez de con QuickGrid+Paginator
+    // — la Query sigue paginando en servidor, solo cambia el control visual
+    // (mismo PaginadorSimple que Usuarios.razor).
+    private const int TamanoPagina = 20;
 
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
+    private int _pagina = 1;
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPagina));
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
@@ -110,12 +116,11 @@ public partial class Centros : ComponentBase
     [SupplyParameterFromQuery] public Guid? ClienteId { get; set; }
     [SupplyParameterFromQuery] public Guid? EmpresaId { get; set; }
 
-    private GridItemsProvider<CentroListaDto>? _proveedorElementos;
-
     protected override async Task OnInitializedAsync()
     {
-        // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
-        _proveedorElementos = ProveerElementosAsync;
+        _busqueda = TerminoBusquedaInicial ?? string.Empty;
+        _estadoFiltro = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
+        await CargarAsync();
 
         if (Accion == "crear")
         {
@@ -143,52 +148,49 @@ public partial class Centros : ComponentBase
     /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
     /// compartir la URL, volver atrás) — no solo en el primer render — para
     /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
-    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md). El primer paso
+    /// (justo después de OnInitializedAsync) siempre coincide con lo que ya
+    /// se cargó ahí, así que esto no duplica la primera consulta.
     /// </summary>
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
-        if (deLaUrl != _busqueda)
-            _busqueda = deLaUrl;
-
         var estadoDeLaUrl = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
-        if (estadoDeLaUrl != _estadoFiltro)
-            _estadoFiltro = estadoDeLaUrl;
+
+        if (deLaUrl == _busqueda && estadoDeLaUrl == _estadoFiltro)
+            return;
+
+        _busqueda = deLaUrl;
+        _estadoFiltro = estadoDeLaUrl;
+        await CargarAsync(resetPagina: true);
     }
 
-    private async ValueTask<GridItemsProviderResult<CentroListaDto>> ProveerElementosAsync(
-        GridItemsProviderRequest<CentroListaDto> request)
+    private async Task CargarAsync(bool resetPagina = false)
     {
+        if (resetPagina)
+            _pagina = 1;
+
         _cargando = true;
         _errorCarga = false;
+        StateHasChanged();
 
         try
         {
-            var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
-            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
-
             var resultado = await Mediator.Send(new ObtenerCentrosQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 ClienteId: null,
                 Estado: Enum.TryParse<EstadoCentro>(_estadoFiltro, out var estado) ? estado : null,
-                OrdenarPor: ordenarPor,
-                Descendente: descendente,
-                Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage));
+                Pagina: _pagina,
+                TamanoPagina: TamanoPagina));
 
             _totalElementos = resultado.TotalElementos;
-
-            var elementos = resultado.Elementos.ToList();
-            _elementosPagina = elementos;
+            _elementosPagina = resultado.Elementos.ToList();
             _seleccionados.Clear();
             _idEnfocado = null;
-
-            return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
         catch (Exception)
         {
             _errorCarga = true;
-            return GridItemsProviderResult.From(new List<CentroListaDto>(), 0);
         }
         finally
         {
@@ -197,28 +199,24 @@ public partial class Centros : ComponentBase
         }
     }
 
+    private Task CambiarPaginaAsync(int pagina)
+    {
+        _pagina = pagina;
+        return CargarAsync();
+    }
+
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
         NavigationManager.ActualizarFiltroEnUrl("q", valor);
-        await RecargarAsync();
+        await CargarAsync(resetPagina: true);
     }
 
     private async Task CambiarEstadoAsync(string valor)
     {
         _estadoFiltro = valor;
         NavigationManager.ActualizarFiltroEnUrl("estado", valor);
-        await RecargarAsync();
-    }
-
-    private async Task RecargarAsync()
-    {
-        await _paginacion.SetCurrentPageIndexAsync(0);
-
-        if (_grid is not null)
-            await _grid.RefreshDataAsync();
-
-        StateHasChanged();
+        await CargarAsync(resetPagina: true);
     }
 
     private async Task AbrirCrearAsync()
@@ -281,7 +279,7 @@ public partial class Centros : ComponentBase
         if (centro is null)
         {
             ToastService.Mostrar("No encontramos este centro. Puede que ya se haya eliminado.", TonoToast.Error);
-            await RecargarAsync();
+            await CargarAsync();
             return;
         }
 
@@ -413,12 +411,12 @@ public partial class Centros : ComponentBase
                 _contacto = string.Empty;
                 _contratoVigenteHasta = string.Empty;
                 _erroresCampo = new Dictionary<string, string>();
-                await RecargarAsync();
+                await CargarAsync();
                 return;
             }
 
             _drawerVisible = false;
-            await RecargarAsync();
+            await CargarAsync();
         }
         catch (ValidationException ex)
         {
@@ -490,7 +488,7 @@ public partial class Centros : ComponentBase
                 var idEliminado = _idAEliminar;
                 ToastService.Mostrar("Centro eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
                 _confirmarEliminarVisible = false;
-                await RecargarAsync();
+                await CargarAsync();
             }
         }
         catch (Exception)
@@ -513,7 +511,7 @@ public partial class Centros : ComponentBase
             resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
 
         if (resultado.EsExitoso)
-            await RecargarAsync();
+            await CargarAsync();
     }
 
     private bool TodosSeleccionados =>
@@ -551,7 +549,7 @@ public partial class Centros : ComponentBase
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
-            await RecargarAsync();
+            await CargarAsync();
         }
         catch (Exception)
         {
@@ -562,8 +560,6 @@ public partial class Centros : ComponentBase
             _eliminandoLote = false;
         }
     }
-
-    private string ObtenerClaseFila(CentroListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
 
     private async Task ManejarAtajoAsync(string tecla)
     {

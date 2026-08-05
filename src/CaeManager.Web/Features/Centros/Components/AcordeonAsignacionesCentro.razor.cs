@@ -1,7 +1,7 @@
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
-using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignacion;
-using CaeManager.Application.Asignaciones.Queries.ObtenerAsignaciones;
+using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
+using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -9,38 +9,18 @@ using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.QuickGrid;
 
-namespace CaeManager.Web.Features.Asignaciones.Pages;
+namespace CaeManager.Web.Features.Centros.Components;
 
-public partial class Asignaciones : ComponentBase
+public partial class AcordeonAsignacionesCentro : ComponentBase
 {
-    private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
-    private QuickGrid<AsignacionListaDto>? _grid;
+    [Parameter, EditorRequired] public Guid CentroId { get; set; }
+    [Parameter, EditorRequired] public string CentroNombre { get; set; } = string.Empty;
 
-    private string _busqueda = string.Empty;
-    private string _estadoFiltro = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
-    private int _totalElementos;
-
-    /// <summary>
-    /// Opciones del filtro de estado: una Asignación no tiene columna de
-    /// estado — "activa" es no tener FechaBaja (ver DOMAIN.md).
-    /// </summary>
-    private static readonly IReadOnlyList<OpcionEstado> OpcionesEstado =
-    [
-        new("Activa", "Activa"),
-        new("DeBaja", "De baja")
-    ];
-
-    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
-
-    [SupplyParameterFromQuery(Name = "estado")]
-    public string? EstadoInicial { get; set; }
-
-    private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
-    private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
+    private IReadOnlyList<TrabajadorAsignacionDocumentacionDto> _trabajadores = [];
+    private readonly HashSet<Guid> _seleccionados = [];
 
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanasAlta =
     [
@@ -48,15 +28,21 @@ public partial class Asignaciones : ComponentBase
         new("Matriz", "Matriz")
     ];
 
-    private bool _drawerVisible;
+    private bool _drawerAltaVisible;
     private string _vistaAlta = "Lista";
+    private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
+    private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
     private readonly HashSet<Guid> _trabajadorIdsSeleccionados = [];
     private readonly HashSet<Guid> _centroIdsSeleccionados = [];
     private readonly HashSet<(Guid TrabajadorId, Guid CentroId)> _celdasExcluidas = [];
     private string _fechaAlta = string.Empty;
-    private bool _guardando;
-    private string? _mensajeErrorFormulario;
+    private bool _guardandoAlta;
+    private string? _mensajeErrorAlta;
     private IReadOnlyList<DocumentoFaltanteDto> _documentosFaltantes = [];
+
+    private bool _confirmarBajaLoteVisible;
+    private string _fechaBajaLote = string.Empty;
+    private bool _procesandoBajaLote;
 
     private IReadOnlyList<ElementoSeleccionable> _trabajadoresComoOpciones =>
         _trabajadoresDisponibles.Select(t => new ElementoSeleccionable(t.Id, $"{t.NombreCompleto} ({t.Dni})")).ToList();
@@ -72,64 +58,22 @@ public partial class Asignaciones : ComponentBase
         _centrosDisponibles.Where(c => _centroIdsSeleccionados.Contains(c.Id))
             .OrderBy(c => c.Nombre).ToList();
 
-    private bool _darDeBajaVisible;
-    private Guid _idParaBaja;
-    private string _trabajadorParaBaja = string.Empty;
-    private string _centroParaBaja = string.Empty;
-    private string _fechaBaja = string.Empty;
-    private bool _procesandoBaja;
+    protected override Task OnInitializedAsync() => CargarAsync();
 
-    private GridItemsProvider<AsignacionListaDto>? _proveedorElementos;
-
-    // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
-    protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
-
-    /// <summary>
-    /// La URL es la fuente de verdad del filtro, no solo su semilla inicial
-    /// (P1-18 de docs/business/MATURITY_REVIEW.md) — mismo patrón que el resto
-    /// de listados.
-    /// </summary>
-    protected override void OnParametersSet()
-    {
-        var deLaUrl = OpcionesEstado.Any(o => o.Valor == EstadoInicial) ? EstadoInicial! : string.Empty;
-        if (deLaUrl != _estadoFiltro)
-            _estadoFiltro = deLaUrl;
-    }
-
-    private async Task CambiarEstadoAsync(string valor)
-    {
-        _estadoFiltro = valor;
-        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
-        await RecargarAsync();
-    }
-
-    private async ValueTask<GridItemsProviderResult<AsignacionListaDto>> ProveerElementosAsync(
-        GridItemsProviderRequest<AsignacionListaDto> request)
+    private async Task CargarAsync()
     {
         _cargando = true;
         _errorCarga = false;
+        StateHasChanged();
 
         try
         {
-            var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
-            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
-
-            var resultado = await Mediator.Send(new ObtenerAsignacionesQuery(
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                Activa: _estadoFiltro switch { "Activa" => true, "DeBaja" => false, _ => (bool?)null },
-                Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage,
-                OrdenarPor: ordenarPor,
-                Descendente: descendente));
-
-            _totalElementos = resultado.TotalElementos;
-
-            return GridItemsProviderResult.From(resultado.Elementos.ToList(), resultado.TotalElementos);
+            _trabajadores = await Mediator.Send(new ObtenerAsignacionesDocumentacionPorCentroQuery(CentroId));
+            _seleccionados.Clear();
         }
         catch (Exception)
         {
             _errorCarga = true;
-            return GridItemsProviderResult.From(new List<AsignacionListaDto>(), 0);
         }
         finally
         {
@@ -138,23 +82,23 @@ public partial class Asignaciones : ComponentBase
         }
     }
 
-    private async Task BuscarAsync(string valor)
+    private void AlternarSeleccion(Guid asignacionId, bool marcado)
     {
-        _busqueda = valor;
-        await RecargarAsync();
+        if (marcado) _seleccionados.Add(asignacionId);
+        else _seleccionados.Remove(asignacionId);
     }
 
-    private async Task RecargarAsync()
-    {
-        await _paginacion.SetCurrentPageIndexAsync(0);
+    /// <summary>
+    /// Un documento faltante no tiene DocumentoId todavía — lleva al drawer
+    /// de creación con el propietario y el tipo ya elegidos, mismo patrón que
+    /// "Gestionar" en Alertas.razor.cs.
+    /// </summary>
+    private void Gestionar(Guid trabajadorId, DocumentoRequeridoDto documento) => NavigationManager.NavigateTo(
+        documento.DocumentoId is { } documentoId
+            ? $"/documentos?documentoId={documentoId}"
+            : $"/documentos?trabajadorId={trabajadorId}&tipoDocumentoId={documento.TipoDocumentoId}");
 
-        if (_grid is not null)
-            await _grid.RefreshDataAsync();
-
-        StateHasChanged();
-    }
-
-    private async Task AbrirCrearAsync()
+    private async Task AbrirDrawerAltaAsync()
     {
         _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
         _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
@@ -162,11 +106,15 @@ public partial class Asignaciones : ComponentBase
         _vistaAlta = "Lista";
         _trabajadorIdsSeleccionados.Clear();
         _centroIdsSeleccionados.Clear();
+        // El Centro de esta fila queda pre-marcado — el gestor puede seguir
+        // añadiendo otros centros si quiere, la matriz no se recorta (PLAN-EJECUCION-UX.md § 0.1).
+        if (_centrosDisponibles.Any(c => c.Id == CentroId))
+            _centroIdsSeleccionados.Add(CentroId);
         _celdasExcluidas.Clear();
         _documentosFaltantes = [];
         _fechaAlta = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
-        _mensajeErrorFormulario = null;
-        _drawerVisible = true;
+        _mensajeErrorAlta = null;
+        _drawerAltaVisible = true;
     }
 
     private async Task AlternarTrabajadorAsync(Guid trabajadorId, bool marcado)
@@ -203,13 +151,6 @@ public partial class Asignaciones : ComponentBase
             _celdasExcluidas.Add((trabajadorId, centroId));
     }
 
-    /// <summary>
-    /// Preflight no bloqueante (Fase B): qué documentos obligatorios le
-    /// faltarían a cada trabajador en cada centro si se confirma el lote tal
-    /// cual está seleccionado. Se recalcula sobre el cruce completo de la
-    /// selección — con exclusiones puntuales de la Matriz puede sobrar algún
-    /// aviso, aceptable porque es solo informativo (nunca bloquea Guardar).
-    /// </summary>
     private async Task ActualizarPreflightAsync()
     {
         if (_trabajadorIdsSeleccionados.Count == 0 || _centroIdsSeleccionados.Count == 0)
@@ -222,28 +163,28 @@ public partial class Asignaciones : ComponentBase
             _trabajadorIdsSeleccionados.ToList(), _centroIdsSeleccionados.ToList()));
     }
 
-    private async Task GuardarAsync()
+    private async Task GuardarAltaAsync()
     {
-        _guardando = true;
-        _mensajeErrorFormulario = null;
+        _guardandoAlta = true;
+        _mensajeErrorAlta = null;
 
         try
         {
             if (_trabajadorIdsSeleccionados.Count == 0)
             {
-                _mensajeErrorFormulario = "Selecciona al menos un trabajador.";
+                _mensajeErrorAlta = "Selecciona al menos un trabajador.";
                 return;
             }
 
             if (_centroIdsSeleccionados.Count == 0)
             {
-                _mensajeErrorFormulario = "Selecciona al menos un centro.";
+                _mensajeErrorAlta = "Selecciona al menos un centro.";
                 return;
             }
 
             if (!DateOnly.TryParse(_fechaAlta, out var fechaAlta))
             {
-                _mensajeErrorFormulario = "Introduce una fecha de alta válida.";
+                _mensajeErrorAlta = "Introduce una fecha de alta válida.";
                 return;
             }
 
@@ -258,7 +199,7 @@ public partial class Asignaciones : ComponentBase
 
                 if (resultado.EsFallido)
                 {
-                    _mensajeErrorFormulario = resultado.Error.Mensaje;
+                    _mensajeErrorAlta = resultado.Error.Mensaje;
                     return;
                 }
 
@@ -268,9 +209,6 @@ public partial class Asignaciones : ComponentBase
             }
             else
             {
-                // Con exclusiones puntuales de la Matriz, el cruce ya no es
-                // uniforme — un lote por Centro con los Trabajadores que le
-                // quedan tras quitar las celdas desmarcadas de esa columna.
                 foreach (var centroId in _centroIdsSeleccionados)
                 {
                     var trabajadorIdsParaCentro = _trabajadorIdsSeleccionados
@@ -283,7 +221,7 @@ public partial class Asignaciones : ComponentBase
 
                     if (resultado.EsFallido)
                     {
-                        _mensajeErrorFormulario = resultado.Error.Mensaje;
+                        _mensajeErrorAlta = resultado.Error.Mensaje;
                         return;
                     }
 
@@ -298,56 +236,58 @@ public partial class Asignaciones : ComponentBase
             foreach (var error in errores)
                 ToastService.Mostrar(error, TonoToast.Advertencia);
 
-            _drawerVisible = false;
-            await RecargarAsync();
+            _drawerAltaVisible = false;
+            await CargarAsync();
         }
         catch (ValidationException)
         {
-            _mensajeErrorFormulario = "Revisa los datos introducidos.";
+            _mensajeErrorAlta = "Revisa los datos introducidos.";
         }
         catch (Exception)
         {
-            _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            _mensajeErrorAlta = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
         }
         finally
         {
-            _guardando = false;
+            _guardandoAlta = false;
         }
     }
 
-    private void AbrirDarDeBaja(Guid id, string trabajadorNombre, string centroNombre)
+    private void AbrirConfirmarBajaLoteAsync()
     {
-        _idParaBaja = id;
-        _trabajadorParaBaja = trabajadorNombre;
-        _centroParaBaja = centroNombre;
-        _fechaBaja = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
-        _darDeBajaVisible = true;
+        _fechaBajaLote = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        _confirmarBajaLoteVisible = true;
     }
 
-    private async Task ConfirmarDarDeBajaAsync()
+    private async Task ConfirmarBajaLoteAsync()
     {
-        _procesandoBaja = true;
+        _procesandoBajaLote = true;
 
         try
         {
-            if (!DateOnly.TryParse(_fechaBaja, out var fechaBaja))
+            if (!DateOnly.TryParse(_fechaBajaLote, out var fechaBaja))
             {
                 ToastService.Mostrar("Introduce una fecha de baja válida.", TonoToast.Error);
                 return;
             }
 
-            var resultado = await Mediator.Send(new DarDeBajaAsignacionCommand(_idParaBaja, fechaBaja));
+            var resultado = await Mediator.Send(new DarDeBajaAsignacionesCommand(_seleccionados.ToList(), fechaBaja));
 
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
             }
-            else
-            {
-                ToastService.Mostrar("Trabajador dado de baja correctamente.", TonoToast.Exito);
-                _darDeBajaVisible = false;
-                await RecargarAsync();
-            }
+
+            var dto = resultado.Valor;
+            ToastService.Mostrar(
+                dto.Errores.Count == 0
+                    ? $"{dto.DadasDeBaja} trabajador(es) dado(s) de baja."
+                    : $"{dto.DadasDeBaja} dado(s) de baja. {dto.Errores.Count} no se pudieron procesar: {string.Join(" ", dto.Errores)}",
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            _confirmarBajaLoteVisible = false;
+            await CargarAsync();
         }
         catch (Exception)
         {
@@ -355,7 +295,7 @@ public partial class Asignaciones : ComponentBase
         }
         finally
         {
-            _procesandoBaja = false;
+            _procesandoBajaLote = false;
         }
     }
 }
