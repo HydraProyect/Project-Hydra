@@ -97,7 +97,7 @@ public class CentrosOrdenacionSqlTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerCentrosQueryHandler(
             contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
-            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto));
 
         return await handler.Handle(
             new ObtenerCentrosQuery(null, null, Estado: null, OrdenarPor: columna, Descendente: descendente),

@@ -12,14 +12,20 @@ namespace CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumen
 
 /// <summary>
 /// Alimenta el acordeón de asignaciones de Centro 360 (<c>PLAN-EJECUCION-UX.md</c>
-/// § 0.1/0.2): trabajadores con Asignación activa en un Centro, con el estado
-/// de la documentación que ESE centro exige de cada uno — misma allow-list de
-/// <c>TipoDocumentoCentro</c> que <see cref="Alertas.IDocumentosFaltantesService"/>
-/// y <c>ObtenerDocumentacionVisitaQuery</c> (un tipo sin ninguna fila ahí
-/// aplica a todos los centros; con filas, se restringe a esos). Se calcula de
-/// una sola vez para todos los trabajadores del centro al expandir la fila —
-/// el tercer nivel (documentos de un trabajador concreto) no vuelve a
-/// consultar el servidor, ya tiene el desglose completo en memoria.
+/// § 0.1/0.2/0.4): trabajadores con Asignación activa en un Centro, con el
+/// estado de la documentación que ESE centro exige de cada uno — ver
+/// <see cref="Documentos.ResolucionTipoDocumentoCentro"/> para la semántica
+/// compartida con <see cref="Alertas.IDocumentosFaltantesService"/> y
+/// <c>ObtenerDocumentacionVisitaQuery</c>. Se calcula de una sola vez para
+/// todos los trabajadores del centro al expandir la fila — el tercer nivel
+/// (documentos de un trabajador concreto) no vuelve a consultar el servidor,
+/// ya tiene el desglose completo en memoria.
+///
+/// Las filas sin <c>Documento</c> (<see cref="DocumentoRequeridoDto.DocumentoId"/>
+/// <c>null</c>) son "Pendiente de Subir" en la UI (§ 0.4) — un requisito recién
+/// añadido al Centro, no necesariamente un problema urgente; se mantienen
+/// como <see cref="EstadoDocumento.Faltante"/> a nivel de dominio/alertas
+/// (mismo cálculo que el resto de la app), solo cambia cómo se pinta.
 /// </summary>
 /// <param name="VentanaVisitaFechaFin">
 /// <c>FechaFin</c> de la próxima visita activa del centro, si tiene una
@@ -86,23 +92,22 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
         if (asignaciones.Count == 0)
             return [];
 
-        var tiposObligatorios = await tiposDocumentoContext.TiposDocumento
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && t.EsObligatorio)
-            .Select(t => new { t.Id, t.Nombre })
+        var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
+            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
+            .Select(t => new { t.Id, t.Nombre, t.EsObligatorio })
             .ToListAsync(cancellationToken);
 
-        // Tipos requeridos por ESTE centro: sin fila en TipoDocumentoCentro
-        // aplica a todos; con filas, solo si este centro está entre ellas.
-        var tipoIdsObligatorios = tiposObligatorios.Select(t => t.Id).ToHashSet();
-        var restriccionesPorTipo = (await tiposDocumentoContext.TiposDocumentoCentros
-            .Where(tc => tipoIdsObligatorios.Contains(tc.TipoDocumentoId))
-            .Select(tc => new { tc.TipoDocumentoId, tc.CentroId })
+        // Tipos requeridos por ESTE centro — ver ResolucionTipoDocumentoCentro:
+        // fila explícita manda, sin fila sigue el criterio global EsObligatorio.
+        var tipoIdsCandidatos = tiposCandidatos.Select(t => t.Id).ToHashSet();
+        var filasDelCentro = (await tiposDocumentoContext.TiposDocumentoCentros
+            .Where(tc => tipoIdsCandidatos.Contains(tc.TipoDocumentoId) && tc.CentroId == request.CentroId)
             .ToListAsync(cancellationToken))
-            .GroupBy(tc => tc.TipoDocumentoId)
-            .ToDictionary(g => g.Key, g => g.Select(tc => tc.CentroId).ToHashSet());
+            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
-        var tiposRequeridosPorCentro = tiposObligatorios
-            .Where(t => !restriccionesPorTipo.TryGetValue(t.Id, out var centros) || centros.Contains(request.CentroId))
+        var tiposRequeridosPorCentro = tiposCandidatos
+            .Where(t => ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, request.CentroId, t.EsObligatorio))
+            .Select(t => new { t.Id, t.Nombre })
             .ToList();
 
         if (tiposRequeridosPorCentro.Count == 0)

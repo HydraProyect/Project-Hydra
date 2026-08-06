@@ -12,6 +12,9 @@ public class TipoDocumentoCentroConfiguration : IEntityTypeConfiguration<TipoDoc
         builder.ToTable("TiposDocumentoCentros");
         builder.HasKey(tc => tc.Id);
 
+        builder.Property(tc => tc.ArchivoUrl).HasMaxLength(TipoDocumentoCentro.LongitudMaximaArchivoUrl);
+        builder.Property(tc => tc.NombreArchivoOriginal).HasMaxLength(TipoDocumentoCentro.LongitudMaximaNombreArchivo);
+
         builder.HasIndex(tc => new { tc.TenantId, tc.TipoDocumentoId, tc.CentroId }).IsUnique();
         builder.HasIndex(tc => tc.CentroId);
 

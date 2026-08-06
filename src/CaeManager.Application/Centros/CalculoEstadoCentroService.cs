@@ -1,6 +1,5 @@
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
-using CaeManager.Application.RequisitosDocumentales;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -13,9 +12,10 @@ namespace CaeManager.Application.Centros;
 /// <summary>
 /// Causa concreta que empuja el EstadoCentro por debajo de Vigente — un
 /// Documento (de la Empresa o de un Trabajador) que no está Vigente, o un
-/// RequisitoDocumental bloqueante sin Cumplido. Solo se generan causas para
-/// lo que efectivamente aporta al peor caso — nada Vigente aparece aquí,
-/// igual que ObtenerAlertasQuery no lista Documentos al día.
+/// hueco de <c>TipoDocumentoCentro.BloqueaAcceso</c> sin Documento Vigente.
+/// Solo se generan causas para lo que efectivamente aporta al peor caso —
+/// nada Vigente aparece aquí, igual que ObtenerAlertasQuery no lista
+/// Documentos al día.
 /// </summary>
 public record CausaEstadoCentro(string Descripcion, EstadoDocumento? Estado, bool Bloqueante);
 
@@ -23,14 +23,12 @@ public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEsta
 
 /// <summary>
 /// % de cumplimiento documental de un Centro (Centro 360, PLAN-EJECUCION-UX.md
-/// § 0.5, sustituye al módulo Evaluaciones retirado) — <c>Requeridos</c> es el
-/// número de pares Trabajador×TipoDocumento obligatorio aplicables a ese
-/// Centro (misma allow-list de <c>TipoDocumentoCentro</c> que el resto de
-/// cálculos), <c>AlDia</c> cuántos de esos pares tienen hoy un Documento
-/// Vigente o NoAplica. <see cref="Porcentaje"/> es <c>null</c> cuando el
-/// centro no tiene ningún par aplicable (hoy: ningún <c>TipoDocumento</c> del
-/// tenant está marcado obligatorio) — un 0% o 100% ahí sería engañoso, "sin
-/// requisitos" es la lectura correcta.
+/// § 0.5/0.8) — <c>Requeridos</c> es el número de pares Trabajador×TipoDocumento
+/// aplicables a ese Centro (ver <see cref="Documentos.ResolucionTipoDocumentoCentro"/>),
+/// <c>AlDia</c> cuántos de esos pares tienen hoy un Documento Vigente o NoAplica.
+/// <see cref="Porcentaje"/> es <c>null</c> cuando el centro no tiene ningún par
+/// aplicable — un 0% o 100% ahí sería engañoso, "sin requisitos" es la lectura
+/// correcta.
 /// </summary>
 public record FraccionCumplimiento(int AlDia, int Requeridos)
 {
@@ -72,7 +70,6 @@ public class CalculoEstadoCentroService(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     ITrabajadoresQueryContext trabajadoresContext,
     IAsignacionesQueryContext asignacionesContext,
-    IRequisitosDocumentalesQueryContext requisitosContext,
     IConfiguracionQueryContext configuracionContext)
     : ICalculoEstadoCentroService
 {
@@ -89,7 +86,6 @@ public class CalculoEstadoCentroService(
 
         await AgregarCausasDeEmpresaAsync(centroIds, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
         await AgregarCausasDeTrabajadorAsync(centroIds, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
-        await AgregarCausasDeRequisitosBloqueantesAsync(centroIds, causasPorCentro, cancellationToken);
 
         return causasPorCentro.ToDictionary(
             par => par.Key,
@@ -179,28 +175,28 @@ public class CalculoEstadoCentroService(
             }
         }
 
-        // Huecos obligatorios — misma lógica que
-        // ObtenerAlertasQuery.ObtenerFaltantesAsync, reacotada a estos Centros.
-        var tiposObligatorios = await tiposDocumentoContext.TiposDocumento
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && t.EsObligatorio)
-            .Select(t => new { t.Id, t.Nombre })
+        // Huecos requeridos — misma lógica que ObtenerAlertasQuery.ObtenerFaltantesAsync,
+        // reacotada a estos Centros. Candidatos = todo el catálogo de Trabajador, no solo
+        // EsObligatorio=true: un Centro puede exigir explícitamente un tipo no obligatorio
+        // globalmente (PLAN-EJECUCION-UX.md § 0.4, TipoDocumentoCentro.Incluido).
+        var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
+            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
+            .Select(t => new { t.Id, t.Nombre, t.EsObligatorio })
             .ToListAsync(cancellationToken);
 
-        if (tiposObligatorios.Count == 0) return;
+        if (tiposCandidatos.Count == 0) return;
 
-        var tipoIdsObligatorios = tiposObligatorios.Select(t => t.Id).ToHashSet();
+        var tipoIdsCandidatos = tiposCandidatos.Select(t => t.Id).ToHashSet();
 
-        var restriccionesPorTipo = (await tiposDocumentoContext.TiposDocumentoCentros
-            .Where(tc => tipoIdsObligatorios.Contains(tc.TipoDocumentoId))
-            .Select(tc => new { tc.TipoDocumentoId, tc.CentroId })
+        var filasPorPar = (await tiposDocumentoContext.TiposDocumentoCentros
+            .Where(tc => tipoIdsCandidatos.Contains(tc.TipoDocumentoId) && centroIds.Contains(tc.CentroId))
             .ToListAsync(cancellationToken))
-            .GroupBy(tc => tc.TipoDocumentoId)
-            .ToDictionary(g => g.Key, g => g.Select(tc => tc.CentroId).ToHashSet());
+            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
         var parejasConDocumento = (await documentosContext.Documentos
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
-                && tipoIdsObligatorios.Contains(d.TipoDocumentoId))
+                && tipoIdsCandidatos.Contains(d.TipoDocumentoId))
             .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId })
             .ToListAsync(cancellationToken))
             .Select(d => (d.TrabajadorId, d.TipoDocumentoId))
@@ -208,31 +204,24 @@ public class CalculoEstadoCentroService(
 
         foreach (var asignacion in asignacionesActivas)
         {
-            foreach (var tipo in tiposObligatorios)
+            foreach (var tipo in tiposCandidatos)
             {
-                if (restriccionesPorTipo.TryGetValue(tipo.Id, out var centrosPermitidos)
-                    && !centrosPermitidos.Contains(asignacion.CentroId))
+                if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, asignacion.CentroId, tipo.EsObligatorio))
                     continue;
 
                 if (parejasConDocumento.Contains((asignacion.TrabajadorId, tipo.Id)))
                     continue;
 
+                // BloqueaAcceso de la fila explícita (si hay) fuerza EstadoCentro.Bloqueado
+                // aquí mismo — sustituye a RequisitoDocumental.BloqueaAcceso/Cumplido
+                // (retirado): antes era un check manual a nivel de Centro, ahora es
+                // automático por trabajador, igual que el resto de este servicio.
+                var bloquea = filasPorPar.TryGetValue((tipo.Id, asignacion.CentroId), out var fila) && fila.BloqueaAcceso;
+
                 causasPorCentro[asignacion.CentroId].Add(new CausaEstadoCentro(
-                    $"{tipo.Nombre} — {asignacion.TrabajadorNombre}", EstadoDocumento.Faltante, Bloqueante: false));
+                    $"{tipo.Nombre} — {asignacion.TrabajadorNombre}", EstadoDocumento.Faltante, Bloqueante: bloquea));
             }
         }
-    }
-
-    private async Task AgregarCausasDeRequisitosBloqueantesAsync(
-        IReadOnlyList<Guid> centroIds, Dictionary<Guid, List<CausaEstadoCentro>> causasPorCentro, CancellationToken cancellationToken)
-    {
-        var requisitosBloqueantes = await requisitosContext.RequisitosDocumentales
-            .Where(r => centroIds.Contains(r.CentroId) && r.BloqueaAcceso && !r.Cumplido)
-            .Select(r => new { r.CentroId, r.Descripcion })
-            .ToListAsync(cancellationToken);
-
-        foreach (var requisito in requisitosBloqueantes)
-            causasPorCentro[requisito.CentroId].Add(new CausaEstadoCentro(requisito.Descripcion, Estado: null, Bloqueante: true));
     }
 
     /// <summary>
@@ -257,22 +246,20 @@ public class CalculoEstadoCentroService(
         if (asignacionesActivas.Count == 0)
             return acumulado.ToDictionary(p => p.Key, p => new FraccionCumplimiento(p.Value.AlDia, p.Value.Requeridos));
 
-        var tiposObligatorios = await tiposDocumentoContext.TiposDocumento
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && t.EsObligatorio)
-            .Select(t => t.Id)
+        var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
+            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
+            .Select(t => new { t.Id, t.EsObligatorio })
             .ToListAsync(cancellationToken);
 
-        if (tiposObligatorios.Count == 0)
+        if (tiposCandidatos.Count == 0)
             return acumulado.ToDictionary(p => p.Key, p => new FraccionCumplimiento(p.Value.AlDia, p.Value.Requeridos));
 
-        var tipoIdsObligatorios = tiposObligatorios.ToHashSet();
+        var tipoIdsCandidatos = tiposCandidatos.Select(t => t.Id).ToHashSet();
 
-        var restriccionesPorTipo = (await tiposDocumentoContext.TiposDocumentoCentros
-            .Where(tc => tipoIdsObligatorios.Contains(tc.TipoDocumentoId))
-            .Select(tc => new { tc.TipoDocumentoId, tc.CentroId })
+        var filasPorPar = (await tiposDocumentoContext.TiposDocumentoCentros
+            .Where(tc => tipoIdsCandidatos.Contains(tc.TipoDocumentoId) && centroIds.Contains(tc.CentroId))
             .ToListAsync(cancellationToken))
-            .GroupBy(tc => tc.TipoDocumentoId)
-            .ToDictionary(g => g.Key, g => g.Select(tc => tc.CentroId).ToHashSet());
+            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
         var trabajadorIds = asignacionesActivas.Select(a => a.TrabajadorId).Distinct().ToList();
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
@@ -281,7 +268,7 @@ public class CalculoEstadoCentroService(
         var estadosPorPareja = (await documentosContext.Documentos
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
-                && tipoIdsObligatorios.Contains(d.TipoDocumentoId))
+                && tipoIdsCandidatos.Contains(d.TipoDocumentoId))
             .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.FechaVencimiento })
             .ToListAsync(cancellationToken))
             .ToDictionary(
@@ -290,15 +277,14 @@ public class CalculoEstadoCentroService(
 
         foreach (var asignacion in asignacionesActivas)
         {
-            foreach (var tipoId in tiposObligatorios)
+            foreach (var tipo in tiposCandidatos)
             {
-                if (restriccionesPorTipo.TryGetValue(tipoId, out var centrosPermitidos)
-                    && !centrosPermitidos.Contains(asignacion.CentroId))
+                if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, asignacion.CentroId, tipo.EsObligatorio))
                     continue;
 
                 var actual = acumulado[asignacion.CentroId];
                 var alDia = actual.AlDia;
-                if (estadosPorPareja.TryGetValue((asignacion.TrabajadorId, tipoId), out var estado)
+                if (estadosPorPareja.TryGetValue((asignacion.TrabajadorId, tipo.Id), out var estado)
                     && estado is EstadoDocumento.Vigente or EstadoDocumento.NoAplica)
                     alDia++;
 

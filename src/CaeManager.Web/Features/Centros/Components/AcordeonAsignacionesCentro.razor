@@ -100,11 +100,20 @@ else
                                         {
                                             <div class="fila-documento-requerido" @key="documento.TipoDocumentoId">
                                                 <span class="fila-documento-requerido-nombre">@documento.TipoDocumentoNombre</span>
-                                                <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)"
-                                                       class="@(documento.CaducaEnVentanaVisita ? "badge-riesgo-ventana-visita" : null)"
-                                                       title="@(documento.CaducaEnVentanaVisita ? "Vigente hoy, pero caduca antes de que termine la próxima visita" : null)">
-                                                    @EstadoDocumentoUi.Texto(documento.Estado)
-                                                </Badge>
+                                                @if (documento.DocumentoId is null)
+                                                {
+                                                    <Badge Tono="TonoBadge.Neutro" title="Requisito del centro sin ningún documento subido todavía">
+                                                        Pendiente de Subir
+                                                    </Badge>
+                                                }
+                                                else
+                                                {
+                                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)"
+                                                           class="@(documento.CaducaEnVentanaVisita ? "badge-riesgo-ventana-visita" : null)"
+                                                           title="@(documento.CaducaEnVentanaVisita ? "Vigente hoy, pero caduca antes de que termine la próxima visita" : null)">
+                                                        @EstadoDocumentoUi.Texto(documento.Estado)
+                                                    </Badge>
+                                                }
                                                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                                        OnClick="() => Gestionar(trabajador.TrabajadorId, documento)">
                                                     Gestionar
