@@ -73,10 +73,7 @@
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.Id, context.RazonSocial, "informacion")'>
-                        Ver
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
-                        Editar
+                        Detalles
                     </Boton>
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
                         Eliminar
@@ -100,7 +97,7 @@
     }
 </div>
 
-<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nueva empresa" : "Editar empresa")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nueva empresa" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
@@ -115,53 +112,14 @@
                            Seleccionados="@_clienteIdsSeleccionados"
                            OnAlternar="args => AlternarCliente(args.Id, args.Marcado)"
                            TextoVacio="Todavía no hay clientes creados." />
-
-        @if (_editandoId is not null)
-        {
-            <div class="campo">
-                <label>Credenciales de acceso a plataforma externa</label>
-            </div>
-
-            @if (_mensajeErrorCredenciales is not null)
-            {
-                <div class="alerta-formulario" role="alert">@_mensajeErrorCredenciales</div>
-            }
-
-            <div class="campo-con-boton">
-                <CampoTexto Etiqueta="URL" Valor="@_credencialUrl" ValorChanged="v => _credencialUrl = v" />
-                <BotonCopiar Valor="@_credencialUrl" Etiqueta="la URL" />
-            </div>
-            <div class="campo-con-boton">
-                <CampoTexto Etiqueta="Empresa / Cliente / Proveedor" Valor="@_credencialCampoEmpresa" ValorChanged="v => _credencialCampoEmpresa = v" />
-                <BotonCopiar Valor="@_credencialCampoEmpresa" Etiqueta="este campo" />
-            </div>
-            <div class="campo-con-boton">
-                <CampoTexto Etiqueta="Usuario" Valor="@_credencialUsuario" ValorChanged="v => _credencialUsuario = v" />
-                <BotonCopiar Valor="@_credencialUsuario" Etiqueta="el usuario" />
-            </div>
-            <div class="campo-con-boton">
-                <CampoTexto Etiqueta="Contraseña" Type="password" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
-                <BotonCopiar Valor="@_credencialContrasena" Etiqueta="la contraseña" />
-            </div>
-            <CampoTextarea Etiqueta="Notas" Valor="@_credencialNotas" ValorChanged="v => _credencialNotas = v" Filas="3" />
-
-            <div class="acciones-formulario">
-                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoCredenciales" OnClick="GuardarCredencialesAsync">
-                    Guardar credenciales
-                </Boton>
-            </div>
-        }
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             Cancelar
         </Boton>
-        @if (_editandoId is null)
-        {
-            <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearCentroAsync">
-                Continuar con el centro
-            </Boton>
-        }
+        <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearCentroAsync">
+            Continuar con el centro
+        </Boton>
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>

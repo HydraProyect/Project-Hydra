@@ -6,12 +6,19 @@
     Trabajadores, Documentación, Centros, Historial.
 *@
 @using CaeManager.Application.Centros
+@using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
+@using CaeManager.Application.Subcontratas.Commands.EditarSubcontrata
+@using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcontrata
 @using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata
+@using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores
+@using FluentValidation
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
+@inject ToastService ToastService
 
 @if (_cargando)
 {
@@ -29,19 +36,81 @@ else
 {
     <div class="workspace-cabecera-entidad">
         <h2 class="workspace-titulo-entidad">@_detalle.RazonSocial</h2>
+        @if (PestanaActiva == "informacion" && !_editandoInformacion)
+        {
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacionAsync" aria-label="Editar información de la subcontrata">
+                <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
+            </Boton>
+        }
     </div>
 
     <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones de la subcontrata">
         @switch (PestanaActiva)
         {
             case "informacion":
-                <div class="workspace-grupo-campos">
-                    <CampoInfo Etiqueta="Razón social" Valor="@_detalle.RazonSocial" />
-                    <CampoInfo Etiqueta="CIF" Valor="@_detalle.Cif" />
-                    <CampoInfo Etiqueta="Clientes con los que trabaja" Valor="@_detalle.ClienteIds.Count.ToString()" />
-                    <CampoInfo Etiqueta="Empresas a las que presta servicio" Valor="@_detalle.EmpresaIds.Count.ToString()" />
-                    <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
-                </div>
+                @if (_editandoInformacion)
+                {
+                    @if (_mensajeErrorInformacion is not null)
+                    {
+                        <div class="alerta-formulario" role="alert">@_mensajeErrorInformacion</div>
+                    }
+                    <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialInfo" ValorChanged="v => _razonSocialInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.RazonSocial))" />
+                    <CampoTexto Etiqueta="CIF" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.Cif))" />
+                    <SelectorMultiple Etiqueta="Clientes que la contrataron"
+                                       Elementos="@_clientesDisponiblesSelector"
+                                       Seleccionados="@_clienteIdsInfo"
+                                       OnAlternar="args => AlternarClienteInfo(args.Id, args.Marcado)"
+                                       TextoVacio="Todavía no hay clientes creados." />
+                    <SelectorMultiple Etiqueta="Empresas a las que presta servicio"
+                                       Elementos="@_empresasDisponiblesSelector"
+                                       Seleccionados="@_empresaIdsInfo"
+                                       OnAlternar="args => AlternarEmpresaInfo(args.Id, args.Marcado)"
+                                       TextoVacio="Todavía no hay empresas creadas." />
+                    <div class="workspace-acciones-edicion">
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
+                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar</Boton>
+                    </div>
+
+                    <div class="campo">
+                        <label>Credenciales de acceso a plataforma externa</label>
+                    </div>
+                    @if (_mensajeErrorCredenciales is not null)
+                    {
+                        <div class="alerta-formulario" role="alert">@_mensajeErrorCredenciales</div>
+                    }
+                    <div class="campo-con-boton">
+                        <CampoTexto Etiqueta="URL" Valor="@_credencialUrl" ValorChanged="v => _credencialUrl = v" />
+                        <BotonCopiar Valor="@_credencialUrl" Etiqueta="la URL" />
+                    </div>
+                    <div class="campo-con-boton">
+                        <CampoTexto Etiqueta="Empresa / Cliente / Proveedor" Valor="@_credencialCampoEmpresa" ValorChanged="v => _credencialCampoEmpresa = v" />
+                        <BotonCopiar Valor="@_credencialCampoEmpresa" Etiqueta="este campo" />
+                    </div>
+                    <div class="campo-con-boton">
+                        <CampoTexto Etiqueta="Usuario" Valor="@_credencialUsuario" ValorChanged="v => _credencialUsuario = v" />
+                        <BotonCopiar Valor="@_credencialUsuario" Etiqueta="el usuario" />
+                    </div>
+                    <div class="campo-con-boton">
+                        <CampoTexto Etiqueta="Contraseña" Type="password" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
+                        <BotonCopiar Valor="@_credencialContrasena" Etiqueta="la contraseña" />
+                    </div>
+                    <CampoTextarea Etiqueta="Notas" Valor="@_credencialNotas" ValorChanged="v => _credencialNotas = v" Filas="3" />
+                    <div class="workspace-acciones-edicion">
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoCredenciales" OnClick="GuardarCredencialesAsync">
+                            Guardar credenciales
+                        </Boton>
+                    </div>
+                }
+                else
+                {
+                    <div class="workspace-grupo-campos">
+                        <CampoInfo Etiqueta="Razón social" Valor="@_detalle.RazonSocial" />
+                        <CampoInfo Etiqueta="CIF" Valor="@_detalle.Cif" />
+                        <CampoInfo Etiqueta="Clientes con los que trabaja" Valor="@_detalle.ClienteIds.Count.ToString()" />
+                        <CampoInfo Etiqueta="Empresas a las que presta servicio" Valor="@_detalle.EmpresaIds.Count.ToString()" />
+                        <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
+                    </div>
+                }
                 break;
 
             case "trabajadores":
@@ -146,6 +215,35 @@ else
     private bool _cargandoCentros;
     private bool _errorCentros;
 
+    /// <summary>
+    /// Edición in situ de "Información" (Centro 360, PLAN-EJECUCION-UX.md
+    /// § 0.10) — sustituye al Drawer de "Editar" de <c>/subcontratas</c>,
+    /// retirado. Las credenciales de acceso vivían dentro de ese mismo
+    /// Drawer (solo en modo edición) — se mueven aquí en vez de perderse.
+    /// </summary>
+    private bool _editandoInformacion;
+    private string _razonSocialInfo = string.Empty;
+    private string _cifInfo = string.Empty;
+    private HashSet<Guid> _clienteIdsInfo = [];
+    private HashSet<Guid> _empresaIdsInfo = [];
+    private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
+    private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
+    private IReadOnlyList<ElementoSeleccionable> _clientesDisponiblesSelector =>
+        _clientesDisponibles.Select(c => new ElementoSeleccionable(c.Id, c.RazonSocial)).ToList();
+    private IReadOnlyList<ElementoSeleccionable> _empresasDisponiblesSelector =>
+        _empresasDisponibles.Select(e => new ElementoSeleccionable(e.Id, e.RazonSocial)).ToList();
+    private bool _guardandoInformacion;
+    private string? _mensajeErrorInformacion;
+    private Dictionary<string, string> _erroresInformacion = new();
+
+    private string _credencialUrl = string.Empty;
+    private string _credencialCampoEmpresa = string.Empty;
+    private string _credencialUsuario = string.Empty;
+    private string _credencialContrasena = string.Empty;
+    private string _credencialNotas = string.Empty;
+    private bool _guardandoCredenciales;
+    private string? _mensajeErrorCredenciales;
+
     protected override async Task OnParametersSetAsync()
     {
         if (EntidadId != _idCargado)
@@ -155,6 +253,7 @@ else
             _errorTrabajadores = false;
             _centros = null;
             _errorCentros = false;
+            _editandoInformacion = false;
             await CargarCabeceraAsync();
         }
 
@@ -237,4 +336,125 @@ else
 
     private Task AbrirCentroAsync(CentroConActividadDto centro) =>
         WorkspaceService.NavegarAAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
+
+    private async Task IniciarEdicionInformacionAsync()
+    {
+        if (_detalle is null) return;
+
+        _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+        _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+
+        _razonSocialInfo = _detalle.RazonSocial;
+        _cifInfo = _detalle.Cif ?? string.Empty;
+        _clienteIdsInfo = _detalle.ClienteIds.ToHashSet();
+        _empresaIdsInfo = _detalle.EmpresaIds.ToHashSet();
+        _mensajeErrorInformacion = null;
+        _erroresInformacion = new Dictionary<string, string>();
+
+        var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(_detalle.Id));
+        _credencialUrl = credencial?.UrlAcceso ?? string.Empty;
+        _credencialCampoEmpresa = credencial?.CampoEmpresa ?? string.Empty;
+        _credencialUsuario = credencial?.Usuario ?? string.Empty;
+        _credencialContrasena = credencial?.Contrasena ?? string.Empty;
+        _credencialNotas = credencial?.Notas ?? string.Empty;
+        _mensajeErrorCredenciales = null;
+
+        _editandoInformacion = true;
+    }
+
+    private void CancelarEdicionInformacion() => _editandoInformacion = false;
+
+    private void AlternarClienteInfo(Guid clienteId, bool seleccionado)
+    {
+        if (seleccionado)
+            _clienteIdsInfo.Add(clienteId);
+        else
+            _clienteIdsInfo.Remove(clienteId);
+    }
+
+    private void AlternarEmpresaInfo(Guid empresaId, bool seleccionado)
+    {
+        if (seleccionado)
+            _empresaIdsInfo.Add(empresaId);
+        else
+            _empresaIdsInfo.Remove(empresaId);
+    }
+
+    private string? ObtenerErrorInformacion(string campo) => _erroresInformacion.GetValueOrDefault(campo);
+
+    private async Task GuardarInformacionAsync()
+    {
+        if (_detalle is null) return;
+
+        _guardandoInformacion = true;
+        _mensajeErrorInformacion = null;
+        _erroresInformacion = new Dictionary<string, string>();
+
+        try
+        {
+            var cif = string.IsNullOrWhiteSpace(_cifInfo) ? null : _cifInfo;
+            var resultado = await Mediator.Send(new EditarSubcontrataCommand(
+                _detalle.Id, _razonSocialInfo, cif, _clienteIdsInfo.ToList(), _empresaIdsInfo.ToList(), _detalle.Version));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorInformacion = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Subcontrata actualizada correctamente.", TonoToast.Exito);
+            _editandoInformacion = false;
+            await CargarCabeceraAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _erroresInformacion = ex.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+        }
+        catch (Exception)
+        {
+            _mensajeErrorInformacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _guardandoInformacion = false;
+        }
+    }
+
+    private async Task GuardarCredencialesAsync()
+    {
+        if (_detalle is null) return;
+
+        _guardandoCredenciales = true;
+        _mensajeErrorCredenciales = null;
+
+        try
+        {
+            var urlAcceso = string.IsNullOrWhiteSpace(_credencialUrl) ? null : _credencialUrl;
+            var campoEmpresa = string.IsNullOrWhiteSpace(_credencialCampoEmpresa) ? null : _credencialCampoEmpresa;
+            var usuario = string.IsNullOrWhiteSpace(_credencialUsuario) ? null : _credencialUsuario;
+            var contrasena = string.IsNullOrWhiteSpace(_credencialContrasena) ? null : _credencialContrasena;
+            var notas = string.IsNullOrWhiteSpace(_credencialNotas) ? null : _credencialNotas;
+
+            var resultado = await Mediator.Send(
+                new GuardarCredencialAccesoSubcontrataCommand(_detalle.Id, urlAcceso, campoEmpresa, usuario, contrasena, notas));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorCredenciales = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Credenciales guardadas correctamente.", TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            _mensajeErrorCredenciales = "No pudimos guardar las credenciales. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _guardandoCredenciales = false;
+        }
+    }
 }

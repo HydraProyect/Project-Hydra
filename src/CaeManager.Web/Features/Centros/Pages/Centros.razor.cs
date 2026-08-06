@@ -1,9 +1,7 @@
 using CaeManager.Application.Centros.Commands.CrearCentro;
-using CaeManager.Application.Centros.Commands.EditarCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentros;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
-using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
@@ -43,19 +41,14 @@ public partial class Centros : ComponentBase
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
 
     private bool _drawerVisible;
-    private Guid? _editandoId;
-    // Version del registro tal como se abrio: vuelve en el Command para
-    // detectar que otra persona guardo mientras el formulario estaba abierto.
-    private Guid _versionEditando;
     private string _clienteId = string.Empty;
-    private string _clienteNombreSoloLectura = string.Empty;
     private string _empresaId = string.Empty;
-    private string _empresaNombreSoloLectura = string.Empty;
     // Cliente/Empresa llegaron ya fijados desde el encadenado de otra
     // pantalla (Fase A2) — se muestran en solo lectura hasta que el usuario
-    // pulse "cambiar". Distinto de _editandoId is null: en edición ambos son
-    // siempre de solo lectura (no se puede recolocar un centro existente).
+    // pulse "cambiar".
     private bool _padresFijadosPorCadena;
+    private string _clienteNombreSoloLectura = string.Empty;
+    private string _empresaNombreSoloLectura = string.Empty;
     private string _nombre = string.Empty;
     private string _codigoCentro = string.Empty;
     private string _direccion = string.Empty;
@@ -118,7 +111,6 @@ public partial class Centros : ComponentBase
     // único campo, no el Command completo, porque el resto del formulario
     // puede seguir a medio rellenar mientras el usuario todavía está en él.
     [Inject] private IValidator<CrearCentroCommand> ValidadorCrear { get; set; } = default!;
-    [Inject] private IValidator<EditarCentroCommand> ValidadorEditar { get; set; } = default!;
 
     /// <summary>Comando del palette "Crear centro «nombre»" (P3-31): abre el Drawer con el nombre precargado.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
@@ -246,7 +238,6 @@ public partial class Centros : ComponentBase
     {
         _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
 
-        _editandoId = null;
         _clienteId = string.Empty;
         _empresaId = string.Empty;
         _padresFijadosPorCadena = false;
@@ -294,32 +285,6 @@ public partial class Centros : ComponentBase
 
         if (!_empresasDisponibles.Any(e => e.Id.ToString() == _empresaId))
             _empresaId = string.Empty;
-    }
-
-    private async Task AbrirEditarAsync(Guid id)
-    {
-        var centro = await Mediator.Send(new ObtenerCentroPorIdQuery(id));
-        if (centro is null)
-        {
-            ToastService.Mostrar("No encontramos este centro. Puede que ya se haya eliminado.", TonoToast.Error);
-            await CargarAsync();
-            return;
-        }
-
-        _editandoId = centro.Id;
-        _versionEditando = centro.Version;
-        _clienteId = centro.ClienteId.ToString();
-        _clienteNombreSoloLectura = centro.ClienteRazonSocial;
-        _empresaId = centro.EmpresaId.ToString();
-        _empresaNombreSoloLectura = centro.EmpresaRazonSocial;
-        _nombre = centro.Nombre;
-        _codigoCentro = centro.CodigoCentro ?? string.Empty;
-        _direccion = centro.Direccion ?? string.Empty;
-        _contacto = centro.Contacto ?? string.Empty;
-        _contratoVigenteHasta = centro.ContratoVigenteHasta?.ToString("yyyy-MM-dd") ?? string.Empty;
-        _erroresCampo = new Dictionary<string, string>();
-        _mensajeErrorFormulario = null;
-        _drawerVisible = true;
     }
 
     private Task CerrarDrawerAsync(bool visible)
@@ -389,44 +354,30 @@ public partial class Centros : ComponentBase
             var contacto = string.IsNullOrWhiteSpace(_contacto) ? null : _contacto;
             var contratoVigenteHasta = DateOnly.TryParse(_contratoVigenteHasta, out var fecha) ? fecha : (DateOnly?)null;
 
-            string? mensajeError;
-
-            if (_editandoId is null)
+            if (!Guid.TryParse(_clienteId, out var clienteId))
             {
-                if (!Guid.TryParse(_clienteId, out var clienteId))
-                {
-                    _mensajeErrorFormulario = "Selecciona un cliente.";
-                    return;
-                }
-
-                if (!Guid.TryParse(_empresaId, out var empresaId))
-                {
-                    _mensajeErrorFormulario = "Selecciona una empresa.";
-                    return;
-                }
-
-                var resultado = await Mediator.Send(
-                    new CrearCentroCommand(clienteId, empresaId, _nombre, codigoCentro, direccion, contacto, contratoVigenteHasta));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
-            }
-            else
-            {
-                var resultado = await Mediator.Send(
-                    new EditarCentroCommand(_editandoId.Value, _nombre, codigoCentro, direccion, contacto, contratoVigenteHasta, _versionEditando));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
-            }
-
-            if (mensajeError is not null)
-            {
-                _mensajeErrorFormulario = mensajeError;
+                _mensajeErrorFormulario = "Selecciona un cliente.";
                 return;
             }
 
-            ToastService.Mostrar(
-                _editandoId is null ? "Centro creado correctamente." : "Centro actualizado correctamente.",
-                TonoToast.Exito);
+            if (!Guid.TryParse(_empresaId, out var empresaId))
+            {
+                _mensajeErrorFormulario = "Selecciona una empresa.";
+                return;
+            }
 
-            if (crearOtro && _editandoId is null)
+            var resultado = await Mediator.Send(
+                new CrearCentroCommand(clienteId, empresaId, _nombre, codigoCentro, direccion, contacto, contratoVigenteHasta));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorFormulario = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Centro creado correctamente.", TonoToast.Exito);
+
+            if (crearOtro)
             {
                 _nombre = string.Empty;
                 _codigoCentro = string.Empty;
@@ -463,22 +414,17 @@ public partial class Centros : ComponentBase
     /// Validación inline al salir del campo (UX_PATTERNS.md, P1-18 de
     /// docs/business/MATURITY_REVIEW.md) — hasta ahora el error de "nombre
     /// obligatorio" solo aparecía tras el viaje de ida y vuelta al servidor
-    /// en Guardar. Valida solo <see cref="CrearCentroCommand.Nombre"/>/
-    /// <see cref="EditarCentroCommand.Nombre"/> con el mismo validador que
-    /// ya corre al guardar — el resto del formulario puede seguir
-    /// incompleto sin que este campo lo bloquee.
+    /// en Guardar. Valida solo <see cref="CrearCentroCommand.Nombre"/> con
+    /// el mismo validador que ya corre al guardar — el resto del formulario
+    /// puede seguir incompleto sin que este campo lo bloquee.
     /// </summary>
     private async Task ValidarNombreAsync()
     {
         const string campo = nameof(CrearCentroCommand.Nombre);
 
-        var resultado = _editandoId is null
-            ? await ValidadorCrear.ValidateAsync(
-                new CrearCentroCommand(Guid.Empty, Guid.Empty, _nombre, null, null, null, null),
-                opciones => opciones.IncludeProperties(campo))
-            : await ValidadorEditar.ValidateAsync(
-                new EditarCentroCommand(_editandoId.Value, _nombre, null, null, null, null, _versionEditando),
-                opciones => opciones.IncludeProperties(campo));
+        var resultado = await ValidadorCrear.ValidateAsync(
+            new CrearCentroCommand(Guid.Empty, Guid.Empty, _nombre, null, null, null, null),
+            opciones => opciones.IncludeProperties(campo));
 
         if (resultado.IsValid)
             _erroresCampo.Remove(campo);

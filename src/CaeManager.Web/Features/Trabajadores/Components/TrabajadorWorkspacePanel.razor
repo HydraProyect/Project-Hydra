@@ -9,12 +9,15 @@
     tiene relación directa con Trabajador en el modelo (misma decisión que
     ya existía para no conectar Vehiculo con Visita).
 *@
+@using CaeManager.Application.Trabajadores.Commands.EditarTrabajador
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId
 @using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos
 @using CaeManager.Domain.Documentos
+@using FluentValidation
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
+@inject ToastService ToastService
 
 @if (_cargando)
 {
@@ -32,21 +35,51 @@ else
 {
     <div class="workspace-cabecera-entidad">
         <h2 class="workspace-titulo-entidad">@_detalle.Nombre @_detalle.Apellidos</h2>
+        @if (PestanaActiva == "informacion" && !_editandoInformacion)
+        {
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacion" aria-label="Editar información del trabajador">
+                <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
+            </Boton>
+        }
     </div>
 
     <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del trabajador">
         @switch (PestanaActiva)
         {
             case "informacion":
-                <div class="workspace-grupo-campos">
-                    <CampoInfo Etiqueta="Nombre completo" Valor="@($"{_detalle.Nombre} {_detalle.Apellidos}")" />
-                    <CampoInfo Etiqueta="Alias" Valor="@_detalle.Alias" />
-                    <CampoInfo Etiqueta="DNI" Valor="@_detalle.Dni" />
-                    <CampoInfo Etiqueta="Empleador" Valor="@_detalle.EmpleadorNombre" />
-                    <CampoInfo Etiqueta="Email" Valor="@_detalle.Email" />
-                    <CampoInfo Etiqueta="Fecha de nacimiento" Valor="@(_detalle.FechaNacimiento?.ToString("dd/MM/yyyy"))" />
-                    <CampoInfo Etiqueta="Observaciones" Valor="@_detalle.Observaciones" />
-                </div>
+                @if (_editandoInformacion)
+                {
+                    @if (_mensajeErrorInformacion is not null)
+                    {
+                        <div class="alerta-formulario" role="alert">@_mensajeErrorInformacion</div>
+                    }
+                    <div class="workspace-grupo-campos">
+                        <CampoInfo Etiqueta="DNI" Valor="@_detalle.Dni" />
+                        <CampoInfo Etiqueta="Empleador" Valor="@_detalle.EmpleadorNombre" />
+                        <CampoTexto Etiqueta="Nombre" Valor="@_nombreInfo" ValorChanged="v => _nombreInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Nombre))" />
+                        <CampoTexto Etiqueta="Apellidos" Valor="@_apellidosInfo" ValorChanged="v => _apellidosInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Apellidos))" />
+                        <CampoTexto Etiqueta="Alias" Valor="@_aliasInfo" ValorChanged="v => _aliasInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Alias))" />
+                        <CampoTexto Etiqueta="Email" Type="email" Valor="@_emailInfo" ValorChanged="v => _emailInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Email))" />
+                        <CampoTexto Etiqueta="Fecha de nacimiento" Type="date" Valor="@_fechaNacimientoInfo" ValorChanged="v => _fechaNacimientoInfo = v" />
+                        <CampoTextarea Etiqueta="Observaciones" Valor="@_observacionesInfo" ValorChanged="v => _observacionesInfo = v" Filas="3" />
+                    </div>
+                    <div class="workspace-acciones-edicion">
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
+                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar</Boton>
+                    </div>
+                }
+                else
+                {
+                    <div class="workspace-grupo-campos">
+                        <CampoInfo Etiqueta="Nombre completo" Valor="@($"{_detalle.Nombre} {_detalle.Apellidos}")" />
+                        <CampoInfo Etiqueta="Alias" Valor="@_detalle.Alias" />
+                        <CampoInfo Etiqueta="DNI" Valor="@_detalle.Dni" />
+                        <CampoInfo Etiqueta="Empleador" Valor="@_detalle.EmpleadorNombre" />
+                        <CampoInfo Etiqueta="Email" Valor="@_detalle.Email" />
+                        <CampoInfo Etiqueta="Fecha de nacimiento" Valor="@(_detalle.FechaNacimiento?.ToString("dd/MM/yyyy"))" />
+                        <CampoInfo Etiqueta="Observaciones" Valor="@_detalle.Observaciones" />
+                    </div>
+                }
                 break;
 
             case "documentacion":
@@ -120,6 +153,24 @@ else
     private bool _cargandoVehiculos;
     private bool _errorVehiculos;
 
+    /// <summary>
+    /// Edición in situ de "Información" (Centro 360, PLAN-EJECUCION-UX.md
+    /// § 0.10) — sustituye al Drawer de "Editar" de <c>/trabajadores</c>,
+    /// retirado. DNI y Empleador no entran: no forman parte de
+    /// <see cref="EditarTrabajadorCommand"/> — el DNI es la identidad del
+    /// trabajador y el empleador solo se fija al crear.
+    /// </summary>
+    private bool _editandoInformacion;
+    private string _nombreInfo = string.Empty;
+    private string _apellidosInfo = string.Empty;
+    private string _aliasInfo = string.Empty;
+    private string _emailInfo = string.Empty;
+    private string _fechaNacimientoInfo = string.Empty;
+    private string _observacionesInfo = string.Empty;
+    private bool _guardandoInformacion;
+    private string? _mensajeErrorInformacion;
+    private Dictionary<string, string> _erroresInformacion = new();
+
     protected override async Task OnParametersSetAsync()
     {
         if (EntidadId != _idCargado)
@@ -127,6 +178,7 @@ else
             _idCargado = EntidadId;
             _vehiculos = null;
             _errorVehiculos = false;
+            _editandoInformacion = false;
             await CargarCabeceraAsync();
         }
 
@@ -182,4 +234,67 @@ else
 
     private Task AbrirVehiculoAsync(VehiculoListaDto vehiculo) =>
         WorkspaceService.NavegarAAsync(EntidadWorkspace.Vehiculo, vehiculo.Id, vehiculo.Nombre, "informacion");
+
+    private void IniciarEdicionInformacion()
+    {
+        if (_detalle is null) return;
+
+        _nombreInfo = _detalle.Nombre;
+        _apellidosInfo = _detalle.Apellidos;
+        _aliasInfo = _detalle.Alias ?? string.Empty;
+        _emailInfo = _detalle.Email ?? string.Empty;
+        _fechaNacimientoInfo = _detalle.FechaNacimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _observacionesInfo = _detalle.Observaciones ?? string.Empty;
+        _mensajeErrorInformacion = null;
+        _erroresInformacion = new Dictionary<string, string>();
+        _editandoInformacion = true;
+    }
+
+    private void CancelarEdicionInformacion() => _editandoInformacion = false;
+
+    private string? ObtenerErrorInformacion(string campo) => _erroresInformacion.GetValueOrDefault(campo);
+
+    private async Task GuardarInformacionAsync()
+    {
+        if (_detalle is null) return;
+
+        _guardandoInformacion = true;
+        _mensajeErrorInformacion = null;
+        _erroresInformacion = new Dictionary<string, string>();
+
+        try
+        {
+            var email = string.IsNullOrWhiteSpace(_emailInfo) ? null : _emailInfo;
+            var observaciones = string.IsNullOrWhiteSpace(_observacionesInfo) ? null : _observacionesInfo;
+            var alias = string.IsNullOrWhiteSpace(_aliasInfo) ? null : _aliasInfo;
+            var fechaNacimiento = DateOnly.TryParse(_fechaNacimientoInfo, out var fecha) ? fecha : (DateOnly?)null;
+
+            var resultado = await Mediator.Send(new EditarTrabajadorCommand(
+                _detalle.Id, _nombreInfo, _apellidosInfo, fechaNacimiento, email, observaciones, alias, _detalle.Version));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorInformacion = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Trabajador actualizado correctamente.", TonoToast.Exito);
+            _editandoInformacion = false;
+            await CargarCabeceraAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _erroresInformacion = ex.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+        }
+        catch (Exception)
+        {
+            _mensajeErrorInformacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _guardandoInformacion = false;
+        }
+    }
 }

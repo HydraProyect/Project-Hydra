@@ -1,12 +1,8 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
-using CaeManager.Application.Empresas.Commands.EditarEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
-using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
-using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
-using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Documentos;
@@ -35,10 +31,6 @@ public partial class Empresas : ComponentBase
         .ToList();
 
     private bool _drawerVisible;
-    private Guid? _editandoId;
-    // Version del registro tal como se abrio: vuelve en el Command para
-    // detectar que otra persona guardo mientras el formulario estaba abierto.
-    private Guid _versionEditando;
     private string _razonSocial = string.Empty;
     private string _cif = string.Empty;
     private HashSet<Guid> _clienteIdsSeleccionados = [];
@@ -72,14 +64,6 @@ public partial class Empresas : ComponentBase
     private Guid? _idEnfocado;
     private bool _eliminandoLote;
     private bool _confirmarEliminarLoteVisible;
-
-    private string _credencialUrl = string.Empty;
-    private string _credencialCampoEmpresa = string.Empty;
-    private string _credencialUsuario = string.Empty;
-    private string _credencialContrasena = string.Empty;
-    private string _credencialNotas = string.Empty;
-    private bool _guardandoCredenciales;
-    private string? _mensajeErrorCredenciales;
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
@@ -208,86 +192,12 @@ public partial class Empresas : ComponentBase
     {
         _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
 
-        _editandoId = null;
         _razonSocial = string.Empty;
         _cif = string.Empty;
         _clienteIdsSeleccionados = [];
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
-        _credencialUrl = string.Empty;
-        _credencialCampoEmpresa = string.Empty;
-        _credencialUsuario = string.Empty;
-        _credencialContrasena = string.Empty;
-        _credencialNotas = string.Empty;
-        _mensajeErrorCredenciales = null;
         _drawerVisible = true;
-    }
-
-    private async Task AbrirEditarAsync(Guid id)
-    {
-        _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
-
-        var empresa = await Mediator.Send(new ObtenerEmpresaPorIdQuery(id));
-        if (empresa is null)
-        {
-            ToastService.Mostrar("No encontramos esta empresa. Puede que ya se haya eliminado.", TonoToast.Error);
-            await RecargarAsync();
-            return;
-        }
-
-        _editandoId = empresa.Id;
-        _versionEditando = empresa.Version;
-        _razonSocial = empresa.RazonSocial;
-        _cif = empresa.Cif ?? string.Empty;
-        _clienteIdsSeleccionados = empresa.ClienteIds.ToHashSet();
-        _erroresCampo = new Dictionary<string, string>();
-        _mensajeErrorFormulario = null;
-
-        var credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaQuery(empresa.Id));
-        _credencialUrl = credencial?.UrlAcceso ?? string.Empty;
-        _credencialCampoEmpresa = credencial?.CampoEmpresa ?? string.Empty;
-        _credencialUsuario = credencial?.Usuario ?? string.Empty;
-        _credencialContrasena = credencial?.Contrasena ?? string.Empty;
-        _credencialNotas = credencial?.Notas ?? string.Empty;
-        _mensajeErrorCredenciales = null;
-
-        _drawerVisible = true;
-    }
-
-    private async Task GuardarCredencialesAsync()
-    {
-        if (_editandoId is null) return;
-
-        _guardandoCredenciales = true;
-        _mensajeErrorCredenciales = null;
-
-        try
-        {
-            var urlAcceso = string.IsNullOrWhiteSpace(_credencialUrl) ? null : _credencialUrl;
-            var campoEmpresa = string.IsNullOrWhiteSpace(_credencialCampoEmpresa) ? null : _credencialCampoEmpresa;
-            var usuario = string.IsNullOrWhiteSpace(_credencialUsuario) ? null : _credencialUsuario;
-            var contrasena = string.IsNullOrWhiteSpace(_credencialContrasena) ? null : _credencialContrasena;
-            var notas = string.IsNullOrWhiteSpace(_credencialNotas) ? null : _credencialNotas;
-
-            var resultado = await Mediator.Send(
-                new GuardarCredencialAccesoEmpresaCommand(_editandoId.Value, urlAcceso, campoEmpresa, usuario, contrasena, notas));
-
-            if (resultado.EsFallido)
-            {
-                _mensajeErrorCredenciales = resultado.Error.Mensaje;
-                return;
-            }
-
-            ToastService.Mostrar("Credenciales guardadas correctamente.", TonoToast.Exito);
-        }
-        catch (Exception)
-        {
-            _mensajeErrorCredenciales = "No pudimos guardar las credenciales. Intenta nuevamente en unos segundos.";
-        }
-        finally
-        {
-            _guardandoCredenciales = false;
-        }
     }
 
     private void AlternarCliente(Guid clienteId, bool seleccionado)
@@ -307,11 +217,9 @@ public partial class Empresas : ComponentBase
     private Task GuardarAsync() => GuardarAsync(continuarACrearCentro: false);
 
     /// <summary>
-    /// "Continuar con el centro" (Fase A2): igual que <see cref="GuardarAsync()"/>
-    /// pero, al crear una Empresa nueva con éxito, en vez de dejar el Drawer
-    /// en modo edición (el comportamiento normal — ver comentario más abajo)
-    /// navega directamente a <c>/centros?accion=crear</c> con Cliente y
-    /// Empresa ya fijados.
+    /// "Continuar con el centro" (Fase A2): al crear una Empresa nueva con
+    /// éxito, navega directamente a <c>/centros?accion=crear</c> con Cliente
+    /// y Empresa ya fijados, en vez de solo cerrar el Drawer.
     /// </summary>
     private Task GuardarYCrearCentroAsync() => GuardarAsync(continuarACrearCentro: true);
 
@@ -325,42 +233,18 @@ public partial class Empresas : ComponentBase
         {
             var clienteIds = _clienteIdsSeleccionados.ToList();
             var cif = string.IsNullOrWhiteSpace(_cif) ? null : _cif;
-            var eraCreacion = _editandoId is null;
-            Guid? empresaCreadaId = null;
 
-            if (eraCreacion)
+            var resultado = await Mediator.Send(new CrearEmpresaCommand(_razonSocial, cif, clienteIds));
+            if (resultado.EsFallido)
             {
-                var resultado = await Mediator.Send(new CrearEmpresaCommand(_razonSocial, cif, clienteIds));
-                if (resultado.EsFallido)
-                {
-                    _mensajeErrorFormulario = resultado.Error.Mensaje;
-                    return;
-                }
-
-                empresaCreadaId = resultado.Valor;
-
-                // Tras crear, el drawer no se cierra — pasa a modo edición
-                // para que las credenciales de acceso queden visibles sin
-                // tener que reabrir el formulario desde la tabla. Salvo que
-                // el usuario haya pedido encadenar a Centro, caso en el que
-                // se navega en vez de quedarse aquí.
-                _editandoId = resultado.Valor;
-            }
-            else
-            {
-                var resultado = await Mediator.Send(new EditarEmpresaCommand(_editandoId!.Value, _razonSocial, cif, clienteIds, _versionEditando));
-                if (resultado.EsFallido)
-                {
-                    _mensajeErrorFormulario = resultado.Error.Mensaje;
-                    return;
-                }
+                _mensajeErrorFormulario = resultado.Error.Mensaje;
+                return;
             }
 
-            ToastService.Mostrar(
-                eraCreacion ? "Empresa creada correctamente." : "Empresa actualizada correctamente.",
-                TonoToast.Exito);
+            var empresaCreadaId = resultado.Valor;
+            ToastService.Mostrar("Empresa creada correctamente.", TonoToast.Exito);
 
-            if (continuarACrearCentro && empresaCreadaId is not null)
+            if (continuarACrearCentro)
             {
                 // Prioridad: el Cliente que trajo la cadena (si sigue
                 // marcado) · si no, el único Cliente marcado en el selector ·
@@ -376,9 +260,7 @@ public partial class Empresas : ComponentBase
                 return;
             }
 
-            if (!eraCreacion)
-                _drawerVisible = false;
-
+            _drawerVisible = false;
             await RecargarAsync();
         }
         catch (ValidationException ex)

@@ -6,6 +6,7 @@
     Historial.
 *@
 @using CaeManager.Application.Centros.Queries.ObtenerCentroPorId
+@using CaeManager.Application.Centros.Commands.EditarCentro
 @using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro
 @using CaeManager.Application.Centros.Commands.CrearCanalGestion
 @using CaeManager.Application.Centros.Commands.EditarCanalGestion
@@ -56,6 +57,12 @@ else
         {
             <Badge Tono="EstadoCentroUi.Tono(_estadoCentro.Estado)">@EstadoCentroUi.Texto(_estadoCentro.Estado)</Badge>
         }
+        @if (PestanaActiva == "informacion" && !_editandoInformacion)
+        {
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacion" aria-label="Editar información del centro">
+                <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
+            </Boton>
+        }
         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPedirPrioridadAsync">
             Pedir prioridad
         </Boton>
@@ -65,14 +72,37 @@ else
         @switch (PestanaActiva)
         {
             case "informacion":
-                <div class="workspace-grupo-campos">
-                    <CampoInfo Etiqueta="Cliente" Valor="@_detalle.ClienteRazonSocial" />
-                    <CampoInfo Etiqueta="Empresa" Valor="@_detalle.EmpresaRazonSocial" />
-                    <CampoInfo Etiqueta="Código de centro" Valor="@_detalle.CodigoCentro" />
-                    <CampoInfo Etiqueta="Dirección" Valor="@_detalle.Direccion" />
-                    <CampoInfo Etiqueta="Contacto" Valor="@_detalle.Contacto" />
-                    <CampoInfo Etiqueta="Contrato vigente hasta" Valor="@(_detalle.ContratoVigenteHasta?.ToString("dd/MM/yyyy"))" />
-                </div>
+                @if (_editandoInformacion)
+                {
+                    @if (_mensajeErrorInformacion is not null)
+                    {
+                        <div class="alerta-formulario" role="alert">@_mensajeErrorInformacion</div>
+                    }
+                    <div class="workspace-grupo-campos">
+                        <CampoInfo Etiqueta="Cliente" Valor="@_detalle.ClienteRazonSocial" />
+                        <CampoInfo Etiqueta="Empresa" Valor="@_detalle.EmpresaRazonSocial" />
+                        <CampoTexto Etiqueta="Nombre" Valor="@_nombreInfo" ValorChanged="v => _nombreInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarCentroCommand.Nombre))" />
+                        <CampoTexto Etiqueta="Código de centro" Valor="@_codigoCentroInfo" ValorChanged="v => _codigoCentroInfo = v" />
+                        <CampoTexto Etiqueta="Dirección" Valor="@_direccionInfo" ValorChanged="v => _direccionInfo = v" />
+                        <CampoTexto Etiqueta="Contacto" Valor="@_contactoInfo" ValorChanged="v => _contactoInfo = v" />
+                        <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHastaInfo" ValorChanged="v => _contratoVigenteHastaInfo = v" />
+                    </div>
+                    <div class="workspace-acciones-edicion">
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
+                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar</Boton>
+                    </div>
+                }
+                else
+                {
+                    <div class="workspace-grupo-campos">
+                        <CampoInfo Etiqueta="Cliente" Valor="@_detalle.ClienteRazonSocial" />
+                        <CampoInfo Etiqueta="Empresa" Valor="@_detalle.EmpresaRazonSocial" />
+                        <CampoInfo Etiqueta="Código de centro" Valor="@_detalle.CodigoCentro" />
+                        <CampoInfo Etiqueta="Dirección" Valor="@_detalle.Direccion" />
+                        <CampoInfo Etiqueta="Contacto" Valor="@_detalle.Contacto" />
+                        <CampoInfo Etiqueta="Contrato vigente hasta" Valor="@(_detalle.ContratoVigenteHasta?.ToString("dd/MM/yyyy"))" />
+                    </div>
+                }
                 @if (_cargandoEstado)
                 {
                     <EstadoCargando Filas="2" />
@@ -492,6 +522,24 @@ else
     private EstadoCentroDto? _estadoCentro;
     private bool _cargandoEstado;
 
+    /// <summary>
+    /// Edición in situ de la pestaña "Información" (Centro 360,
+    /// PLAN-EJECUCION-UX.md § 0.10) — sustituye al Drawer de "Editar", que
+    /// se retiró: la lista de Centros ya no ofrece un camino distinto para
+    /// lo mismo. No hace falta recargar el Centro al entrar en modo edición:
+    /// <c>_detalle</c> (con su <c>Version</c>) ya está cargado por la propia
+    /// pestaña.
+    /// </summary>
+    private bool _editandoInformacion;
+    private string _nombreInfo = string.Empty;
+    private string _codigoCentroInfo = string.Empty;
+    private string _direccionInfo = string.Empty;
+    private string _contactoInfo = string.Empty;
+    private string _contratoVigenteHastaInfo = string.Empty;
+    private bool _guardandoInformacion;
+    private string? _mensajeErrorInformacion;
+    private Dictionary<string, string> _erroresInformacion = new();
+
     private static readonly int[] PeriodicidadesPredefinidas = [1, 3, 6, 12, 24, 36, 48, 60];
 
     private IReadOnlyList<DocumentacionRequeridaCentroDto>? _documentacion;
@@ -566,6 +614,7 @@ else
             _plataformaCargada = false;
             _errorPlataforma = false;
             _estadoCentro = null;
+            _editandoInformacion = false;
             await CargarCabeceraAsync();
             await CargarEstadoAsync();
         }
@@ -599,6 +648,68 @@ else
         finally
         {
             _cargando = false;
+        }
+    }
+
+    private void IniciarEdicionInformacion()
+    {
+        if (_detalle is null) return;
+
+        _nombreInfo = _detalle.Nombre;
+        _codigoCentroInfo = _detalle.CodigoCentro ?? string.Empty;
+        _direccionInfo = _detalle.Direccion ?? string.Empty;
+        _contactoInfo = _detalle.Contacto ?? string.Empty;
+        _contratoVigenteHastaInfo = _detalle.ContratoVigenteHasta?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _mensajeErrorInformacion = null;
+        _erroresInformacion = new Dictionary<string, string>();
+        _editandoInformacion = true;
+    }
+
+    private void CancelarEdicionInformacion() => _editandoInformacion = false;
+
+    private string? ObtenerErrorInformacion(string campo) => _erroresInformacion.GetValueOrDefault(campo);
+
+    private async Task GuardarInformacionAsync()
+    {
+        if (_detalle is null) return;
+
+        _guardandoInformacion = true;
+        _mensajeErrorInformacion = null;
+        _erroresInformacion = new Dictionary<string, string>();
+
+        try
+        {
+            var codigoCentro = string.IsNullOrWhiteSpace(_codigoCentroInfo) ? null : _codigoCentroInfo;
+            var direccion = string.IsNullOrWhiteSpace(_direccionInfo) ? null : _direccionInfo;
+            var contacto = string.IsNullOrWhiteSpace(_contactoInfo) ? null : _contactoInfo;
+            var contratoVigenteHasta = DateOnly.TryParse(_contratoVigenteHastaInfo, out var fecha) ? fecha : (DateOnly?)null;
+
+            var resultado = await Mediator.Send(new EditarCentroCommand(
+                _detalle.Id, _nombreInfo, codigoCentro, direccion, contacto, contratoVigenteHasta, _detalle.Version));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorInformacion = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Centro actualizado correctamente.", TonoToast.Exito);
+            _editandoInformacion = false;
+            await CargarCabeceraAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _erroresInformacion = ex.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+        }
+        catch (Exception)
+        {
+            _mensajeErrorInformacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _guardandoInformacion = false;
         }
     }
 
