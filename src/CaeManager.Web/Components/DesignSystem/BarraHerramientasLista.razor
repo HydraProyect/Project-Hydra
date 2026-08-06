@@ -1,0 +1,51 @@
+@*
+    Barra de herramientas de lista (Centro 360, PLAN-EJECUCION-UX.md § 0.9) —
+    va bajo la barra de filtros y aloja los controles que actúan sobre la
+    lista entera, no sobre el dato que se busca.
+
+    Hoy solo dos, y por eso es un componente compartido y no markup repetido
+    en cada página: son 9 listas y la regla del propio plan es que los
+    transversales se arreglan una vez como pieza compartida.
+
+    - "Selección múltiple": los checkboxes de fila dejan de estar siempre
+      visibles (ruido permanente para una acción ocasional) y aparecen solo
+      al activarlo. Apagarlo limpia la selección — dejar filas marcadas que
+      ya no se ven sería una trampa: la barra de acciones en lote seguiría
+      apuntando a ellas.
+    - Expandir/Colapsar todos: solo para las listas con acordeón (hoy
+      Centros; Empresas tras el Lote 0-I). Se omite si no se pasa
+      OnAlternarTodos.
+*@
+<div class="barra-herramientas-lista">
+    <Boton Variante="@(SeleccionMultiple ? VarianteBoton.Secundario : VarianteBoton.Fantasma)"
+           Tamano="TamanoBoton.Pequeno"
+           OnClick="AlternarSeleccionMultipleAsync"
+           aria-pressed="@(SeleccionMultiple ? "true" : "false")">
+        Selección múltiple
+    </Boton>
+
+    @if (OnAlternarTodos.HasDelegate)
+    {
+        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => OnAlternarTodos.InvokeAsync(!TodosExpandidos)">
+            @(TodosExpandidos ? "Colapsar todos" : "Expandir todos")
+        </Boton>
+    }
+
+    @if (Extra is not null)
+    {
+        @Extra
+    }
+</div>
+
+@code {
+    [Parameter] public bool SeleccionMultiple { get; set; }
+    [Parameter] public EventCallback<bool> SeleccionMultipleChanged { get; set; }
+
+    /// <summary>Solo para listas con acordeón — si no se pasa, el botón no se pinta.</summary>
+    [Parameter] public bool TodosExpandidos { get; set; }
+    [Parameter] public EventCallback<bool> OnAlternarTodos { get; set; }
+
+    [Parameter] public RenderFragment? Extra { get; set; }
+
+    private Task AlternarSeleccionMultipleAsync() => SeleccionMultipleChanged.InvokeAsync(!SeleccionMultiple);
+}

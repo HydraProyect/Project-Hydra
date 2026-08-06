@@ -149,7 +149,8 @@ Un único set de iconos **outline** en todo el sistema (trazo 1.75px, sin rellen
 | Componente | Archivo |
 |---|---|
 | Boton | `src/CaeManager.Web/Components/DesignSystem/Boton.razor` |
-| Badge | `src/CaeManager.Web/Components/DesignSystem/Badge.razor` |
+| Badge | `src/CaeManager.Web/Components/DesignSystem/Badge.razor` — `Tamano="TamanoBadge.Pequeno"` para la densidad de fila de las listas (Centro 360 § 0.9). **Don't**: usarlo para "quitar peso" a un estado — solo cambia padding y tipo, el color del semáforo es el mismo y significa lo mismo. |
+| BarraHerramientasLista | `src/CaeManager.Web/Components/DesignSystem/BarraHerramientasLista.razor` — controles que actúan sobre la lista entera (toggle de selección múltiple, expandir/colapsar todos), bajo la barra de filtros. Compartido por las 9 listas: el patrón está en `UX_PATTERNS.md` § "Selección múltiple tras toggle". |
 | Icono | `src/CaeManager.Web/Components/DesignSystem/Icono.razor` |
 | Tarjeta / TarjetaMetrica | `src/CaeManager.Web/Components/DesignSystem/Tarjeta.razor`, `TarjetaMetrica.razor` |
 | CampoTexto / CampoSelect / CampoTextarea | `src/CaeManager.Web/Components/DesignSystem/CampoTexto.razor`, `CampoSelect.razor`, `CampoTextarea.razor` |

@@ -239,11 +239,18 @@
     overflow: hidden;
 }
 
+/*
+  Densidad de fila (Centro 360 § 0.9): padding vertical y gap reducidos
+  respecto a space-4/space-3 para que quepan más centros por pantalla. El
+  padding horizontal se mantiene — apretar los lados no gana filas, solo
+  aprieta. Los Badge y el badge-visita de la fila también bajan de tamaño
+  más abajo, por el mismo motivo.
+*/
 .tarjeta-fila-acordeon-cabecera {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-4);
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
     border-bottom: var(--border-default);
 }
 
@@ -259,8 +266,55 @@
     margin-left: auto;
 }
 
-.tarjeta-fila-acordeon > .seccion-colapsable {
-    border-radius: 0;
+.tarjeta-fila-acordeon-contenido {
+    padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+/*
+  Chevron de expandir/colapsar de la fila (§ 0.9). Vive donde antes vivía
+  siempre el checkbox; con "Selección múltiple" activo el checkbox vuelve a
+  su sitio, a la izquierda de este botón, y ambos conviven. No reutiliza
+  SeccionColapsable: su CSS está scoped al componente y su estado es
+  interno, y aquí la expansión la decide la página para poder hacer
+  "Expandir/Colapsar todos".
+*/
+.boton-expandir-fila {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: var(--space-1);
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: transform var(--transition-fast);
+    transform: rotate(-90deg);
+}
+
+.boton-expandir-fila-abierta {
+    transform: rotate(0deg);
+}
+
+.boton-expandir-fila:hover {
+    color: var(--color-text);
+}
+
+.boton-expandir-fila:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}
+
+/*
+  Barra de herramientas de lista (§ 0.9) — controles que actúan sobre la
+  lista entera, bajo la barra de filtros.
+*/
+.barra-herramientas-lista {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
 }
 
 /*
@@ -274,11 +328,12 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    padding: 2px var(--space-2);
+    /* Métrica de .badge-pequeno (Badge.razor.css) — densidad de fila, § 0.9. */
+    padding: 0 var(--space-2);
     border-radius: var(--radius-full);
     font: var(--font-label-md);
-    font-size: 0.75rem;
-    line-height: 1.25rem;
+    font-size: 0.6875rem;
+    line-height: 1.125rem;
     background-color: var(--color-info-50);
     color: var(--color-info-500);
     border: none;

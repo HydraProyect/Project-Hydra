@@ -5,6 +5,7 @@
 @code {
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public TonoBadge Tono { get; set; } = TonoBadge.Neutro;
+    [Parameter] public TamanoBadge Tamano { get; set; } = TamanoBadge.Medio;
 
     /// <summary>Attribute splatting — ver el comentario de Boton.razor, mismo criterio (P2 #28 de docs/business/MATURITY_REVIEW.md), incluido el merge manual de "class".</summary>
     [Parameter(CaptureUnmatchedValues = true)]
@@ -15,6 +16,8 @@
         get
         {
             var claseBase = $"badge badge-{Tono.ToString().ToLowerInvariant()}";
+            if (Tamano == TamanoBadge.Pequeno)
+                claseBase += " badge-pequeno";
             return AtributosAdicionales is not null
                 && AtributosAdicionales.TryGetValue("class", out var claseLlamador)
                 && claseLlamador is string claseLlamadorTexto
