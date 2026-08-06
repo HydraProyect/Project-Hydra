@@ -256,7 +256,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     {
         Guid centroId = default;
         return VerificarAislamientoAsync(
-            () => CanalGestionDocumental.DePlataforma(centroId, "CTAIMA CAE", null, null, null),
+            () => CanalGestionDocumental.DePlataforma(centroId, "Gestión general", "CTAIMA CAE", null, null, null),
             async contexto => centroId = await SembrarCentroAsync(contexto));
     }
 

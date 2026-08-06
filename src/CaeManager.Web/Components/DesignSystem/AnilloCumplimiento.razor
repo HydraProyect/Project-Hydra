@@ -9,8 +9,8 @@
     <svg class="anillo-cumplimiento anillo-cumplimiento-@Tamano.ToString().ToLowerInvariant() anillo-cumplimiento-@ObtenerTono(porcentaje).ToString().ToLowerInvariant()"
          viewBox="0 0 36 36" role="img" aria-label="@(Etiqueta ?? $"{porcentaje}% de cumplimiento")">
         <title>@(Etiqueta ?? $"{porcentaje}% de cumplimiento")</title>
-        <circle class="anillo-cumplimiento-pista" cx="18" cy="18" r="@Radio" />
-        <circle class="anillo-cumplimiento-progreso" cx="18" cy="18" r="@Radio"
+        <circle class="anillo-cumplimiento-pista" cx="18" cy="18" r="@RadioSvg" />
+        <circle class="anillo-cumplimiento-progreso" cx="18" cy="18" r="@RadioSvg"
                 stroke-dasharray="@FormatearTrazo(porcentaje)" />
         <text x="18" y="18" class="anillo-cumplimiento-texto">@porcentaje</text>
     </svg>
@@ -19,6 +19,16 @@
 @code {
     private const double Radio = 15.5;
     private static readonly double Circunferencia = 2 * Math.PI * Radio;
+
+    /// <summary>
+    /// El radio, formateado en cultura invariante. Interpolar el <c>double</c>
+    /// directamente en el atributo lo escribía con la coma decimal de la
+    /// cultura de la petición (es-ES): <c>r="15,5"</c> no es una longitud SVG
+    /// válida, el navegador la descartaba y el anillo se dibujaba con radio 0
+    /// — solo se veía el número, nunca el aro. <c>stroke-dasharray</c> ya lo
+    /// hacía bien; esto le faltaba al radio.
+    /// </summary>
+    private static readonly string RadioSvg = Radio.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 
     [Parameter] public int? Porcentaje { get; set; }
     [Parameter] public TamanoAnillo Tamano { get; set; } = TamanoAnillo.Medio;
