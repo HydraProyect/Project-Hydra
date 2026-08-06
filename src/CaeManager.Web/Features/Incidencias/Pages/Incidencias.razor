@@ -90,15 +90,17 @@
                     </Badge>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarResueltaAsync(context.Id, !context.Resuelta)">
-                        @(context.Resuelta ? "Reabrir" : "Marcar resuelta")
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
-                        Editar
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
-                        Eliminar
-                    </Boton>
+                    <MenuAcciones>
+                        <ItemMenuAccion OnClick="() => CambiarResueltaAsync(context.Id, !context.Resuelta)">
+                            @(context.Resuelta ? "Reabrir" : "Marcar resuelta")
+                        </ItemMenuAccion>
+                        <ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
+                            Editar
+                        </ItemMenuAccion>
+                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
+                            Eliminar
+                        </ItemMenuAccion>
+                    </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
 

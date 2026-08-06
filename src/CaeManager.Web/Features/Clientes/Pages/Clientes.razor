@@ -93,15 +93,17 @@
                     }
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "informacion")'>
-                        Ver
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
-                        Editar
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
-                        Eliminar
-                    </Boton>
+                    <MenuAcciones>
+                        <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "informacion")'>
+                            Ver
+                        </ItemMenuAccion>
+                        <ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
+                            Editar
+                        </ItemMenuAccion>
+                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
+                            Eliminar
+                        </ItemMenuAccion>
+                    </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
 
