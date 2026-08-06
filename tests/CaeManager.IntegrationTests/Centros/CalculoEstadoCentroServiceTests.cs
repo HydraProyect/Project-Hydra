@@ -5,7 +5,6 @@ using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
-using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -21,7 +20,7 @@ namespace CaeManager.IntegrationTests.Centros;
 /// tiene sus propios tests puros — estos verifican que
 /// CalculoEstadoCentroService reúne correctamente los datos reales
 /// (Documentos de Empresa/Trabajador, huecos obligatorios,
-/// RequisitosDocumentales bloqueantes) contra Postgres, incluyendo los joins
+/// TipoDocumentoCentro.BloqueaAcceso) contra Postgres, incluyendo los joins
 /// que un test en memoria no ejercita.
 /// </summary>
 public class CalculoEstadoCentroServiceTests : IAsyncLifetime
@@ -116,40 +115,44 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Retorna_Bloqueado_cuando_hay_un_requisito_bloqueante_sin_cumplir_aunque_todo_lo_demas_este_vigente()
+    public async Task Retorna_Bloqueado_cuando_falta_un_documento_bloqueante_aunque_todo_lo_demas_este_vigente()
     {
+        Guid tipoBloqueanteId;
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
-            contexto.RequisitosDocumentales.Add(new RequisitoDocumental(_centroId, "Formulario de acceso", null, bloqueaAcceso: true));
+
+            var tipoBloqueante = new TipoDocumento("Formulario de acceso", null, false, 3, AmbitoAplicacion.Trabajador, esObligatorio: false);
+            contexto.TiposDocumento.Add(tipoBloqueante);
+            await contexto.SaveChangesAsync();
+            tipoBloqueanteId = tipoBloqueante.Id;
+
+            contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoBloqueanteId, _centroId, incluido: true, bloqueaAcceso: true));
             await contexto.SaveChangesAsync();
         }
 
         var resultado = await CalcularAsync();
 
         resultado.Estado.Should().Be(EstadoCentro.Bloqueado);
-        resultado.Causas.Should().ContainSingle(c => c.Bloqueante && c.Descripcion == "Formulario de acceso");
+        resultado.Causas.Should().ContainSingle(c => c.Bloqueante && c.Descripcion.Contains("Formulario de acceso") && c.Descripcion.Contains("Ana García"));
     }
 
     [Fact]
-    public async Task Marcar_el_requisito_como_cumplido_deja_de_bloquear_el_centro()
+    public async Task Subir_el_documento_bloqueante_deja_de_bloquear_el_centro()
     {
-        Guid requisitoId;
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
-            var requisito = new RequisitoDocumental(_centroId, "Formulario de acceso", null, bloqueaAcceso: true);
-            contexto.RequisitosDocumentales.Add(requisito);
-            await contexto.SaveChangesAsync();
-            requisitoId = requisito.Id;
-        }
 
-        await using (var contexto = CrearContexto())
-        {
-            var requisito = await contexto.RequisitosDocumentales.SingleAsync(r => r.Id == requisitoId);
-            requisito.MarcarCumplido(DateOnly.FromDateTime(DateTime.UtcNow));
+            var tipoBloqueante = new TipoDocumento("Formulario de acceso", null, false, 3, AmbitoAplicacion.Trabajador, esObligatorio: false);
+            contexto.TiposDocumento.Add(tipoBloqueante);
+            await contexto.SaveChangesAsync();
+
+            contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoBloqueante.Id, _centroId, incluido: true, bloqueaAcceso: true));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, tipoBloqueante.Id, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
             await contexto.SaveChangesAsync();
         }
 
@@ -162,7 +165,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     private async Task<ResultadoEstadoCentro> CalcularAsync()
     {
         await using var contexto = CrearContexto();
-        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto);
+        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto);
 
         var resultados = await servicio.CalcularAsync([_centroId], CancellationToken.None);
         return resultados[_centroId];

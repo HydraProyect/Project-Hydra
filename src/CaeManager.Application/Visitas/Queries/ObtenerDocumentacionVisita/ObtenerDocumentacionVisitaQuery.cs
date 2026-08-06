@@ -17,8 +17,9 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 /// (que lista TODOS los Documentos de una Empresa/Trabajador, sin importar
 /// si tienen algo que ver con este Centro), aquí solo se muestra lo que
 /// aplica al Centro de la visita — un Trabajador puede tener un Documento
-/// vencido de un TipoDocumento restringido (vía TipoDocumentoCentro) a otro
-/// Centro donde también trabaja, y eso no debe interferir en esta vista.
+/// vencido de un TipoDocumento que este Centro excluye explícitamente
+/// (<c>TipoDocumentoCentro.Incluido = false</c>, PLAN-EJECUCION-UX.md § 0.4),
+/// y eso no debe interferir en esta vista.
 ///
 /// Incluye "Faltante" (documento obligatorio sin ningún Documento) tanto
 /// para Empresa como para Trabajador — a diferencia de ObtenerAlertasQuery/
@@ -56,7 +57,13 @@ public class ObtenerDocumentacionVisitaQueryHandler(
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentacionVisitaQuery, DocumentacionVisitaDto?>
 {
-    private record TipoDocumentoAplicableDto(Guid Id, string Nombre, bool EsObligatorio);
+    /// <param name="Requerido">
+    /// Resolución completa (<see cref="ResolucionTipoDocumentoCentro"/>) — gobierna
+    /// solo si se genera el placeholder "Faltante" cuando no hay Documento. El
+    /// alcance de qué tipos se muestran en absoluto (incluidos los que ya tienen
+    /// Documento) es más amplio, ver <see cref="Handle"/>.
+    /// </param>
+    private record TipoDocumentoAplicableDto(Guid Id, string Nombre, bool Requerido);
 
     private static readonly IReadOnlyDictionary<EstadoDocumento, int> OrdenSeveridad = new Dictionary<EstadoDocumento, int>
     {
@@ -97,22 +104,28 @@ public class ObtenerDocumentacionVisitaQueryHandler(
             .Select(t => new { t.Id, t.Nombre, t.AmbitoAplicacion, t.EsObligatorio })
             .ToListAsync(cancellationToken);
 
-        var restriccionesPorTipo = (await tiposDocumentoContext.TiposDocumentoCentros
-            .Select(tc => new { tc.TipoDocumentoId, tc.CentroId })
+        var tipoIdsRelevantes = tipos.Select(t => t.Id).ToHashSet();
+        var filasDelCentro = (await tiposDocumentoContext.TiposDocumentoCentros
+            .Where(tc => tipoIdsRelevantes.Contains(tc.TipoDocumentoId) && tc.CentroId == centro.Id)
             .ToListAsync(cancellationToken))
-            .GroupBy(tc => tc.TipoDocumentoId)
-            .ToDictionary(g => g.Key, g => g.Select(tc => tc.CentroId).ToHashSet());
+            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
-        bool AplicaAlCentro(Guid tipoDocumentoId) =>
-            !restriccionesPorTipo.TryGetValue(tipoDocumentoId, out var centrosPermitidos) || centrosPermitidos.Contains(centro.Id);
+        // Alcance de qué tipos entran en esta vista en absoluto (incluye los que ya
+        // tienen Documento, no solo los obligatorios) — por defecto todos entran,
+        // salvo que este Centro los excluya explícitamente (Incluido=false). Más
+        // permisivo a propósito que ResolucionTipoDocumentoCentro.Aplica (que exige
+        // EsObligatorio sin fila explícita): un Documento Vigente de un tipo no
+        // obligatorio sigue siendo información relevante para la visita.
+        bool EnAlcanceDelCentro(Guid tipoDocumentoId) =>
+            !filasDelCentro.TryGetValue((tipoDocumentoId, centro.Id), out var fila) || fila.Incluido;
 
         var tiposEmpresa = tipos
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa && AplicaAlCentro(t.Id))
-            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, t.EsObligatorio))
+            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa && EnAlcanceDelCentro(t.Id))
+            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centro.Id, t.EsObligatorio)))
             .ToList();
         var tiposTrabajador = tipos
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && AplicaAlCentro(t.Id))
-            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, t.EsObligatorio))
+            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && EnAlcanceDelCentro(t.Id))
+            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centro.Id, t.EsObligatorio)))
             .ToList();
 
         var seccionEmpresa = await ConstruirSeccionAsync(
@@ -157,7 +170,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
 
         foreach (var tipo in tiposAplicables)
         {
-            if (!tipo.EsObligatorio) continue;
+            if (!tipo.Requerido) continue;
             if (tipoIdsConDocumento.Contains(tipo.Id)) continue;
 
             items.Add(new DocumentoVisitaItemDto(null, trabajadorId, tipo.Id, tipo.Nombre, EstadoDocumento.Faltante, null, null));

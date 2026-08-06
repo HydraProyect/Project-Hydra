@@ -96,22 +96,16 @@ public class ObtenerDocumentacionVisitaQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Un_documento_vencido_del_trabajador_restringido_a_otro_centro_no_aparece()
+    public async Task Un_documento_vencido_del_trabajador_excluido_explicitamente_de_este_centro_no_aparece()
     {
-        Guid otroCentroId;
         await using (var contexto = CrearContexto())
         {
-            var cliente2 = new Cliente("Cliente Otro Centro S.L.", "B44556678", esCritico: false);
-            contexto.Clientes.Add(cliente2);
-            await contexto.SaveChangesAsync();
-            var otroCentro = new Centro(cliente2.Id, _empresaId, "Otro Centro");
-            contexto.Centros.Add(otroCentro);
-            await contexto.SaveChangesAsync();
-            otroCentroId = otroCentro.Id;
-
-            // Restringe el tipo obligatorio de trabajador a "otro centro" —
-            // deja de aplicar por defecto al centro de la visita.
-            contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipoObligatorioTrabajadorId, otroCentroId));
+            // Exclusión explícita del tipo obligatorio de trabajador en ESTE
+            // centro (Incluido=false, PLAN-EJECUCION-UX.md § 0.4) — sustituye a
+            // la semántica antigua de "restringir a otro centro" (allow-list
+            // global): ahora la posición se declara por par (Tipo, Centro), no
+            // por presencia de filas en otros centros.
+            contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipoObligatorioTrabajadorId, _centroId, incluido: false));
 
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoObligatorioTrabajadorId, DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1)));

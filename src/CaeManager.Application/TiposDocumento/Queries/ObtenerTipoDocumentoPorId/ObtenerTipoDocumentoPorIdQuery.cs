@@ -50,7 +50,7 @@ public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext d
         if (tipoDocumento is null) return null;
 
         var centroIds = await dbContext.TiposDocumentoCentros
-            .Where(tc => tc.TipoDocumentoId == request.Id)
+            .Where(tc => tc.TipoDocumentoId == request.Id && tc.Incluido)
             .Select(tc => tc.CentroId)
             .ToListAsync(cancellationToken);
 
