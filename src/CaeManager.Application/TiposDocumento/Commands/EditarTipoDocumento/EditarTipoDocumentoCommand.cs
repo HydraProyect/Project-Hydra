@@ -74,7 +74,12 @@ public class EditarTipoDocumentoCommandHandler(
             request.SeSolicitaA,
             request.Observaciones);
 
-        var actuales = await tipoDocumentoCentroRepositorio.ObtenerPorTipoDocumentoAsync(tipoDocumento.Id, cancellationToken);
+        // Solo se tocan las filas Incluido=true (creadas desde este mismo picker) — las
+        // Incluido=false son exclusiones explícitas por Centro dadas de alta desde
+        // Requisitos del Centro (PLAN-EJECUCION-UX.md § 0.4) y no debe pisarlas este flujo.
+        var actuales = (await tipoDocumentoCentroRepositorio.ObtenerPorTipoDocumentoAsync(tipoDocumento.Id, cancellationToken))
+            .Where(tc => tc.Incluido)
+            .ToList();
         var deseados = request.CentroIds.Distinct().ToHashSet();
         var actualesCentroIds = actuales.Select(tc => tc.CentroId).ToHashSet();
 

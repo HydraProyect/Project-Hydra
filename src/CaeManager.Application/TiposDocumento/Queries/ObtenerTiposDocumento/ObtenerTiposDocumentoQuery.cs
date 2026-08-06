@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Centros;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -53,17 +54,27 @@ public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosConte
             if (request.EmpresaId is not null) centrosFiltrados = centrosFiltrados.Where(c => c.EmpresaId == request.EmpresaId);
             if (request.ClienteId is not null) centrosFiltrados = centrosFiltrados.Where(c => c.ClienteId == request.ClienteId);
 
-            var centroIdsFiltrados = centrosFiltrados.Select(c => c.Id);
+            var centroIdsFiltrados = await centrosFiltrados.Select(c => c.Id).ToListAsync(cancellationToken);
 
-            var tipoDocumentoIdsGlobales = tiposDocumentoContext.TiposDocumento
-                .Where(t => !tiposDocumentoContext.TiposDocumentoCentros.Any(tc => tc.TipoDocumentoId == t.Id))
-                .Select(t => t.Id);
+            var candidatos = await consulta
+                .Select(t => new { t.Id, t.EsObligatorio })
+                .ToListAsync(cancellationToken);
+            var tipoIdsCandidatos = candidatos.Select(t => t.Id).ToHashSet();
 
-            var tipoDocumentoIdsAsociados = tiposDocumentoContext.TiposDocumentoCentros
-                .Where(tc => centroIdsFiltrados.Contains(tc.CentroId))
-                .Select(tc => tc.TipoDocumentoId);
+            var filasPorPar = (await tiposDocumentoContext.TiposDocumentoCentros
+                .Where(tc => tipoIdsCandidatos.Contains(tc.TipoDocumentoId) && centroIdsFiltrados.Contains(tc.CentroId))
+                .ToListAsync(cancellationToken))
+                .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
-            consulta = consulta.Where(t => tipoDocumentoIdsGlobales.Contains(t.Id) || tipoDocumentoIdsAsociados.Contains(t.Id));
+            // Aplica a la combinación filtrada si aplica a ALGUNO de los Centros
+            // que coinciden (mismo criterio que antes: Cliente/Empresa agregan
+            // varios Centros, y basta con que uno de ellos lo exija).
+            var tipoIdsAplicables = candidatos
+                .Where(t => centroIdsFiltrados.Any(centroId => ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.EsObligatorio)))
+                .Select(t => t.Id)
+                .ToHashSet();
+
+            consulta = consulta.Where(t => tipoIdsAplicables.Contains(t.Id));
         }
 
         return await consulta
