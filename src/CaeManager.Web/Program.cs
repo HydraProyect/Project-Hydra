@@ -175,7 +175,7 @@ if (azureAd.EstaConfigurado)
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/cuenta/iniciar-sesion";
-    options.AccessDeniedPath = "/cuenta/iniciar-sesion";
+    options.AccessDeniedPath = "/acceso-denegado";
 });
 
 builder.Services.AddAuthorization(options =>
