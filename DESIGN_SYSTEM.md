@@ -170,6 +170,7 @@ Un único set de iconos **outline** en todo el sistema (trazo 1.75px, sin rellen
 | DataTable | Se adopta `Microsoft.AspNetCore.Components.QuickGrid` (oficial de .NET) en vez de reimplementar ordenamiento/paginación — se tematiza con la clase compartida `tabla-datos` (`wwwroot/css/list-page.css`), consumida tanto por QuickGrid como por tablas HTML simples. |
 | SeccionColapsable (Accordion) | `src/CaeManager.Web/Components/DesignSystem/SeccionColapsable.razor` — cabecera con título + contenido opcional (Badge de estado) + chevron, colapsada por defecto. |
 | ZonaSoltarArchivo (File Upload) | `src/CaeManager.Web/Components/DesignSystem/ZonaSoltarArchivo.razor` — arrastrar/soltar/pegar, envuelve `InputFile` sin tocar su pipeline (ver `wwwroot/js/zona-soltar-archivo.js`); generaliza el patrón de subida de PDF que antes vivía suelto en Documentos/Requisitos/Subida Masiva. |
+| AnilloCumplimiento (Progress circular) | `src/CaeManager.Web/Components/DesignSystem/AnilloCumplimiento.razor` (+ `AnilloCumplimientoEnums.cs`) — SVG inline (`stroke-dasharray` sobre un `<circle>`), sin dependencia externa. Recibe `int? Porcentaje` y no pinta nada si es `null` ("sin requisitos" no es un 0%, Centro 360 § 0.5/0.8). Tono propio por umbral (100% Exito, ≥50% Advertencia, resto Peligro) — no reutiliza `EstadoCentroUi`/`EstadoDocumentoUi`: esos traducen el peor caso documental, esto una fracción, son preguntas distintas. Usado en Centro (`Centros.razor`), Trabajador dentro de un Centro (`AcordeonAsignacionesCentro.razor`) y Empresa (`EmpresaWorkspacePanel.razor`, cálculo agregado nuevo en `ObtenerCumplimientoEmpresaQuery`). |
 
 Documentación detallada (Do/Don't/accesibilidad) pendiente de completar por componente a medida que se usan en más de un contexto — ver nota al inicio de esta sección.
 
@@ -189,7 +190,7 @@ Responsive — comportamiento en breakpoints
 
 ### Pendientes (se documentan cuando se construyan)
 
-Chip (distinto de Badge — seleccionable/removible), Tooltip, Popover, Tabs, Breadcrumb, Charts (Dashboard hoy no tiene visualizaciones gráficas, solo KPIs numéricos y tablas — pendiente evaluar una librería de gráficos ligera cuando haya una necesidad real de visualización, no antes), DatePicker, Calendar (distinto del módulo Calendario de negocio), Avatar, Dropdown, Timeline, Activity Feed, Filters panel avanzado, Progress, Pagination avanzada.
+Chip (distinto de Badge — seleccionable/removible), Tooltip, Popover, Tabs, Breadcrumb, Charts (Dashboard hoy no tiene visualizaciones gráficas, solo KPIs numéricos y tablas — pendiente evaluar una librería de gráficos ligera cuando haya una necesidad real de visualización, no antes), DatePicker, Calendar (distinto del módulo Calendario de negocio), Avatar, Dropdown, Timeline, Activity Feed, Filters panel avanzado, Pagination avanzada.
 
 Selector de tema claro/oscuro en la UI: los tokens ya están preparados para modo oscuro (`prefers-color-scheme`, ver `tokens.css`) pero no existe todavía un control visible para forzar el tema — pendiente de una necesidad real de usuario.
 
