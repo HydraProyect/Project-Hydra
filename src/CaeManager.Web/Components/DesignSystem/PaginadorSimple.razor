@@ -1,9 +1,12 @@
 @*
-    Paginador Anterior/Siguiente reutilizable para listas que no usan
-    QuickGrid (ya sea porque la Query no está paginada en servidor y se
-    pagina en memoria, o porque el listado es un patrón de solo lectura
-    como Auditoría). Para tablas con Query paginada en servidor se prefiere
-    QuickGrid + Paginator (ver Clientes, Trabajadores, etc.).
+    Paginador Anterior/Siguiente reutilizable — es el único paginador de la
+    plataforma (H2, docs/ux-audit/02-clientes.md; ver UX_PATTERNS.md §
+    Paginar): tanto para listas con paginación manual en memoria/página
+    (`PaginaActual`/`TotalPaginas` como enteros propios) como para listas con
+    `QuickGrid` + `PaginationState` (Clientes, Trabajadores, Documentos...),
+    donde el caller deriva `PaginaActual` de `PaginationState.CurrentPageIndex`
+    y `PaginaActualChanged` delega en `PaginationState.SetCurrentPageIndexAsync`.
+    Nunca el `Paginator` propio de QuickGrid — no está localizado ("Page 1 of 1").
 *@
 <div class="paginador paginador-simple">
     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"

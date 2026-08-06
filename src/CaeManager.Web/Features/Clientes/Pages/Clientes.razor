@@ -105,9 +105,8 @@
                 </TemplateColumn>
             </QuickGrid>
 
-            <div class="paginador">
-                <Paginator State="_paginacion" />
-            </div>
+            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                              Etiqueta="cliente(s)" PaginaActualChanged="CambiarPaginaAsync" />
         </div>
 
         @if (_totalElementos == 0 && !_cargando)

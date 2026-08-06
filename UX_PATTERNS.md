@@ -49,6 +49,9 @@ Toda lista con un estado ofrece su **filtro de estado** en la barra de filtros, 
 ### Ordenar
 Toda columna con un criterio de orden con sentido es ordenable, y ordena **de verdad en el servidor** — nunca solo reordenando la página ya cargada. Cada Query acepta el nombre de columna contra una lista blanca: un valor desconocido cae al orden por defecto, jamás llega a la consulta. El orden se cierra siempre con un desempate estable por Id, porque sin un criterio total la paginación puede repetir o perder filas. El orden no se persiste en la URL (los filtros sí).
 
+### Paginar (H2, docs/ux-audit/02-clientes.md)
+Un único paginador visual y de copy en español para toda la plataforma — `PaginadorSimple` ("← Anterior · Página X de Y — N elemento(s) · Siguiente →") —, tanto en listas con paginación manual (`PaginaActual`/`TotalPaginas` como enteros) como en las que usan `QuickGrid` con `PaginationState` para el fetch en servidor: en este segundo caso, `PaginaActual` se deriva de `_paginacion.CurrentPageIndex + 1` y `PaginaActualChanged` delega en `_paginacion.SetCurrentPageIndexAsync(pagina - 1)` para que sea `QuickGrid` quien siga pidiendo los datos — nunca el `Paginator` propio de QuickGrid, que no está localizado ("Page 1 of 1"). `TotalPaginas` se recalcula de `_totalElementos` (ya trackeado por el `ItemsProvider` de cada lista) con `Math.Max(1, Ceiling(_totalElementos / ItemsPerPage))`.
+
 ### Subir documentos
 Zona de drag-and-drop + botón explícito "Seleccionar archivo", solo PDF, tamaño máximo indicado antes de intentar subir. Barra de progreso durante la subida. Tras subir: vista previa inmediata (no hace falta recargar para confirmar que se adjuntó bien).
 
