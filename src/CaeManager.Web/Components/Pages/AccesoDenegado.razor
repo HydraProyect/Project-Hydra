@@ -1,0 +1,13 @@
+@page "/acceso-denegado"
+@rendermode InteractiveServer
+@layout MainLayout
+@inject NavigationManager Navigation
+
+<div class="contenedor-pagina">
+    <EstadoVacio Titulo="No tienes permiso para ver esta sección"
+                 Descripcion="Si crees que es un error, contacta a un administrador.">
+        <Accion>
+            <Boton OnClick="@(() => Navigation.NavigateTo("/"))">Ir al Dashboard</Boton>
+        </Accion>
+    </EstadoVacio>
+</div>
