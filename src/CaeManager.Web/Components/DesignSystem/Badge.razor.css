@@ -9,6 +9,13 @@
     line-height: 1.25rem;
 }
 
+/* Densidad de fila (Centro 360 § 0.9) — solo métrica, el color no cambia. */
+.badge-pequeno {
+    padding: 0 var(--space-2);
+    font-size: 0.6875rem;
+    line-height: 1.125rem;
+}
+
 .badge-neutro {
     background-color: var(--color-neutral-100);
     color: var(--color-neutral-700);

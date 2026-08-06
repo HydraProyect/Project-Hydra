@@ -54,6 +54,22 @@ public partial class Vehiculos : ComponentBase
     private bool _eliminando;
 
     private readonly HashSet<Guid> _seleccionados = [];
+
+    /// <summary>
+    /// Los checkboxes de fila solo se pintan con esto activo (Centro 360,
+    /// PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
+    /// ocasional. Apagarlo limpia la selección: dejar filas marcadas que ya
+    /// no se ven dejaría la barra de acciones en lote apuntando a algo
+    /// invisible.
+    /// </summary>
+    private bool _seleccionMultiple;
+
+    private void AlternarSeleccionMultiple(bool activa)
+    {
+        _seleccionMultiple = activa;
+        if (!activa)
+            _seleccionados.Clear();
+    }
     private List<VehiculoListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
     private bool _eliminandoLote;
