@@ -138,6 +138,13 @@
     margin: var(--space-2) 0;
 }
 
+/* Ayuda bajo un campo de formulario: explica qué escribir, no un error. */
+.texto-ayuda-campo {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    margin: calc(var(--space-2) * -1) 0 var(--space-4);
+}
+
 .matriz-asignaciones-contenedor {
     overflow-x: auto;
 }
