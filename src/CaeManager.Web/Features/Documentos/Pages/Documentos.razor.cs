@@ -139,6 +139,11 @@ public partial class Documentos : ComponentBase
     }
 
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
+
+    // H2 (docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
+
+    private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
     private QuickGrid<DocumentoListaDto>? _grid;
 
     private string _busqueda = string.Empty;
