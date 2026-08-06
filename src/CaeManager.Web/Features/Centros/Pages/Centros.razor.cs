@@ -71,6 +71,19 @@ public partial class Centros : ComponentBase
     private bool _eliminando;
 
     private readonly HashSet<Guid> _seleccionados = [];
+
+    /// <summary>
+    /// Los checkboxes de fila solo se pintan con esto activo (§ 0.9) — son
+    /// ruido permanente para una acción ocasional.
+    /// </summary>
+    private bool _seleccionMultiple;
+
+    /// <summary>
+    /// Qué filas tienen el acordeón abierto. La expansión la lleva la página
+    /// y no cada <c>SeccionColapsable</c> con su estado interno, porque
+    /// "Expandir/Colapsar todos" necesita poder decidirlo desde fuera.
+    /// </summary>
+    private readonly HashSet<Guid> _expandidos = [];
     private List<CentroListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
     private bool _eliminandoLote;
@@ -189,6 +202,7 @@ public partial class Centros : ComponentBase
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
             _seleccionados.Clear();
+            _expandidos.Clear();
             _idEnfocado = null;
 
             // Batch por página (no por fila) — mismo criterio que el badge de
@@ -525,6 +539,35 @@ public partial class Centros : ComponentBase
 
     private bool TodosSeleccionados =>
         _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+
+    /// <summary>
+    /// Apagar el modo limpia la selección (PLAN-EJECUCION-UX.md § 0.9):
+    /// dejar filas marcadas que ya no se ven dejaría la barra de acciones en
+    /// lote apuntando a algo invisible.
+    /// </summary>
+    private void AlternarSeleccionMultiple(bool activa)
+    {
+        _seleccionMultiple = activa;
+        if (!activa)
+            _seleccionados.Clear();
+    }
+
+    private bool TodosExpandidos =>
+        _elementosPagina.Count > 0 && _elementosPagina.All(e => _expandidos.Contains(e.Id));
+
+    private void AlternarExpansion(Guid id)
+    {
+        if (!_expandidos.Add(id))
+            _expandidos.Remove(id);
+    }
+
+    private void AlternarTodosExpandidos(bool expandir)
+    {
+        if (expandir)
+            foreach (var elemento in _elementosPagina) _expandidos.Add(elemento.Id);
+        else
+            _expandidos.Clear();
+    }
 
     private void AlternarSeleccionTodos(bool marcar)
     {

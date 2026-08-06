@@ -66,16 +66,21 @@
         @* El grid se mantiene siempre montado (solo se oculta con CSS) para que la
            referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
+        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" />
+
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                <TemplateColumn Title="" Align="Align.Center">
-                    <HeaderTemplate Context="columna">
-                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
-                    </HeaderTemplate>
-                    <ChildContent>
-                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
-                    </ChildContent>
-                </TemplateColumn>
+                @if (_seleccionMultiple)
+                {
+                    <TemplateColumn Title="" Align="Align.Center">
+                        <HeaderTemplate Context="columna">
+                            <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                        </HeaderTemplate>
+                        <ChildContent>
+                            <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                        </ChildContent>
+                    </TemplateColumn>
+                }
                 <TemplateColumn Title="Centro" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
                         @context.CentroNombre

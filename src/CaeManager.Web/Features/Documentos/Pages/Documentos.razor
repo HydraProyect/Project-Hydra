@@ -84,16 +84,21 @@
     }
     else
     {
+        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" />
+
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                <TemplateColumn Title="" Align="Align.Center">
-                    <HeaderTemplate Context="columna">
-                        <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
-                    </HeaderTemplate>
-                    <ChildContent>
-                        <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
-                    </ChildContent>
-                </TemplateColumn>
+                @if (_seleccionMultiple)
+                {
+                    <TemplateColumn Title="" Align="Align.Center">
+                        <HeaderTemplate Context="columna">
+                            <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                        </HeaderTemplate>
+                        <ChildContent>
+                            <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                        </ChildContent>
+                    </TemplateColumn>
+                }
                 <PropertyColumn Property="@(d => d.PropietarioNombre)" Title="Propietario" Sortable="true" />
                 <TemplateColumn Title="Ámbito" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Ambito))">
                     <Badge>@context.Ambito</Badge>
