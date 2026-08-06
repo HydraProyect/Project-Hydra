@@ -1,6 +1,6 @@
 # Verificación de firmas digitales en PDF — análisis de carga y plan de implementación
 
-Estado: **propuesta, no implementado**. Documento de decisión previo a escribir código, en el orden que pide `CLAUDE.md` § Disciplina de decisión: dominio → arquitectura → plataforma → implementación.
+Estado: **implementado en su mayor parte** (épica "Documentación mensual auto-validada", 2026-08-06): motor de verificación (`VerificadorFirmaPdfService`, BCL .NET + almacén FNMT fijado), entidades `FirmaDigitalDocumento`/`VerificacionDocumentoOficial`, `TipoDocumento.PerfilDocumentoOficial`, pipeline en la cola de análisis (`ValidacionDocumentoOficialService` + parsers deterministas por perfil), reencolado al renovar, bandeja de revisión extendida a documentos de Empresa y pestaña "Validación" del Documento. **Pendiente**: calibración de parsers y cadena real con PDFs de muestra (fuera del repo), confirmación RGPD para persistir firmante persona física, retirar `TieneFirma` del prompt IA (épica 2), y verificación oficial CEA/CSV (épica 3, requiere autorización RED). Las secciones siguientes son el análisis de decisión original, en el orden que pide `CLAUDE.md`: dominio → arquitectura → plataforma → implementación.
 
 Responde a dos preguntas: **cuánto pesa** para la plataforma y **cuál es la mejor forma de implementarlo**.
 

@@ -37,6 +37,7 @@ public class ValidacionDocumentoOficialService(
     IFirmaDigitalDocumentoRepository firmasRepositorio,
     IVerificacionDocumentoOficialRepository verificacionesRepositorio,
     IAprobacionDocumentoRepository aprobacionRepositorio,
+    IRevisionIaDocumentoRepository revisionRepositorio,
     IUnitOfWork unitOfWork,
     ILogger<ValidacionDocumentoOficialService> logger) : IValidacionDocumentoOficialService
 {
@@ -104,6 +105,27 @@ public class ValidacionDocumentoOficialService(
             // texto digital exacto), no una estimación de un LLM — mantiene
             // comparables las estadísticas de AprobacionDocumento existentes.
             aprobacionRepositorio.Agregar(AprobacionDocumento.CrearAutomatica(documentoId, 100));
+        }
+        else
+        {
+            // Todo lo que no se auto-valida pasa por la bandeja de revisión
+            // humana existente. Idempotencia igual que en
+            // VerificacionIaDocumentoService: si ya hay una revisión sin
+            // resolver de este documento, no se apila otra. Confianza 0 a
+            // propósito: mantiene estas revisiones fuera del "Confirmar
+            // todos los ≥85%" de la bandeja — un documento manipulado no
+            // debe poder confirmarse en lote.
+            var yaHayRevisionPendiente = await documentosContext.RevisionesIaDocumento
+                .AnyAsync(r => r.DocumentoId == documentoId && !r.Resuelta, cancellationToken);
+            if (!yaHayRevisionPendiente)
+            {
+                revisionRepositorio.Agregar(RevisionIaDocumento.Crear(
+                    documentoId, confianzaGeneral: 0, tipoDetectado: null,
+                    verificacion.FechaEmisionDetectada, fechaVencimientoDetectada: null,
+                    tieneFirmaDetectada: verificacion.NivelConfianza > NivelConfianzaDocumental.SoloLectura
+                        || verificacion.NivelConfianza == NivelConfianzaDocumental.Manipulado,
+                    verificacion.Motivos));
+            }
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

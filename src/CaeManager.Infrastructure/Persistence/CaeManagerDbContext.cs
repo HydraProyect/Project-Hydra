@@ -136,7 +136,9 @@ public class CaeManagerDbContext(
     IQueryable<AuditoriaExtraccionIa> IDocumentosIaQueryContext.AuditoriasExtraccionIa => AuditoriasExtraccionIa;
     public DbSet<TrabajoAnalisisDocumento> TrabajosAnalisisDocumento => Set<TrabajoAnalisisDocumento>();
     public DbSet<FirmaDigitalDocumento> FirmasDigitalesDocumento => Set<FirmaDigitalDocumento>();
+    IQueryable<FirmaDigitalDocumento> IDocumentosQueryContext.FirmasDigitalesDocumento => FirmasDigitalesDocumento;
     public DbSet<VerificacionDocumentoOficial> VerificacionesDocumentoOficial => Set<VerificacionDocumentoOficial>();
+    IQueryable<VerificacionDocumentoOficial> IDocumentosQueryContext.VerificacionesDocumentoOficial => VerificacionesDocumentoOficial;
     public DbSet<NotificacionUsuario> NotificacionesUsuario => Set<NotificacionUsuario>();
     IQueryable<NotificacionUsuario> INotificacionesQueryContext.NotificacionesUsuario => NotificacionesUsuario;
     public DbSet<Documento> Documentos => Set<Documento>();

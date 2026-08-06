@@ -75,6 +75,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
             new FirmaDigitalDocumentoRepository(_dbContext),
             new VerificacionDocumentoOficialRepository(_dbContext),
             new AprobacionDocumentoRepository(_dbContext),
+            new RevisionIaDocumentoRepository(_dbContext),
             _dbContext,
             NullLogger<ValidacionDocumentoOficialService>.Instance);
 
