@@ -1,8 +1,8 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
-using CaeManager.Application.RequisitosDocumentales.Queries.ObtenerRequisitosDocumentalesPendientes;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
@@ -28,8 +28,9 @@ public class ObtenerBandejaGestorQueryHandlerTests
         TipoDocumentoNombre: "EPIs", ConfianzaGeneral: 60, TipoDetectado: null,
         FechaEmisionDetectada: null, Motivo: "Confianza baja", CreadaEnUtc: DateTime.UtcNow);
 
-    private static RequisitoDocumentalPendienteDto Requisito() => new(
-        Id: Guid.NewGuid(), CentroId: Guid.NewGuid(), CentroNombre: "Centro Sur", Descripcion: "PSS firmado");
+    private static DocumentacionBloqueantePendienteDto Requisito() => new(
+        CentroId: Guid.NewGuid(), CentroNombre: "Centro Sur", TrabajadorId: Guid.NewGuid(), TrabajadorNombre: "Ana García",
+        TipoDocumentoId: Guid.NewGuid(), TipoDocumentoNombre: "PSS firmado");
 
     private static VisitaListaDto Visita(NivelUrgenciaVisita nivel, DateOnly? fechaInicio = null) => new(
         Id: Guid.NewGuid(), CentroId: Guid.NewGuid(), CentroNombre: "Centro Este",
@@ -47,7 +48,7 @@ public class ObtenerBandejaGestorQueryHandlerTests
     private static IReadOnlyList<ItemBandejaDto> Fusionar(
         IReadOnlyList<AlertaDto>? alertas = null,
         IReadOnlyList<RevisionIaDocumentoDto>? revisiones = null,
-        IReadOnlyList<RequisitoDocumentalPendienteDto>? requisitos = null,
+        IReadOnlyList<DocumentacionBloqueantePendienteDto>? requisitos = null,
         IReadOnlyList<VisitaListaDto>? visitasUrgentes = null,
         IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>? sugerenciasVisita = null) =>
         ObtenerBandejaGestorQueryHandler.Fusionar(
@@ -118,10 +119,11 @@ public class ObtenerBandejaGestorQueryHandlerTests
 
         var item = resultado.Should().ContainSingle().Subject;
         item.Tipo.Should().Be(TipoItemBandeja.RequisitoPendiente);
-        item.Titulo.Should().Be("PSS firmado");
+        item.Titulo.Should().Be("PSS firmado — Ana García");
         item.Subtitulo.Should().Be("Centro Sur");
         item.CentroId.Should().Be(requisito.CentroId);
-        item.RequisitoId.Should().Be(requisito.Id);
+        item.TrabajadorId.Should().Be(requisito.TrabajadorId);
+        item.TipoDocumentoId.Should().Be(requisito.TipoDocumentoId);
     }
 
     [Fact]

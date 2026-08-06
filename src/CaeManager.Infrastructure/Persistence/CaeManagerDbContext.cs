@@ -16,7 +16,6 @@ using CaeManager.Application.Incidencias;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Notificaciones;
 using CaeManager.Application.Proyectos;
-using CaeManager.Application.RequisitosDocumentales;
 using CaeManager.Application.Retencion;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Tenants;
@@ -42,7 +41,6 @@ using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
-using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
@@ -66,7 +64,7 @@ public class CaeManagerDbContext(
         IClientesQueryContext, IEmpresasQueryContext, ISubcontratasQueryContext, ICentrosQueryContext,
         ITrabajadoresQueryContext, ITiposDocumentoQueryContext, IDocumentosQueryContext, IDocumentosIaQueryContext,
         INotificacionesQueryContext, IAsignacionesQueryContext, IVisitasQueryContext, IVehiculosQueryContext,
-        IConfiguracionQueryContext, IAuditoriaQueryContext, IRequisitosDocumentalesQueryContext, ITenantsQueryContext,
+        IConfiguracionQueryContext, IAuditoriaQueryContext, ITenantsQueryContext,
         IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext,
         IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
         IGestionesQueryContext
@@ -149,8 +147,6 @@ public class CaeManagerDbContext(
     IQueryable<VisitaTrabajador> IVisitasQueryContext.VisitasTrabajadores => VisitasTrabajadores;
     public DbSet<Vehiculo> Vehiculos => Set<Vehiculo>();
     IQueryable<Vehiculo> IVehiculosQueryContext.Vehiculos => Vehiculos;
-    public DbSet<RequisitoDocumental> RequisitosDocumentales => Set<RequisitoDocumental>();
-    IQueryable<RequisitoDocumental> IRequisitosDocumentalesQueryContext.RequisitosDocumentales => RequisitosDocumentales;
     public DbSet<Alerta> Alertas => Set<Alerta>();
     public DbSet<ParametroSistema> ParametrosSistema => Set<ParametroSistema>();
     IQueryable<ParametroSistema> IConfiguracionQueryContext.ParametrosSistema => ParametrosSistema;

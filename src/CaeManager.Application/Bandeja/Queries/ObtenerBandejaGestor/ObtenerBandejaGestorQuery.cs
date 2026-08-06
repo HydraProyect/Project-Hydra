@@ -1,8 +1,8 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
-using CaeManager.Application.RequisitosDocumentales.Queries.ObtenerRequisitosDocumentalesPendientes;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Visitas;
@@ -67,7 +67,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
     {
         var alertas = await mediator.Send(new ObtenerAlertasQuery(), cancellationToken);
         var revisiones = await mediator.Send(new ObtenerRevisionesIaPendientesQuery(), cancellationToken);
-        var requisitos = await mediator.Send(new ObtenerRequisitosDocumentalesPendientesQuery(), cancellationToken);
+        var requisitos = await mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(), cancellationToken);
         var visitasUrgentes = await mediator.Send(
             new ObtenerVisitasQuery(Busqueda: null, SoloActivas: true, NotificadoCliente: null, SoloUrgentes: true, TamanoPagina: 200),
             cancellationToken);
@@ -90,7 +90,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
     public static IReadOnlyList<ItemBandejaDto> Fusionar(
         IReadOnlyList<AlertaDto> alertas,
         IReadOnlyList<RevisionIaDocumentoDto> revisiones,
-        IReadOnlyList<RequisitoDocumentalPendienteDto> requisitos,
+        IReadOnlyList<DocumentacionBloqueantePendienteDto> requisitos,
         IReadOnlyList<VisitaListaDto> visitasUrgentes,
         IReadOnlyList<SugerenciaVisitaCorreoPendienteDto> sugerenciasVisita,
         DateOnly hoy,
@@ -128,16 +128,16 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             RequisitoId: null)));
 
         items.AddRange(requisitos.Select(rq => new ItemBandejaDto(
-            Id: $"requisito-{rq.Id}",
+            Id: $"requisito-{rq.CentroId}-{rq.TrabajadorId}-{rq.TipoDocumentoId}",
             Tipo: TipoItemBandeja.RequisitoPendiente,
-            Titulo: rq.Descripcion,
+            Titulo: $"{rq.TipoDocumentoNombre} — {rq.TrabajadorNombre}",
             Subtitulo: rq.CentroNombre,
             Fecha: null,
-            TrabajadorId: null,
+            TrabajadorId: rq.TrabajadorId,
             CentroId: rq.CentroId,
             DocumentoId: null,
-            TipoDocumentoId: null,
-            RequisitoId: rq.Id)));
+            TipoDocumentoId: rq.TipoDocumentoId,
+            RequisitoId: null)));
 
         items.AddRange(visitasUrgentes
             .Where(v => v.NivelUrgencia is NivelUrgenciaVisita.Urgente or NivelUrgenciaVisita.Critica)
