@@ -1,0 +1,60 @@
+.menu-acciones {
+    position: relative;
+    display: inline-block;
+}
+
+.menu-acciones-disparador {
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: var(--space-2) var(--space-3);
+}
+
+.menu-acciones-disparador:hover {
+    background-color: var(--color-surface-hover);
+    color: var(--color-text);
+}
+
+.menu-acciones-superposicion {
+    position: fixed;
+    inset: 0;
+    z-index: 1030;
+}
+
+.menu-acciones-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + var(--space-1));
+    z-index: 1031;
+    display: flex;
+    flex-direction: column;
+    min-width: 160px;
+    background-color: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-overlay);
+    padding: var(--space-2);
+}
+
+.menu-acciones-item {
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    cursor: pointer;
+    font: var(--font-body-sm);
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.menu-acciones-item:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.menu-acciones-item-destructivo {
+    color: var(--color-danger-700);
+}

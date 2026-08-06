@@ -1,0 +1,17 @@
+<button type="button" class="menu-acciones-item @(Destructivo ? "menu-acciones-item-destructivo" : "")" role="menuitem" @onclick="EjecutarAsync">
+    @ChildContent
+</button>
+
+@code {
+    [CascadingParameter] private MenuAcciones? Menu { get; set; }
+
+    [Parameter] public EventCallback OnClick { get; set; }
+    [Parameter] public bool Destructivo { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private async Task EjecutarAsync()
+    {
+        await OnClick.InvokeAsync();
+        Menu?.Cerrar();
+    }
+}
