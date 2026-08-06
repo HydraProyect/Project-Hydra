@@ -4,6 +4,8 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.ValidacionOficial;
+using CaeManager.Application.Documentos.ValidacionOficial.Parsers;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.DocumentosIa.Common;
@@ -51,6 +53,16 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<ISugerenciaGestionCorreoService, SugerenciaGestionCorreoService>();
         services.AddScoped<IPaqueteDocumentalVisitaService, PaqueteDocumentalVisitaService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
+        services.AddScoped<IValidacionDocumentoOficialService, ValidacionDocumentoOficialService>();
+
+        // Parsers de documento oficial: lógica pura (regex sobre texto),
+        // singletons sin estado; el registry los indexa por perfil.
+        services.AddSingleton<IParserDocumentoOficial, ParserCorrienteTgss>();
+        services.AddSingleton<IParserDocumentoOficial, ParserCorrienteAeat>();
+        services.AddSingleton<IParserDocumentoOficial, ParserIta>();
+        services.AddSingleton<IParserDocumentoOficial, ParserRnt>();
+        services.AddSingleton<IParserDocumentoOficial, ParserRlc>();
+        services.AddSingleton<IParserDocumentoOficialRegistry, ParserDocumentoOficialRegistry>();
         services.AddScoped<ICalculoEstadoCentroService, CalculoEstadoCentroService>();
         services.AddScoped<ICalculoEstadoDocumentalService, CalculoEstadoDocumentalService>();
         services.AddScoped<IDocumentosFaltantesService, DocumentosFaltantesService>();
