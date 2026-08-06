@@ -35,6 +35,15 @@ public partial class Clientes : ComponentBase
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
     private QuickGrid<ClienteListaDto>? _grid;
 
+    // H2 (docs/ux-audit/02-clientes.md): el `Paginator` de QuickGrid no está
+    // localizado — `PaginadorSimple` (mismo componente que el resto de listas
+    // sin QuickGrid) cubre el copy en español; sigue delegando el movimiento
+    // real de página en `_paginacion.SetCurrentPageIndexAsync` para que
+    // QuickGrid pida los datos.
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
+
+    private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
+
     private bool _puedeReasignarEjecutivo;
     private IReadOnlyList<GestorCaeSelectorDto> _gestoresDisponibles = [];
     private string _ejecutivoUsuarioId = string.Empty;
