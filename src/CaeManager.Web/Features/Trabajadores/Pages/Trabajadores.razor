@@ -112,10 +112,7 @@
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.Id, NombreCompleto(context), "informacion")'>
-                        Ver
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
-                        Editar
+                        Detalles
                     </Boton>
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, NombreCompleto(context))">
                         Eliminar
@@ -139,66 +136,52 @@
     }
 </div>
 
-<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo trabajador" : "Editar trabajador")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nuevo trabajador" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
         }
 
-        @if (_editandoId is null)
-        {
-            <div class="campo">
-                <label>Empleador</label>
-                <div class="lista-seleccion-multiple">
-                    <label class="campo-checkbox">
-                        <input type="radio" name="tipo-empleador" checked="@(_tipoEmpleador == "empresa")" @onchange="SeleccionarTipoEmpresa" />
-                        Empresa
-                    </label>
-                    <label class="campo-checkbox">
-                        <input type="radio" name="tipo-empleador" checked="@(_tipoEmpleador == "subcontrata")" @onchange="SeleccionarTipoSubcontrata" />
-                        Subcontrata
-                    </label>
-                </div>
+        <div class="campo">
+            <label>Empleador</label>
+            <div class="lista-seleccion-multiple">
+                <label class="campo-checkbox">
+                    <input type="radio" name="tipo-empleador" checked="@(_tipoEmpleador == "empresa")" @onchange="SeleccionarTipoEmpresa" />
+                    Empresa
+                </label>
+                <label class="campo-checkbox">
+                    <input type="radio" name="tipo-empleador" checked="@(_tipoEmpleador == "subcontrata")" @onchange="SeleccionarTipoSubcontrata" />
+                    Subcontrata
+                </label>
             </div>
+        </div>
 
-            @if (_tipoEmpleador == "empresa")
-            {
-                <CampoSelect Etiqueta="Empresa" Valor="@_empresaId" ValorChanged="v => _empresaId = v">
-                    <option value="">Selecciona una empresa…</option>
-                    @foreach (var empresa in _empresasDisponibles)
-                    {
-                        <option value="@empresa.Id">@empresa.RazonSocial</option>
-                    }
-                </CampoSelect>
-            }
-            else
-            {
-                <CampoSelect Etiqueta="Subcontrata" Valor="@_subcontrataId" ValorChanged="v => _subcontrataId = v">
-                    <option value="">Selecciona una subcontrata…</option>
-                    @foreach (var subcontrata in _subcontratasDisponibles)
-                    {
-                        <option value="@subcontrata.Id">@subcontrata.RazonSocial</option>
-                    }
-                </CampoSelect>
-            }
-
-            <CampoTexto Etiqueta="Documento de identidad (DNI, NIE, TIE o pasaporte)" Valor="@_dni" ValorChanged="v => _dni = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Dni))" />
-            @if (PistaDni is not null)
-            {
-                <p class="pista-documento pista-documento-@ToneDni">@PistaDni</p>
-            }
+        @if (_tipoEmpleador == "empresa")
+        {
+            <CampoSelect Etiqueta="Empresa" Valor="@_empresaId" ValorChanged="v => _empresaId = v">
+                <option value="">Selecciona una empresa…</option>
+                @foreach (var empresa in _empresasDisponibles)
+                {
+                    <option value="@empresa.Id">@empresa.RazonSocial</option>
+                }
+            </CampoSelect>
         }
         else
         {
-            <div class="campo">
-                <label>@(_tipoEmpleador == "subcontrata" ? "Subcontrata" : "Empresa")</label>
-                <span>@_empleadorNombreSoloLectura</span>
-            </div>
-            <div class="campo">
-                <label>DNI</label>
-                <span>@_dni</span>
-            </div>
+            <CampoSelect Etiqueta="Subcontrata" Valor="@_subcontrataId" ValorChanged="v => _subcontrataId = v">
+                <option value="">Selecciona una subcontrata…</option>
+                @foreach (var subcontrata in _subcontratasDisponibles)
+                {
+                    <option value="@subcontrata.Id">@subcontrata.RazonSocial</option>
+                }
+            </CampoSelect>
+        }
+
+        <CampoTexto Etiqueta="Documento de identidad (DNI, NIE, TIE o pasaporte)" Valor="@_dni" ValorChanged="v => _dni = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Dni))" />
+        @if (PistaDni is not null)
+        {
+            <p class="pista-documento pista-documento-@ToneDni">@PistaDni</p>
         }
 
         <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Nombre))" />
