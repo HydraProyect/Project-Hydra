@@ -1,12 +1,8 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
-using CaeManager.Application.Subcontratas.Commands.EditarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
-using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcontrata;
-using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
-using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
@@ -37,10 +33,6 @@ public partial class Subcontratas : ComponentBase
         .ToList();
 
     private bool _drawerVisible;
-    private Guid? _editandoId;
-    // Version del registro tal como se abrio: vuelve en el Command para
-    // detectar que otra persona guardo mientras el formulario estaba abierto.
-    private Guid _versionEditando;
     private string _razonSocial = string.Empty;
     private string _cif = string.Empty;
     private HashSet<Guid> _clienteIdsSeleccionados = [];
@@ -75,14 +67,6 @@ public partial class Subcontratas : ComponentBase
     private Guid? _idEnfocado;
     private bool _eliminandoLote;
     private bool _confirmarEliminarLoteVisible;
-
-    private string _credencialUrl = string.Empty;
-    private string _credencialCampoEmpresa = string.Empty;
-    private string _credencialUsuario = string.Empty;
-    private string _credencialContrasena = string.Empty;
-    private string _credencialNotas = string.Empty;
-    private bool _guardandoCredenciales;
-    private string? _mensajeErrorCredenciales;
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
@@ -171,89 +155,13 @@ public partial class Subcontratas : ComponentBase
         _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
 
-        _editandoId = null;
         _razonSocial = string.Empty;
         _cif = string.Empty;
         _clienteIdsSeleccionados = [];
         _empresaIdsSeleccionados = [];
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
-        _credencialUrl = string.Empty;
-        _credencialCampoEmpresa = string.Empty;
-        _credencialUsuario = string.Empty;
-        _credencialContrasena = string.Empty;
-        _credencialNotas = string.Empty;
-        _mensajeErrorCredenciales = null;
         _drawerVisible = true;
-    }
-
-    private async Task AbrirEditarAsync(Guid id)
-    {
-        _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
-        _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
-
-        var subcontrata = await Mediator.Send(new ObtenerSubcontrataPorIdQuery(id));
-        if (subcontrata is null)
-        {
-            ToastService.Mostrar("No encontramos esta subcontrata. Puede que ya se haya eliminado.", TonoToast.Error);
-            await RecargarAsync();
-            return;
-        }
-
-        _editandoId = subcontrata.Id;
-        _versionEditando = subcontrata.Version;
-        _razonSocial = subcontrata.RazonSocial;
-        _cif = subcontrata.Cif ?? string.Empty;
-        _clienteIdsSeleccionados = subcontrata.ClienteIds.ToHashSet();
-        _empresaIdsSeleccionados = subcontrata.EmpresaIds.ToHashSet();
-        _erroresCampo = new Dictionary<string, string>();
-        _mensajeErrorFormulario = null;
-
-        var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(subcontrata.Id));
-        _credencialUrl = credencial?.UrlAcceso ?? string.Empty;
-        _credencialCampoEmpresa = credencial?.CampoEmpresa ?? string.Empty;
-        _credencialUsuario = credencial?.Usuario ?? string.Empty;
-        _credencialContrasena = credencial?.Contrasena ?? string.Empty;
-        _credencialNotas = credencial?.Notas ?? string.Empty;
-        _mensajeErrorCredenciales = null;
-
-        _drawerVisible = true;
-    }
-
-    private async Task GuardarCredencialesAsync()
-    {
-        if (_editandoId is null) return;
-
-        _guardandoCredenciales = true;
-        _mensajeErrorCredenciales = null;
-
-        try
-        {
-            var urlAcceso = string.IsNullOrWhiteSpace(_credencialUrl) ? null : _credencialUrl;
-            var campoEmpresa = string.IsNullOrWhiteSpace(_credencialCampoEmpresa) ? null : _credencialCampoEmpresa;
-            var usuario = string.IsNullOrWhiteSpace(_credencialUsuario) ? null : _credencialUsuario;
-            var contrasena = string.IsNullOrWhiteSpace(_credencialContrasena) ? null : _credencialContrasena;
-            var notas = string.IsNullOrWhiteSpace(_credencialNotas) ? null : _credencialNotas;
-
-            var resultado = await Mediator.Send(
-                new GuardarCredencialAccesoSubcontrataCommand(_editandoId.Value, urlAcceso, campoEmpresa, usuario, contrasena, notas));
-
-            if (resultado.EsFallido)
-            {
-                _mensajeErrorCredenciales = resultado.Error.Mensaje;
-                return;
-            }
-
-            ToastService.Mostrar("Credenciales guardadas correctamente.", TonoToast.Exito);
-        }
-        catch (Exception)
-        {
-            _mensajeErrorCredenciales = "No pudimos guardar las credenciales. Intenta nuevamente en unos segundos.";
-        }
-        finally
-        {
-            _guardandoCredenciales = false;
-        }
     }
 
     private void AlternarCliente(Guid clienteId, bool seleccionado)
@@ -289,39 +197,16 @@ public partial class Subcontratas : ComponentBase
             var clienteIds = _clienteIdsSeleccionados.ToList();
             var empresaIds = _empresaIdsSeleccionados.ToList();
             var cif = string.IsNullOrWhiteSpace(_cif) ? null : _cif;
-            var eraCreacion = _editandoId is null;
 
-            if (eraCreacion)
+            var resultado = await Mediator.Send(new CrearSubcontrataCommand(_razonSocial, cif, clienteIds, empresaIds));
+            if (resultado.EsFallido)
             {
-                var resultado = await Mediator.Send(new CrearSubcontrataCommand(_razonSocial, cif, clienteIds, empresaIds));
-                if (resultado.EsFallido)
-                {
-                    _mensajeErrorFormulario = resultado.Error.Mensaje;
-                    return;
-                }
-
-                // Tras crear, el drawer no se cierra — pasa a modo edición
-                // para que las credenciales de acceso queden visibles sin
-                // tener que reabrir el formulario desde la tabla.
-                _editandoId = resultado.Valor;
-            }
-            else
-            {
-                var resultado = await Mediator.Send(new EditarSubcontrataCommand(_editandoId!.Value, _razonSocial, cif, clienteIds, empresaIds, _versionEditando));
-                if (resultado.EsFallido)
-                {
-                    _mensajeErrorFormulario = resultado.Error.Mensaje;
-                    return;
-                }
+                _mensajeErrorFormulario = resultado.Error.Mensaje;
+                return;
             }
 
-            ToastService.Mostrar(
-                eraCreacion ? "Subcontrata creada correctamente." : "Subcontrata actualizada correctamente.",
-                TonoToast.Exito);
-
-            if (!eraCreacion)
-                _drawerVisible = false;
-
+            ToastService.Mostrar("Subcontrata creada correctamente.", TonoToast.Exito);
+            _drawerVisible = false;
             await RecargarAsync();
         }
         catch (ValidationException ex)
