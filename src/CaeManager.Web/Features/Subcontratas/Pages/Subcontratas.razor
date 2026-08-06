@@ -122,7 +122,7 @@
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
     Titulo="@($"¿Eliminar a {_razonSocialAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
+    Mensaje="Se ocultará de las listas activas."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
@@ -133,6 +133,6 @@
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="v => _confirmarEliminarLoteVisible = v"
     Titulo="@($"¿Eliminar {_seleccionados.Count} subcontrata(s)?")"
-    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlas desde Auditoría."
+    Mensaje="Se ocultarán de las listas activas."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
