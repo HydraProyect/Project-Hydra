@@ -8,9 +8,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Centros.Queries.ObtenerCentros;
 
+/// <param name="CentroId">
+/// Filtro exacto por Centro (Centro 360, PLAN-EJECUCION-UX.md § 0.11) — para
+/// el drill-down desde el desplegable de Centros con actividad de una
+/// Empresa a <c>/centros?centroId=…</c>, donde una coincidencia por texto
+/// (<paramref name="Busqueda"/>) podría ser ambigua entre varios Centros con
+/// nombre parecido. Se combina con el resto de filtros, aunque en la
+/// práctica ya identifica una única fila.
+/// </param>
 public record ObtenerCentrosQuery(
     string? Busqueda, Guid? ClienteId, EstadoCentro? Estado = null,
-    string? OrdenarPor = null, bool Descendente = false, int Pagina = 1, int TamanoPagina = 20)
+    string? OrdenarPor = null, bool Descendente = false, int Pagina = 1, int TamanoPagina = 20,
+    Guid? CentroId = null)
     : IRequest<ResultadoPaginado<CentroListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
@@ -65,6 +74,9 @@ public class ObtenerCentrosQueryHandler(
 
         if (request.ClienteId is not null)
             consulta = consulta.Where(x => x.centro.ClienteId == request.ClienteId);
+
+        if (request.CentroId is not null)
+            consulta = consulta.Where(x => x.centro.Id == request.CentroId);
 
         var necesitaEstadoCompleto =
             request.Estado is not null ||
