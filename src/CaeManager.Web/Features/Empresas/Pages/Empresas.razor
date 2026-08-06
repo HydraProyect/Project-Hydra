@@ -5,6 +5,7 @@
 @using CaeManager.Application.Empresas.Commands.EliminarEmpresa
 @using CaeManager.Application.Empresas.Commands.EliminarEmpresas
 @using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa
+@using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresas
@@ -13,7 +14,6 @@
 @using FluentValidation
 @using MediatR
 @using CaeManager.Web.Features.Documentos
-@using Microsoft.AspNetCore.Components.QuickGrid
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ContextWorkspaceService WorkspaceService
@@ -39,61 +39,103 @@
     {
         <EstadoVacio Titulo="No pudimos cargar las empresas" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+                <Boton OnClick="() => CargarAsync()">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando && _elementosPagina.Count == 0)
+    {
+        <EstadoCargando Filas="6" />
+    }
+    else if (_elementosPagina.Count == 0)
+    {
+        <EstadoVacio Titulo="Aún no hay empresas" Descripcion="Crea la primera para poder dar de alta trabajadores.">
+            <Accion>
+                <Boton OnClick="AbrirCrear">+ Nueva empresa</Boton>
             </Accion>
         </EstadoVacio>
     }
     else
     {
-        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" />
+        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
+                                TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidosAsync" />
 
-        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="EmpresaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                @if (_seleccionMultiple)
-                {
-                    <TemplateColumn Title="" Align="Align.Center">
-                        <HeaderTemplate Context="columna">
-                            <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
-                        </HeaderTemplate>
-                        <ChildContent>
-                            <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
-                        </ChildContent>
-                    </TemplateColumn>
-                }
-                <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<EmpresaListaDto>.ByAscending(e => e.RazonSocial))">
-                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.Id, context.RazonSocial, "informacion")'>
-                        @context.RazonSocial
-                    </button>
-                </TemplateColumn>
-                <PropertyColumn Property="@(e => e.Cif)" Title="CIF" Sortable="true" />
-                <TemplateColumn Title="Documentación" Sortable="true" SortBy="@(GridSort<EmpresaListaDto>.ByAscending(e => e.EstadoDocumental))">
-                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)">
-                        @EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)
-                    </Badge>
-                </TemplateColumn>
-                <TemplateColumn Title="Acciones" Align="Align.End">
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.Id, context.RazonSocial, "informacion")'>
-                        Detalles
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
-                        Eliminar
-                    </Boton>
-                </TemplateColumn>
-            </QuickGrid>
+        @if (_seleccionMultiple)
+        {
+            <label class="campo-checkbox">
+                <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                Seleccionar todos
+            </label>
+        }
 
-            <div class="paginador">
-                <Paginator State="_paginacion" />
-            </div>
+        <div class="lista-filas-acordeon">
+            @foreach (var empresa in _elementosPagina)
+            {
+                <div class="@("tarjeta-fila-acordeon" + (empresa.Id == _idEnfocado ? " fila-enfocada" : ""))" @key="empresa.Id">
+                    @{ var expandido = _expandidos.Contains(empresa.Id); }
+                    <div class="tarjeta-fila-acordeon-cabecera">
+                        @if (_seleccionMultiple)
+                        {
+                            <input type="checkbox" checked="@_seleccionados.Contains(empresa.Id)" @onchange="e => AlternarSeleccion(empresa.Id, (bool)e.Value!)" />
+                        }
+                        <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
+                                aria-expanded="@(expandido ? "true" : "false")"
+                                aria-label="@($"Centros con actividad de {empresa.RazonSocial}")"
+                                @onclick="() => AlternarExpansionAsync(empresa.Id)">
+                            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                        </button>
+                        <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, empresa.Id, empresa.RazonSocial, "informacion")'>
+                            @empresa.RazonSocial
+                        </button>
+                        <span class="tarjeta-fila-acordeon-meta">@empresa.Cif</span>
+                        <Badge Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)" Tamano="TamanoBadge.Pequeno">
+                            @EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)
+                        </Badge>
+                        <AnilloCumplimiento Porcentaje="empresa.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
+                                             Etiqueta="@($"{empresa.CumplimientoPorcentaje}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad")" />
+                        <div class="tarjeta-fila-acordeon-acciones">
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, empresa.Id, empresa.RazonSocial, "informacion")'>
+                                Detalles
+                            </Boton>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(empresa.Id, empresa.RazonSocial)">
+                                Eliminar
+                            </Boton>
+                        </div>
+                    </div>
+                    @if (expandido)
+                    {
+                        <div class="tarjeta-fila-acordeon-contenido">
+                            @{ var centros = _centrosPorEmpresa.GetValueOrDefault(empresa.Id); }
+                            @if (centros is null)
+                            {
+                                <EstadoCargando Filas="2" />
+                            }
+                            else if (centros.Count == 0)
+                            {
+                                <EstadoVacio Titulo="Sin actividad en ningún centro" Descripcion="Ningún trabajador de esta empresa tiene asignaciones activas todavía." />
+                            }
+                            else
+                            {
+                                <p class="workspace-nota-contextual">Centros donde esta empresa tiene actividad real (trabajadores con asignación activa) — no todos los centros de sus clientes.</p>
+                                <ul class="workspace-lista-entidades">
+                                    @foreach (var centro in centros)
+                                    {
+                                        <FilaEntidadRelacionada
+                                            @key="centro.Id"
+                                            Titulo="@centro.Nombre"
+                                            Subtitulo="@($"{centro.ClienteRazonSocial} · {centro.TrabajadoresAsignados} trabajador(es)")"
+                                            OnClic="() => IrAlCentro(centro.Id)" />
+                                    }
+                                </ul>
+                            }
+                        </div>
+                    }
+                </div>
+            }
         </div>
 
-        @if (_totalElementos == 0 && !_cargando)
-        {
-            <EstadoVacio Titulo="Aún no hay empresas" Descripcion="Crea la primera para poder dar de alta trabajadores.">
-                <Accion>
-                    <Boton OnClick="AbrirCrear">+ Nueva empresa</Boton>
-                </Accion>
-            </EstadoVacio>
-        }
+        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                          Etiqueta="empresa(s)" PaginaActualChanged="CambiarPaginaAsync" />
     }
 </div>
 
