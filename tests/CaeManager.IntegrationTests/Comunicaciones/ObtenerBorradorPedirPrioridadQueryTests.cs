@@ -125,7 +125,8 @@ public class ObtenerBorradorPedirPrioridadQueryTests : IAsyncLifetime
     {
         await using (var contexto = CrearContexto())
         {
-            contexto.CanalesGestionDocumental.Add(CanalGestionDocumental.PorEmail(_centroId, "prl@centro.com", "Responsable PRL"));
+            contexto.CanalesGestionDocumental.Add(
+                CanalGestionDocumental.PorEmail(_centroId, "Gestión general", "prl@centro.com", "Responsable PRL"));
             await contexto.SaveChangesAsync();
         }
 

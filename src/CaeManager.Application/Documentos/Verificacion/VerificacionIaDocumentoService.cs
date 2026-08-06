@@ -22,6 +22,16 @@ namespace CaeManager.Application.Documentos.Verificacion;
 /// Trabajador no tiene un ClienteId directo, y derivarlo exige recorrer sus
 /// Asignaciones a Centro — deliberadamente fuera de alcance de esta fase
 /// (ver ROADMAP.md).
+///
+/// <b>Fuente de referencia pendiente de usar</b> (PLAN-EJECUCION-UX.md § 0.7,
+/// Lote 0-E): <see cref="TipoDocumento.CriteriosValidacion"/> es el texto de
+/// criterios de aceptación copiado de la plataforma documental del cliente —
+/// el campo que dice qué hace válido un documento de este tipo, en las
+/// palabras del portal que lo va a aceptar o rechazar. Hoy esta comparación
+/// solo mira tipo/fecha/firma; cuando se automatice la lectura contra los
+/// criterios reales, ese campo es el insumo, no uno nuevo que haya que
+/// modelar. Anotado aquí para que la sesión que lo implemente no tenga que
+/// redescubrirlo.
 /// </summary>
 public class VerificacionIaDocumentoService(
     IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext,
