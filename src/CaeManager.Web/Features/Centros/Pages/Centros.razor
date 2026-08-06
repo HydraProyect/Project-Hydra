@@ -78,12 +78,8 @@
                         </button>
                         <span class="tarjeta-fila-acordeon-meta">@centro.ClienteRazonSocial · @centro.EmpresaRazonSocial@(string.IsNullOrEmpty(centro.CodigoCentro) ? "" : $" · {centro.CodigoCentro}")</span>
                         <Badge Tono="EstadoCentroUi.Tono(centro.Estado)">@EstadoCentroUi.Texto(centro.Estado)</Badge>
-                        @if (centro.CumplimientoPorcentaje is { } porcentaje)
-                        {
-                            <span class="tarjeta-fila-acordeon-meta" title="Documentos al día / requeridos entre los trabajadores de este centro">
-                                @porcentaje% cumplimiento
-                            </span>
-                        }
+                        <AnilloCumplimiento Porcentaje="centro.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
+                                             Etiqueta="@($"{centro.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />
                         @if (visita is not null)
                         {
                             <button type="button" class="badge-visita"
