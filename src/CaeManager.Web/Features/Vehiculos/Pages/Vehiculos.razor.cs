@@ -1,8 +1,6 @@
 using CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
-using CaeManager.Application.Vehiculos.Commands.EditarVehiculo;
 using CaeManager.Application.Vehiculos.Commands.EliminarVehiculo;
 using CaeManager.Application.Vehiculos.Commands.EliminarVehiculos;
-using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
@@ -33,14 +31,9 @@ public partial class Vehiculos : ComponentBase
     private IReadOnlyList<SubcontrataSelectorDto> _subcontratasDisponibles = [];
 
     private bool _drawerVisible;
-    private Guid? _editandoId;
-    // Version del registro tal como se abrio: vuelve en el Command para
-    // detectar que otra persona guardo mientras el formulario estaba abierto.
-    private Guid _versionEditando;
     private string _tipoEmpleador = "empresa";
     private string _empresaId = string.Empty;
     private string _subcontrataId = string.Empty;
-    private string _empleadorNombreSoloLectura = string.Empty;
     private string _nombre = string.Empty;
     private string _modelo = string.Empty;
     private string _numeroPlaca = string.Empty;
@@ -202,7 +195,6 @@ public partial class Vehiculos : ComponentBase
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
         _subcontratasDisponibles = await Mediator.Send(new ObtenerSubcontratasParaSelectorQuery());
 
-        _editandoId = null;
         // Si la lista ya está filtrada por Empresa o Subcontrata, se presupone
         // que el vehículo que se va a dar de alta es de ese mismo empleador.
         if (!string.IsNullOrWhiteSpace(_filtroSubcontrataId))
@@ -236,30 +228,6 @@ public partial class Vehiculos : ComponentBase
         _subcontrataId = string.Empty;
     }
 
-    private async Task AbrirEditarAsync(Guid id)
-    {
-        var vehiculo = await Mediator.Send(new ObtenerVehiculoPorIdQuery(id));
-        if (vehiculo is null)
-        {
-            ToastService.Mostrar("No encontramos este vehículo. Puede que ya se haya eliminado.", TonoToast.Error);
-            await RecargarAsync();
-            return;
-        }
-
-        _editandoId = vehiculo.Id;
-        _versionEditando = vehiculo.Version;
-        _tipoEmpleador = vehiculo.SubcontrataId is not null ? "subcontrata" : "empresa";
-        _empresaId = vehiculo.EmpresaId?.ToString() ?? string.Empty;
-        _subcontrataId = vehiculo.SubcontrataId?.ToString() ?? string.Empty;
-        _empleadorNombreSoloLectura = vehiculo.EmpleadorNombre;
-        _nombre = vehiculo.Nombre;
-        _modelo = vehiculo.Modelo;
-        _numeroPlaca = vehiculo.NumeroPlaca;
-        _erroresCampo = new Dictionary<string, string>();
-        _mensajeErrorFormulario = null;
-        _drawerVisible = true;
-    }
-
     private Task CerrarDrawerAsync(bool visible)
     {
         _drawerVisible = visible;
@@ -274,53 +242,38 @@ public partial class Vehiculos : ComponentBase
 
         try
         {
-            string? mensajeError;
+            Guid? empresaId = null;
+            Guid? subcontrataId = null;
 
-            if (_editandoId is null)
+            if (_tipoEmpleador == "empresa")
             {
-                Guid? empresaId = null;
-                Guid? subcontrataId = null;
-
-                if (_tipoEmpleador == "empresa")
+                if (!Guid.TryParse(_empresaId, out var empresaIdValor))
                 {
-                    if (!Guid.TryParse(_empresaId, out var empresaIdValor))
-                    {
-                        _mensajeErrorFormulario = "Selecciona una empresa.";
-                        return;
-                    }
-                    empresaId = empresaIdValor;
+                    _mensajeErrorFormulario = "Selecciona una empresa.";
+                    return;
                 }
-                else
-                {
-                    if (!Guid.TryParse(_subcontrataId, out var subcontrataIdValor))
-                    {
-                        _mensajeErrorFormulario = "Selecciona una subcontrata.";
-                        return;
-                    }
-                    subcontrataId = subcontrataIdValor;
-                }
-
-                var resultado = await Mediator.Send(
-                    new CrearVehiculoCommand(empresaId, subcontrataId, _nombre, _modelo, _numeroPlaca));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+                empresaId = empresaIdValor;
             }
             else
             {
-                var resultado = await Mediator.Send(
-                    new EditarVehiculoCommand(_editandoId.Value, _nombre, _modelo, _numeroPlaca, _versionEditando));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+                if (!Guid.TryParse(_subcontrataId, out var subcontrataIdValor))
+                {
+                    _mensajeErrorFormulario = "Selecciona una subcontrata.";
+                    return;
+                }
+                subcontrataId = subcontrataIdValor;
             }
 
-            if (mensajeError is not null)
+            var resultado = await Mediator.Send(
+                new CrearVehiculoCommand(empresaId, subcontrataId, _nombre, _modelo, _numeroPlaca));
+
+            if (resultado.EsFallido)
             {
-                _mensajeErrorFormulario = mensajeError;
+                _mensajeErrorFormulario = resultado.Error.Mensaje;
                 return;
             }
 
-            ToastService.Mostrar(
-                _editandoId is null ? "Vehículo creado correctamente." : "Vehículo actualizado correctamente.",
-                TonoToast.Exito);
-
+            ToastService.Mostrar("Vehículo creado correctamente.", TonoToast.Exito);
             _drawerVisible = false;
             await RecargarAsync();
         }

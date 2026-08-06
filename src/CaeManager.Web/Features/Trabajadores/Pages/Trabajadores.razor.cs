@@ -3,11 +3,9 @@ using CaeManager.Application.Alertas;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
-using CaeManager.Application.Trabajadores.Commands.EditarTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
-using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
@@ -43,14 +41,9 @@ public partial class Trabajadores : ComponentBase
     private IReadOnlyList<SubcontrataSelectorDto> _subcontratasDisponibles = [];
 
     private bool _drawerVisible;
-    private Guid? _editandoId;
-    // Version del registro tal como se abrio: vuelve en el Command para
-    // detectar que otra persona guardo mientras el formulario estaba abierto.
-    private Guid _versionEditando;
     private string _tipoEmpleador = "empresa";
     private string _empresaId = string.Empty;
     private string _subcontrataId = string.Empty;
-    private string _empleadorNombreSoloLectura = string.Empty;
     private string _dni = string.Empty;
     private string _nombre = string.Empty;
     private string _apellidos = string.Empty;
@@ -249,7 +242,6 @@ public partial class Trabajadores : ComponentBase
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
         _subcontratasDisponibles = await Mediator.Send(new ObtenerSubcontratasParaSelectorQuery());
 
-        _editandoId = null;
         // Si la lista ya está filtrada por Empresa o Subcontrata, se presupone
         // que el trabajador que se va a dar de alta es de ese mismo empleador.
         if (!string.IsNullOrWhiteSpace(_filtroSubcontrataId))
@@ -287,34 +279,6 @@ public partial class Trabajadores : ComponentBase
         _subcontrataId = string.Empty;
     }
 
-    private async Task AbrirEditarAsync(Guid id)
-    {
-        var trabajador = await Mediator.Send(new ObtenerTrabajadorPorIdQuery(id));
-        if (trabajador is null)
-        {
-            ToastService.Mostrar("No encontramos este trabajador. Puede que ya se haya eliminado.", TonoToast.Error);
-            await RecargarAsync();
-            return;
-        }
-
-        _editandoId = trabajador.Id;
-        _versionEditando = trabajador.Version;
-        _tipoEmpleador = trabajador.SubcontrataId is not null ? "subcontrata" : "empresa";
-        _empresaId = trabajador.EmpresaId?.ToString() ?? string.Empty;
-        _subcontrataId = trabajador.SubcontrataId?.ToString() ?? string.Empty;
-        _empleadorNombreSoloLectura = trabajador.EmpleadorNombre;
-        _dni = trabajador.Dni;
-        _nombre = trabajador.Nombre;
-        _apellidos = trabajador.Apellidos;
-        _alias = trabajador.Alias ?? string.Empty;
-        _fechaNacimiento = trabajador.FechaNacimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
-        _email = trabajador.Email ?? string.Empty;
-        _observaciones = trabajador.Observaciones ?? string.Empty;
-        _erroresCampo = new Dictionary<string, string>();
-        _mensajeErrorFormulario = null;
-        _drawerVisible = true;
-    }
-
     private Task CerrarDrawerAsync(bool visible)
     {
         _drawerVisible = visible;
@@ -334,53 +298,38 @@ public partial class Trabajadores : ComponentBase
             var alias = string.IsNullOrWhiteSpace(_alias) ? null : _alias;
             var fechaNacimiento = DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : (DateOnly?)null;
 
-            string? mensajeError;
+            Guid? empresaId = null;
+            Guid? subcontrataId = null;
 
-            if (_editandoId is null)
+            if (_tipoEmpleador == "empresa")
             {
-                Guid? empresaId = null;
-                Guid? subcontrataId = null;
-
-                if (_tipoEmpleador == "empresa")
+                if (!Guid.TryParse(_empresaId, out var empresaIdValor))
                 {
-                    if (!Guid.TryParse(_empresaId, out var empresaIdValor))
-                    {
-                        _mensajeErrorFormulario = "Selecciona una empresa.";
-                        return;
-                    }
-                    empresaId = empresaIdValor;
+                    _mensajeErrorFormulario = "Selecciona una empresa.";
+                    return;
                 }
-                else
-                {
-                    if (!Guid.TryParse(_subcontrataId, out var subcontrataIdValor))
-                    {
-                        _mensajeErrorFormulario = "Selecciona una subcontrata.";
-                        return;
-                    }
-                    subcontrataId = subcontrataIdValor;
-                }
-
-                var resultado = await Mediator.Send(
-                    new CrearTrabajadorCommand(empresaId, subcontrataId, _nombre, _apellidos, _dni, fechaNacimiento, email, observaciones, alias));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+                empresaId = empresaIdValor;
             }
             else
             {
-                var resultado = await Mediator.Send(
-                    new EditarTrabajadorCommand(_editandoId.Value, _nombre, _apellidos, fechaNacimiento, email, observaciones, alias, _versionEditando));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+                if (!Guid.TryParse(_subcontrataId, out var subcontrataIdValor))
+                {
+                    _mensajeErrorFormulario = "Selecciona una subcontrata.";
+                    return;
+                }
+                subcontrataId = subcontrataIdValor;
             }
 
-            if (mensajeError is not null)
+            var resultado = await Mediator.Send(
+                new CrearTrabajadorCommand(empresaId, subcontrataId, _nombre, _apellidos, _dni, fechaNacimiento, email, observaciones, alias));
+
+            if (resultado.EsFallido)
             {
-                _mensajeErrorFormulario = mensajeError;
+                _mensajeErrorFormulario = resultado.Error.Mensaje;
                 return;
             }
 
-            ToastService.Mostrar(
-                _editandoId is null ? "Trabajador creado correctamente." : "Trabajador actualizado correctamente.",
-                TonoToast.Exito);
-
+            ToastService.Mostrar("Trabajador creado correctamente.", TonoToast.Exito);
             _drawerVisible = false;
             await RecargarAsync();
         }
