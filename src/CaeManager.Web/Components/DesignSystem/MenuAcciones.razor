@@ -1,0 +1,44 @@
+@*
+    H2 (docs/ux-audit/05-trabajadores-vehiculos.md, ver DESIGN_SYSTEM.md §
+    Dropdown): agrupa las acciones de fila (hoy apiladas verticalmente, 2-3
+    botones por fila) tras un disparador "⋯" — densidad de una línea por
+    fila. El cierre al clicar fuera reutiliza el mismo truco que Modal.razor
+    (superposición a pantalla completa detrás del panel, sin JS interop);
+    cada ItemMenuAccion se cierra a sí mismo tras ejecutar su acción vía
+    CascadingValue — ver ItemMenuAccion.razor.
+*@
+<div class="menu-acciones">
+    <button type="button" class="menu-acciones-disparador" aria-haspopup="menu" aria-expanded="@(_abierto ? "true" : "false")"
+            aria-label="Más acciones" @onclick="Alternar">
+        ⋯
+    </button>
+    @if (_abierto)
+    {
+        <div class="menu-acciones-superposicion" @onclick="Cerrar"></div>
+        <div class="menu-acciones-panel" role="menu" @onclick:stopPropagation="true" @onkeydown="ManejarTecla">
+            <CascadingValue Value="this" IsFixed="true">
+                @ChildContent
+            </CascadingValue>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _abierto;
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private void Alternar() => _abierto = !_abierto;
+
+    internal void Cerrar()
+    {
+        _abierto = false;
+        StateHasChanged();
+    }
+
+    private void ManejarTecla(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            Cerrar();
+    }
+}

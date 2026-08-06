@@ -111,12 +111,14 @@
                     </Badge>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.Id, NombreCompleto(context), "informacion")'>
-                        Detalles
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, NombreCompleto(context))">
-                        Eliminar
-                    </Boton>
+                    <MenuAcciones>
+                        <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.Id, NombreCompleto(context), "informacion")'>
+                            Detalles
+                        </ItemMenuAccion>
+                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, NombreCompleto(context))">
+                            Eliminar
+                        </ItemMenuAccion>
+                    </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
 
