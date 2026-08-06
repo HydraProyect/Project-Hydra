@@ -297,8 +297,7 @@ Iberojet S.L., solo cambia la credencial) — y también el caso de credenciales
 - `CanalGestionDocumental` pasa de 1:1 a **N por Centro**, cada uno con proveedor (del catálogo
   de Parte 2), URL, credencial y **etiqueta de propósito en texto libre** (ej. "Gestión
   general", "Trabajadores extranjeros — Iberojet Alemania") — **no catálogo cerrado de
-  propósitos**: son ad-hoc por cliente, igual criterio que `RequisitoDocumental`. Uno marcado
-  como principal/por defecto.
+  propósitos**: son ad-hoc por cliente. Uno marcado como principal/por defecto.
 - La pestaña "Plataforma" del panel pasa a listar N accesos en vez de uno.
 
 ### (0.7) Criterios de validación — puente con la documentación Inbound (sin modelo nuevo)
@@ -314,7 +313,7 @@ origen Inbound. No requiere modelo nuevo, solo dos ganchos de flujo:
   (`VerificacionIaDocumentoService`) — sin construir la integración ahora, pero documentando la
   intención en el propio código para que la sesión de IA que lo use no tenga que redescubrirla.
 
-### (0.8) Badge circular de % de cumplimiento — Empresa/Centro/Trabajador — Lote 0-F (pendiente, después de 0-D)
+### (0.8) Badge circular de % de cumplimiento — Empresa/Centro/Trabajador — ✅ hecho (Lote 0-F)
 
 **Origen**: sesión de mockup Empresa/Centro, 2026-08-06 (imagen de referencia adjunta por el
 propietario). Sustituye el % en texto plano que ya existe (`Centros.razor:81-86`,
@@ -339,6 +338,14 @@ la representación.
     centros con pocos requisitos) — es la fracción total de pares Trabajador×TipoDocumento.
 - Mismo criterio ya establecido en 0.5: `null`/oculto cuando `Requeridos == 0`, nunca un 0%/100%
   engañoso.
+- **Estado**: hecho, 2026-08-06. `AnilloCumplimiento.razor` (+ `AnilloCumplimientoEnums.cs`) —
+  SVG con `stroke-dasharray` sobre un `<circle>`, sin dependencias, umbral propio (100% Exito,
+  ≥50% Advertencia, resto Peligro — no reutiliza `EstadoCentroUi`/`EstadoDocumentoUi`, traducen
+  preguntas distintas). Documentado en `DESIGN_SYSTEM.md` (movido de "Pendientes" a la tabla de
+  componentes). `ObtenerCumplimientoEmpresaQuery` nueva (universo de Centros vía el mismo join
+  que `ObtenerCentrosConActividadDeEmpresaQuery`, suma `AlDia`/`Requeridos` — no media). Verificado
+  en navegador con datos de demo: los tres niveles (Centro 41%/peligro, Trabajador 50%/0%, Empresa
+  41% agregado) muestran el color y el `stroke-dasharray` correctos.
 
 ### (0.9) Selección múltiple oculta tras toggle + densidad de fila — transversal — Lote 0-G (pendiente, después de 0-F)
 
