@@ -23,6 +23,16 @@ public class TipoDocumento : EntidadConTenant
     public string? Notas { get; private set; }
     public int Orden { get; private set; }
     public string? Descripcion { get; private set; }
+
+    /// <summary>
+    /// Los términos de validación tal como los describe la plataforma
+    /// documental del cliente (PLAN-EJECUCION-UX.md § 0.7, Lote 0-E) —
+    /// texto pegado del portal, no una reescritura: es lo que decide si un
+    /// documento de este tipo se acepta o se rechaza allí. Marcado como
+    /// <b>fuente de referencia para la automatización de lectura IA</b>
+    /// (<c>VerificacionIaDocumentoService</c>, que hoy todavía no lo lee);
+    /// no hace falta modelo nuevo para esa integración, el campo ya es este.
+    /// </summary>
     public string? CriteriosValidacion { get; private set; }
     public string? SeSolicitaA { get; private set; }
     public string? Observaciones { get; private set; }

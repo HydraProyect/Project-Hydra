@@ -151,11 +151,17 @@ public class ObtenerBorradorPedirPrioridadQueryHandler(
 
     private async Task<string?> ResolverDestinatarioAsync(Centro centro, CancellationToken cancellationToken)
     {
-        var canal = await centrosContext.CanalesGestionDocumental
-            .FirstOrDefaultAsync(c => c.CentroId == centro.Id, cancellationToken);
+        // N canales por Centro desde el Lote 0-E: se prefiere el principal, y
+        // entre los demás cualquiera de tipo Email — un Centro puede tener a la
+        // vez portal y correo, y solo el segundo da un destinatario.
+        var emailDestino = await centrosContext.CanalesGestionDocumental
+            .Where(c => c.CentroId == centro.Id && c.Tipo == TipoCanalGestion.Email && c.EmailsDestinatarios != null)
+            .OrderByDescending(c => c.EsPrincipal)
+            .Select(c => c.EmailsDestinatarios)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (canal is { Tipo: TipoCanalGestion.Email } && !string.IsNullOrWhiteSpace(canal.EmailsDestinatarios))
-            return canal.EmailsDestinatarios;
+        if (!string.IsNullOrWhiteSpace(emailDestino))
+            return emailDestino;
 
         // Fallback: Centro.Contacto es texto libre sin garantía de ser un
         // email — solo se ofrece como sugerencia si tiene pinta de email

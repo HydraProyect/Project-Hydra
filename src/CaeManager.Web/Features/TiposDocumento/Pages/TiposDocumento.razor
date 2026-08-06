@@ -200,6 +200,10 @@
 
         <CampoTextarea Etiqueta="Descripción" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Descripcion))" />
         <CampoTextarea Etiqueta="Criterios de validación" Valor="@_criteriosValidacion" ValorChanged="v => _criteriosValidacion = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.CriteriosValidacion))" />
+        <p class="texto-ayuda-campo">
+            Pega aquí los términos de validación tal como los describe la plataforma documental del cliente (la sección de criterios/requisitos de aceptación del propio portal),
+            sin reescribirlos: es el texto contra el que se comprueba si un documento vale, y la referencia que usará la lectura automática de documentos.
+        </p>
         <CampoTexto Etiqueta="Se solicita a" Valor="@_seSolicitaA" ValorChanged="v => _seSolicitaA = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.SeSolicitaA))" />
         <CampoTextarea Etiqueta="Observaciones" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Observaciones))" />
 
