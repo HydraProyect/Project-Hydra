@@ -70,10 +70,11 @@ próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plan
 > = 0.3 (✅ hecho, visita) · **Lote 0-C** = 0.5 (✅ hecho, retirada de Evaluaciones + % de
 > cumplimiento) · **Lote 0-D** = 0.4 (documentación requerida del centro, ahora sobre
 > `TipoDocumento`/`TipoDocumentoCentro`, retira `RequisitoDocumental` — redacción reajustada
-> 2026-08-06) · **Lote 0-E** = 0.6 + 0.7 (N accesos de plataforma + copy de criterios de
-> validación) · **Lote 0-F** = 0.8 (badge circular de % de cumplimiento, Empresa/Centro/
-> Trabajador) · **Lote 0-G** = 0.9 (✅ hecho, selección múltiple oculta tras toggle + densidad de
-> fila, transversal a las 9 listas con selección en lote) · **Lote 0-H** = 0.10 ("Ver" → "Detalles" universal + edición
+> 2026-08-06) · **Lote 0-F** = 0.8 (✅ hecho, badge circular de % de cumplimiento, Empresa/
+> Centro/Trabajador — se adelantó a 0-E porque dependía de 0-D) · **Lote 0-E** = 0.6 + 0.7
+> (✅ hecho, N accesos de plataforma + copy de criterios de validación) · **Lote 0-G** = 0.9
+> (✅ hecho, selección múltiple oculta tras toggle + densidad de fila, transversal a las 9
+> listas con selección en lote) · **Lote 0-H** = 0.10 ("Ver" → "Detalles" universal + edición
 > inline) · **Lote 0-I** = 0.11 (migrar `/empresas` al patrón Centro 360). 0-D es prerequisito
 > real de 0-F (el % necesita el universo correcto de documentos requeridos por centro) y
 > conviene que 0-G vaya antes que 0-I (Empresa hereda el patrón de fila ya resuelto por Centro
@@ -285,7 +286,7 @@ aparte. No se sustituye por una feature equivalente; se calcula donde hace falta
   `TipoDocumento` como obligatorio), `/evaluaciones` devuelve 404, KPIs nuevos visibles y
   correctos en Dashboard Ejecutivo tras personalizar la selección.
 
-### (0.6) N accesos de plataforma por Centro, con etiqueta de propósito
+### (0.6) N accesos de plataforma por Centro, con etiqueta de propósito — ✅ hecho (Lote 0-E)
 
 **Hallazgo de modelo real**: `CanalGestionDocumental` es hoy 1:1 con el Centro
 (`Centro.razor` / `CentroWorkspacePanel.razor` pestaña "Plataforma", sesión 04-H2/H3). Caso
@@ -299,8 +300,26 @@ Iberojet S.L., solo cambia la credencial) — y también el caso de credenciales
   general", "Trabajadores extranjeros — Iberojet Alemania") — **no catálogo cerrado de
   propósitos**: son ad-hoc por cliente. Uno marcado como principal/por defecto.
 - La pestaña "Plataforma" del panel pasa a listar N accesos en vez de uno.
+- **Estado**: hecho, 2026-08-06. `CanalGestionDocumental` pasa a `EntidadBase` (gana `Version` y
+  soft delete: hasta ahora la tabla **no tenía ningún escritor** —ni Command ni seeder, solo la
+  Query de lectura—, y este lote la vuelve editable desde la UI). Campos nuevos
+  `EtiquetaProposito` (obligatorio, texto libre) y `EsPrincipal`; el índice único de
+  `(TenantId, CentroId)` que imponía el 1:1 se sustituye por uno normal más un **único filtrado**
+  `WHERE "EsPrincipal" AND NOT "EstaEliminado"` — "a lo sumo un principal" se sostiene en la base
+  de datos, no solo en el Command (dos peticiones concurrentes pasarían las dos la comprobación
+  en memoria). Commands `CrearCanalGestion` (el primer canal de un Centro se marca principal
+  solo), `EditarCanalGestion` (el `Tipo` no se edita — Plataforma y Email no comparten campos; y
+  un flag `CambiarCredenciales` porque la pantalla nunca muestra las guardadas y guardar en
+  blanco las habría borrado en silencio), `MarcarCanalGestionPrincipal` y `EliminarCanalGestion`
+  (rechaza borrar el principal habiendo otros: cuál pasa a serlo es decisión del gestor, no del
+  orden de inserción). `ObtenerCanalesGestionDeCentroQuery` sustituye a la singular, con el
+  principal primero. `ObtenerBorradorPedirPrioridad` deja de asumir el 1:1 y prefiere el canal
+  Email principal. **El proveedor sigue siendo texto libre**: el catálogo es Parte 2 y todavía
+  no existe (YAGNI). Verificado en navegador: dos accesos al mismo portal con credenciales
+  distintas en un mismo centro (el caso real reportado), cambio de principal, rechazo de borrar
+  el principal, y el destinatario de "Pedir prioridad" resuelto desde el canal de correo.
 
-### (0.7) Criterios de validación — puente con la documentación Inbound (sin modelo nuevo)
+### (0.7) Criterios de validación — puente con la documentación Inbound (sin modelo nuevo) — ✅ hecho (Lote 0-E)
 
 **Ya existe**: `TipoDocumento.CriteriosValidacion` (`TipoDocumento.cs:16,26,142-152`) es
 exactamente el campo "términos de validación" que describe el propietario — hoy expuesto como
@@ -312,6 +331,12 @@ origen Inbound. No requiere modelo nuevo, solo dos ganchos de flujo:
 - Este campo queda marcado como **fuente de referencia para la automatización de lectura IA**
   (`VerificacionIaDocumentoService`) — sin construir la integración ahora, pero documentando la
   intención en el propio código para que la sesión de IA que lo use no tenga que redescubrirla.
+- **Estado**: hecho, 2026-08-06. Texto de ayuda bajo el textarea de `/tipos-documento` (clase
+  nueva `.texto-ayuda-campo`, genérica para ayuda de campo de formulario) invitando a pegar los
+  criterios del portal del cliente sin reescribirlos. La intención queda anotada en los dos
+  sitios donde hace falta: el XML doc de `TipoDocumento.CriteriosValidacion` y el de
+  `VerificacionIaDocumentoService`, que hoy solo compara tipo/fecha/firma. Sin modelo nuevo,
+  como decía el plan.
 
 ### (0.8) Badge circular de % de cumplimiento — Empresa/Centro/Trabajador — ✅ hecho (Lote 0-F)
 
@@ -346,6 +371,14 @@ la representación.
   que `ObtenerCentrosConActividadDeEmpresaQuery`, suma `AlDia`/`Requeridos` — no media). Verificado
   en navegador con datos de demo: los tres niveles (Centro 41%/peligro, Trabajador 50%/0%, Empresa
   41% agregado) muestran el color y el `stroke-dasharray` correctos.
+  **Corregido después (Lote 0-E, 2026-08-06)**: el aro no llegaba a dibujarse. El radio se
+  interpolaba como `double` directamente en el atributo, así que salía con la coma decimal de
+  la cultura de la petición (`r="15,5"`) — no es una longitud SVG válida, el navegador la
+  descartaba y quedaba radio 0: solo se veía el número. `stroke-dasharray` sí se formateaba en
+  cultura invariante, de ahí que la verificación original lo diera por bueno. Ahora el radio
+  también (`RadioSvg`). Lección para cualquier SVG inline futuro del Design System: **todo
+  número que vaya a un atributo SVG se formatea en `InvariantCulture`**, no solo los que uno
+  recuerda.
 
 ### (0.9) Selección múltiple oculta tras toggle + densidad de fila — transversal — ✅ hecho (Lote 0-G)
 

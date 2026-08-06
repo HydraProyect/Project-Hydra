@@ -6,7 +6,11 @@
     Historial.
 *@
 @using CaeManager.Application.Centros.Queries.ObtenerCentroPorId
-@using CaeManager.Application.Centros.Queries.ObtenerCanalGestionDeCentro
+@using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro
+@using CaeManager.Application.Centros.Commands.CrearCanalGestion
+@using CaeManager.Application.Centros.Commands.EditarCanalGestion
+@using CaeManager.Application.Centros.Commands.EliminarCanalGestion
+@using CaeManager.Application.Centros.Commands.MarcarCanalGestionPrincipal
 @using CaeManager.Application.Centros.Queries.ObtenerEstadoCentro
 @using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro
 @using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion
@@ -30,6 +34,7 @@
 @inject ToastService ToastService
 @inject IFileStorageService AlmacenamientoArchivos
 @inject ILogger<CentroWorkspacePanel> Logger
+@inject ICurrentUserService CurrentUserService
 
 @if (_cargando)
 {
@@ -239,31 +244,69 @@ else
                         </Accion>
                     </EstadoVacio>
                 }
-                else if (_canal is null)
+                else if (_canales is not null)
                 {
-                    <EstadoVacio Titulo="Sin canal de gestión" Descripcion="Este centro no tiene ningún portal externo ni gestión por correo registrado para acreditar documentación." />
-                }
-                else if (_canal.Tipo == TipoCanalGestion.Plataforma)
-                {
-                    <div class="workspace-grupo-campos">
-                        <CampoInfo Etiqueta="Plataforma" Valor="@_canal.NombrePlataforma" />
-                        <CampoInfo Etiqueta="URL de acceso" Valor="@_canal.UrlAcceso" />
-                        <CampoInfo Etiqueta="Notas" Valor="@_canal.Notas" />
-                        <CampoInfo Etiqueta="Credenciales">
-                            <Badge Tono="@(_canal.TieneCredenciales ? TonoBadge.Exito : TonoBadge.Neutro)">
-                                @(_canal.TieneCredenciales ? "Configuradas" : "Sin configurar")
-                            </Badge>
-                        </CampoInfo>
+                    <div class="workspace-cabecera-seccion">
+                        <h3>Accesos de gestión documental</h3>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirNuevoCanal">Añadir acceso</Boton>
                     </div>
-                    <p class="workspace-nota-contextual">El usuario y la contraseña se gestionan desde el formulario de edición del Centro — aquí solo se muestra si están configuradas, nunca su valor.</p>
-                }
-                else
-                {
-                    <div class="workspace-grupo-campos">
-                        <CampoInfo Etiqueta="Gestión por correo" Valor="@_canal.EmailsDestinatarios" />
-                        <CampoInfo Etiqueta="Contacto" Valor="@_canal.NombreContacto" />
-                        <CampoInfo Etiqueta="Notas" Valor="@_canal.Notas" />
-                    </div>
+
+                    @if (_canales.Count == 0)
+                    {
+                        <EstadoVacio Titulo="Sin canal de gestión" Descripcion="Este centro no tiene ningún portal externo ni gestión por correo registrado para acreditar documentación." />
+                    }
+                    else
+                    {
+                        <p class="workspace-nota-contextual">
+                            Un mismo centro puede exigir varios accesos —el mismo portal con credenciales distintas según a quién se gestiona, o un correo aparte para otro colectivo—.
+                            Descríbelos con la etiqueta de propósito; el principal es el que se usa por defecto.
+                        </p>
+                        <ul class="workspace-lista-requisitos">
+                            @foreach (var canal in _canales)
+                            {
+                                <li class="workspace-tarjeta-requisito" @key="canal.Id">
+                                    <div class="workspace-tarjeta-requisito-cabecera">
+                                        <span>@canal.EtiquetaProposito</span>
+                                        <Badge Tono="TonoBadge.Neutro">@(canal.Tipo == TipoCanalGestion.Plataforma ? "Plataforma" : "Correo")</Badge>
+                                        @if (canal.EsPrincipal)
+                                        {
+                                            <Badge Tono="TonoBadge.Exito">Principal</Badge>
+                                        }
+                                    </div>
+                                    @if (canal.Tipo == TipoCanalGestion.Plataforma)
+                                    {
+                                        <div class="workspace-grupo-campos">
+                                            <CampoInfo Etiqueta="Plataforma" Valor="@canal.NombrePlataforma" />
+                                            <CampoInfo Etiqueta="URL de acceso" Valor="@canal.UrlAcceso" />
+                                            <CampoInfo Etiqueta="Notas" Valor="@canal.Notas" />
+                                            <CampoInfo Etiqueta="Credenciales">
+                                                <Badge Tono="@(canal.TieneCredenciales ? TonoBadge.Exito : TonoBadge.Neutro)">
+                                                    @(canal.TieneCredenciales ? "Configuradas" : "Sin configurar")
+                                                </Badge>
+                                            </CampoInfo>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="workspace-grupo-campos">
+                                            <CampoInfo Etiqueta="Gestión por correo" Valor="@canal.EmailsDestinatarios" />
+                                            <CampoInfo Etiqueta="Contacto" Valor="@canal.NombreContacto" />
+                                            <CampoInfo Etiqueta="Notas" Valor="@canal.Notas" />
+                                        </div>
+                                    }
+                                    <div class="workspace-tarjeta-requisito-acciones">
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarCanal(canal)">Editar</Boton>
+                                        @if (!canal.EsPrincipal)
+                                        {
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => MarcarCanalPrincipalAsync(canal)">Marcar principal</Boton>
+                                        }
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => PedirConfirmacionEliminarCanal(canal)">Eliminar</Boton>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    <p class="workspace-nota-contextual">El usuario y la contraseña nunca se muestran aquí — solo si están configuradas. Para cambiarlas, edita el acceso y marca «Cambiar credenciales».</p>
                 }
                 break;
 
@@ -324,6 +367,66 @@ else
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerDocVisible = false" Deshabilitado="_guardandoDocumentacion">Cancelar</Boton>
             <Boton OnClick="GuardarDocumentacionAsync" Cargando="_guardandoDocumentacion" Deshabilitado="_subiendoArchivoEdicion">Guardar</Boton>
+        </Pie>
+    </Drawer>
+
+    <DialogoConfirmacion
+        Visible="_confirmarEliminarCanalVisible"
+        VisibleChanged="v => _confirmarEliminarCanalVisible = v"
+        Titulo="@($"¿Eliminar el acceso «{_canalAEliminar?.EtiquetaProposito}»?")"
+        Mensaje="Dejará de aparecer en este centro, junto con sus credenciales guardadas."
+        EnProgreso="_eliminandoCanal"
+        OnConfirmar="ConfirmarEliminarCanalAsync" />
+
+    <Drawer Visible="_drawerCanalVisible" VisibleChanged="v => _drawerCanalVisible = v"
+            Titulo="@(_canalIdEditando is null ? "Añadir acceso de gestión documental" : "Editar acceso de gestión documental")"
+            CerrarAlHacerClicFuera="@(_mensajeErrorCanal is null && !_guardandoCanal)">
+        <ChildContent>
+            @if (_mensajeErrorCanal is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorCanal</div>
+            }
+
+            <CampoTexto Etiqueta="Para qué sirve este acceso" Valor="@_etiquetaPropositoEdicion" ValorChanged="v => _etiquetaPropositoEdicion = v"
+                        Placeholder="Gestión general" />
+            <p class="workspace-nota-contextual">Es lo que distingue un acceso de otro en la lista — por ejemplo «Gestión general» o «Trabajadores extranjeros — filial alemana».</p>
+
+            @if (_canalIdEditando is null)
+            {
+                <CampoSelect Etiqueta="Tipo de canal" Valor="@_tipoCanalEdicion" ValorChanged="v => _tipoCanalEdicion = v">
+                    <option value="@nameof(TipoCanalGestion.Plataforma)">Plataforma — portal externo con login</option>
+                    <option value="@nameof(TipoCanalGestion.Email)">Correo — sin portal, se envía a un contacto</option>
+                </CampoSelect>
+            }
+
+            @if (_tipoCanalEdicion == nameof(TipoCanalGestion.Plataforma))
+            {
+                <CampoTexto Etiqueta="Plataforma" Valor="@_nombrePlataformaEdicion" ValorChanged="v => _nombrePlataformaEdicion = v" />
+                <CampoTexto Etiqueta="URL de acceso" Valor="@_urlAccesoEdicion" ValorChanged="v => _urlAccesoEdicion = v" />
+
+                @if (_canalIdEditando is not null)
+                {
+                    <label class="campo-checkbox">
+                        <input type="checkbox" @bind="_cambiarCredencialesEdicion" /> Cambiar credenciales
+                    </label>
+                }
+                @if (_canalIdEditando is null || _cambiarCredencialesEdicion)
+                {
+                    <CampoTexto Etiqueta="Usuario" Valor="@_usuarioEdicion" ValorChanged="v => _usuarioEdicion = v" />
+                    <CampoTexto Etiqueta="Contraseña" Type="password" Valor="@_contrasenaEdicion" ValorChanged="v => _contrasenaEdicion = v" />
+                }
+            }
+            else
+            {
+                <CampoTexto Etiqueta="Correos de destino (separados por coma)" Valor="@_emailsDestinatariosEdicion" ValorChanged="v => _emailsDestinatariosEdicion = v" />
+                <CampoTexto Etiqueta="Contacto" Valor="@_nombreContactoEdicion" ValorChanged="v => _nombreContactoEdicion = v" />
+            }
+
+            <CampoTextarea Etiqueta="Notas" Valor="@_notasCanalEdicion" ValorChanged="v => _notasCanalEdicion = v" Filas="3" />
+        </ChildContent>
+        <Pie>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerCanalVisible = false" Deshabilitado="_guardandoCanal">Cancelar</Boton>
+            <Boton OnClick="GuardarCanalAsync" Cargando="_guardandoCanal">Guardar</Boton>
         </Pie>
     </Drawer>
 
@@ -416,10 +519,29 @@ else
     private IReadOnlyList<VehiculoConActividadDto>? _vehiculos;
     private bool _cargandoVehiculos;
     private bool _errorVehiculos;
-    private CanalGestionResumenDto? _canal;
+    private IReadOnlyList<CanalGestionResumenDto>? _canales;
     private bool _plataformaCargada;
     private bool _cargandoPlataforma;
     private bool _errorPlataforma;
+
+    private bool _drawerCanalVisible;
+    private Guid? _canalIdEditando;
+    private Guid _versionCanalEditando;
+    private string _etiquetaPropositoEdicion = string.Empty;
+    private string _tipoCanalEdicion = nameof(TipoCanalGestion.Plataforma);
+    private string _nombrePlataformaEdicion = string.Empty;
+    private string _urlAccesoEdicion = string.Empty;
+    private bool _cambiarCredencialesEdicion;
+    private string _usuarioEdicion = string.Empty;
+    private string _contrasenaEdicion = string.Empty;
+    private string _emailsDestinatariosEdicion = string.Empty;
+    private string _nombreContactoEdicion = string.Empty;
+    private string _notasCanalEdicion = string.Empty;
+    private bool _guardandoCanal;
+    private string? _mensajeErrorCanal;
+    private bool _confirmarEliminarCanalVisible;
+    private bool _eliminandoCanal;
+    private CanalGestionResumenDto? _canalAEliminar;
 
     private bool _drawerPrioridadVisible;
     private bool _cargandoBorradorPrioridad;
@@ -732,10 +854,10 @@ else
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerCanalGestionDeCentroQuery(idSolicitado));
+            var resultado = await Mediator.Send(new ObtenerCanalesGestionDeCentroQuery(idSolicitado));
             if (idSolicitado == EntidadId)
             {
-                _canal = resultado;
+                _canales = resultado;
                 _plataformaCargada = true;
             }
         }
@@ -748,6 +870,169 @@ else
         {
             if (idSolicitado == EntidadId)
                 _cargandoPlataforma = false;
+        }
+    }
+
+    private void AbrirNuevoCanal()
+    {
+        _canalIdEditando = null;
+        _versionCanalEditando = default;
+        _etiquetaPropositoEdicion = string.Empty;
+        _tipoCanalEdicion = nameof(TipoCanalGestion.Plataforma);
+        _nombrePlataformaEdicion = string.Empty;
+        _urlAccesoEdicion = string.Empty;
+        _cambiarCredencialesEdicion = false;
+        _usuarioEdicion = string.Empty;
+        _contrasenaEdicion = string.Empty;
+        _emailsDestinatariosEdicion = string.Empty;
+        _nombreContactoEdicion = string.Empty;
+        _notasCanalEdicion = string.Empty;
+        _mensajeErrorCanal = null;
+        _drawerCanalVisible = true;
+    }
+
+    private void AbrirEditarCanal(CanalGestionResumenDto canal)
+    {
+        _canalIdEditando = canal.Id;
+        _versionCanalEditando = canal.Version;
+        _etiquetaPropositoEdicion = canal.EtiquetaProposito;
+        _tipoCanalEdicion = canal.Tipo.ToString();
+        _nombrePlataformaEdicion = canal.NombrePlataforma ?? string.Empty;
+        _urlAccesoEdicion = canal.UrlAcceso ?? string.Empty;
+        _cambiarCredencialesEdicion = false;
+        _usuarioEdicion = string.Empty;
+        _contrasenaEdicion = string.Empty;
+        _emailsDestinatariosEdicion = canal.EmailsDestinatarios ?? string.Empty;
+        _nombreContactoEdicion = canal.NombreContacto ?? string.Empty;
+        _notasCanalEdicion = canal.Notas ?? string.Empty;
+        _mensajeErrorCanal = null;
+        _drawerCanalVisible = true;
+    }
+
+    private async Task GuardarCanalAsync()
+    {
+        _guardandoCanal = true;
+        _mensajeErrorCanal = null;
+
+        try
+        {
+            var notas = string.IsNullOrWhiteSpace(_notasCanalEdicion) ? null : _notasCanalEdicion;
+
+            Result resultado;
+
+            if (_canalIdEditando is { } id)
+            {
+                resultado = await Mediator.Send(new EditarCanalGestionCommand(
+                    id, _etiquetaPropositoEdicion,
+                    string.IsNullOrWhiteSpace(_nombrePlataformaEdicion) ? null : _nombrePlataformaEdicion,
+                    string.IsNullOrWhiteSpace(_urlAccesoEdicion) ? null : _urlAccesoEdicion,
+                    string.IsNullOrWhiteSpace(_emailsDestinatariosEdicion) ? null : _emailsDestinatariosEdicion,
+                    string.IsNullOrWhiteSpace(_nombreContactoEdicion) ? null : _nombreContactoEdicion,
+                    notas, _cambiarCredencialesEdicion,
+                    string.IsNullOrWhiteSpace(_usuarioEdicion) ? null : _usuarioEdicion,
+                    string.IsNullOrWhiteSpace(_contrasenaEdicion) ? null : _contrasenaEdicion,
+                    _versionCanalEditando));
+            }
+            else
+            {
+                var tipo = _tipoCanalEdicion == nameof(TipoCanalGestion.Email)
+                    ? TipoCanalGestion.Email
+                    : TipoCanalGestion.Plataforma;
+
+                resultado = await Mediator.Send(new CrearCanalGestionCommand(
+                    EntidadId, tipo, _etiquetaPropositoEdicion,
+                    string.IsNullOrWhiteSpace(_nombrePlataformaEdicion) ? null : _nombrePlataformaEdicion,
+                    string.IsNullOrWhiteSpace(_urlAccesoEdicion) ? null : _urlAccesoEdicion,
+                    string.IsNullOrWhiteSpace(_usuarioEdicion) ? null : _usuarioEdicion,
+                    string.IsNullOrWhiteSpace(_contrasenaEdicion) ? null : _contrasenaEdicion,
+                    string.IsNullOrWhiteSpace(_emailsDestinatariosEdicion) ? null : _emailsDestinatariosEdicion,
+                    string.IsNullOrWhiteSpace(_nombreContactoEdicion) ? null : _nombreContactoEdicion,
+                    notas));
+            }
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorCanal = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Acceso de gestión documental guardado.", TonoToast.Exito);
+
+            _drawerCanalVisible = false;
+            await CargarPlataformaAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _mensajeErrorCanal = ex.Errors.FirstOrDefault()?.ErrorMessage
+                ?? "No pudimos guardar el acceso. Revisa los datos introducidos.";
+        }
+        catch (Exception)
+        {
+            _mensajeErrorCanal = "No pudimos guardar el acceso. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _guardandoCanal = false;
+        }
+    }
+
+    private async Task MarcarCanalPrincipalAsync(CanalGestionResumenDto canal)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new MarcarCanalGestionPrincipalCommand(canal.Id));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar($"«{canal.EtiquetaProposito}» es ahora el acceso principal.", TonoToast.Exito);
+            await CargarPlataformaAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos cambiar el acceso principal. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+    }
+
+    private void PedirConfirmacionEliminarCanal(CanalGestionResumenDto canal)
+    {
+        _canalAEliminar = canal;
+        _confirmarEliminarCanalVisible = true;
+    }
+
+    private async Task ConfirmarEliminarCanalAsync()
+    {
+        if (_canalAEliminar is not { } canal)
+            return;
+
+        _eliminandoCanal = true;
+
+        try
+        {
+            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
+            var resultado = await Mediator.Send(new EliminarCanalGestionCommand(canal.Id, usuarioId ?? Guid.Empty));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar($"Acceso «{canal.EtiquetaProposito}» eliminado.", TonoToast.Exito);
+            await CargarPlataformaAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos eliminar el acceso. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            _eliminandoCanal = false;
+            _confirmarEliminarCanalVisible = false;
+            _canalAEliminar = null;
         }
     }
 
