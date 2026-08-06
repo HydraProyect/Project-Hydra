@@ -105,10 +105,7 @@
                         }
                         <div class="tarjeta-fila-acordeon-acciones">
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
-                                Ver
-                            </Boton>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(centro.Id)">
-                                Editar
+                                Detalles
                             </Boton>
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(centro.Id, centro.Nombre)">
                                 Eliminar
@@ -133,14 +130,14 @@
     }
 </div>
 
-<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo centro" : "Editar centro")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nuevo centro" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
         }
 
-        @if (_editandoId is not null || _padresFijadosPorCadena)
+        @if (_padresFijadosPorCadena)
         {
             <div class="campo">
                 <label>Cliente</label>
@@ -151,12 +148,9 @@
                 <span>@_empresaNombreSoloLectura</span>
             </div>
 
-            @if (_editandoId is null)
-            {
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="DesvincularPadresFijadosAsync">
-                    Cambiar cliente/empresa
-                </Boton>
-            }
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="DesvincularPadresFijadosAsync">
+                Cambiar cliente/empresa
+            </Boton>
         }
         else
         {
@@ -180,12 +174,9 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             Cancelar
         </Boton>
-        @if (_editandoId is null)
-        {
-            <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearOtroAsync">
-                Añadir otro centro
-            </Boton>
-        }
+        <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearOtroAsync">
+            Añadir otro centro
+        </Boton>
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>

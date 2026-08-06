@@ -61,15 +61,11 @@ public class FlujoCriticoTests(WebAppFixture fixture)
 
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
 
-        // Tras crear una Empresa el drawer NO se cierra a propósito — pasa a
-        // modo edición para dejar las credenciales de acceso visibles sin
-        // reabrir el formulario (ver Empresas.razor.cs, GuardarAsync: "Tras
-        // crear, el drawer no se cierra — pasa a modo edición..."). Se
-        // confirma el guardado esperando el título "Editar empresa" y se
-        // cierra explícitamente, en vez de esperar a que se oculte solo.
-        await drawer.GetByText("Editar empresa").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await drawer.Locator(".drawer-cerrar").ClickAsync();
-        await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 5_000 });
+        // Desde Centro 360 § 0.10 el Drawer de "Editar" se retiró de las
+        // listas (la edición pasó al Context Workspace) — el de aquí es
+        // solo-creación y se cierra normalmente al guardar, sin cambiar de
+        // título.
+        await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Crear Trabajador de esa Empresa ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
