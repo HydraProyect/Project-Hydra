@@ -1,0 +1,163 @@
+# Verificación de firmas digitales en PDF — análisis de carga y plan de implementación
+
+Estado: **propuesta, no implementado**. Documento de decisión previo a escribir código, en el orden que pide `CLAUDE.md` § Disciplina de decisión: dominio → arquitectura → plataforma → implementación.
+
+Responde a dos preguntas: **cuánto pesa** para la plataforma y **cuál es la mejor forma de implementarlo**.
+
+---
+
+## 1. Dominio: qué significa aquí "firma verificada"
+
+Hoy la plataforma ya dice algo sobre firmas: `RevisionIaDocumento.TieneFirmaDetectada`, que la IA rellena mirando el PDF (`VerificacionIaDocumentoService`, línea 92). Es una **conjetura visual**: cuesta una llamada a un LLM y no prueba nada — un PDF con una imagen de una rúbrica escaneada le parece firmado, y un certificado de la TGSS sellado criptográficamente sin marca visible le parece que no.
+
+La verificación criptográfica prueba tres cosas que la IA no puede saber:
+
+| | Qué prueba |
+|---|---|
+| **Integridad** | El PDF no se ha modificado desde que se firmó. Un TC2 con el importe retocado en un editor deja de validar. |
+| **Autoría** | Quién firmó, con nombre y NIF/CIF dentro del certificado (`serialNumber`/`organizationIdentifier`). |
+| **Momento** | Cuándo, si lleva sello de tiempo cualificado (RFC 3161). No la fecha que alguien escribió en el documento. |
+
+Lo que **no** prueba: que el contenido sea cierto, que el documento sea del tipo declarado, ni que las fechas de vigencia sean las correctas. Para eso sigue haciendo falta la lectura IA. Son complementarias, no sustitutivas — salvo en `TieneFirma`, donde la criptografía sustituye a la conjetura (ver § 5, fase 5).
+
+**Casos reales del CAE que sí llegan firmados**: certificado de estar al corriente con la TGSS y con la AEAT, ITA, RNT/RLC descargados de la Seguridad Social, certificados de formación de servicios de prevención ajenos, aptos médicos de algunos SPA. Son PDFs con sello de órgano o certificado de representante.
+
+**Invariante propuesta**: el resultado de la verificación **nunca aprueba ni rechaza un Documento por sí solo**. Deja constancia, igual que `RevisionIaDocumento` (ver su comentario de clase: "nunca corrige nada por sí sola"). Un Gestor CAE decide.
+
+**Y el resultado es una terna, no un booleano.** La mayoría de los documentos del CAE son escaneos o fotos sin ninguna firma digital, y eso no los hace inválidos:
+
+- `SinFirma` — no hay diccionario de firma. Estado normal, sin aviso.
+- `Valida` — firma presente, íntegra y (según fase) de confianza.
+- `Invalida` — hay firma pero no cuadra: documento alterado tras firmar, certificado caducado en el momento de firmar, revocado, o cadena no confiable. **Esto sí es un aviso fuerte**: es el único caso en que la plataforma puede afirmar que alguien manipuló un documento.
+
+---
+
+## 2. Arquitectura: dónde vive
+
+No hace falta infraestructura nueva. La cola durable ya existe y encaja exactamente:
+
+- `TrabajoAnalisisDocumento` (`src/CaeManager.Domain/DocumentosIa/`) — cola en PostgreSQL, en la misma transacción que crea el Documento, con reintentos (3) y recuperación de trabajos estancados.
+- `ProcesadorAnalisisDocumentoHostedService` (`src/CaeManager.Infrastructure/DocumentosIa/`) — sondeo cada 5 s, elección de líder entre réplicas (`pg_try_advisory_lock`), un tenant a la vez con `AmbitoTenantExplicito`, aviso por campana al terminar.
+
+Añadir un valor a `TipoAnalisisDocumento` (`VerificacionFirmaDigital`) y un `case` en `EjecutarAnalisisAsync` hereda todo eso gratis: durabilidad, reintentos, aislamiento por tenant, multi-réplica y notificación.
+
+**Resultado como agregado propio**: `FirmaDigitalDocumento : EntidadConTenant`, 0..N por Documento (un PDF puede llevar varias firmas apiladas por incremental updates — típico en cadenas empresa → SPA → mutua).
+
+**Frontera**: `IVerificadorFirmaPdfService` en Application, implementación en Infrastructure. Esto es lo que permite cambiar de motor sin tocar dominio ni UI si algún día hace falta (§ 3, opción A) — mismo criterio de "capacidades, no proveedores" de `ARQUITECTURA-INTEGRACIONES.md`.
+
+---
+
+## 3. Plataforma: qué motor de validación
+
+### Opción A — DSS de la Comisión Europea (Java), como servicio aparte
+
+El validador de referencia eIDAS. Gestiona solo el LOTL y las TSL nacionales, emite informes ETSI EN 319 102-1 (simple y detailed report), cubre PAdES B-B/B-T/B-LT/B-LTA además de XAdES y CAdES.
+
+**El problema no es DSS, es el despliegue.** Hydra es hoy **un solo contenedor .NET en Railway** (`DEPLOY.md`). Meter DSS significa un segundo servicio con runtime Java: segundo Dockerfile, segundo deploy, segunda superficie de CVEs que parchear, una JVM que reserva cientos de MB de heap solo por existir, y resolver otra vez en el borde HTTP cosas que dentro del proceso ya están resueltas (secretos, red, trazas, tenant). Para una capacidad cuyo coste real de CPU son 20 ms (§ 4), es desproporcionado.
+
+**Cuándo sí valdría la pena**: si hiciera falta emitir un *informe de validación oponible frente a terceros* (auditoría, litigio, requerimiento de la Inspección de Trabajo) o validar XAdES/CAdES sueltos, no solo PDFs.
+
+### Opción B — .NET nativo *(recomendada)*
+
+Todo lo necesario está en la BCL de .NET 10, sin NuGet nuevo:
+
+| Pieza | Cómo |
+|---|---|
+| Verificar el CMS/PKCS#7 detached | `System.Security.Cryptography.Pkcs.SignedCms` (`SubFilter` `ETSI.CAdES.detached` o `adbe.pkcs7.detached`) |
+| Sello de tiempo RFC 3161 | `System.Security.Cryptography.Pkcs.Rfc3161TimestampToken` |
+| Cadena de confianza | `X509Chain` + `X509ChainPolicy.CustomTrustStore` (almacén propio con las CA de la TSL española, no el del sistema operativo) |
+| Revocación | `X509RevocationMode.Online` (OCSP/CRL), con caché y timeout propios — ver § 4 |
+| Localizar la firma en el PDF | `/ByteRange` y `/Contents` del diccionario de firma. **PDFsharp 6.2.4 ya está en el proyecto** (hoy se usa para crear firmas y extraer texto) |
+
+Coste de licencia: 0 €. Coste por volumen: 0 €. Sin datos saliendo a terceros.
+
+**Lo que hay que construir a mano** es la parte de "¿este certificado es *cualificado* según la lista de confianza europea?" — parsear el LOTL (`https://ec.europa.eu/tools/lotl/eu-lotl.xml`) y la TSL española. Pero eso es un **job semanal**, no un coste por documento: se amortiza entre todos los tenants y no aparece en la latencia de nada.
+
+**El único riesgo técnico abierto** es si PDFsharp expone el diccionario de firma en lectura o solo en escritura. Es lo primero que hay que despejar (§ 5, fase 1). Alternativa si no: `BouncyCastle.Cryptography` (MIT) o un lector mínimo del trailer — 200 líneas, el `/ByteRange` es un array de 4 enteros en una estructura muy acotada.
+
+### Opción C — pyHanko (Python), como servicio aparte
+
+`pyhanko.sign.validation` valida de verdad y es MIT, y un contenedor Python pesa bastante menos que una JVM. Pero sigue siendo un segundo runtime con el mismo coste operativo que A, y el trabajo de listas de confianza tampoco viene resuelto (hay que montarlo sobre `certvalidator`). No compensa frente a B.
+
+### Opción D — API externa de pago *(descartada)*
+
+Además del coste por volumen, **implica enviar el PDF completo a un tercero**. Esos PDFs contienen datos personales y de salud de trabajadores (aptos médicos). Eso convierte al proveedor en **subencargado del tratamiento**: entrada nueva en `RGPD-TRATAMIENTO-DATOS.md`, anexo nuevo en el DPA de cada tenant, y notificación a los clientes. Es precisamente lo que la vía autoalojada evita, y por eso pesa más que cualquier ventaja técnica.
+
+### Recomendación
+
+**Opción B**, detrás de `IVerificadorFirmaPdfService`. Si algún día aparece la necesidad del informe ETSI formal, se añade una implementación alternativa en Infrastructure sin tocar dominio, cola ni UI.
+
+---
+
+## 4. Carga: cuánto pesa de verdad
+
+### Medido en este contenedor (4 vCPU, `openssl speed`)
+
+| Operación | Medida | Para un PDF de 2 MB |
+|---|---|---|
+| SHA-256 sobre el rango firmado | ~394 MB/s | **~5 ms** |
+| Verificación RSA-2048 | 19 µs (≈53.000/s) | **~0,02 ms** |
+| Parseo del PDF para localizar la firma | — | unidades de ms |
+
+**Total de CPU por documento: 10–30 ms.** Un PDF de 10 MB, ~25 ms de hash.
+
+### La comparación que importa
+
+La plataforma **ya ejecuta, en esta misma cola**, algo mucho más caro por documento con `VerificacionIaActiva`: rasterizar páginas a PNG (`PdfToPngRasterizadorPaginasPdfService`) y llamar a un LLM. Eso son **segundos** de latencia y **coste monetario por token**.
+
+La verificación de firma es **dos o tres órdenes de magnitud más barata que lo que la plataforma ya corre**. En términos de CPU es ruido.
+
+A escala: 10 tenants × 200 documentos/mes = 2.000 verificaciones ≈ **60 segundos de CPU al mes**.
+
+### Lo que sí pesa: I/O, no CPU
+
+**1. Revocación (OCSP/CRL) — el riesgo real.**
+Es lo único de todo esto que puede doler. Una consulta OCSP a la FNMT son 100–500 ms; una **CRL de la FNMT puede pesar decenas de MB** y se descarga entera. Sin control, un emisor lento o caído bloquea la cola de análisis completa — incluidos los trabajos de IA que van detrás, porque `ProcesarPendientesDelTenantAsync` procesa **un trabajo a la vez en bucle secuencial**.
+
+Mitigaciones, todas obligatorias:
+- Preferir **OCSP sobre CRL** siempre que el certificado publique ambos.
+- **Caché de respuestas de revocación** respetando el `nextUpdate` del emisor. Son datos públicos del emisor, iguales para todos los tenants → **catálogo global sin `TenantId`**, que hay que justificar y documentar en `docs/MULTITENANCY.md` § 7 antes de crear la tabla.
+- **Timeout duro (5 s)** y degradación explícita: si la revocación no se puede comprobar, el resultado es *"firma válida, revocación no comprobada"* — nunca "inválida", y nunca una excepción que consuma un intento de los 3.
+- Si el PDF trae **LTV** (diccionario DSS con OCSP/CRL embebidos, típico en documentos de la Administración), usar los embebidos y **no salir a la red**.
+
+**2. Descargar el PDF de S3.** Ya se paga hoy en la cola de IA. Si el mismo documento dispara los dos análisis, hoy cada servicio abre el archivo por su cuenta — conviene mirarlo cuando se implemente, para no descargar dos veces.
+
+**3. Memoria.** Hay que hashear **sobre el stream**, por trozos, sin cargar el PDF en un `byte[]`. Un `MemoryStream` de 10 MB por trabajo va al Large Object Heap y no hace falta: el `/ByteRange` define dos rangos contiguos que se pueden leer secuencialmente.
+
+**4. Refresco del LOTL/TSL.** Un XML de pocos MB, una vez por semana, compartido por todos los tenants. Despreciable.
+
+### Consecuencia de diseño
+
+Como la verificación de firma es barata y puede ahorrar trabajo caro, conviene que corra **antes** que la verificación IA sobre el mismo documento: un documento con firma válida ya trae emisor y fecha certificados, y en algunos tipos eso puede hacer innecesaria parte de la extracción por LLM.
+
+---
+
+## 5. Plan por fases
+
+**Fase 1 — Spike (media sesión). Nada se decide hasta esto.**
+Comprobar si PDFsharp 6.2.4 expone `/ByteRange` y `/Contents` en lectura, sobre PDFs reales firmados: un certificado de estar al corriente de la TGSS, un certificado de formación de un SPA. Salida: sí/no y si hace falta lector propio o BouncyCastle.
+
+**Fase 2 — Integridad y autoría, sin red.**
+`FirmaDigitalDocumento`, `IVerificadorFirmaPdfService` + implementación .NET, `TipoAnalisisDocumento.VerificacionFirmaDigital` en la cola, migración, tests de aislamiento por tenant (patrón de los 40 ya existentes). Resultado: *"documento no modificado desde la firma; firmado por X (NIF Y) el Z"*. Sin cadena de confianza, sin revocación, sin salir a internet.
+**Esto ya es la mayor parte del valor de negocio**: detecta el PDF manipulado, que es el fraude que importa en CAE.
+
+**Fase 3 — Confianza.**
+`X509Chain` con almacén propio, revocación con caché global + timeout + degradación, distinción cualificada / no cualificada.
+
+**Fase 4 — Listas de confianza.**
+Job semanal de refresco del LOTL y la TSL española, catálogo global de CA de confianza.
+
+**Fase 5 — UI y ahorro.**
+Sello en el detalle del Documento, filtro en el listado, y **quitar `TieneFirma` del prompt de la IA** una vez la firma criptográfica esté disponible: ahorra tokens en cada análisis y elimina una respuesta que el LLM no puede saber.
+
+**Transversal**: flag `VerificacionFirmaActiva` por `TipoDocumento`, igual que el `VerificacionIaActiva` ya existente. No todos los tipos tienen sentido.
+
+---
+
+## 6. Decisiones pendientes del usuario
+
+1. **¿Un documento con firma inválida puede aprobarse igualmente?** Propuesta: sí, con aviso visible — coherente con el criterio ya establecido de que el análisis automático nunca decide solo. Pero es decisión de negocio, no técnica.
+
+2. **RGPD — requiere confirmación antes de implementar.** El certificado de firma contiene datos personales del firmante (nombre, NIF). Guardarlos en `FirmaDigitalDocumento` es un **tratamiento nuevo**: hay que reflejarlo en `RGPD-TRATAMIENTO-DATOS.md` y encajarlo en el ciclo de retención. `CLAUDE.md` prohíbe expresamente implementar cumplimiento normativo sin confirmarlo antes.
+
+3. **Flujo de red nuevo (no subencargado).** OCSP/CRL sale a internet hacia el emisor del certificado. **No se envía el documento** — solo el número de serie del certificado. No genera subencargado, a diferencia de la opción D, pero conviene dejarlo declarado.
