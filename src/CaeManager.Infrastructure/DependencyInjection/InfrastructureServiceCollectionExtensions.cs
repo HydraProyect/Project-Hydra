@@ -267,6 +267,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ISubcontrataEmpresaRepository, SubcontrataEmpresaRepository>();
         services.AddScoped<ICredencialAccesoSubcontrataRepository, CredencialAccesoSubcontrataRepository>();
         services.AddScoped<ICentroRepository, CentroRepository>();
+        services.AddScoped<ICanalGestionDocumentalRepository, CanalGestionDocumentalRepository>();
         services.AddScoped<ITrabajadorRepository, TrabajadorRepository>();
         services.AddScoped<IDeteccionTrabajadorRepository, DeteccionTrabajadorRepository>();
         services.AddScoped<ITipoDocumentoRepository, TipoDocumentoRepository>();
