@@ -3,8 +3,16 @@
 <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
-            <NotAuthorized>
-                @{ Navigation.NavigateTo("/cuenta/iniciar-sesion", forceLoad: true); }
+            <NotAuthorized Context="estadoAuth">
+                @{
+                    // H1 (docs/ux-audit/16-transversales.md): con sesión viva pero sin el
+                    // rol requerido, esto redirigía igual que sin sesión — el usuario creía
+                    // que había caducado. Ahora solo el caso sin sesión va al login.
+                    var destino = estadoAuth.User.Identity?.IsAuthenticated == true
+                        ? "/acceso-denegado"
+                        : "/cuenta/iniciar-sesion";
+                    Navigation.NavigateTo(destino, forceLoad: true);
+                }
             </NotAuthorized>
         </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
