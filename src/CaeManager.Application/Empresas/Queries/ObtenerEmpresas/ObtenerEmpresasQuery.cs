@@ -1,6 +1,9 @@
+using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -17,12 +20,22 @@ public record ObtenerEmpresasQuery(
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null)
     : IRequest<ResultadoPaginado<EmpresaListaDto>>;
 
+/// <param name="CumplimientoPorcentaje">
+/// % de cumplimiento agregado de la Empresa (Centro 360, PLAN-EJECUCION-UX.md
+/// § 0.8/0.11) — mismo cálculo que <c>ObtenerCumplimientoEmpresaQuery</c>,
+/// batcheado aquí para toda la página en vez de una consulta por fila.
+/// <c>null</c> cuando la Empresa no tiene actividad en ningún Centro o
+/// ninguno de esos Centros tiene requisitos aplicables.
+/// </param>
 public record EmpresaListaDto(
-    Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, EstadoDocumento? EstadoDocumental = null);
+    Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc,
+    EstadoDocumento? EstadoDocumental = null, int? CumplimientoPorcentaje = null);
 
 public class ObtenerEmpresasQueryHandler(
     IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos,
-    ICalculoEstadoDocumentalService calculoEstadoDocumental)
+    ICalculoEstadoDocumentalService calculoEstadoDocumental,
+    IAsignacionesQueryContext asignacionesContext, ITrabajadoresQueryContext trabajadoresContext,
+    ICalculoEstadoCentroService calculoEstadoCentro)
     : IRequestHandler<ObtenerEmpresasQuery, ResultadoPaginado<EmpresaListaDto>>
 {
     public async Task<ResultadoPaginado<EmpresaListaDto>> Handle(ObtenerEmpresasQuery request, CancellationToken cancellationToken)
@@ -64,8 +77,12 @@ public class ObtenerEmpresasQueryHandler(
                 .ThenBy(e => e.RazonSocial).ThenBy(e => e.Id)
                 .ToList();
 
+            var paginaConEstado = ordenadas.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList();
+            var cumplimientoConEstado = await CalcularCumplimientoPorEmpresaAsync(
+                paginaConEstado.Select(e => e.Id).ToList(), cancellationToken);
+
             return new ResultadoPaginado<EmpresaListaDto>(
-                ordenadas.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList(),
+                paginaConEstado.Select(e => e with { CumplimientoPorcentaje = cumplimientoConEstado.GetValueOrDefault(e.Id) }).ToList(),
                 ordenadas.Count, request.Pagina, request.TamanoPagina);
         }
 
@@ -94,12 +111,55 @@ public class ObtenerEmpresasQueryHandler(
             .Select(e => new EmpresaListaDto(e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc))
             .ToListAsync(cancellationToken);
 
-        // Solo para las de la página: el badge de la tabla, no un filtro.
-        var estados = await calculoEstadoDocumental.CalcularPeorEstadoAsync(
-            AmbitoAplicacion.Empresa, elementos.Select(e => e.Id).ToList(), cancellationToken);
+        // Solo para las de la página: los badges de la tabla, no un filtro.
+        var idsPagina = elementos.Select(e => e.Id).ToList();
+        var estados = await calculoEstadoDocumental.CalcularPeorEstadoAsync(AmbitoAplicacion.Empresa, idsPagina, cancellationToken);
+        var cumplimiento = await CalcularCumplimientoPorEmpresaAsync(idsPagina, cancellationToken);
 
         return new ResultadoPaginado<EmpresaListaDto>(
-            elementos.Select(e => e with { EstadoDocumental = estados.GetValueOrDefault(e.Id) }).ToList(),
+            elementos.Select(e => e with
+            {
+                EstadoDocumental = estados.GetValueOrDefault(e.Id),
+                CumplimientoPorcentaje = cumplimiento.GetValueOrDefault(e.Id)
+            }).ToList(),
             total, request.Pagina, request.TamanoPagina);
+    }
+
+    /// <summary>
+    /// Mismo cálculo que <c>ObtenerCumplimientoEmpresaQuery</c> (Empresa →
+    /// Trabajadores → Asignaciones activas → Centro, suma AlDia/Requeridos,
+    /// no media de porcentajes) pero para N Empresas de una sola vez: una
+    /// consulta de actividad y una llamada a
+    /// <see cref="ICalculoEstadoCentroService.CalcularCumplimientoAsync"/>
+    /// sobre la unión de Centros, en vez de repetir ambas por fila.
+    /// </summary>
+    private async Task<Dictionary<Guid, int?>> CalcularCumplimientoPorEmpresaAsync(
+        IReadOnlyList<Guid> empresaIds, CancellationToken cancellationToken)
+    {
+        if (empresaIds.Count == 0) return new Dictionary<Guid, int?>();
+
+        var centrosPorEmpresa = await (
+            from asignacion in asignacionesContext.Asignaciones
+            where asignacion.FechaBaja == null
+            join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
+            where trabajador.EmpresaId != null && empresaIds.Contains(trabajador.EmpresaId.Value)
+            select new { EmpresaId = trabajador.EmpresaId!.Value, asignacion.CentroId })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var centroIds = centrosPorEmpresa.Select(x => x.CentroId).Distinct().ToList();
+        var fracciones = centroIds.Count == 0
+            ? new Dictionary<Guid, FraccionCumplimiento>()
+            : await calculoEstadoCentro.CalcularCumplimientoAsync(centroIds, cancellationToken);
+
+        return centrosPorEmpresa
+            .GroupBy(x => x.EmpresaId)
+            .ToDictionary(g => g.Key, g =>
+            {
+                var deLaEmpresa = g.Select(x => fracciones.GetValueOrDefault(x.CentroId, new FraccionCumplimiento(0, 0))).ToList();
+                var alDia = deLaEmpresa.Sum(f => f.AlDia);
+                var requeridos = deLaEmpresa.Sum(f => f.Requeridos);
+                return requeridos == 0 ? (int?)null : (int)Math.Round(alDia * 100.0 / requeridos);
+            });
     }
 }
