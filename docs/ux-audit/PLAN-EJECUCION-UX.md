@@ -74,8 +74,9 @@ próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plan
 > Centro/Trabajador — se adelantó a 0-E porque dependía de 0-D) · **Lote 0-E** = 0.6 + 0.7
 > (✅ hecho, N accesos de plataforma + copy de criterios de validación) · **Lote 0-G** = 0.9
 > (✅ hecho, selección múltiple oculta tras toggle + densidad de fila, transversal a las 9
-> listas con selección en lote) · **Lote 0-H** = 0.10 ("Ver" → "Detalles" universal + edición
-> inline) · **Lote 0-I** = 0.11 (migrar `/empresas` al patrón Centro 360). 0-D es prerequisito
+> listas con selección en lote) · **Lote 0-H** = 0.10 (✅ hecho, "Ver" → "Detalles" universal +
+> edición inline, Drawer de edición retirado en las 5 entidades) · **Lote 0-I** = 0.11 (migrar
+> `/empresas` al patrón Centro 360). 0-D es prerequisito
 > real de 0-F (el % necesita el universo correcto de documentos requeridos por centro) y
 > conviene que 0-G vaya antes que 0-I (Empresa hereda el patrón de fila ya resuelto por Centro
 > en vez de inventarlo dos veces). El plan original agrupaba 0.4+0.5 en el mismo lote asumiendo
@@ -418,7 +419,7 @@ Trabajadores, Subcontratas, Vehículos), no solo a Centro.
   `.tarjeta-fila-acordeon-cabecera` — el padding horizontal se deja igual, apretar los lados no
   gana filas.
 
-### (0.10) "Ver" → "Detalles" universal + edición inline — Lote 0-H (pendiente, después de 0-G)
+### (0.10) "Ver" → "Detalles" universal + edición inline — ✅ hecho (Lote 0-H)
 
 **Origen**: mismo mockup 2026-08-06. Aplica a **Empresa, Centro, Subcontrata, Trabajador y
 Vehículo** — todas las entidades con acciones "Ver"/"Editar" hoy (`Centros.razor:95-100`,
@@ -434,6 +435,28 @@ Vehículo** — todas las entidades con acciones "Ver"/"Editar" hoy (`Centros.ra
   desaparece del todo (queda solo para "Nuevo X") o si se conserva como alternativa. El
   propietario no lo especificó — preguntar antes de retirar el Drawer, es una superficie que
   varias fichas de la auditoría (04, 05-H1) ya dan por existente.
+- **Decisión tomada (2026-08-06, confirmada con el propietario)**: el Drawer de edición se
+  retira del todo — queda solo para "Nuevo X" (alta). Ningún camino alternativo a la edición in
+  situ.
+- **Estado**: hecho, 2026-08-06. Icono `editar` nuevo en `Icono.razor`. Las 5 entidades
+  (`Centros`, `Empresas`, `Subcontratas`, `Trabajadores`, `Vehiculos` — no Clientes, fuera de
+  alcance) llevan un icono de lápiz en la cabecera del Workspace, visible en la pestaña
+  "Información", que activa edición in situ con los mismos `Editar*Command` que usaba el Drawer
+  — versión optimista incluida (`_detalle.Version`, ya cargada por la pestaña, sin fetch
+  adicional al entrar en modo edición). DNI de Trabajador y Empleador de Trabajador/Vehículo
+  quedan en solo lectura: no forman parte de sus `Editar*Command` (identidad/vínculo fijado al
+  crear). **Empresa y Subcontrata conservan las credenciales de acceso a plataforma externa**
+  (antes solo visibles en el Drawer de "Editar", con su propio botón "Guardar credenciales") —
+  se trasladan al mismo panel de edición en vez de perderse, como una segunda sección
+  independiente con su propio guardado, igual que ya funcionaban. Los Drawers de las 5 listas
+  quedan solo-creación (título fijo "Nuevo X", sin rama `_editandoId`); en Empresa, la creación ya
+  no deja el Drawer abierto en "modo edición" para rellenar credenciales — se cierra igual que el
+  resto, las credenciales se rellenan después desde el Workspace. `FlujoCriticoTests` (E2E)
+  actualizado: ya no espera el título "Editar empresa" tras crear. Verificado en navegador con
+  datos de demo en las 5 entidades: "Detalles"/sin "Editar" en la lista, edición in situ guardada
+  y reflejada al volver a modo lectura, credenciales de Empresa persistidas tras recargar, DNI/
+  Empleador de Trabajador y Empleador de Vehículo confirmados de solo lectura, y el Drawer "Nuevo
+  X" con título fijo en las 5.
 
 ### (0.11) Migrar `/empresas` al patrón Centro 360 — Lote 0-I (pendiente, después de 0-H)
 

@@ -45,6 +45,18 @@
     flex-direction: column;
 }
 
+/*
+  Edición in situ de la pestaña "Información" (Centro 360 § 0.10) —
+  Guardar/Cancelar bajo los campos editables, mismo alineado a la derecha
+  que el pie de un Drawer.
+*/
+.workspace-acciones-edicion {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
 .workspace-metrica-inline {
     font: var(--font-body-sm);
     color: var(--color-text-muted);
