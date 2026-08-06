@@ -72,8 +72,8 @@ próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plan
 > `TipoDocumento`/`TipoDocumentoCentro`, retira `RequisitoDocumental` — redacción reajustada
 > 2026-08-06) · **Lote 0-E** = 0.6 + 0.7 (N accesos de plataforma + copy de criterios de
 > validación) · **Lote 0-F** = 0.8 (badge circular de % de cumplimiento, Empresa/Centro/
-> Trabajador) · **Lote 0-G** = 0.9 (selección múltiple oculta tras toggle + densidad de fila,
-> transversal a todas las listas) · **Lote 0-H** = 0.10 ("Ver" → "Detalles" universal + edición
+> Trabajador) · **Lote 0-G** = 0.9 (✅ hecho, selección múltiple oculta tras toggle + densidad de
+> fila, transversal a las 9 listas con selección en lote) · **Lote 0-H** = 0.10 ("Ver" → "Detalles" universal + edición
 > inline) · **Lote 0-I** = 0.11 (migrar `/empresas` al patrón Centro 360). 0-D es prerequisito
 > real de 0-F (el % necesita el universo correcto de documentos requeridos por centro) y
 > conviene que 0-G vaya antes que 0-I (Empresa hereda el patrón de fila ya resuelto por Centro
@@ -347,7 +347,7 @@ la representación.
   en navegador con datos de demo: los tres niveles (Centro 41%/peligro, Trabajador 50%/0%, Empresa
   41% agregado) muestran el color y el `stroke-dasharray` correctos.
 
-### (0.9) Selección múltiple oculta tras toggle + densidad de fila — transversal — Lote 0-G (pendiente, después de 0-F)
+### (0.9) Selección múltiple oculta tras toggle + densidad de fila — transversal — ✅ hecho (Lote 0-G)
 
 **Origen**: mismo mockup 2026-08-06. Aplica a **todas** las listas con checkboxes hoy
 (`Centros.razor`, `Empresas.razor`, y el resto de listas con selección en lote — Clientes,
@@ -370,6 +370,20 @@ Trabajadores, Subcontratas, Vehículos), no solo a Centro.
   aparte tocaría el mismo archivo dos veces sin necesidad.
 - Actualizar `UX_PATTERNS.md` con el patrón "selección múltiple tras toggle" — se reutilizará en
   cualquier lista nueva a partir de ahora.
+- **Estado**: hecho, 2026-08-06. `BarraHerramientasLista.razor` (Design System) es la pieza
+  compartida por las **9** listas con selección en lote — el plan nombraba 6, son 9: además de
+  Centros/Empresas/Clientes/Trabajadores/Subcontratas/Vehículos, también Documentos, Incidencias
+  y Visitas. **Hallazgo de alcance**: solo `/centros` tiene hoy filas-acordeón; las otras 8 son
+  `QuickGrid`, así que el toggle de selección múltiple es transversal a las 9 pero el chevron en
+  la posición del checkbox y el "Expandir/Colapsar todos" solo aplican a Centros (y a Empresas
+  tras 0-I). Apagar el toggle limpia la selección, para no dejar `BarraAccionesLote` apuntando a
+  filas invisibles. La expansión pasa de vivir dentro de cada `SeccionColapsable` (estado
+  interno, inalcanzable desde fuera) a un `HashSet` de la página: era la única forma de que
+  "Expandir todos" pudiera existir. El acordeón sigue montando su contenido solo al expandirse,
+  como antes. Densidad: `TamanoBadge.Pequeno` nuevo en `Badge` (solo métrica, el color del
+  semáforo no se toca) replicado en `.badge-visita`, más padding vertical y gap reducidos en
+  `.tarjeta-fila-acordeon-cabecera` — el padding horizontal se deja igual, apretar los lados no
+  gana filas.
 
 ### (0.10) "Ver" → "Detalles" universal + edición inline — Lote 0-H (pendiente, después de 0-G)
 
