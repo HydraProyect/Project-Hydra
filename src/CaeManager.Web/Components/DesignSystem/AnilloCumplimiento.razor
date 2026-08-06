@@ -1,0 +1,47 @@
+@*
+    Badge circular de % de cumplimiento documental (Centro 360, PLAN-EJECUCION-UX.md
+    § 0.8) — SVG inline, sin dependencias externas (Design System, ver
+    "Progress" en DESIGN_SYSTEM.md). Oculto cuando Porcentaje es null: "sin
+    requisitos" no es un 0%, mismo criterio que el resto de Centro 360.
+*@
+@if (Porcentaje is { } porcentaje)
+{
+    <svg class="anillo-cumplimiento anillo-cumplimiento-@Tamano.ToString().ToLowerInvariant() anillo-cumplimiento-@ObtenerTono(porcentaje).ToString().ToLowerInvariant()"
+         viewBox="0 0 36 36" role="img" aria-label="@(Etiqueta ?? $"{porcentaje}% de cumplimiento")">
+        <title>@(Etiqueta ?? $"{porcentaje}% de cumplimiento")</title>
+        <circle class="anillo-cumplimiento-pista" cx="18" cy="18" r="@Radio" />
+        <circle class="anillo-cumplimiento-progreso" cx="18" cy="18" r="@Radio"
+                stroke-dasharray="@FormatearTrazo(porcentaje)" />
+        <text x="18" y="18" class="anillo-cumplimiento-texto">@porcentaje</text>
+    </svg>
+}
+
+@code {
+    private const double Radio = 15.5;
+    private static readonly double Circunferencia = 2 * Math.PI * Radio;
+
+    [Parameter] public int? Porcentaje { get; set; }
+    [Parameter] public TamanoAnillo Tamano { get; set; } = TamanoAnillo.Medio;
+
+    /// <summary>Texto del tooltip/aria-label — por defecto "N% de cumplimiento"; pasar algo más específico (ej. "72% de cumplimiento de Empresa acumulado en 4 centros") cuando el contexto lo pida.</summary>
+    [Parameter] public string? Etiqueta { get; set; }
+
+    /// <summary>
+    /// Umbrales propios del anillo (100% = Exito, ≥50% = Advertencia, resto
+    /// Peligro) — no reutiliza EstadoCentroUi/EstadoDocumentoUi a propósito:
+    /// esos traducen el peor caso documental, esto traduce una fracción, son
+    /// preguntas distintas aunque compartan paleta.
+    /// </summary>
+    private static TonoBadge ObtenerTono(int porcentaje) => porcentaje switch
+    {
+        100 => TonoBadge.Exito,
+        >= 50 => TonoBadge.Advertencia,
+        _ => TonoBadge.Peligro
+    };
+
+    private static string FormatearTrazo(int porcentaje)
+    {
+        var progreso = Circunferencia * Math.Clamp(porcentaje, 0, 100) / 100.0;
+        return $"{progreso.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)} {Circunferencia.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}";
+    }
+}

@@ -1,0 +1,61 @@
+.anillo-cumplimiento {
+    flex-shrink: 0;
+    display: block;
+}
+
+.anillo-cumplimiento-pequeno {
+    width: 24px;
+    height: 24px;
+}
+
+.anillo-cumplimiento-medio {
+    width: 32px;
+    height: 32px;
+}
+
+.anillo-cumplimiento-pista {
+    fill: none;
+    stroke: var(--color-neutral-300);
+    stroke-width: 3;
+}
+
+.anillo-cumplimiento-progreso {
+    fill: none;
+    stroke-width: 3;
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: 18px 18px;
+    transition: stroke-dasharray 0.2s ease;
+}
+
+.anillo-cumplimiento-texto {
+    font: var(--font-label-md);
+    font-size: 10px;
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: central;
+    fill: currentColor;
+}
+
+.anillo-cumplimiento-pequeno .anillo-cumplimiento-texto {
+    font-size: 11px;
+}
+
+/* *-700, no *-500 — mismo motivo que Badge.razor.css: contraste AA sobre fondo claro. */
+.anillo-cumplimiento-exito .anillo-cumplimiento-progreso,
+.anillo-cumplimiento-exito .anillo-cumplimiento-texto {
+    stroke: var(--color-success-700);
+    color: var(--color-success-700);
+}
+
+.anillo-cumplimiento-advertencia .anillo-cumplimiento-progreso,
+.anillo-cumplimiento-advertencia .anillo-cumplimiento-texto {
+    stroke: var(--color-warning-700);
+    color: var(--color-warning-700);
+}
+
+.anillo-cumplimiento-peligro .anillo-cumplimiento-progreso,
+.anillo-cumplimiento-peligro .anillo-cumplimiento-texto {
+    stroke: var(--color-danger-700);
+    color: var(--color-danger-700);
+}

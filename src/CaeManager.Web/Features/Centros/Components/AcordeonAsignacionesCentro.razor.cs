@@ -141,6 +141,10 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     private static int DocumentosAlDia(TrabajadorAsignacionDocumentacionDto trabajador) =>
         trabajador.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
 
+    /// <summary>Badge circular junto al "7/9" (PLAN-EJECUCION-UX.md § 0.8) — misma fracción, solo cambia la representación.</summary>
+    private static int PorcentajeCumplimiento(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        (int)Math.Round(DocumentosAlDia(trabajador) * 100.0 / trabajador.Documentos.Count);
+
     private void AlternarSeleccion(Guid asignacionId, bool marcado)
     {
         if (marcado) _seleccionados.Add(asignacionId);
