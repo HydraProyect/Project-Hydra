@@ -66,6 +66,13 @@
                             {
                                 <a href="/auditoria/@registro.Id/archivo-anterior" target="_blank">Ver archivo anterior</a>
                             }
+                            else if (PuedeRestaurar(registro))
+                            {
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                       Cargando="EstaRestaurando(registro)" OnClick="() => RestaurarAsync(registro)">
+                                    Restaurar
+                                </Boton>
+                            }
                         </td>
                     </tr>
                 }
