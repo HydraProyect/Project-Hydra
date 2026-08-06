@@ -22,6 +22,10 @@ Lo que **no** prueba: que el contenido sea cierto, que el documento sea del tipo
 
 **Casos reales del CAE que sí llegan firmados**: certificado de estar al corriente con la TGSS y con la AEAT, ITA, RNT/RLC descargados de la Seguridad Social, certificados de formación de servicios de prevención ajenos, aptos médicos de algunos SPA. Son PDFs con sello de órgano o certificado de representante.
 
+**Consecuencia adicional para la extracción**: los PDFs de la Administración con firma válida llevan capa de texto digital. Para esos, la extracción no necesita OCR ni LLM — `PdfSharpExtractorTextoDigitalService` (ya existe) la saca determinista y gratis. La firma válida garantiza que *el documento* no cambió desde que se selló; nunca convierte en "verdad absoluta" una extracción hecha por IA — pero sí permite sustituirla por lectura directa del texto en los tipos que lo tienen.
+
+**Segundo mecanismo de autenticidad, distinto de la firma: CSV/CEA.** Los documentos de la Seguridad Social llevan además un Código Electrónico de Autenticidad (CEA) — y los de otras Administraciones, un CSV — verificable contra el servicio del organismo emisor (SVID en el caso de la TGSS, huella de RNT/RLC en su trámite propio). Es complementario a la firma, no redundante: prueba que *el organismo emitió* ese documento, no solo que no se ha modificado. Queda fuera de este plan como fase comprometida (ver § 7): la vía seria son los servicios web para autorizados RED con sello electrónico de empresa (trámite administrativo, no código), y el scraping de la sede es frágil y de encaje legal dudoso como proceso masivo.
+
 **Invariante propuesta**: el resultado de la verificación **nunca aprueba ni rechaza un Documento por sí solo**. Deja constancia, igual que `RevisionIaDocumento` (ver su comentario de clase: "nunca corrige nada por sí sola"). Un Gestor CAE decide.
 
 **Y el resultado es una terna, no un booleano.** La mayoría de los documentos del CAE son escaneos o fotos sin ninguna firma digital, y eso no los hace inválidos:
@@ -29,6 +33,18 @@ Lo que **no** prueba: que el contenido sea cierto, que el documento sea del tipo
 - `SinFirma` — no hay diccionario de firma. Estado normal, sin aviso.
 - `Valida` — firma presente, íntegra y (según fase) de confianza.
 - `Invalida` — hay firma pero no cuadra: documento alterado tras firmar, certificado caducado en el momento de firmar, revocado, o cadena no confiable. **Esto sí es un aviso fuerte**: es el único caso en que la plataforma puede afirmar que alguien manipuló un documento.
+
+**Y sobre la terna, un nivel de confianza documental** que resume cuánto puede fiarse un Gestor CAE (o una regla automática) de lo que dice el documento — niveles discretos con nombre, no un score numérico inventado:
+
+| Nivel | Condición |
+|---|---|
+| `VerificadoOficialmente` | Firma válida **y** CSV/CEA contrastado con el organismo emisor (futuro, ver § 7) |
+| `FirmaValida` | Firma íntegra y cadena de confianza correcta — suficiente para afirmar "no manipulado desde la emisión" |
+| `FirmaValidaSinRevocacion` | Íntegra, pero la revocación no se pudo comprobar (degradación de § 4) |
+| `SoloLectura` | Sin firma; los datos salen de la extracción IA/OCR, con su confianza propia (`RevisionIaDocumento.ConfianzaGeneral`) |
+| `Manipulado` | Firma inválida — el único nivel que acusa |
+
+Este nivel es lo que permite, tipo a tipo, decidir cuánta revisión humana hace falta (ver decisión § 6.1): el valor de negocio real está en que la documentación mensual recurrente (RNT, RLC, corriente TGSS/AEAT) — firmada siempre y con texto digital — pueda validarse de punta a punta sin que nadie la mire.
 
 ---
 
@@ -74,6 +90,8 @@ Coste de licencia: 0 €. Coste por volumen: 0 €. Sin datos saliendo a tercero
 **Lo que hay que construir a mano** es la parte de "¿este certificado es *cualificado* según la lista de confianza europea?" — parsear el LOTL (`https://ec.europa.eu/tools/lotl/eu-lotl.xml`) y la TSL española. Pero eso es un **job semanal**, no un coste por documento: se amortiza entre todos los tenants y no aparece en la latencia de nada.
 
 **El único riesgo técnico abierto** es si PDFsharp expone el diccionario de firma en lectura o solo en escritura. Es lo primero que hay que despejar (§ 5, fase 1). Alternativa si no: `BouncyCastle.Cryptography` (MIT) o un lector mínimo del trailer — 200 líneas, el `/ByteRange` es un array de 4 enteros en una estructura muy acotada.
+
+> **Nota de licencia — iText no.** La recomendación habitual en tutoriales de C# (`SignatureUtil`/`PdfPKCS7` de iText 7/8) está descartada aquí: iText es **AGPL** — en un SaaS comercial cerrado obliga a licencia de pago o a liberar el código de la plataforma. Misma advertencia para cualquier NuGet "gratis" que se evalúe: comprobar licencia antes que API.
 
 ### Opción C — pyHanko (Python), como servicio aparte
 
@@ -156,8 +174,21 @@ Sello en el detalle del Documento, filtro en el listado, y **quitar `TieneFirma`
 
 ## 6. Decisiones pendientes del usuario
 
-1. **¿Un documento con firma inválida puede aprobarse igualmente?** Propuesta: sí, con aviso visible — coherente con el criterio ya establecido de que el análisis automático nunca decide solo. Pero es decisión de negocio, no técnica.
+1. **¿Cuánta autonomía se le da al nivel de confianza?** Dos extremos de la misma decisión de negocio:
+   - Por abajo: ¿un documento `Manipulado` puede aprobarse igualmente? Propuesta: sí, con aviso visible — coherente con "el análisis automático nunca decide solo".
+   - Por arriba: ¿un documento `FirmaValida` de un tipo mensual recurrente (RNT, RLC, corriente) puede **validarse solo, sin revisión humana**? Ahí está el corte real de trabajo mensual que persigue el producto. Propuesta: opt-in por `TipoDocumento` (flag junto a `VerificacionIaActiva`), nunca global — y es una excepción consciente a la invariante de § 1, así que la decide el usuario, no este plan.
 
 2. **RGPD — requiere confirmación antes de implementar.** El certificado de firma contiene datos personales del firmante (nombre, NIF). Guardarlos en `FirmaDigitalDocumento` es un **tratamiento nuevo**: hay que reflejarlo en `RGPD-TRATAMIENTO-DATOS.md` y encajarlo en el ciclo de retención. `CLAUDE.md` prohíbe expresamente implementar cumplimiento normativo sin confirmarlo antes.
 
 3. **Flujo de red nuevo (no subencargado).** OCSP/CRL sale a internet hacia el emisor del certificado. **No se envía el documento** — solo el número de serie del certificado. No genera subencargado, a diferencia de la opción D, pero conviene dejarlo declarado.
+
+---
+
+## 7. Fuera de este plan: verificación CSV/CEA contra el organismo emisor
+
+La firma prueba integridad; el CSV/CEA prueba **emisión** — que el organismo tiene ese documento en sus servidores. Es el escalón que sube de `FirmaValida` a `VerificadoOficialmente`, y no se compromete aquí porque el bloqueo no es técnico:
+
+- **Vía seria**: servicios web de la TGSS para autorizados RED (SVID para CEA, trámite de huella para RNT/RLC), autenticados con sello electrónico de empresa (mTLS). Requiere un trámite administrativo previo — solicitar la autorización — que es decisión y gestión del usuario, no código. Cuando exista la autorización, encaja como conector de `ARQUITECTURA-INTEGRACIONES.md` (capacidad `VerificacionDocumental`), con su circuito de credenciales por tenant.
+- **Vía scraping de la sede electrónica** (Playwright contra el SVID): descartada como mecanismo de producto — frágil ante cualquier cambio de la web, expuesta a CAPTCHA, y de encaje legal dudoso como proceso automatizado masivo contra una sede pública. Además el cotejo "byte a byte" contra el PDF re-descargado no es fiable: el organismo puede regenerar el PDF con metadatos distintos y el binario no coincide aunque el contenido sí.
+
+Mientras tanto, el plan de § 5 ya extrae el CEA/CSV como texto (está en la capa digital del PDF) y lo **guarda** — de modo que cuando llegue la autorización RED, lo verificable esté ya almacenado y la verificación oficial sea un job que recorre lo pendiente, no una migración.
