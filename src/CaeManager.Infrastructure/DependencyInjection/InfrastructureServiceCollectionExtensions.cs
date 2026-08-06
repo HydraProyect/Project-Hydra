@@ -35,6 +35,7 @@ using CaeManager.Infrastructure.Conversion;
 using CaeManager.Infrastructure.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using CaeManager.Infrastructure.DocumentosIa;
+using CaeManager.Infrastructure.Firmas;
 using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.Identity;
@@ -280,6 +281,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IClasificadorDocumentoService, PdfSharpClasificadorDocumentoService>();
         services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
         services.AddSingleton<IRasterizadorPaginasPdfService, PdfToPngRasterizadorPaginasPdfService>();
+        services.AddSingleton(AlmacenConfianzaFirmas.AdministracionEspanola());
+        services.AddSingleton<IVerificadorFirmaPdfService, VerificadorFirmaPdfService>();
         services.AddScoped<INotificacionUsuarioRepository, NotificacionUsuarioRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
         services.AddScoped<IAsignacionRepository, AsignacionRepository>();
