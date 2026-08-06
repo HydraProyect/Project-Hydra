@@ -7,13 +7,13 @@ namespace CaeManager.Application.Alertas;
 
 /// <summary>
 /// Un Trabajador con Asignación (real o hipotética) a un Centro que exige
-/// (vía <c>TipoDocumentoCentro</c>, o globalmente si el tipo no tiene
-/// ninguna fila ahí) un <c>TipoDocumento</c> obligatorio, sin ningún
-/// <c>Documento</c> de ese tipo. Extraído de <c>ObtenerAlertasQuery</c>
-/// (P1-15 de docs/business/MATURITY_REVIEW.md) para que el mismo cálculo
-/// sirva tanto para "qué le falta a quien ya está asignado" (Alertas) como
-/// para "qué le faltaría a quien estoy a punto de asignar" (preflight de
-/// asignación en lote, Fase B) — misma regla de negocio, dos preguntas.
+/// (ver <see cref="Documentos.ResolucionTipoDocumentoCentro"/>) un
+/// <c>TipoDocumento</c>, sin ningún <c>Documento</c> de ese tipo. Extraído de
+/// <c>ObtenerAlertasQuery</c> (P1-15 de docs/business/MATURITY_REVIEW.md)
+/// para que el mismo cálculo sirva tanto para "qué le falta a quien ya está
+/// asignado" (Alertas) como para "qué le faltaría a quien estoy a punto de
+/// asignar" (preflight de asignación en lote, Fase B) — misma regla de
+/// negocio, dos preguntas.
 /// </summary>
 public record ParejaTrabajadorCentro(Guid TrabajadorId, string TrabajadorNombre, Guid CentroId, string CentroNombre);
 
@@ -35,31 +35,28 @@ public class DocumentosFaltantesService(ITiposDocumentoQueryContext tiposDocumen
         if (parejas.Count == 0)
             return [];
 
-        var tiposObligatorios = await tiposDocumentoContext.TiposDocumento
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && t.EsObligatorio)
-            .Select(t => new { t.Id, t.Nombre })
+        var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
+            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
+            .Select(t => new { t.Id, t.Nombre, t.EsObligatorio })
             .ToListAsync(cancellationToken);
 
-        if (tiposObligatorios.Count == 0)
+        if (tiposCandidatos.Count == 0)
             return [];
 
-        var tipoIdsObligatorios = tiposObligatorios.Select(t => t.Id).ToHashSet();
+        var tipoIdsCandidatos = tiposCandidatos.Select(t => t.Id).ToHashSet();
+        var centroIds = parejas.Select(p => p.CentroId).Distinct().ToList();
 
-        // Centros a los que restringe cada tipo. Un tipo sin ninguna fila
-        // aquí aplica a todos los Centros (ver comentario de TipoDocumentoCentro).
-        var restriccionesPorTipo = (await tiposDocumentoContext.TiposDocumentoCentros
-            .Where(tc => tipoIdsObligatorios.Contains(tc.TipoDocumentoId))
-            .Select(tc => new { tc.TipoDocumentoId, tc.CentroId })
+        var filasPorPar = (await tiposDocumentoContext.TiposDocumentoCentros
+            .Where(tc => tipoIdsCandidatos.Contains(tc.TipoDocumentoId) && centroIds.Contains(tc.CentroId))
             .ToListAsync(cancellationToken))
-            .GroupBy(tc => tc.TipoDocumentoId)
-            .ToDictionary(g => g.Key, g => g.Select(tc => tc.CentroId).ToHashSet());
+            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
         var trabajadorIds = parejas.Select(p => p.TrabajadorId).Distinct().ToList();
 
         var documentosExistentes = await documentosContext.Documentos
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
-                && tipoIdsObligatorios.Contains(d.TipoDocumentoId))
+                && tipoIdsCandidatos.Contains(d.TipoDocumentoId))
             .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId })
             .ToListAsync(cancellationToken);
 
@@ -69,10 +66,9 @@ public class DocumentosFaltantesService(ITiposDocumentoQueryContext tiposDocumen
 
         foreach (var pareja in parejas)
         {
-            foreach (var tipo in tiposObligatorios)
+            foreach (var tipo in tiposCandidatos)
             {
-                if (restriccionesPorTipo.TryGetValue(tipo.Id, out var centrosPermitidos)
-                    && !centrosPermitidos.Contains(pareja.CentroId))
+                if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, pareja.CentroId, tipo.EsObligatorio))
                     continue;
 
                 if (parejasConDocumento.Contains((pareja.TrabajadorId, tipo.Id)))

@@ -60,24 +60,29 @@ próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plan
 `/asignaciones`, que desaparece como página independiente.
 
 > **Secuenciación en lotes (añadido en la sesión de implementación de 0.1/0.2; reajustado en la
-> de 0.5)**: los 7 sub-ítems no caben en un único PR sin mezclar refactors independientes (regla
+> de 0.5 y de nuevo tras la sesión de mockup de Empresa/Centro del 2026-08-06)**: los 11
+> sub-ítems no caben en un único PR sin mezclar refactors independientes (regla
 > del propio "Modo de trabajo" de este documento) — 0.5 retira una entidad completa con
 > migración, 0.6 construye desde cero la capa de Application para `CanalGestionDocumental` (hoy
 > solo existe el modelo de dominio) y cambia su cardinalidad, y 0.4 decide una semántica de
 > modelo nueva para `TipoDocumentoCentro`. Se ejecuta en lotes ordenados, cada uno su propia
 > rama/PR, merge en verde antes del siguiente: **Lote 0-A** = 0.1 + 0.2 (✅ hecho) · **Lote 0-B**
 > = 0.3 (✅ hecho, visita) · **Lote 0-C** = 0.5 (✅ hecho, retirada de Evaluaciones + % de
-> cumplimiento) · **Lote 0-D** = 0.4 (requisitos configurables incluir/excluir) · **Lote 0-E** =
-> 0.6 + 0.7 (N accesos de plataforma + copy de criterios de validación). El plan original
-> agrupaba 0.4+0.5
-> en el mismo lote asumiendo que 0.5 dependía del modelo que decide 0.4 — al implementar se
-> confirmó que el acoplamiento es más débil de lo previsto: el % de cumplimiento (0.5) puede
-> calcularse con la semántica actual de `TipoDocumentoCentro` (solo restricción/allow-list) y
-> recogerá automáticamente la exclusión el día que 0.4 la añada, sin tener que tocar el cálculo
-> de nuevo. Separarlos reduce el riesgo de cada PR (0.5 ya toca una entidad completa con
-> migración + un servicio compartido crítico; sumarle además una decisión de semántica de
-> modelo en el mismo cambio era exactamente el tipo de mezcla que el "Modo de trabajo" pide
-> evitar).
+> cumplimiento) · **Lote 0-D** = 0.4 (documentación requerida del centro, ahora sobre
+> `TipoDocumento`/`TipoDocumentoCentro`, retira `RequisitoDocumental` — redacción reajustada
+> 2026-08-06) · **Lote 0-E** = 0.6 + 0.7 (N accesos de plataforma + copy de criterios de
+> validación) · **Lote 0-F** = 0.8 (badge circular de % de cumplimiento, Empresa/Centro/
+> Trabajador) · **Lote 0-G** = 0.9 (selección múltiple oculta tras toggle + densidad de fila,
+> transversal a todas las listas) · **Lote 0-H** = 0.10 ("Ver" → "Detalles" universal + edición
+> inline) · **Lote 0-I** = 0.11 (migrar `/empresas` al patrón Centro 360). 0-D es prerequisito
+> real de 0-F (el % necesita el universo correcto de documentos requeridos por centro) y
+> conviene que 0-G vaya antes que 0-I (Empresa hereda el patrón de fila ya resuelto por Centro
+> en vez de inventarlo dos veces). El plan original agrupaba 0.4+0.5 en el mismo lote asumiendo
+> que 0.5 dependía del modelo que decide 0.4 — al implementar se confirmó que el acoplamiento es
+> más débil de lo previsto: el % de cumplimiento (0.5) pudo calcularse con la semántica actual de
+> `TipoDocumentoCentro` (solo restricción/allow-list) sin esperar a 0.4. Separarlos redujo el
+> riesgo de cada PR — mismo criterio aplicado ahora a 0.8/0.9/0.10/0.11, que son independientes
+> entre sí y salen de la misma sesión de mockup (2026-08-06) pero no deben mezclarse en un PR.
 
 ### (0.1) Acordeón de asignaciones dentro de `/centros` — ✅ hecho (Lote 0-A)
 
@@ -153,7 +158,16 @@ próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plan
   query y es correcto por inspección, pero queda pendiente una verificación visual con datos
   reales donde sí exista el hueco.
 
-### (0.4) Documentación requerida del Centro — configurable en ambos sentidos — Lote 0-D (pendiente, después de 0-C)
+### (0.4) Documentación requerida del Centro — configurable en ambos sentidos — ✅ hecho (Lote 0-D)
+
+**Redacción reajustada 2026-08-06** (sesión de mockup Empresa/Centro): se decidió **retirar
+`RequisitoDocumental`** en vez de mantenerlo en paralelo como preveía la redacción anterior de
+este punto (texto libre "sigue viva para lo verdaderamente ad-hoc"). Motivo del propietario: el
+texto libre no permite que un documento de Requisitos del Centro aparezca automáticamente en la
+lista de documentos del Trabajador ni dispare su estado "Pendiente de Subir" — solo un
+`TipoDocumento` real, con `AmbitoAplicacion`, puede alimentar ese cruce. Mantener las dos tablas
+en paralelo (una estructurada, una de texto libre, ambas modelando "qué exige este centro") es
+la duplicación que el comentario original de `RequisitoDocumental.cs:5-19` ya advertía.
 
 **Hallazgo de modelo real** (no solo diseño de pantalla): hoy `TipoDocumentoCentro` es una
 lista de permiso (*allow-list*) — un `TipoDocumento` sin ninguna fila ahí aplica a **todos**
@@ -165,16 +179,78 @@ restricción a todos los demás centros del tenant, impracticable. Y el caso rea
 el propietario existe: plataformas Inbound que solo piden EPIS + Apto médico, sin el resto del
 paquete estándar (Art. 18/19, etc.).
 
-- Añadir a la gestión de requisitos del Centro una vista **"Documentación requerida en este
-  centro"**: lista de los `TipoDocumento` obligatorios (heredados del catálogo del tenant) con
-  un toggle por tipo — **incluido / excluido para este centro** — más el alta de adicionales ya
-  existente (`RequisitoDocumental`, texto libre, sigue viva para lo verdaderamente ad-hoc).
+- **`TipoDocumentoCentro` gana dos campos**: `PeriodicidadEspecial` (int? meses — override de la
+  periodicidad de renovación del `TipoDocumento` solo para ese centro; `null` = no vence, igual
+  semántica que hoy tiene `RequisitoDocumental.PeriodicidadEspecial`) y `BloqueaAcceso` (bool —
+  sustituye la causa `Bloqueante` que hoy aporta `RequisitoDocumental` a
+  `CalculoEstadoCentroService.AgregarCausasDeRequisitosBloqueantesAsync`). El adjunto de
+  plantilla en blanco (Word/PDF, `ArchivoUrl`/`NombreArchivoOriginal` de `RequisitoDocumental`)
+  se traslada igual a `TipoDocumentoCentro` — sigue siendo la plantilla a rellenar, no un
+  justificante con caducidad, mismo criterio que ya documentaba `RequisitoDocumental.cs:12-19`.
+- **Vista "Documentación requerida en este centro"** (sustituye a la pestaña "Requisitos del
+  Centro" tal cual existe hoy en `CentroWorkspacePanel.razor`): selector de `TipoDocumento`
+  existentes del catálogo del tenant (filtrado por `AmbitoAplicacion` Trabajador/Empresa — el
+  propietario pide explícitamente que se muestren también los de Empresa, no solo Trabajador),
+  con toggle **incluido/excluido para este centro**, más los dos campos nuevos por fila. Ya no
+  hay "añadir requisito con descripción libre" — solo elegir de la lista de `TipoDocumento`, o
+  crear un `TipoDocumento` nuevo desde el propio selector si no existe (mismo patrón
+  `PermiteCrear`/`OnCrearSolicitado` que ya usa `SelectorEntidad` en otras pantallas).
   Requiere una tabla de exclusión explícita por centro (o invertir la semántica de
   `TipoDocumentoCentro` a "incluye/excluye" en vez de solo "restringe") — decisión de modelo a
   tomar en la sesión de implementación, con test que cubra ambos sentidos.
-- Este es también el prerequisito real para el % de cumplimiento del punto (0.5): sin poder
-  decir "este centro solo exige 2 tipos", el % estaría contando de más para los centros que
-  piden menos.
+- **Catálogo mínimo por defecto**: todo Centro nuevo recibe automáticamente 4 filas de
+  `TipoDocumentoCentro` (incluido) al crearse, para los `TipoDocumento` "Reconocimiento médico
+  (Apto)", "Entrega de EPIs", "Formación sobre riesgos en el puesto de trabajo (Artículo 19)" e
+  "Información de riesgos en el puesto de trabajo (Artículo 18)" — creando esos `TipoDocumento`
+  en el seed/migración si no existen ya en el catálogo del tenant (verificar contra
+  `TipoDocumentoSeedData.cs`: "Apto médico laboral" ya existe con ese nombre, puede que solo
+  falten los otros tres). Se hace en el mismo Command que crea el Centro (`CrearCentroCommand`),
+  no como paso manual aparte.
+- **Auto-población en la lista de documentos del Trabajador**: cuando un Trabajador tiene
+  asignación activa en un Centro, sus documentos requeridos por ese Centro (vía
+  `TipoDocumentoCentro`, ya es lo que hace hoy el tercer nivel del acordeón, 0.2) deben aparecer
+  aunque el Trabajador no tenga ningún `Documento` de ese `TipoDocumento` todavía — hoy si no hay
+  `Documento` real, la fila simplemente no aparece. Estado nuevo **"Pendiente de Subir"** (gris,
+  distinto de "Faltante") para esas filas sin `Documento`. Definir si es una fila puramente de
+  UI (no crea un `Documento` en BD hasta que se suba algo) o si genera un `Documento` placeholder
+  — la primera opción es la que respeta mejor "no validar/crear lo que no existe todavía" del
+  propio `CLAUDE.md`, y es coherente con cómo `ObtenerAlertasQuery` ya trata los huecos
+  obligatorios como cálculo derivado, no como fila persistida.
+- Este es también el prerequisito real para el % de cumplimiento circular del punto (0.8): sin
+  poder decir "este centro solo exige 2 tipos", el % estaría contando de más para los centros
+  que piden menos.
+- **Migración de datos**: los `RequisitoDocumental` que existan hoy en producción (probablemente
+  pocos o ninguno, verificar antes de escribir la migración) se migran a `TipoDocumentoCentro`
+  creando el `TipoDocumento` correspondiente si su `Descripcion` no matchea ninguno existente;
+  los que tengan adjunto de plantilla lo conservan. Tabla `RequisitosDocumentales` se retira con
+  `DropTable` reversible, mismo patrón que la migración `RetirarEvaluaciones` del Lote 0-C.
+
+- **Estado**: hecho, 2026-08-06. Decisión de modelo tomada durante la implementación (resuelve la
+  pregunta abierta arriba): `TipoDocumentoCentro` gana `Incluido` (bool) — fila explícita para el
+  par (Tipo, Centro) manda; sin fila, sigue `TipoDocumento.EsObligatorio` — en vez de la semántica
+  antigua "cualquier fila restringe el tipo a solo esos centros en todo el tenant", que no
+  permitía excluir un único centro. Consolidada en `ResolucionTipoDocumentoCentro` (Application)
+  y aplicada en los 8 sitios que antes duplicaban la lógica de allow-list (`CalculoEstadoCentroService`
+  ×2, `ObtenerAsignacionesDocumentacionPorCentroQuery`, `ObtenerDocumentacionVisitaQuery`,
+  `IDocumentosFaltantesService`, `ObtenerFormatosRequeridosCentroQuery`, `ObtenerTiposDocumentoQuery`,
+  `ObtenerTipoDocumentoPorIdQuery`). `RequisitoDocumental` retirado íntegro (dominio, Application,
+  Infrastructure, endpoint de plantilla reapuntado a `TipoDocumentoCentro`); migración
+  `RetirarRequisitoDocumental` traslada filas existentes antes del `DropTable` (creando el
+  `TipoDocumento` que falte por `Descripcion`, sin trasladar `PeriodicidadEspecial` textual ni
+  `Cumplido` — ver comentario en la propia migración). `BloqueaAcceso` pasó de check manual a
+  nivel de Centro a detección automática por trabajador (mismo criterio que el resto de
+  `CalculoEstadoCentroService`): la Bandeja usa la nueva `ObtenerDocumentacionBloqueantePendienteQuery`
+  en vez de `ObtenerRequisitosDocumentalesPendientesQuery`. Catálogo mínimo por defecto
+  (`CrearCentroCommandHandler`) busca los 4 `TipoDocumento` por `Nombre` dentro del tenant, no por
+  Id fijo (los Id de `TipoDocumentoSeedData` son solo del catálogo semilla del tenant #1). UI de
+  Requisitos del Centro reescrita como selector sobre el catálogo (`CampoSelect` para la
+  periodicidad, con opciones predefinidas + personalizado + vacío = no vence). "Pendiente de
+  Subir" (gris) es una reinterpretación puramente de UI del mismo `EstadoDocumento.Faltante` que ya
+  generaba `ObtenerAsignacionesDocumentacionPorCentroQuery` — no hay entidad ni estado nuevo.
+  Verificado con los 3 suites de test (339+199+294, todas en verde) y en navegador con datos de
+  demo: alta/baja de Incluido, periodicidad y bloqueo desde el drawer, badge "Pendiente de Subir"
+  apareciendo para un trabajador sin el documento recién exigido, % de cumplimiento recalculando
+  correctamente tras el cambio.
 
 ### (0.5) % de cumplimiento — sustituye al módulo Evaluaciones — ✅ hecho (Lote 0-C)
 
@@ -237,6 +313,94 @@ origen Inbound. No requiere modelo nuevo, solo dos ganchos de flujo:
 - Este campo queda marcado como **fuente de referencia para la automatización de lectura IA**
   (`VerificacionIaDocumentoService`) — sin construir la integración ahora, pero documentando la
   intención en el propio código para que la sesión de IA que lo use no tenga que redescubrirla.
+
+### (0.8) Badge circular de % de cumplimiento — Empresa/Centro/Trabajador — Lote 0-F (pendiente, después de 0-D)
+
+**Origen**: sesión de mockup Empresa/Centro, 2026-08-06 (imagen de referencia adjunta por el
+propietario). Sustituye el % en texto plano que ya existe (`Centros.razor:81-86`,
+`CumplimientoPorcentaje`) y el "7/9" del acordeón de trabajador
+(`AcordeonAsignacionesCentro.razor:83-88`) por un componente visual — no cambia el cálculo, solo
+la representación.
+
+- **Componente nuevo del Design System**: anillo/círculo de progreso SVG inline, coherente con
+  el resto de iconografía del proyecto (`Icono.razor`, chevron de `SeccionColapsable`) — sin
+  añadir dependencias externas (decisión 2026-08-06: no se usa el paquete de iconos Flaticon
+  mencionado en el mockup original). Color del anillo según el mismo criterio de `Tono` que ya
+  usa `Badge` (verde/ámbar/rojo). Está listado como "Progress" en `DESIGN_SYSTEM.md` §
+  "Pendientes" — al construirlo, documentarlo ahí con su estructura fija (Do/Don't/accesibilidad).
+- **Tres niveles, cálculo acumulativo solo del padre que se consulta** (no global):
+  - **Trabajador dentro de un Centro**: ya existe como fracción (`DocumentosAlDia`/
+    `trabajador.Documentos.Count`), solo cambia a badge circular.
+  - **Centro**: ya existe (`CalcularCumplimientoAsync`), solo cambia a badge circular.
+  - **Empresa**: **cálculo nuevo** — agregado de todos los Centros donde la Empresa tiene
+    actividad real (mismo universo que ya usa `ObtenerCentrosConActividadDeEmpresaQuery` en
+    `EmpresaWorkspacePanel.razor`), sumando `AlDia`/`Requeridos` de `CalcularCumplimientoAsync`
+    para esos Centros. No es la media de los porcentajes de cada Centro (sesgaría a favor de
+    centros con pocos requisitos) — es la fracción total de pares Trabajador×TipoDocumento.
+- Mismo criterio ya establecido en 0.5: `null`/oculto cuando `Requeridos == 0`, nunca un 0%/100%
+  engañoso.
+
+### (0.9) Selección múltiple oculta tras toggle + densidad de fila — transversal — Lote 0-G (pendiente, después de 0-F)
+
+**Origen**: mismo mockup 2026-08-06. Aplica a **todas** las listas con checkboxes hoy
+(`Centros.razor`, `Empresas.razor`, y el resto de listas con selección en lote — Clientes,
+Trabajadores, Subcontratas, Vehículos), no solo a Centro.
+
+- Los checkboxes de fila (y el "Seleccionar todos" de cabecera) dejan de estar siempre visibles.
+  Un botón **"Selección múltiple"** junto a la barra de filtros los muestra/oculta.
+- **Mientras están ocultos**, en la posición donde hoy vive el checkbox (antes del nombre) va el
+  control de expandir/colapsar (`SeccionColapsable`) — contraído = flecha derecha, expandido =
+  flecha abajo. **Al activar selección múltiple**, el checkbox se añade a la izquierda de esa
+  misma flecha, sin desplazarla ni ocultarla — ambos controles conviven en la fila.
+- **Botón "Colapsar todos" / "Expandir todos"** junto al toggle de selección múltiple, para las
+  listas con acordeón (Centros; Empresas tras el Lote 0-I).
+- **Densidad de fila** (mismo mockup, segunda tanda de instrucciones): reducir altura vertical y
+  padding de `.tarjeta-fila-acordeon-cabecera`, tamaño de `Badge` y tamaño de los indicadores
+  tipo badge/chip ("bullets" — confirmado con el propietario: son los `Badge` de estado tipo
+  `badge-peligro`/`badge-visita`, no viñetas de lista) para priorizar más información por
+  pantalla. Se hace en el mismo lote porque toca el mismo componente/CSS compartido
+  (`tarjeta-fila-acordeon*` en `list-page.css`) que el resto de este punto — hacerlo en un PR
+  aparte tocaría el mismo archivo dos veces sin necesidad.
+- Actualizar `UX_PATTERNS.md` con el patrón "selección múltiple tras toggle" — se reutilizará en
+  cualquier lista nueva a partir de ahora.
+
+### (0.10) "Ver" → "Detalles" universal + edición inline — Lote 0-H (pendiente, después de 0-G)
+
+**Origen**: mismo mockup 2026-08-06. Aplica a **Empresa, Centro, Subcontrata, Trabajador y
+Vehículo** — todas las entidades con acciones "Ver"/"Editar" hoy (`Centros.razor:95-100`,
+`Empresas.razor:70-75`, y equivalentes en Clientes/Trabajadores/Vehículos).
+
+- El botón "Ver" se retira; el botón que abre el Context Workspace pasa a llamarse **"Detalles"**
+  (mismo destino: `WorkspaceService.AbrirAsync(...)`, pestaña "Información").
+- La pestaña "Información" de cada panel de Workspace (`CentroWorkspacePanel.razor`,
+  `EmpresaWorkspacePanel.razor`, etc.) gana un icono de edición junto al título de la pestaña —
+  al pulsarlo, los `CampoInfo` de esa pestaña pasan a ser campos editables in situ, con los
+  mismos Commands `Editar*` que hoy dispara el Drawer de "Editar".
+- **Decisión pendiente de la sesión de implementación**: si el Drawer de edición actual
+  desaparece del todo (queda solo para "Nuevo X") o si se conserva como alternativa. El
+  propietario no lo especificó — preguntar antes de retirar el Drawer, es una superficie que
+  varias fichas de la auditoría (04, 05-H1) ya dan por existente.
+
+### (0.11) Migrar `/empresas` al patrón Centro 360 — Lote 0-I (pendiente, después de 0-H)
+
+**Origen**: mismo mockup 2026-08-06. `Empresas.razor` hoy sigue en `QuickGrid` clásico (tabla,
+sin acordeón, sin badge de cumplimiento) — no tiene nada del rediseño que sí recibió `/centros`
+en los Lotes 0-A/0-B/0-C. Este lote lo alinea, reutilizando los componentes que 0-G y 0-F ya
+habrán construido (fila-tarjeta-acordeon, checkbox tras toggle, badge circular de %) en vez de
+reinventarlos para Empresa.
+
+- `Empresas.razor` pasa de `QuickGrid` a lista paginada en servidor con `SeccionColapsable` por
+  fila, mismo patrón que `Centros.razor` (`ObtenerCentrosQuery` → equivalente para
+  `ObtenerEmpresasQuery`, ya pagina en servidor, solo cambia el render).
+- **Único desplegable por fila de Empresa**: los Centros donde esa Empresa tiene actividad real
+  (mismo query que ya usa `EmpresaWorkspacePanel.razor` — `ObtenerCentrosConActividadDeEmpresaQuery`).
+  Al hacer click en un Centro del desplegable, navega a `/centros` **prefiltrado** por ese
+  Centro — requiere que `Centros.razor` soporte un filtro por Id vía query string (hoy el
+  filtro de Empresa en el Drawer de creación usa `_empresaId` interno, no hay prefiltro por URL
+  todavía; verificar/añadir soporte de `?centroId=` o similar en `Centros.razor.cs`).
+- Badge de % de cumplimiento de Empresa (0.8) junto al nombre, igual posición que en Centro.
+- Checkbox oculto tras "Selección múltiple" (0.9), misma cabecera transversal.
+- "Ver" → "Detalles" (0.10) ya heredado si 0-H se hizo antes.
 
 ## Parte 1 — Horizonte 1, quick wins (en orden salvo indicación del propietario)
 

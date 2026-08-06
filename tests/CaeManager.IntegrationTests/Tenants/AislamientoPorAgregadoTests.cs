@@ -15,7 +15,6 @@ using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
-using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
@@ -143,15 +142,6 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     [Fact]
     public Task Aislamiento_Empresa() => VerificarAislamientoAsync(
         () => new Empresa("Ibertec S.A."));
-
-    [Fact]
-    public Task Aislamiento_RequisitoDocumental()
-    {
-        Guid centroId = default;
-        return VerificarAislamientoAsync(
-            () => new RequisitoDocumental(centroId, "AEAT nominativo", null, bloqueaAcceso: false),
-            async contexto => centroId = await SembrarCentroAsync(contexto));
-    }
 
     [Fact]
     public Task Aislamiento_Subcontrata() => VerificarAislamientoAsync(
