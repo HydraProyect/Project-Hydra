@@ -1,8 +1,10 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
+using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Documentos;
@@ -10,20 +12,25 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Empresas.Pages;
 
 public partial class Empresas : ComponentBase
 {
-    private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
-    private QuickGrid<EmpresaListaDto>? _grid;
+    // QuickGrid no soporta filas expandibles (Centro 360, PLAN-EJECUCION-UX.md
+    // § 0.11 — migra /empresas al mismo patrón de Centros.razor § 0.1): cada
+    // Empresa es una tarjeta con acordeón de Centros con actividad, así que
+    // la paginación se gestiona a mano en vez de con QuickGrid+Paginator.
+    private const int TamanoPagina = 20;
 
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
+    private int _pagina = 1;
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPagina));
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<ElementoSeleccionable> _clientesDisponiblesSelector => _clientesDisponibles
@@ -60,6 +67,24 @@ public partial class Empresas : ComponentBase
         if (!activa)
             _seleccionados.Clear();
     }
+
+    /// <summary>
+    /// Qué filas tienen el acordeón de "Centros con actividad" abierto — la
+    /// expansión la lleva la página, no un estado interno por fila, para que
+    /// "Expandir/Colapsar todos" pueda decidirlo desde fuera (§ 0.9).
+    /// </summary>
+    private readonly HashSet<Guid> _expandidos = [];
+
+    /// <summary>
+    /// Carga perezosa por Empresa, al expandir — igual que
+    /// <c>AcordeonAsignacionesCentro</c> en Centros.razor: no tiene sentido
+    /// pagar N consultas de "Centros con actividad" (una por Empresa de la
+    /// página) si la mayoría de acordeones se quedan cerrados.
+    /// <c>null</c> = todavía no se ha pedido; lista vacía = ya se pidió y no
+    /// hay actividad.
+    /// </summary>
+    private readonly Dictionary<Guid, IReadOnlyList<CentroConActividadDto>?> _centrosPorEmpresa = new();
+
     private List<EmpresaListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
     private bool _eliminandoLote;
@@ -88,12 +113,11 @@ public partial class Empresas : ComponentBase
     /// </summary>
     [SupplyParameterFromQuery] public Guid? ClienteId { get; set; }
 
-    private GridItemsProvider<EmpresaListaDto>? _proveedorElementos;
-
     protected override async Task OnInitializedAsync()
     {
-        // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
-        _proveedorElementos = ProveerElementosAsync;
+        _busqueda = TerminoBusquedaInicial ?? string.Empty;
+        _estadoFiltro = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial) ? EstadoInicial! : string.Empty;
+        await CargarAsync();
 
         if (Accion == "crear")
         {
@@ -111,58 +135,46 @@ public partial class Empresas : ComponentBase
     /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
     /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
     /// </summary>
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
-        if (deLaUrl != _busqueda)
-            _busqueda = deLaUrl;
+        var estadoDeLaUrl = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial) ? EstadoInicial! : string.Empty;
 
-        var estadoDeLaUrl = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial)
-            ? EstadoInicial!
-            : string.Empty;
-        if (estadoDeLaUrl != _estadoFiltro)
-            _estadoFiltro = estadoDeLaUrl;
+        if (deLaUrl == _busqueda && estadoDeLaUrl == _estadoFiltro)
+            return;
+
+        _busqueda = deLaUrl;
+        _estadoFiltro = estadoDeLaUrl;
+        await CargarAsync(resetPagina: true);
     }
 
-    private async Task CambiarEstadoAsync(string valor)
+    private async Task CargarAsync(bool resetPagina = false)
     {
-        _estadoFiltro = valor;
-        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
-        await RecargarAsync();
-    }
+        if (resetPagina)
+            _pagina = 1;
 
-    private async ValueTask<GridItemsProviderResult<EmpresaListaDto>> ProveerElementosAsync(
-        GridItemsProviderRequest<EmpresaListaDto> request)
-    {
         _cargando = true;
         _errorCarga = false;
+        StateHasChanged();
 
         try
         {
-            var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
-            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
-
             var resultado = await Mediator.Send(new ObtenerEmpresasQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage,
-                OrdenarPor: ordenarPor,
-                Descendente: descendente,
+                Pagina: _pagina,
+                TamanoPagina: TamanoPagina,
                 EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
 
             _totalElementos = resultado.TotalElementos;
-
-            var elementos = resultado.Elementos.ToList();
-            _elementosPagina = elementos;
+            _elementosPagina = resultado.Elementos.ToList();
             _seleccionados.Clear();
+            _expandidos.Clear();
+            _centrosPorEmpresa.Clear();
             _idEnfocado = null;
-
-            return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
         catch (Exception)
         {
             _errorCarga = true;
-            return GridItemsProviderResult.From(new List<EmpresaListaDto>(), 0);
         }
         finally
         {
@@ -171,21 +183,24 @@ public partial class Empresas : ComponentBase
         }
     }
 
+    private Task CambiarPaginaAsync(int pagina)
+    {
+        _pagina = pagina;
+        return CargarAsync();
+    }
+
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
         NavigationManager.ActualizarFiltroEnUrl("q", valor);
-        await RecargarAsync();
+        await CargarAsync(resetPagina: true);
     }
 
-    private async Task RecargarAsync()
+    private async Task CambiarEstadoAsync(string valor)
     {
-        await _paginacion.SetCurrentPageIndexAsync(0);
-
-        if (_grid is not null)
-            await _grid.RefreshDataAsync();
-
-        StateHasChanged();
+        _estadoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
+        await CargarAsync(resetPagina: true);
     }
 
     private async Task AbrirCrear()
@@ -261,7 +276,7 @@ public partial class Empresas : ComponentBase
             }
 
             _drawerVisible = false;
-            await RecargarAsync();
+            await CargarAsync();
         }
         catch (ValidationException ex)
         {
@@ -306,7 +321,7 @@ public partial class Empresas : ComponentBase
                 var idEliminado = _idAEliminar;
                 ToastService.Mostrar("Empresa eliminada correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
                 _confirmarEliminarVisible = false;
-                await RecargarAsync();
+                await CargarAsync();
             }
         }
         catch (Exception)
@@ -329,7 +344,7 @@ public partial class Empresas : ComponentBase
             resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
 
         if (resultado.EsExitoso)
-            await RecargarAsync();
+            await CargarAsync();
     }
 
     private bool TodosSeleccionados =>
@@ -347,6 +362,61 @@ public partial class Empresas : ComponentBase
     {
         if (marcado) _seleccionados.Add(id);
         else _seleccionados.Remove(id);
+    }
+
+    private bool TodosExpandidos =>
+        _elementosPagina.Count > 0 && _elementosPagina.All(e => _expandidos.Contains(e.Id));
+
+    private async Task AlternarExpansionAsync(Guid empresaId)
+    {
+        if (!_expandidos.Add(empresaId))
+        {
+            _expandidos.Remove(empresaId);
+            return;
+        }
+
+        if (!_centrosPorEmpresa.ContainsKey(empresaId))
+            await CargarCentrosDeEmpresaAsync(empresaId);
+    }
+
+    private async Task AlternarTodosExpandidosAsync(bool expandir)
+    {
+        if (!expandir)
+        {
+            _expandidos.Clear();
+            return;
+        }
+
+        foreach (var elemento in _elementosPagina) _expandidos.Add(elemento.Id);
+
+        var pendientes = _elementosPagina
+            .Select(e => e.Id)
+            .Where(id => !_centrosPorEmpresa.ContainsKey(id))
+            .Select(CargarCentrosDeEmpresaAsync);
+
+        await Task.WhenAll(pendientes);
+    }
+
+    /// <summary>
+    /// Drill-down desde el desplegable de Centros con actividad (§ 0.11) a
+    /// <c>/centros</c> prefiltrado por ese Centro exacto — no por texto libre,
+    /// que sería ambiguo entre Centros con nombre parecido.
+    /// </summary>
+    private void IrAlCentro(Guid centroId) => NavigationManager.NavigateTo($"/centros?centroId={centroId}");
+
+    private async Task CargarCentrosDeEmpresaAsync(Guid empresaId)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerCentrosConActividadDeEmpresaQuery(empresaId));
+            _centrosPorEmpresa[empresaId] = resultado;
+        }
+        catch (Exception)
+        {
+            _centrosPorEmpresa[empresaId] = [];
+        }
+
+        StateHasChanged();
     }
 
     private async Task ConfirmarEliminarLoteAsync()
@@ -367,7 +437,7 @@ public partial class Empresas : ComponentBase
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
-            await RecargarAsync();
+            await CargarAsync();
         }
         catch (Exception)
         {
@@ -378,8 +448,6 @@ public partial class Empresas : ComponentBase
             _eliminandoLote = false;
         }
     }
-
-    private string ObtenerClaseFila(EmpresaListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
 
     private async Task ManejarAtajoAsync(string tecla)
     {

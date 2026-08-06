@@ -28,6 +28,7 @@ public partial class Centros : ComponentBase
 
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
+    private Guid? _centroIdFiltro;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -124,10 +125,19 @@ public partial class Centros : ComponentBase
     [SupplyParameterFromQuery] public Guid? ClienteId { get; set; }
     [SupplyParameterFromQuery] public Guid? EmpresaId { get; set; }
 
+    /// <summary>
+    /// Drill-down desde el desplegable de Centros con actividad de una
+    /// Empresa (Centro 360, PLAN-EJECUCION-UX.md § 0.11) — filtro exacto por
+    /// Id, no reutiliza <c>q</c> (texto libre) porque un nombre parecido
+    /// entre Centros distintos haría el prefiltro ambiguo.
+    /// </summary>
+    [SupplyParameterFromQuery] public Guid? CentroId { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _estadoFiltro = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
+        _centroIdFiltro = CentroId;
         await CargarAsync();
 
         if (Accion == "crear")
@@ -165,11 +175,12 @@ public partial class Centros : ComponentBase
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var estadoDeLaUrl = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
 
-        if (deLaUrl == _busqueda && estadoDeLaUrl == _estadoFiltro)
+        if (deLaUrl == _busqueda && estadoDeLaUrl == _estadoFiltro && CentroId == _centroIdFiltro)
             return;
 
         _busqueda = deLaUrl;
         _estadoFiltro = estadoDeLaUrl;
+        _centroIdFiltro = CentroId;
         await CargarAsync(resetPagina: true);
     }
 
@@ -189,7 +200,8 @@ public partial class Centros : ComponentBase
                 ClienteId: null,
                 Estado: Enum.TryParse<EstadoCentro>(_estadoFiltro, out var estado) ? estado : null,
                 Pagina: _pagina,
-                TamanoPagina: TamanoPagina));
+                TamanoPagina: TamanoPagina,
+                CentroId: _centroIdFiltro));
 
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();

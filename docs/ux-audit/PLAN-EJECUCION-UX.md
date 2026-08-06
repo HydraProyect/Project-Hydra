@@ -75,8 +75,8 @@ próxima, qué exige el centro y por dónde se gestiona. Sustituye la vista plan
 > (✅ hecho, N accesos de plataforma + copy de criterios de validación) · **Lote 0-G** = 0.9
 > (✅ hecho, selección múltiple oculta tras toggle + densidad de fila, transversal a las 9
 > listas con selección en lote) · **Lote 0-H** = 0.10 (✅ hecho, "Ver" → "Detalles" universal +
-> edición inline, Drawer de edición retirado en las 5 entidades) · **Lote 0-I** = 0.11 (migrar
-> `/empresas` al patrón Centro 360). 0-D es prerequisito
+> edición inline, Drawer de edición retirado en las 5 entidades) · **Lote 0-I** = 0.11 (✅ hecho,
+> migrar `/empresas` al patrón Centro 360 — último lote de la Parte 0). 0-D es prerequisito
 > real de 0-F (el % necesita el universo correcto de documentos requeridos por centro) y
 > conviene que 0-G vaya antes que 0-I (Empresa hereda el patrón de fila ya resuelto por Centro
 > en vez de inventarlo dos veces). El plan original agrupaba 0.4+0.5 en el mismo lote asumiendo
@@ -458,7 +458,7 @@ Vehículo** — todas las entidades con acciones "Ver"/"Editar" hoy (`Centros.ra
   Empleador de Trabajador y Empleador de Vehículo confirmados de solo lectura, y el Drawer "Nuevo
   X" con título fijo en las 5.
 
-### (0.11) Migrar `/empresas` al patrón Centro 360 — Lote 0-I (pendiente, después de 0-H)
+### (0.11) Migrar `/empresas` al patrón Centro 360 — ✅ hecho (Lote 0-I)
 
 **Origen**: mismo mockup 2026-08-06. `Empresas.razor` hoy sigue en `QuickGrid` clásico (tabla,
 sin acordeón, sin badge de cumplimiento) — no tiene nada del rediseño que sí recibió `/centros`
@@ -478,6 +478,25 @@ reinventarlos para Empresa.
 - Badge de % de cumplimiento de Empresa (0.8) junto al nombre, igual posición que en Centro.
 - Checkbox oculto tras "Selección múltiple" (0.9), misma cabecera transversal.
 - "Ver" → "Detalles" (0.10) ya heredado si 0-H se hizo antes.
+- **Estado**: hecho, 2026-08-06. `Empresas.razor` pasó de `QuickGrid` a lista paginada en
+  servidor con `tarjeta-fila-acordeon` (mismo markup que `Centros.razor`, sin `SeccionColapsable`
+  — el chevron y la expansión los lleva la página, igual que Centro desde el Lote 0-G).
+  `ObtenerEmpresasQuery` gana `CumplimientoPorcentaje` en `EmpresaListaDto`, calculado en lote
+  para toda la página (mismo cálculo que `ObtenerCumplimientoEmpresaQuery` — Empresa → Trabajadores
+  → Asignaciones activas → Centro, suma AlDia/Requeridos, no media — pero una sola consulta de
+  actividad + una llamada a `CalcularCumplimientoAsync` para las 20 filas, no 20 consultas
+  sueltas). El desplegable de "Centros con actividad" carga perezosamente por fila al expandir
+  (`ObtenerCentrosConActividadDeEmpresaQuery`, la misma Query que ya usaba la pestaña "Centros"
+  del Workspace) — "Expandir todos" lanza las cargas pendientes en paralelo
+  (`Task.WhenAll`), no una tras otra. **Prefiltro por Id añadido a `ObtenerCentrosQuery`**
+  (`CentroId`, opcional, se combina con el resto de filtros) y a `Centros.razor`
+  (`[SupplyParameterFromQuery] Guid? CentroId`) — clic en un Centro del desplegable navega a
+  `/centros?centroId=…`, exacto por Id y no por nombre (`?q=`), que sería ambiguo entre Centros
+  con nombre parecido. Documentado como patrón nuevo en `UX_PATTERNS.md` § "Drill-down entre
+  listas con filtro exacto por Id". Verificado en navegador con datos de demo: acordeón con
+  badge de cumplimiento y desplegable de Centros, clic en un Centro navega a `/centros` mostrando
+  solo esa fila, selección múltiple/expandir todos probados, y "Nueva empresa"/"Detalles"/edición
+  in situ (heredados de 0-H) sin regresión.
 
 ## Parte 1 — Horizonte 1, quick wins (en orden salvo indicación del propietario)
 
