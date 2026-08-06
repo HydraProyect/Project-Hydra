@@ -2,7 +2,7 @@ using System.Net;
 using System.Text;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
-using CaeManager.Application.RequisitosDocumentales;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -15,20 +15,22 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequerido
 /// la documentación que un Centro exige — cierra "que se pueda compartir los
 /// formatos automáticamente cuando sea un formulario de centro necesario"
 /// del pedido del usuario. Hydra no guarda plantillas de archivo en blanco
-/// por Centro (solo descripciones de texto — TipoDocumento/RequisitoDocumental,
-/// ver DATABASE.md), así que "formato" aquí es este resumen generado, no un
-/// archivo preexistente. Null cuando el Centro no es visible para el usuario
-/// actual o no tiene ningún requisito configurado que compartir.
+/// por Centro (salvo el adjunto opcional de <c>TipoDocumentoCentro</c>, no
+/// enlazado aquí — ver DATABASE.md), así que "formato" aquí es este resumen
+/// generado, no un archivo preexistente. Null cuando el Centro no es visible
+/// para el usuario actual o no tiene ningún requisito configurado que
+/// compartir.
 /// </summary>
 public record ObtenerFormatosRequeridosCentroQuery(Guid CentroId) : IRequest<string?>;
 
 public class ObtenerFormatosRequeridosCentroQueryHandler(
     ICentrosQueryContext centrosContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
-    IRequisitosDocumentalesQueryContext requisitosContext,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerFormatosRequeridosCentroQuery, string?>
 {
+    private record TipoAplicableDto(string Nombre, string? Descripcion, int? PeriodicidadEspecialMeses, bool BloqueaAcceso);
+
     public async Task<string?> Handle(ObtenerFormatosRequeridosCentroQuery request, CancellationToken cancellationToken)
     {
         if (!await alcanceDatos.CentroVisibleAsync(request.CentroId, cancellationToken))
@@ -41,71 +43,52 @@ public class ObtenerFormatosRequeridosCentroQueryHandler(
 
         if (centro is null) return null;
 
-        var tiposAplicables = await ObtenerTiposObligatoriosAplicablesAsync(request.CentroId, cancellationToken);
+        var tiposAplicables = await ObtenerTiposAplicablesAsync(request.CentroId, cancellationToken);
 
-        var requisitos = await requisitosContext.RequisitosDocumentales
-            .Where(r => r.CentroId == request.CentroId)
-            .OrderBy(r => r.Descripcion)
-            .Select(r => new { r.Descripcion, r.PeriodicidadEspecial, r.BloqueaAcceso })
-            .ToListAsync(cancellationToken);
-
-        if (tiposAplicables.Count == 0 && requisitos.Count == 0)
+        if (tiposAplicables.Count == 0)
             return null;
 
         var cuerpo = new StringBuilder();
         cuerpo.Append($"<p>Documentación requerida para <strong>{WebUtility.HtmlEncode(centro.Nombre)}</strong>:</p>");
-
-        if (tiposAplicables.Count > 0)
+        cuerpo.Append("<ul>");
+        foreach (var tipo in tiposAplicables)
         {
-            cuerpo.Append("<ul>");
-            foreach (var tipo in tiposAplicables)
-            {
-                var linea = WebUtility.HtmlEncode(tipo.Nombre);
-                if (!string.IsNullOrWhiteSpace(tipo.Descripcion))
-                    linea += $" — {WebUtility.HtmlEncode(tipo.Descripcion)}";
-                cuerpo.Append($"<li>{linea}</li>");
-            }
-            cuerpo.Append("</ul>");
+            var linea = WebUtility.HtmlEncode(tipo.Nombre);
+            if (!string.IsNullOrWhiteSpace(tipo.Descripcion))
+                linea += $" — {WebUtility.HtmlEncode(tipo.Descripcion)}";
+            if (tipo.PeriodicidadEspecialMeses is { } meses)
+                linea += $" (renovación cada {meses} mes(es) en este centro)";
+            if (tipo.BloqueaAcceso)
+                linea += " — imprescindible para el acceso";
+            cuerpo.Append($"<li>{linea}</li>");
         }
-
-        if (requisitos.Count > 0)
-        {
-            cuerpo.Append("<p>Requisitos adicionales del centro:</p><ul>");
-            foreach (var requisito in requisitos)
-            {
-                var linea = WebUtility.HtmlEncode(requisito.Descripcion);
-                if (!string.IsNullOrWhiteSpace(requisito.PeriodicidadEspecial))
-                    linea += $" ({WebUtility.HtmlEncode(requisito.PeriodicidadEspecial)})";
-                if (requisito.BloqueaAcceso)
-                    linea += " — imprescindible para el acceso";
-                cuerpo.Append($"<li>{linea}</li>");
-            }
-            cuerpo.Append("</ul>");
-        }
+        cuerpo.Append("</ul>");
 
         return cuerpo.ToString();
     }
 
-    /// <summary>Un TipoDocumento obligatorio (Ámbito Empresa o Trabajador) aplica a este Centro si lo restringe explícitamente (TipoDocumentoCentro) o si no restringe a ningún Centro (comportamiento global — ver TipoDocumentoCentro).</summary>
-    private async Task<List<(string Nombre, string? Descripcion)>> ObtenerTiposObligatoriosAplicablesAsync(
-        Guid centroId, CancellationToken cancellationToken)
+    /// <summary>Ver ResolucionTipoDocumentoCentro — universo completo (Empresa+Trabajador), fila explícita manda, sin fila sigue EsObligatorio.</summary>
+    private async Task<List<TipoAplicableDto>> ObtenerTiposAplicablesAsync(Guid centroId, CancellationToken cancellationToken)
     {
-        var restricciones = await tiposDocumentoContext.TiposDocumentoCentros
-            .Select(tc => new { tc.TipoDocumentoId, tc.CentroId })
-            .ToListAsync(cancellationToken);
-
-        var tiposConAlgunaRestriccion = restricciones.Select(r => r.TipoDocumentoId).ToHashSet();
-        var tiposDeEsteCentro = restricciones.Where(r => r.CentroId == centroId).Select(r => r.TipoDocumentoId).ToHashSet();
-
-        var tiposObligatorios = await tiposDocumentoContext.TiposDocumento
-            .Where(t => t.EsObligatorio && (t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador))
+        var tipos = await tiposDocumentoContext.TiposDocumento
+            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
             .OrderBy(t => t.Orden)
-            .Select(t => new { t.Id, t.Nombre, t.Descripcion })
+            .Select(t => new { t.Id, t.Nombre, t.Descripcion, t.EsObligatorio })
             .ToListAsync(cancellationToken);
 
-        return tiposObligatorios
-            .Where(t => tiposDeEsteCentro.Contains(t.Id) || !tiposConAlgunaRestriccion.Contains(t.Id))
-            .Select(t => (t.Nombre, t.Descripcion))
+        var tipoIds = tipos.Select(t => t.Id).ToHashSet();
+        var filasDelCentro = (await tiposDocumentoContext.TiposDocumentoCentros
+            .Where(tc => tipoIds.Contains(tc.TipoDocumentoId) && tc.CentroId == centroId)
+            .ToListAsync(cancellationToken))
+            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
+
+        return tipos
+            .Where(t => ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centroId, t.EsObligatorio))
+            .Select(t =>
+            {
+                filasDelCentro.TryGetValue((t.Id, centroId), out var fila);
+                return new TipoAplicableDto(t.Nombre, t.Descripcion, fila?.PeriodicidadEspecialMeses, fila?.BloqueaAcceso ?? false);
+            })
             .ToList();
     }
 }

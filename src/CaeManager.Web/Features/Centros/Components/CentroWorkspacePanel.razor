@@ -1,9 +1,9 @@
 @*
     Panel de Centro para el Context Workspace. Pestañas: Información,
-    Requisitos del Centro (la petición original decía "Formularios" — se
-    interpreta como Requisitos del Centro, apoyada en la entidad
-    RequisitoDocumental que ya existía en el modelo sin ninguna Query hasta
-    ahora), Trabajadores, Vehículos, Plataforma, Historial.
+    Requisitos del Centro (PLAN-EJECUCION-UX.md § 0.4 — selector sobre el
+    catálogo de TipoDocumento del tenant, ya no texto libre; sustituye a
+    RequisitoDocumental, retirado), Trabajadores, Vehículos, Plataforma,
+    Historial.
 *@
 @using CaeManager.Application.Centros.Queries.ObtenerCentroPorId
 @using CaeManager.Application.Centros.Queries.ObtenerCanalGestionDeCentro
@@ -14,14 +14,13 @@
 @using CaeManager.Domain.Centros
 @using CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeCentro
 @using CaeManager.Application.Common
-@using CaeManager.Application.RequisitosDocumentales.Commands.CrearRequisitoDocumental
-@using CaeManager.Application.RequisitosDocumentales.Commands.EditarRequisitoDocumental
-@using CaeManager.Application.RequisitosDocumentales.Commands.EliminarRequisitoDocumental
-@using CaeManager.Application.RequisitosDocumentales.Commands.MarcarRequisitoDocumentalCumplido
-@using CaeManager.Application.RequisitosDocumentales.Queries.ObtenerRequisitosDocumentalesDeCentro
+@using CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro
+@using CaeManager.Application.Centros.Commands.EliminarDocumentacionRequeridaCentro
+@using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro
 @using CaeManager.Web.Features.Centros
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Domain.Common
+@using CaeManager.Domain.Documentos
 @using CaeManager.Web.Documentos
 @using FluentValidation
 @using MediatR
@@ -98,70 +97,63 @@ else
                 break;
 
             case "requisitos":
-                <div class="workspace-cabecera-seccion">
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirCrearRequisitoAsync">
-                        + Añadir requisito
-                    </Boton>
-                </div>
-                @if (_cargandoRequisitos)
+                @if (_cargandoDocumentacion)
                 {
                     <EstadoCargando Filas="3" />
                 }
-                else if (_errorRequisitos)
+                else if (_errorDocumentacion)
                 {
-                    <EstadoVacio Titulo="No pudimos cargar los requisitos" Descripcion="Intenta nuevamente en unos segundos.">
+                    <EstadoVacio Titulo="No pudimos cargar la documentación requerida" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarRequisitosAsync">Reintentar</Boton>
+                            <Boton OnClick="CargarDocumentacionAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
-                else if (_requisitos is { Count: 0 })
+                else if (_documentacion is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin requisitos adicionales" Descripcion="Este centro no tiene ningún Requisito Documental registrado más allá de la documentación base." />
+                    <EstadoVacio Titulo="Sin catálogo de documentos" Descripcion="Todavía no hay ningún Tipo de Documento de Trabajador o Empresa dado de alta en /tipos-documento." />
                 }
-                else if (_requisitos is not null)
+                else if (_documentacion is not null)
                 {
+                    <p class="workspace-nota-contextual">
+                        Documentos obligatorios por defecto (marcados en /tipos-documento) ya aparecen "Incluido" — desmárcalos para excluirlos solo de este centro.
+                        Marca cualquier otro para exigirlo además, solo aquí.
+                    </p>
                     <ul class="workspace-lista-requisitos">
-                        @foreach (var requisito in _requisitos)
+                        @foreach (var item in _documentacion)
                         {
-                            <li class="workspace-tarjeta-requisito" @key="requisito.Id">
+                            <li class="workspace-tarjeta-requisito" @key="item.TipoDocumentoId">
                                 <div class="workspace-tarjeta-requisito-cabecera">
-                                    <span>@requisito.Descripcion</span>
-                                    @if (requisito.BloqueaAcceso)
+                                    <span>@item.Nombre</span>
+                                    <Badge Tono="TonoBadge.Neutro">@(item.AmbitoAplicacion == AmbitoAplicacion.Empresa ? "Empresa" : "Trabajador")</Badge>
+                                    <Badge Tono="@(item.Aplica ? TonoBadge.Exito : TonoBadge.Neutro)">@(item.Aplica ? "Incluido" : "Excluido")</Badge>
+                                    @if (item.BloqueaAcceso)
                                     {
                                         <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
                                     }
-                                    @if (requisito.Cumplido)
-                                    {
-                                        <Badge Tono="TonoBadge.Exito">Cumplido@(requisito.FechaCumplimiento is { } fecha ? $" ({fecha:dd/MM/yyyy})" : "")</Badge>
-                                    }
-                                    else
-                                    {
-                                        <Badge Tono="TonoBadge.Neutro">Pendiente</Badge>
-                                    }
                                 </div>
-                                @if (!string.IsNullOrWhiteSpace(requisito.PeriodicidadEspecial))
+                                @if (item.PeriodicidadEspecialMeses is { } meses)
                                 {
-                                    <p class="workspace-metrica-inline">Periodicidad especial: @requisito.PeriodicidadEspecial</p>
+                                    <p class="workspace-metrica-inline">Renovación cada @meses mes(es) en este centro</p>
                                 }
-                                @if (!string.IsNullOrWhiteSpace(requisito.Notas))
+                                else if (item.Incluido is not null)
                                 {
-                                    <p class="workspace-metrica-inline">@requisito.Notas</p>
+                                    <p class="workspace-metrica-inline">No vence en este centro</p>
                                 }
-                                @if (requisito.ArchivoUrl is not null)
+                                @if (item.ArchivoUrl is not null)
                                 {
                                     <p class="workspace-metrica-inline">
-                                        <a href="/requisitos-documentales/@requisito.Id/archivo" target="_blank">
-                                            @(requisito.NombreArchivoOriginal ?? "Ver formulario")
+                                        <a href="/requisitos-documentales/@item.TipoDocumentoId/archivo" target="_blank">
+                                            @(item.NombreArchivoOriginal ?? "Ver formulario")
                                         </a>
                                     </p>
                                 }
                                 <div class="workspace-tarjeta-requisito-acciones">
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarCumplidoRequisitoAsync(requisito)">
-                                        @(requisito.Cumplido ? "Marcar pendiente" : "Marcar cumplido")
-                                    </Boton>
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarRequisitoAsync(requisito)">Editar</Boton>
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminarRequisito(requisito)">Eliminar</Boton>
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirConfigurarAsync(item)">Configurar</Boton>
+                                    @if (item.Incluido is not null)
+                                    {
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => QuitarAjusteAsync(item)">Quitar ajuste</Boton>
+                                    }
                                 </div>
                             </li>
                         }
@@ -281,53 +273,59 @@ else
         }
     </Pestanas>
 
-    <Drawer Visible="_drawerRequisitoVisible" VisibleChanged="v => _drawerRequisitoVisible = v"
-            Titulo="@(_editandoRequisitoId is null ? "Nuevo requisito" : "Editar requisito")"
-            CerrarAlHacerClicFuera="@(_mensajeErrorRequisito is null && !_guardandoRequisito)">
+    <Drawer Visible="_drawerDocVisible" VisibleChanged="v => _drawerDocVisible = v"
+            Titulo="@($"Configurar «{_nombreTipoDocumentoEditando}» en este centro")"
+            CerrarAlHacerClicFuera="@(_mensajeErrorDocumentacion is null && !_guardandoDocumentacion)">
         <ChildContent>
-            @if (_mensajeErrorRequisito is not null)
+            @if (_mensajeErrorDocumentacion is not null)
             {
-                <div class="alerta-formulario" role="alert">@_mensajeErrorRequisito</div>
+                <div class="alerta-formulario" role="alert">@_mensajeErrorDocumentacion</div>
             }
-            <CampoTextarea Etiqueta="Descripción" Valor="@_descripcionRequisito" ValorChanged="v => _descripcionRequisito = v" />
-            <CampoTexto Etiqueta="Periodicidad especial (opcional)" Valor="@_periodicidadRequisito" ValorChanged="v => _periodicidadRequisito = v" />
             <label class="campo-checkbox">
-                <input type="checkbox" @bind="_bloqueaAccesoRequisito" /> Bloquea el acceso al centro mientras no se cumpla
+                <input type="checkbox" @bind="_incluidoEdicion" /> Incluido — este centro lo exige
             </label>
-            <CampoTextarea Etiqueta="Notas (opcional)" Valor="@_notasRequisito" ValorChanged="v => _notasRequisito = v" />
+
+            <CampoSelect Etiqueta="Periodo especial de renovación" Valor="@_periodicidadSeleccionEdicion" ValorChanged="v => _periodicidadSeleccionEdicion = v">
+                <option value="">Sin vencimiento en este centro</option>
+                @foreach (var meses in PeriodicidadesPredefinidas)
+                {
+                    <option value="@meses">@meses mes(es)</option>
+                }
+                <option value="personalizado">Personalizado…</option>
+            </CampoSelect>
+            @if (_periodicidadSeleccionEdicion == "personalizado")
+            {
+                <CampoTexto Etiqueta="Meses (número entero)" Type="number" Valor="@_periodicidadPersonalizadaEdicion" ValorChanged="v => _periodicidadPersonalizadaEdicion = v" />
+            }
+
+            <label class="campo-checkbox">
+                <input type="checkbox" @bind="_bloqueaAccesoEdicion" /> Bloquea el acceso al centro mientras algún trabajador no lo tenga vigente
+            </label>
 
             <div class="campo">
                 <label>Formulario adjunto (Word o PDF, opcional)</label>
-                @if (_archivoUrlRequisito is not null)
+                @if (_archivoUrlEdicion is not null)
                 {
                     <p class="workspace-metrica-inline">
-                        @_nombreArchivoRequisito
-                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="QuitarArchivoRequisito">Quitar</Boton>
+                        @_nombreArchivoEdicion
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="QuitarArchivoDocumentacionEdicion">Quitar</Boton>
                     </p>
                 }
                 else
                 {
                     <ZonaSoltarArchivo
-                        OnChange="ManejarArchivoRequisitoSeleccionadoAsync"
+                        OnChange="ManejarArchivoDocumentacionSeleccionadoAsync"
                         Accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                         FormatosTexto="PDF · DOCX"
-                        Cargando="_subiendoArchivoRequisito" />
+                        Cargando="_subiendoArchivoEdicion" />
                 }
             </div>
         </ChildContent>
         <Pie>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerRequisitoVisible = false" Deshabilitado="_guardandoRequisito">Cancelar</Boton>
-            <Boton OnClick="GuardarRequisitoAsync" Cargando="_guardandoRequisito" Deshabilitado="_subiendoArchivoRequisito">Guardar</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerDocVisible = false" Deshabilitado="_guardandoDocumentacion">Cancelar</Boton>
+            <Boton OnClick="GuardarDocumentacionAsync" Cargando="_guardandoDocumentacion" Deshabilitado="_subiendoArchivoEdicion">Guardar</Boton>
         </Pie>
     </Drawer>
-
-    <DialogoConfirmacion
-        Visible="_confirmarEliminarRequisitoVisible"
-        VisibleChanged="v => _confirmarEliminarRequisitoVisible = v"
-        Titulo="¿Eliminar este requisito?"
-        Mensaje="@($"\"{_requisitoAEliminar?.Descripcion}\" dejará de aparecer en Requisitos del Centro.")"
-        EnProgreso="_eliminandoRequisito"
-        OnConfirmar="ConfirmarEliminarRequisitoAsync" />
 
     <Drawer Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
             Titulo="Pedir prioridad de validación"
@@ -391,28 +389,27 @@ else
     private EstadoCentroDto? _estadoCentro;
     private bool _cargandoEstado;
 
-    private IReadOnlyList<RequisitoDocumentalDto>? _requisitos;
-    private bool _cargandoRequisitos;
-    private bool _errorRequisitos;
+    private static readonly int[] PeriodicidadesPredefinidas = [1, 3, 6, 12, 24, 36, 48, 60];
 
-    private bool _drawerRequisitoVisible;
-    private Guid? _editandoRequisitoId;
-    private Guid _versionRequisito;
-    private string _descripcionRequisito = string.Empty;
-    private string _periodicidadRequisito = string.Empty;
-    private bool _bloqueaAccesoRequisito;
-    private string _notasRequisito = string.Empty;
-    private string? _archivoUrlRequisito;
-    private string? _nombreArchivoRequisito;
-    private bool _subiendoArchivoRequisito;
-    private bool _guardandoRequisito;
-    private string? _mensajeErrorRequisito;
+    private IReadOnlyList<DocumentacionRequeridaCentroDto>? _documentacion;
+    private bool _cargandoDocumentacion;
+    private bool _errorDocumentacion;
 
-    private const long TamanoMaximoArchivoRequisitoBytes = 10 * 1024 * 1024;
+    private bool _drawerDocVisible;
+    private Guid _tipoDocumentoIdEditando;
+    private string _nombreTipoDocumentoEditando = string.Empty;
+    private bool _incluidoEdicion;
+    private string _periodicidadSeleccionEdicion = string.Empty;
+    private string _periodicidadPersonalizadaEdicion = string.Empty;
+    private bool _bloqueaAccesoEdicion;
+    private string? _archivoUrlEdicion;
+    private string? _nombreArchivoEdicion;
+    private bool _subiendoArchivoEdicion;
+    private bool _guardandoDocumentacion;
+    private string? _mensajeErrorDocumentacion;
 
-    private bool _confirmarEliminarRequisitoVisible;
-    private RequisitoDocumentalDto? _requisitoAEliminar;
-    private bool _eliminandoRequisito;
+    private const long TamanoMaximoArchivoDocumentacionBytes = 10 * 1024 * 1024;
+
     private IReadOnlyList<TrabajadorAsignadoDto>? _trabajadores;
     private bool _cargandoTrabajadores;
     private bool _errorTrabajadores;
@@ -438,8 +435,8 @@ else
         if (EntidadId != _idCargado)
         {
             _idCargado = EntidadId;
-            _requisitos = null;
-            _errorRequisitos = false;
+            _documentacion = null;
+            _errorDocumentacion = false;
             _trabajadores = null;
             _errorTrabajadores = false;
             _vehiculos = null;
@@ -451,8 +448,8 @@ else
             await CargarEstadoAsync();
         }
 
-        if (PestanaActiva == "requisitos" && _requisitos is null && !_errorRequisitos && !_cargandoRequisitos)
-            await CargarRequisitosAsync();
+        if (PestanaActiva == "requisitos" && _documentacion is null && !_errorDocumentacion && !_cargandoDocumentacion)
+            await CargarDocumentacionAsync();
 
         if (PestanaActiva == "trabajadores" && _trabajadores is null && !_errorTrabajadores && !_cargandoTrabajadores)
             await CargarTrabajadoresAsync();
@@ -505,74 +502,48 @@ else
         }
     }
 
-    private async Task AlternarCumplidoRequisitoAsync(RequisitoDocumentalDto requisito)
-    {
-        var resultado = await Mediator.Send(new MarcarRequisitoDocumentalCumplidoCommand(requisito.Id, !requisito.Cumplido));
-        if (resultado.EsFallido)
-        {
-            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-            return;
-        }
-
-        ToastService.Mostrar(
-            requisito.Cumplido ? "Requisito marcado como pendiente." : "Requisito marcado como cumplido.",
-            TonoToast.Exito);
-
-        await CargarRequisitosAsync();
-        await CargarEstadoAsync();
-    }
-
-    private async Task CargarRequisitosAsync()
+    private async Task CargarDocumentacionAsync()
     {
         var idSolicitado = EntidadId;
-        _cargandoRequisitos = true;
-        _errorRequisitos = false;
+        _cargandoDocumentacion = true;
+        _errorDocumentacion = false;
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerRequisitosDocumentalesDeCentroQuery(idSolicitado));
+            var resultado = await Mediator.Send(new ObtenerDocumentacionRequeridaDeCentroQuery(idSolicitado));
             if (idSolicitado == EntidadId)
-                _requisitos = resultado;
+                _documentacion = resultado ?? [];
         }
         catch (Exception)
         {
             if (idSolicitado == EntidadId)
-                _errorRequisitos = true;
+                _errorDocumentacion = true;
         }
         finally
         {
             if (idSolicitado == EntidadId)
-                _cargandoRequisitos = false;
+                _cargandoDocumentacion = false;
         }
     }
 
-    private Task AbrirCrearRequisitoAsync()
+    private Task AbrirConfigurarAsync(DocumentacionRequeridaCentroDto item)
     {
-        _editandoRequisitoId = null;
-        _versionRequisito = Guid.Empty;
-        _descripcionRequisito = string.Empty;
-        _periodicidadRequisito = string.Empty;
-        _bloqueaAccesoRequisito = false;
-        _notasRequisito = string.Empty;
-        _archivoUrlRequisito = null;
-        _nombreArchivoRequisito = null;
-        _mensajeErrorRequisito = null;
-        _drawerRequisitoVisible = true;
-        return Task.CompletedTask;
-    }
-
-    private Task AbrirEditarRequisitoAsync(RequisitoDocumentalDto requisito)
-    {
-        _editandoRequisitoId = requisito.Id;
-        _versionRequisito = requisito.Version;
-        _descripcionRequisito = requisito.Descripcion;
-        _periodicidadRequisito = requisito.PeriodicidadEspecial ?? string.Empty;
-        _bloqueaAccesoRequisito = requisito.BloqueaAcceso;
-        _notasRequisito = requisito.Notas ?? string.Empty;
-        _archivoUrlRequisito = requisito.ArchivoUrl;
-        _nombreArchivoRequisito = requisito.NombreArchivoOriginal;
-        _mensajeErrorRequisito = null;
-        _drawerRequisitoVisible = true;
+        _tipoDocumentoIdEditando = item.TipoDocumentoId;
+        _nombreTipoDocumentoEditando = item.Nombre;
+        _incluidoEdicion = item.Aplica;
+        _periodicidadSeleccionEdicion = item.PeriodicidadEspecialMeses switch
+        {
+            null => string.Empty,
+            { } meses when PeriodicidadesPredefinidas.Contains(meses) => meses.ToString(),
+            { } meses => "personalizado"
+        };
+        _periodicidadPersonalizadaEdicion = item.PeriodicidadEspecialMeses is { } m && !PeriodicidadesPredefinidas.Contains(m)
+            ? m.ToString() : string.Empty;
+        _bloqueaAccesoEdicion = item.BloqueaAcceso;
+        _archivoUrlEdicion = item.ArchivoUrl;
+        _nombreArchivoEdicion = item.NombreArchivoOriginal;
+        _mensajeErrorDocumentacion = null;
+        _drawerDocVisible = true;
         return Task.CompletedTask;
     }
 
@@ -582,7 +553,7 @@ else
     /// el propio formulario que el destinatario tiene que poder editar en
     /// Word, así que forzarlo a PDF le quitaría justo eso.
     /// </summary>
-    private async Task ManejarArchivoRequisitoSeleccionadoAsync(InputFileChangeEventArgs e)
+    private async Task ManejarArchivoDocumentacionSeleccionadoAsync(InputFileChangeEventArgs e)
     {
         var archivo = e.File;
 
@@ -592,19 +563,19 @@ else
             return;
         }
 
-        if (archivo.Size > TamanoMaximoArchivoRequisitoBytes)
+        if (archivo.Size > TamanoMaximoArchivoDocumentacionBytes)
         {
             ToastService.Mostrar($"\"{archivo.Name}\" supera los 10 MB.", TonoToast.Error);
             return;
         }
 
-        _subiendoArchivoRequisito = true;
+        _subiendoArchivoEdicion = true;
         StateHasChanged();
 
         try
         {
             byte[] contenido;
-            await using (var flujo = archivo.OpenReadStream(TamanoMaximoArchivoRequisitoBytes))
+            await using (var flujo = archivo.OpenReadStream(TamanoMaximoArchivoDocumentacionBytes))
             using (var memoria = new MemoryStream())
             {
                 await flujo.CopyToAsync(memoria);
@@ -620,8 +591,8 @@ else
             }
 
             using var flujoOriginal = new MemoryStream(contenido);
-            _archivoUrlRequisito = await AlmacenamientoArchivos.GuardarAsync(flujoOriginal, archivo.Name);
-            _nombreArchivoRequisito = archivo.Name;
+            _archivoUrlEdicion = await AlmacenamientoArchivos.GuardarAsync(flujoOriginal, archivo.Name);
+            _nombreArchivoEdicion = archivo.Name;
         }
         catch (Exception ex)
         {
@@ -630,92 +601,79 @@ else
         }
         finally
         {
-            _subiendoArchivoRequisito = false;
+            _subiendoArchivoEdicion = false;
         }
     }
 
-    private void QuitarArchivoRequisito()
+    private void QuitarArchivoDocumentacionEdicion()
     {
-        _archivoUrlRequisito = null;
-        _nombreArchivoRequisito = null;
+        _archivoUrlEdicion = null;
+        _nombreArchivoEdicion = null;
     }
 
-    private async Task GuardarRequisitoAsync()
+    private async Task GuardarDocumentacionAsync()
     {
-        _guardandoRequisito = true;
-        _mensajeErrorRequisito = null;
+        _guardandoDocumentacion = true;
+        _mensajeErrorDocumentacion = null;
 
         try
         {
-            var periodicidad = string.IsNullOrWhiteSpace(_periodicidadRequisito) ? null : _periodicidadRequisito;
-            var notas = string.IsNullOrWhiteSpace(_notasRequisito) ? null : _notasRequisito;
-
-            Result resultado = _editandoRequisitoId is null
-                ? await Mediator.Send(new CrearRequisitoDocumentalCommand(
-                    EntidadId, _descripcionRequisito, periodicidad, _bloqueaAccesoRequisito, notas,
-                    _archivoUrlRequisito, _nombreArchivoRequisito))
-                : await Mediator.Send(new EditarRequisitoDocumentalCommand(
-                    _editandoRequisitoId.Value, _descripcionRequisito, periodicidad, _bloqueaAccesoRequisito, notas, _versionRequisito,
-                    _archivoUrlRequisito, _nombreArchivoRequisito));
-
-            if (resultado.EsFallido)
+            int? periodicidadMeses = _periodicidadSeleccionEdicion switch
             {
-                _mensajeErrorRequisito = resultado.Error.Mensaje;
+                "" => null,
+                "personalizado" => int.TryParse(_periodicidadPersonalizadaEdicion, out var personalizado) ? personalizado : null,
+                var seleccion => int.Parse(seleccion)
+            };
+
+            if (_periodicidadSeleccionEdicion == "personalizado" && periodicidadMeses is null)
+            {
+                _mensajeErrorDocumentacion = "Indica un número entero de meses, o deja el campo vacío si no vence.";
                 return;
             }
 
-            ToastService.Mostrar(
-                _editandoRequisitoId is null ? "Requisito creado correctamente." : "Requisito actualizado correctamente.",
-                TonoToast.Exito);
+            var resultado = await Mediator.Send(new EstablecerDocumentacionRequeridaCentroCommand(
+                EntidadId, _tipoDocumentoIdEditando, _incluidoEdicion, periodicidadMeses, _bloqueaAccesoEdicion,
+                _archivoUrlEdicion, _nombreArchivoEdicion));
 
-            _drawerRequisitoVisible = false;
-            await CargarRequisitosAsync();
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorDocumentacion = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Documentación del centro actualizada.", TonoToast.Exito);
+
+            _drawerDocVisible = false;
+            await CargarDocumentacionAsync();
             await CargarEstadoAsync();
         }
         catch (ValidationException ex)
         {
-            _mensajeErrorRequisito = ex.Errors.FirstOrDefault()?.ErrorMessage
+            _mensajeErrorDocumentacion = ex.Errors.FirstOrDefault()?.ErrorMessage
                 ?? "No pudimos guardar los cambios. Revisa los datos introducidos.";
         }
         catch (Exception)
         {
-            _mensajeErrorRequisito = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            _mensajeErrorDocumentacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
         }
         finally
         {
-            _guardandoRequisito = false;
+            _guardandoDocumentacion = false;
         }
     }
 
-    private void AbrirEliminarRequisito(RequisitoDocumentalDto requisito)
+    private async Task QuitarAjusteAsync(DocumentacionRequeridaCentroDto item)
     {
-        _requisitoAEliminar = requisito;
-        _confirmarEliminarRequisitoVisible = true;
-    }
-
-    private async Task ConfirmarEliminarRequisitoAsync()
-    {
-        if (_requisitoAEliminar is null) return;
-
-        _eliminandoRequisito = true;
-        try
+        var resultado = await Mediator.Send(new EliminarDocumentacionRequeridaCentroCommand(EntidadId, item.TipoDocumentoId));
+        if (resultado.EsFallido)
         {
-            var resultado = await Mediator.Send(new EliminarRequisitoDocumentalCommand(_requisitoAEliminar.Id));
-            if (resultado.EsFallido)
-            {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-                return;
-            }
+            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            return;
+        }
 
-            ToastService.Mostrar("Requisito eliminado.", TonoToast.Exito);
-            _confirmarEliminarRequisitoVisible = false;
-            await CargarRequisitosAsync();
-            await CargarEstadoAsync();
-        }
-        finally
-        {
-            _eliminandoRequisito = false;
-        }
+        ToastService.Mostrar($"\"{item.Nombre}\" vuelve a seguir el criterio global del tenant.", TonoToast.Exito);
+        await CargarDocumentacionAsync();
+        await CargarEstadoAsync();
     }
 
     private async Task CargarTrabajadoresAsync()

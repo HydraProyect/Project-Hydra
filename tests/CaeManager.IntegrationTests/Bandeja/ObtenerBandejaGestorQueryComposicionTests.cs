@@ -8,7 +8,6 @@ using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
-using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -66,7 +65,6 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         servicios.AddSingleton<CaeManager.Application.Documentos.IDocumentosQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Asignaciones.IAsignacionesQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Configuracion.IConfiguracionQueryContext>(_dbContext);
-        servicios.AddSingleton<CaeManager.Application.RequisitosDocumentales.IRequisitosDocumentalesQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Visitas.IVisitasQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(_dbContext);
         servicios.AddSingleton<IAlcanceDatosService>(new AlcanceDatosServiceFalso());
@@ -87,14 +85,19 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         _dbContext.Trabajadores.Add(trabajador);
 
         var tipoObligatorio = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        var tipoBloqueante = new TipoDocumento("PSS firmado", null, false, 2, AmbitoAplicacion.Trabajador, esObligatorio: false);
         _dbContext.TiposDocumento.Add(tipoObligatorio);
+        _dbContext.TiposDocumento.Add(tipoBloqueante);
         await _dbContext.SaveChangesAsync();
 
         // Faltante: asignación activa a un tipo obligatorio sin ningún Documento.
         _dbContext.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
 
-        // Requisito bloqueante sin cumplir.
-        _dbContext.RequisitosDocumentales.Add(new RequisitoDocumental(centro.Id, "PSS firmado", null, bloqueaAcceso: true));
+        // Requisito bloqueante sin cumplir — TipoDocumentoCentro.BloqueaAcceso=true
+        // sin ningún Documento Vigente del trabajador (PLAN-EJECUCION-UX.md § 0.4).
+        // No obligatorio globalmente (esObligatorio: false), pero Incluido=true aquí
+        // lo hace también "aplicar" (y por tanto Faltante en Alertas) en este Centro.
+        _dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoBloqueante.Id, centro.Id, incluido: true, bloqueaAcceso: true));
 
         // Fase F: Visita confirmada dentro de la ventana crítica (mañana).
         var manana = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
@@ -125,10 +128,17 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
 
         var resultado = await mediator.Send(new ObtenerBandejaGestorQuery());
 
-        resultado.Select(i => i.Tipo).Should().Equal(
+        // El tipo bloqueante (PSS firmado) es también Faltante en Alertas — no
+        // obligatorio globalmente, pero Incluido=true en este Centro lo hace
+        // aplicar igual (ResolucionTipoDocumentoCentro) — de ahí dos Faltante.
+        resultado.Select(i => i.Tipo).Should().ContainInOrder(
             TipoItemBandeja.SugerenciaVisitaUrgente,
             TipoItemBandeja.Faltante,
             TipoItemBandeja.VisitaUrgente,
             TipoItemBandeja.RequisitoPendiente);
+
+        resultado.Should().HaveCount(5);
+        resultado.Count(i => i.Tipo == TipoItemBandeja.Faltante).Should().Be(2);
+        resultado.Should().ContainSingle(i => i.Tipo == TipoItemBandeja.RequisitoPendiente);
     }
 }

@@ -10,7 +10,6 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
-using CaeManager.Domain.RequisitosDocumentales;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Proyectos;
@@ -290,7 +289,6 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITarifaClienteRepository, TarifaClienteRepository>();
         services.AddScoped<IProyectoRepository, ProyectoRepository>();
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
-        services.AddScoped<IRequisitoDocumentalRepository, RequisitoDocumentalRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.ITenantRepository, TenantRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
@@ -336,7 +334,6 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Vehiculos.IVehiculosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Configuracion.IConfiguracionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Auditoria.IAuditoriaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
-        services.AddScoped<CaeManager.Application.RequisitosDocumentales.IRequisitosDocumentalesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Tenants.ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Facturacion.IFacturacionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IProyectosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
