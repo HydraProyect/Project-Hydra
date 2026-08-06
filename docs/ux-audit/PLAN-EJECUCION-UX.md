@@ -508,7 +508,7 @@ reinventarlos para Empresa.
 |---|---|---|---|
 | 2 | Restaurar desde Auditoría (los `Restaurar*Command` existen) o, mínimo inmediato, corregir el copy del borrado en lote (`Empresas.razor:181`) | 14-H1 | ✅ hecho (#113) |
 | 3 | Página Forbidden propia (`AccessDeniedPath` + pantalla con siguiente paso) | 13-H1/16-H1 | ✅ hecho (#114) |
-| 4 | Paginador único localizado (12 listas QuickGrid + Usuarios) | 02-H2/14-H3 | Pendiente |
+| 4 | Paginador único localizado (12 listas QuickGrid + Usuarios) | 02-H2/14-H3 | ✅ hecho (#116) |
 | 5 | Overflow menu (⋯) en Acciones — densidad de una línea por fila | 05-H2 | Pendiente |
 | 6 | Export en Empresas, Centros, Incidencias y Auditoría + resumen de facturación (patrón `/clientes/exportar.xlsx`; el export de Asignaciones queda cubierto por (0.1)) | 03-H7·08-H4·11-H2·14-H2 | Pendiente |
 | 7 | Detecciones de personal visibles: badge en Empresas + tipo nuevo en Bandeja | 03-H2 | Pendiente |
