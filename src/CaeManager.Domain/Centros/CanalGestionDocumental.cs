@@ -35,9 +35,12 @@ public enum TipoCanalGestion
 /// índice único filtrado en Infrastructure); es el que se usa cuando algo
 /// necesita "el" canal del Centro sin poder preguntar cuál.
 ///
-/// <see cref="NombrePlataforma"/> sigue siendo texto libre: el catálogo de
-/// proveedores es la Parte 2 del mismo plan y todavía no existe — cuando
-/// llegue, este campo pasa a apuntarlo.
+/// <see cref="ProveedorPlataformaCaeId"/> (Lote 2-B, PLAN-EJECUCION-UX.md §
+/// Parte 2 (a)) sustituye al antiguo <c>NombrePlataforma</c> de texto libre:
+/// referencia el catálogo global <c>ProveedorPlataformaCae</c>, resuelto
+/// automáticamente por <c>IResolucionProveedorPlataformaCaeService</c> a
+/// partir de <see cref="UrlAcceso"/> — la UI solo pide selección manual
+/// cuando la resolución no encuentra o encuentra más de un candidato.
 ///
 /// Dato sensible: Usuario/Contrasena se persisten cifrados en reposo mediante
 /// un ValueConverter de EF Core en Infrastructure — este tipo de dominio no
@@ -46,7 +49,6 @@ public enum TipoCanalGestion
 /// </summary>
 public class CanalGestionDocumental : EntidadBase
 {
-    public const int LongitudMaximaNombrePlataforma = 150;
     public const int LongitudMaximaUrlAcceso = 500;
     public const int LongitudMaximaEmailsDestinatarios = 500;
     public const int LongitudMaximaNombreContacto = 150;
@@ -68,7 +70,7 @@ public class CanalGestionDocumental : EntidadBase
     public bool EsPrincipal { get; private set; }
 
     // Solo aplica cuando Tipo == Plataforma.
-    public string? NombrePlataforma { get; private set; }
+    public Guid? ProveedorPlataformaCaeId { get; private set; }
     public string? UrlAcceso { get; private set; }
     public string? Usuario { get; private set; }
     public string? Contrasena { get; private set; }
@@ -95,11 +97,11 @@ public class CanalGestionDocumental : EntidadBase
     }
 
     public static CanalGestionDocumental DePlataforma(
-        Guid centroId, string etiquetaProposito, string nombrePlataforma, string? urlAcceso,
+        Guid centroId, string etiquetaProposito, Guid proveedorPlataformaCaeId, string? urlAcceso,
         string? usuario, string? contrasena, string? notas = null)
     {
         var canal = new CanalGestionDocumental(centroId, TipoCanalGestion.Plataforma, etiquetaProposito, notas);
-        canal.EstablecerNombrePlataforma(nombrePlataforma);
+        canal.EstablecerProveedorPlataformaCae(proveedorPlataformaCaeId);
         canal.EstablecerUrlAcceso(urlAcceso);
         canal.ActualizarCredenciales(usuario, contrasena);
         return canal;
@@ -114,11 +116,11 @@ public class CanalGestionDocumental : EntidadBase
         return canal;
     }
 
-    public void ActualizarPlataforma(string etiquetaProposito, string nombrePlataforma, string? urlAcceso, string? notas)
+    public void ActualizarPlataforma(string etiquetaProposito, Guid proveedorPlataformaCaeId, string? urlAcceso, string? notas)
     {
         RequerirTipo(TipoCanalGestion.Plataforma);
         EstablecerEtiquetaProposito(etiquetaProposito);
-        EstablecerNombrePlataforma(nombrePlataforma);
+        EstablecerProveedorPlataformaCae(proveedorPlataformaCaeId);
         EstablecerUrlAcceso(urlAcceso);
         EstablecerNotas(notas);
     }
@@ -167,18 +169,12 @@ public class CanalGestionDocumental : EntidadBase
         EtiquetaProposito = normalizado;
     }
 
-    private void EstablecerNombrePlataforma(string nombrePlataforma)
+    private void EstablecerProveedorPlataformaCae(Guid proveedorPlataformaCaeId)
     {
-        if (string.IsNullOrWhiteSpace(nombrePlataforma))
-            throw new ArgumentException("El nombre de la plataforma es obligatorio.", nameof(nombrePlataforma));
+        if (proveedorPlataformaCaeId == Guid.Empty)
+            throw new ArgumentException("La plataforma es obligatoria — resuélvela desde la URL de acceso o elígela manualmente.", nameof(proveedorPlataformaCaeId));
 
-        var normalizado = nombrePlataforma.Trim();
-
-        if (normalizado.Length > LongitudMaximaNombrePlataforma)
-            throw new ArgumentException(
-                $"El nombre de la plataforma no puede superar {LongitudMaximaNombrePlataforma} caracteres.", nameof(nombrePlataforma));
-
-        NombrePlataforma = normalizado;
+        ProveedorPlataformaCaeId = proveedorPlataformaCaeId;
     }
 
     private void EstablecerUrlAcceso(string? urlAcceso)

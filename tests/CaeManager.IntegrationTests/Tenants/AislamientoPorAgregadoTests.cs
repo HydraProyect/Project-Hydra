@@ -254,9 +254,12 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     [Fact]
     public Task Aislamiento_CanalGestionDocumental()
     {
+        // Id determinista de "Nalanda" en ProveedorPlataformaCaeSeedData —
+        // catálogo global sembrado por HasData, existe en cualquier BD migrada.
+        var proveedorPlataformaCaeId = new Guid("60000000-0000-0000-0000-000000000001");
         Guid centroId = default;
         return VerificarAislamientoAsync(
-            () => CanalGestionDocumental.DePlataforma(centroId, "Gestión general", "CTAIMA CAE", null, null, null),
+            () => CanalGestionDocumental.DePlataforma(centroId, "Gestión general", proveedorPlataformaCaeId, null, null, null),
             async contexto => centroId = await SembrarCentroAsync(contexto));
     }
 
