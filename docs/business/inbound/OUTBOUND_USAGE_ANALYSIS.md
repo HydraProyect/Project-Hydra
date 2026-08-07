@@ -15,7 +15,7 @@
 - **Nombres de Clientes Principales, ni ningún dato que permita inferir qué cliente concreto usa qué plataforma.** El export original incluía subdominios y rutas por cliente (p. ej. una URL distinta por cada empresa dentro de una misma plataforma multi-cliente); esta información es confidencial y se ha descartado por completo del análisis — solo se conserva el nombre de la plataforma y su dominio principal.
 - La decisión de qué conector se construye primero → ya tomada en `ARQUITECTURA-INTEGRACIONES.md` § 5.1 (CTAIMA/Twind, por tener API REST documentada en `developers.ctaima.com`). Este documento la refuerza con datos de uso real, no la reabre.
 - Precios o estructura societaria de cada plataforma → `docs/business/COMPETITOR_ANALYSIS.md`, `docs/business/BENCHMARK_PRECIOS_CAE.md`.
-- Definición formal de "Outbound" como concepto de producto de Hydra → sigue siendo una pregunta abierta para el propietario del producto (`RESEARCH_BACKLOG.md` pregunta 1). Este documento aporta el dato empírico que faltaba para responderla, pero no la responde por su cuenta.
+- Definición formal de "CAE Outbound" como concepto de producto de Hydra → `docs/business/OUTBOUND_CAE.md` (`Approved`). Este documento aportó el dato empírico que precedió a esa definición, pero la definición en sí vive allí, no aquí.
 
 ## Origen de los datos y tratamiento de confidencialidad
 
@@ -81,7 +81,7 @@ Alrededor del 16% de las menciones corresponden a dominios propios de un único 
 
 ## Sobre el término "Outbound"
 
-`RESEARCH_BACKLOG.md` pregunta 1 dejó abierto qué significa "Outbound" en Hydra. Este export es la primera evidencia empírica del propietario del producto sobre a qué se refiere en la práctica: el flujo por el que el equipo de gestión CAE **sube documentación propia a los portales de sus Clientes Principales** (dirección contraria a "Inbound", que el resto de esta carpeta usa para "Hydra consume/sincroniza con plataformas externas"). Esto no cierra la pregunta abierta — sigue haciendo falta que el propietario del producto confirme si "Outbound" es un concepto de producto formal en Hydra (p. ej. un tipo de capacidad de integración de escritura, ver `EscrituraRemota` en `ARQUITECTURA-INTEGRACIONES.md` § 3.1) o simplemente el nombre operativo interno de este flujo de trabajo manual.
+**Actualización (2026-08-07)**: `RESEARCH_BACKLOG.md` pregunta 1 quedó respondida — el propietario del producto confirmó la definición formal de **CAE Outbound** en `docs/business/OUTBOUND_CAE.md` (`Approved`): el flujo por el que la empresa, actuando como Contratista/Subcontrata, sube su propia documentación preventiva a las plataformas de sus Clientes Principales (rol opuesto a CAE Inbound, donde actúa como Titular/Principal). Este export fue la primera evidencia empírica de ese flujo, recopilada antes de la definición formal — ver `docs/business/OUTBOUND_CAE.md` § "Nota de desambiguación" sobre cómo este uso de "Outbound"/"Inbound" (rol de la empresa) se relaciona con el uso de "Inbound" del resto de esta carpeta (plataformas externas a consumir/sincronizar).
 
 ## Limitaciones
 

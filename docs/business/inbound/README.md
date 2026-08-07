@@ -32,9 +32,11 @@ Descontando lo anterior, el valor real de esta investigación para Hydra es:
 
 ## Sobre "Outbound"
 
-El material recibido usa "Inbound" para referirse a las plataformas externas que Hydra debe consumir/sincronizar (Nalanda, CTAIMA, Dokify...). El usuario menciona que este material también debe dirigir las implementaciones de **Outbound** — ese término no está definido todavía en ningún documento de Hydra (ni técnico ni de negocio). Antes de escribir contenido bajo ese nombre hace falta una definición confirmada por el propietario del producto (qué es Outbound en Hydra, en qué se diferencia de Inbound) — se deja como pregunta abierta en `RESEARCH_BACKLOG.md` en vez de asumirla.
+**Definición confirmada (2026-08-07)**: "Outbound" (CAE Outbound / CAE Saliente / CAE Externo) ya tiene definición formal de negocio en `docs/business/OUTBOUND_CAE.md` (`Approved`, ver `DECISION_LOG.md`) — describe el rol de la empresa como Contratista/Subcontrata subiendo su propia documentación a las plataformas de sus clientes, opuesto a CAE Inbound (rol Titular/Principal).
 
-**Actualización**: el propietario del producto aportó un export operativo real de enlaces a portales de Clientes Principales (lo que llama "CAE Outbound") para usarlo como base de priorización de conectores Inbound. `OUTBOUND_USAGE_ANALYSIS.md` analiza ese export y da la primera evidencia empírica de a qué se refiere "Outbound" en la práctica — sin que eso cierre todavía la pregunta abierta de definición formal.
+**Nota de desambiguación, importante para no confundir los dos usos del nombre en este repositorio**: el "Inbound" de esta carpeta describe un eje distinto — las plataformas externas del mercado que Hydra podría consumir/sincronizar (Nalanda, CTAIMA, Dokify...), no el rol Titular/Contratista de `OUTBOUND_CAE.md`. Son coherentes entre sí (la plataforma donde un Titular valida a sus contratas es la misma plataforma donde, del lado del Contratista, se sube el trabajo "CAE Outbound"), pero cualquier documento que use uno de los dos términos debe dejar claro desde qué eje lo hace — ver `docs/business/OUTBOUND_CAE.md` § "Nota de desambiguación".
+
+`OUTBOUND_USAGE_ANALYSIS.md` es el primer dato de uso real (qué plataformas concentran el trabajo CAE Outbound descrito en `docs/business/OUTBOUND_CAE.md`), recopilado antes de que existiera la definición formal — ambos documentos son ahora coherentes entre sí.
 
 ## Documentos de esta carpeta
 

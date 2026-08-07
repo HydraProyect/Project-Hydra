@@ -86,6 +86,18 @@ Una entrada nunca se edita para cambiar lo que se decidió en su momento — si 
 
 **Estado**: Vigente
 
+## 2026-08-07 — Definición formal de "CAE Outbound"
+
+**Decisión**: Se confirma la definición de **CAE Outbound** (sinónimos: CAE Saliente, CAE Externo) como concepto de negocio de Hydra: la delegación integral de las tareas de gestión, carga, actualización y seguimiento de la documentación preventiva de una empresa hacia las plataformas digitales de sus clientes — la empresa actúa como Contratista/Subcontrata, rol opuesto a **CAE Inbound** (Titular/Principal). Aportada por el propietario del producto con marco legal (Art. 24 Ley 31/1995, RD 171/2004, Art. 19 LPRL), funciones del servicio y beneficios declarados.
+
+**Motivo**: `docs/business/inbound/RESEARCH_BACKLOG.md` dejaba abierta desde su creación la pregunta de qué significa "Outbound" en Hydra, distinto del "Inbound" investigado en esa carpeta (plataformas externas del mercado). `docs/business/inbound/OUTBOUND_USAGE_ANALYSIS.md` ya había usado un sentido operativo de "Outbound" sin definición formal; esta decisión lo formaliza como término de negocio.
+
+**Alternativas descartadas**: ninguna — es la primera definición aportada para este término, sin alternativas en discusión.
+
+**Impacto**: Nuevo documento `docs/business/OUTBOUND_CAE.md` (Approved) con la definición completa. Término **CAE Outbound** pasa a `Approved` en `docs/business/UBIQUITOUS_LANGUAGE.md`. Pregunta abierta 1 de `docs/business/inbound/RESEARCH_BACKLOG.md` queda respondida (referencia añadida). `docs/business/inbound/README.md` actualizado con nota de desambiguación entre este uso de "Outbound"/"Inbound" (rol Titular vs. Contratista) y el uso de "Inbound" de esa carpeta (plataformas externas a consumir/sincronizar).
+
+**Estado**: Vigente
+
 ## Documentos relacionados
 
 - Todos los documentos de `docs/business/` — cualquiera puede generar una entrada aquí cuando su contenido pasa de `Draft`/`In Progress` a `Approved`.
