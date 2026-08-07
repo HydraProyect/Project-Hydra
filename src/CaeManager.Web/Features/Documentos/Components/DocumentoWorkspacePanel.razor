@@ -2,14 +2,15 @@
     Panel de Documento para el Context Workspace. Pestañas: Información,
     Versiones, Validación, Historial.
 
-    Versiones y Validación son funcionalidades futuras diferenciadas
-    (versionado de archivos / flujo de aprobación con validador, fecha,
-    motivo de rechazo) — no existen todavía como entidades de dominio, así
-    que se muestran como "Próximamente" en vez de reutilizar el historial
-    de auditoría como sustituto (decisión explícita del usuario: son
-    conceptos distintos).
+    Versiones sigue siendo funcionalidad futura (versionado de archivos).
+    Validación muestra el resultado de la validación oficial automática
+    (firma digital + cotejo — ver ValidacionDocumentoOficialService) cuando
+    el tipo tiene perfil oficial; el flujo de aprobación manual con
+    validador/fecha/motivo sigue pendiente como concepto aparte.
 *@
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
+@using CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocumento
+@using CaeManager.Domain.Documentos
 @using MediatR
 @inject IMediator Mediator
 
@@ -60,7 +61,66 @@ else
                 break;
 
             case "validacion":
-                <EstadoVacio Titulo="Próximamente" Descripcion="El flujo de validación (quién valida, fecha, motivo de rechazo, criterios incumplidos) todavía no está disponible en CAE Manager." />
+                @if (_cargandoValidacion)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_validacion is null)
+                {
+                    <EstadoVacio Titulo="Sin validación automática" Descripcion="Este documento no ha pasado por la validación de documento oficial — su tipo no tiene perfil oficial asignado, o el análisis todavía no ha terminado." />
+                }
+                else
+                {
+                    <div class="workspace-grupo-campos">
+                        <CampoInfo Etiqueta="Nivel de confianza">
+                            <Badge Tono="@TonoDeNivel(_validacion.NivelConfianza)">@TextoDeNivel(_validacion.NivelConfianza)</Badge>
+                        </CampoInfo>
+                        <CampoInfo Etiqueta="Decisión">
+                            <Badge Tono="@(_validacion.Decision == DecisionValidacionOficial.AutoValidado ? TonoBadge.Exito : TonoBadge.Advertencia)">
+                                @(_validacion.Decision switch
+                                {
+                                    DecisionValidacionOficial.AutoValidado => "Auto-validado",
+                                    DecisionValidacionOficial.RevisionRequerida => "Revisión requerida",
+                                    _ => "Sin firma válida",
+                                })
+                            </Badge>
+                        </CampoInfo>
+                        @if (!string.IsNullOrWhiteSpace(_validacion.Motivos))
+                        {
+                            <CampoInfo Etiqueta="Motivos" Valor="@_validacion.Motivos" />
+                        }
+                        <CampoInfo Etiqueta="Código de verificación (CEA/CSV)" Valor="@_validacion.CodigoVerificacion" />
+                        <CampoInfo Etiqueta="CIF detectado" Valor="@_validacion.CifDetectado" />
+                        <CampoInfo Etiqueta="Fecha de emisión detectada" Valor="@_validacion.FechaEmisionDetectada?.ToString("dd/MM/yyyy")" />
+                        <CampoInfo Etiqueta="Periodo detectado" Valor="@_validacion.PeriodoDetectado" />
+                        <CampoInfo Etiqueta="Validado el" Valor="@_validacion.CreadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")" />
+                    </div>
+
+                    @if (_validacion.Firmas.Count > 0)
+                    {
+                        <h3 class="workspace-subtitulo">Firmas del archivo</h3>
+                        <div class="workspace-grupo-campos">
+                            @foreach (var firma in _validacion.Firmas)
+                            {
+                                <CampoInfo Etiqueta="@($"Firma {firma.Indice + 1}")">
+                                    <Badge Tono="@(firma.Estado == EstadoFirmaPdf.Valida ? TonoBadge.Exito : firma.Estado == EstadoFirmaPdf.Invalida ? TonoBadge.Peligro : TonoBadge.Neutro)">
+                                        @(firma.Estado == EstadoFirmaPdf.Valida ? "Íntegra" : firma.Estado == EstadoFirmaPdf.Invalida ? "Inválida" : "No soportada")
+                                    </Badge>
+                                    <span class="detalle-tecnico">
+                                        @(firma.FirmanteNombre ?? "Firmante no registrado")@(firma.FirmanteNif is not null ? $" ({firma.FirmanteNif})" : "")
+                                        — emitido por @firma.EmisorCertificado
+                                        @(firma.FechaFirmaUtc is not null ? $" · {firma.FechaFirmaUtc.Value.ToLocalTime():dd/MM/yyyy HH:mm}" : "")
+                                        @(firma.TieneSelloDeTiempo ? " · con sello de tiempo" : "")
+                                    </span>
+                                    @if (firma.MotivoInvalidez is not null)
+                                    {
+                                        <span class="detalle-tecnico">@firma.MotivoInvalidez</span>
+                                    }
+                                </CampoInfo>
+                            }
+                        </div>
+                    }
+                }
                 break;
 
             case "historial":
@@ -84,7 +144,9 @@ else
     [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
 
     private DocumentoDetalleDto? _detalle;
+    private ValidacionOficialDocumentoDto? _validacion;
     private bool _cargando = true;
+    private bool _cargandoValidacion = true;
     private bool _error;
     private Guid _idCargado;
 
@@ -100,11 +162,13 @@ else
     private async Task CargarCabeceraAsync()
     {
         _cargando = true;
+        _cargandoValidacion = true;
         _error = false;
 
         try
         {
             _detalle = await Mediator.Send(new ObtenerDocumentoPorIdQuery(EntidadId));
+            _validacion = await Mediator.Send(new ObtenerValidacionOficialDocumentoQuery(EntidadId));
         }
         catch (Exception)
         {
@@ -113,6 +177,26 @@ else
         finally
         {
             _cargando = false;
+            _cargandoValidacion = false;
         }
     }
+
+    private static TonoBadge TonoDeNivel(NivelConfianzaDocumental nivel) => nivel switch
+    {
+        NivelConfianzaDocumental.VerificadoOficialmente or NivelConfianzaDocumental.FirmaValida => TonoBadge.Exito,
+        NivelConfianzaDocumental.FirmaValidaSinRevocacion => TonoBadge.Info,
+        NivelConfianzaDocumental.Manipulado => TonoBadge.Peligro,
+        NivelConfianzaDocumental.FirmaIntegraEmisorNoConfiable => TonoBadge.Advertencia,
+        _ => TonoBadge.Neutro,
+    };
+
+    private static string TextoDeNivel(NivelConfianzaDocumental nivel) => nivel switch
+    {
+        NivelConfianzaDocumental.VerificadoOficialmente => "Verificado oficialmente",
+        NivelConfianzaDocumental.FirmaValida => "Firma válida",
+        NivelConfianzaDocumental.FirmaValidaSinRevocacion => "Firma válida (revocación no comprobada)",
+        NivelConfianzaDocumental.FirmaIntegraEmisorNoConfiable => "Firma íntegra, emisor no reconocido",
+        NivelConfianzaDocumental.Manipulado => "Documento manipulado",
+        _ => "Sin firma digital",
+    };
 }

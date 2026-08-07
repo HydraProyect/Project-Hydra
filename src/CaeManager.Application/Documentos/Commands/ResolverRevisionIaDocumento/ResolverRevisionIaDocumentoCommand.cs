@@ -32,12 +32,20 @@ public class ResolverRevisionIaDocumentoCommandHandler(
         if (revision.Resuelta)
             return Result.Fallo(Error.Crear("RevisionIa.YaResuelta", "Esta revisión ya fue gestionada."));
 
-        var trabajadorId = await dbContext.Documentos
+        var propietario = await dbContext.Documentos
             .Where(d => d.Id == revision.DocumentoId)
-            .Select(d => d.TrabajadorId)
+            .Select(d => new { d.TrabajadorId, d.EmpresaId })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (trabajadorId is null || !await alcanceDatos.TrabajadorVisibleAsync(trabajadorId.Value, cancellationToken))
+        // Mismo alcance que la bandeja (ObtenerRevisionesIaPendientesQuery):
+        // documento de Trabajador ⇒ cartera; documento de Empresa (validación
+        // oficial) ⇒ solo roles de visión total.
+        var visible = propietario?.TrabajadorId is { } trabajadorId
+            ? await alcanceDatos.TrabajadorVisibleAsync(trabajadorId, cancellationToken)
+            : propietario?.EmpresaId is not null
+                && await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken) is null;
+
+        if (!visible)
             return Result.Fallo(Error.Crear("RevisionIa.NoEncontrada", "No encontramos esta revisión."));
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
