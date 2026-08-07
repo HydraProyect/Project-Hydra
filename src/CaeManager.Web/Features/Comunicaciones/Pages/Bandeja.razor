@@ -20,51 +20,63 @@
 <PageTitle>Comunicaciones — CAE Manager</PageTitle>
 
 <div class="contenedor-pagina bandeja-contenedor">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Comunicaciones</h1>
-        <div class="acciones-cabecera">
-            <a class="enlace-exportar" href="/comunicaciones/buzon">Ver buzón completo</a>
-            <a class="enlace-exportar" href="/comunicaciones/macros">Gestionar macros</a>
+    <div class="bandeja-toolbar">
+        <h1 class="bandeja-toolbar-titulo">
+            <span class="bandeja-toolbar-icono" aria-hidden="true"><Icono Nombre="chat" /></span>
+            Comunicaciones
+        </h1>
+        <div class="bandeja-toolbar-acciones">
+            <a class="bandeja-toolbar-enlace" href="/comunicaciones/buzon">
+                <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" /> Buzón completo
+            </a>
+            <a class="bandeja-toolbar-enlace" href="/comunicaciones/macros">
+                <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" /> Macros
+            </a>
         </div>
     </div>
 
     <div class="bandeja-layout">
         <aside class="bandeja-columna bandeja-filtros">
             <div class="bandeja-filtros-form">
-                <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="async v => { _estadoFiltro = v; await AplicarFiltrosAsync(); }">
-                    <option value="">Todos los estados</option>
-                    <option value="@nameof(EstadoConversacion.Abierta)">Abierta</option>
-                    <option value="@nameof(EstadoConversacion.Pendiente)">Pendiente</option>
-                    <option value="@nameof(EstadoConversacion.Resuelta)">Resuelta</option>
-                    <option value="@nameof(EstadoConversacion.Cerrada)">Cerrada</option>
-                </CampoSelect>
-
-                <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
-
-                <CampoSelect Etiqueta="Cliente" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
-                    <option value="">Todos los clientes</option>
-                    @foreach (var cliente in _clientesSelector)
-                    {
-                        <option value="@cliente.Id">@cliente.RazonSocial</option>
-                    }
-                </CampoSelect>
+                <CampoTexto Placeholder="Buscar conversaciones…" Valor="@_busqueda" ValorChanged="async v => { _busqueda = v; await AplicarFiltrosAsync(); }" />
 
                 <div class="bandeja-toggles">
-                    <Boton Tamano="TamanoBoton.Pequeno" Variante="@(_soloAsignadasAMi ? VarianteBoton.Primario : VarianteBoton.Secundario)" OnClick="FiltrarAsignadasAMiAsync">
-                        Asignado a mí
-                    </Boton>
-                    <Boton Tamano="TamanoBoton.Pequeno" Variante="@(_soloSinAsignar ? VarianteBoton.Primario : VarianteBoton.Secundario)" OnClick="FiltrarSinAsignarAsync">
-                        Sin asignar
-                    </Boton>
-                    <Boton Tamano="TamanoBoton.Pequeno" Variante="@(_soloEsperandoCliente ? VarianteBoton.Primario : VarianteBoton.Secundario)" OnClick="AlternarEsperandoCliente">
-                        Esperando cliente
-                    </Boton>
-                    <Boton Tamano="TamanoBoton.Pequeno" Variante="@(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente ? VarianteBoton.Primario : VarianteBoton.Secundario)" OnClick="VerTodasAsync">
+                    <button type="button" class="bandeja-toggle @(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente ? "bandeja-toggle-activo" : null)" @onclick="VerTodasAsync">
                         Todas
-                    </Boton>
+                    </button>
+                    <button type="button" class="bandeja-toggle @(_soloAsignadasAMi ? "bandeja-toggle-activo" : null)" @onclick="FiltrarAsignadasAMiAsync">
+                        Asignado a mí
+                    </button>
+                    <button type="button" class="bandeja-toggle @(_soloSinAsignar ? "bandeja-toggle-activo" : null)" @onclick="FiltrarSinAsignarAsync">
+                        Sin asignar
+                    </button>
+                    <button type="button" class="bandeja-toggle @(_soloEsperandoCliente ? "bandeja-toggle-activo" : null)" @onclick="AlternarEsperandoCliente">
+                        Esperando cliente
+                    </button>
                 </div>
 
-                <CampoTexto Placeholder="Buscar por asunto…" Valor="@_busqueda" ValorChanged="async v => { _busqueda = v; await AplicarFiltrosAsync(); }" />
+                <details class="bandeja-filtros-avanzados">
+                    <summary>Más filtros</summary>
+                    <div class="bandeja-filtros-avanzados-campos">
+                        <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="async v => { _estadoFiltro = v; await AplicarFiltrosAsync(); }">
+                            <option value="">Todos los estados</option>
+                            <option value="@nameof(EstadoConversacion.Abierta)">Abierta</option>
+                            <option value="@nameof(EstadoConversacion.Pendiente)">Pendiente</option>
+                            <option value="@nameof(EstadoConversacion.Resuelta)">Resuelta</option>
+                            <option value="@nameof(EstadoConversacion.Cerrada)">Cerrada</option>
+                        </CampoSelect>
+
+                        <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
+
+                        <CampoSelect Etiqueta="Cliente" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
+                            <option value="">Todos los clientes</option>
+                            @foreach (var cliente in _clientesSelector)
+                            {
+                                <option value="@cliente.Id">@cliente.RazonSocial</option>
+                            }
+                        </CampoSelect>
+                    </div>
+                </details>
             </div>
 
             <div class="bandeja-lista">
@@ -144,14 +156,16 @@
                 <div class="bandeja-centro-cabecera">
                     <div class="bandeja-centro-titulo">
                         <h2>@_detalle.Asunto</h2>
-                        <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin cliente asignado")</span>
+                        <div class="bandeja-centro-meta">
+                            <span class="bandeja-badge-canal bandeja-badge-canal-@_detalle.Canal.ToString().ToLowerInvariant()" title="@(_detalle.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")">
+                                <Icono Nombre="@(_detalle.Canal == CanalConversacion.WhatsApp ? "chat" : "correo")" Tamano="TamanoIcono.Pequeno" />
+                                @(_detalle.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")
+                            </span>
+                            <Badge Tono="TonoBadgeDeEstado(_detalle.Estado)">@_detalle.Estado</Badge>
+                            <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin cliente asignado")</span>
+                        </div>
                     </div>
                     <div class="bandeja-centro-acciones">
-                        <span class="bandeja-badge-canal" title="@(_detalle.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")">
-                            <Icono Nombre="@(_detalle.Canal == CanalConversacion.WhatsApp ? "chat" : "correo")" Tamano="TamanoIcono.Pequeno" />
-                        </span>
-                        <Badge Tono="TonoBadgeDeEstado(_detalle.Estado)">@_detalle.Estado</Badge>
-
                         @if (_detalle.ClienteId is null)
                         {
                             <CampoSelect Valor="@_clienteTriageSeleccionado" ValorChanged="v => _clienteTriageSeleccionado = v">
@@ -207,16 +221,30 @@
         @if (_detalle?.ClienteId is not null && _clienteActivo is not null)
         {
             <aside class="bandeja-columna bandeja-cliente">
-                <h3>@_clienteActivo.RazonSocial</h3>
+                <div class="bandeja-cliente-titulo">
+                    <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del cliente
+                </div>
+                <div class="bandeja-cliente-cabecera">
+                    <span class="bandeja-cliente-avatar" aria-hidden="true">@ObtenerInicialesCliente(_clienteActivo.RazonSocial)</span>
+                    <div class="bandeja-cliente-identidad">
+                        <h3>@_clienteActivo.RazonSocial</h3>
+                        <span class="bandeja-cliente-cif">CIF @_clienteActivo.Cif</span>
+                    </div>
+                    @if (_clienteActivo.EsCritico)
+                    {
+                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">Crítico</Badge>
+                    }
+                </div>
                 <dl class="bandeja-cliente-datos">
-                    <dt>CIF</dt>
-                    <dd>@_clienteActivo.Cif</dd>
-                    <dt>Crítico</dt>
-                    <dd>@(_clienteActivo.EsCritico ? "Sí" : "No")</dd>
+                    <dt>Ejecutivo asignado</dt>
+                    <dd>@(_ejecutivosDisponibles.FirstOrDefault(e => e.Id == _clienteActivo.EjecutivoUsuarioId)?.NombreCompleto ?? "Sin asignar")</dd>
                 </dl>
                 @if (!string.IsNullOrWhiteSpace(_clienteActivo.Notas))
                 {
-                    <p class="bandeja-cliente-notas">@_clienteActivo.Notas</p>
+                    <div class="bandeja-cliente-notas">
+                        <span class="bandeja-cliente-notas-titulo">Notas del cliente</span>
+                        <p>@_clienteActivo.Notas</p>
+                    </div>
                 }
             </aside>
         }
