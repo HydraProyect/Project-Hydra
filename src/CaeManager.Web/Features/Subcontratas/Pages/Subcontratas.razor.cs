@@ -21,6 +21,16 @@ public partial class Subcontratas : ComponentBase
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
 
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
+
+    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    private async Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _paginacion.ItemsPerPage = tamano;
+        await _paginacion.SetCurrentPageIndexAsync(0);
+        if (_grid is not null)
+            await _grid.RefreshDataAsync();
+    }
+
     private QuickGrid<SubcontrataListaDto>? _grid;
 
     private string _busqueda = string.Empty;
