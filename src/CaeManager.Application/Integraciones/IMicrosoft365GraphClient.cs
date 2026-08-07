@@ -15,12 +15,12 @@ public record AdjuntoGraphDto(string AdjuntoExternoId, string NombreArchivo, str
 public record AdjuntoParaEnviarDto(string NombreArchivo, string TipoContenido, byte[] Contenido);
 
 public record MensajeGraphDto(
-    string MensajeExternoId, string HiloExternoId, string Asunto, string RemitenteEmail, string CuerpoHtml, DateTime FechaUtc,
+    string MensajeExternoId, string HiloExternoId, string Asunto, string Remitente, string CuerpoHtml, DateTime FechaUtc,
     IReadOnlyList<ParticipanteGraphDto> Participantes, IReadOnlyList<AdjuntoGraphDto> Adjuntos);
 
 /// <summary>Fila ligera para el historial de una carpeta — sin cuerpo, para que listar no cargue el HTML completo de cada mensaje.</summary>
 public record MensajeResumenGraphDto(
-    string MensajeExternoId, string HiloExternoId, string Asunto, string RemitenteEmail, DateTime FechaUtc, bool TieneAdjuntos);
+    string MensajeExternoId, string HiloExternoId, string Asunto, string Remitente, DateTime FechaUtc, bool TieneAdjuntos);
 
 /// <summary>Carpeta del buzón (Bandeja de entrada, Enviados, y las subcarpetas propias del cliente) — ver § "estructura de carpetas".</summary>
 public record CarpetaGraphDto(

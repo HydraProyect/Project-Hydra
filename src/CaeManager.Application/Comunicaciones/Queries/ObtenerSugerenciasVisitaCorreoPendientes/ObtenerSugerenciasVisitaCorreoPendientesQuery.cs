@@ -8,7 +8,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisita
 
 /// <summary>
 /// Fase F: sugerencias de visita detectadas por IA (correo o WhatsApp, ver
-/// <see cref="ConversacionCorreo.Canal"/>) todavía sin resolver — el punto de
+/// <see cref="Conversacion.Canal"/>) todavía sin resolver — el punto de
 /// entrada que la Bandeja del gestor usa para saber si hay una "visita
 /// sorpresa" pendiente de confirmar, sin tener que abrir /comunicaciones.
 /// </summary>
@@ -29,8 +29,8 @@ public class ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(
         var consulta =
             from sugerencia in comunicacionesContext.SugerenciasVisitaCorreo
             where !sugerencia.Resuelta
-            join mensaje in comunicacionesContext.MensajesCorreo on sugerencia.MensajeCorreoId equals mensaje.Id
-            join conversacion in comunicacionesContext.ConversacionesCorreo on mensaje.ConversacionCorreoId equals conversacion.Id
+            join mensaje in comunicacionesContext.Mensajes on sugerencia.MensajeId equals mensaje.Id
+            join conversacion in comunicacionesContext.Conversaciones on mensaje.ConversacionId equals conversacion.Id
             select new { sugerencia, conversacion.Canal };
 
         // Sin Centro resuelto no hay forma de acotar por cartera — se

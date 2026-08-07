@@ -3,33 +3,33 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Domain.Comunicaciones;
 
 /// <summary>
-/// Un archivo adjunto a un <see cref="MensajeCorreo"/> — entrante (recibido
+/// Un archivo adjunto a un <see cref="Mensaje"/> — entrante (recibido
 /// de verdad por Graph) o saliente (subido por un Gestor CAE al responder).
 /// El contenido en sí vive en <c>IFileStorageService</c> (mismo servicio que
 /// los PDFs de Documento, ver ARQUITECTURA-INTEGRACIONES.md § 12.3: "no un
 /// storage paralelo") — <see cref="ArchivoUrl"/> es el identificador opaco
 /// que devuelve ese servicio, nunca la ruta real ni una URL pública.
 /// </summary>
-public class AdjuntoMensajeCorreo : EntidadConTenant
+public class AdjuntoMensaje : EntidadConTenant
 {
     public const int LongitudMaximaNombreArchivo = 260;
     public const int LongitudMaximaTipoContenido = 150;
     public const int LongitudMaximaArchivoUrl = 500;
 
-    public Guid MensajeCorreoId { get; private set; }
+    public Guid MensajeId { get; private set; }
     public string NombreArchivo { get; private set; } = string.Empty;
     public string TipoContenido { get; private set; } = string.Empty;
     public long TamanoBytes { get; private set; }
     public string ArchivoUrl { get; private set; } = string.Empty;
 
-    private AdjuntoMensajeCorreo()
+    private AdjuntoMensaje()
     {
     }
 
-    public AdjuntoMensajeCorreo(Guid mensajeCorreoId, string nombreArchivo, string tipoContenido, long tamanoBytes, string archivoUrl)
+    public AdjuntoMensaje(Guid mensajeId, string nombreArchivo, string tipoContenido, long tamanoBytes, string archivoUrl)
     {
-        if (mensajeCorreoId == Guid.Empty)
-            throw new ArgumentException("El adjunto debe pertenecer a un mensaje.", nameof(mensajeCorreoId));
+        if (mensajeId == Guid.Empty)
+            throw new ArgumentException("El adjunto debe pertenecer a un mensaje.", nameof(mensajeId));
         if (string.IsNullOrWhiteSpace(nombreArchivo))
             throw new ArgumentException("El adjunto debe tener un nombre de archivo.", nameof(nombreArchivo));
         if (nombreArchivo.Length > LongitudMaximaNombreArchivo)
@@ -45,7 +45,7 @@ public class AdjuntoMensajeCorreo : EntidadConTenant
         if (archivoUrl.Length > LongitudMaximaArchivoUrl)
             throw new ArgumentException($"La referencia de archivo no puede superar {LongitudMaximaArchivoUrl} caracteres.", nameof(archivoUrl));
 
-        MensajeCorreoId = mensajeCorreoId;
+        MensajeId = mensajeId;
         NombreArchivo = nombreArchivo.Trim();
         TipoContenido = tipoContenido.Trim();
         TamanoBytes = tamanoBytes;

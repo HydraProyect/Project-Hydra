@@ -36,7 +36,7 @@ public class ResponderConversacionCommandValidator : AbstractValidator<Responder
 /// sembrados por <c>ComunicacionesDatosPruebaSeeder</c>, nunca producción).
 /// </summary>
 public class ResponderConversacionCommandHandler(
-    IConversacionCorreoRepository repositorio,
+    IConversacionRepository repositorio,
     IConexionIntegracionRepository conexionRepositorio,
     IAlcanceDatosService alcanceDatos,
     IMicrosoft365GraphClient graphClient,
@@ -54,9 +54,9 @@ public class ResponderConversacionCommandHandler(
         // Ver AsignarEjecutivoConversacionCommandHandler (hallazgo N-3): sin
         // esto se podía responder en el hilo de otro gestor.
         if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
-            return Result.Fallo(Error.Crear("ConversacionCorreo.NoEncontrada", "No encontramos esta conversación."));
+            return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
 
-        MensajeCorreo mensajeCreado;
+        Mensaje mensajeCreado;
 
         if (conversacion.ConexionIntegracionId is { } conexionId)
         {
@@ -72,7 +72,7 @@ public class ResponderConversacionCommandHandler(
         else
         {
             return Result.Fallo(Error.Crear(
-                "ConversacionCorreo.SinBuzonConectado",
+                "Conversacion.SinBuzonConectado",
                 "Esta conversación no tiene un buzón de correo conectado — conecta un buzón de Microsoft 365 antes de responder."));
         }
 
@@ -88,7 +88,7 @@ public class ResponderConversacionCommandHandler(
     }
 
     private async Task GuardarAdjuntosAsync(
-        MensajeCorreo mensaje, IReadOnlyList<AdjuntoParaEnviarDto> adjuntos, CancellationToken cancellationToken)
+        Mensaje mensaje, IReadOnlyList<AdjuntoParaEnviarDto> adjuntos, CancellationToken cancellationToken)
     {
         foreach (var adjunto in adjuntos)
         {
@@ -98,30 +98,30 @@ public class ResponderConversacionCommandHandler(
         }
     }
 
-    private async Task<Result<MensajeCorreo>> EnviarPorGraphAsync(
-        ConversacionCorreo conversacion, Guid conexionId, string cuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
+    private async Task<Result<Mensaje>> EnviarPorGraphAsync(
+        Conversacion conversacion, Guid conexionId, string cuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
     {
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
         if (conexion is null || conexion.Estado != EstadoConexionIntegracion.Habilitada)
-            return Result.Fallo<MensajeCorreo>(Error.Crear(
-                "ConversacionCorreo.ConexionNoDisponible", "El buzón conectado a esta conversación no está disponible."));
+            return Result.Fallo<Mensaje>(Error.Crear(
+                "Conversacion.ConexionNoDisponible", "El buzón conectado a esta conversación no está disponible."));
 
         var ultimoMensajeEntrante = conversacion.Mensajes
             .Where(m => m.Direccion == DireccionMensaje.Entrante && m.MensajeExternoId is not null)
             .OrderByDescending(m => m.FechaUtc)
             .FirstOrDefault();
         if (ultimoMensajeEntrante is null)
-            return Result.Fallo<MensajeCorreo>(Error.Crear(
-                "ConversacionCorreo.SinMensajeOrigen", "No hay ningún mensaje entrante al que responder en este hilo."));
+            return Result.Fallo<Mensaje>(Error.Crear(
+                "Conversacion.SinMensajeOrigen", "No hay ningún mensaje entrante al que responder en este hilo."));
 
         var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
         if (accessTokenResultado.EsFallido)
-            return Result.Fallo<MensajeCorreo>(accessTokenResultado.Error);
+            return Result.Fallo<Mensaje>(accessTokenResultado.Error);
 
         var envioResultado = await graphClient.EnviarRespuestaAsync(
             accessTokenResultado.Valor, conexion.BuzonEmail, ultimoMensajeEntrante.MensajeExternoId!, cuerpoHtml, adjuntos, cancellationToken);
         if (envioResultado.EsFallido)
-            return Result.Fallo<MensajeCorreo>(envioResultado.Error);
+            return Result.Fallo<Mensaje>(envioResultado.Error);
 
         // Sent Items no está en el recurso vigilado por la suscripción (solo
         // Inbox) — un mensaje Saliente propio nunca vuelve por webhook, así

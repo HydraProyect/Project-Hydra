@@ -8,7 +8,7 @@ public class SugerenciaVisitaCorreoServiceFalso : ISugerenciaVisitaCorreoService
 {
     public List<(Guid MensajeId, Guid ClienteId)> Llamadas { get; } = [];
 
-    public Task ProcesarAsync(MensajeCorreo mensaje, Guid clienteId, CancellationToken cancellationToken = default)
+    public Task ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default)
     {
         Llamadas.Add((mensaje.Id, clienteId));
         return Task.CompletedTask;
