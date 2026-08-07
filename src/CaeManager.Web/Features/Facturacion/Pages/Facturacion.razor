@@ -201,6 +201,12 @@
                     else
                     {
                         <Tarjeta Titulo="@($"Resumen — {_resumen.ClienteNombre} — {NombreMes(_mesResumen)} {_anyoResumen}")">
+                            <div class="acciones-seccion">
+                                <a class="enlace-exportar"
+                                   href="@($"/facturacion/resumen.xlsx?clienteId={_clienteSeleccionadoId}&anyo={_anyoResumen}&mes={_mesResumen}")">
+                                    Exportar a Excel
+                                </a>
+                            </div>
                             <table class="tabla-datos tabla-resumen">
                                 <thead>
                                     <tr>
