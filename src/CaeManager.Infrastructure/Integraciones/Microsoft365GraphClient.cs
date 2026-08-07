@@ -245,7 +245,7 @@ public class Microsoft365GraphClient(
                 MensajeExternoId: mensajeId,
                 HiloExternoId: mensaje.ConversationId ?? mensajeId,
                 Asunto: asunto,
-                RemitenteEmail: mensaje.From?.EmailAddress?.Address ?? "desconocido@microsoft365.local",
+                Remitente: mensaje.From?.EmailAddress?.Address ?? "desconocido@microsoft365.local",
                 CuerpoHtml: mensaje.Body?.Content ?? string.Empty,
                 FechaUtc: mensaje.ReceivedDateTime ?? DateTime.UtcNow,
                 Participantes: participantes,
@@ -363,7 +363,7 @@ public class Microsoft365GraphClient(
                     MensajeExternoId: m.Id!,
                     HiloExternoId: m.ConversationId ?? m.Id!,
                     Asunto: string.IsNullOrWhiteSpace(m.Subject) ? "(sin asunto)" : m.Subject,
-                    RemitenteEmail: m.From?.EmailAddress?.Address ?? "desconocido@microsoft365.local",
+                    Remitente: m.From?.EmailAddress?.Address ?? "desconocido@microsoft365.local",
                     FechaUtc: m.ReceivedDateTime ?? DateTime.UtcNow,
                     TieneAdjuntos: m.HasAttachments ?? false))
                 .ToList();

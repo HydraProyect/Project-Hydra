@@ -20,7 +20,7 @@ public class AsignarClienteConversacionCommandValidator : AbstractValidator<Asig
 }
 
 public class AsignarClienteConversacionCommandHandler(
-    IConversacionCorreoRepository conversacionRepositorio, IClienteRepository clienteRepositorio,
+    IConversacionRepository conversacionRepositorio, IClienteRepository clienteRepositorio,
     IContactoWhatsAppRepository contactoRepositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<AsignarClienteConversacionCommand, Result>
 {
@@ -35,7 +35,7 @@ public class AsignarClienteConversacionCommandHandler(
 
         var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(request.ConversacionId, cancellationToken);
         if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
-            return Result.Fallo(Error.Crear("ConversacionCorreo.NoEncontrada", "No encontramos esta conversación."));
+            return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
 
         conversacion.AsignarCliente(cliente.Id);
 

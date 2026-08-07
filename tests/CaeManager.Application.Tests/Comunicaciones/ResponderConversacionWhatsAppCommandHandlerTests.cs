@@ -12,7 +12,7 @@ public class ResponderConversacionWhatsAppCommandHandlerTests
 {
     private const string Telefono = "+34600111222";
 
-    private readonly ConversacionCorreoRepositorioFalso _conversaciones = new();
+    private readonly ConversacionRepositorioFalso _conversaciones = new();
     private readonly ConexionIntegracionRepositorioFalso _conexiones = new();
     private readonly LineaWhatsAppRepositorioFalso _lineas = new();
     private readonly WhatsAppCloudApiClientFalso _whatsApp = new();
@@ -21,14 +21,14 @@ public class ResponderConversacionWhatsAppCommandHandlerTests
     private ResponderConversacionWhatsAppCommandHandler CrearHandler() =>
         new(_conversaciones, _conexiones, _lineas, new AlcanceDatosServiceFalso(), _whatsApp, _unitOfWork);
 
-    private ConversacionCorreo CrearConversacionConLinea(DateTime? ultimoEntranteUtc)
+    private Conversacion CrearConversacionConLinea(DateTime? ultimoEntranteUtc)
     {
         var conexion = new ConexionIntegracion("+34686543364", "Línea", proveedor: ProveedorIntegracion.WhatsApp);
         _conexiones.Agregar(conexion);
         _lineas.Agregar(new LineaWhatsApp(
             conexion.Id, "111222333", "waba-1", "+34686543364", "token", ModoAsignacionLinea.GestorFijo, Guid.NewGuid()));
 
-        var conversacion = ConversacionCorreo.CrearWhatsApp(Telefono, conexion.Id, null, Guid.NewGuid());
+        var conversacion = Conversacion.CrearWhatsApp(Telefono, conexion.Id, null, Guid.NewGuid());
         if (ultimoEntranteUtc is { } fecha)
             conversacion.AgregarMensaje(DireccionMensaje.Entrante, Telefono, "Hola", fecha, "wamid.in");
         _conversaciones.Agregar(conversacion);
@@ -83,7 +83,7 @@ public class ResponderConversacionWhatsAppCommandHandlerTests
     [Fact]
     public async Task Rechaza_una_conversacion_que_no_es_de_whatsapp()
     {
-        var conversacion = new ConversacionCorreo("Correo normal");
+        var conversacion = new Conversacion("Correo normal");
         _conversaciones.Agregar(conversacion);
 
         var resultado = await CrearHandler().Handle(

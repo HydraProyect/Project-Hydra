@@ -3,8 +3,10 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Domain.Comunicaciones;
 
 /// <summary>
-/// Agregado raíz de la bandeja de correo compartida (ver
-/// ARQUITECTURA-INTEGRACIONES.md § 12). ClienteId null significa que el
+/// Agregado raíz de la bandeja compartida multicanal — correo y WhatsApp
+/// (ver ARQUITECTURA-INTEGRACIONES.md § 12; renombrado desde
+/// ConversacionCorreo en el paso 0 del rediseño, docs/COMUNICACIONES.md
+/// § 16.2). ClienteId null significa que el
 /// remitente todavía no se ha resuelto contra ningún Cliente — la
 /// conversación cae en la cola de triage hasta que alguien la asigna
 /// (AsignarCliente). ConexionIntegracionId/HiloExternoId (P3-33, la
@@ -17,12 +19,12 @@ namespace CaeManager.Domain.Comunicaciones;
 /// un campo privado — patrón nuevo en este repositorio (el resto de
 /// agregados con entidades hijas, p. ej. Visita/VisitaTrabajador, las
 /// gestionan por repositorio aparte sin navegación) porque aquí el propio
-/// diseño aprobado pide que ConversacionCorreo controle el alta de sus
+/// diseño aprobado pide que Conversacion controle el alta de sus
 /// mensajes y participantes como una operación de negocio única (ver
-/// ConversacionCorreoConfiguration para cómo EF Core materializa estos
+/// ConversacionConfiguration para cómo EF Core materializa estos
 /// campos privados).
 /// </summary>
-public class ConversacionCorreo : EntidadBase
+public class Conversacion : EntidadBase
 {
     public const int LongitudMaximaAsunto = 300;
     public const int LongitudMaximaEtiquetas = 500;
@@ -32,7 +34,7 @@ public class ConversacionCorreo : EntidadBase
     /// <summary>Ventana de servicio de WhatsApp (Meta): fuera de las 24 h desde el último entrante solo se pueden enviar plantillas aprobadas.</summary>
     public static readonly TimeSpan DuracionVentanaServicio = TimeSpan.FromHours(24);
 
-    private readonly List<MensajeCorreo> _mensajes = [];
+    private readonly List<Mensaje> _mensajes = [];
     private readonly List<ParticipanteConversacion> _participantes = [];
 
     public Guid? ClienteId { get; private set; }
@@ -51,14 +53,14 @@ public class ConversacionCorreo : EntidadBase
     /// <summary>Fecha del último mensaje ENTRANTE — ancla de la ventana de servicio de 24 h de Meta (canal WhatsApp).</summary>
     public DateTime? FechaUltimoMensajeEntranteUtc { get; private set; }
 
-    public IReadOnlyList<MensajeCorreo> Mensajes => _mensajes.AsReadOnly();
+    public IReadOnlyList<Mensaje> Mensajes => _mensajes.AsReadOnly();
     public IReadOnlyList<ParticipanteConversacion> Participantes => _participantes.AsReadOnly();
 
-    private ConversacionCorreo()
+    private Conversacion()
     {
     }
 
-    public ConversacionCorreo(string asunto, Guid? clienteId = null, string? etiquetas = null)
+    public Conversacion(string asunto, Guid? clienteId = null, string? etiquetas = null)
     {
         EstablecerAsunto(asunto);
         EstablecerEtiquetas(etiquetas);
@@ -74,7 +76,7 @@ public class ConversacionCorreo : EntidadBase
     /// enrutamiento híbrido (contacto conocido→gestor de cartera, o modo de
     /// la línea); null solo si la línea quedó mal configurada (pool vacío).
     /// </summary>
-    public static ConversacionCorreo CrearWhatsApp(
+    public static Conversacion CrearWhatsApp(
         string telefonoContacto, Guid conexionIntegracionId, Guid? clienteId, Guid? ejecutivoId)
     {
         if (string.IsNullOrWhiteSpace(telefonoContacto))
@@ -86,7 +88,7 @@ public class ConversacionCorreo : EntidadBase
         if (telefono.Length > LongitudMaximaTelefonoContacto)
             throw new ArgumentException($"El teléfono no puede superar {LongitudMaximaTelefonoContacto} caracteres.", nameof(telefonoContacto));
 
-        var conversacion = new ConversacionCorreo($"WhatsApp {telefono}", clienteId)
+        var conversacion = new Conversacion($"WhatsApp {telefono}", clienteId)
         {
             Canal = CanalConversacion.WhatsApp,
             TelefonoContacto = telefono,
@@ -96,11 +98,11 @@ public class ConversacionCorreo : EntidadBase
         return conversacion;
     }
 
-    public MensajeCorreo AgregarMensaje(
-        DireccionMensaje direccion, string remitenteEmail, string cuerpoHtml, DateTime? fechaUtc = null, string? mensajeExternoId = null)
+    public Mensaje AgregarMensaje(
+        DireccionMensaje direccion, string remitente, string cuerpoHtml, DateTime? fechaUtc = null, string? mensajeExternoId = null)
     {
         var fecha = fechaUtc ?? DateTime.UtcNow;
-        var mensaje = new MensajeCorreo(Id, direccion, remitenteEmail, cuerpoHtml, fecha, mensajeExternoId);
+        var mensaje = new Mensaje(Id, direccion, remitente, cuerpoHtml, fecha, mensajeExternoId);
         _mensajes.Add(mensaje);
 
         if (fecha > FechaUltimoMensajeUtc)

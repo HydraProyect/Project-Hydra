@@ -81,9 +81,9 @@ public class CrearVisitaCommandHandler(
             if (sugerencia is not null)
             {
                 sugerencia.Resolver();
-                conversacionParaPaquete = await comunicacionesContext.MensajesCorreo
-                    .Where(m => m.Id == sugerencia.MensajeCorreoId)
-                    .Select(m => (Guid?)m.ConversacionCorreoId)
+                conversacionParaPaquete = await comunicacionesContext.Mensajes
+                    .Where(m => m.Id == sugerencia.MensajeId)
+                    .Select(m => (Guid?)m.ConversacionId)
                     .FirstOrDefaultAsync(cancellationToken);
             }
         }

@@ -104,8 +104,8 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         _dbContext.Visitas.Add(new Visita(centro.Id, manana, manana, notas: null));
 
         // Fase F: sugerencia de visita sorpresa sin resolver, mismo día.
-        var conversacion = new ConversacionCorreo("Solicitud urgente de entrada");
-        _dbContext.ConversacionesCorreo.Add(conversacion);
+        var conversacion = new Conversacion("Solicitud urgente de entrada");
+        _dbContext.Conversaciones.Add(conversacion);
         await _dbContext.SaveChangesAsync();
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, "cliente@ejemplo.com", "Necesitamos entrar hoy mismo");
         await _dbContext.SaveChangesAsync();

@@ -19,8 +19,8 @@ public class ObtenerSugerenciaVisitaCorreoQueryHandler(
         // que originó la sugerencia — mismo criterio que ObtenerConversacionPorIdQuery (Issue #18).
         var sugerencia = await (
             from s in comunicacionesContext.SugerenciasVisitaCorreo
-            join m in comunicacionesContext.MensajesCorreo on s.MensajeCorreoId equals m.Id
-            join c in comunicacionesContext.ConversacionesCorreo on m.ConversacionCorreoId equals c.Id
+            join m in comunicacionesContext.Mensajes on s.MensajeId equals m.Id
+            join c in comunicacionesContext.Conversaciones on m.ConversacionId equals c.Id
             where s.Id == request.Id
             select new { s.Id, s.CentroId, s.FechaInicioSugerida, s.FechaFinSugerida, s.Resumen, c.ClienteId })
             .FirstOrDefaultAsync(cancellationToken);

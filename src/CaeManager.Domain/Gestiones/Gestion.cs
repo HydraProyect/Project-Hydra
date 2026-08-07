@@ -27,13 +27,13 @@ public class Gestion : EntidadBase
     public string? Notas { get; private set; }
 
     /// <summary>Mensaje de correo que originó esta gestión (ver SugerenciaGestionCorreo) — null cuando se crea a mano.</summary>
-    public Guid? MensajeCorreoOrigenId { get; private set; }
+    public Guid? MensajeOrigenId { get; private set; }
 
     private Gestion()
     {
     }
 
-    public Gestion(Guid trabajadorId, Guid centroId, Guid tipoDocumentoId, Guid? mensajeCorreoOrigenId = null, string? notas = null)
+    public Gestion(Guid trabajadorId, Guid centroId, Guid tipoDocumentoId, Guid? mensajeOrigenId = null, string? notas = null)
     {
         if (trabajadorId == Guid.Empty)
             throw new ArgumentException("La gestión debe tener un trabajador.", nameof(trabajadorId));
@@ -45,7 +45,7 @@ public class Gestion : EntidadBase
         TrabajadorId = trabajadorId;
         CentroId = centroId;
         TipoDocumentoId = tipoDocumentoId;
-        MensajeCorreoOrigenId = mensajeCorreoOrigenId;
+        MensajeOrigenId = mensajeOrigenId;
         EstablecerNotas(notas);
     }
 

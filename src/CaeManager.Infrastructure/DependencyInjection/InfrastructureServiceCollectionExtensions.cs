@@ -305,7 +305,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Retencion.DeteccionPurgaService>();
         services.AddScoped<CaeManager.Application.Retencion.EjecucionPurgaService>();
         services.AddScoped<IIncidenciaRepository, IncidenciaRepository>();
-        services.AddScoped<IConversacionCorreoRepository, ConversacionCorreoRepository>();
+        services.AddScoped<IConversacionRepository, ConversacionRepository>();
         services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.ISugerenciaGestionCorreoRepository, SugerenciaGestionCorreoRepository>();

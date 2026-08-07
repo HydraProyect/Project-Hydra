@@ -22,9 +22,9 @@ public class ObtenerAdjuntoParaDescargaQueryHandler(IComunicacionesQueryContext 
     public async Task<AdjuntoParaDescargaDto?> Handle(ObtenerAdjuntoParaDescargaQuery request, CancellationToken cancellationToken)
     {
         var fila = await (
-            from adjunto in comunicacionesContext.AdjuntosMensajeCorreo
-            join mensaje in comunicacionesContext.MensajesCorreo on adjunto.MensajeCorreoId equals mensaje.Id
-            join conversacion in comunicacionesContext.ConversacionesCorreo on mensaje.ConversacionCorreoId equals conversacion.Id
+            from adjunto in comunicacionesContext.AdjuntosMensaje
+            join mensaje in comunicacionesContext.Mensajes on adjunto.MensajeId equals mensaje.Id
+            join conversacion in comunicacionesContext.Conversaciones on mensaje.ConversacionId equals conversacion.Id
             where adjunto.Id == request.Id
             select new { adjunto.NombreArchivo, adjunto.TipoContenido, adjunto.ArchivoUrl, conversacion.ClienteId })
             .FirstOrDefaultAsync(cancellationToken);

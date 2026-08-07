@@ -78,7 +78,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     /// <param name="sembrarDependencias">
     /// Para las entidades con clave foránea real (las de Comunicaciones
-    /// apuntan a ConversacionCorreo), que no se pueden insertar con un Guid
+    /// apuntan a Conversacion), que no se pueden insertar con un Guid
     /// inventado: siembra el padre en el contexto del tenant A antes de
     /// construir la entidad, de modo que <paramref name="crear"/> pueda
     /// capturar su Id.
@@ -212,8 +212,8 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     }
 
     [Fact]
-    public Task Aislamiento_ConversacionCorreo() => VerificarAislamientoAsync(
-        () => new ConversacionCorreo("Consulta sobre documentación"));
+    public Task Aislamiento_Conversacion() => VerificarAislamientoAsync(
+        () => new Conversacion("Consulta sobre documentación"));
 
     [Fact]
     public Task Aislamiento_MacroRespuesta() => VerificarAislamientoAsync(
@@ -418,12 +418,12 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Aislamiento_MensajeCorreo()
+    public async Task Aislamiento_Mensaje()
     {
         var conversacionId = Guid.Empty;
 
         await VerificarAislamientoAsync(
-            () => new MensajeCorreo(conversacionId, DireccionMensaje.Entrante, "remitente@ejemplo.com",
+            () => new Mensaje(conversacionId, DireccionMensaje.Entrante, "remitente@ejemplo.com",
                 "<p>Cuerpo del mensaje.</p>", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)),
             async contexto => conversacionId = await SembrarConversacionAsync(contexto));
     }
@@ -496,8 +496,8 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     private static async Task<Guid> SembrarConversacionAsync(CaeManagerDbContext contexto)
     {
-        var conversacion = new ConversacionCorreo("Conversación de prueba");
-        contexto.ConversacionesCorreo.Add(conversacion);
+        var conversacion = new Conversacion("Conversación de prueba");
+        contexto.Conversaciones.Add(conversacion);
         await contexto.SaveChangesAsync();
         return conversacion.Id;
     }

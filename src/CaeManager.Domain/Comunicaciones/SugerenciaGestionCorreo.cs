@@ -4,7 +4,7 @@ namespace CaeManager.Domain.Comunicaciones;
 
 /// <summary>
 /// Candidato de actualización documental (p. ej. EPI) detectado por lectura
-/// IA del cuerpo de un MensajeCorreo entrante — mismo patrón de
+/// IA del cuerpo de un Mensaje entrante — mismo patrón de
 /// sugerencia-nunca-automática que <see cref="SugerenciaVisitaCorreo"/>: si
 /// el correo parece pedir renovar/entregar un TipoDocumento de un
 /// Trabajador, se registra aquí en lugar de crear ninguna Gestion
@@ -25,7 +25,7 @@ public class SugerenciaGestionCorreo : EntidadConTenant
 {
     public const int LongitudMaximaResumen = 500;
 
-    public Guid MensajeCorreoId { get; private set; }
+    public Guid MensajeId { get; private set; }
     public Guid? TrabajadorId { get; private set; }
     public Guid? TipoDocumentoId { get; private set; }
     public string Resumen { get; private set; } = string.Empty;
@@ -36,14 +36,14 @@ public class SugerenciaGestionCorreo : EntidadConTenant
     {
     }
 
-    public SugerenciaGestionCorreo(Guid mensajeCorreoId, Guid? trabajadorId, Guid? tipoDocumentoId, string resumen)
+    public SugerenciaGestionCorreo(Guid mensajeId, Guid? trabajadorId, Guid? tipoDocumentoId, string resumen)
     {
-        if (mensajeCorreoId == Guid.Empty)
-            throw new ArgumentException("La sugerencia debe estar ligada a un mensaje.", nameof(mensajeCorreoId));
+        if (mensajeId == Guid.Empty)
+            throw new ArgumentException("La sugerencia debe estar ligada a un mensaje.", nameof(mensajeId));
         if (string.IsNullOrWhiteSpace(resumen))
             throw new ArgumentException("La sugerencia debe explicar qué se detectó.", nameof(resumen));
 
-        MensajeCorreoId = mensajeCorreoId;
+        MensajeId = mensajeId;
         TrabajadorId = trabajadorId;
         TipoDocumentoId = tipoDocumentoId;
 
