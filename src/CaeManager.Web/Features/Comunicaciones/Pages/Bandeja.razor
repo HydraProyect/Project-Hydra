@@ -3,7 +3,10 @@
 @* Mismos roles que el menú completo de NavMenu: la bandeja es una pantalla de
    gestión CAE y el rol Cliente no entra. Que el menú le oculte el enlace no
    basta — decide qué pestañas existen, no qué puede pedirse por URL
-   (hallazgo N-2 de INFORME-AUDITORIA-2.md). *@
+   (hallazgo N-2 de INFORME-AUDITORIA-2.md).
+   Communication Workspace unificado (docs/COMUNICACIONES.md § 16, paso 2 del
+   rediseño): una sola bandeja para Correo y WhatsApp — /comunicaciones/chat
+   ya no existe como pantalla aparte (principio § 10.2). *@
 @attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
@@ -53,7 +56,10 @@
                     <Boton Tamano="TamanoBoton.Pequeno" Variante="@(_soloSinAsignar ? VarianteBoton.Primario : VarianteBoton.Secundario)" OnClick="FiltrarSinAsignarAsync">
                         Sin asignar
                     </Boton>
-                    <Boton Tamano="TamanoBoton.Pequeno" Variante="@(!_soloAsignadasAMi && !_soloSinAsignar ? VarianteBoton.Primario : VarianteBoton.Secundario)" OnClick="VerTodasAsync">
+                    <Boton Tamano="TamanoBoton.Pequeno" Variante="@(_soloEsperandoCliente ? VarianteBoton.Primario : VarianteBoton.Secundario)" OnClick="AlternarEsperandoCliente">
+                        Esperando cliente
+                    </Boton>
+                    <Boton Tamano="TamanoBoton.Pequeno" Variante="@(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente ? VarianteBoton.Primario : VarianteBoton.Secundario)" OnClick="VerTodasAsync">
                         Todas
                     </Boton>
                 </div>
@@ -74,7 +80,7 @@
                 {
                     <EstadoCargando Filas="6" />
                 }
-                else if (_conversaciones.Count == 0)
+                else if (!ConversacionesVisibles().Any())
                 {
                     <EstadoVacio Titulo="No hay conversaciones" Descripcion="No encontramos conversaciones con estos filtros." />
                 }
@@ -141,9 +147,26 @@
                         <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin cliente asignado")</span>
                     </div>
                     <div class="bandeja-centro-acciones">
+                        <span class="bandeja-badge-canal" title="@(_detalle.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")">
+                            <Icono Nombre="@(_detalle.Canal == CanalConversacion.WhatsApp ? "chat" : "correo")" Tamano="TamanoIcono.Pequeno" />
+                        </span>
                         <Badge Tono="TonoBadgeDeEstado(_detalle.Estado)">@_detalle.Estado</Badge>
 
-                        @if (_detalle.ClienteId is not null)
+                        @if (_detalle.ClienteId is null)
+                        {
+                            <CampoSelect Valor="@_clienteTriageSeleccionado" ValorChanged="v => _clienteTriageSeleccionado = v">
+                                <option value="">Asignar cliente…</option>
+                                @foreach (var cliente in _clientesSelector)
+                                {
+                                    <option value="@cliente.Id">@cliente.RazonSocial</option>
+                                }
+                            </CampoSelect>
+                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                                   Deshabilitado="string.IsNullOrEmpty(_clienteTriageSeleccionado)" Cargando="_asignandoCliente" OnClick="AsignarClienteTriageAsync">
+                                Asignar
+                            </Boton>
+                        }
+                        else
                         {
                             <CampoSelect Valor="@_ejecutivoSeleccionado" ValorChanged="CambiarEjecutivoAsync" Deshabilitado="_cambiandoEjecutivo">
                                 <option value="">Sin ejecutivo asignado</option>
@@ -165,159 +188,19 @@
                     </div>
                 </div>
 
-                <div class="bandeja-mensajes">
-                    @foreach (var mensaje in _detalle.Mensajes)
-                    {
-                        <div class="bandeja-mensaje-fila bandeja-mensaje-fila-@mensaje.Direccion.ToString().ToLowerInvariant()">
-                            <span class="bandeja-avatar" title="@mensaje.Remitente" aria-hidden="true">@ObtenerIniciales(mensaje.Remitente)</span>
-                            <div class="bandeja-mensaje bandeja-mensaje-@mensaje.Direccion.ToString().ToLowerInvariant()">
-                                <div class="bandeja-mensaje-cabecera">
-                                    <span class="bandeja-mensaje-remitente">@mensaje.Remitente</span>
-                                    @{
-                                        var participante = _detalle.Participantes.FirstOrDefault(p => p.Email == mensaje.Remitente);
-                                    }
-                                    @if (participante is not null && _detalle.Participantes.Select(p => p.TipoOrigen).Distinct().Count() > 1)
-                                    {
-                                        <Badge Tono="TonoBadge.Neutro">@participante.TipoOrigen</Badge>
-                                    }
-                                    <span class="bandeja-mensaje-fecha">@FormatearFechaRelativa(mensaje.FechaUtc)</span>
-                                </div>
-                                @* MarkupString solo es admisible aquí porque el cuerpo llega
-                                   ya saneado desde ObtenerConversacionPorIdQuery — ver
-                                   MensajeDetalleDto. No saneamos en la vista a propósito: si
-                                   mañana hay otra pantalla o una API, la protección tiene que
-                                   venir de la capa por la que pasan todas. *@
-                                <div class="bandeja-mensaje-cuerpo">@((MarkupString)mensaje.CuerpoHtml)</div>
+                <UnifiedTimeline Mensajes="_detalle.Mensajes" Participantes="_detalle.Participantes"
+                                  OnCrearVisitaDesdeSugerencia="IrACrearVisitaDesdeSugerencia"
+                                  OnDescartarSugerenciaVisita="DescartarSugerenciaVisitaAsync"
+                                  OnGenerarGestionesDesdeSugerencia="args => GenerarGestionesDesdeSugerenciaAsync(args.SugerenciaId, args.TrabajadorId, args.TipoDocumentoId)"
+                                  OnDescartarSugerenciaGestion="DescartarSugerenciaGestionAsync" />
 
-                                @if (mensaje.Adjuntos.Count > 0)
-                                {
-                                    <div class="bandeja-mensaje-adjuntos">
-                                        @foreach (var adjunto in mensaje.Adjuntos)
-                                        {
-                                            <a class="bandeja-adjunto-chip" href="@($"/comunicaciones/adjuntos/{adjunto.Id}/archivo")" target="_blank">
-                                                <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
-                                                <span class="bandeja-adjunto-nombre">@adjunto.NombreArchivo</span>
-                                                <span class="bandeja-adjunto-tamano">@FormatearTamano(adjunto.TamanoBytes)</span>
-                                            </a>
-                                        }
-                                    </div>
-                                }
-
-                                @if (mensaje.SugerenciaVisita is { } sugerencia)
-                                {
-                                    <div class="bandeja-sugerencia-visita">
-                                        <div class="bandeja-sugerencia-visita-texto">
-                                            <Icono Nombre="calendario" Tamano="TamanoIcono.Pequeno" />
-                                            <span>@sugerencia.Resumen</span>
-                                        </div>
-                                        <div class="bandeja-sugerencia-visita-acciones">
-                                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => DescartarSugerenciaVisitaAsync(sugerencia.Id)">
-                                                Descartar
-                                            </Boton>
-                                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => IrACrearVisitaDesdeSugerencia(sugerencia.Id)">
-                                                Crear visita
-                                            </Boton>
-                                        </div>
-                                    </div>
-                                }
-
-                                @if (mensaje.SugerenciaGestion is { } sugerenciaGestion)
-                                {
-                                    <div class="bandeja-sugerencia-visita">
-                                        <div class="bandeja-sugerencia-visita-texto">
-                                            <Icono Nombre="incidencias" Tamano="TamanoIcono.Pequeno" />
-                                            <span>@sugerenciaGestion.Resumen</span>
-                                        </div>
-                                        <div class="bandeja-sugerencia-visita-acciones">
-                                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => DescartarSugerenciaGestionAsync(sugerenciaGestion.Id)">
-                                                Descartar
-                                            </Boton>
-                                            @if (sugerenciaGestion.TrabajadorId is not null && sugerenciaGestion.TipoDocumentoId is not null)
-                                            {
-                                                <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => GenerarGestionesDesdeSugerenciaAsync(sugerenciaGestion.Id, sugerenciaGestion.TrabajadorId.Value, sugerenciaGestion.TipoDocumentoId.Value)">
-                                                    Generar gestiones
-                                                </Boton>
-                                            }
-                                        </div>
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    }
-                </div>
-
-                @if (_detalle.ClienteId is null)
-                {
-                    <div class="bandeja-triage-banner">
-                        <p>Sin cliente identificado — revisa el hilo y asígnalo.</p>
-                        <div class="bandeja-triage-acciones">
-                            <CampoSelect Valor="@_clienteTriageSeleccionado" ValorChanged="v => _clienteTriageSeleccionado = v">
-                                <option value="">Elige un cliente…</option>
-                                @foreach (var cliente in _clientesSelector)
-                                {
-                                    <option value="@cliente.Id">@cliente.RazonSocial</option>
-                                }
-                            </CampoSelect>
-                            <Boton Cargando="_asignandoCliente" Deshabilitado="string.IsNullOrEmpty(_clienteTriageSeleccionado)" OnClick="AsignarClienteTriageAsync">
-                                Asignar
-                            </Boton>
-                        </div>
-                    </div>
-                }
-                else
-                {
-                    <div class="bandeja-respuesta">
-                        <div class="bandeja-respuesta-prellenados">
-                            <CampoSelect Etiqueta="Usar macro" Valor="@_macroSeleccionadaId" ValorChanged="AplicarMacro">
-                                <option value="">Sin macro</option>
-                                @foreach (var macro in _macrosDisponibles)
-                                {
-                                    <option value="@macro.Id">@macro.Titulo</option>
-                                }
-                            </CampoSelect>
-
-                            @if (_centrosClienteActivo.Count > 0)
-                            {
-                                <CampoSelect Etiqueta="Compartir formatos de centro" Valor="@_centroFormatosSeleccionado" ValorChanged="CompartirFormatosCentroAsync">
-                                    <option value="">Selecciona un centro…</option>
-                                    @foreach (var centro in _centrosClienteActivo)
-                                    {
-                                        <option value="@centro.Id">@centro.Nombre</option>
-                                    }
-                                </CampoSelect>
-                            }
-                        </div>
-                        <CampoTextarea Valor="@_textoRespuesta" ValorChanged="v => _textoRespuesta = v" Filas="4" Placeholder="Escribe tu respuesta…" />
-
-                        @if (_adjuntosPendientes.Count > 0)
-                        {
-                            <div class="bandeja-adjuntos-pendientes">
-                                @foreach (var adjunto in _adjuntosPendientes)
-                                {
-                                    <span class="bandeja-adjunto-chip bandeja-adjunto-chip-pendiente">
-                                        <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
-                                        <span class="bandeja-adjunto-nombre">@adjunto.NombreArchivo</span>
-                                        <button type="button" class="bandeja-adjunto-quitar" aria-label="Quitar @adjunto.NombreArchivo" @onclick="() => QuitarAdjuntoPendiente(adjunto)">×</button>
-                                    </span>
-                                }
-                            </div>
-                        }
-                        @if (_errorAdjuntos is not null)
-                        {
-                            <p class="bandeja-adjuntos-error">@_errorAdjuntos</p>
-                        }
-
-                        <div class="bandeja-respuesta-acciones">
-                            <label class="bandeja-boton-adjuntar">
-                                <Icono Nombre="importar" Tamano="TamanoIcono.Pequeno" /> Adjuntar
-                                <InputFile OnChange="ManejarArchivosAdjuntosAsync" multiple />
-                            </label>
-                            <Boton Cargando="_enviandoRespuesta" Deshabilitado="string.IsNullOrWhiteSpace(_textoRespuesta) || _errorAdjuntos is not null" OnClick="EnviarRespuestaAsync">
-                                Enviar
-                            </Boton>
-                        </div>
-                    </div>
-                }
+                <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
+                             Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"
+                             Macros="_macrosDisponibles" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
+                             Centros="_centrosClienteActivo" CentroFormatosSeleccionado="@_centroFormatosSeleccionado" OnCompartirFormatos="CompartirFormatosCentroAsync"
+                             AdjuntosPendientes="_adjuntosPendientes" ErrorAdjuntos="@_errorAdjuntos"
+                             OnArchivosSeleccionados="ManejarArchivosAdjuntosAsync" OnQuitarAdjunto="QuitarAdjuntoPendiente"
+                             EmailFallback="@_emailFallback" EmailFallbackChanged="v => _emailFallback = v" OnEnviarFallbackCorreo="EnviarFallbackCorreoAsync" />
             }
         </section>
 
