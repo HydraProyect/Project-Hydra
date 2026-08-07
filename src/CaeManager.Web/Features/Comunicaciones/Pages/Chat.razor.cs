@@ -56,11 +56,11 @@ public partial class Chat : ComponentBase, IDisposable
 
     private bool VentanaAbierta =>
         _detalle?.FechaUltimoMensajeEntranteUtc is { } ultimo &&
-        DateTime.UtcNow - ultimo < ConversacionCorreo.DuracionVentanaServicio;
+        DateTime.UtcNow - ultimo < Conversacion.DuracionVentanaServicio;
 
     private string CierreVentanaLocal =>
         _detalle?.FechaUltimoMensajeEntranteUtc is { } ultimo
-            ? ultimo.Add(ConversacionCorreo.DuracionVentanaServicio).ToLocalTime().ToString("dd/MM 'a las' HH:mm")
+            ? ultimo.Add(Conversacion.DuracionVentanaServicio).ToLocalTime().ToString("dd/MM 'a las' HH:mm")
             : string.Empty;
 
     protected override async Task OnInitializedAsync()

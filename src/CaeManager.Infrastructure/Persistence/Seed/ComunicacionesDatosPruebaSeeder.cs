@@ -22,7 +22,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 ///
 /// Mismo criterio de activación que <see cref="DatosPruebaSeeder"/>: gateado
 /// por <c>DatosPrueba:Activo</c> e idempotente (si ya hay alguna
-/// ConversacionCorreo, no vuelve a sembrar).
+/// Conversacion, no vuelve a sembrar).
 /// </summary>
 public static class ComunicacionesDatosPruebaSeeder
 {
@@ -75,9 +75,9 @@ public static class ComunicacionesDatosPruebaSeeder
             return;
         }
 
-        if (await dbContext.ConversacionesCorreo.AnyAsync(cancellationToken))
+        if (await dbContext.Conversaciones.AnyAsync(cancellationToken))
         {
-            logger.LogInformation("Ya hay ConversacionesCorreo sembradas — se omite la siembra de Comunicaciones.");
+            logger.LogInformation("Ya hay Conversaciones sembradas — se omite la siembra de Comunicaciones.");
             return;
         }
 
@@ -108,7 +108,7 @@ public static class ComunicacionesDatosPruebaSeeder
             var asunto = $"{ElementoAleatorio(aleatorio, AsuntosConversacion)} — {(cliente?.RazonSocial ?? "remitente sin identificar")}";
             var etiquetas = aleatorio.Next(4) == 0 ? "urgente" : null;
 
-            var conversacion = new ConversacionCorreo(asunto, cliente?.Id, etiquetas);
+            var conversacion = new Conversacion(asunto, cliente?.Id, etiquetas);
 
             var totalMensajes = aleatorio.Next(2, 6);
             var fechaMensaje = ahora.AddDays(-aleatorio.Next(1, 45)).AddHours(-aleatorio.Next(0, 23));
@@ -146,7 +146,7 @@ public static class ComunicacionesDatosPruebaSeeder
             if (!esTriage && gestoresPrueba.Count > 0 && aleatorio.Next(3) != 0)
                 conversacion.Asignar(ElementoAleatorio(aleatorio, gestoresPrueba).Id);
 
-            dbContext.ConversacionesCorreo.Add(conversacion);
+            dbContext.Conversaciones.Add(conversacion);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -168,7 +168,7 @@ public static class ComunicacionesDatosPruebaSeeder
     }
 
     private static void AgregarParticipanteRelacionadoAleatorio(
-        ConversacionCorreo conversacion, Random aleatorio,
+        Conversacion conversacion, Random aleatorio,
         IReadOnlyList<Trabajador> trabajadores,
         IReadOnlyList<Empresa> empresas,
         IReadOnlyList<Subcontrata> subcontratas,

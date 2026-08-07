@@ -38,13 +38,13 @@ public class VisibilidadTriageTests : IAsyncLifetime
         var cliente = new Cliente("Contrata Propia S.L.", "B12345674", esCritico: false);
         contexto.Clientes.Add(cliente);
 
-        var propia = new ConversacionCorreo("Mi propia consulta", clienteId: cliente.Id);
+        var propia = new Conversacion("Mi propia consulta", clienteId: cliente.Id);
         propia.AgregarMensaje(DireccionMensaje.Entrante, "yo@propia.test", "<p>Hola</p>");
 
-        var sinTriar = new ConversacionCorreo("Correo de otra empresa sin triar");
+        var sinTriar = new Conversacion("Correo de otra empresa sin triar");
         sinTriar.AgregarMensaje(DireccionMensaje.Entrante, "otro@ajena.test", "<p>Datos de otra empresa</p>");
 
-        contexto.ConversacionesCorreo.AddRange(propia, sinTriar);
+        contexto.Conversaciones.AddRange(propia, sinTriar);
         await contexto.SaveChangesAsync();
 
         _clientePropio = cliente.Id;
