@@ -66,6 +66,15 @@ public partial class Bandeja : ComponentBase
 
     private string ObtenerClaseTarjeta(ItemBandejaDto item) => item.Id == _idEnfocado ? "panel-resolver-item-enfocado" : "";
 
+    /// <summary>
+    /// H2 (docs/ux-audit/10-bandeja-alertas-calendario.md): "¿qué atiendo
+    /// primero?" pide los números antes de filtrar, no después. Cuenta
+    /// siempre sobre <c>_items</c> completo (nunca sobre <c>ItemsFiltrados</c>),
+    /// para que el número de cada opción no cambie según cuál esté
+    /// seleccionada.
+    /// </summary>
+    private int Contador(TipoItemBandeja tipo) => _items.Count(i => i.Tipo == tipo);
+
     private async Task ManejarAtajoAsync(string tecla)
     {
         var items = ItemsFiltrados;
