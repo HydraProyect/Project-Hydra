@@ -6,12 +6,16 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
 using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaGestion;
 using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaVisita;
+using CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorreo;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
+using CaeManager.Application.Comunicaciones.Commands.ResponderConversacionWhatsApp;
+using CaeManager.Application.Comunicaciones.Eventos;
 using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
+using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Infrastructure.Comunicaciones;
@@ -27,12 +31,22 @@ namespace CaeManager.Web.Features.Comunicaciones.Pages;
 
 public record EjecutivoSelectorDto(Guid Id, string NombreCompleto);
 
-public partial class Bandeja : ComponentBase
+/// <summary>
+/// Communication Workspace unificado (docs/COMUNICACIONES.md § 16, paso 2
+/// del rediseño): fusiona lo que antes eran Bandeja (correo) y Chat
+/// (WhatsApp) — una sola bandeja, una sola conversación seleccionada, un
+/// único ComposerBar que cambia de modo según Canal. El principio rector
+/// (§ 10.2) es que el gestor nunca elige "voy a Correo" o "voy a WhatsApp":
+/// entra a Comunicaciones y ve conversaciones.
+/// </summary>
+public partial class Bandeja : ComponentBase, IDisposable
 {
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ILogger<Bandeja> Logger { get; set; } = default!;
     [Inject] private IOptions<ComunicacionesOptions> OpcionesComunicaciones { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private INotificadorMensajesTiempoReal Notificador { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "estado")] public string? EstadoInicial { get; set; }
     [SupplyParameterFromQuery(Name = "mes")] public string? MesInicial { get; set; }
@@ -45,6 +59,7 @@ public partial class Bandeja : ComponentBase
     private string _clienteIdFiltro = string.Empty;
     private bool _soloAsignadasAMi;
     private bool _soloSinAsignar;
+    private bool _soloEsperandoCliente;
     private string _busqueda = string.Empty;
 
     private bool _cargandoLista = true;
@@ -63,12 +78,14 @@ public partial class Bandeja : ComponentBase
     private IReadOnlyList<MacroListaDto> _macrosDisponibles = [];
     private IReadOnlyList<CentroSelectorDto> _centrosClienteActivo = [];
 
+    // --- Composer (compartido entre Correo/WhatsApp/fallback — ver ComposerBar) ---
     private string _textoRespuesta = string.Empty;
     private string _macroSeleccionadaId = string.Empty;
     private string _centroFormatosSeleccionado = string.Empty;
-    private bool _enviandoRespuesta;
+    private bool _enviando;
     private readonly List<AdjuntoParaEnviarDto> _adjuntosPendientes = [];
     private string? _errorAdjuntos;
+    private string _emailFallback = string.Empty;
     private string _ejecutivoSeleccionado = string.Empty;
     private bool _cambiandoEjecutivo;
     private bool _cambiandoEstado;
@@ -76,12 +93,24 @@ public partial class Bandeja : ComponentBase
     private string _clienteTriageSeleccionado = string.Empty;
     private bool _asignandoCliente;
 
+    private IDisposable? _suscripcionTiempoReal;
+
+    private bool VentanaAbierta =>
+        _detalle?.Canal == CanalConversacion.WhatsApp &&
+        _detalle.FechaUltimoMensajeEntranteUtc is { } ultimo &&
+        DateTime.UtcNow - ultimo < Conversacion.DuracionVentanaServicio;
+
+    private string CierreVentanaLocal =>
+        _detalle?.FechaUltimoMensajeEntranteUtc is { } ultimo
+            ? ultimo.Add(Conversacion.DuracionVentanaServicio).ToLocalTime().ToString("dd/MM 'a las' HH:mm")
+            : string.Empty;
+
     protected override async Task OnInitializedAsync()
     {
         // Módulo congelado por defecto (ComunicacionesOptions, P2 #26 de
-        // docs/business/MATURITY_REVIEW.md): sin ingesta real de Graph
-        // detrás, se presenta como si la ruta no existiera en vez de
-        // mostrar una bandeja que nadie va a alimentar de verdad.
+        // docs/business/MATURITY_REVIEW.md): sin ingesta real detrás, se
+        // presenta como si la ruta no existiera en vez de mostrar una
+        // bandeja que nadie va a alimentar de verdad.
         if (!OpcionesComunicaciones.Value.Activo)
         {
             NavigationManager.NavigateTo("/not-found");
@@ -105,8 +134,37 @@ public partial class Bandeja : ComponentBase
             .Select(u => new EjecutivoSelectorDto(u.Id, u.NombreCompleto))
             .ToList();
 
+        // La suscripción es del tenant del circuito: los avisos de otros
+        // tenants nunca llegan aquí (el notificador ya segrega por tenant).
+        // Refresca la bandeja unificada al instante cuando la ingesta de
+        // WhatsApp persiste un mensaje nuevo — antes solo lo hacía /chat.
+        if (TenantActual.TenantId is { } tenantId)
+            _suscripcionTiempoReal = Notificador.Suscribir(tenantId, AlRecibirMensajeAsync);
+
         await CargarListaAsync();
     }
+
+    public void Dispose() => _suscripcionTiempoReal?.Dispose();
+
+    /// <summary>Llega desde el hilo del job de fondo — todo lo que toque estado del componente va dentro de InvokeAsync.</summary>
+    private Task AlRecibirMensajeAsync(MensajeWhatsAppRecibidoEvent aviso) =>
+        InvokeAsync(async () =>
+        {
+            try
+            {
+                await CargarListaAsync();
+                // Refresco ligero: NO pasa por SeleccionarConversacionAsync
+                // para no perder lo que el gestor esté escribiendo a mitad
+                // de una respuesta cuando llega un mensaje nuevo.
+                if (aviso.ConversacionId == _conversacionSeleccionadaId)
+                    await CargarDetalleAsync();
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "No se pudo refrescar la bandeja al recibir un aviso de tiempo real.");
+            }
+        });
 
     /// <summary>
     /// Re-sincroniza los filtros con la URL en navegaciones posteriores
@@ -150,8 +208,9 @@ public partial class Bandeja : ComponentBase
                 ClienteId: Guid.TryParse(_clienteIdFiltro, out var clienteId) ? clienteId : null,
                 SoloAsignadasAMi: _soloAsignadasAMi,
                 SoloSinAsignar: _soloSinAsignar,
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                Canal: CanalConversacion.Correo)); // el chat de WhatsApp vive en /comunicaciones/chat
+                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda));
+            // Sin filtro de Canal a propósito (docs/COMUNICACIONES.md § 10.2):
+            // el gestor ve conversaciones, no "correo" o "WhatsApp" por separado.
         }
         catch (Exception ex)
         {
@@ -205,11 +264,21 @@ public partial class Bandeja : ComponentBase
         return CargarListaAsync();
     }
 
+    /// <summary>
+    /// "Esperando cliente" es un filtro puramente cliente (ConversacionListaDto.EsperandoCliente
+    /// es un campo derivado, no persistido — § 16.4): no hace falta redondear
+    /// contra el servidor, se aplica sobre la lista ya cargada.
+    /// </summary>
+    private void AlternarEsperandoCliente() => _soloEsperandoCliente = !_soloEsperandoCliente;
+
+    private IEnumerable<ConversacionListaDto> ConversacionesVisibles() =>
+        _soloEsperandoCliente ? _conversaciones.Where(c => c.EsperandoCliente) : _conversaciones;
+
     private IEnumerable<IGrouping<Guid, ConversacionListaDto>> GruposPorCliente() =>
-        _conversaciones.Where(c => c.ClienteId is not null).GroupBy(c => c.ClienteId!.Value);
+        ConversacionesVisibles().Where(c => c.ClienteId is not null).GroupBy(c => c.ClienteId!.Value);
 
     private IReadOnlyList<ConversacionListaDto> ConversacionesTriage() =>
-        _conversaciones.Where(c => c.ClienteId is null).OrderByDescending(c => c.FechaUltimoMensajeUtc).ToList();
+        ConversacionesVisibles().Where(c => c.ClienteId is null).OrderByDescending(c => c.FechaUltimoMensajeUtc).ToList();
 
     private void AlternarGrupo(string clave)
     {
@@ -222,13 +291,22 @@ public partial class Bandeja : ComponentBase
     private async Task SeleccionarConversacionAsync(Guid id)
     {
         _conversacionSeleccionadaId = id;
-        _cargandoDetalle = true;
         _textoRespuesta = string.Empty;
         _macroSeleccionadaId = string.Empty;
         _clienteTriageSeleccionado = string.Empty;
         _adjuntosPendientes.Clear();
         _errorAdjuntos = null;
         _centroFormatosSeleccionado = string.Empty;
+        _emailFallback = string.Empty;
+
+        await CargarDetalleAsync();
+    }
+
+    private async Task CargarDetalleAsync()
+    {
+        if (_conversacionSeleccionadaId is not { } id) return;
+
+        _cargandoDetalle = true;
         StateHasChanged();
 
         try
@@ -326,16 +404,25 @@ public partial class Bandeja : ComponentBase
             _errorAdjuntos = null;
     }
 
-    private async Task EnviarRespuestaAsync()
+    /// <summary>
+    /// Único punto de envío del ComposerBar — decide el Command según el
+    /// canal de la conversación abierta (§ 13.3: la respuesta sale por el
+    /// canal de origen). El fallback WhatsApp→correo tiene su propio método
+    /// (EnviarFallbackCorreoAsync) porque es un Command distinto.
+    /// </summary>
+    private async Task EnviarAsync()
     {
         if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta)) return;
-        if (_errorAdjuntos is not null) return;
+        if (_detalle?.Canal == CanalConversacion.Correo && _errorAdjuntos is not null) return;
 
-        _enviandoRespuesta = true;
+        _enviando = true;
         try
         {
-            var resultado = await Mediator.Send(new ResponderConversacionCommand(
-                _conversacionSeleccionadaId.Value, _textoRespuesta, _adjuntosPendientes.Count > 0 ? _adjuntosPendientes.ToList() : null));
+            var resultado = _detalle?.Canal == CanalConversacion.WhatsApp
+                ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(_conversacionSeleccionadaId.Value, _textoRespuesta.Trim()))
+                : await Mediator.Send(new ResponderConversacionCommand(
+                    _conversacionSeleccionadaId.Value, _textoRespuesta, _adjuntosPendientes.Count > 0 ? _adjuntosPendientes.ToList() : null));
+
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -347,7 +434,7 @@ public partial class Bandeja : ComponentBase
             _adjuntosPendientes.Clear();
             ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
 
-            await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
+            await CargarDetalleAsync();
             await CargarListaAsync();
         }
         catch (Exception ex)
@@ -357,7 +444,42 @@ public partial class Bandeja : ComponentBase
         }
         finally
         {
-            _enviandoRespuesta = false;
+            _enviando = false;
+        }
+    }
+
+    /// <summary>Fallback de canal (§ 16.5): WhatsApp con la ventana de 24h cerrada continúa el MISMO hilo por correo.</summary>
+    private async Task EnviarFallbackCorreoAsync()
+    {
+        if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta) || string.IsNullOrWhiteSpace(_emailFallback))
+            return;
+
+        _enviando = true;
+        try
+        {
+            var resultado = await Mediator.Send(new MigrarConversacionACorreoCommand(
+                _conversacionSeleccionadaId.Value, _emailFallback.Trim(), _textoRespuesta));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            _textoRespuesta = string.Empty;
+            _emailFallback = string.Empty;
+            ToastService.Mostrar("Mensaje enviado por correo — la conversación continúa en este mismo hilo.", TonoToast.Exito);
+
+            await CargarDetalleAsync();
+            await CargarListaAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al migrar a correo la conversación {ConversacionId}.", _conversacionSeleccionadaId);
+            ToastService.Mostrar("No pudimos enviar el correo. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _enviando = false;
         }
     }
 
@@ -375,7 +497,7 @@ public partial class Bandeja : ComponentBase
                 return;
             }
 
-            await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
+            await CargarDetalleAsync();
             await CargarListaAsync();
         }
         finally
@@ -423,7 +545,7 @@ public partial class Bandeja : ComponentBase
             }
 
             ToastService.Mostrar("Conversación asignada al cliente.", TonoToast.Exito);
-            await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
+            await CargarDetalleAsync();
             await CargarListaAsync();
         }
         finally
@@ -447,7 +569,7 @@ public partial class Bandeja : ComponentBase
             }
 
             if (_conversacionSeleccionadaId is not null)
-                await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
+                await CargarDetalleAsync();
         }
         catch (Exception ex)
         {
@@ -477,7 +599,7 @@ public partial class Bandeja : ComponentBase
             ToastService.Mostrar($"Se generaron {resultado.Valor.Creadas} gestión(es).", TonoToast.Exito);
 
             if (_conversacionSeleccionadaId is not null)
-                await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
+                await CargarDetalleAsync();
         }
         catch (Exception ex)
         {
@@ -498,7 +620,7 @@ public partial class Bandeja : ComponentBase
             }
 
             if (_conversacionSeleccionadaId is not null)
-                await SeleccionarConversacionAsync(_conversacionSeleccionadaId.Value);
+                await CargarDetalleAsync();
         }
         catch (Exception ex)
         {
@@ -513,30 +635,4 @@ public partial class Bandeja : ComponentBase
         EstadoConversacion.Pendiente => TonoBadge.Info,
         _ => TonoBadge.Neutro
     };
-
-    /// <summary>Dos letras del correo (local-part) para el avatar — sin depender de un nombre completo, que este DTO no siempre trae.</summary>
-    private static string ObtenerIniciales(string email)
-    {
-        var local = email.Split('@')[0];
-        return local.Length >= 2 ? local[..2].ToUpperInvariant() : local.ToUpperInvariant();
-    }
-
-    private static string FormatearTamano(long bytes) => bytes switch
-    {
-        < 1024 => $"{bytes} B",
-        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
-        _ => $"{bytes / (1024.0 * 1024.0):0.#} MB"
-    };
-
-    private static string FormatearFechaRelativa(DateTime fechaUtc)
-    {
-        var transcurrido = DateTime.UtcNow - fechaUtc;
-
-        if (transcurrido.TotalMinutes < 1) return "ahora";
-        if (transcurrido.TotalMinutes < 60) return $"hace {(int)transcurrido.TotalMinutes} min";
-        if (transcurrido.TotalHours < 24) return $"hace {(int)transcurrido.TotalHours} h";
-        if (transcurrido.TotalDays < 30) return $"hace {(int)transcurrido.TotalDays} d";
-
-        return fechaUtc.ToString("dd/MM/yyyy");
-    }
 }
