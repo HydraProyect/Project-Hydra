@@ -1,0 +1,157 @@
+@*
+    Cronología única de una conversación (docs/COMUNICACIONES.md § 12.3):
+    mezcla mensajes de Correo y WhatsApp cronológicamente, cada uno con su
+    propio badge de canal (Mensaje.Canal, paso 1 del rediseño) — nunca dos
+    listas separadas por pantalla. Componente reutilizable declarado en el
+    diseño del Communication Workspace (§ 11); hoy solo lo consume Bandeja,
+    pero está pensado para Historial/Auditoría más adelante.
+*@
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
+@using CaeManager.Domain.Comunicaciones
+
+<div class="timeline-mensajes">
+    @foreach (var mensaje in Mensajes)
+    {
+        <div class="timeline-mensaje-fila timeline-mensaje-fila-@mensaje.Direccion.ToString().ToLowerInvariant()">
+            <span class="timeline-avatar" title="@mensaje.Remitente" aria-hidden="true">@ObtenerIniciales(mensaje.Remitente)</span>
+            <div class="timeline-mensaje timeline-mensaje-@mensaje.Direccion.ToString().ToLowerInvariant()">
+                <div class="timeline-mensaje-cabecera">
+                    <span class="timeline-mensaje-remitente">@mensaje.Remitente</span>
+                    <span class="timeline-badge-canal" title="@(mensaje.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")">
+                        <Icono Nombre="@(mensaje.Canal == CanalConversacion.WhatsApp ? "chat" : "correo")" Tamano="TamanoIcono.Pequeno" />
+                    </span>
+                    @{
+                        var participante = Participantes.FirstOrDefault(p => p.Email == mensaje.Remitente);
+                    }
+                    @if (participante is not null && Participantes.Select(p => p.TipoOrigen).Distinct().Count() > 1)
+                    {
+                        <Badge Tono="TonoBadge.Neutro">@participante.TipoOrigen</Badge>
+                    }
+                    <span class="timeline-mensaje-fecha">@FormatearFechaRelativa(mensaje.FechaUtc)</span>
+                </div>
+
+                @* MarkupString solo es admisible aquí porque el cuerpo llega ya
+                   saneado desde ObtenerConversacionPorIdQuery — ver MensajeDetalleDto. *@
+                <div class="timeline-mensaje-cuerpo">@((MarkupString)mensaje.CuerpoHtml)</div>
+
+                @if (mensaje.Direccion == DireccionMensaje.Saliente && mensaje.Canal == CanalConversacion.WhatsApp)
+                {
+                    <div class="timeline-entrega-whatsapp">
+                        <span class="timeline-ticks @(mensaje.EstadoEntrega == EstadoEntregaMensaje.Leido ? "leido" : null)"
+                              title="@DescribirEstadoEntrega(mensaje.EstadoEntrega)">@TicksEstadoEntrega(mensaje.EstadoEntrega)</span>
+                        @if (mensaje.EstadoEntrega == EstadoEntregaMensaje.Fallido)
+                        {
+                            <span class="timeline-error-entrega">No entregado: @(mensaje.ErrorEntrega ?? "error desconocido")</span>
+                        }
+                    </div>
+                }
+
+                @if (mensaje.Adjuntos.Count > 0)
+                {
+                    <div class="timeline-adjuntos">
+                        @foreach (var adjunto in mensaje.Adjuntos)
+                        {
+                            <a class="timeline-adjunto-chip" href="@($"/comunicaciones/adjuntos/{adjunto.Id}/archivo")" target="_blank">
+                                <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
+                                <span class="timeline-adjunto-nombre">@adjunto.NombreArchivo</span>
+                                <span class="timeline-adjunto-tamano">@FormatearTamano(adjunto.TamanoBytes)</span>
+                            </a>
+                        }
+                    </div>
+                }
+
+                @if (mensaje.SugerenciaVisita is { } sugerencia)
+                {
+                    <div class="timeline-sugerencia">
+                        <div class="timeline-sugerencia-texto">
+                            <Icono Nombre="calendario" Tamano="TamanoIcono.Pequeno" />
+                            <span>@sugerencia.Resumen</span>
+                        </div>
+                        <div class="timeline-sugerencia-acciones">
+                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => OnDescartarSugerenciaVisita.InvokeAsync(sugerencia.Id)">
+                                Descartar
+                            </Boton>
+                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => OnCrearVisitaDesdeSugerencia.InvokeAsync(sugerencia.Id)">
+                                Crear visita
+                            </Boton>
+                        </div>
+                    </div>
+                }
+
+                @if (mensaje.SugerenciaGestion is { } sugerenciaGestion)
+                {
+                    <div class="timeline-sugerencia">
+                        <div class="timeline-sugerencia-texto">
+                            <Icono Nombre="incidencias" Tamano="TamanoIcono.Pequeno" />
+                            <span>@sugerenciaGestion.Resumen</span>
+                        </div>
+                        <div class="timeline-sugerencia-acciones">
+                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => OnDescartarSugerenciaGestion.InvokeAsync(sugerenciaGestion.Id)">
+                                Descartar
+                            </Boton>
+                            @if (sugerenciaGestion.TrabajadorId is not null && sugerenciaGestion.TipoDocumentoId is not null)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno"
+                                       OnClick="() => OnGenerarGestionesDesdeSugerencia.InvokeAsync((sugerenciaGestion.Id, sugerenciaGestion.TrabajadorId.Value, sugerenciaGestion.TipoDocumentoId.Value))">
+                                    Generar gestiones
+                                </Boton>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<MensajeDetalleDto> Mensajes { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<ParticipanteDetalleDto> Participantes { get; set; } = [];
+    [Parameter] public EventCallback<Guid> OnCrearVisitaDesdeSugerencia { get; set; }
+    [Parameter] public EventCallback<Guid> OnDescartarSugerenciaVisita { get; set; }
+    [Parameter] public EventCallback<(Guid SugerenciaId, Guid TrabajadorId, Guid TipoDocumentoId)> OnGenerarGestionesDesdeSugerencia { get; set; }
+    [Parameter] public EventCallback<Guid> OnDescartarSugerenciaGestion { get; set; }
+
+    /// <summary>Dos letras del correo (local-part) o del teléfono para el avatar — sin depender de un nombre completo, que este DTO no siempre trae.</summary>
+    private static string ObtenerIniciales(string remitente)
+    {
+        var local = remitente.Split('@')[0];
+        return local.Length >= 2 ? local[..2].ToUpperInvariant() : local.ToUpperInvariant();
+    }
+
+    private static string FormatearTamano(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024.0):0.#} MB"
+    };
+
+    private static string FormatearFechaRelativa(DateTime fechaUtc)
+    {
+        var transcurrido = DateTime.UtcNow - fechaUtc;
+
+        if (transcurrido.TotalMinutes < 1) return "ahora";
+        if (transcurrido.TotalMinutes < 60) return $"hace {(int)transcurrido.TotalMinutes} min";
+        if (transcurrido.TotalHours < 24) return $"hace {(int)transcurrido.TotalHours} h";
+        if (transcurrido.TotalDays < 30) return $"hace {(int)transcurrido.TotalDays} d";
+
+        return fechaUtc.ToString("dd/MM/yyyy");
+    }
+
+    private static string TicksEstadoEntrega(EstadoEntregaMensaje? estado) => estado switch
+    {
+        EstadoEntregaMensaje.Enviado => "✓",
+        EstadoEntregaMensaje.Entregado or EstadoEntregaMensaje.Leido => "✓✓",
+        EstadoEntregaMensaje.Fallido => "!",
+        _ => string.Empty,
+    };
+
+    private static string DescribirEstadoEntrega(EstadoEntregaMensaje? estado) => estado switch
+    {
+        EstadoEntregaMensaje.Enviado => "Enviado",
+        EstadoEntregaMensaje.Entregado => "Entregado",
+        EstadoEntregaMensaje.Leido => "Leído",
+        EstadoEntregaMensaje.Fallido => "No entregado",
+        _ => string.Empty,
+    };
+}
