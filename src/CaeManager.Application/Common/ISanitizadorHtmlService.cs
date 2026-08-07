@@ -4,7 +4,7 @@ namespace CaeManager.Application.Common;
 /// Depura HTML de origen no confiable dejando solo una lista blanca de
 /// etiquetas y atributos seguros. El cuerpo de un correo entrante lo escribe
 /// quien envía el mensaje, no un usuario del sistema: cuando llegue la ingesta
-/// por Microsoft Graph (ver <c>ConversacionCorreo</c>), bastará con conocer la
+/// por Microsoft Graph (ver <c>Conversacion</c>), bastará con conocer la
 /// dirección del buzón para inyectar marcado en una pantalla autenticada
 /// (hallazgo N-1 de INFORME-AUDITORIA-2.md).
 ///

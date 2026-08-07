@@ -8,7 +8,7 @@ namespace CaeManager.Application.Comunicaciones.Deteccion;
 /// <summary>
 /// Orquestador puro (igual que <c>DeteccionTrabajadoresService</c>): llamado
 /// desde <c>IngestaWebhookService</c> justo después de persistir un
-/// MensajeCorreo Entrante, carga los Centros del Cliente de la conversación,
+/// Mensaje Entrante, carga los Centros del Cliente de la conversación,
 /// pide a <see cref="IDeteccionVisitaCorreoService"/> que lo clasifique, y si
 /// parece una solicitud de visita registra una <see cref="SugerenciaVisitaCorreo"/>
 /// pendiente. No guarda cambios — el llamador ya persiste todo el mensaje
@@ -17,7 +17,7 @@ namespace CaeManager.Application.Comunicaciones.Deteccion;
 /// </summary>
 public interface ISugerenciaVisitaCorreoService
 {
-    Task ProcesarAsync(MensajeCorreo mensaje, Guid clienteId, CancellationToken cancellationToken = default);
+    Task ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default);
 }
 
 public class SugerenciaVisitaCorreoService(
@@ -26,7 +26,7 @@ public class SugerenciaVisitaCorreoService(
     ISugerenciaVisitaCorreoRepository sugerenciaRepositorio,
     ILogger<SugerenciaVisitaCorreoService> logger) : ISugerenciaVisitaCorreoService
 {
-    public async Task ProcesarAsync(MensajeCorreo mensaje, Guid clienteId, CancellationToken cancellationToken = default)
+    public async Task ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default)
     {
         var centros = await centrosContext.Centros
             .Where(c => c.ClienteId == clienteId)

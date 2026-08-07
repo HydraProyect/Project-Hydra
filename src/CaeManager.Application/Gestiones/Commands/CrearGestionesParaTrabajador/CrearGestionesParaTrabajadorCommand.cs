@@ -19,7 +19,7 @@ namespace CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador
 /// nunca se llama automáticamente desde la detección IA.
 /// </summary>
 public record CrearGestionesParaTrabajadorCommand(
-    Guid TrabajadorId, Guid TipoDocumentoId, Guid? SugerenciaGestionCorreoId = null, Guid? MensajeCorreoOrigenId = null)
+    Guid TrabajadorId, Guid TipoDocumentoId, Guid? SugerenciaGestionCorreoId = null, Guid? MensajeOrigenId = null)
     : ICommand<ResultadoCrearGestionesDto>;
 
 public record ResultadoCrearGestionesDto(int Creadas);
@@ -67,7 +67,7 @@ public class CrearGestionesParaTrabajadorCommandHandler(
         foreach (var centroId in centroIds)
         {
             gestionRepositorio.Agregar(new Gestion(
-                request.TrabajadorId, centroId, request.TipoDocumentoId, request.MensajeCorreoOrigenId));
+                request.TrabajadorId, centroId, request.TipoDocumentoId, request.MensajeOrigenId));
         }
 
         if (request.SugerenciaGestionCorreoId is { } sugerenciaId)

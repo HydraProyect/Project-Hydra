@@ -6,6 +6,6 @@ public enum OrigenVisita
     Plataforma,
     Correo,
 
-    /// <summary>Fase F: "visita sorpresa" detectada por WhatsApp — mismo mecanismo de sugerencia que Correo (ver SugerenciaVisitaCorreo, que hereda el canal a través de ConversacionCorreo.Canal), añadido al final para no renumerar los valores ya persistidos.</summary>
+    /// <summary>Fase F: "visita sorpresa" detectada por WhatsApp — mismo mecanismo de sugerencia que Correo (ver SugerenciaVisitaCorreo, que hereda el canal a través de Conversacion.Canal), añadido al final para no renumerar los valores ya persistidos.</summary>
     WhatsApp
 }

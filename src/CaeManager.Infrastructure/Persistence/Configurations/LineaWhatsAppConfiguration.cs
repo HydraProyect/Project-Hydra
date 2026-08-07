@@ -33,7 +33,7 @@ public class LineaWhatsAppConfiguration : IEntityTypeConfiguration<LineaWhatsApp
             .OnDelete(DeleteBehavior.Cascade);
 
         // Colección de solo lectura respaldada por campo privado — mismo
-        // patrón que ConversacionCorreo.Mensajes.
+        // patrón que Conversacion.Mensajes.
         builder.HasMany(l => l.MiembrosPool)
             .WithOne()
             .HasForeignKey(m => m.LineaWhatsAppId)
