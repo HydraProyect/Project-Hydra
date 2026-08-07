@@ -3,8 +3,10 @@ using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendi
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
+using CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPendientes;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -44,7 +46,8 @@ public enum TipoItemBandeja
     RequisitoPendiente,
     VisitaUrgente,
     Urgente,
-    RevisionIa
+    RevisionIa,
+    DeteccionPendiente
 }
 
 public record ItemBandejaDto(
@@ -58,7 +61,8 @@ public record ItemBandejaDto(
     Guid? DocumentoId,
     Guid? TipoDocumentoId,
     Guid? RequisitoId,
-    Guid? SugerenciaVisitaId = null);
+    Guid? SugerenciaVisitaId = null,
+    Guid? EmpresaId = null);
 
 public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracionQueryContext configuracionContext)
     : IRequestHandler<ObtenerBandejaGestorQuery, IReadOnlyList<ItemBandejaDto>>
@@ -72,12 +76,13 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             new ObtenerVisitasQuery(Busqueda: null, SoloActivas: true, NotificadoCliente: null, SoloUrgentes: true, TamanoPagina: 200),
             cancellationToken);
         var sugerenciasVisita = await mediator.Send(new ObtenerSugerenciasVisitaCorreoPendientesQuery(), cancellationToken);
+        var detecciones = await mediator.Send(new ObtenerDeteccionesPendientesQuery(), cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
         return Fusionar(
-            alertas, revisiones, requisitos, visitasUrgentes.Elementos, sugerenciasVisita,
+            alertas, revisiones, requisitos, visitasUrgentes.Elementos, sugerenciasVisita, detecciones,
             hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita);
     }
 
@@ -93,6 +98,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
         IReadOnlyList<DocumentacionBloqueantePendienteDto> requisitos,
         IReadOnlyList<VisitaListaDto> visitasUrgentes,
         IReadOnlyList<SugerenciaVisitaCorreoPendienteDto> sugerenciasVisita,
+        IReadOnlyList<DeteccionPendienteDto> detecciones,
         DateOnly hoy,
         int horasAvisoVisita,
         int horasCriticasVisita)
@@ -173,6 +179,19 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 TipoDocumentoId: null,
                 RequisitoId: null,
                 SugerenciaVisitaId: s.Id)));
+
+        items.AddRange(detecciones.Select(d => new ItemBandejaDto(
+            Id: $"deteccion-{d.Id}",
+            Tipo: TipoItemBandeja.DeteccionPendiente,
+            Titulo: d.Tipo == TipoDeteccion.Nuevo ? "Alta detectada" : "Baja detectada",
+            Subtitulo: $"{d.EmpresaRazonSocial} — {d.NombreCompleto}",
+            Fecha: null,
+            TrabajadorId: null,
+            CentroId: null,
+            DocumentoId: null,
+            TipoDocumentoId: null,
+            RequisitoId: null,
+            EmpresaId: d.EmpresaId)));
 
         // Una sugerencia sin confirmar pesa más que cualquier otra cosa: sin
         // confirmarla no hay ni Visita ni documentación que verificar. Entre
