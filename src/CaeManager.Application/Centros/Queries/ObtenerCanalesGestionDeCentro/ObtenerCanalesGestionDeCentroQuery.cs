@@ -54,8 +54,17 @@ public class ObtenerCanalesGestionDeCentroQueryHandler(
             .ThenBy(c => c.EtiquetaProposito)
             .Select(c => new
             {
-                c.Id, c.Tipo, c.EtiquetaProposito, c.EsPrincipal, c.ProveedorPlataformaCaeId, c.UrlAcceso,
-                c.EmailsDestinatarios, c.NombreContacto, c.Notas, TieneCredenciales = c.Usuario != null, c.Version
+                c.Id,
+                c.Tipo,
+                c.EtiquetaProposito,
+                c.EsPrincipal,
+                c.ProveedorPlataformaCaeId,
+                c.UrlAcceso,
+                c.EmailsDestinatarios,
+                c.NombreContacto,
+                c.Notas,
+                TieneCredenciales = c.Usuario != null,
+                c.Version
             })
             .ToListAsync(cancellationToken);
 
