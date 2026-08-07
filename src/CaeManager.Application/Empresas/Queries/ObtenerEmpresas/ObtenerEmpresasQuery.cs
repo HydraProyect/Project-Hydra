@@ -27,9 +27,15 @@ public record ObtenerEmpresasQuery(
 /// <c>null</c> cuando la Empresa no tiene actividad en ningún Centro o
 /// ninguno de esos Centros tiene requisitos aplicables.
 /// </param>
+/// <param name="DeteccionesPendientes">
+/// Nº de altas/bajas de personal detectadas por IA sin resolver (Centro 360,
+/// docs/ux-audit/03-empresas-subcontratas.md H2) — mismo dato que
+/// <c>ObtenerDeteccionesPorEmpresaQuery</c>, batcheado aquí para toda la
+/// página. Antes solo visible desde una notificación transitoria.
+/// </param>
 public record EmpresaListaDto(
     Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc,
-    EstadoDocumento? EstadoDocumental = null, int? CumplimientoPorcentaje = null);
+    EstadoDocumento? EstadoDocumental = null, int? CumplimientoPorcentaje = null, int DeteccionesPendientes = 0);
 
 public class ObtenerEmpresasQueryHandler(
     IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos,
@@ -78,11 +84,16 @@ public class ObtenerEmpresasQueryHandler(
                 .ToList();
 
             var paginaConEstado = ordenadas.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList();
-            var cumplimientoConEstado = await CalcularCumplimientoPorEmpresaAsync(
-                paginaConEstado.Select(e => e.Id).ToList(), cancellationToken);
+            var idsPaginaConEstado = paginaConEstado.Select(e => e.Id).ToList();
+            var cumplimientoConEstado = await CalcularCumplimientoPorEmpresaAsync(idsPaginaConEstado, cancellationToken);
+            var deteccionesConEstado = await ContarDeteccionesPendientesPorEmpresaAsync(idsPaginaConEstado, cancellationToken);
 
             return new ResultadoPaginado<EmpresaListaDto>(
-                paginaConEstado.Select(e => e with { CumplimientoPorcentaje = cumplimientoConEstado.GetValueOrDefault(e.Id) }).ToList(),
+                paginaConEstado.Select(e => e with
+                {
+                    CumplimientoPorcentaje = cumplimientoConEstado.GetValueOrDefault(e.Id),
+                    DeteccionesPendientes = deteccionesConEstado.GetValueOrDefault(e.Id)
+                }).ToList(),
                 ordenadas.Count, request.Pagina, request.TamanoPagina);
         }
 
@@ -115,12 +126,14 @@ public class ObtenerEmpresasQueryHandler(
         var idsPagina = elementos.Select(e => e.Id).ToList();
         var estados = await calculoEstadoDocumental.CalcularPeorEstadoAsync(AmbitoAplicacion.Empresa, idsPagina, cancellationToken);
         var cumplimiento = await CalcularCumplimientoPorEmpresaAsync(idsPagina, cancellationToken);
+        var detecciones = await ContarDeteccionesPendientesPorEmpresaAsync(idsPagina, cancellationToken);
 
         return new ResultadoPaginado<EmpresaListaDto>(
             elementos.Select(e => e with
             {
                 EstadoDocumental = estados.GetValueOrDefault(e.Id),
-                CumplimientoPorcentaje = cumplimiento.GetValueOrDefault(e.Id)
+                CumplimientoPorcentaje = cumplimiento.GetValueOrDefault(e.Id),
+                DeteccionesPendientes = detecciones.GetValueOrDefault(e.Id)
             }).ToList(),
             total, request.Pagina, request.TamanoPagina);
     }
@@ -161,5 +174,21 @@ public class ObtenerEmpresasQueryHandler(
                 var requeridos = deLaEmpresa.Sum(f => f.Requeridos);
                 return requeridos == 0 ? (int?)null : (int)Math.Round(alDia * 100.0 / requeridos);
             });
+    }
+
+    /// <summary>
+    /// Mismo dato que <c>ObtenerDeteccionesPorEmpresaQuery</c> (docs/ux-audit/03-empresas-subcontratas.md
+    /// H2) pero contado en lote para toda la página, no una consulta por fila.
+    /// </summary>
+    private async Task<Dictionary<Guid, int>> ContarDeteccionesPendientesPorEmpresaAsync(
+        IReadOnlyList<Guid> empresaIds, CancellationToken cancellationToken)
+    {
+        if (empresaIds.Count == 0) return new Dictionary<Guid, int>();
+
+        return await trabajadoresContext.DeteccionesTrabajador
+            .Where(d => !d.Resuelta && empresaIds.Contains(d.EmpresaId))
+            .GroupBy(d => d.EmpresaId)
+            .Select(g => new { EmpresaId = g.Key, Cantidad = g.Count() })
+            .ToDictionaryAsync(x => x.EmpresaId, x => x.Cantidad, cancellationToken);
     }
 }

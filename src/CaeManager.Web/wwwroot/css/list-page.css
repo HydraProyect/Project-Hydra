@@ -345,6 +345,30 @@
 }
 
 /*
+  Badge "N detección(es)" en Empresas (docs/ux-audit/03-empresas-subcontratas.md
+  H2) — mismo motivo que .badge-visita (botón clicable, no <Badge>), mismos
+  tokens que .badge-advertencia de Badge.razor.css.
+*/
+.badge-deteccion {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-full);
+    font: var(--font-label-md);
+    font-size: 0.6875rem;
+    line-height: 1.125rem;
+    background-color: var(--color-warning-50);
+    color: var(--color-warning-700);
+    border: none;
+    cursor: pointer;
+}
+
+.badge-deteccion:hover {
+    text-decoration: underline;
+}
+
+/*
   Modificador "vigente con riesgo en ventana de visita" (Centro 360 § 0.3,
   dado de alta también en DESIGN_SYSTEM.md/UX_PATTERNS.md): sigue siendo un
   badge Exito (el documento SÍ está vigente hoy) — el borde ámbar es la
