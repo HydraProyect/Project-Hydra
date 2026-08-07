@@ -18,7 +18,7 @@ namespace CaeManager.Web.Features.TiposDocumento.Pages;
 
 public partial class TiposDocumento : ComponentBase
 {
-    private const int TamanoPagina = 20;
+    private int _tamanoPagina = 20;
 
     private IReadOnlyList<TipoDocumentoListaDto> _tipos = [];
     private bool _cargando = true;
@@ -52,8 +52,8 @@ public partial class TiposDocumento : ComponentBase
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_tipos.Count / (double)TamanoPagina));
-    private IReadOnlyList<TipoDocumentoListaDto> TiposDePagina => _tipos.Skip((_pagina - 1) * TamanoPagina).Take(TamanoPagina).ToList();
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_tipos.Count / (double)_tamanoPagina));
+    private IReadOnlyList<TipoDocumentoListaDto> TiposDePagina => _tipos.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -64,6 +64,14 @@ public partial class TiposDocumento : ComponentBase
     private Task IrAPaginaAsync(int pagina)
     {
         _pagina = pagina;
+        return Task.CompletedTask;
+    }
+
+    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    private Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _tamanoPagina = tamano;
+        _pagina = 1;
         return Task.CompletedTask;
     }
 

@@ -99,7 +99,8 @@
             </QuickGrid>
 
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="vehículo(s)" PaginaActualChanged="CambiarPaginaAsync" />
+                              Etiqueta="vehículo(s)" PaginaActualChanged="CambiarPaginaAsync"
+                              TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
         @if (_totalElementos == 0 && !_cargando)

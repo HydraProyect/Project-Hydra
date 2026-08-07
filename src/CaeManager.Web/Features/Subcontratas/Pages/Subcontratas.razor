@@ -58,8 +58,10 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <PropertyColumn Property="@(s => s.RazonSocial)" Sortable="true" />
-                <PropertyColumn Property="@(s => s.Cif)" Title="CIF" Sortable="true" />
+                <PropertyColumn Property="@(s => s.RazonSocial)" Title="Razón social" Sortable="true" />
+                <TemplateColumn Title="CIF" Sortable="true" SortBy="@(GridSort<SubcontrataListaDto>.ByAscending(s => s.Cif))">
+                    @(context.Cif ?? "—")
+                </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <MenuAcciones>
                         <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, context.Id, context.RazonSocial, "informacion")'>
@@ -73,7 +75,8 @@
             </QuickGrid>
 
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="subcontrata(s)" PaginaActualChanged="CambiarPaginaAsync" />
+                              Etiqueta="subcontrata(s)" PaginaActualChanged="CambiarPaginaAsync"
+                              TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
         @if (_totalElementos == 0 && !_cargando)

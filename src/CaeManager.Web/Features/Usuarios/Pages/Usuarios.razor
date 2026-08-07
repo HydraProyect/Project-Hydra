@@ -72,7 +72,8 @@
         else
         {
             <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_usuarios.Count"
-                              Etiqueta="usuario(s)" PaginaActualChanged="IrAPaginaAsync" />
+                              Etiqueta="usuario(s)" PaginaActualChanged="IrAPaginaAsync"
+                              TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         }
     }
 </div>
