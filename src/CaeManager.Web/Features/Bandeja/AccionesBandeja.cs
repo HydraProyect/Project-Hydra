@@ -24,6 +24,7 @@ public static class AccionesBandeja
         // es estado interno de /visitas, no hay ruta por Id) — abre la lista
         // ya filtrada por urgencia es lo más cercano disponible hoy.
         TipoItemBandeja.VisitaUrgente => Navegar(navigationManager, "/visitas"),
+        TipoItemBandeja.DeteccionPendiente => Navegar(navigationManager, $"/empresas/{item.EmpresaId}/deteccion-trabajadores"),
         _ => Navegar(navigationManager, item.DocumentoId is { } documentoId
             ? $"/documentos?documentoId={documentoId}"
             : $"/documentos?trabajadorId={item.TrabajadorId}&tipoDocumentoId={item.TipoDocumentoId}")
