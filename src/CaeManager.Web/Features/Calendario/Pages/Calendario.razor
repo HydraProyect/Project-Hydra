@@ -30,6 +30,13 @@
             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesSiguienteAsync">Mes siguiente →</Boton>
         </div>
 
+        <div class="calendario-leyenda">
+            <span class="calendario-leyenda-item"><span class="calendario-leyenda-punto calendario-leyenda-punto-peligro"></span>Vencido / urgente</span>
+            <span class="calendario-leyenda-item"><span class="calendario-leyenda-punto calendario-leyenda-punto-advertencia"></span>Próximo</span>
+            <span class="calendario-leyenda-item"><span class="calendario-leyenda-punto calendario-leyenda-punto-exito"></span>Vigente</span>
+            <span class="calendario-leyenda-item"><span class="calendario-leyenda-punto calendario-leyenda-punto-info"></span>Visitas programadas</span>
+        </div>
+
         @if (_cargando)
         {
             <EstadoCargando Filas="4" />
