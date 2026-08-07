@@ -31,7 +31,7 @@ public partial class Usuarios : ComponentBase
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ILogger<Usuarios> Logger { get; set; } = default!;
 
-    private const int TamanoPagina = 20;
+    private int _tamanoPagina = 20;
 
     private IReadOnlyList<UsuarioListaDto> _usuarios = [];
     private bool _cargando = true;
@@ -39,12 +39,20 @@ public partial class Usuarios : ComponentBase
     private Guid? _usuarioActualId;
     private int _pagina = 1;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_usuarios.Count / (double)TamanoPagina));
-    private IReadOnlyList<UsuarioListaDto> UsuariosDePagina => _usuarios.Skip((_pagina - 1) * TamanoPagina).Take(TamanoPagina).ToList();
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_usuarios.Count / (double)_tamanoPagina));
+    private IReadOnlyList<UsuarioListaDto> UsuariosDePagina => _usuarios.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
 
     private Task IrAPaginaAsync(int pagina)
     {
         _pagina = pagina;
+        return Task.CompletedTask;
+    }
+
+    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    private Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _tamanoPagina = tamano;
+        _pagina = 1;
         return Task.CompletedTask;
     }
 
