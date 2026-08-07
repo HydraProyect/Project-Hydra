@@ -635,4 +635,13 @@ public partial class Bandeja : ComponentBase, IDisposable
         EstadoConversacion.Pendiente => TonoBadge.Info,
         _ => TonoBadge.Neutro
     };
+
+    /// <summary>Dos letras de la razón social para el avatar de la columna de contexto — mismo criterio que UnifiedTimeline.ObtenerIniciales.</summary>
+    private static string ObtenerInicialesCliente(string razonSocial)
+    {
+        var palabras = razonSocial.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return palabras.Length >= 2
+            ? $"{palabras[0][0]}{palabras[1][0]}".ToUpperInvariant()
+            : razonSocial.Length >= 2 ? razonSocial[..2].ToUpperInvariant() : razonSocial.ToUpperInvariant();
+    }
 }
