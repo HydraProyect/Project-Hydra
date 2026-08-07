@@ -156,7 +156,7 @@ public class IngestaWebhookWhatsAppServiceTests
         var gestorOriginal = Guid.NewGuid();
         var conexion = CrearLinea(ModoAsignacionLinea.GestorFijo, comercialId: Guid.NewGuid());
         var existente = Conversacion.CrearWhatsApp(Telefono, conexion.Id, null, gestorOriginal);
-        existente.AgregarMensaje(DireccionMensaje.Entrante, Telefono, "Primero", mensajeExternoId: "wamid.0");
+        existente.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, Telefono, "Primero", mensajeExternoId: "wamid.0");
         _conversaciones.Agregar(existente);
         ConfigurarNotificacion([MensajeTexto("wamid.1", "Segundo")]);
 
@@ -172,7 +172,7 @@ public class IngestaWebhookWhatsAppServiceTests
     {
         var conexion = CrearLinea(ModoAsignacionLinea.GestorFijo, comercialId: Guid.NewGuid());
         var conversacion = Conversacion.CrearWhatsApp(Telefono, conexion.Id, null, Guid.NewGuid());
-        var saliente = conversacion.AgregarMensaje(DireccionMensaje.Saliente, "+34686543364", "Respuesta", mensajeExternoId: "wamid.out");
+        var saliente = conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.WhatsApp, "+34686543364", "Respuesta", mensajeExternoId: "wamid.out");
         saliente.ActualizarEstadoEntrega(EstadoEntregaMensaje.Enviado);
         _conversaciones.Agregar(conversacion);
         ConfigurarNotificacion(estados:

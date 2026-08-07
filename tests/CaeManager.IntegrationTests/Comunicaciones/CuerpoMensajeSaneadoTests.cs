@@ -37,7 +37,7 @@ public class CuerpoMensajeSaneadoTests : IAsyncLifetime
 
         var conversacion = new Conversacion("Certificado pendiente");
         conversacion.AgregarMensaje(
-            DireccionMensaje.Entrante, "externo@remitente.test",
+            DireccionMensaje.Entrante, CanalConversacion.Correo, "externo@remitente.test",
             "<p>Buenos días</p><img src=x onerror=\"alert(document.cookie)\"><script>alert(1)</script>");
 
         contexto.Conversaciones.Add(conversacion);

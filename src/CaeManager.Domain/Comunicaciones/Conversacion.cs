@@ -98,11 +98,20 @@ public class Conversacion : EntidadBase
         return conversacion;
     }
 
+    /// <summary>
+    /// <paramref name="canal"/> es explícito a propósito — cada mensaje conoce
+    /// su propio canal (paso 1 del rediseño, docs/COMUNICACIONES.md § 16.1),
+    /// aunque hoy todo llamador pase <see cref="Canal"/> de esta misma
+    /// conversación (todavía no hay hilos mixtos). No se infiere de
+    /// <see cref="Canal"/> para no ocultar la decisión el día que un mensaje
+    /// pueda viajar por un canal distinto al de creación del hilo.
+    /// </summary>
     public Mensaje AgregarMensaje(
-        DireccionMensaje direccion, string remitente, string cuerpoHtml, DateTime? fechaUtc = null, string? mensajeExternoId = null)
+        DireccionMensaje direccion, CanalConversacion canal, string remitente, string cuerpoHtml,
+        DateTime? fechaUtc = null, string? mensajeExternoId = null)
     {
         var fecha = fechaUtc ?? DateTime.UtcNow;
-        var mensaje = new Mensaje(Id, direccion, remitente, cuerpoHtml, fecha, mensajeExternoId);
+        var mensaje = new Mensaje(Id, direccion, canal, remitente, cuerpoHtml, fecha, mensajeExternoId);
         _mensajes.Add(mensaje);
 
         if (fecha > FechaUltimoMensajeUtc)

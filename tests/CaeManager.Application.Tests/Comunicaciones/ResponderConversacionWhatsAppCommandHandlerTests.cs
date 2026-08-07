@@ -30,7 +30,7 @@ public class ResponderConversacionWhatsAppCommandHandlerTests
 
         var conversacion = Conversacion.CrearWhatsApp(Telefono, conexion.Id, null, Guid.NewGuid());
         if (ultimoEntranteUtc is { } fecha)
-            conversacion.AgregarMensaje(DireccionMensaje.Entrante, Telefono, "Hola", fecha, "wamid.in");
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, Telefono, "Hola", fecha, "wamid.in");
         _conversaciones.Agregar(conversacion);
         return conversacion;
     }
