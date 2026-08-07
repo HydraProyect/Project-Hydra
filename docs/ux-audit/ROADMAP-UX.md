@@ -63,8 +63,8 @@ La ausencia de estos flujos **no puntúa** en ninguna ficha; pertenecen al futur
 3. ✅ Restaurar desde Auditoría (#4) para Cliente/Empresa/Centro/Trabajador/Documento + corrige el copy donde no aplica (Incidencia/Subcontrata/Visita). — [PR #113](https://github.com/christopherjp1-jpg/Project-Hydra/pull/113)
 4. ✅ Página Forbidden propia (#8a). — [PR #114](https://github.com/christopherjp1-jpg/Project-Hydra/pull/114)
 5. ✅ Paginador único localizado (#9). — [PR #116](https://github.com/christopherjp1-jpg/Project-Hydra/pull/116)
-6. Overflow menu en Acciones de las listas (densidad, #9).
-7. Export en Empresas/Centros/Asignaciones/Incidencias/Auditoría (#9) + export del resumen de facturación.
+6. ✅ Overflow menu en Acciones de las listas (densidad, #9). — [PR #118](https://github.com/christopherjp1-jpg/Project-Hydra/pull/118)
+7. ✅ Export en Empresas/Centros/Asignaciones/Incidencias/Auditoría (#9) + export del resumen de facturación. — [PR #120](https://github.com/christopherjp1-jpg/Project-Hydra/pull/120)
 8. Badge de detecciones pendientes en Empresas + tipo nuevo en Bandeja (capacidad fantasma → visible).
 9. Contadores por tipo en la Bandeja; tema oscuro y leyenda del Calendario; colapsar "Personalizar" del Dashboard Ejecutivo.
 10. Lote de: filtros completos en URL, chips de filtros, borrar filtros guardados, placeholder "—", label Notas del alta guiada, quitar pestaña "Citas", fila clicable en Clientes, selector de tamaño de página, catch de `JSDisconnectedException`, investigar el error CSP, registrar en `DECISION_LOG.md` la decisión de estado calculado.
