@@ -288,6 +288,29 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         verificacion.PeriodoDetectado.Should().Be("2026-08");
     }
 
+    [Fact]
+    public async Task Un_rlc_con_varias_liquidaciones_en_el_mismo_archivo_cae_a_revision()
+    {
+        var tipoRlc = await _dbContext.TiposDocumento
+            .FirstAsync(t => t.PerfilDocumentoOficial == PerfilDocumentoOficial.Rlc);
+        var documento = Documento.DeEmpresa(_empresa.Id, tipoRlc.Id, new DateOnly(2026, 8, 4), null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var textoConDosPeriodos =
+            "Código de Empresario: 90B12345674 Periodo de liquidación 06/2026 ... " +
+            "otra liquidación Periodo de liquidación 07/2026 huella electrónica: 1A2B3C4D5E6F7G8H";
+        var servicio = CrearServicio(
+            Result.Exito(FirmaSelloDeOrgano()), Result.Exito<IReadOnlyList<string>>([textoConDosPeriodos]));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
+        verificacion.Decision.Should().Be(DecisionValidacionOficial.RevisionRequerida);
+        verificacion.Motivos.Should().Contain("varias liquidaciones");
+        (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
     private sealed class VerificadorFirmaFalso(Result<ResultadoVerificacionFirmasPdf> resultado) : IVerificadorFirmaPdfService
     {
         public Task<Result<ResultadoVerificacionFirmasPdf>> VerificarAsync(byte[] contenidoPdf, CancellationToken cancellationToken = default) =>

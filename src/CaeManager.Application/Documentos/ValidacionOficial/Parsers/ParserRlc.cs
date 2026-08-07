@@ -27,4 +27,12 @@ public class ParserRlc : ParserDocumentoOficialBase
     // Confirmado por el usuario: el RLC no imprime fecha de emisión propia —
     // es el día 1 del mes del periodo de liquidación.
     protected override bool FechaEmisionEsPrimerDiaDelPeriodo => true;
+
+    // Confirmado por el usuario: el tipo "RLC/TC1 + Recibo de pago" puede
+    // traer varias liquidaciones (varios periodos) en un único archivo, sin
+    // entidad bancaria fija en el recibo. El cotejo cruzado RLC↔recibo
+    // (razón social + importe + número/código de liquidación) exige una
+    // muestra real para calibrar cómo se repiten los bloques — pendiente
+    // (PR-7). Hasta entonces: detectar la ambigüedad y mandar a revisión.
+    protected override bool AdvertirSiMultiplesPeriodos => true;
 }

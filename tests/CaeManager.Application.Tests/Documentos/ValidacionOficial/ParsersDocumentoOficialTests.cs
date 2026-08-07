@@ -140,6 +140,52 @@ public class ParsersDocumentoOficialTests
         extraido.CamposObligatoriosFaltantes.Should().Contain("periodo de liquidación");
     }
 
+    /// <summary>
+    /// El RLC repitiendo el MISMO periodo en cabecera/pie (patrón real
+    /// observado) no debe confundirse con varias liquidaciones distintas.
+    /// </summary>
+    [Fact]
+    public void Rlc_con_el_mismo_periodo_repetido_no_se_marca_como_multiple()
+    {
+        var texto = "Código de Empresario: 90B12345678 Periodo de liquidación 06/2026 ... " +
+            "pie de página Periodo 06/2026 huella electrónica: 1A2B3C4D5E6F7G8H";
+
+        var extraido = new ParserRlc().Extraer(texto);
+
+        extraido.MultiplesLiquidacionesDetectadas.Should().BeFalse();
+        extraido.CamposObligatoriosFaltantes.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Confirmado por el usuario: un único archivo de RLC/TC1 + recibo de
+    /// pago puede traer varias liquidaciones. Sin muestra real para
+    /// calibrar el emparejamiento RLC↔recibo (PR-7), la única garantía
+    /// exigible hoy es no auto-validar a ciegas — cae a revisión.
+    /// </summary>
+    [Fact]
+    public void Rlc_con_varios_periodos_distintos_se_marca_como_multiple_y_cae_a_revision()
+    {
+        var texto = "Código de Empresario: 90B12345678 Periodo de liquidación 06/2026 ... " +
+            "otra liquidación Periodo de liquidación 07/2026 huella electrónica: 1A2B3C4D5E6F7G8H";
+
+        var extraido = new ParserRlc().Extraer(texto);
+
+        extraido.MultiplesLiquidacionesDetectadas.Should().BeTrue();
+        extraido.CamposObligatoriosFaltantes.Should().Contain(f => f.Contains("varias liquidaciones"));
+    }
+
+    /// <summary>El RNT no bundlea periodos (no se ha confirmado ese patrón) — el detector permanece apagado.</summary>
+    [Fact]
+    public void Rnt_no_activa_la_deteccion_de_multiples_liquidaciones()
+    {
+        var texto = "Código de Empresario: 90B12345678 Periodo de liquidación 06/2026 ... " +
+            "Periodo de liquidación 07/2026";
+
+        var extraido = new ParserRnt().Extraer(texto);
+
+        extraido.MultiplesLiquidacionesDetectadas.Should().BeFalse();
+    }
+
     [Fact]
     public void Rlc_extrae_los_mismos_campos_que_el_rnt()
     {

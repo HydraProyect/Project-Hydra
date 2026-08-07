@@ -58,11 +58,22 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
     /// RNT/RLC (confirmado por el usuario): el documento no imprime una
     /// fecha de emisión propia — la fecha de emisión es siempre el día 1 del
     /// mes que indica el "Periodo de liquidación" (el periodo 06/2026 emite
-    /// el 01/06/2026; la vigencia hasta 2 meses después ya la calcula
-    /// <c>CalculadoraEstadoDocumento</c> a partir de <c>TipoDocumento.VigenciaMeses</c>,
-    /// sin tocar aquí). Se deriva solo si no hay una fecha extraída por ancla.
+    /// el 01/06/2026). La vigencia la calcula <c>CalculadoraEstadoDocumento</c>
+    /// a partir de <c>TipoDocumento.VigenciaMeses</c> (3 meses para RLC/RNT en
+    /// el seed — periodo 06/2026 vigente hasta ~31/08/2026), genérico y sin
+    /// tocar aquí. Se deriva solo si no hay una fecha extraída por ancla.
     /// </summary>
     protected virtual bool FechaEmisionEsPrimerDiaDelPeriodo => false;
+
+    /// <summary>
+    /// El RLC/TC1 combinado con recibo de pago puede traer varias
+    /// liquidaciones en un único archivo (confirmado por el usuario). Sin
+    /// una muestra real para calibrar cómo se repiten los bloques, no se
+    /// intenta emparejar RLC↔recibo — solo se detecta la ambigüedad (más de
+    /// un periodo distinto en el texto) para mandar a revisión en vez de
+    /// auto-validar a ciegas contra el primer periodo que matchee.
+    /// </summary>
+    protected virtual bool AdvertirSiMultiplesPeriodos => false;
 
     /// <summary>Solo certificados de estar al corriente: regex del literal positivo y regex del negativo explícito.</summary>
     protected virtual Regex? PatronResultadoPositivo => null;
@@ -89,6 +100,17 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
             fecha = new DateOnly(int.Parse(partes[0]), int.Parse(partes[1]), 1);
         }
 
+        // Distintos valores de periodo en el documento (no solo repeticiones
+        // del mismo, típicas de cabeceras por página) delatan varias
+        // liquidaciones bundladas en un único archivo.
+        var multiplesLiquidaciones = AdvertirSiMultiplesPeriodos
+            && RegexPeriodoPorForma.Matches(textoNormalizado)
+                .Select(m => NormalizarPeriodo(m.Groups["valor"].Value))
+                .Distinct()
+                .Count() > 1;
+        if (multiplesLiquidaciones)
+            faltantes.Add("el archivo contiene varias liquidaciones (periodos distintos) — sube un documento por periodo");
+
         bool? positivo = null;
         if (PatronResultadoPositivo is not null)
         {
@@ -105,7 +127,7 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
 
         return new DatosDocumentoOficialExtraidos(
             NormalizarCodigo(codigo), NormalizarCif(cif), razonSocial, fecha, periodoNormalizado,
-            positivo, faltantes);
+            positivo, faltantes, multiplesLiquidaciones);
     }
 
     private static string? ExtraerCampo(string texto, CampoAncla? ancla, string nombre, List<string> faltantes)
