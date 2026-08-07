@@ -34,7 +34,8 @@ public record TipoDocumentoListaDto(
     string? Observaciones,
     bool LecturaIaActiva,
     bool DeteccionTrabajadoresActiva,
-    bool VerificacionIaActiva);
+    bool VerificacionIaActiva,
+    PerfilDocumentoOficial PerfilDocumentoOficial);
 
 public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosContext, ITiposDocumentoQueryContext tiposDocumentoContext)
     : IRequestHandler<ObtenerTiposDocumentoQuery, IReadOnlyList<TipoDocumentoListaDto>>
@@ -82,7 +83,7 @@ public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosConte
             .Select(t => new TipoDocumentoListaDto(
                 t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden, t.AmbitoAplicacion, t.EsObligatorio,
                 t.Descripcion, t.CriteriosValidacion, t.SeSolicitaA, t.Observaciones, t.LecturaIaActiva, t.DeteccionTrabajadoresActiva,
-                t.VerificacionIaActiva))
+                t.VerificacionIaActiva, t.PerfilDocumentoOficial))
             .ToListAsync(cancellationToken);
     }
 }

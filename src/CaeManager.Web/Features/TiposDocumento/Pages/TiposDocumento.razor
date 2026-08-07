@@ -77,6 +77,7 @@
                     <th>Lectura IA</th>
                     <th>Detecta trabajadores</th>
                     <th>Verificación IA</th>
+                    <th>Documento oficial</th>
                     <th></th>
                 </tr>
             </thead>
@@ -134,6 +135,25 @@
                                     <input type="checkbox" checked="@tipo.VerificacionIaActiva" @onchange="e => AlternarVerificacionIaAsync(tipo.Id, e.Value is bool activa && activa)" />
                                     @(tipo.VerificacionIaActiva ? "Activa" : "Desactivada")
                                 </label>
+                            }
+                            else
+                            {
+                                <span class="texto-vacio-seccion">No aplica</span>
+                            }
+                        </td>
+                        <td>
+                            @if (tipo.AmbitoAplicacion is AmbitoAplicacion.Empresa or AmbitoAplicacion.Cliente)
+                            {
+                                <select class="campo-select" title="Documento oficial de la Administración con validación automática: verificación criptográfica de la firma digital y cotejo de datos, sin IA"
+                                        value="@tipo.PerfilDocumentoOficial"
+                                        @onchange="e => CambiarPerfilDocumentoOficialAsync(tipo.Id, e.Value?.ToString())">
+                                    <option value="@PerfilDocumentoOficial.Ninguno">—</option>
+                                    <option value="@PerfilDocumentoOficial.CorrienteTgss">Corriente TGSS</option>
+                                    <option value="@PerfilDocumentoOficial.CorrienteAeat">Corriente AEAT</option>
+                                    <option value="@PerfilDocumentoOficial.Ita">ITA</option>
+                                    <option value="@PerfilDocumentoOficial.Rnt">RNT</option>
+                                    <option value="@PerfilDocumentoOficial.Rlc">RLC</option>
+                                </select>
                             }
                             else
                             {

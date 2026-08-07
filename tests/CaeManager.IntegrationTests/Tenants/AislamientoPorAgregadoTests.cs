@@ -31,7 +31,7 @@ namespace CaeManager.IntegrationTests.Tenants;
 
 /// <summary>
 /// Cierre de la Etapa 5 de PLAN-MIGRACION-MULTITENANT.md: test de
-/// aislamiento por cada uno de los <b>42</b> tipos que heredan de
+/// aislamiento por cada uno de los <b>44</b> tipos que heredan de
 /// <c>EntidadConTenant</c>/<c>EntidadBase</c> — uno por cada línea de
 /// <c>HasQueryFilter</c> de <c>CaeManagerDbContext</c>, sin excepciones
 /// (regla de docs/MULTITENANCY.md § 9 — "los tests de aislamiento se
@@ -389,6 +389,30 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     [Fact]
     public Task Aislamiento_AprobacionDocumento() => VerificarAislamientoAsync(
         () => AprobacionDocumento.CrearAutomatica(Guid.NewGuid(), 95));
+
+    [Fact]
+    public Task Aislamiento_FirmaDigitalDocumento()
+    {
+        Guid documentoId = default;
+        return VerificarAislamientoAsync(
+            () => new FirmaDigitalDocumento(
+                documentoId, 0, EstadoFirmaPdf.Valida, cadenaConfiable: true, ComprobacionRevocacion.NoDisponible,
+                "AC de Pruebas", "01", esSelloDeOrgano: true, "Organismo", "Q0000000J",
+                fechaFirmaUtc: null, tieneSelloDeTiempo: false, cubreDocumentoCompleto: true, motivoInvalidez: null),
+            async contexto => documentoId = await SembrarDocumentoAsync(contexto));
+    }
+
+    [Fact]
+    public Task Aislamiento_VerificacionDocumentoOficial()
+    {
+        Guid documentoId = default;
+        return VerificarAislamientoAsync(
+            () => new VerificacionDocumentoOficial(
+                documentoId, PerfilDocumentoOficial.CorrienteTgss, NivelConfianzaDocumental.FirmaValida,
+                "CEA123", "Q0000000J", "Organismo de Pruebas", new DateOnly(2026, 8, 1), "2026-07",
+                ResultadoCotejoDocumentoOficial.Coincide, DecisionValidacionOficial.AutoValidado, string.Empty),
+            async contexto => documentoId = await SembrarDocumentoAsync(contexto));
+    }
 
     [Fact]
     public async Task Aislamiento_MensajeCorreo()

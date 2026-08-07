@@ -24,7 +24,7 @@ public class ObtenerBandejaGestorQueryHandlerTests
         Estado: estado, ArchivoUrl: null, CentroNombre: "Centro Norte");
 
     private static RevisionIaDocumentoDto Revision() => new(
-        Id: Guid.NewGuid(), DocumentoId: Guid.NewGuid(), TrabajadorNombre: "Luis Pérez",
+        Id: Guid.NewGuid(), DocumentoId: Guid.NewGuid(), PropietarioNombre: "Luis Pérez",
         TipoDocumentoNombre: "EPIs", ConfianzaGeneral: 60, TipoDetectado: null,
         FechaEmisionDetectada: null, Motivo: "Confianza baja", CreadaEnUtc: DateTime.UtcNow);
 
