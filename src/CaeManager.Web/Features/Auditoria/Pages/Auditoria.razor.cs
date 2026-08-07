@@ -122,6 +122,9 @@ public partial class Auditoria : ComponentBase
         return CargarAsync();
     }
 
+    private string EnlaceExportar =>
+        _filtroEntidadTipo is null ? "/auditoria/exportar.xlsx" : $"/auditoria/exportar.xlsx?entidad={Uri.EscapeDataString(_filtroEntidadTipo)}";
+
     private string NombreUsuario(Guid? usuarioId) =>
         usuarioId is null ? "Sistema" : _usuariosPorId.GetValueOrDefault(usuarioId.Value, "—");
 
