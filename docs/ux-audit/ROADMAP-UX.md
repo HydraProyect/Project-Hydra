@@ -71,7 +71,7 @@ La ausencia de estos flujos **no puntúa** en ninguna ficha; pertenecen al futur
 
 ### Horizonte 2 — Medio plazo (1-2 trimestres; la apuesta estratégica Outbound en negrita)
 1. **Catálogo de Plataformas por tenant** (normaliza los strings de `CanalGestionDocumental`) → **credenciales por Empresa×Plataforma en el punto de uso** → **estado-en-portal por documento (subido/aceptado/rechazado, manual hasta que haya conector)** → **tarjeta "Pendiente por plataforma" como primera del Dashboard**. Esta cadena (#2) es la que convierte Hydra en el lugar donde el día Outbound empieza y termina.
-   **⬆ Elevada a alcance MVP1 el 2026-08-05** (decisión del propietario, registrada en `docs/business/DECISION_LOG.md`): diseño detallado, semilla de dominios y orden de ejecución en [`PLAN-EJECUCION-UX.md`](PLAN-EJECUCION-UX.md) § Parte 2 (catálogo `ProveedorIntegracion`, entidad `AcreditacionDocumentoPlataforma` con causas de rechazo, pestaña del Centro, acción "Migrar a…").
+   **⬆ Elevada a alcance MVP1 el 2026-08-05** (decisión del propietario, registrada en `docs/business/DECISION_LOG.md`): diseño detallado, semilla de dominios y orden de ejecución en [`PLAN-EJECUCION-UX.md`](PLAN-EJECUCION-UX.md) § Parte 2 (catálogo `ProveedorPlataformaCae`, entidad `AcreditacionDocumentoPlataforma` con causas de rechazo, pestaña del Centro, acción "Migrar a…").
 2. Reclamación documental saliente (#6): "Enviar reclamación" desde documento vencido/faltante y Bandeja, con macro sugerida y buzón M365 — el módulo de Comunicaciones ya lo tiene casi todo.
 3. Reportes parametrizados por Cliente con membrete (#7) y biblioteca mínima (vigencia, incidencias, asignaciones activas).
 4. Bandeja agregada y paginada (#5) con "N vencidos de la misma empresa".
