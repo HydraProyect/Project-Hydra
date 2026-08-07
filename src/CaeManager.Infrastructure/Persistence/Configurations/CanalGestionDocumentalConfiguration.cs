@@ -1,4 +1,5 @@
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Integraciones;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -11,7 +12,6 @@ public class CanalGestionDocumentalConfiguration : IEntityTypeConfiguration<Cana
         builder.ToTable("CanalesGestionDocumental");
         builder.HasKey(c => c.Id);
 
-        builder.Property(c => c.NombrePlataforma).HasMaxLength(CanalGestionDocumental.LongitudMaximaNombrePlataforma);
         builder.Property(c => c.UrlAcceso).HasMaxLength(CanalGestionDocumental.LongitudMaximaUrlAcceso);
         builder.Property(c => c.EmailsDestinatarios).HasMaxLength(CanalGestionDocumental.LongitudMaximaEmailsDestinatarios);
         builder.Property(c => c.NombreContacto).HasMaxLength(CanalGestionDocumental.LongitudMaximaNombreContacto);
@@ -41,6 +41,15 @@ public class CanalGestionDocumentalConfiguration : IEntityTypeConfiguration<Cana
         builder.HasOne<Centro>().WithMany()
             .HasForeignKey(canal => new { canal.TenantId, canal.CentroId })
             .HasPrincipalKey(centro => new { centro.TenantId, centro.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // ProveedorPlataformaCae es catálogo global (sin TenantId) — FK simple
+        // por Id, sin componer con TenantId como la de Centro. Nullable porque
+        // los canales de tipo Email nunca lo tienen, y los de Plataforma
+        // migrados desde el antiguo NombrePlataforma libre pueden quedar sin
+        // resolver hasta la siguiente edición (Lote 2-B).
+        builder.HasOne<ProveedorPlataformaCae>().WithMany()
+            .HasForeignKey(c => c.ProveedorPlataformaCaeId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -605,9 +605,34 @@ match ⇒ selección manual / alta por tenant. Dominios editables desde el catá
   pantalla de administración del catálogo ni selector en `CanalGestionDocumental` — llegan con
   el Lote 2-B, cuando haya un consumidor real que los necesite (YAGNI); por eso este lote no
   llevó verificación end-to-end en navegador (nada cambia en la UI).
-- **Pendiente (Lote 2-B)**: migrar `CanalGestionDocumental.NombrePlataforma` a
-  `ProveedorPlataformaCaeId`, con matching sugerido de los valores existentes vía el servicio
-  de resolución ya construido, y la UI de selección/alta manual cuando no hay match.
+- **Estado (Lote 2-B)**: hecho, 2026-08-07. `CanalGestionDocumental.NombrePlataforma`
+  (texto libre) sustituido por `ProveedorPlataformaCaeId` (Guid?, FK simple al catálogo global —
+  sin componer con `TenantId`, a diferencia de la FK a Centro). Migración
+  `MigrarCanalGestionAProveedorPlataformaCae`: añade la columna, hace un backfill por
+  coincidencia exacta de nombre (recortado, sin distinguir mayúsculas) contra
+  `ProveedoresPlataformaCae.Nombre` **antes** de tirar la columna vieja — sin inventar
+  coincidencias por similitud parcial; lo que no matchea exacto queda `NULL`, resoluble luego
+  por URL o a mano. `CrearCanalGestionCommand`/`EditarCanalGestionCommand` cargan y validan el
+  Id contra el catálogo antes de usarlo (regla de CLAUDE.md); un canal de Plataforma sin
+  proveedor resuelto no puede guardarse. **Decisión de producto tomada con el propietario
+  antes de construir la UI**: sin alta inline de proveedores nuevos en el selector — el
+  catálogo es global y curado por producto (`docs/MULTITENANCY.md` § 7, mismo criterio que
+  Roles), no se amplía desde un formulario de tenant; si falta un proveedor real es un cambio
+  de producto (migración nueva), no un botón en la UI.
+  **UI resuelta por URL, no por selector manual de entrada** (petición explícita del
+  propietario, para evitar que el gestor confunda el subdominio local del cliente con la
+  plataforma real): al perder el foco el campo "URL de acceso" se llama a
+  `IResolucionProveedorPlataformaCaeService.ResolverPorUrlAsync` — 1 candidato se
+  auto-selecciona (badge de confirmación + "¿No es correcta? Elegir manualmente"); 0 o varios
+  candidatos abren un `SelectorEntidad` sin `PermiteCrear` (solo los candidatos si hubo
+  multi-match, el catálogo completo si no hubo ninguno). Antes de resolver, no se muestra
+  ningún selector de plataforma — el único control manual es el tipo de canal
+  (Plataforma/Correo), como pidió el propietario. Un canal migrado sin match automático
+  reintenta la resolución contra su URL ya guardada al abrir "Editar", antes de caer al
+  selector manual. Documentado como patrón nuevo en `UX_PATTERNS.md` § "Resolución automática
+  de proveedor desde URL". Verificado con las 4 suites (358 Domain/236 Application/13
+  Architecture/44 tests de aislamiento del bloque afectado, todos en verde) y
+  `dotnet ef migrations has-pending-model-changes` limpio.
 
 ### (b) Entidad `AcreditacionDocumentoPlataforma`
 
