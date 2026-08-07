@@ -9,6 +9,7 @@ using CaeManager.Application.Documentos.ValidacionOficial.Parsers;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.DocumentosIa.Common;
+using CaeManager.Application.Integraciones;
 using CaeManager.Application.Trabajadores.Deteccion;
 using CaeManager.Application.Visitas.PaqueteDocumental;
 using FluentValidation;
@@ -66,6 +67,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<ICalculoEstadoCentroService, CalculoEstadoCentroService>();
         services.AddScoped<ICalculoEstadoDocumentalService, CalculoEstadoDocumentalService>();
         services.AddScoped<IDocumentosFaltantesService, DocumentosFaltantesService>();
+        services.AddScoped<IResolucionProveedorPlataformaCaeService, ResolucionProveedorPlataformaCaeService>();
 
         // Factory pura (Application) — cada IDocumentAIProvider real se
         // registra en Infrastructure (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2).

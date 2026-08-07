@@ -524,11 +524,32 @@ CANONICAL_MODEL_DRAFT § equivalencias) y `ARQUITECTURA-INTEGRACIONES.md`. Motiv
 mismo documento puede estar vigente en Hydra, aceptado en Dokify y pendiente en Nalanda —
 sin visión por plataforma, Hydra no puede ser la única pantalla del gestor.
 
-### (a) Catálogo `ProveedorIntegracion`
+> **Secuenciación en lotes (añadido en la sesión de implementación de (a), 2026-08-07)**:
+> igual que la Parte 0, el sub-ítem (a) no cabe en un único PR sin mezclar refactors
+> independientes — construir el catálogo es un cambio de dominio autocontenido; migrar
+> `CanalGestionDocumental.NombrePlataforma` a referenciarlo toca una entidad de producción
+> ya en uso y merece su propia verificación. **Lote 2-A** = catálogo `ProveedorPlataformaCae`
+> + `DominioProveedorPlataformaCae` + servicio de resolución por URL (✅ hecho, ver estado
+> abajo) · **Lote 2-B** = migrar `CanalGestionDocumental.NombrePlataforma` a referenciar el
+> catálogo, con matching sugerido de los valores existentes (pendiente). Durante 2-A se
+> encontraron y resolvieron dos veces antes de escribir código: (1) el nombre
+> `ProveedorIntegracion` ya lo usa un enum existente (conector de mensajería Email/WhatsApp)
+> — la entidad nueva se llama `ProveedorPlataformaCae` para no colisionar; (2) la
+> clasificación "Global + extensión por tenant" que pedía la redacción original no es
+> construible todavía (el aprovisionamiento automático de tenant que ese patrón necesita no
+> existe) — decisión con el propietario: catálogo **global puro**, documentada en
+> `docs/MULTITENANCY.md` § 7.
 
-Es la entidad ya diseñada en `ARQUITECTURA-INTEGRACIONES.md` — **no crear catálogo paralelo**.
-Global + extensión por tenant (documentar en `MULTITENANCY.md` § 7, mismo patrón que
-TipoDocumento), con dominios para identificación por URL. Migrar
+### (a) Catálogo `ProveedorPlataformaCae` — Lote 2-A ✅ hecho, Lote 2-B pendiente
+
+**Redacción original de esta ficha, superada por la decisión de la sesión de implementación
+(ver nota de secuenciación arriba)**: hablaba de reutilizar tal cual la entidad
+`ProveedorIntegracion` de `ARQUITECTURA-INTEGRACIONES.md` con clasificación "Global +
+extensión por tenant". Se implementó como `ProveedorPlataformaCae` (nombre distinto, sin
+`VersionApiProveedor` ni aparato de conector) y **global puro** (sin extensión por tenant) —
+motivos en la nota de secuenciación y en `docs/MULTITENANCY.md` § 7.
+
+Con dominios para identificación por URL. Migrar
 `CanalGestionDocumental.NombrePlataforma` (texto libre) a referencia del catálogo con matching
 sugerido de los strings existentes — con el cambio de (0.6), cada uno de los N accesos por
 Centro referencia su propio proveedor del catálogo, no solo el canal único de antes.
@@ -565,6 +586,28 @@ match ⇒ selección manual / alta por tenant. Dominios editables desde el catá
 | DocuPRL | (sin dominio genérico) | — | Solo subdominios de cliente ⇒ alta manual |
 | Arch | archbus.com | — | Foco real: mantenimiento de activos — sembrar inactivo |
 | Opground | opground.com | — | Foco real: reclutamiento — sembrar inactivo |
+
+- **Estado (Lote 2-A)**: hecho, 2026-08-07. `ProveedorPlataformaCae` + `DominioProveedorPlataformaCae`
+  (Domain, catálogo global — extiende `Entity` directamente, como `Tenant`, no `EntidadBase`:
+  sin `TenantId`, sin soft delete, `Activo` en su lugar). Migración `AgregarCatalogoProveedoresPlataformaCae`
+  siembra los 23 proveedores y 27 dominios de la tabla de arriba con `HasData` (mismo patrón
+  que `TipoDocumentoSeedData`, Id deterministas). `IResolucionProveedorPlataformaCaeService`
+  (Application) resuelve una URL/host contra el catálogo — coincidencia exacta o por sufijo de
+  subdominio, multi-match cuando dos proveedores comparten dominio (caso real Sabentis/Quirón
+  Prevención) — con la lógica de matching extraída a un método estático puro
+  (`ResolucionProveedorPlataformaCaeService.Resolver`, mismo patrón que
+  `ObtenerBandejaGestorQueryHandler.Fusionar`) para no depender de EF Core en el test. Un bug
+  real de la primera versión del `DerivarIdDominio` de la migración (dos proveedores
+  consecutivos —…001 y …002— colisionaban al mismo Id de dominio para el mismo índice) se
+  detectó al generar la migración, no en producción — corregido antes del primer commit.
+  Verificado con 357+236+13+325 tests (Domain/Application/Architecture/Integration, todos en
+  verde) y `dotnet ef migrations has-pending-model-changes` limpio. **Sin UI todavía**: no hay
+  pantalla de administración del catálogo ni selector en `CanalGestionDocumental` — llegan con
+  el Lote 2-B, cuando haya un consumidor real que los necesite (YAGNI); por eso este lote no
+  llevó verificación end-to-end en navegador (nada cambia en la UI).
+- **Pendiente (Lote 2-B)**: migrar `CanalGestionDocumental.NombrePlataforma` a
+  `ProveedorPlataformaCaeId`, con matching sugerido de los valores existentes vía el servicio
+  de resolución ya construido, y la UI de selección/alta manual cuando no hay match.
 
 ### (b) Entidad `AcreditacionDocumentoPlataforma`
 
