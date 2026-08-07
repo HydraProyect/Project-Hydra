@@ -169,12 +169,12 @@
                     @foreach (var mensaje in _detalle.Mensajes)
                     {
                         <div class="bandeja-mensaje-fila bandeja-mensaje-fila-@mensaje.Direccion.ToString().ToLowerInvariant()">
-                            <span class="bandeja-avatar" title="@mensaje.RemitenteEmail" aria-hidden="true">@ObtenerIniciales(mensaje.RemitenteEmail)</span>
+                            <span class="bandeja-avatar" title="@mensaje.Remitente" aria-hidden="true">@ObtenerIniciales(mensaje.Remitente)</span>
                             <div class="bandeja-mensaje bandeja-mensaje-@mensaje.Direccion.ToString().ToLowerInvariant()">
                                 <div class="bandeja-mensaje-cabecera">
-                                    <span class="bandeja-mensaje-remitente">@mensaje.RemitenteEmail</span>
+                                    <span class="bandeja-mensaje-remitente">@mensaje.Remitente</span>
                                     @{
-                                        var participante = _detalle.Participantes.FirstOrDefault(p => p.Email == mensaje.RemitenteEmail);
+                                        var participante = _detalle.Participantes.FirstOrDefault(p => p.Email == mensaje.Remitente);
                                     }
                                     @if (participante is not null && _detalle.Participantes.Select(p => p.TipoOrigen).Distinct().Count() > 1)
                                     {

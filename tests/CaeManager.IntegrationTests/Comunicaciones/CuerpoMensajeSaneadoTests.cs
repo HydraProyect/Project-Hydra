@@ -20,7 +20,7 @@ namespace CaeManager.IntegrationTests.Comunicaciones;
 /// que ya viene saneado.
 ///
 /// El escenario es el de la ingesta por Microsoft Graph que anuncia
-/// <see cref="ConversacionCorreo"/>: el cuerpo lo escribe quien envía el
+/// <see cref="Conversacion"/>: el cuerpo lo escribe quien envía el
 /// correo, así que se simula insertándolo directamente, sin pasar por
 /// ningún comando del producto.
 /// </summary>
@@ -35,12 +35,12 @@ public class CuerpoMensajeSaneadoTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var conversacion = new ConversacionCorreo("Certificado pendiente");
+        var conversacion = new Conversacion("Certificado pendiente");
         conversacion.AgregarMensaje(
             DireccionMensaje.Entrante, "externo@remitente.test",
             "<p>Buenos días</p><img src=x onerror=\"alert(document.cookie)\"><script>alert(1)</script>");
 
-        contexto.ConversacionesCorreo.Add(conversacion);
+        contexto.Conversaciones.Add(conversacion);
         await contexto.SaveChangesAsync();
 
         _conversacionId = conversacion.Id;
@@ -76,8 +76,8 @@ public class CuerpoMensajeSaneadoTests : IAsyncLifetime
         // destruir el original no se puede deshacer.
         await using var contexto = CrearContexto();
 
-        var almacenado = await contexto.MensajesCorreo
-            .Where(m => m.ConversacionCorreoId == _conversacionId)
+        var almacenado = await contexto.Mensajes
+            .Where(m => m.ConversacionId == _conversacionId)
             .Select(m => m.CuerpoHtml)
             .SingleAsync();
 

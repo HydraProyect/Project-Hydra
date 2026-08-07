@@ -4,18 +4,18 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace CaeManager.Infrastructure.Persistence.Configurations;
 
-public class ConversacionCorreoConfiguration : IEntityTypeConfiguration<ConversacionCorreo>
+public class ConversacionConfiguration : IEntityTypeConfiguration<Conversacion>
 {
-    public void Configure(EntityTypeBuilder<ConversacionCorreo> builder)
+    public void Configure(EntityTypeBuilder<Conversacion> builder)
     {
-        builder.ToTable("ConversacionesCorreo");
+        builder.ToTable("Conversaciones");
         builder.HasKey(c => c.Id);
 
-        builder.Property(c => c.Asunto).IsRequired().HasMaxLength(ConversacionCorreo.LongitudMaximaAsunto);
-        builder.Property(c => c.Etiquetas).HasMaxLength(ConversacionCorreo.LongitudMaximaEtiquetas);
-        builder.Property(c => c.HiloExternoId).HasMaxLength(ConversacionCorreo.LongitudMaximaHiloExternoId);
+        builder.Property(c => c.Asunto).IsRequired().HasMaxLength(Conversacion.LongitudMaximaAsunto);
+        builder.Property(c => c.Etiquetas).HasMaxLength(Conversacion.LongitudMaximaEtiquetas);
+        builder.Property(c => c.HiloExternoId).HasMaxLength(Conversacion.LongitudMaximaHiloExternoId);
 
-        builder.Property(c => c.TelefonoContacto).HasMaxLength(ConversacionCorreo.LongitudMaximaTelefonoContacto);
+        builder.Property(c => c.TelefonoContacto).HasMaxLength(Conversacion.LongitudMaximaTelefonoContacto);
 
         builder.HasIndex(c => new { c.TenantId, c.Estado });
         builder.HasIndex(c => new { c.TenantId, c.ClienteId });
@@ -27,19 +27,19 @@ public class ConversacionCorreoConfiguration : IEntityTypeConfiguration<Conversa
         builder.HasIndex(c => new { c.TenantId, c.ConexionIntegracionId, c.TelefonoContacto });
 
         // Mensajes/Participantes son colecciones de solo lectura respaldadas
-        // por un campo privado (ver ConversacionCorreo) — se le dice a EF Core
+        // por un campo privado (ver Conversacion) — se le dice a EF Core
         // que lea/escriba directamente el campo, sin pasar por la propiedad
         // pública (que no expone Add). Mismo patrón estándar de EF Core para
         // agregados DDD con colecciones encapsuladas.
         builder.HasMany(c => c.Mensajes)
             .WithOne()
-            .HasForeignKey(m => m.ConversacionCorreoId)
+            .HasForeignKey(m => m.ConversacionId)
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(c => c.Mensajes).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasMany(c => c.Participantes)
             .WithOne()
-            .HasForeignKey(p => p.ConversacionCorreoId)
+            .HasForeignKey(p => p.ConversacionId)
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(c => c.Participantes).UsePropertyAccessMode(PropertyAccessMode.Field);
 

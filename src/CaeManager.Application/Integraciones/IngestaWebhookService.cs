@@ -19,7 +19,7 @@ namespace CaeManager.Application.Integraciones;
 /// </summary>
 public class IngestaWebhookService(
     IConexionIntegracionRepository conexionRepositorio,
-    IConversacionCorreoRepository conversacionRepositorio,
+    IConversacionRepository conversacionRepositorio,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
     IFileStorageService almacenamiento,
@@ -83,13 +83,13 @@ public class IngestaWebhookService(
         var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(mensaje.HiloExternoId, cancellationToken);
         if (conversacion is null)
         {
-            conversacion = new ConversacionCorreo(mensaje.Asunto, conexion.ClienteId);
+            conversacion = new Conversacion(mensaje.Asunto, conexion.ClienteId);
             conversacion.AsociarConexion(conexion.Id, mensaje.HiloExternoId);
             conversacionRepositorio.Agregar(conversacion);
         }
 
         var mensajeCreado = conversacion.AgregarMensaje(
-            DireccionMensaje.Entrante, mensaje.RemitenteEmail, mensaje.CuerpoHtml, mensaje.FechaUtc, mensaje.MensajeExternoId);
+            DireccionMensaje.Entrante, mensaje.Remitente, mensaje.CuerpoHtml, mensaje.FechaUtc, mensaje.MensajeExternoId);
 
         foreach (var participante in mensaje.Participantes)
             conversacion.AgregarParticipante(participante.Email, participante.Rol, TipoParticipanteOrigen.Desconocido);
@@ -112,7 +112,7 @@ public class IngestaWebhookService(
     /// esencial). Se registra y se sigue con el resto.
     /// </summary>
     private async Task DescargarYGuardarAdjuntoAsync(
-        MensajeCorreo mensaje, string accessToken, string mensajeExternoId, AdjuntoGraphDto adjunto, CancellationToken cancellationToken)
+        Mensaje mensaje, string accessToken, string mensajeExternoId, AdjuntoGraphDto adjunto, CancellationToken cancellationToken)
     {
         if (adjunto.TamanoBytes > TamanoMaximoAdjuntoEntranteBytes)
         {
