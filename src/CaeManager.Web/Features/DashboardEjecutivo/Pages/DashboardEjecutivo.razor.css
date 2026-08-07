@@ -1,5 +1,8 @@
-.tarjeta-personalizar-kpis {
-    margin-bottom: var(--espaciado-lg, 1.5rem);
+/* Espaciado propio de esta página (aislado por Blazor CSS scoping) — sin
+   Tarjeta envolviendo ya el "Personalizar" (H6, docs/ux-audit/01-dashboards.md),
+   hace falta separar la cabecera colapsable del bloque de KPIs siguiente. */
+::deep .seccion-colapsable {
+    margin-bottom: var(--space-5);
 }
 
 .rejilla-categorias-kpi {
@@ -23,4 +26,26 @@
     gap: 0.5rem;
     padding: 0.25rem 0;
     cursor: pointer;
+}
+
+/*
+  Tema del DS en ApexCharts (H5, docs/ux-audit/01-dashboards.md): la
+  librería pinta la leyenda del donut y las etiquetas de los ejes con sus
+  colores por defecto (gris oscuro fijo), ilegibles sobre el fondo oscuro —
+  DashboardEjecutivo.razor no le pasaba ninguna opción de tema. ApexCharts
+  fija esos colores inline al renderizar (JS, no Razor), así que `!important`
+  es la única forma de que los tokens del DS ganen sin reescribir el motor
+  de temas de la librería. `::deep` porque ese DOM lo inserta ApexCharts.js
+  dentro del contenedor, no el propio árbol de Razor con el scope de Blazor.
+*/
+::deep .apexcharts-legend-text {
+    color: var(--color-text) !important;
+}
+
+::deep .apexcharts-text,
+::deep .apexcharts-yaxis-label tspan,
+::deep .apexcharts-xaxis-label tspan,
+::deep .apexcharts-datalabel-label,
+::deep .apexcharts-datalabel-value {
+    fill: var(--color-text) !important;
 }
