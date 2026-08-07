@@ -117,6 +117,8 @@ Verificado en la sesión de benchmark de mercado del 2026-08-02 (detalle complet
 
 **Nota de ADR futuro, no redactado todavía (regla YAGNI de `CLAUDE.md`)**: una **capa adaptadora (anti-corruption layer) por conector externo** se justifica cuando exista decisión real de construir el primer conector — la propia migración legacy→Twind ya demuestra que el proveedor objetivo rompe compatibilidad con el tiempo, y aislar el dominio de Hydra de cada API externa protege el roadmap de integraciones de decisiones de terceros. Este documento lo anticipa como nota; se formaliza como ADR cuando la construcción del conector deje de ser hipotética.
 
+**Refuerzo por uso real (2026-08-07)**: `docs/business/inbound/OUTBOUND_USAGE_ANALYSIS.md` analiza un export operativo real del equipo de gestión CAE y confirma que CTAIMA Group (Twind + legado CTAIMACAE/e-coordina) concentra, con diferencia, más volumen de uso real que cualquier otra plataforma — una segunda línea de evidencia, independiente de la del párrafo anterior, que apunta al mismo proveedor. No cambia esta decisión; la refuerza.
+
 ## 6. Orquestación
 
 ### 6.1 Retry / Circuit Breaker / Rate Limiting

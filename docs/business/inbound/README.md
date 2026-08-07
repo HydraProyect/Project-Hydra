@@ -34,6 +34,8 @@ Descontando lo anterior, el valor real de esta investigación para Hydra es:
 
 El material recibido usa "Inbound" para referirse a las plataformas externas que Hydra debe consumir/sincronizar (Nalanda, CTAIMA, Dokify...). El usuario menciona que este material también debe dirigir las implementaciones de **Outbound** — ese término no está definido todavía en ningún documento de Hydra (ni técnico ni de negocio). Antes de escribir contenido bajo ese nombre hace falta una definición confirmada por el propietario del producto (qué es Outbound en Hydra, en qué se diferencia de Inbound) — se deja como pregunta abierta en `RESEARCH_BACKLOG.md` en vez de asumirla.
 
+**Actualización**: el propietario del producto aportó un export operativo real de enlaces a portales de Clientes Principales (lo que llama "CAE Outbound") para usarlo como base de priorización de conectores Inbound. `OUTBOUND_USAGE_ANALYSIS.md` analiza ese export y da la primera evidencia empírica de a qué se refiere "Outbound" en la práctica — sin que eso cierre todavía la pregunta abierta de definición formal.
+
 ## Documentos de esta carpeta
 
 | Documento | Contenido | Relación con Hydra |
@@ -44,6 +46,7 @@ El material recibido usa "Inbound" para referirse a las plataformas externas que
 | `MARKET_GAPS_AND_POSITIONING.md` | Huecos del mercado y posicionamiento de Hydra como capa de agregación multi-plataforma | Insumo para `docs/business/PRODUCT_STRATEGY.md`, no lo sustituye |
 | `CANONICAL_MODEL_DRAFT.md` | Propuesta de modelo canónico y contrato de conector para integrar plataformas Inbound | **Superseded en la práctica** por `ARQUITECTURA-INTEGRACIONES.md` (ya construida parcialmente) — se conserva por el razonamiento agnóstico de proveedor, no como diseño a implementar |
 | `RESEARCH_BACKLOG.md` | Preguntas de investigación abiertas, decisiones de investigación tomadas, fuentes y metodología | Vivo — se actualiza cuando se investigue una plataforma nueva |
+| `OUTBOUND_USAGE_ANALYSIS.md` | Ranking de plataformas por uso real propio (export operativo del equipo de gestión CAE), sin nombres de Clientes Principales | Único dato de uso real de esta carpeta (el resto es investigación de mercado externa) — refuerza `ARQUITECTURA-INTEGRACIONES.md` § 5.1, no la sustituye |
 
 ## Documentos relacionados
 
