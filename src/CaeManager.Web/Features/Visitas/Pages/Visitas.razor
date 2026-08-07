@@ -138,21 +138,22 @@
                     </label>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirDetalleAsync(context.Id)">
-                        Ver
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
-                        Editar
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
-                        Eliminar
-                    </Boton>
+                    <MenuAcciones>
+                        <ItemMenuAccion OnClick="() => AbrirDetalleAsync(context.Id)">
+                            Ver
+                        </ItemMenuAccion>
+                        <ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
+                            Editar
+                        </ItemMenuAccion>
+                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
+                            Eliminar
+                        </ItemMenuAccion>
+                    </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
 
-            <div class="paginador">
-                <Paginator State="_paginacion" />
-            </div>
+            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                              Etiqueta="visita(s)" PaginaActualChanged="CambiarPaginaAsync" />
         </div>
 
         @if (_totalElementos == 0 && !_cargando)

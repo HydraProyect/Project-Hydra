@@ -60,9 +60,9 @@ La ausencia de estos flujos **no puntúa** en ninguna ficha; pertenecen al futur
 ### Horizonte 1 — Quick wins (semanas; casi todos S, independientes entre sí)
 1. ✅ Arreglar `/centros` — arreglado y mergeado en main (query reescrita + `CentrosOrdenacionSqlTests`). Queda pendiente el smoke E2E por página que cargue cada ruta con datos.
 2. ✅ Estado "Sin cartera asignada" en Dashboard/workspace delegado (mata el verde falso, #3). — [PR #100](https://github.com/christopherjp1-jpg/Project-Hydra/pull/100)
-3. Restaurar desde Auditoría o corregir el copy del borrado en lote (#4) — lo segundo es de hoy para mañana.
-4. Página Forbidden propia (#8a).
-5. Paginador único localizado (#9).
+3. ✅ Restaurar desde Auditoría (#4) para Cliente/Empresa/Centro/Trabajador/Documento + corrige el copy donde no aplica (Incidencia/Subcontrata/Visita). — [PR #113](https://github.com/christopherjp1-jpg/Project-Hydra/pull/113)
+4. ✅ Página Forbidden propia (#8a). — [PR #114](https://github.com/christopherjp1-jpg/Project-Hydra/pull/114)
+5. ✅ Paginador único localizado (#9). — [PR #116](https://github.com/christopherjp1-jpg/Project-Hydra/pull/116)
 6. Overflow menu en Acciones de las listas (densidad, #9).
 7. Export en Empresas/Centros/Asignaciones/Incidencias/Auditoría (#9) + export del resumen de facturación.
 8. Badge de detecciones pendientes en Empresas + tipo nuevo en Bandeja (capacidad fantasma → visible).

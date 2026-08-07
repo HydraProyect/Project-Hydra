@@ -61,18 +61,19 @@
                 <PropertyColumn Property="@(s => s.RazonSocial)" Sortable="true" />
                 <PropertyColumn Property="@(s => s.Cif)" Title="CIF" Sortable="true" />
                 <TemplateColumn Title="Acciones" Align="Align.End">
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, context.Id, context.RazonSocial, "informacion")'>
-                        Detalles
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
-                        Eliminar
-                    </Boton>
+                    <MenuAcciones>
+                        <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, context.Id, context.RazonSocial, "informacion")'>
+                            Detalles
+                        </ItemMenuAccion>
+                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
+                            Eliminar
+                        </ItemMenuAccion>
+                    </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
 
-            <div class="paginador">
-                <Paginator State="_paginacion" />
-            </div>
+            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                              Etiqueta="subcontrata(s)" PaginaActualChanged="CambiarPaginaAsync" />
         </div>
 
         @if (_totalElementos == 0 && !_cargando)

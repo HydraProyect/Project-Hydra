@@ -122,21 +122,22 @@
                     }
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, context.Id, context.TipoDocumentoNombre, "informacion")'>
-                        Ver
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(context.Id)">
-                        Renovar
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(context.Id, context.PropietarioNombre, context.TipoDocumentoNombre)">
-                        Eliminar
-                    </Boton>
+                    <MenuAcciones>
+                        <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, context.Id, context.TipoDocumentoNombre, "informacion")'>
+                            Ver
+                        </ItemMenuAccion>
+                        <ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
+                            Renovar
+                        </ItemMenuAccion>
+                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.PropietarioNombre, context.TipoDocumentoNombre)">
+                            Eliminar
+                        </ItemMenuAccion>
+                    </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
 
-            <div class="paginador">
-                <Paginator State="_paginacion" />
-            </div>
+            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                              Etiqueta="documento(s)" PaginaActualChanged="CambiarPaginaAsync" />
         </div>
 
         @if (_totalElementos == 0 && !_cargando)
