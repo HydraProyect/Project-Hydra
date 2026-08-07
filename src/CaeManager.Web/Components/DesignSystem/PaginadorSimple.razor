@@ -14,6 +14,18 @@
         ← Anterior
     </Boton>
     <span class="paginador-texto">Página @PaginaActual de @Math.Max(TotalPaginas, 1) — @TotalElementos @Etiqueta</span>
+    @if (TamanoPaginaChanged.HasDelegate)
+    {
+        <label class="paginador-tamano">
+            Mostrar
+            <select class="paginador-tamano-select" value="@TamanoPagina" @onchange="e => TamanoPaginaChanged.InvokeAsync(int.Parse((string)e.Value!))">
+                @foreach (var opcion in OpcionesTamanoPagina)
+                {
+                    <option value="@opcion">@opcion</option>
+                }
+            </select>
+        </label>
+    }
     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
            Deshabilitado="@(PaginaActual >= TotalPaginas)" OnClick="() => CambiarPaginaAsync(PaginaActual + 1)">
         Siguiente →
@@ -26,6 +38,18 @@
     [Parameter] public int TotalElementos { get; set; }
     [Parameter] public string Etiqueta { get; set; } = "elemento(s)";
     [Parameter] public EventCallback<int> PaginaActualChanged { get; set; }
+
+    /// <summary>
+    /// H5 (docs/ux-audit/05-trabajadores-vehiculos.md): "20 filas por
+    /// página, fijo en las 12 listas" — el selector solo se pinta cuando el
+    /// caller conecta <see cref="TamanoPaginaChanged"/>, así que sigue
+    /// siendo válido usar <c>PaginadorSimple</c> sin tamaño configurable
+    /// (p. ej. paginación puramente en memoria de una miniatura) sin tener
+    /// que pasar los tres parámetros nuevos.
+    /// </summary>
+    [Parameter] public int TamanoPagina { get; set; } = 20;
+    [Parameter] public EventCallback<int> TamanoPaginaChanged { get; set; }
+    [Parameter] public IReadOnlyList<int> OpcionesTamanoPagina { get; set; } = [20, 50, 100];
 
     private Task CambiarPaginaAsync(int pagina) => PaginaActualChanged.InvokeAsync(pagina);
 }
