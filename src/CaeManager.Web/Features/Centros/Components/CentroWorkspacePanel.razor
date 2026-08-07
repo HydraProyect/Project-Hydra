@@ -16,6 +16,8 @@
 @using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro
 @using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad
+@using CaeManager.Application.Integraciones
+@using CaeManager.Application.Integraciones.Queries.ObtenerProveedoresPlataformaCae
 @using CaeManager.Domain.Centros
 @using CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeCentro
 @using CaeManager.Application.Common
@@ -36,6 +38,7 @@
 @inject IFileStorageService AlmacenamientoArchivos
 @inject ILogger<CentroWorkspacePanel> Logger
 @inject ICurrentUserService CurrentUserService
+@inject IResolucionProveedorPlataformaCaeService ResolucionProveedor
 
 @if (_cargando)
 {
@@ -306,7 +309,16 @@ else
                                     @if (canal.Tipo == TipoCanalGestion.Plataforma)
                                     {
                                         <div class="workspace-grupo-campos">
-                                            <CampoInfo Etiqueta="Plataforma" Valor="@canal.NombrePlataforma" />
+                                            <CampoInfo Etiqueta="Plataforma">
+                                                @if (canal.ProveedorPlataformaCaeNombre is not null)
+                                                {
+                                                    @canal.ProveedorPlataformaCaeNombre
+                                                }
+                                                else
+                                                {
+                                                    <Badge Tono="TonoBadge.Advertencia">Sin resolver — edita el acceso</Badge>
+                                                }
+                                            </CampoInfo>
                                             <CampoInfo Etiqueta="URL de acceso" Valor="@canal.UrlAcceso" />
                                             <CampoInfo Etiqueta="Notas" Valor="@canal.Notas" />
                                             <CampoInfo Etiqueta="Credenciales">
@@ -431,8 +443,31 @@ else
 
             @if (_tipoCanalEdicion == nameof(TipoCanalGestion.Plataforma))
             {
-                <CampoTexto Etiqueta="Plataforma" Valor="@_nombrePlataformaEdicion" ValorChanged="v => _nombrePlataformaEdicion = v" />
-                <CampoTexto Etiqueta="URL de acceso" Valor="@_urlAccesoEdicion" ValorChanged="v => _urlAccesoEdicion = v" />
+                <CampoTexto Etiqueta="URL de acceso" Valor="@_urlAccesoEdicion" ValorChanged="v => _urlAccesoEdicion = v"
+                            OnBlur="ResolverProveedorPorUrlAsync" Placeholder="https://portal-del-cliente.com/login" />
+                <p class="texto-ayuda-campo">Identificamos la plataforma automáticamente a partir de esta URL — pega el link exacto que usa este centro, no un dominio genérico.</p>
+
+                @if (_resolviendoProveedor)
+                {
+                    <p class="workspace-metrica-inline">Identificando la plataforma…</p>
+                }
+                else if (!string.IsNullOrEmpty(_proveedorPlataformaCaeIdEdicion) && !_mostrarSelectorManualProveedor)
+                {
+                    <div class="workspace-metrica-inline">
+                        <Badge Tono="TonoBadge.Exito">Plataforma: @_proveedorNombreDetectadoEdicion</Badge>
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarSelectorManualProveedor = true">¿No es correcta? Elegir manualmente</Boton>
+                    </div>
+                }
+                else if (_mostrarSelectorManualProveedor)
+                {
+                    @if (!string.IsNullOrWhiteSpace(_mensajeResolucionProveedor))
+                    {
+                        <p class="workspace-nota-contextual">@_mensajeResolucionProveedor</p>
+                    }
+                    <SelectorEntidad Etiqueta="Plataforma" Placeholder="Busca la plataforma…"
+                                      Valor="@_proveedorPlataformaCaeIdEdicion" ValorChanged="v => _proveedorPlataformaCaeIdEdicion = v"
+                                      Opciones="_opcionesSelectorProveedor" />
+                }
 
                 @if (_canalIdEditando is not null)
                 {
@@ -577,8 +612,15 @@ else
     private Guid _versionCanalEditando;
     private string _etiquetaPropositoEdicion = string.Empty;
     private string _tipoCanalEdicion = nameof(TipoCanalGestion.Plataforma);
-    private string _nombrePlataformaEdicion = string.Empty;
     private string _urlAccesoEdicion = string.Empty;
+    private string _proveedorPlataformaCaeIdEdicion = string.Empty;
+    private string? _proveedorNombreDetectadoEdicion;
+    private bool _resolviendoProveedor;
+    private bool _mostrarSelectorManualProveedor;
+    private string? _mensajeResolucionProveedor;
+    private IReadOnlyList<OpcionBuscable> _opcionesSelectorProveedor = [];
+    private IReadOnlyList<OpcionBuscable> _catalogoProveedorOpciones = [];
+    private bool _catalogoProveedorCargado;
     private bool _cambiarCredencialesEdicion;
     private string _usuarioEdicion = string.Empty;
     private string _contrasenaEdicion = string.Empty;
@@ -971,6 +1013,13 @@ else
                 _canales = resultado;
                 _plataformaCargada = true;
             }
+
+            if (!_catalogoProveedorCargado)
+            {
+                var proveedores = await Mediator.Send(new ObtenerProveedoresPlataformaCaeQuery());
+                _catalogoProveedorOpciones = proveedores.Select(p => new OpcionBuscable(p.Id.ToString(), p.Nombre)).ToList();
+                _catalogoProveedorCargado = true;
+            }
         }
         catch (Exception)
         {
@@ -984,14 +1033,65 @@ else
         }
     }
 
+    /// <summary>
+    /// Resuelve la plataforma a partir de la URL (Lote 2-B, PLAN-EJECUCION-UX.md
+    /// § Parte 2 (a)) — 1 candidato se auto-selecciona, 0 o varios muestran el
+    /// selector manual (candidatos si hay multi-match como Sabentis/Quirón, el
+    /// catálogo completo si no hay ninguno).
+    /// </summary>
+    private async Task ResolverProveedorPorUrlAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_urlAccesoEdicion))
+        {
+            _mensajeResolucionProveedor = null;
+            return;
+        }
+
+        _resolviendoProveedor = true;
+        try
+        {
+            var candidatos = await ResolucionProveedor.ResolverPorUrlAsync(_urlAccesoEdicion);
+
+            if (candidatos.Count == 1)
+            {
+                _proveedorPlataformaCaeIdEdicion = candidatos[0].Id.ToString();
+                _proveedorNombreDetectadoEdicion = candidatos[0].Nombre;
+                _mostrarSelectorManualProveedor = false;
+                _mensajeResolucionProveedor = null;
+            }
+            else if (candidatos.Count > 1)
+            {
+                _proveedorPlataformaCaeIdEdicion = string.Empty;
+                _mostrarSelectorManualProveedor = true;
+                _opcionesSelectorProveedor = candidatos.Select(c => new OpcionBuscable(c.Id.ToString(), c.Nombre)).ToList();
+                _mensajeResolucionProveedor = "Esta URL coincide con varias plataformas — elige la correcta.";
+            }
+            else
+            {
+                _proveedorPlataformaCaeIdEdicion = string.Empty;
+                _mostrarSelectorManualProveedor = true;
+                _opcionesSelectorProveedor = _catalogoProveedorOpciones;
+                _mensajeResolucionProveedor = "No identificamos automáticamente esta plataforma — elígela de la lista.";
+            }
+        }
+        finally
+        {
+            _resolviendoProveedor = false;
+        }
+    }
+
     private void AbrirNuevoCanal()
     {
         _canalIdEditando = null;
         _versionCanalEditando = default;
         _etiquetaPropositoEdicion = string.Empty;
         _tipoCanalEdicion = nameof(TipoCanalGestion.Plataforma);
-        _nombrePlataformaEdicion = string.Empty;
         _urlAccesoEdicion = string.Empty;
+        _proveedorPlataformaCaeIdEdicion = string.Empty;
+        _proveedorNombreDetectadoEdicion = null;
+        _mostrarSelectorManualProveedor = false;
+        _mensajeResolucionProveedor = null;
+        _opcionesSelectorProveedor = _catalogoProveedorOpciones;
         _cambiarCredencialesEdicion = false;
         _usuarioEdicion = string.Empty;
         _contrasenaEdicion = string.Empty;
@@ -1002,13 +1102,12 @@ else
         _drawerCanalVisible = true;
     }
 
-    private void AbrirEditarCanal(CanalGestionResumenDto canal)
+    private async Task AbrirEditarCanal(CanalGestionResumenDto canal)
     {
         _canalIdEditando = canal.Id;
         _versionCanalEditando = canal.Version;
         _etiquetaPropositoEdicion = canal.EtiquetaProposito;
         _tipoCanalEdicion = canal.Tipo.ToString();
-        _nombrePlataformaEdicion = canal.NombrePlataforma ?? string.Empty;
         _urlAccesoEdicion = canal.UrlAcceso ?? string.Empty;
         _cambiarCredencialesEdicion = false;
         _usuarioEdicion = string.Empty;
@@ -1017,7 +1116,29 @@ else
         _nombreContactoEdicion = canal.NombreContacto ?? string.Empty;
         _notasCanalEdicion = canal.Notas ?? string.Empty;
         _mensajeErrorCanal = null;
+
+        if (canal.ProveedorPlataformaCaeId is { } proveedorId)
+        {
+            _proveedorPlataformaCaeIdEdicion = proveedorId.ToString();
+            _proveedorNombreDetectadoEdicion = canal.ProveedorPlataformaCaeNombre;
+            _mostrarSelectorManualProveedor = false;
+            _mensajeResolucionProveedor = null;
+        }
+        else if (canal.Tipo == TipoCanalGestion.Plataforma)
+        {
+            // Canal migrado desde el antiguo NombrePlataforma de texto libre
+            // sin match automático (Lote 2-B) — se reintenta la resolución con
+            // la URL ya guardada antes de pedir selección manual.
+            _proveedorPlataformaCaeIdEdicion = string.Empty;
+            _mostrarSelectorManualProveedor = true;
+            _opcionesSelectorProveedor = _catalogoProveedorOpciones;
+            _mensajeResolucionProveedor = "Este acceso no tiene una plataforma resuelta — elígela de la lista.";
+        }
+
         _drawerCanalVisible = true;
+
+        if (canal.Tipo == TipoCanalGestion.Plataforma && canal.ProveedorPlataformaCaeId is null)
+            await ResolverProveedorPorUrlAsync();
     }
 
     private async Task GuardarCanalAsync()
@@ -1028,6 +1149,7 @@ else
         try
         {
             var notas = string.IsNullOrWhiteSpace(_notasCanalEdicion) ? null : _notasCanalEdicion;
+            Guid? proveedorPlataformaCaeId = Guid.TryParse(_proveedorPlataformaCaeIdEdicion, out var proveedorId) ? proveedorId : null;
 
             Result resultado;
 
@@ -1035,7 +1157,7 @@ else
             {
                 resultado = await Mediator.Send(new EditarCanalGestionCommand(
                     id, _etiquetaPropositoEdicion,
-                    string.IsNullOrWhiteSpace(_nombrePlataformaEdicion) ? null : _nombrePlataformaEdicion,
+                    proveedorPlataformaCaeId,
                     string.IsNullOrWhiteSpace(_urlAccesoEdicion) ? null : _urlAccesoEdicion,
                     string.IsNullOrWhiteSpace(_emailsDestinatariosEdicion) ? null : _emailsDestinatariosEdicion,
                     string.IsNullOrWhiteSpace(_nombreContactoEdicion) ? null : _nombreContactoEdicion,
@@ -1052,7 +1174,7 @@ else
 
                 resultado = await Mediator.Send(new CrearCanalGestionCommand(
                     EntidadId, tipo, _etiquetaPropositoEdicion,
-                    string.IsNullOrWhiteSpace(_nombrePlataformaEdicion) ? null : _nombrePlataformaEdicion,
+                    proveedorPlataformaCaeId,
                     string.IsNullOrWhiteSpace(_urlAccesoEdicion) ? null : _urlAccesoEdicion,
                     string.IsNullOrWhiteSpace(_usuarioEdicion) ? null : _usuarioEdicion,
                     string.IsNullOrWhiteSpace(_contrasenaEdicion) ? null : _contrasenaEdicion,
