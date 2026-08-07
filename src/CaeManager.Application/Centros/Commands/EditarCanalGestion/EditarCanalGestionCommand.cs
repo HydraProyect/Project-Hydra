@@ -1,8 +1,10 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Centros.Commands.EditarCanalGestion;
 
@@ -10,6 +12,11 @@ namespace CaeManager.Application.Centros.Commands.EditarCanalGestion;
 /// Edición de un acceso de gestión documental del Centro
 /// (PLAN-EJECUCION-UX.md § 0.6, Lote 0-E). El <see cref="Tipo"/> no se edita:
 /// Plataforma y Email no comparten campos, cambiarlo sería crear otro canal.
+///
+/// <see cref="ProveedorPlataformaCaeId"/> sustituye al antiguo
+/// <c>NombrePlataforma</c> de texto libre (Lote 2-B, § Parte 2 (a)) — un
+/// canal de Plataforma sin resolver (migrado desde el texto libre antiguo sin
+/// match automático) no puede guardarse sin completarlo primero.
 ///
 /// <see cref="CambiarCredenciales"/> existe porque la pantalla nunca muestra
 /// el usuario/contraseña guardados (dato cifrado en reposo): sin este flag,
@@ -19,7 +26,7 @@ namespace CaeManager.Application.Centros.Commands.EditarCanalGestion;
 public record EditarCanalGestionCommand(
     Guid Id,
     string EtiquetaProposito,
-    string? NombrePlataforma,
+    Guid? ProveedorPlataformaCaeId,
     string? UrlAcceso,
     string? EmailsDestinatarios,
     string? NombreContacto,
@@ -39,7 +46,6 @@ public class EditarCanalGestionCommandValidator : AbstractValidator<EditarCanalG
             .NotEmpty().WithMessage("Describe para qué sirve este acceso (por ejemplo, «Gestión general»).")
             .MaximumLength(CanalGestionDocumental.LongitudMaximaEtiquetaProposito);
 
-        RuleFor(c => c.NombrePlataforma).MaximumLength(CanalGestionDocumental.LongitudMaximaNombrePlataforma);
         RuleFor(c => c.UrlAcceso).MaximumLength(CanalGestionDocumental.LongitudMaximaUrlAcceso);
         RuleFor(c => c.EmailsDestinatarios).MaximumLength(CanalGestionDocumental.LongitudMaximaEmailsDestinatarios);
         RuleFor(c => c.NombreContacto).MaximumLength(CanalGestionDocumental.LongitudMaximaNombreContacto);
@@ -48,7 +54,8 @@ public class EditarCanalGestionCommandValidator : AbstractValidator<EditarCanalG
 }
 
 public class EditarCanalGestionCommandHandler(
-    ICanalGestionDocumentalRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    ICanalGestionDocumentalRepository repositorio, IAlcanceDatosService alcanceDatos,
+    IProveedoresPlataformaCaeQueryContext proveedoresContext, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarCanalGestionCommand, Result>
 {
     public async Task<Result> Handle(EditarCanalGestionCommand request, CancellationToken cancellationToken)
@@ -62,10 +69,13 @@ public class EditarCanalGestionCommandHandler(
 
         if (canal.Tipo == TipoCanalGestion.Plataforma)
         {
-            if (string.IsNullOrWhiteSpace(request.NombrePlataforma))
-                return Result.Fallo(Error.Crear("CanalGestion.PlataformaRequerida", "El nombre de la plataforma es obligatorio."));
+            if (request.ProveedorPlataformaCaeId is not { } proveedorId)
+                return Result.Fallo(Error.Crear("CanalGestion.PlataformaRequerida", "Elige la plataforma — resuélvela desde la URL de acceso o selecciónala manualmente."));
 
-            canal.ActualizarPlataforma(request.EtiquetaProposito, request.NombrePlataforma, request.UrlAcceso, request.Notas);
+            if (!await proveedoresContext.ProveedoresPlataformaCae.AnyAsync(p => p.Id == proveedorId, cancellationToken))
+                return Result.Fallo(Error.Crear("CanalGestion.ProveedorNoEncontrado", "No encontramos esta plataforma en el catálogo."));
+
+            canal.ActualizarPlataforma(request.EtiquetaProposito, proveedorId, request.UrlAcceso, request.Notas);
 
             if (request.CambiarCredenciales)
                 canal.ActualizarCredenciales(request.Usuario, request.Contrasena);
