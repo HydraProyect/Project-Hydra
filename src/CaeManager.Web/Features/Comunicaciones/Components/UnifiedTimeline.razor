@@ -10,8 +10,18 @@
 @using CaeManager.Domain.Comunicaciones
 
 <div class="timeline-mensajes">
+    @{ DateTime? fechaSeparadorAnterior = null; }
     @foreach (var mensaje in Mensajes)
     {
+        var fechaLocal = mensaje.FechaUtc.ToLocalTime().Date;
+        if (fechaSeparadorAnterior != fechaLocal)
+        {
+            fechaSeparadorAnterior = fechaLocal;
+            <div class="timeline-separador-fecha">
+                <span>@FormatearSeparadorFecha(fechaLocal)</span>
+            </div>
+        }
+
         <div class="timeline-mensaje-fila timeline-mensaje-fila-@mensaje.Direccion.ToString().ToLowerInvariant()">
             <span class="timeline-avatar" title="@mensaje.Remitente" aria-hidden="true">@ObtenerIniciales(mensaje.Remitente)</span>
             <div class="timeline-mensaje timeline-mensaje-@mensaje.Direccion.ToString().ToLowerInvariant()">
@@ -64,6 +74,9 @@
                 {
                     <div class="timeline-sugerencia">
                         <div class="timeline-sugerencia-texto">
+                            <span class="timeline-sugerencia-icono-ia" title="Sugerencia de la IA">
+                                <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
+                            </span>
                             <Icono Nombre="calendario" Tamano="TamanoIcono.Pequeno" />
                             <span>@sugerencia.Resumen</span>
                         </div>
@@ -82,6 +95,9 @@
                 {
                     <div class="timeline-sugerencia">
                         <div class="timeline-sugerencia-texto">
+                            <span class="timeline-sugerencia-icono-ia" title="Sugerencia de la IA">
+                                <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
+                            </span>
                             <Icono Nombre="incidencias" Tamano="TamanoIcono.Pequeno" />
                             <span>@sugerenciaGestion.Resumen</span>
                         </div>
@@ -125,6 +141,15 @@
         < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
         _ => $"{bytes / (1024.0 * 1024.0):0.#} MB"
     };
+
+    /// <summary>Separador de día del timeline (mockup 03.1: "Hoy, 7 de agosto de 2026") — agrupa visualmente sin tocar el orden cronológico ya devuelto por ObtenerConversacionPorIdQueryHandler.</summary>
+    private static string FormatearSeparadorFecha(DateTime fechaLocal)
+    {
+        var hoy = DateTime.Now.Date;
+        if (fechaLocal == hoy) return $"Hoy, {fechaLocal:d 'de' MMMM 'de' yyyy}";
+        if (fechaLocal == hoy.AddDays(-1)) return $"Ayer, {fechaLocal:d 'de' MMMM 'de' yyyy}";
+        return fechaLocal.ToString("d 'de' MMMM 'de' yyyy");
+    }
 
     private static string FormatearFechaRelativa(DateTime fechaUtc)
     {

@@ -6,20 +6,23 @@
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
 @using CaeManager.Domain.Comunicaciones
 
-<li class="bandeja-fila @(Activa ? "bandeja-fila-activa" : null)" @onclick="() => OnSeleccionar.InvokeAsync(Conversacion.Id)">
-    <div class="bandeja-fila-linea1">
-        <span class="bandeja-fila-remitente-grupo">
-            <span class="bandeja-fila-canal" title="@(Conversacion.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")">
-                <Icono Nombre="@(Conversacion.Canal == CanalConversacion.WhatsApp ? "chat" : "correo")" Tamano="TamanoIcono.Pequeno" />
-            </span>
-            <span class="bandeja-fila-remitente">@Conversacion.RemitentePrincipal</span>
+<li class="bandeja-fila @(Activa ? "bandeja-fila-activa" : null) @(Conversacion.EsperandoCliente ? "bandeja-fila-esperando" : null)" @onclick="() => OnSeleccionar.InvokeAsync(Conversacion.Id)">
+    <span class="bandeja-fila-avatar" aria-hidden="true">
+        @ObtenerIniciales(Conversacion.RemitentePrincipal)
+        <span class="bandeja-fila-canal bandeja-fila-canal-@Conversacion.Canal.ToString().ToLowerInvariant()" title="@(Conversacion.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")">
+            <Icono Nombre="@(Conversacion.Canal == CanalConversacion.WhatsApp ? "chat" : "correo")" Tamano="TamanoIcono.Pequeno" />
         </span>
-        <span class="bandeja-fila-fecha">@FormatearFechaRelativa(Conversacion.FechaUltimoMensajeUtc)</span>
-    </div>
-    <div class="bandeja-fila-asunto">@Conversacion.Asunto</div>
-    <div class="bandeja-fila-linea3">
-        <Badge Tono="TonoBadgeDeEstado(Conversacion.Estado)">@Conversacion.Estado</Badge>
-        <span class="bandeja-fila-preview">@Conversacion.PreviewUltimoMensaje</span>
+    </span>
+    <div class="bandeja-fila-contenido">
+        <div class="bandeja-fila-linea1">
+            <span class="bandeja-fila-remitente">@Conversacion.RemitentePrincipal</span>
+            <span class="bandeja-fila-fecha">@FormatearFechaRelativa(Conversacion.FechaUltimoMensajeUtc)</span>
+        </div>
+        <div class="bandeja-fila-asunto">@Conversacion.Asunto</div>
+        <div class="bandeja-fila-linea3">
+            <Badge Tono="TonoBadgeDeEstado(Conversacion.Estado)" Tamano="TamanoBadge.Pequeno">@Conversacion.Estado</Badge>
+            <span class="bandeja-fila-preview">@Conversacion.PreviewUltimoMensaje</span>
+        </div>
     </div>
 </li>
 
@@ -34,6 +37,13 @@
         EstadoConversacion.Pendiente => TonoBadge.Info,
         _ => TonoBadge.Neutro
     };
+
+    /// <summary>Mismo criterio que UnifiedTimeline.ObtenerIniciales: dos letras del remitente para el avatar, sin depender de un nombre completo que este DTO no siempre trae.</summary>
+    private static string ObtenerIniciales(string remitente)
+    {
+        var local = remitente.Split('@')[0];
+        return local.Length >= 2 ? local[..2].ToUpperInvariant() : local.ToUpperInvariant();
+    }
 
     private static string FormatearFechaRelativa(DateTime fechaUtc)
     {
