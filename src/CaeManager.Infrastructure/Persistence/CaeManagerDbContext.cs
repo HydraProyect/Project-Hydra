@@ -67,7 +67,7 @@ public class CaeManagerDbContext(
         IConfiguracionQueryContext, IAuditoriaQueryContext, ITenantsQueryContext,
         IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext,
         IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
-        IGestionesQueryContext
+        IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -207,6 +207,10 @@ public class CaeManagerDbContext(
     IQueryable<LineaWhatsApp> IIntegracionesQueryContext.LineasWhatsApp => LineasWhatsApp;
     public DbSet<MiembroPoolLinea> MiembrosPoolLinea => Set<MiembroPoolLinea>();
     IQueryable<MiembroPoolLinea> IIntegracionesQueryContext.MiembrosPoolLinea => MiembrosPoolLinea;
+    public DbSet<ProveedorPlataformaCae> ProveedoresPlataformaCae => Set<ProveedorPlataformaCae>();
+    IQueryable<ProveedorPlataformaCae> IProveedoresPlataformaCaeQueryContext.ProveedoresPlataformaCae => ProveedoresPlataformaCae;
+    public DbSet<DominioProveedorPlataformaCae> DominiosProveedorPlataformaCae => Set<DominioProveedorPlataformaCae>();
+    IQueryable<DominioProveedorPlataformaCae> IProveedoresPlataformaCaeQueryContext.DominiosProveedorPlataformaCae => DominiosProveedorPlataformaCae;
     public DbSet<ContactoWhatsApp> ContactosWhatsApp => Set<ContactoWhatsApp>();
     IQueryable<ContactoWhatsApp> IComunicacionesQueryContext.ContactosWhatsApp => ContactosWhatsApp;
 
@@ -281,8 +285,9 @@ public class CaeManagerDbContext(
         // AspNetUsers queda deliberadamente sin filtro (no hereda de
         // EntidadConTenant) — el login necesita poder resolver el usuario
         // (y por tanto su tenant) antes de conocerlo, ver
-        // TenantClaimsPrincipalFactory. Tenant, DelegacionTenant y
-        // AsignacionOperadorDelegado tampoco heredan de EntidadConTenant:
+        // TenantClaimsPrincipalFactory. Tenant, DelegacionTenant,
+        // AsignacionOperadorDelegado, ProveedorPlataformaCae y
+        // DominioProveedorPlataformaCae tampoco heredan de EntidadConTenant:
         // son catálogos globales por diseño (docs/MULTITENANCY.md § 7-8),
         // no un olvido.
         //
