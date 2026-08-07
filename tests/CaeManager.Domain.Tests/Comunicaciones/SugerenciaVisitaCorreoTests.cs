@@ -16,7 +16,7 @@ public class SugerenciaVisitaCorreoTests
 
         var sugerencia = new SugerenciaVisitaCorreo(mensajeId, centroId, fechaInicio, fechaFin, "El correo pide entrada de dos trabajadores.");
 
-        sugerencia.MensajeCorreoId.Should().Be(mensajeId);
+        sugerencia.MensajeId.Should().Be(mensajeId);
         sugerencia.CentroId.Should().Be(centroId);
         sugerencia.FechaInicioSugerida.Should().Be(fechaInicio);
         sugerencia.FechaFinSugerida.Should().Be(fechaFin);

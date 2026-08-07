@@ -35,7 +35,7 @@ public class ResponderConversacionWhatsAppCommandValidator : AbstractValidator<R
 /// para casar los statuses (delivered/read/failed) posteriores.
 /// </summary>
 public class ResponderConversacionWhatsAppCommandHandler(
-    IConversacionCorreoRepository conversacionRepositorio,
+    IConversacionRepository conversacionRepositorio,
     IConexionIntegracionRepository conexionRepositorio,
     ILineaWhatsAppRepository lineaRepositorio,
     IAlcanceDatosService alcanceDatos,
@@ -49,7 +49,7 @@ public class ResponderConversacionWhatsAppCommandHandler(
         // Mismo guard N-3 que el resto de handlers de Comunicaciones: sin
         // esto se podía responder en el hilo de otro gestor.
         if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
-            return Result.Fallo(Error.Crear("ConversacionCorreo.NoEncontrada", "No encontramos esta conversación."));
+            return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
 
         if (conversacion.Canal != CanalConversacion.WhatsApp || conversacion.TelefonoContacto is null ||
             conversacion.ConexionIntegracionId is not { } conexionId)

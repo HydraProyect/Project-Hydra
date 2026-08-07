@@ -11,7 +11,7 @@ namespace CaeManager.Application.Comunicaciones.Deteccion;
 
 /// <summary>
 /// Orquestador puro (mismo patrón que SugerenciaVisitaCorreoService): llamado
-/// desde IngestaWebhookService justo después de persistir un MensajeCorreo
+/// desde IngestaWebhookService justo después de persistir un Mensaje
 /// Entrante, carga los Trabajadores con asignación activa en algún Centro
 /// del Cliente de la conversación y los TipoDocumento de Ámbito Trabajador,
 /// pide a <see cref="IDeteccionGestionCorreoService"/> que clasifique el
@@ -21,7 +21,7 @@ namespace CaeManager.Application.Comunicaciones.Deteccion;
 /// </summary>
 public interface ISugerenciaGestionCorreoService
 {
-    Task ProcesarAsync(MensajeCorreo mensaje, Guid clienteId, CancellationToken cancellationToken = default);
+    Task ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default);
 }
 
 public class SugerenciaGestionCorreoService(
@@ -33,7 +33,7 @@ public class SugerenciaGestionCorreoService(
     ISugerenciaGestionCorreoRepository sugerenciaRepositorio,
     ILogger<SugerenciaGestionCorreoService> logger) : ISugerenciaGestionCorreoService
 {
-    public async Task ProcesarAsync(MensajeCorreo mensaje, Guid clienteId, CancellationToken cancellationToken = default)
+    public async Task ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default)
     {
         var centroIds = await centrosContext.Centros
             .Where(c => c.ClienteId == clienteId)
