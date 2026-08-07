@@ -18,6 +18,7 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.VisitaUrgente => TonoBadge.Advertencia,
         TipoItemBandeja.Urgente => TonoBadge.Advertencia,
         TipoItemBandeja.RevisionIa => TonoBadge.Advertencia,
+        TipoItemBandeja.DeteccionPendiente => TonoBadge.Advertencia,
         _ => TonoBadge.Neutro
     };
 
@@ -30,6 +31,7 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.VisitaUrgente => "Visita próxima",
         TipoItemBandeja.Urgente => "Urgente",
         TipoItemBandeja.RevisionIa => "Revisión IA",
+        TipoItemBandeja.DeteccionPendiente => "Detección de personal",
         _ => "—"
     };
 
@@ -40,6 +42,7 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.RequisitoPendiente => "Ver requisito",
         TipoItemBandeja.SugerenciaVisitaUrgente => "Confirmar visita",
         TipoItemBandeja.VisitaUrgente => "Ver visita",
+        TipoItemBandeja.DeteccionPendiente => "Revisar detección",
         _ => "Gestionar"
     };
 }
