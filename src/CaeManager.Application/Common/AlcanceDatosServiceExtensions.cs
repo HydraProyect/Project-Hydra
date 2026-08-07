@@ -27,7 +27,7 @@ public static class AlcanceDatosServiceExtensions
 
     /// <summary>
     /// Alcance sobre una entidad cuyo cliente es opcional: una
-    /// <c>ConversacionCorreo</c> todavía en la cola de triage (§ 12.4) o una
+    /// <c>Conversacion</c> todavía en la cola de triage (§ 12.4) o una
     /// <c>MacroRespuesta</c> genérica del tenant. En ambos casos "sin cliente"
     /// significa compartido dentro del tenant, así que es visible — quién
     /// llega a esas pantallas lo decide el rol, no la cartera (ver

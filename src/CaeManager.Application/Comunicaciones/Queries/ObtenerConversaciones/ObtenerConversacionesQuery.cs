@@ -56,7 +56,7 @@ public class ObtenerConversacionesQueryHandler(
     public async Task<IReadOnlyList<ConversacionListaDto>> Handle(
         ObtenerConversacionesQuery request, CancellationToken cancellationToken)
     {
-        var consulta = comunicacionesContext.ConversacionesCorreo.AsQueryable();
+        var consulta = comunicacionesContext.Conversaciones.AsQueryable();
 
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
         if (clienteIdsVisibles is not null)
@@ -130,18 +130,18 @@ public class ObtenerConversacionesQueryHandler(
 
         var conversacionIds = conversaciones.Select(c => c.Id).ToList();
 
-        var mensajes = await comunicacionesContext.MensajesCorreo
-            .Where(m => conversacionIds.Contains(m.ConversacionCorreoId))
-            .Select(m => new { m.ConversacionCorreoId, m.CuerpoHtml, m.FechaUtc })
+        var mensajes = await comunicacionesContext.Mensajes
+            .Where(m => conversacionIds.Contains(m.ConversacionId))
+            .Select(m => new { m.ConversacionId, m.CuerpoHtml, m.FechaUtc })
             .ToListAsync(cancellationToken);
 
         var remitentes = await comunicacionesContext.ParticipantesConversacion
-            .Where(p => conversacionIds.Contains(p.ConversacionCorreoId) && p.Rol == RolParticipante.De)
-            .Select(p => new { p.ConversacionCorreoId, p.Email })
+            .Where(p => conversacionIds.Contains(p.ConversacionId) && p.Rol == RolParticipante.De)
+            .Select(p => new { p.ConversacionId, p.Email })
             .ToListAsync(cancellationToken);
 
-        var mensajesPorConversacion = mensajes.GroupBy(m => m.ConversacionCorreoId).ToDictionary(g => g.Key, g => g.ToList());
-        var remitentesPorConversacion = remitentes.GroupBy(p => p.ConversacionCorreoId).ToDictionary(g => g.Key, g => g.First().Email);
+        var mensajesPorConversacion = mensajes.GroupBy(m => m.ConversacionId).ToDictionary(g => g.Key, g => g.ToList());
+        var remitentesPorConversacion = remitentes.GroupBy(p => p.ConversacionId).ToDictionary(g => g.Key, g => g.First().Email);
 
         return conversaciones.Select(c =>
         {

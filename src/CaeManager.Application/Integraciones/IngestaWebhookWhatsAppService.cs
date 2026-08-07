@@ -31,7 +31,7 @@ namespace CaeManager.Application.Integraciones;
 public class IngestaWebhookWhatsAppService(
     IConexionIntegracionRepository conexionRepositorio,
     ILineaWhatsAppRepository lineaRepositorio,
-    IConversacionCorreoRepository conversacionRepositorio,
+    IConversacionRepository conversacionRepositorio,
     IContactoWhatsAppRepository contactoRepositorio,
     IClienteRepository clienteRepositorio,
     IWhatsAppCloudApiClient whatsAppClient,
@@ -99,7 +99,7 @@ public class IngestaWebhookWhatsAppService(
         if (conversacion is null)
         {
             var destino = await ResolverAsignacionAsync(conexion, linea, mensaje.Telefono, cancellationToken);
-            conversacion = ConversacionCorreo.CrearWhatsApp(
+            conversacion = Conversacion.CrearWhatsApp(
                 mensaje.Telefono, conexion.Id, destino.ClienteId, destino.EjecutivoId);
             conversacionRepositorio.Agregar(conversacion);
         }
@@ -159,7 +159,7 @@ public class IngestaWebhookWhatsAppService(
             .First();
     }
 
-    /// <summary>MensajeCorreo exige cuerpo no vacío — los tipos sin texto persisten un placeholder para no perder el hilo (ni la ventana de 24 h).</summary>
+    /// <summary>Mensaje exige cuerpo no vacío — los tipos sin texto persisten un placeholder para no perder el hilo (ni la ventana de 24 h).</summary>
     private static string CuerpoParaPersistir(MensajeEntranteWhatsAppDto mensaje)
     {
         if (!string.IsNullOrWhiteSpace(mensaje.Texto)) return mensaje.Texto;
@@ -174,7 +174,7 @@ public class IngestaWebhookWhatsAppService(
 
     /// <summary>Mejor esfuerzo — un media que falla no pierde el mensaje (ya persistido con su placeholder/caption).</summary>
     private async Task DescargarYGuardarMediaAsync(
-        LineaWhatsApp linea, MensajeCorreo mensajeCreado, MensajeEntranteWhatsAppDto mensaje, CancellationToken cancellationToken)
+        LineaWhatsApp linea, Mensaje mensajeCreado, MensajeEntranteWhatsAppDto mensaje, CancellationToken cancellationToken)
     {
         var descarga = await whatsAppClient.DescargarMediaAsync(linea.TokenAcceso, mensaje.MediaId!, cancellationToken);
         if (descarga.EsFallido)
@@ -204,7 +204,7 @@ public class IngestaWebhookWhatsAppService(
 
     /// <summary>Mejor esfuerzo — si el auto-mensaje falla, la conversación queda en triage igualmente y un gestor la atenderá a mano.</summary>
     private async Task EnviarAutoTriageAsync(
-        LineaWhatsApp linea, ConversacionCorreo conversacion, string autoMensaje, CancellationToken cancellationToken)
+        LineaWhatsApp linea, Conversacion conversacion, string autoMensaje, CancellationToken cancellationToken)
     {
         var envio = await whatsAppClient.EnviarTextoAsync(
             linea.TokenAcceso, linea.PhoneNumberId, conversacion.TelefonoContacto!, autoMensaje, cancellationToken);
