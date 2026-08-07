@@ -8,7 +8,7 @@ namespace CaeManager.Web.Features.Alertas.Pages;
 
 public partial class Alertas : ComponentBase
 {
-    private const int TamanoPagina = 20;
+    private int _tamanoPagina = 20;
     private const int MaximoItemsBandejaEnAlertas = 5;
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -34,8 +34,8 @@ public partial class Alertas : ComponentBase
             ? _alertas.Where(a => a.Estado == estado).ToList()
             : _alertas;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(AlertasFiltradas.Count / (double)TamanoPagina));
-    private IReadOnlyList<AlertaDto> AlertasDePagina => AlertasFiltradas.Skip((_pagina - 1) * TamanoPagina).Take(TamanoPagina).ToList();
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(AlertasFiltradas.Count / (double)_tamanoPagina));
+    private IReadOnlyList<AlertaDto> AlertasDePagina => AlertasFiltradas.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
 
     // Secuencial a propósito, no Task.WhenAll: el DbContext scoped al
     // circuito no admite dos llamadas EF concurrentes sobre la misma
@@ -61,6 +61,14 @@ public partial class Alertas : ComponentBase
     private Task IrAPaginaAsync(int pagina)
     {
         _pagina = pagina;
+        return Task.CompletedTask;
+    }
+
+    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    private Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _tamanoPagina = tamano;
+        _pagina = 1;
         return Task.CompletedTask;
     }
 

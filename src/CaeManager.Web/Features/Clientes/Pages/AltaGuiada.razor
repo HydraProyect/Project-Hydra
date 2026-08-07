@@ -47,7 +47,7 @@
                 <input type="checkbox" @bind="_esCriticoCliente" /> Cliente crítico
             </label>
 
-            <CampoTextarea Etiqueta="Notas" Valor="@_notasCliente" ValorChanged="v => _notasCliente = v" Filas="3" />
+            <CampoTextarea Etiqueta="Notas del cliente" Valor="@_notasCliente" ValorChanged="v => _notasCliente = v" Filas="3" />
 
             <div class="acciones-formulario">
                 <Boton Cargando="_guardandoCliente" OnClick="GuardarClienteAsync">Guardar y continuar a Empresa</Boton>

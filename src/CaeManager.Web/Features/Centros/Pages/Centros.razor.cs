@@ -24,7 +24,7 @@ public partial class Centros : ComponentBase
     // que la paginación se gestiona a mano en vez de con QuickGrid+Paginator
     // — la Query sigue paginando en servidor, solo cambia el control visual
     // (mismo PaginadorSimple que Usuarios.razor).
-    private const int TamanoPagina = 20;
+    private int _tamanoPagina = 20;
 
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
@@ -34,7 +34,7 @@ public partial class Centros : ComponentBase
     private int _totalElementos;
     private int _pagina = 1;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPagina));
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
 
     private IReadOnlyDictionary<Guid, VisitaResumenDto> _visitasPorCentro = new Dictionary<Guid, VisitaResumenDto>();
 
@@ -200,7 +200,7 @@ public partial class Centros : ComponentBase
                 ClienteId: null,
                 Estado: Enum.TryParse<EstadoCentro>(_estadoFiltro, out var estado) ? estado : null,
                 Pagina: _pagina,
-                TamanoPagina: TamanoPagina,
+                TamanoPagina: _tamanoPagina,
                 CentroId: _centroIdFiltro));
 
             _totalElementos = resultado.TotalElementos;
@@ -230,6 +230,13 @@ public partial class Centros : ComponentBase
     {
         _pagina = pagina;
         return CargarAsync();
+    }
+
+    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    private Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _tamanoPagina = tamano;
+        return CargarAsync(resetPagina: true);
     }
 
     private async Task BuscarAsync(string valor)
