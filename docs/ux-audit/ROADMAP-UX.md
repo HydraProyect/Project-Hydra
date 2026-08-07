@@ -66,7 +66,7 @@ La ausencia de estos flujos **no puntúa** en ninguna ficha; pertenecen al futur
 6. ✅ Overflow menu en Acciones de las listas (densidad, #9). — [PR #118](https://github.com/christopherjp1-jpg/Project-Hydra/pull/118)
 7. ✅ Export en Empresas/Centros/Asignaciones/Incidencias/Auditoría (#9) + export del resumen de facturación. — [PR #120](https://github.com/christopherjp1-jpg/Project-Hydra/pull/120)
 8. ✅ Badge de detecciones pendientes en Empresas + tipo nuevo en Bandeja (capacidad fantasma → visible). — [PR #121](https://github.com/christopherjp1-jpg/Project-Hydra/pull/121)
-9. Contadores por tipo en la Bandeja; tema oscuro y leyenda del Calendario; colapsar "Personalizar" del Dashboard Ejecutivo.
+9. ✅ Contadores por tipo en la Bandeja; tema oscuro y leyenda del Calendario; colapsar "Personalizar" del Dashboard Ejecutivo. — [PR #122](https://github.com/christopherjp1-jpg/Project-Hydra/pull/122)
 10. Lote de: filtros completos en URL, chips de filtros, borrar filtros guardados, placeholder "—", label Notas del alta guiada, quitar pestaña "Citas", fila clicable en Clientes, selector de tamaño de página, catch de `JSDisconnectedException`, investigar el error CSP, registrar en `DECISION_LOG.md` la decisión de estado calculado.
 
 ### Horizonte 2 — Medio plazo (1-2 trimestres; la apuesta estratégica Outbound en negrita)
