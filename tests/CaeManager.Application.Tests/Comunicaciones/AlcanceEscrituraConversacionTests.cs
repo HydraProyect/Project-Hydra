@@ -32,7 +32,7 @@ public class AlcanceEscrituraConversacionTests
         new(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]);
 
     private static ResponderConversacionCommandHandler CrearHandlerResponder(
-        ConversacionCorreoRepositorioFalso repositorio, AlcanceDatosServiceFalso alcance, UnitOfWorkFalso unitOfWork,
+        ConversacionRepositorioFalso repositorio, AlcanceDatosServiceFalso alcance, UnitOfWorkFalso unitOfWork,
         bool permitirRemitenteSimulado = false)
     {
         var graphClient = new Microsoft365GraphClientFalso();
@@ -54,7 +54,7 @@ public class AlcanceEscrituraConversacionTests
 
         resultado.EsFallido.Should().BeTrue();
         // "No encontrada", no "no autorizado": no se confirma que el hilo exista.
-        resultado.Error.Codigo.Should().Be("ConversacionCorreo.NoEncontrada");
+        resultado.Error.Codigo.Should().Be("Conversacion.NoEncontrada");
         conversacion.Mensajes.Should().BeEmpty();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
@@ -94,8 +94,8 @@ public class AlcanceEscrituraConversacionTests
         // Hallazgo N-10: se justificaba no validar el Guid con "Web ya valida
         // que viene de un selector". Un selector no es una frontera de
         // autorización.
-        var conversacion = new ConversacionCorreo("Consulta", clienteId: ClienteAjeno);
-        var repositorio = new ConversacionCorreoRepositorioFalso();
+        var conversacion = new Conversacion("Consulta", clienteId: ClienteAjeno);
+        var repositorio = new ConversacionRepositorioFalso();
         repositorio.Agregar(conversacion);
         var unitOfWork = new UnitOfWorkFalso();
 
@@ -117,8 +117,8 @@ public class AlcanceEscrituraConversacionTests
     public async Task Desasignar_el_ejecutivo_sigue_siendo_posible()
     {
         // null no es un usuario que validar: es "quitar el asignado".
-        var conversacion = new ConversacionCorreo("Consulta", clienteId: ClienteAjeno);
-        var repositorio = new ConversacionCorreoRepositorioFalso();
+        var conversacion = new Conversacion("Consulta", clienteId: ClienteAjeno);
+        var repositorio = new ConversacionRepositorioFalso();
         repositorio.Agregar(conversacion);
         var unitOfWork = new UnitOfWorkFalso();
 
@@ -155,8 +155,8 @@ public class AlcanceEscrituraConversacionTests
         // Una conversación sin cliente resuelto no pertenece a ninguna
         // cartera: acotarla por cartera dejaría el triaje sin nadie que lo
         // pudiera hacer (ver ClienteOpcionalVisibleAsync).
-        var conversacion = new ConversacionCorreo("Correo sin remitente reconocido");
-        var repositorio = new ConversacionCorreoRepositorioFalso();
+        var conversacion = new Conversacion("Correo sin remitente reconocido");
+        var repositorio = new ConversacionRepositorioFalso();
         repositorio.Agregar(conversacion);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = CrearHandlerResponder(repositorio, AlcanceSinElClienteAjeno(), unitOfWork, permitirRemitenteSimulado: true);
@@ -167,10 +167,10 @@ public class AlcanceEscrituraConversacionTests
         resultado.EsExitoso.Should().BeTrue();
     }
 
-    private static (ConversacionCorreo, ConversacionCorreoRepositorioFalso, UnitOfWorkFalso) Preparar()
+    private static (Conversacion, ConversacionRepositorioFalso, UnitOfWorkFalso) Preparar()
     {
-        var conversacion = new ConversacionCorreo("Documentación pendiente", clienteId: ClienteAjeno);
-        var repositorio = new ConversacionCorreoRepositorioFalso();
+        var conversacion = new Conversacion("Documentación pendiente", clienteId: ClienteAjeno);
+        var repositorio = new ConversacionRepositorioFalso();
         repositorio.Agregar(conversacion);
 
         return (conversacion, repositorio, new UnitOfWorkFalso());

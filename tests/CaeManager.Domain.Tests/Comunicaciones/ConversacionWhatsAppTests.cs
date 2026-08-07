@@ -6,8 +6,8 @@ namespace CaeManager.Domain.Tests.Comunicaciones;
 
 public class ConversacionWhatsAppTests
 {
-    private static ConversacionCorreo CrearConversacionWhatsApp() =>
-        ConversacionCorreo.CrearWhatsApp("+34686543364", Guid.NewGuid(), clienteId: null, ejecutivoId: Guid.NewGuid());
+    private static Conversacion CrearConversacionWhatsApp() =>
+        Conversacion.CrearWhatsApp("+34686543364", Guid.NewGuid(), clienteId: null, ejecutivoId: Guid.NewGuid());
 
     [Fact]
     public void CrearWhatsApp_configura_canal_telefono_conexion_y_ejecutivo()
@@ -16,7 +16,7 @@ public class ConversacionWhatsAppTests
         var ejecutivoId = Guid.NewGuid();
         var clienteId = Guid.NewGuid();
 
-        var conversacion = ConversacionCorreo.CrearWhatsApp("+34686543364", conexionId, clienteId, ejecutivoId);
+        var conversacion = Conversacion.CrearWhatsApp("+34686543364", conexionId, clienteId, ejecutivoId);
 
         conversacion.Canal.Should().Be(CanalConversacion.WhatsApp);
         conversacion.TelefonoContacto.Should().Be("+34686543364");
@@ -31,7 +31,7 @@ public class ConversacionWhatsAppTests
     [Fact]
     public void CrearWhatsApp_rechaza_telefono_vacio()
     {
-        var accion = () => ConversacionCorreo.CrearWhatsApp(" ", Guid.NewGuid(), null, null);
+        var accion = () => Conversacion.CrearWhatsApp(" ", Guid.NewGuid(), null, null);
 
         accion.Should().Throw<ArgumentException>();
     }
@@ -39,7 +39,7 @@ public class ConversacionWhatsAppTests
     [Fact]
     public void CrearWhatsApp_rechaza_conexion_vacia()
     {
-        var accion = () => ConversacionCorreo.CrearWhatsApp("+34686543364", Guid.Empty, null, null);
+        var accion = () => Conversacion.CrearWhatsApp("+34686543364", Guid.Empty, null, null);
 
         accion.Should().Throw<ArgumentException>();
     }
@@ -47,7 +47,7 @@ public class ConversacionWhatsAppTests
     [Fact]
     public void El_constructor_de_correo_deja_el_canal_en_Correo()
     {
-        var conversacion = new ConversacionCorreo("Consulta");
+        var conversacion = new Conversacion("Consulta");
 
         conversacion.Canal.Should().Be(CanalConversacion.Correo);
         conversacion.VentanaServicioAbierta(DateTime.UtcNow).Should().BeFalse();

@@ -13,7 +13,7 @@ public class IngestaWebhookServiceTests
 {
     private static IngestaWebhookService CrearServicio(
         ConexionIntegracionRepositorioFalso conexionRepositorio,
-        ConversacionCorreoRepositorioFalso conversacionRepositorio,
+        ConversacionRepositorioFalso conversacionRepositorio,
         Microsoft365GraphClientFalso graphClient,
         CredencialIntegracionRepositorioFalso? credencialRepositorio = null) =>
         new(conexionRepositorio, conversacionRepositorio, graphClient,
@@ -36,7 +36,7 @@ public class IngestaWebhookServiceTests
         var conexion = ConexionHabilitada(clienteId);
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
-        var conversacionRepositorio = new ConversacionCorreoRepositorioFalso();
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
         var graphClient = new Microsoft365GraphClientFalso
         {
             MensajeIdsADevolver = ["graph-msg-1"],
@@ -66,9 +66,9 @@ public class IngestaWebhookServiceTests
         var conexion = ConexionHabilitada();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
-        var conversacionExistente = new ConversacionCorreo("Duda sobre CAE");
+        var conversacionExistente = new Conversacion("Duda sobre CAE");
         conversacionExistente.AsociarConexion(conexion.Id, "graph-thread-1");
-        var conversacionRepositorio = new ConversacionCorreoRepositorioFalso();
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
         conversacionRepositorio.Agregar(conversacionExistente);
         var graphClient = new Microsoft365GraphClientFalso
         {
@@ -93,10 +93,10 @@ public class IngestaWebhookServiceTests
         var conexion = ConexionHabilitada();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
-        var conversacionExistente = new ConversacionCorreo("Duda sobre CAE");
+        var conversacionExistente = new Conversacion("Duda sobre CAE");
         conversacionExistente.AsociarConexion(conexion.Id, "graph-thread-1");
         conversacionExistente.AgregarMensaje(DireccionMensaje.Entrante, "cliente@ejemplo.com", "<p>ya estaba</p>", mensajeExternoId: "graph-msg-1");
-        var conversacionRepositorio = new ConversacionCorreoRepositorioFalso();
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
         conversacionRepositorio.Agregar(conversacionExistente);
         var graphClient = new Microsoft365GraphClientFalso
         {
@@ -123,7 +123,7 @@ public class IngestaWebhookServiceTests
         conexion.Deshabilitar();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
-        var conversacionRepositorio = new ConversacionCorreoRepositorioFalso();
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
         var graphClient = new Microsoft365GraphClientFalso { MensajeIdsADevolver = ["graph-msg-1"] };
         var servicio = CrearServicio(conexionRepositorio, conversacionRepositorio, graphClient);
         var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
@@ -140,7 +140,7 @@ public class IngestaWebhookServiceTests
         var conexion = ConexionHabilitada();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
-        var conversacionRepositorio = new ConversacionCorreoRepositorioFalso();
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
         var graphClient = new Microsoft365GraphClientFalso { MensajeIdsADevolver = ["graph-msg-1"], FallaRefresco = true };
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));

@@ -31,7 +31,7 @@ public class PedirPrioridadValidacionCommandValidator : AbstractValidator<PedirP
         RuleFor(c => c.CentroId).NotEmpty();
         RuleFor(c => c.Destinatarios).NotEmpty().WithMessage("Indica al menos un destinatario.");
         RuleForEach(c => c.Destinatarios).EmailAddress().WithMessage("Alguno de los destinatarios no es un correo válido.");
-        RuleFor(c => c.Asunto).NotEmpty().WithMessage("El asunto es obligatorio.").MaximumLength(ConversacionCorreo.LongitudMaximaAsunto);
+        RuleFor(c => c.Asunto).NotEmpty().WithMessage("El asunto es obligatorio.").MaximumLength(Conversacion.LongitudMaximaAsunto);
         RuleFor(c => c.CuerpoHtml).NotEmpty().WithMessage("El mensaje no puede estar vacío.");
     }
 }

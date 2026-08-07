@@ -16,8 +16,8 @@ public class AsignarClienteConversacionCommandHandlerTests
         var clienteRepositorio = new ClienteRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
 
-        var conversacion = new ConversacionCorreo("Correo sin cliente identificado");
-        var conversacionRepositorio = new ConversacionCorreoRepositorioFalso();
+        var conversacion = new Conversacion("Correo sin cliente identificado");
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
         conversacionRepositorio.Agregar(conversacion);
 
         var unitOfWork = new UnitOfWorkFalso();
@@ -38,8 +38,8 @@ public class AsignarClienteConversacionCommandHandlerTests
         var clienteRepositorio = new ClienteRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
 
-        var conversacion = ConversacionCorreo.CrearWhatsApp("+34600111222", Guid.NewGuid(), null, Guid.NewGuid());
-        var conversacionRepositorio = new ConversacionCorreoRepositorioFalso();
+        var conversacion = Conversacion.CrearWhatsApp("+34600111222", Guid.NewGuid(), null, Guid.NewGuid());
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
         conversacionRepositorio.Agregar(conversacion);
 
         var contactos = new ContactoWhatsAppRepositorioFalso();
@@ -56,8 +56,8 @@ public class AsignarClienteConversacionCommandHandlerTests
     [Fact]
     public async Task Rechaza_un_cliente_inexistente_sin_tocar_la_conversacion()
     {
-        var conversacion = new ConversacionCorreo("Correo sin cliente identificado");
-        var conversacionRepositorio = new ConversacionCorreoRepositorioFalso();
+        var conversacion = new Conversacion("Correo sin cliente identificado");
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
         conversacionRepositorio.Agregar(conversacion);
 
         var clienteRepositorio = new ClienteRepositorioFalso();

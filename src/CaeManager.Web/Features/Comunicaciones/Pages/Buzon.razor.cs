@@ -11,7 +11,7 @@ namespace CaeManager.Web.Features.Comunicaciones.Pages;
 
 /// <summary>
 /// Navegador de solo lectura del buzón real de Microsoft 365 — a diferencia
-/// de <see cref="Bandeja"/>, que muestra <c>ConversacionCorreo</c> ya
+/// de <see cref="Bandeja"/>, que muestra <c>Conversacion</c> ya
 /// ingeridas (solo Inbox, desde que se conectó el buzón), esta pantalla
 /// consulta Graph en vivo: carpetas y mensajes que nunca pasaron por el
 /// webhook (Enviados, Archivo, carpetas propias del cliente, historial

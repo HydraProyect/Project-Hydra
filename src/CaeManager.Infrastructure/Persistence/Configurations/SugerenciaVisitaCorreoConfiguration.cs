@@ -13,7 +13,7 @@ public class SugerenciaVisitaCorreoConfiguration : IEntityTypeConfiguration<Suge
 
         builder.Property(s => s.Resumen).IsRequired().HasMaxLength(SugerenciaVisitaCorreo.LongitudMaximaResumen);
 
-        builder.HasIndex(s => s.MensajeCorreoId);
+        builder.HasIndex(s => s.MensajeId);
 
         // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.
     }
