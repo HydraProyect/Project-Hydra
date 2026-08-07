@@ -84,6 +84,10 @@ El modelo de negocio es la raíz: el ICP nace de él (a quién le sirve ese mode
 
 `docs/business/inbound/` contiene investigación externa sobre el mercado español de plataformas Inbound (CAE: Nalanda, CTAIMA, Dokify...) — catálogo de plataformas, glosario y dominio funcional visto desde fuera, huecos de mercado y una propuesta de modelo canónico de conectores. Es investigación sin confirmar, no decisiones de producto: donde choca con `UBIQUITOUS_LANGUAGE.md`, `DOMAIN.md`, `ARQUITECTURA-INTEGRACIONES.md` o `COMPETITOR_ANALYSIS.md`, esos documentos ganan siempre — ver `docs/business/inbound/README.md` § "Regla de lectura" para el detalle completo.
 
+## CAE Outbound
+
+`OUTBOUND_CAE.md` (`Approved`, `DECISION_LOG.md` 2026-08-07) define **CAE Outbound** (sinónimos: CAE Saliente, CAE Externo) — el rol de la empresa como Contratista/Subcontrata subiendo su propia documentación preventiva a las plataformas de sus clientes, opuesto a **CAE Inbound** (rol Titular/Principal). Es un eje distinto del "Inbound" investigado en `docs/business/inbound/` (plataformas externas del mercado) — ver la nota de desambiguación en ese documento antes de usar cualquiera de los dos términos.
+
 ## Reglas de esta carpeta
 
 - Esta carpeta es la fuente oficial de toda decisión comercial. Ningún otro documento del repositorio debe definir pricing, planes, unit economics, ICP, competencia o roadmap comercial — debe referenciar el documento correspondiente aquí.
