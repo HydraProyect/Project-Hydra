@@ -57,7 +57,7 @@ public class AgregarMensajeAConversacionCargadaTests : IAsyncLifetime
             conexionId = conexion.Id;
 
             var conversacion = Conversacion.CrearWhatsApp("+34600111222", conexion.Id, null, Guid.NewGuid());
-            conversacion.AgregarMensaje(DireccionMensaje.Entrante, "+34600111222", "Primero", mensajeExternoId: "wamid.repro.1");
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34600111222", "Primero", mensajeExternoId: "wamid.repro.1");
             contexto.Conversaciones.Add(conversacion);
             await contexto.SaveChangesAsync();
             conversacionId = conversacion.Id;
@@ -71,7 +71,7 @@ public class AgregarMensajeAConversacionCargadaTests : IAsyncLifetime
             var conversacion = await repositorio.ObtenerAbiertaPorTelefonoAsync(conexionId, "+34600111222");
             conversacion.Should().NotBeNull();
 
-            conversacion!.AgregarMensaje(DireccionMensaje.Entrante, "+34600111222", "Segundo", mensajeExternoId: "wamid.repro.2");
+            conversacion!.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34600111222", "Segundo", mensajeExternoId: "wamid.repro.2");
             await contexto.SaveChangesAsync();
         }
 
@@ -91,7 +91,7 @@ public class AgregarMensajeAConversacionCargadaTests : IAsyncLifetime
         {
             var conversacion = new Conversacion("Hilo de correo");
             conversacion.AsociarConexion(Guid.NewGuid(), "hilo-repro-1");
-            conversacion.AgregarMensaje(DireccionMensaje.Entrante, "cliente@ejemplo.com", "<p>Primero</p>", mensajeExternoId: "graph.repro.1");
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>Primero</p>", mensajeExternoId: "graph.repro.1");
             contexto.Conversaciones.Add(conversacion);
             await contexto.SaveChangesAsync();
             conversacionId = conversacion.Id;
@@ -103,7 +103,7 @@ public class AgregarMensajeAConversacionCargadaTests : IAsyncLifetime
             var conversacion = await repositorio.ObtenerPorHiloExternoAsync("hilo-repro-1");
             conversacion.Should().NotBeNull();
 
-            conversacion!.AgregarMensaje(DireccionMensaje.Entrante, "cliente@ejemplo.com", "<p>Segundo</p>", mensajeExternoId: "graph.repro.2");
+            conversacion!.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>Segundo</p>", mensajeExternoId: "graph.repro.2");
             await contexto.SaveChangesAsync();
         }
 

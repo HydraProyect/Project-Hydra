@@ -12,7 +12,7 @@ public class ConexionIntegracionEnConversacionTests
     {
         var conversacion = new Conversacion("Consulta", clienteId: Guid.NewGuid());
 
-        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
 
         mensaje.MensajeExternoId.Should().Be("graph-msg-1");
     }
@@ -53,7 +53,7 @@ public class ConexionIntegracionEnConversacionTests
     public void Mensaje_rechaza_un_mensajeExternoId_mas_largo_que_el_maximo()
     {
         var accion = () => new Mensaje(
-            Guid.NewGuid(), DireccionMensaje.Entrante, "cliente@ejemplo.com", "<p>hola</p>", DateTime.UtcNow,
+            Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>hola</p>", DateTime.UtcNow,
             new string('a', Mensaje.LongitudMaximaMensajeExternoId + 1));
 
         accion.Should().Throw<ArgumentException>();
