@@ -509,8 +509,8 @@ reinventarlos para Empresa.
 | 2 | Restaurar desde Auditoría (los `Restaurar*Command` existen) o, mínimo inmediato, corregir el copy del borrado en lote (`Empresas.razor:181`) | 14-H1 | ✅ hecho (#113) |
 | 3 | Página Forbidden propia (`AccessDeniedPath` + pantalla con siguiente paso) | 13-H1/16-H1 | ✅ hecho (#114) |
 | 4 | Paginador único localizado (12 listas QuickGrid + Usuarios) | 02-H2/14-H3 | ✅ hecho (#116) |
-| 5 | Overflow menu (⋯) en Acciones — densidad de una línea por fila | 05-H2 | Pendiente |
-| 6 | Export en Empresas, Centros, Incidencias y Auditoría + resumen de facturación (patrón `/clientes/exportar.xlsx`; el export de Asignaciones queda cubierto por (0.1)) | 03-H7·08-H4·11-H2·14-H2 | Pendiente |
+| 5 | Overflow menu (⋯) en Acciones — densidad de una línea por fila | 05-H2 | ✅ hecho (#118) |
+| 6 | Export en Empresas, Centros, Incidencias y Auditoría + resumen de facturación (patrón `/clientes/exportar.xlsx`; el export de Asignaciones queda cubierto por (0.1)) | 03-H7·08-H4·11-H2·14-H2 | ✅ hecho (#120) |
 | 7 | Detecciones de personal visibles: badge en Empresas + tipo nuevo en Bandeja | 03-H2 | Pendiente |
 | 8 | Bandeja: contadores por tipo · Calendario: tema oscuro de celdas + leyenda · Dashboard Ejecutivo: colapsar "Personalizar" + tema DS en ApexCharts | 10-H2/10-H3/01-H5/01-H6 | Pendiente |
 | 9 | Lote de remates (un PR): filtros completos en URL + chips + borrar filtros guardados · placeholder "—" · header "RazonSocial" · label Notas del alta guiada · quitar pestaña "Citas" · fila clicable en Clientes · selector de tamaño de página · catch `JSDisconnectedException` (3 Dispose) · atribuir/resolver error CSP | 02·03·05·16 | Pendiente |
