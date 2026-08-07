@@ -5,9 +5,14 @@ using Xunit;
 namespace CaeManager.Application.Tests.Documentos.ValidacionOficial;
 
 /// <summary>
-/// Los parsers se prueban con plantillas sintéticas de la redacción pública
-/// conocida de cada documento. La calibración contra PDFs reales (plan,
-/// PR-6) ajustará las anclas — estos tests fijan la mecánica: extracción,
+/// Los parsers se prueban con plantillas sintéticas calibradas contra
+/// documentos reales de gestoría (plan, PR-6) y confirmación directa del
+/// usuario sobre el texto exacto del certificado TGSS: el literal de
+/// resultado es "El presente certificado tiene carácter POSITIVO/NEGATIVO",
+/// la fecha va tras "Información obtenida a", y el CIF aparece como "Código
+/// de Empresario" con un prefijo numérico pegado delante (confirmado para
+/// TGSS/ITA/RLC/RNT) — <see cref="ParserDocumentoOficialBase.RegexCifComun"/>
+/// lo admite y lo descarta. Estos tests fijan la mecánica: extracción,
 /// negativo detectado antes que positivo, y campos faltantes como camino a
 /// revisión, nunca a auto-validación.
 /// </summary>
@@ -15,8 +20,10 @@ public class ParsersDocumentoOficialTests
 {
     private const string PlantillaTgssPositiva =
         "TESORERÍA GENERAL DE LA SEGURIDAD SOCIAL CERTIFICACIÓN Razón social: CONSTRUCCIONES IBERTEC S.A. " +
-        "C.I.F.: B12345678 no tiene pendiente de ingreso ninguna reclamación por deudas ya vencidas con la Seguridad Social " +
-        "a 4 de agosto de 2026 Código Electrónico de Autenticidad: ABC123DEF456GHI7";
+        "Código de Empresario: 0B12345678 " +
+        "El presente certificado tiene carácter POSITIVO " +
+        "Información obtenida a 4 de agosto de 2026 " +
+        "Código Electrónico de Autenticidad: ABC123DEF456GHI7";
 
     [Fact]
     public void Tgss_positivo_extrae_todos_los_campos()
@@ -34,8 +41,7 @@ public class ParsersDocumentoOficialTests
     public void Tgss_en_negativo_jamas_da_positivo()
     {
         var texto = PlantillaTgssPositiva.Replace(
-            "no tiene pendiente de ingreso ninguna reclamación",
-            "tiene pendiente de ingreso reclamaciones");
+            "tiene carácter POSITIVO", "tiene carácter NEGATIVO");
 
         var extraido = new ParserCorrienteTgss().Extraer(texto);
 
@@ -50,6 +56,17 @@ public class ParsersDocumentoOficialTests
         var extraido = new ParserCorrienteTgss().Extraer(texto);
 
         extraido.CamposObligatoriosFaltantes.Should().Contain("código de verificación");
+    }
+
+    [Fact]
+    public void Tgss_admite_fecha_numerica_ademas_de_literal()
+    {
+        var texto = PlantillaTgssPositiva.Replace(
+            "Información obtenida a 4 de agosto de 2026", "Información obtenida a 04/08/2026");
+
+        var extraido = new ParserCorrienteTgss().Extraer(texto);
+
+        extraido.FechaEmision.Should().Be(new DateOnly(2026, 8, 4));
     }
 
     [Fact]
@@ -69,10 +86,10 @@ public class ParsersDocumentoOficialTests
     }
 
     [Fact]
-    public void Rnt_extrae_huella_y_periodo_normalizado()
+    public void Rnt_extrae_huella_periodo_y_cif_con_prefijo()
     {
         var texto =
-            "RELACIÓN NOMINAL DE TRABAJADORES C.I.F.: B12345678 Período de liquidación: 07/2026 " +
+            "RELACIÓN NOMINAL DE TRABAJADORES Código de Empresario: 90B12345678 Período de liquidación: 07/2026 " +
             "Huella electrónica: 1A2B3C4D5E6F7G8H9I0J";
 
         var extraido = new ParserRnt().Extraer(texto);
@@ -80,36 +97,44 @@ public class ParsersDocumentoOficialTests
         extraido.CamposObligatoriosFaltantes.Should().BeEmpty();
         extraido.Periodo.Should().Be("2026-07");
         extraido.CodigoVerificacion.Should().Be("1A2B3C4D5E6F7G8H9I0J");
+        // El prefijo "90" nunca se cuela en el CIF extraído.
+        extraido.Cif.Should().Be("B12345678");
         extraido.ResultadoPositivo.Should().BeNull("el RNT no declara resultado positivo/negativo");
+        // Confirmado por el usuario: el RNT no imprime fecha propia — es el
+        // día 1 del mes del periodo de liquidación.
+        extraido.FechaEmision.Should().Be(new DateOnly(2026, 7, 1));
     }
 
     /// <summary>
     /// La forma real de un RNT/RLC de gestoría (calibración con muestras):
-    /// documento tabular — etiquetas agrupadas, valores en otra zona — y sin
-    /// tildes (el extractor las sustituye por otros caracteres). El periodo
-    /// sale por forma del valor; el CIF no existe en el texto (identidad por
-    /// CCC) y no puede bloquear la extracción.
+    /// documento tabular — etiquetas agrupadas, valores en otra zona, sin
+    /// tildes (el extractor las sustituye por otros caracteres) — y el CIF
+    /// va con el prefijo numérico pegado, sin ninguna etiqueta cerca. El
+    /// periodo sale por forma del valor; el CIF, por forma con prefijo.
     /// </summary>
     [Fact]
-    public void Rnt_tabular_sin_tildes_extrae_el_periodo_por_forma()
+    public void Rnt_tabular_sin_tildes_extrae_periodo_y_cif_por_forma()
     {
         var texto =
             "Raz!n social C!digo cuenta cotizaci!n Periodo de liquidaci!n Calificador de la liquidaci!n " +
-            "EMPRESA EJEMPLO SL 28123456789 06/2026 Ordinaria " +
+            "EMPRESA EJEMPLO SL 90B12345678 06/2026 Ordinaria " +
             "Referencia Fecha Hora Huella 999 15/07/2026 08:30";
 
         var extraido = new ParserRnt().Extraer(texto);
 
         extraido.CamposObligatoriosFaltantes.Should().BeEmpty();
         extraido.Periodo.Should().Be("2026-06");
-        extraido.Cif.Should().BeNull("el RNT identifica por CCC, no trae CIF");
+        extraido.Cif.Should().Be("B12345678");
+        extraido.FechaEmision.Should().Be(new DateOnly(2026, 6, 1));
     }
 
     [Fact]
     public void El_periodo_por_forma_no_pesca_dentro_de_una_fecha_completa()
     {
         // Solo hay una fecha dd/MM/yyyy — ningún MM/yyyy suelto.
-        var extraido = new ParserRlc().Extraer("Fecha de control 15/07/2026 sin periodo suelto");
+        var texto = "Código de Empresario: 90B12345678 Fecha de control 15/07/2026 sin periodo suelto";
+
+        var extraido = new ParserRlc().Extraer(texto);
 
         extraido.Periodo.Should().BeNull();
         extraido.CamposObligatoriosFaltantes.Should().Contain("periodo de liquidación");
@@ -119,28 +144,44 @@ public class ParsersDocumentoOficialTests
     public void Rlc_extrae_los_mismos_campos_que_el_rnt()
     {
         var texto =
-            "RECIBO DE LIQUIDACIÓN DE COTIZACIONES C.I.F.: B12345678 Período de liquidación: 06/2026 " +
+            "RECIBO DE LIQUIDACIÓN DE COTIZACIONES Código de Empresario: 90B12345678 Período de liquidación: 06/2026 " +
             "Huella electrónica: FFEEDDCCBBAA99887766";
 
         var extraido = new ParserRlc().Extraer(texto);
 
         extraido.CamposObligatoriosFaltantes.Should().BeEmpty();
         extraido.Periodo.Should().Be("2026-06");
+        extraido.Cif.Should().Be("B12345678");
     }
 
     [Fact]
-    public void Ita_extrae_cif_si_existe_y_no_bloquea_si_falta()
+    public void Ita_extrae_cif_con_prefijo_y_la_fecha_del_literal_confirmado()
     {
-        var conCif = new ParserIta().Extraer("INFORME DE TRABAJADORES EN ALTA C.I.F.: B12345678");
-        conCif.CamposObligatoriosFaltantes.Should().BeEmpty();
-        conCif.Cif.Should().Be("B12345678");
+        var extraido = new ParserIta().Extraer(
+            "INFORME DE TRABAJADORES EN ALTA a fecha 04 08 2026 Código de Empresario: 90B12345678");
 
-        // Calibración con muestras: el ITA real identifica por CCC y no trae
-        // CIF en el texto — sin CIF no hay campos faltantes (el cotejo de
-        // identidad lo resuelve el pipeline mandándolo a revisión).
-        var sinCif = new ParserIta().Extraer("INFORME DE TRABAJADORES EN ALTA 28123456789");
-        sinCif.CamposObligatoriosFaltantes.Should().BeEmpty();
-        sinCif.Cif.Should().BeNull();
+        extraido.CamposObligatoriosFaltantes.Should().BeEmpty();
+        extraido.Cif.Should().Be("B12345678");
+        extraido.FechaEmision.Should().Be(new DateOnly(2026, 8, 4));
+    }
+
+    [Fact]
+    public void Ita_tambien_admite_la_fecha_con_barras()
+    {
+        var extraido = new ParserIta().Extraer(
+            "Informe de Trabajadores en Alta a fecha: 04/08/2026 Código de Empresario: 90B12345678");
+
+        extraido.FechaEmision.Should().Be(new DateOnly(2026, 8, 4));
+    }
+
+    [Fact]
+    public void Ita_sin_cif_ni_fecha_reconocibles_los_declara_faltantes()
+    {
+        var extraido = new ParserIta().Extraer("INFORME DE TRABAJADORES EN ALTA sin ningún identificador reconocible");
+
+        extraido.CamposObligatoriosFaltantes.Should().Contain("CIF");
+        extraido.CamposObligatoriosFaltantes.Should().Contain("fecha de emisión");
+        extraido.Cif.Should().BeNull();
     }
 
     [Theory]

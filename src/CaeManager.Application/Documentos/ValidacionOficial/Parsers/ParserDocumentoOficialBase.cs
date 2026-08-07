@@ -22,13 +22,19 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
     protected sealed record CampoAncla(Regex Patron, bool Obligatorio);
 
     /// <summary>
-    /// CIF de entidad (letra + 7 dígitos + control, con separadores
-    /// opcionales) o NIF de autónomo (8 dígitos + letra), acotado por
-    /// lookahead para no comerse la palabra siguiente. Común a todos los
-    /// perfiles — la etiqueta que lo precede (CIF/NIF) la pone cada parser.
+    /// CIF/NIF de la empresa, común a todos los perfiles. Calibrado con
+    /// muestras reales y las aclaraciones del usuario: la TGSS lo presenta
+    /// como "Código de Empresario" con un prefijo numérico pegado ("90" en
+    /// ITA/RLC/RNT, "0" en el certificado de corriente) — el prefijo se
+    /// admite y NO se captura (el grupo «valor» es solo el CIF). Dos ramas:
+    /// con etiqueta (CIF/NIF/Código de Empresario, admite también NIF de
+    /// autónomo) y por forma (CIF de entidad con prefijo, para los
+    /// documentos tabulares donde la etiqueta va lejos del valor). Los
+    /// lookarounds evitan capturar dentro de un token mayor (huella, CCC).
     /// </summary>
     protected static readonly Regex RegexCifComun = new(
-        @"(?:C\.?I\.?F\.?|N\.?I\.?F\.?)\s*[:\.]?\s*(?<valor>(?:[A-Z][\-\.\s]?\d{7}[\-\.\s]?[0-9A-J]|\d{8}[\-\.\s]?[A-Z]))(?![A-Z0-9])",
+        @"(?:(?:C\.?I\.?F\.?|N\.?I\.?F\.?|C.digo\s+de\s+Empresario)\s*[:\.]?\s*\d{0,4}[\-\.\s]?(?<valor>(?:[A-HJNP-SUVW]\d{7}[0-9A-J]|\d{8}[A-Z]))(?![A-Z0-9]))" +
+        @"|(?:(?<![A-Z0-9])\d{0,4}(?<valor>[A-HJNP-SUVW]\d{7}[0-9A-J])(?![A-Z0-9]))",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
@@ -48,6 +54,16 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
     protected virtual CampoAncla? AnclaFechaEmision => null;
     protected virtual CampoAncla? AnclaPeriodo => null;
 
+    /// <summary>
+    /// RNT/RLC (confirmado por el usuario): el documento no imprime una
+    /// fecha de emisión propia — la fecha de emisión es siempre el día 1 del
+    /// mes que indica el "Periodo de liquidación" (el periodo 06/2026 emite
+    /// el 01/06/2026; la vigencia hasta 2 meses después ya la calcula
+    /// <c>CalculadoraEstadoDocumento</c> a partir de <c>TipoDocumento.VigenciaMeses</c>,
+    /// sin tocar aquí). Se deriva solo si no hay una fecha extraída por ancla.
+    /// </summary>
+    protected virtual bool FechaEmisionEsPrimerDiaDelPeriodo => false;
+
     /// <summary>Solo certificados de estar al corriente: regex del literal positivo y regex del negativo explícito.</summary>
     protected virtual Regex? PatronResultadoPositivo => null;
     protected virtual Regex? PatronResultadoNegativo => null;
@@ -66,6 +82,13 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
         if (fechaTexto is not null && fecha is null && AnclaFechaEmision!.Obligatorio)
             faltantes.Add("fecha de emisión (formato no reconocido)");
 
+        var periodoNormalizado = NormalizarPeriodo(periodoTexto);
+        if (fecha is null && FechaEmisionEsPrimerDiaDelPeriodo && periodoNormalizado is not null)
+        {
+            var partes = periodoNormalizado.Split('-');
+            fecha = new DateOnly(int.Parse(partes[0]), int.Parse(partes[1]), 1);
+        }
+
         bool? positivo = null;
         if (PatronResultadoPositivo is not null)
         {
@@ -81,7 +104,7 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
         }
 
         return new DatosDocumentoOficialExtraidos(
-            NormalizarCodigo(codigo), NormalizarCif(cif), razonSocial, fecha, NormalizarPeriodo(periodoTexto),
+            NormalizarCodigo(codigo), NormalizarCif(cif), razonSocial, fecha, periodoNormalizado,
             positivo, faltantes);
     }
 
@@ -110,12 +133,12 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
         "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
     ];
 
-    /// <summary>Acepta "04/08/2026", "04-08-2026" y "a 4 de agosto de 2026".</summary>
+    /// <summary>Acepta "04/08/2026", "04-08-2026", "04 08 2026" (formato confirmado del ITA) y "a 4 de agosto de 2026".</summary>
     public static DateOnly? NormalizarFecha(string? texto)
     {
         if (string.IsNullOrWhiteSpace(texto)) return null;
 
-        if (DateOnly.TryParseExact(texto.Trim(), ["dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy"],
+        if (DateOnly.TryParseExact(texto.Trim(), ["dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy", "dd MM yyyy", "d M yyyy"],
                 CultureInfo.InvariantCulture, DateTimeStyles.None, out var fecha))
             return fecha;
 

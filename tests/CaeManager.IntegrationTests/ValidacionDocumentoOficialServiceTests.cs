@@ -28,9 +28,9 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
     private const string CifEmpresa = "B12345674";
 
     private const string TextoTgssValido =
-        "TESORERÍA GENERAL DE LA SEGURIDAD SOCIAL Razón social: IBERTEC C.I.F.: B12345674 " +
-        "no tiene pendiente de ingreso ninguna reclamación por deudas vencidas " +
-        "a 4 de agosto de 2026 Código Electrónico de Autenticidad: ABC123DEF456GHI7";
+        "TESORERÍA GENERAL DE LA SEGURIDAD SOCIAL Razón social: IBERTEC Código de Empresario: 0B12345674 " +
+        "El presente certificado tiene carácter POSITIVO " +
+        "Información obtenida a 4 de agosto de 2026 Código Electrónico de Autenticidad: ABC123DEF456GHI7";
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private CaeManagerDbContext _dbContext = null!;
@@ -144,9 +144,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
     public async Task Un_certificado_en_negativo_exige_revision_aunque_la_firma_sea_valida()
     {
         var documento = await CrearDocumentoAsync();
-        var textoNegativo = TextoTgssValido.Replace(
-            "no tiene pendiente de ingreso ninguna reclamación",
-            "tiene pendiente de ingreso reclamaciones");
+        var textoNegativo = TextoTgssValido.Replace("tiene carácter POSITIVO", "tiene carácter NEGATIVO");
         var servicio = CrearServicio(
             Result.Exito(FirmaSelloDeOrgano()), Result.Exito<IReadOnlyList<string>>([textoNegativo]));
 
@@ -238,12 +236,13 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Documento firmado y válido cuyo texto no trae CIF (RNT/RLC/ITA reales
-    /// identifican por CCC): el cotejo de identidad no es posible y cae a
-    /// revisión — nunca se auto-valida a ciegas.
+    /// Documento firmado y válido cuyo texto no trae un CIF reconocible con
+    /// el prefijo esperado (ver ParserRlc/ParserDocumentoOficialBase): el
+    /// parser lo declara obligatorio faltante y cae a revisión — nunca se
+    /// auto-valida a ciegas.
     /// </summary>
     [Fact]
-    public async Task Firma_valida_sin_cif_legible_cae_a_revision()
+    public async Task Rlc_sin_cif_reconocible_cae_a_revision()
     {
         var tipoRlc = await _dbContext.TiposDocumento
             .FirstAsync(t => t.PerfilDocumentoOficial == PerfilDocumentoOficial.Rlc);
@@ -251,17 +250,42 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        var textoTabular = "Raz!n social C!digo cuenta cotizaci!n Periodo de liquidaci!n EMPRESA 28123456789 06/2026";
+        var textoSinCif = "Raz!n social C!digo cuenta cotizaci!n Periodo de liquidaci!n EMPRESA sin identificador 06/2026";
         var servicio = CrearServicio(
-            Result.Exito(FirmaSelloDeOrgano()), Result.Exito<IReadOnlyList<string>>([textoTabular]));
+            Result.Exito(FirmaSelloDeOrgano()), Result.Exito<IReadOnlyList<string>>([textoSinCif]));
 
         await servicio.ProcesarDocumentoAsync(documento.Id);
 
         var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
         verificacion.Decision.Should().Be(DecisionValidacionOficial.RevisionRequerida);
-        verificacion.Motivos.Should().Contain("CIF legible");
-        verificacion.PeriodoDetectado.Should().Be("2026-06");
+        verificacion.ResultadoCotejo.Should().Be(ResultadoCotejoDocumentoOficial.ParserSinDatos);
         (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// El caso feliz de RLC/RNT/ITA: CIF con el prefijo numérico real
+    /// (confirmado por el usuario) coincide con el propietario y auto-valida.
+    /// </summary>
+    [Fact]
+    public async Task Rlc_con_cif_prefijado_coincidente_se_auto_valida()
+    {
+        var tipoRlc = await _dbContext.TiposDocumento
+            .FirstAsync(t => t.PerfilDocumentoOficial == PerfilDocumentoOficial.Rlc);
+        // La fecha de emisión registrada debe ser el día 1 del mes del
+        // periodo (confirmado por el usuario) para que el cotejo coincida.
+        var documento = Documento.DeEmpresa(_empresa.Id, tipoRlc.Id, new DateOnly(2026, 8, 1), null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var texto = $"Código de Empresario: 90{CifEmpresa} Período de liquidación: 08/2026 Huella: 1A2B3C4D5E6F7G8H";
+        var servicio = CrearServicio(
+            Result.Exito(FirmaSelloDeOrgano()), Result.Exito<IReadOnlyList<string>>([texto]));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
+        verificacion.Decision.Should().Be(DecisionValidacionOficial.AutoValidado);
+        verificacion.PeriodoDetectado.Should().Be("2026-08");
     }
 
     private sealed class VerificadorFirmaFalso(Result<ResultadoVerificacionFirmasPdf> resultado) : IVerificadorFirmaPdfService

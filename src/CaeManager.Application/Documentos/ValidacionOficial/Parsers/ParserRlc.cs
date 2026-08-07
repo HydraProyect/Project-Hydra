@@ -6,8 +6,10 @@ namespace CaeManager.Application.Documentos.ValidacionOficial.Parsers;
 /// <summary>
 /// Recibo de Liquidación de Cotizaciones (RLC/TC1, Sistema RED). Cubre
 /// también el tipo combinado "RLC/TC1 + Recibo de pago". Mismo hallazgo de
-/// calibración que el RNT (documento tabular, tildes rotas por el extractor,
-/// identidad por CCC): periodo por forma del valor, CIF y huella opcionales.
+/// calibración que el RNT (documento tabular, tildes rotas por el extractor):
+/// periodo por forma del valor, CIF como "Código de Empresario" con prefijo
+/// numérico (confirmado por el usuario, admitido y descartado por
+/// <see cref="ParserDocumentoOficialBase.RegexCifComun"/>), huella opcional.
 /// </summary>
 public class ParserRlc : ParserDocumentoOficialBase
 {
@@ -18,7 +20,11 @@ public class ParserRlc : ParserDocumentoOficialBase
             RegexOptions.IgnoreCase | RegexOptions.Compiled),
         Obligatorio: false);
 
-    protected override CampoAncla AnclaCif => new(RegexCifComun, Obligatorio: false);
+    protected override CampoAncla AnclaCif => new(RegexCifComun, Obligatorio: true);
 
     protected override CampoAncla AnclaPeriodo => new(RegexPeriodoPorForma, Obligatorio: true);
+
+    // Confirmado por el usuario: el RLC no imprime fecha de emisión propia —
+    // es el día 1 del mes del periodo de liquidación.
+    protected override bool FechaEmisionEsPrimerDiaDelPeriodo => true;
 }

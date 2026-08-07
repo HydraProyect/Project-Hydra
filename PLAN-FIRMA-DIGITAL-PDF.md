@@ -161,7 +161,17 @@ Cinco documentos reales de gestoría (corriente TGSS, RLC, RNT y dos ITA), anali
 3. **RNT/RLC son tabulares** (etiquetas agrupadas, valores en otra zona): el periodo se extrae por **forma del valor** (MM/yyyy con lookarounds), no por adyacencia etiqueta→valor. Extraído correctamente de las muestras reales.
 4. **RNT/RLC/ITA no traen CIF en el texto** — identifican a la empresa por CCC. CIF pasa a opcional en esos parsers y, sin CIF legible, el cotejo de identidad manda a revisión (nunca auto-valida a ciegas). **Pendiente**: cotejo por CCC exige añadir CCC a `Empresa` (decisión de dominio aparte).
 5. **La extracción corre también sin firma válida**: el CEA/huella/periodo extraídos se persisten igualmente — son el insumo de la verificación oficial (§ 7 / épica 3). Decisión del usuario: una reimpresión cuyo código confirme el API del organismo podrá alcanzar `VerificadoOficialmente`; hasta entonces queda en revisión.
-6. **Falta calibrar el camino positivo con un original firmado** (descarga directa de la Sede, sin imprimir-a-PDF): anclas del corriente TGSS/AEAT (CEA, literal positivo) y cadena real de los sellos FNMT.
+6. **Falta calibrar el camino positivo con un original firmado** (descarga directa de la Sede, sin imprimir-a-PDF): CEA y cadena real de los sellos FNMT del corriente TGSS/AEAT.
+
+### Segunda ronda de calibración (2026-08-07, confirmada directamente por el usuario — sin necesidad de más muestras)
+
+- **El CIF sí está en RNT/RLC/ITA**: la TGSS lo llama "Código de Empresario" y le antepone un prefijo numérico pegado ("90" en RNT/RLC/ITA, "0" en el certificado de corriente). `RegexCifComun` ahora admite el prefijo (0-4 dígitos) y lo descarta del valor capturado — el CIF vuelve a ser obligatorio en los 5 parsers.
+- **Literal exacto del resultado del certificado**: "El presente certificado tiene carácter POSITIVO" / "…NEGATIVO" (NEGATIVO = existe deuda, se rechaza siempre). Sustituye a los literales adivinados de la primera versión.
+- **Fecha del certificado**: tras "Información obtenida a…" (numérica o literal).
+- **Fecha de RNT/RLC**: el documento no imprime una fecha de emisión propia — es **el día 1 del mes del "Periodo de liquidación"** (periodo 06/2026 → fecha emisión 01/06/2026; la vigencia de 2 meses más allá del periodo ya la calcula `CalculadoraEstadoDocumento` a partir de `TipoDocumento.VigenciaMeses`, sin tocar el parser). Derivación nueva y genérica en `ParserDocumentoOficialBase` (`FechaEmisionEsPrimerDiaDelPeriodo`), no un caso especial de RLC/RNT.
+- **Fecha del ITA**: tras el literal "Informe de Trabajadores en Alta a fecha", formato día/mes/año separado por espacios (`NormalizarFecha` ampliado para aceptarlo, además de "/" y "-").
+
+Con esto, los 4 tipos en alcance quedan calibrados en sus anclas de CIF y fecha; sigue pendiente solo la confirmación del CEA/cadena de confianza con un original firmado de la Sede.
 
 **Fase 1 — Spike (media sesión). Nada se decide hasta esto.**
 Comprobar si PDFsharp 6.2.4 expone `/ByteRange` y `/Contents` en lectura, sobre PDFs reales firmados: un certificado de estar al corriente de la TGSS, un certificado de formación de un SPA. Salida: sí/no y si hace falta lector propio o BouncyCastle.

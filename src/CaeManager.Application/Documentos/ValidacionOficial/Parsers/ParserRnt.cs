@@ -8,9 +8,10 @@ namespace CaeManager.Application.Documentos.ValidacionOficial.Parsers;
 /// muestras reales: es un documento tabular (etiquetas agrupadas, valores en
 /// otra zona del texto) y el extractor pierde las tildes (salen caracteres
 /// de sustitución) — por eso el periodo se extrae por forma del valor y las
-/// anclas usan «.» donde iría una vocal acentuada. El documento identifica a
-/// la empresa por CCC, no por CIF (CIF y huella quedan opcionales: sin CIF,
-/// el cotejo de identidad cae a revisión — ver ValidacionDocumentoOficialService).
+/// anclas usan «.» donde iría una vocal acentuada. El CIF aparece como
+/// "Código de Empresario" con un prefijo numérico pegado delante (confirmado
+/// por el usuario) — <see cref="ParserDocumentoOficialBase.RegexCifComun"/>
+/// lo admite y lo descarta.
 /// </summary>
 public class ParserRnt : ParserDocumentoOficialBase
 {
@@ -21,7 +22,11 @@ public class ParserRnt : ParserDocumentoOficialBase
             RegexOptions.IgnoreCase | RegexOptions.Compiled),
         Obligatorio: false);
 
-    protected override CampoAncla AnclaCif => new(RegexCifComun, Obligatorio: false);
+    protected override CampoAncla AnclaCif => new(RegexCifComun, Obligatorio: true);
 
     protected override CampoAncla AnclaPeriodo => new(RegexPeriodoPorForma, Obligatorio: true);
+
+    // Confirmado por el usuario: el RNT no imprime fecha de emisión propia —
+    // es el día 1 del mes del periodo de liquidación.
+    protected override bool FechaEmisionEsPrimerDiaDelPeriodo => true;
 }

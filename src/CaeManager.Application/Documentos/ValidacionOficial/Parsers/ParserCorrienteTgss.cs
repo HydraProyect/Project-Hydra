@@ -5,8 +5,12 @@ namespace CaeManager.Application.Documentos.ValidacionOficial.Parsers;
 
 /// <summary>
 /// Certificado de estar al corriente en las obligaciones con la Seguridad
-/// Social (TGSS). Anclas según la redacción pública conocida — pendientes de
-/// calibración con muestras reales (plan, PR-6).
+/// Social (TGSS). Calibrado con confirmación directa del usuario sobre el
+/// texto real del certificado: el resultado es siempre uno de los dos
+/// literales exactos "El presente certificado tiene carácter POSITIVO" /
+/// "…NEGATIVO" (NEGATIVO = existe deuda, se rechaza siempre); la fecha va
+/// tras "Información obtenida a"; el CIF es el "Código de Empresario" con
+/// un "0" pegado delante (ver <see cref="ParserDocumentoOficialBase.RegexCifComun"/>).
 /// </summary>
 public class ParserCorrienteTgss : ParserDocumentoOficialBase
 {
@@ -19,19 +23,23 @@ public class ParserCorrienteTgss : ParserDocumentoOficialBase
 
     protected override CampoAncla AnclaCif => new(RegexCifComun, Obligatorio: true);
 
+    // "Información obtenida a" — admite tanto fecha numérica (04/08/2026)
+    // como literal (4 de agosto de 2026); «.» donde iría la vocal
+    // acentuada, el extractor pierde las tildes.
     protected override CampoAncla AnclaFechaEmision => new(
-        new Regex(@"(?:a\s+(?<valor>\d{1,2}\s+de\s+\p{L}+\s+de\s+\d{4}))|(?:fecha\s*[:\.]?\s*(?<valor>\d{1,2}[/\-]\d{1,2}[/\-]\d{4}))",
+        new Regex(@"obtenida\s+a\s+(?:(?<valor>\d{1,2}\s+de\s+\p{L}+\s+de\s+\d{4})|(?<valor>\d{1,2}[/\-]\d{1,2}[/\-]\d{4}))",
             RegexOptions.IgnoreCase | RegexOptions.Compiled),
         Obligatorio: true);
 
+    // Literal exacto confirmado por el usuario: "El presente certificado
+    // tiene carácter POSITIVO/NEGATIVO". Ancla corta y case-sensitive en la
+    // palabra clave — POSITIVO/NEGATIVO siempre en mayúsculas en el propio
+    // documento, así que no hace falta IgnoreCase para distinguirlos entre
+    // sí (y evita falsos positivos si "positivo" aparece en minúsculas en
+    // otro contexto del documento).
     protected override Regex PatronResultadoPositivo => new(
-        @"no\s+tiene\s+pendiente\s+de\s+ingreso\s+ninguna\s+reclamaci.n|est.\s+al\s+corriente\s+en\s+el\s+pago",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        @"certificado\s+tiene\s+car.cter\s+POSITIVO", RegexOptions.Compiled);
 
-    // Lookbehind en el primer literal: "tiene pendiente de ingreso" es
-    // subcadena del positivo "NO tiene pendiente de ingreso" — sin él, el
-    // negativo matchearía dentro de todos los certificados positivos.
     protected override Regex PatronResultadoNegativo => new(
-        @"(?<!no\s)tiene\s+pendiente\s+de\s+ingreso|no\s+se\s+encuentra\s+al\s+corriente|NO\s+est.\s+al\s+corriente",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        @"certificado\s+tiene\s+car.cter\s+NEGATIVO", RegexOptions.Compiled);
 }
