@@ -540,7 +540,7 @@ sin visión por plataforma, Hydra no puede ser la única pantalla del gestor.
 > existe) — decisión con el propietario: catálogo **global puro**, documentada en
 > `docs/MULTITENANCY.md` § 7.
 
-### (a) Catálogo `ProveedorPlataformaCae` — Lote 2-A ✅ hecho, Lote 2-B pendiente
+### (a) Catálogo `ProveedorPlataformaCae` — Lote 2-A ✅ hecho ([#124](https://github.com/christopherjp1-jpg/Project-Hydra/pull/124)), Lote 2-B pendiente
 
 **Redacción original de esta ficha, superada por la decisión de la sesión de implementación
 (ver nota de secuenciación arriba)**: hablaba de reutilizar tal cual la entidad
