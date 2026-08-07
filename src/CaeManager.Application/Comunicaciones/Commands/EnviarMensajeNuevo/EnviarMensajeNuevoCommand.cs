@@ -12,7 +12,7 @@ namespace CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 /// "Redactar" — a diferencia de <c>ResponderConversacionCommand</c>, no
 /// contesta un hilo existente: abre uno nuevo (<c>/sendMail</c>, sin
 /// <c>conversationId</c> previo que preservar) y crea la
-/// <see cref="ConversacionCorreo"/> que lo representa en Hydra. Exige un
+/// <see cref="Conversacion"/> que lo representa en Hydra. Exige un
 /// buzón conectado — a diferencia de responder, no tiene sentido "simular"
 /// el primer envío de una conversación nueva (sí tiene sentido simular una
 /// respuesta dentro de un hilo ya sembrado como dato de prueba).
@@ -28,7 +28,7 @@ public class EnviarMensajeNuevoCommandValidator : AbstractValidator<EnviarMensaj
         RuleFor(c => c.ConexionIntegracionId).NotEmpty().WithMessage("Selecciona el buzón desde el que enviar.");
         RuleFor(c => c.Destinatarios).NotEmpty().WithMessage("Indica al menos un destinatario.");
         RuleForEach(c => c.Destinatarios).EmailAddress().WithMessage("Alguno de los destinatarios no es un correo válido.");
-        RuleFor(c => c.Asunto).NotEmpty().WithMessage("El asunto es obligatorio.").MaximumLength(ConversacionCorreo.LongitudMaximaAsunto);
+        RuleFor(c => c.Asunto).NotEmpty().WithMessage("El asunto es obligatorio.").MaximumLength(Conversacion.LongitudMaximaAsunto);
         RuleFor(c => c.CuerpoHtml).NotEmpty().WithMessage("El mensaje no puede estar vacío.");
         RuleFor(c => c.Adjuntos)
             .Must(a => a is null || a.Sum(x => x.Contenido.LongLength) <= LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes)
@@ -38,7 +38,7 @@ public class EnviarMensajeNuevoCommandValidator : AbstractValidator<EnviarMensaj
 
 public class EnviarMensajeNuevoCommandHandler(
     IConexionIntegracionRepository conexionRepositorio,
-    IConversacionCorreoRepository conversacionRepositorio,
+    IConversacionRepository conversacionRepositorio,
     IAlcanceDatosService alcanceDatos,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
@@ -71,7 +71,7 @@ public class EnviarMensajeNuevoCommandHandler(
         if (envioResultado.EsFallido)
             return Result.Fallo<Guid>(envioResultado.Error);
 
-        var conversacion = new ConversacionCorreo(request.Asunto, clienteId);
+        var conversacion = new Conversacion(request.Asunto, clienteId);
         conversacionRepositorio.Agregar(conversacion);
 
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Saliente, conexion.BuzonEmail, request.CuerpoHtml);

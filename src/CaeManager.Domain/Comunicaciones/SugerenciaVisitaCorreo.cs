@@ -4,7 +4,7 @@ namespace CaeManager.Domain.Comunicaciones;
 
 /// <summary>
 /// Candidato de visita detectado por lectura IA del cuerpo de un
-/// MensajeCorreo entrante — mismo patrón de sugerencia-nunca-automática que
+/// Mensaje entrante — mismo patrón de sugerencia-nunca-automática que
 /// <see cref="Trabajadores.DeteccionTrabajador"/>: si el correo parece pedir
 /// agendar la entrada de trabajadores a un Centro, se registra aquí en lugar
 /// de crear la Visita directamente. El Gestor decide desde la Bandeja (botón
@@ -20,7 +20,7 @@ public class SugerenciaVisitaCorreo : EntidadConTenant
 {
     public const int LongitudMaximaResumen = 500;
 
-    public Guid MensajeCorreoId { get; private set; }
+    public Guid MensajeId { get; private set; }
     public Guid? CentroId { get; private set; }
     public DateOnly? FechaInicioSugerida { get; private set; }
     public DateOnly? FechaFinSugerida { get; private set; }
@@ -33,16 +33,16 @@ public class SugerenciaVisitaCorreo : EntidadConTenant
     }
 
     public SugerenciaVisitaCorreo(
-        Guid mensajeCorreoId, Guid? centroId, DateOnly? fechaInicioSugerida, DateOnly? fechaFinSugerida, string resumen)
+        Guid mensajeId, Guid? centroId, DateOnly? fechaInicioSugerida, DateOnly? fechaFinSugerida, string resumen)
     {
-        if (mensajeCorreoId == Guid.Empty)
-            throw new ArgumentException("La sugerencia debe estar ligada a un mensaje.", nameof(mensajeCorreoId));
+        if (mensajeId == Guid.Empty)
+            throw new ArgumentException("La sugerencia debe estar ligada a un mensaje.", nameof(mensajeId));
         if (string.IsNullOrWhiteSpace(resumen))
             throw new ArgumentException("La sugerencia debe explicar qué se detectó.", nameof(resumen));
         if (fechaInicioSugerida is not null && fechaFinSugerida is not null && fechaFinSugerida < fechaInicioSugerida)
             throw new ArgumentException("La fecha de fin sugerida no puede ser anterior a la de inicio.", nameof(fechaFinSugerida));
 
-        MensajeCorreoId = mensajeCorreoId;
+        MensajeId = mensajeId;
         CentroId = centroId;
         FechaInicioSugerida = fechaInicioSugerida;
         FechaFinSugerida = fechaFinSugerida;

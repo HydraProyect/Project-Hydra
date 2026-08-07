@@ -18,7 +18,7 @@ public class IngestaWebhookWhatsAppServiceTests
 
     private readonly ConexionIntegracionRepositorioFalso _conexiones = new();
     private readonly LineaWhatsAppRepositorioFalso _lineas = new();
-    private readonly ConversacionCorreoRepositorioFalso _conversaciones = new();
+    private readonly ConversacionRepositorioFalso _conversaciones = new();
     private readonly ContactoWhatsAppRepositorioFalso _contactos = new();
     private readonly ClienteRepositorioFalso _clientes = new();
     private readonly WhatsAppCloudApiClientFalso _whatsApp = new();
@@ -90,7 +90,7 @@ public class IngestaWebhookWhatsAppServiceTests
         var libre = Guid.NewGuid();
         var conexion = CrearLinea(ModoAsignacionLinea.PoolInbound, pool: [ocupado, libre]);
 
-        var previa = ConversacionCorreo.CrearWhatsApp("+34999888777", conexion.Id, null, ocupado);
+        var previa = Conversacion.CrearWhatsApp("+34999888777", conexion.Id, null, ocupado);
         _conversaciones.Agregar(previa);
 
         ConfigurarNotificacion([MensajeTexto("wamid.1")]);
@@ -155,7 +155,7 @@ public class IngestaWebhookWhatsAppServiceTests
     {
         var gestorOriginal = Guid.NewGuid();
         var conexion = CrearLinea(ModoAsignacionLinea.GestorFijo, comercialId: Guid.NewGuid());
-        var existente = ConversacionCorreo.CrearWhatsApp(Telefono, conexion.Id, null, gestorOriginal);
+        var existente = Conversacion.CrearWhatsApp(Telefono, conexion.Id, null, gestorOriginal);
         existente.AgregarMensaje(DireccionMensaje.Entrante, Telefono, "Primero", mensajeExternoId: "wamid.0");
         _conversaciones.Agregar(existente);
         ConfigurarNotificacion([MensajeTexto("wamid.1", "Segundo")]);
@@ -171,7 +171,7 @@ public class IngestaWebhookWhatsAppServiceTests
     public async Task Los_statuses_actualizan_el_estado_de_entrega_del_mensaje_saliente()
     {
         var conexion = CrearLinea(ModoAsignacionLinea.GestorFijo, comercialId: Guid.NewGuid());
-        var conversacion = ConversacionCorreo.CrearWhatsApp(Telefono, conexion.Id, null, Guid.NewGuid());
+        var conversacion = Conversacion.CrearWhatsApp(Telefono, conexion.Id, null, Guid.NewGuid());
         var saliente = conversacion.AgregarMensaje(DireccionMensaje.Saliente, "+34686543364", "Respuesta", mensajeExternoId: "wamid.out");
         saliente.ActualizarEstadoEntrega(EstadoEntregaMensaje.Enviado);
         _conversaciones.Agregar(conversacion);
