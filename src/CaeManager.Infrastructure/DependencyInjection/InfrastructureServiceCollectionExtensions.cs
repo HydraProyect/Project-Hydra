@@ -308,6 +308,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IConversacionRepository, ConversacionRepository>();
         services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IEventoConversacionRepository, EventoConversacionRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.ISugerenciaGestionCorreoRepository, SugerenciaGestionCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.ISolicitudPrioridadDocumentoRepository, SolicitudPrioridadDocumentoRepository>();
         services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();

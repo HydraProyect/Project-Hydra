@@ -4,6 +4,7 @@ using CaeManager.Application.Clientes;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Visitas;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -37,6 +38,14 @@ public record MensajeDetalleDto(
 public record ParticipanteDetalleDto(
     Guid Id, string Email, RolParticipante Rol, TipoParticipanteOrigen TipoOrigen, Guid? EntidadRelacionadaId);
 
+/// <summary>
+/// Entrada "Sistema/Evento" del Unified Timeline (docs/COMUNICACIONES.md
+/// § 12.3/§ 16.7). <paramref name="Descripcion"/> se calcula aquí, en el
+/// momento de leer — EventoConversacion no la guarda para no quedar
+/// desfasada si la entidad referenciada cambia después.
+/// </summary>
+public record EventoDetalleDto(Guid Id, TipoEventoConversacion Tipo, Guid ReferenciaId, DateTime FechaUtc, string Descripcion);
+
 public record ConversacionDetalleDto(
     Guid Id,
     Guid? ClienteId,
@@ -48,6 +57,7 @@ public record ConversacionDetalleDto(
     DateTime FechaUltimoMensajeUtc,
     IReadOnlyList<MensajeDetalleDto> Mensajes,
     IReadOnlyList<ParticipanteDetalleDto> Participantes,
+    IReadOnlyList<EventoDetalleDto> Eventos,
     CanalConversacion Canal = CanalConversacion.Correo,
     string? TelefonoContacto = null,
     DateTime? FechaUltimoMensajeEntranteUtc = null);
@@ -55,6 +65,7 @@ public record ConversacionDetalleDto(
 public class ObtenerConversacionPorIdQueryHandler(
     IClientesQueryContext clientesContext, ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
     ITrabajadoresQueryContext trabajadoresContext, ITiposDocumentoQueryContext tiposDocumentoContext,
+    IVisitasQueryContext visitasContext,
     IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
     ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerConversacionPorIdQuery, ConversacionDetalleDto?>
@@ -167,9 +178,56 @@ public class ObtenerConversacionPorIdQueryHandler(
             .Select(p => new ParticipanteDetalleDto(p.Id, p.Email, p.Rol, p.TipoOrigen, p.EntidadRelacionadaId))
             .ToListAsync(cancellationToken);
 
+        var eventos = await ObtenerEventosAsync(request.Id, cancellationToken);
+
         return new ConversacionDetalleDto(
             conversacion.Id, conversacion.ClienteId, conversacion.ClienteRazonSocial, conversacion.Asunto,
             conversacion.Estado, conversacion.EjecutivoAsignadoId, conversacion.Etiquetas, conversacion.FechaUltimoMensajeUtc,
-            mensajes, participantes, conversacion.Canal, conversacion.TelefonoContacto, conversacion.FechaUltimoMensajeEntranteUtc);
+            mensajes, participantes, eventos, conversacion.Canal, conversacion.TelefonoContacto, conversacion.FechaUltimoMensajeEntranteUtc);
     }
+
+    /// <summary>
+    /// Solo <see cref="TipoEventoConversacion.VisitaCreada"/> existe hoy — el
+    /// switch crece cuando el flujo de "Actualizar documentación" (§ 16.7)
+    /// publique su propio tipo, no antes.
+    /// </summary>
+    private async Task<IReadOnlyList<EventoDetalleDto>> ObtenerEventosAsync(Guid conversacionId, CancellationToken cancellationToken)
+    {
+        var eventosCrudos = await comunicacionesContext.EventosConversacion
+            .Where(e => e.ConversacionId == conversacionId)
+            .Select(e => new { e.Id, e.Tipo, e.ReferenciaId, e.FechaUtc })
+            .ToListAsync(cancellationToken);
+
+        if (eventosCrudos.Count == 0) return [];
+
+        var visitaIds = eventosCrudos.Where(e => e.Tipo == TipoEventoConversacion.VisitaCreada).Select(e => e.ReferenciaId).ToList();
+        var visitas = await visitasContext.Visitas
+            .Where(v => visitaIds.Contains(v.Id))
+            .Select(v => new VisitaResumenParaEvento(v.Id, v.CentroId, v.FechaInicio, v.FechaFin))
+            .ToDictionaryAsync(v => v.Id, cancellationToken);
+
+        var centroIds = visitas.Values.Select(v => v.CentroId).Distinct().ToList();
+        var nombresCentroVisita = await centrosContext.Centros
+            .Where(c => centroIds.Contains(c.Id))
+            .Select(c => new { c.Id, c.Nombre })
+            .ToDictionaryAsync(c => c.Id, c => c.Nombre, cancellationToken);
+
+        return eventosCrudos.Select(e => new EventoDetalleDto(
+            e.Id, e.Tipo, e.ReferenciaId, e.FechaUtc, DescribirEvento(e.Tipo, e.ReferenciaId, visitas, nombresCentroVisita))).ToList();
+    }
+
+    private record VisitaResumenParaEvento(Guid Id, Guid CentroId, DateOnly FechaInicio, DateOnly FechaFin);
+
+    private static string DescribirEvento(
+        TipoEventoConversacion tipo, Guid referenciaId,
+        Dictionary<Guid, VisitaResumenParaEvento> visitasPorId, Dictionary<Guid, string> nombresCentroVisita) => tipo switch
+        {
+            TipoEventoConversacion.VisitaCreada when visitasPorId.TryGetValue(referenciaId, out var visita) =>
+                $"Se ha creado una visita en {nombresCentroVisita.GetValueOrDefault(visita.CentroId, "el centro")} para el {FormatearRangoFechas(visita.FechaInicio, visita.FechaFin)}.",
+            TipoEventoConversacion.VisitaCreada => "Se ha creado una visita a partir de esta conversación.",
+            _ => "Evento del sistema."
+        };
+
+    private static string FormatearRangoFechas(DateOnly inicio, DateOnly fin) =>
+        inicio == fin ? inicio.ToString("dd/MM/yyyy") : $"{inicio:dd/MM/yyyy} - {fin:dd/MM/yyyy}";
 }

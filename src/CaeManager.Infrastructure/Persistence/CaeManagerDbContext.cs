@@ -190,6 +190,8 @@ public class CaeManagerDbContext(
     IQueryable<SugerenciaGestionCorreo> IComunicacionesQueryContext.SugerenciasGestionCorreo => SugerenciasGestionCorreo;
     public DbSet<SolicitudPrioridadDocumento> SolicitudesPrioridadDocumento => Set<SolicitudPrioridadDocumento>();
     IQueryable<SolicitudPrioridadDocumento> IComunicacionesQueryContext.SolicitudesPrioridadDocumento => SolicitudesPrioridadDocumento;
+    public DbSet<EventoConversacion> EventosConversacion => Set<EventoConversacion>();
+    IQueryable<EventoConversacion> IComunicacionesQueryContext.EventosConversacion => EventosConversacion;
     public DbSet<Gestion> Gestiones => Set<Gestion>();
     IQueryable<Gestion> IGestionesQueryContext.Gestiones => Gestiones;
     public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();
