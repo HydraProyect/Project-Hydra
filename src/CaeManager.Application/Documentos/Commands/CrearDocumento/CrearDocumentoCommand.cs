@@ -152,8 +152,12 @@ public class CrearDocumentoCommandHandler(
             && tipoDocumento.DeteccionTrabajadoresActiva && !string.IsNullOrWhiteSpace(request.ArchivoUrl);
         var necesitaVerificacion = ambitoSolicitado == AmbitoAplicacion.Trabajador
             && tipoDocumento.VerificacionIaActiva && !string.IsNullOrWhiteSpace(request.ArchivoUrl);
+        // Sin restricción de ámbito adicional: el perfil solo está asignado en
+        // tipos de Empresa/Cliente (ver TipoDocumento.PerfilDocumentoOficial).
+        var necesitaValidacionOficial = tipoDocumento.PerfilDocumentoOficial != PerfilDocumentoOficial.Ninguno
+            && !string.IsNullOrWhiteSpace(request.ArchivoUrl);
 
-        if (necesitaDeteccion || necesitaVerificacion)
+        if (necesitaDeteccion || necesitaVerificacion || necesitaValidacionOficial)
         {
             var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
@@ -162,6 +166,9 @@ public class CrearDocumentoCommandHandler(
 
             if (necesitaVerificacion)
                 colaAnalisis.Agregar(new TrabajoAnalisisDocumento(documento.Id, usuarioId, TipoAnalisisDocumento.VerificacionIa));
+
+            if (necesitaValidacionOficial)
+                colaAnalisis.Agregar(new TrabajoAnalisisDocumento(documento.Id, usuarioId, TipoAnalisisDocumento.VerificacionFirmaDigital));
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
