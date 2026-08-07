@@ -2,17 +2,78 @@
     max-width: none;
 }
 
+/* --- Toolbar global del workspace (docs/COMUNICACIONES.md § 11) --- */
+
+.bandeja-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding-bottom: var(--space-4);
+    margin-bottom: var(--space-4);
+    border-bottom: var(--border-default);
+}
+
+.bandeja-toolbar-titulo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin: 0;
+    font: var(--font-heading-md);
+    color: var(--color-text);
+}
+
+.bandeja-toolbar-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-500);
+    flex-shrink: 0;
+}
+
+.bandeja-toolbar-acciones {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.bandeja-toolbar-enlace {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 36px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-md);
+    border: var(--border-default);
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+    text-decoration: none;
+    transition: border-color var(--transition-fast), color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.bandeja-toolbar-enlace:hover {
+    border-color: var(--color-primary-300);
+    color: var(--color-primary-600);
+    background-color: var(--color-primary-50);
+}
+
+/* --- Layout de tres columnas (Inbox / Conversation / Context) --- */
+
 .bandeja-layout {
     display: grid;
-    grid-template-columns: 340px minmax(0, 1fr);
-    gap: var(--space-6);
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: var(--space-5);
     align-items: start;
-    height: calc(100vh - 220px);
+    height: calc(100vh - 190px);
     min-height: 480px;
 }
 
 .bandeja-layout:has(.bandeja-cliente) {
-    grid-template-columns: 340px minmax(0, 1fr) 320px;
+    grid-template-columns: 320px minmax(0, 1fr) 300px;
 }
 
 .bandeja-columna {
@@ -22,12 +83,13 @@
     min-height: 0;
 }
 
-/* --- Columna de filtros / lista --- */
+/* --- Columna Inbox (filtros + lista de conversaciones) --- */
 
 .bandeja-filtros {
     border: var(--border-default);
     border-radius: var(--radius-lg);
     background-color: var(--color-surface);
+    box-shadow: var(--shadow-card);
     overflow: hidden;
 }
 
@@ -39,31 +101,52 @@
     border-bottom: var(--border-default);
 }
 
-.bandeja-filtros-form .campo {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-}
-
-.bandeja-filtros-form .campo label {
-    font: var(--font-label-md);
-    color: var(--color-text);
-}
-
-.bandeja-filtros-form .campo-input {
-    min-height: 44px;
-    padding: 0 var(--space-3);
-    border-radius: var(--radius-md);
-    border: var(--border-default);
-    background-color: var(--color-surface);
-    color: var(--color-text);
-    font: var(--font-body-md);
-}
-
 .bandeja-toggles {
     display: flex;
     gap: var(--space-2);
     flex-wrap: wrap;
+}
+
+.bandeja-toggle {
+    height: 32px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-full);
+    border: var(--border-default);
+    background-color: var(--color-surface);
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+    cursor: pointer;
+    transition: border-color var(--transition-fast), color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.bandeja-toggle:hover {
+    border-color: var(--color-primary-300);
+    color: var(--color-text);
+}
+
+.bandeja-toggle-activo,
+.bandeja-toggle-activo:hover {
+    border-color: var(--color-primary-500);
+    background-color: var(--color-primary-500);
+    color: var(--color-neutral-0);
+}
+
+.bandeja-filtros-avanzados summary {
+    font: var(--font-label-md);
+    color: var(--color-primary-600);
+    cursor: pointer;
+    list-style: none;
+}
+
+.bandeja-filtros-avanzados summary::-webkit-details-marker {
+    display: none;
+}
+
+.bandeja-filtros-avanzados-campos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
 }
 
 .bandeja-lista {
@@ -97,47 +180,91 @@
     padding: 0;
 }
 
-.bandeja-fila {
+/* FilaConversacion es un componente hijo sin su propio .razor.css: el
+   aislamiento de CSS de Blazor no aplica el atributo de scope de Bandeja a
+   lo que ese componente renderiza, así que cualquier selector que necesite
+   alcanzar su marcado tiene que cruzar la frontera con ::deep (verificado en
+   navegador — sin ::deep estas reglas compilan pero no coinciden con nada). */
+.bandeja-lista ::deep .bandeja-fila {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
+    align-items: flex-start;
+    gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
     border-top: var(--border-default);
+    border-left: 3px solid transparent;
     cursor: pointer;
+    transition: background-color var(--transition-fast), border-left-color var(--transition-fast);
 }
 
-.bandeja-fila:hover {
+.bandeja-lista ::deep .bandeja-fila:hover {
     background-color: var(--color-surface-hover);
 }
 
-.bandeja-fila-activa {
+.bandeja-lista ::deep .bandeja-fila-activa {
     background-color: var(--color-primary-50);
+    border-left-color: var(--color-primary-500);
 }
 
-.bandeja-fila-linea1,
-.bandeja-fila-linea3 {
+.bandeja-lista ::deep .bandeja-fila-esperando:not(.bandeja-fila-activa) {
+    border-left-color: var(--color-warning-500);
+}
+
+.bandeja-lista ::deep .bandeja-fila-avatar {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-secondary-100);
+    color: var(--color-secondary-600);
+    font: var(--font-label-md);
+}
+
+.bandeja-lista ::deep .bandeja-fila-canal {
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: var(--radius-full);
+    border: 2px solid var(--color-surface);
+    background-color: var(--color-neutral-100);
+    color: var(--color-text-muted);
+}
+
+.bandeja-lista ::deep .bandeja-fila-canal-whatsapp {
+    background-color: var(--color-success-50);
+    color: var(--color-success-700);
+}
+
+.bandeja-lista ::deep .bandeja-fila-canal-correo {
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-600);
+}
+
+.bandeja-lista ::deep .bandeja-fila-contenido {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.bandeja-lista ::deep .bandeja-fila-linea1,
+.bandeja-lista ::deep .bandeja-fila-linea3 {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
 }
 
-.bandeja-fila-remitente-grupo {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    overflow: hidden;
-    min-width: 0;
-}
-
-.bandeja-fila-canal {
-    display: inline-flex;
-    align-items: center;
-    color: var(--color-text-muted);
-    flex-shrink: 0;
-}
-
-.bandeja-fila-remitente {
+.bandeja-lista ::deep .bandeja-fila-remitente {
     font: var(--font-label-md);
     color: var(--color-text);
     overflow: hidden;
@@ -145,13 +272,13 @@
     white-space: nowrap;
 }
 
-.bandeja-fila-fecha {
+.bandeja-lista ::deep .bandeja-fila-fecha {
     font: var(--font-body-sm);
     color: var(--color-text-muted);
     flex-shrink: 0;
 }
 
-.bandeja-fila-asunto {
+.bandeja-lista ::deep .bandeja-fila-asunto {
     font: var(--font-body-md);
     color: var(--color-text);
     overflow: hidden;
@@ -159,7 +286,7 @@
     white-space: nowrap;
 }
 
-.bandeja-fila-preview {
+.bandeja-lista ::deep .bandeja-fila-preview {
     font: var(--font-body-sm);
     color: var(--color-text-muted);
     overflow: hidden;
@@ -167,27 +294,36 @@
     white-space: nowrap;
 }
 
-/* --- Columna central --- */
+/* --- Columna central (Conversation Workspace) --- */
 
 .bandeja-centro {
     border: var(--border-default);
     border-radius: var(--radius-lg);
     background-color: var(--color-surface);
+    box-shadow: var(--shadow-card);
     overflow: hidden;
 }
 
 .bandeja-centro-cabecera {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-4);
-    padding: var(--space-4);
+    padding: var(--space-4) var(--space-5);
     border-bottom: var(--border-default);
     flex-wrap: wrap;
 }
 
 .bandeja-centro-titulo h2 {
+    margin: 0 0 var(--space-2);
     font: var(--font-heading-sm);
+}
+
+.bandeja-centro-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
 }
 
 .bandeja-centro-subtitulo {
@@ -205,24 +341,91 @@
 .bandeja-badge-canal {
     display: inline-flex;
     align-items: center;
-    color: var(--color-text-muted);
+    gap: var(--space-1);
+    height: 24px;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-full);
+    font: var(--font-body-sm);
 }
 
-/* --- Columna cliente --- */
+.bandeja-badge-canal-whatsapp {
+    background-color: var(--color-success-50);
+    color: var(--color-success-700);
+}
+
+.bandeja-badge-canal-correo {
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-600);
+}
+
+/* --- Columna de contexto del cliente (06_CONTEXT_WORKSPACE, versión acotada
+   a los datos reales de ClienteDetalleDto — sin cumplimiento/centros/
+   trabajadores hasta que el Action Center (paso 3) los alimente de verdad). --- */
 
 .bandeja-cliente {
     border: var(--border-default);
     border-radius: var(--radius-lg);
     background-color: var(--color-surface);
+    box-shadow: var(--shadow-card);
     padding: var(--space-4);
+    gap: var(--space-4);
     overflow-y: auto;
+}
+
+.bandeja-cliente-titulo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.bandeja-cliente-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.bandeja-cliente-avatar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-600);
+    font: var(--font-heading-sm);
+}
+
+.bandeja-cliente-identidad {
+    flex: 1;
+    min-width: 0;
+}
+
+.bandeja-cliente-identidad h3 {
+    margin: 0;
+    font: var(--font-body-lg);
+    font-weight: 600;
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bandeja-cliente-cif {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
 }
 
 .bandeja-cliente-datos {
     display: grid;
     grid-template-columns: auto 1fr;
     gap: var(--space-1) var(--space-3);
-    margin: var(--space-3) 0;
+    margin: var(--space-4) 0 0;
 }
 
 .bandeja-cliente-datos dt {
@@ -237,11 +440,49 @@
 }
 
 .bandeja-cliente-notas {
-    font: var(--font-body-sm);
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background-color: var(--color-neutral-50);
+}
+
+.bandeja-cliente-notas-titulo {
+    display: block;
+    margin-bottom: var(--space-1);
+    font: var(--font-label-md);
     color: var(--color-text-muted);
 }
 
-@media (max-width: 1200px) {
+.bandeja-cliente-notas p {
+    margin: 0;
+    font: var(--font-body-sm);
+    color: var(--color-text);
+}
+
+/* --- Adaptive Layout (docs/COMUNICACIONES.md § 11) — colapso progresivo por
+   ancho; los Drawer deslizantes por breakpoint quedan pendientes (§ 14), esto
+   es el escalón de apilado que ya cubría el layout anterior, con los cortes
+   documentados en vez de uno solo. --- */
+
+@media (max-width: 1439px) {
+    .bandeja-layout,
+    .bandeja-layout:has(.bandeja-cliente) {
+        grid-template-columns: 280px minmax(0, 1fr) 280px;
+    }
+}
+
+@media (max-width: 1279px) {
+    .bandeja-layout,
+    .bandeja-layout:has(.bandeja-cliente) {
+        grid-template-columns: 260px minmax(0, 1fr);
+    }
+
+    .bandeja-cliente {
+        display: none;
+    }
+}
+
+@media (max-width: 1023px) {
     .bandeja-layout,
     .bandeja-layout:has(.bandeja-cliente) {
         grid-template-columns: 1fr;
