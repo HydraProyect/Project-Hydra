@@ -12,27 +12,6 @@
         <h1 class="titulo-pagina">Tu cartera, con los KPI que elijas</h1>
     </div>
 
-    <Tarjeta Titulo="Personalizar" Class="tarjeta-personalizar-kpis">
-        <div class="rejilla-categorias-kpi">
-            @foreach (var categoria in CatalogoKpis.Todos.GroupBy(k => k.Categoria))
-            {
-                <div class="categoria-kpi">
-                    <h3 class="categoria-kpi-titulo">@categoria.Key</h3>
-                    @foreach (var kpi in categoria)
-                    {
-                        <label class="checkbox-kpi" title="@kpi.Descripcion">
-                            <input type="checkbox"
-                                   checked="@_seleccionEnEdicion.Contains(kpi.Codigo)"
-                                   @onchange="@(e => AlternarSeleccion(kpi.Codigo, (bool)e.Value!))" />
-                            @kpi.Titulo
-                        </label>
-                    }
-                </div>
-            }
-        </div>
-        <Boton OnClick="GuardarSeleccionAsync" Cargando="_guardando">Guardar selección</Boton>
-    </Tarjeta>
-
     @if (_error)
     {
         <EstadoVacio Titulo="No pudimos cargar el Dashboard Ejecutivo" Descripcion="Intenta nuevamente en unos segundos.">
@@ -47,6 +26,27 @@
     }
     else
     {
+        <SeccionColapsable Titulo="Personalizar" ExpandidaPorDefecto="@(_seleccionGuardada.Count == 0)">
+            <div class="rejilla-categorias-kpi">
+                @foreach (var categoria in CatalogoKpis.Todos.GroupBy(k => k.Categoria))
+                {
+                    <div class="categoria-kpi">
+                        <h3 class="categoria-kpi-titulo">@categoria.Key</h3>
+                        @foreach (var kpi in categoria)
+                        {
+                            <label class="checkbox-kpi" title="@kpi.Descripcion">
+                                <input type="checkbox"
+                                       checked="@_seleccionEnEdicion.Contains(kpi.Codigo)"
+                                       @onchange="@(e => AlternarSeleccion(kpi.Codigo, (bool)e.Value!))" />
+                                @kpi.Titulo
+                            </label>
+                        }
+                    </div>
+                }
+            </div>
+            <Boton OnClick="GuardarSeleccionAsync" Cargando="_guardando">Guardar selección</Boton>
+        </SeccionColapsable>
+
         var seleccionados = _seleccionGuardada
             .Where(codigo => CatalogoKpis.Todos.Any(k => k.Codigo == codigo))
             .Select(codigo => CatalogoKpis.Todos.First(k => k.Codigo == codigo))
