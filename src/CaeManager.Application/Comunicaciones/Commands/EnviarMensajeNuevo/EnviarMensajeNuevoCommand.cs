@@ -74,7 +74,7 @@ public class EnviarMensajeNuevoCommandHandler(
         var conversacion = new Conversacion(request.Asunto, clienteId);
         conversacionRepositorio.Agregar(conversacion);
 
-        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Saliente, conexion.BuzonEmail, request.CuerpoHtml);
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, request.CuerpoHtml);
         foreach (var destinatario in request.Destinatarios)
             conversacion.AgregarParticipante(destinatario, RolParticipante.Para, TipoParticipanteOrigen.Desconocido);
 

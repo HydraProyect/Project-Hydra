@@ -59,7 +59,7 @@ public class ConversacionWhatsAppTests
         var conversacion = CrearConversacionWhatsApp();
         var fecha = new DateTime(2026, 8, 4, 10, 0, 0, DateTimeKind.Utc);
 
-        conversacion.AgregarMensaje(DireccionMensaje.Entrante, "+34686543364", "Hola", fecha, "wamid.1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34686543364", "Hola", fecha, "wamid.1");
 
         conversacion.FechaUltimoMensajeEntranteUtc.Should().Be(fecha);
     }
@@ -69,7 +69,7 @@ public class ConversacionWhatsAppTests
     {
         var conversacion = CrearConversacionWhatsApp();
 
-        conversacion.AgregarMensaje(DireccionMensaje.Saliente, "+34600000000", "Respuesta");
+        conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.WhatsApp, "+34600000000", "Respuesta");
 
         conversacion.FechaUltimoMensajeEntranteUtc.Should().BeNull();
     }
@@ -81,8 +81,8 @@ public class ConversacionWhatsAppTests
         var reciente = new DateTime(2026, 8, 4, 12, 0, 0, DateTimeKind.Utc);
         var antiguo = new DateTime(2026, 8, 4, 9, 0, 0, DateTimeKind.Utc);
 
-        conversacion.AgregarMensaje(DireccionMensaje.Entrante, "+34686543364", "Segundo", reciente, "wamid.2");
-        conversacion.AgregarMensaje(DireccionMensaje.Entrante, "+34686543364", "Primero", antiguo, "wamid.1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34686543364", "Segundo", reciente, "wamid.2");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34686543364", "Primero", antiguo, "wamid.1");
 
         conversacion.FechaUltimoMensajeEntranteUtc.Should().Be(reciente);
     }
@@ -92,7 +92,7 @@ public class ConversacionWhatsAppTests
     {
         var conversacion = CrearConversacionWhatsApp();
         var entrada = new DateTime(2026, 8, 4, 10, 0, 0, DateTimeKind.Utc);
-        conversacion.AgregarMensaje(DireccionMensaje.Entrante, "+34686543364", "Hola", entrada, "wamid.1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34686543364", "Hola", entrada, "wamid.1");
 
         conversacion.VentanaServicioAbierta(entrada.AddHours(23).AddMinutes(59)).Should().BeTrue();
     }
@@ -102,7 +102,7 @@ public class ConversacionWhatsAppTests
     {
         var conversacion = CrearConversacionWhatsApp();
         var entrada = new DateTime(2026, 8, 4, 10, 0, 0, DateTimeKind.Utc);
-        conversacion.AgregarMensaje(DireccionMensaje.Entrante, "+34686543364", "Hola", entrada, "wamid.1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34686543364", "Hola", entrada, "wamid.1");
 
         conversacion.VentanaServicioAbierta(entrada.AddHours(24)).Should().BeFalse();
     }

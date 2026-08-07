@@ -89,7 +89,7 @@ public class IngestaWebhookService(
         }
 
         var mensajeCreado = conversacion.AgregarMensaje(
-            DireccionMensaje.Entrante, mensaje.Remitente, mensaje.CuerpoHtml, mensaje.FechaUtc, mensaje.MensajeExternoId);
+            DireccionMensaje.Entrante, conversacion.Canal, mensaje.Remitente, mensaje.CuerpoHtml, mensaje.FechaUtc, mensaje.MensajeExternoId);
 
         foreach (var participante in mensaje.Participantes)
             conversacion.AgregarParticipante(participante.Email, participante.Rol, TipoParticipanteOrigen.Desconocido);
