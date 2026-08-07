@@ -3,6 +3,7 @@ using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -32,7 +33,9 @@ public class RenovarDocumentoCommandValidator : AbstractValidator<RenovarDocumen
 
 public class RenovarDocumentoCommandHandler(
     IDocumentoRepository repositorio, ITiposDocumentoQueryContext dbContext,
-    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext,
+    ITrabajoAnalisisDocumentoRepository colaAnalisis, ICurrentUserService currentUserService,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<RenovarDocumentoCommand, Result>
 {
     public async Task<Result> Handle(RenovarDocumentoCommand request, CancellationToken cancellationToken)
@@ -53,7 +56,24 @@ public class RenovarDocumentoCommandHandler(
         documento.Renovar(request.FechaEmision, fechaVencimiento);
 
         if (!string.IsNullOrWhiteSpace(request.ArchivoUrl))
+        {
             documento.AdjuntarArchivo(request.ArchivoUrl);
+
+            // La mensualidad entra por aquí, no por Crear: el certificado de
+            // agosto reemplaza al de julio renovando el mismo Documento. Sin
+            // este reencolado, el archivo nuevo jamás se validaría. Mismo
+            // SaveChangesAsync que el resto del cambio — se confirman juntos
+            // o ninguno, la garantía de CrearDocumentoCommand. Los análisis
+            // IA (VerificacionIa/DeteccionTrabajadores) siguen sin reencolarse
+            // al renovar — decisión pendiente aparte, por su coste de LLM en
+            // cada renovación (plan de la épica, PR-3).
+            if (tipoDocumento.PerfilDocumentoOficial != PerfilDocumentoOficial.Ninguno)
+            {
+                var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+                colaAnalisis.Agregar(new TrabajoAnalisisDocumento(
+                    documento.Id, usuarioId, TipoAnalisisDocumento.VerificacionFirmaDigital));
+            }
+        }
 
         documento.ActualizarComentarios(request.Comentarios);
 

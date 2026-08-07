@@ -119,7 +119,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             Id: $"revision-{r.Id}",
             Tipo: TipoItemBandeja.RevisionIa,
             Titulo: r.TipoDocumentoNombre,
-            Subtitulo: $"{r.TrabajadorNombre} — {r.Motivo}",
+            Subtitulo: $"{r.PropietarioNombre} — {r.Motivo}",
             Fecha: r.FechaEmisionDetectada,
             TrabajadorId: null,
             CentroId: null,

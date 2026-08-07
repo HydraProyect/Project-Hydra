@@ -92,6 +92,19 @@ public class TipoDocumento : EntidadConTenant
     /// </summary>
     public bool VerificacionIaActiva { get; private set; }
 
+    /// <summary>
+    /// Solo tiene sentido para Ámbitos Empresa y Cliente: qué documento
+    /// oficial de la Administración es este tipo, a efectos de la validación
+    /// automática (verificación criptográfica de firma + parser determinista
+    /// + cotejo — sin IA, ver ValidacionDocumentoOficialService y
+    /// PLAN-FIRMA-DIGITAL-PDF.md). Empieza en <see cref="PerfilDocumentoOficial.Ninguno"/>
+    /// (apagado), mismo criterio que <see cref="DeteccionTrabajadoresActiva"/>:
+    /// el Administrador lo asigna explícitamente a los tipos que corresponden
+    /// (corriente TGSS/AEAT, RNT, RLC, ITA — TipoDocumentoSeedData ya los
+    /// trae asignados para tenants nuevos).
+    /// </summary>
+    public PerfilDocumentoOficial PerfilDocumentoOficial { get; private set; }
+
     private TipoDocumento()
     {
     }
@@ -143,6 +156,8 @@ public class TipoDocumento : EntidadConTenant
     public void EstablecerDeteccionTrabajadoresActiva(bool activa) => DeteccionTrabajadoresActiva = activa;
 
     public void EstablecerVerificacionIaActiva(bool activa) => VerificacionIaActiva = activa;
+
+    public void EstablecerPerfilDocumentoOficial(PerfilDocumentoOficial perfil) => PerfilDocumentoOficial = perfil;
 
     private void EstablecerGlosario(string? descripcion, string? criteriosValidacion, string? seSolicitaA, string? observaciones)
     {

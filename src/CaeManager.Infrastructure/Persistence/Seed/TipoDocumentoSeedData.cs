@@ -107,6 +107,25 @@ public static class TipoDocumentoSeedData
         new Guid("20000000-0000-0000-0000-000000000007"), // RNT/TC2
     ];
 
+    /// <summary>
+    /// Tipos de Empresa que son documentos oficiales de la Administración
+    /// con validación automática (verificación de firma + parser, ver
+    /// PerfilDocumentoOficial). El "Recibo de pago RLC/TC1" suelto queda
+    /// fuera: es un justificante bancario, no un documento sellado por la
+    /// TGSS. La variante combinada comparte parser con el RLC — si la
+    /// calibración con muestras reales pide un ancla extra del recibo, se
+    /// ajusta entonces (plan, PR-6).
+    /// </summary>
+    private static readonly Dictionary<Guid, PerfilDocumentoOficial> PerfilesOficiales = new()
+    {
+        [new Guid("20000000-0000-0000-0000-000000000001")] = PerfilDocumentoOficial.CorrienteTgss,
+        [new Guid("20000000-0000-0000-0000-000000000002")] = PerfilDocumentoOficial.CorrienteAeat,
+        [new Guid("20000000-0000-0000-0000-000000000003")] = PerfilDocumentoOficial.Ita,
+        [new Guid("20000000-0000-0000-0000-000000000004")] = PerfilDocumentoOficial.Rlc,
+        [new Guid("20000000-0000-0000-0000-000000000006")] = PerfilDocumentoOficial.Rlc,
+        [new Guid("20000000-0000-0000-0000-000000000007")] = PerfilDocumentoOficial.Rnt,
+    };
+
     /// <summary>Proyección plana usada por HasData (necesita anonymous/objeto con las propiedades de la entidad).</summary>
     public static IEnumerable<object> ComoFilasParaMigracion() =>
         Datos.Select(d => new
@@ -125,6 +144,7 @@ public static class TipoDocumentoSeedData
             // criterio que DeteccionTrabajadoresActiva: el Administrador la
             // activa explícitamente solo donde interesa (ver Issue #19).
             VerificacionIaActiva = false,
+            PerfilDocumentoOficial = PerfilesOficiales.GetValueOrDefault(d.Id, PerfilDocumentoOficial.Ninguno),
             // El catálogo semilla pertenece al tenant #1 (ver Etapa 2 de
             // PLAN-MIGRACION-MULTITENANT.md) — un tenant nuevo recibirá su
             // propia copia editable al aprovisionarse (docs/MULTITENANCY.md § 7),

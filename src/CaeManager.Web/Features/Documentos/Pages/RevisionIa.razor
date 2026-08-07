@@ -48,7 +48,7 @@
         <table class="tabla-datos">
             <thead>
                 <tr>
-                    <th>Trabajador</th>
+                    <th>Trabajador / Empresa</th>
                     <th>Tipo de documento</th>
                     <th>Confianza</th>
                     <th>Tipo detectado</th>
@@ -61,7 +61,7 @@
                 @foreach (var revision in _revisiones)
                 {
                     <tr>
-                        <td>@revision.TrabajadorNombre</td>
+                        <td>@revision.PropietarioNombre</td>
                         <td>@revision.TipoDocumentoNombre</td>
                         <td>
                             <Badge Tono="@TonoConfianza(revision.ConfianzaGeneral)">@revision.ConfianzaGeneral%</Badge>
