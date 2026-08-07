@@ -23,18 +23,19 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     // 127.0.0.1 — ver el comentario en WebAppFixture, que es donde vive el
     // arreglo (techo del limitador configurable para la suite).
 
-    [GeneratedRegex(@"\d+ items")]
+    [GeneratedRegex(@"Página \d+ de \d+")]
     private static partial Regex PatronContadorElementos();
 
-    [GeneratedRegex(@"(\d+)\s+items")]
+    [GeneratedRegex(@"—\s*(\d+)\s")]
     private static partial Regex PatronTotalElementos();
 
     /// <summary>
-    /// El Paginator de QuickGrid renderiza algo como "1–20 of 200 items" —
-    /// el número justo antes de "items" es siempre TotalItemCount (ver la
-    /// plantilla compilada del paquete), a diferencia del primer número del
-    /// rango, que cambia según la página. Se extrae ese para comparar el
-    /// total real en vez de asumir un formato de texto completo fijo.
+    /// El paginador único en español (H2, docs/ux-audit/02-clientes.md;
+    /// UX_PATTERNS.md § Paginar) renderiza "Página X de Y — N cliente(s)" —
+    /// antes del cambio de <c>Paginator</c> de QuickGrid ("1–20 of 200
+    /// items") este método buscaba el número justo antes de "items". El
+    /// total ahora está justo después del guion largo, delante de la
+    /// etiqueta de la entidad.
     /// </summary>
     private static int ExtraerTotalElementos(string textoPaginador)
     {
