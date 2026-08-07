@@ -13,7 +13,7 @@ public class ParserCorrienteTgss : ParserDocumentoOficialBase
     public override PerfilDocumentoOficial Perfil => PerfilDocumentoOficial.CorrienteTgss;
 
     protected override CampoAncla AnclaCodigoVerificacion => new(
-        new Regex(@"(?:C\.?E\.?A\.?|C[oó]digo\s+Electr[oó]nico\s+de\s+Autenticidad)\s*[:\.]?\s*(?<valor>[A-Z0-9][A-Z0-9\-]{8,40})",
+        new Regex(@"(?:C\.?E\.?A\.?|C.digo\s+Electr.nico\s+de\s+Autenticidad)\s*[:\.]?\s*(?<valor>[A-Z0-9][A-Z0-9\-]{8,40})",
             RegexOptions.IgnoreCase | RegexOptions.Compiled),
         Obligatorio: true);
 
@@ -25,13 +25,13 @@ public class ParserCorrienteTgss : ParserDocumentoOficialBase
         Obligatorio: true);
 
     protected override Regex PatronResultadoPositivo => new(
-        @"no\s+tiene\s+pendiente\s+de\s+ingreso\s+ninguna\s+reclamaci[oó]n|est[aá]\s+al\s+corriente\s+en\s+el\s+pago",
+        @"no\s+tiene\s+pendiente\s+de\s+ingreso\s+ninguna\s+reclamaci.n|est.\s+al\s+corriente\s+en\s+el\s+pago",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     // Lookbehind en el primer literal: "tiene pendiente de ingreso" es
     // subcadena del positivo "NO tiene pendiente de ingreso" — sin él, el
     // negativo matchearía dentro de todos los certificados positivos.
     protected override Regex PatronResultadoNegativo => new(
-        @"(?<!no\s)tiene\s+pendiente\s+de\s+ingreso|no\s+se\s+encuentra\s+al\s+corriente|NO\s+est[aá]\s+al\s+corriente",
+        @"(?<!no\s)tiene\s+pendiente\s+de\s+ingreso|no\s+se\s+encuentra\s+al\s+corriente|NO\s+est.\s+al\s+corriente",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 }

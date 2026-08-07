@@ -31,6 +31,17 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
         @"(?:C\.?I\.?F\.?|N\.?I\.?F\.?)\s*[:\.]?\s*(?<valor>(?:[A-Z][\-\.\s]?\d{7}[\-\.\s]?[0-9A-J]|\d{8}[\-\.\s]?[A-Z]))(?![A-Z0-9])",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    /// <summary>
+    /// Periodo de liquidación por FORMA del valor (MM/yyyy), no por etiqueta:
+    /// calibrado con RNT/RLC reales — son documentos tabulares donde las
+    /// etiquetas van agrupadas y los valores en otra zona del texto extraído,
+    /// así que la adyacencia etiqueta→valor no existe. Los lookarounds evitan
+    /// pescar el "07/2026" de dentro de una fecha dd/MM/yyyy.
+    /// </summary>
+    protected static readonly Regex RegexPeriodoPorForma = new(
+        @"(?<![\d/])(?<valor>(?:0?[1-9]|1[0-2])/20\d{2})(?![\d/])",
+        RegexOptions.Compiled);
+
     protected virtual CampoAncla? AnclaCodigoVerificacion => null;
     protected virtual CampoAncla? AnclaCif => null;
     protected virtual CampoAncla? AnclaRazonSocial => null;

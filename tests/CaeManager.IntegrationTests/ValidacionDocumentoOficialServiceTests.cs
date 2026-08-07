@@ -175,7 +175,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Sin_firma_digital_no_hay_circuito_oficial()
+    public async Task Sin_firma_digital_no_hay_circuito_oficial_pero_si_extraccion()
     {
         var documento = await CrearDocumentoAsync();
         var servicio = CrearServicio(Result.Exito(
@@ -186,6 +186,25 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
         verificacion.Decision.Should().Be(DecisionValidacionOficial.SinFirmaValida);
         verificacion.Motivos.Should().Contain("no está firmado");
+        // La extracción corre igualmente: el CEA guardado es el insumo de la
+        // verificación oficial contra el organismo (épica 3) — también para
+        // documentos que llegan sin firma.
+        verificacion.CodigoVerificacion.Should().Be("ABC123DEF456GHI7");
+    }
+
+    [Fact]
+    public async Task Una_reimpresion_recibe_un_motivo_accionable()
+    {
+        var documento = await CrearDocumentoAsync();
+        var servicio = CrearServicio(Result.Exito(
+            new ResultadoVerificacionFirmasPdf(NivelConfianzaDocumental.SoloLectura, [], AparentaReimpresion: true)));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
+        verificacion.Decision.Should().Be(DecisionValidacionOficial.SinFirmaValida);
+        verificacion.Motivos.Should().Contain("reimpresión");
+        verificacion.Motivos.Should().Contain("original");
     }
 
     [Fact]
@@ -216,6 +235,33 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         firma.FirmanteNombre.Should().BeNull();
         firma.FirmanteNif.Should().BeNull();
         firma.EsSelloDeOrgano.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Documento firmado y válido cuyo texto no trae CIF (RNT/RLC/ITA reales
+    /// identifican por CCC): el cotejo de identidad no es posible y cae a
+    /// revisión — nunca se auto-valida a ciegas.
+    /// </summary>
+    [Fact]
+    public async Task Firma_valida_sin_cif_legible_cae_a_revision()
+    {
+        var tipoRlc = await _dbContext.TiposDocumento
+            .FirstAsync(t => t.PerfilDocumentoOficial == PerfilDocumentoOficial.Rlc);
+        var documento = Documento.DeEmpresa(_empresa.Id, tipoRlc.Id, new DateOnly(2026, 8, 4), null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var textoTabular = "Raz!n social C!digo cuenta cotizaci!n Periodo de liquidaci!n EMPRESA 28123456789 06/2026";
+        var servicio = CrearServicio(
+            Result.Exito(FirmaSelloDeOrgano()), Result.Exito<IReadOnlyList<string>>([textoTabular]));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
+        verificacion.Decision.Should().Be(DecisionValidacionOficial.RevisionRequerida);
+        verificacion.Motivos.Should().Contain("CIF legible");
+        verificacion.PeriodoDetectado.Should().Be("2026-06");
+        (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
     }
 
     private sealed class VerificadorFirmaFalso(Result<ResultadoVerificacionFirmasPdf> resultado) : IVerificadorFirmaPdfService

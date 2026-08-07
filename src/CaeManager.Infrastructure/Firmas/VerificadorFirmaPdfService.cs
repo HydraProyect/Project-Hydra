@@ -77,7 +77,8 @@ public class VerificadorFirmaPdfService(
         if (localizadas.Count == 0)
         {
             return Task.FromResult(Result.Exito(
-                new ResultadoVerificacionFirmasPdf(NivelConfianzaDocumental.SoloLectura, [])));
+                new ResultadoVerificacionFirmasPdf(
+                    NivelConfianzaDocumental.SoloLectura, [], AparentaReimpresion(contenidoPdf))));
         }
 
         var firmas = localizadas
@@ -338,6 +339,31 @@ public class VerificadorFirmaPdfService(
     private static bool PublicaPuntosDeRevocacion(X509Certificate2 certificado) =>
         certificado.Extensions.Cast<X509Extension>().Any(e =>
             e.Oid?.Value is OidCrlDistributionPoints or OidAuthorityInfoAccess);
+
+    private static readonly byte[][] ProducersDeImpresion =
+    [
+        "Microsoft: Print To PDF"u8.ToArray(),
+        "Microsoft Print to PDF"u8.ToArray(),
+    ];
+
+    /// <summary>
+    /// Heurística sobre bytes crudos, solo para PDFs sin firma: un Producer
+    /// de imprimir-a-PDF, o ninguna fuente embebida (páginas rasterizadas
+    /// puras), delatan una reimpresión/escaneo — el original de la Sede
+    /// llega firmado y con capa de texto. Calibrado con muestras reales.
+    /// </summary>
+    private static bool AparentaReimpresion(byte[] pdf)
+    {
+        if (ProducersDeImpresion.Any(p => Contiene(pdf, p))) return true;
+        return !Contiene(pdf, "/Font"u8.ToArray());
+    }
+
+    private static bool Contiene(byte[] contenido, byte[] patron)
+    {
+        for (var i = 0; i <= contenido.Length - patron.Length; i++)
+            if (contenido.AsSpan(i, patron.Length).SequenceEqual(patron)) return true;
+        return false;
+    }
 
     private sealed record FirmaLocalizada(int[] ByteRange, byte[] ContenidoCms, string SubFilter);
 

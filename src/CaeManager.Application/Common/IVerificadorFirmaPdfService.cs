@@ -35,9 +35,17 @@ public interface IVerificadorFirmaPdfService
 /// del archivo (contenido añadido después de la última firma impide superar
 /// <see cref="NivelConfianzaDocumental.FirmaIntegraEmisorNoConfiable"/>).
 /// </summary>
+/// <summary>
+/// <paramref name="AparentaReimpresion"/>: sin firmas y con señales de
+/// imprimir-a-PDF (Producer de impresión o cero fuentes embebidas = página
+/// rasterizada). Calibrado con muestras reales de gestorías: reimprimir
+/// destruye la firma y la capa de texto — el motivo que ve el usuario debe
+/// pedir el original de la Sede, no decir solo "sin firma".
+/// </summary>
 public record ResultadoVerificacionFirmasPdf(
     NivelConfianzaDocumental Nivel,
-    IReadOnlyList<FirmaPdfVerificada> Firmas);
+    IReadOnlyList<FirmaPdfVerificada> Firmas,
+    bool AparentaReimpresion = false);
 
 /// <summary>
 /// Hechos verificados de una firma concreta. <paramref name="FirmanteNombre"/> y

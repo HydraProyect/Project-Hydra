@@ -138,6 +138,22 @@ public class ValidacionDocumentoOficialService(
         var documentoId = documento.Id;
         var nivel = firmas.Nivel;
 
+        // La extracción corre SIEMPRE que haya capa de texto, también sin
+        // firma suficiente: el CEA/huella/periodo extraídos son el insumo de
+        // la verificación oficial contra el organismo (épica 3) — decisión
+        // del usuario: una reimpresión cuyo código el API del organismo
+        // confirme podrá llegar a VerificadoOficialmente. Calibrado con
+        // muestras reales de gestorías, donde la reimpresión es la norma.
+        DatosDocumentoOficialExtraidos? extraidoPrevio = null;
+        var parserDelPerfil = parsers.Obtener(perfil);
+        var textoPrevio = extractorTexto.ExtraerTextoPorPagina(contenido);
+        if (textoPrevio.EsExitoso && parserDelPerfil is not null)
+        {
+            var normalizado = ParserDocumentoOficialBase.NormalizarTexto(textoPrevio.Valor);
+            if (normalizado.Length > 0)
+                extraidoPrevio = parserDelPerfil.Extraer(normalizado);
+        }
+
         if (nivel < NivelMinimoParaAutoValidar)
         {
             var motivo = nivel switch
@@ -146,15 +162,18 @@ public class ValidacionDocumentoOficialService(
                     "La firma digital no cuadra con el contenido: el documento fue alterado después de firmarse.",
                 NivelConfianzaDocumental.FirmaIntegraEmisorNoConfiable =>
                     "La firma es íntegra pero su emisor no es una CA reconocida de la Administración.",
-                _ => "El documento no está firmado digitalmente.",
+                _ => firmas.AparentaReimpresion
+                    ? "El archivo es una reimpresión o escaneo (imprimir a PDF destruye la firma digital) — pide el original descargado de la Sede."
+                    : "El documento no está firmado digitalmente.",
             };
             return new VerificacionDocumentoOficial(
-                documentoId, perfil, nivel, codigoVerificacion: null, cifDetectado: null,
-                razonSocialDetectada: null, fechaEmisionDetectada: null, periodoDetectado: null,
+                documentoId, perfil, nivel,
+                extraidoPrevio?.CodigoVerificacion, extraidoPrevio?.Cif, extraidoPrevio?.RazonSocial,
+                extraidoPrevio?.FechaEmision, extraidoPrevio?.Periodo,
                 ResultadoCotejoDocumentoOficial.NoAplicable, DecisionValidacionOficial.SinFirmaValida, motivo);
         }
 
-        var resultadoTexto = extractorTexto.ExtraerTextoPorPagina(contenido);
+        var resultadoTexto = textoPrevio;
         if (resultadoTexto.EsFallido)
         {
             return new VerificacionDocumentoOficial(
@@ -164,8 +183,7 @@ public class ValidacionDocumentoOficialService(
                 "No se pudo extraer el texto digital del documento.");
         }
 
-        var parser = parsers.Obtener(perfil);
-        if (parser is null)
+        if (parserDelPerfil is null)
         {
             logger.LogError("No hay parser registrado para el perfil {Perfil}.", perfil);
             return new VerificacionDocumentoOficial(
@@ -175,7 +193,18 @@ public class ValidacionDocumentoOficialService(
                 "El perfil de documento oficial no tiene parser disponible.");
         }
 
-        var extraido = parser.Extraer(ParserDocumentoOficialBase.NormalizarTexto(resultadoTexto.Valor));
+        if (extraidoPrevio is null)
+        {
+            // Firmado pero sin ninguna capa de texto: no debería pasar con un
+            // original de la Sede — a revisión, nunca auto-validar a ciegas.
+            return new VerificacionDocumentoOficial(
+                documentoId, perfil, nivel, codigoVerificacion: null, cifDetectado: null,
+                razonSocialDetectada: null, fechaEmisionDetectada: null, periodoDetectado: null,
+                ResultadoCotejoDocumentoOficial.ParserSinDatos, DecisionValidacionOficial.RevisionRequerida,
+                "El documento firmado no tiene capa de texto que cotejar.");
+        }
+
+        var extraido = extraidoPrevio;
         var motivos = new List<string>();
         var cotejo = ResultadoCotejoDocumentoOficial.Coincide;
 
@@ -200,8 +229,16 @@ public class ValidacionDocumentoOficialService(
                 cotejo = ResultadoCotejoDocumentoOficial.NoAplicable;
                 motivos.Add("El propietario del documento no tiene CIF registrado en la plataforma.");
             }
-            else if (extraido.Cif is not null
-                && !string.Equals(extraido.Cif, ParserDocumentoOficialBase.NormalizarCif(cifPropietario), StringComparison.OrdinalIgnoreCase))
+            else if (extraido.Cif is null)
+            {
+                // Calibración con muestras reales: RNT/RLC/ITA identifican a
+                // la empresa por CCC, no traen CIF en el texto. Sin CIF
+                // legible no hay cotejo de identidad — a revisión hasta que
+                // exista el cotejo por CCC (pendiente: añadir CCC a Empresa).
+                cotejo = ResultadoCotejoDocumentoOficial.NoAplicable;
+                motivos.Add("El documento no trae un CIF legible con el que cotejar la identidad del propietario.");
+            }
+            else if (!string.Equals(extraido.Cif, ParserDocumentoOficialBase.NormalizarCif(cifPropietario), StringComparison.OrdinalIgnoreCase))
             {
                 cotejo = ResultadoCotejoDocumentoOficial.Discrepancia;
                 motivos.Add($"El CIF del documento ({extraido.Cif}) no coincide con el del propietario ({cifPropietario}).");

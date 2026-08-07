@@ -83,6 +83,38 @@ public class ParsersDocumentoOficialTests
         extraido.ResultadoPositivo.Should().BeNull("el RNT no declara resultado positivo/negativo");
     }
 
+    /// <summary>
+    /// La forma real de un RNT/RLC de gestoría (calibración con muestras):
+    /// documento tabular — etiquetas agrupadas, valores en otra zona — y sin
+    /// tildes (el extractor las sustituye por otros caracteres). El periodo
+    /// sale por forma del valor; el CIF no existe en el texto (identidad por
+    /// CCC) y no puede bloquear la extracción.
+    /// </summary>
+    [Fact]
+    public void Rnt_tabular_sin_tildes_extrae_el_periodo_por_forma()
+    {
+        var texto =
+            "Raz!n social C!digo cuenta cotizaci!n Periodo de liquidaci!n Calificador de la liquidaci!n " +
+            "EMPRESA EJEMPLO SL 28123456789 06/2026 Ordinaria " +
+            "Referencia Fecha Hora Huella 999 15/07/2026 08:30";
+
+        var extraido = new ParserRnt().Extraer(texto);
+
+        extraido.CamposObligatoriosFaltantes.Should().BeEmpty();
+        extraido.Periodo.Should().Be("2026-06");
+        extraido.Cif.Should().BeNull("el RNT identifica por CCC, no trae CIF");
+    }
+
+    [Fact]
+    public void El_periodo_por_forma_no_pesca_dentro_de_una_fecha_completa()
+    {
+        // Solo hay una fecha dd/MM/yyyy — ningún MM/yyyy suelto.
+        var extraido = new ParserRlc().Extraer("Fecha de control 15/07/2026 sin periodo suelto");
+
+        extraido.Periodo.Should().BeNull();
+        extraido.CamposObligatoriosFaltantes.Should().Contain("periodo de liquidación");
+    }
+
     [Fact]
     public void Rlc_extrae_los_mismos_campos_que_el_rnt()
     {
@@ -97,12 +129,18 @@ public class ParsersDocumentoOficialTests
     }
 
     [Fact]
-    public void Ita_solo_exige_cif()
+    public void Ita_extrae_cif_si_existe_y_no_bloquea_si_falta()
     {
-        var extraido = new ParserIta().Extraer("INFORME DE TRABAJADORES EN ALTA C.I.F.: B12345678");
+        var conCif = new ParserIta().Extraer("INFORME DE TRABAJADORES EN ALTA C.I.F.: B12345678");
+        conCif.CamposObligatoriosFaltantes.Should().BeEmpty();
+        conCif.Cif.Should().Be("B12345678");
 
-        extraido.CamposObligatoriosFaltantes.Should().BeEmpty();
-        extraido.Cif.Should().Be("B12345678");
+        // Calibración con muestras: el ITA real identifica por CCC y no trae
+        // CIF en el texto — sin CIF no hay campos faltantes (el cotejo de
+        // identidad lo resuelve el pipeline mandándolo a revisión).
+        var sinCif = new ParserIta().Extraer("INFORME DE TRABAJADORES EN ALTA 28123456789");
+        sinCif.CamposObligatoriosFaltantes.Should().BeEmpty();
+        sinCif.Cif.Should().BeNull();
     }
 
     [Theory]

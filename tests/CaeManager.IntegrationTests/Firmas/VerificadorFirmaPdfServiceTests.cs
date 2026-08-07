@@ -38,6 +38,29 @@ public class VerificadorFirmaPdfServiceTests
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Nivel.Should().Be(NivelConfianzaDocumental.SoloLectura);
         resultado.Valor.Firmas.Should().BeEmpty();
+        // Tiene texto con fuente embebida y ningún Producer de impresión: no
+        // aparenta reimpresión, solo es un PDF sin firmar.
+        resultado.Valor.AparentaReimpresion.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_pdf_sin_firma_y_sin_fuentes_aparenta_reimpresion()
+    {
+        // Página solo con un rectángulo — cero fuentes embebidas, el patrón
+        // de una reimpresión/escaneo rasterizado (calibrado con muestras
+        // reales de gestorías).
+        using var documento = new PdfDocument();
+        var pagina = documento.AddPage();
+        using (var graficos = XGraphics.FromPdfPage(pagina))
+            graficos.DrawRectangle(XBrushes.Gray, 10, 10, 200, 100);
+        using var salida = new MemoryStream();
+        documento.Save(salida);
+
+        var resultado = await CrearServicio(new X509Certificate2Collection()).VerificarAsync(salida.ToArray());
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Nivel.Should().Be(NivelConfianzaDocumental.SoloLectura);
+        resultado.Valor.AparentaReimpresion.Should().BeTrue();
     }
 
     [Fact]

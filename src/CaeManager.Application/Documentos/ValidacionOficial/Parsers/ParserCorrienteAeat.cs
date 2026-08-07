@@ -13,7 +13,7 @@ public class ParserCorrienteAeat : ParserDocumentoOficialBase
     public override PerfilDocumentoOficial Perfil => PerfilDocumentoOficial.CorrienteAeat;
 
     protected override CampoAncla AnclaCodigoVerificacion => new(
-        new Regex(@"(?:C\.?S\.?V\.?|C[oó]digo\s+Seguro\s+de\s+Verificaci[oó]n)\s*[:\.]?\s*(?<valor>[A-Z0-9][A-Z0-9\-]{8,40})",
+        new Regex(@"(?:C\.?S\.?V\.?|C.digo\s+Seguro\s+de\s+Verificaci.n)\s*[:\.]?\s*(?<valor>[A-Z0-9][A-Z0-9\-]{8,40})",
             RegexOptions.IgnoreCase | RegexOptions.Compiled),
         Obligatorio: true);
 

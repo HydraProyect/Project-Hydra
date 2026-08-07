@@ -152,6 +152,17 @@ Como la verificación de firma es barata y puede ahorrar trabajo caro, conviene 
 
 ## 5. Plan por fases
 
+### Calibración con muestras reales (2026-08-07, PR-6 parcial)
+
+Cinco documentos reales de gestoría (corriente TGSS, RLC, RNT y dos ITA), analizados **fuera del repo** (confidenciales — aquí solo quedan las conclusiones estructurales):
+
+1. **La reimpresión es la norma en el flujo de gestoría**: ninguno llegó firmado — "imprimir a PDF" destruye la firma y, en la mayoría, también la capa de texto (páginas rasterizadas). El verificador ahora lo detecta (`AparentaReimpresion`: Producer de impresión o cero fuentes embebidas) y el motivo es accionable: *pide el original descargado de la Sede*. La auto-validación por firma exige originales — cambio de proceso con las gestorías, no de código.
+2. **El extractor de texto pierde las tildes** (caracteres de sustitución): todas las anclas son ahora agnósticas al acento («.» donde iría la vocal acentuada).
+3. **RNT/RLC son tabulares** (etiquetas agrupadas, valores en otra zona): el periodo se extrae por **forma del valor** (MM/yyyy con lookarounds), no por adyacencia etiqueta→valor. Extraído correctamente de las muestras reales.
+4. **RNT/RLC/ITA no traen CIF en el texto** — identifican a la empresa por CCC. CIF pasa a opcional en esos parsers y, sin CIF legible, el cotejo de identidad manda a revisión (nunca auto-valida a ciegas). **Pendiente**: cotejo por CCC exige añadir CCC a `Empresa` (decisión de dominio aparte).
+5. **La extracción corre también sin firma válida**: el CEA/huella/periodo extraídos se persisten igualmente — son el insumo de la verificación oficial (§ 7 / épica 3). Decisión del usuario: una reimpresión cuyo código confirme el API del organismo podrá alcanzar `VerificadoOficialmente`; hasta entonces queda en revisión.
+6. **Falta calibrar el camino positivo con un original firmado** (descarga directa de la Sede, sin imprimir-a-PDF): anclas del corriente TGSS/AEAT (CEA, literal positivo) y cadena real de los sellos FNMT.
+
 **Fase 1 — Spike (media sesión). Nada se decide hasta esto.**
 Comprobar si PDFsharp 6.2.4 expone `/ByteRange` y `/Contents` en lectura, sobre PDFs reales firmados: un certificado de estar al corriente de la TGSS, un certificado de formación de un SPA. Salida: sí/no y si hace falta lector propio o BouncyCastle.
 
