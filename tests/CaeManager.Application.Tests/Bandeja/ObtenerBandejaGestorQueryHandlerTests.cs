@@ -3,9 +3,11 @@ using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
+using CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPendientes;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using FluentAssertions;
 using Xunit;
@@ -45,14 +47,19 @@ public class ObtenerBandejaGestorQueryHandlerTests
         FechaInicioSugerida: fechaInicioSugerida, Resumen: "Pide entrar mañana con dos operarios",
         Canal: CanalConversacion.Correo);
 
+    private static DeteccionPendienteDto Deteccion(TipoDeteccion tipo = TipoDeteccion.Nuevo) => new(
+        Id: Guid.NewGuid(), EmpresaId: Guid.NewGuid(), EmpresaRazonSocial: "Empresa Centro S.L.",
+        Tipo: tipo, NombreCompleto: "Marta Ruiz", CreadaEnUtc: DateTime.UtcNow);
+
     private static IReadOnlyList<ItemBandejaDto> Fusionar(
         IReadOnlyList<AlertaDto>? alertas = null,
         IReadOnlyList<RevisionIaDocumentoDto>? revisiones = null,
         IReadOnlyList<DocumentacionBloqueantePendienteDto>? requisitos = null,
         IReadOnlyList<VisitaListaDto>? visitasUrgentes = null,
-        IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>? sugerenciasVisita = null) =>
+        IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>? sugerenciasVisita = null,
+        IReadOnlyList<DeteccionPendienteDto>? detecciones = null) =>
         ObtenerBandejaGestorQueryHandler.Fusionar(
-            alertas ?? [], revisiones ?? [], requisitos ?? [], visitasUrgentes ?? [], sugerenciasVisita ?? [],
+            alertas ?? [], revisiones ?? [], requisitos ?? [], visitasUrgentes ?? [], sugerenciasVisita ?? [], detecciones ?? [],
             Hoy, HorasAvisoVisita, HorasCriticasVisita);
 
     [Fact]
@@ -72,7 +79,8 @@ public class ObtenerBandejaGestorQueryHandlerTests
             revisiones: [Revision()],
             requisitos: [Requisito()],
             visitasUrgentes: [Visita(NivelUrgenciaVisita.Urgente)],
-            sugerenciasVisita: [Sugerencia(fechaInicioSugerida: null)]);
+            sugerenciasVisita: [Sugerencia(fechaInicioSugerida: null)],
+            detecciones: [Deteccion()]);
 
         resultado.Select(i => i.Tipo).Should().Equal(
             TipoItemBandeja.SugerenciaVisitaUrgente,
@@ -81,7 +89,22 @@ public class ObtenerBandejaGestorQueryHandlerTests
             TipoItemBandeja.VisitaUrgente,
             TipoItemBandeja.RequisitoPendiente,
             TipoItemBandeja.Urgente,
+            TipoItemBandeja.DeteccionPendiente,
             TipoItemBandeja.RevisionIa);
+    }
+
+    [Fact]
+    public void Mapea_una_deteccion_pendiente_con_su_empresa_y_tipo()
+    {
+        var deteccion = Deteccion(TipoDeteccion.Ausente);
+
+        var resultado = Fusionar(detecciones: [deteccion]);
+
+        var item = resultado.Should().ContainSingle().Subject;
+        item.Tipo.Should().Be(TipoItemBandeja.DeteccionPendiente);
+        item.Titulo.Should().Be("Baja detectada");
+        item.Subtitulo.Should().Be("Empresa Centro S.L. — Marta Ruiz");
+        item.EmpresaId.Should().Be(deteccion.EmpresaId);
     }
 
     [Fact]
