@@ -40,7 +40,16 @@ public record ConversacionListaDto(
     DateTime FechaUltimoMensajeUtc,
     int TotalMensajes,
     CanalConversacion Canal,
-    string? TelefonoContacto);
+    string? TelefonoContacto,
+    DireccionMensaje? UltimoMensajeDireccion)
+{
+    /// <summary>
+    /// "Esperando cliente" es un estado derivado, no persistido (decisión
+    /// docs/COMUNICACIONES.md § 16.4): una conversación Abierta cuyo último
+    /// mensaje fue nuestro, a la espera de que el contacto responda.
+    /// </summary>
+    public bool EsperandoCliente => Estado == EstadoConversacion.Abierta && UltimoMensajeDireccion == DireccionMensaje.Saliente;
+}
 
 public class ObtenerConversacionesQueryHandler(
     IClientesQueryContext clientesContext, IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
@@ -132,7 +141,7 @@ public class ObtenerConversacionesQueryHandler(
 
         var mensajes = await comunicacionesContext.Mensajes
             .Where(m => conversacionIds.Contains(m.ConversacionId))
-            .Select(m => new { m.ConversacionId, m.CuerpoHtml, m.FechaUtc })
+            .Select(m => new { m.ConversacionId, m.CuerpoHtml, m.FechaUtc, m.Direccion })
             .ToListAsync(cancellationToken);
 
         var remitentes = await comunicacionesContext.ParticipantesConversacion
@@ -153,7 +162,8 @@ public class ObtenerConversacionesQueryHandler(
                 // WhatsApp no tiene participantes de correo: el remitente es el teléfono del contacto.
                 remitentesPorConversacion.GetValueOrDefault(c.Id) ?? c.TelefonoContacto ?? "Remitente desconocido",
                 TruncarParaPreview(ultimoMensaje?.CuerpoHtml),
-                c.FechaUltimoMensajeUtc, mensajesDeConversacion.Count, c.Canal, c.TelefonoContacto);
+                c.FechaUltimoMensajeUtc, mensajesDeConversacion.Count, c.Canal, c.TelefonoContacto,
+                ultimoMensaje?.Direccion);
         }).ToList();
     }
 

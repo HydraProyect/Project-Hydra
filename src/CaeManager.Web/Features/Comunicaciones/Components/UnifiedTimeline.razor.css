@@ -1,0 +1,178 @@
+.timeline-mensajes {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+/* Fila = avatar + burbuja, para poder invertir el orden en saliente sin
+   duplicar el marcado (flex-direction: row-reverse en vez de un segundo
+   bloque de HTML). */
+.timeline-mensaje-fila {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    max-width: 78%;
+}
+
+.timeline-mensaje-fila-saliente {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+.timeline-mensaje-fila-entrante {
+    align-self: flex-start;
+}
+
+/* Un único tratamiento de avatar para todos los remitentes (slate/acero,
+   nunca un color por persona) — DESIGN_SYSTEM.md reserva el color como
+   portador de significado (semáforo, acción). */
+.timeline-avatar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-secondary-100);
+    color: var(--color-secondary-600);
+    font: var(--font-label-md);
+    letter-spacing: 0;
+}
+
+.timeline-mensaje {
+    min-width: 0;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-card-sm);
+    border: var(--border-default);
+}
+
+.timeline-mensaje-entrante {
+    background-color: var(--color-surface);
+}
+
+.timeline-mensaje-saliente {
+    background-color: var(--color-secondary-50);
+    border-color: var(--color-secondary-100);
+}
+
+.timeline-mensaje-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.timeline-mensaje-remitente {
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+.timeline-badge-canal {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-text-muted);
+}
+
+.timeline-mensaje-fecha {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    margin-left: auto;
+}
+
+.timeline-mensaje-cuerpo {
+    font: var(--font-body-md);
+    color: var(--color-text);
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.timeline-entrega-whatsapp {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+}
+
+.timeline-ticks {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+
+.timeline-ticks.leido {
+    color: var(--color-info-600, #0284c7);
+}
+
+.timeline-error-entrega {
+    font: var(--font-body-sm);
+    color: var(--color-danger-700);
+}
+
+.timeline-adjuntos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.timeline-adjunto-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    border: var(--border-default);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-sm);
+    text-decoration: none;
+    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+a.timeline-adjunto-chip:hover {
+    border-color: var(--color-primary-300);
+    background-color: var(--color-primary-50);
+}
+
+.timeline-adjunto-nombre {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.timeline-adjunto-tamano {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+.timeline-sugerencia {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-primary-200);
+    background-color: var(--color-primary-50);
+}
+
+.timeline-sugerencia-texto {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-body-sm);
+    color: var(--color-primary-700);
+}
+
+.timeline-sugerencia-acciones {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
