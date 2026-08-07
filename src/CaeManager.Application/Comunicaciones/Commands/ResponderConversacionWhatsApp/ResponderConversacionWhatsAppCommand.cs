@@ -79,7 +79,7 @@ public class ResponderConversacionWhatsAppCommandHandler(
             return Result.Fallo(envio.Error);
 
         var mensaje = conversacion.AgregarMensaje(
-            DireccionMensaje.Saliente, linea.NumeroTelefono, request.Texto, mensajeExternoId: envio.Valor);
+            DireccionMensaje.Saliente, conversacion.Canal, linea.NumeroTelefono, request.Texto, mensajeExternoId: envio.Valor);
         mensaje.ActualizarEstadoEntrega(EstadoEntregaMensaje.Enviado);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

@@ -116,7 +116,7 @@ public class ResponderConversacionCommandHandlerTests
         var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
         var conversacion = new Conversacion("Duda sobre vigencia documental");
         conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
-        conversacion.AgregarMensaje(DireccionMensaje.Entrante, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
         var repositorio = new ConversacionRepositorioFalso();
         repositorio.Agregar(conversacion);
         var unitOfWork = new UnitOfWorkFalso();
@@ -140,7 +140,7 @@ public class ResponderConversacionCommandHandlerTests
         conexion.Deshabilitar();
         var conversacion = new Conversacion("Duda sobre vigencia documental");
         conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
-        conversacion.AgregarMensaje(DireccionMensaje.Entrante, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
         var repositorio = new ConversacionRepositorioFalso();
         repositorio.Agregar(conversacion);
         var unitOfWork = new UnitOfWorkFalso();
@@ -180,7 +180,7 @@ public class ResponderConversacionCommandHandlerTests
         var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
         var conversacion = new Conversacion("Duda sobre vigencia documental");
         conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
-        conversacion.AgregarMensaje(DireccionMensaje.Entrante, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
         var repositorio = new ConversacionRepositorioFalso();
         repositorio.Agregar(conversacion);
         var unitOfWork = new UnitOfWorkFalso();
