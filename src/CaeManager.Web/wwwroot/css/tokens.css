@@ -127,56 +127,26 @@
   --navbar-height: 64px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Identidad propia en oscuro, no una inversión automática del claro —
-       ver DESIGN_SYSTEM.md § Historial. Nunca negro puro: la base es un
-       azul-carbón (acero visto de noche), con 3 escalones de superficie. */
-    --color-bg: #0e141b;
-    --color-surface: #17212c;
-    --color-surface-hover: #202b36;
-    --color-text: #e7eaee;
-    --color-text-muted: #8592a3;
-    --color-border: #293644;
-
-    --color-success-50: #052e1a;
-    --color-warning-50: #3a2405;
-    --color-danger-50: #3a0a0a;
-    --color-secondary-50: #1d2733;
-    --color-accent-50: #2a1f14;
-
-    /* Más claro que en modo día — el acero #235bc2 pierde contraste sobre
-       fondo oscuro; se sube dos escalones de la misma familia (reutilizando
-       los pasos 300/200/100 de la rampa de día) en vez de aclarar el valor
-       de día con un filtro. Hover/activo se aclaran en vez de oscurecerse
-       (oscurecer reduce visibilidad contra un fondo ya oscuro). */
-    --color-primary-500: var(--color-primary-300);
-    --color-primary-600: var(--color-primary-200);
-    --color-primary-700: var(--color-primary-100);
-
-    /* Mismo criterio que el primario: el -700 de día (pensado para texto
-       sobre el -50 claro, ver Badge.razor.css) es demasiado oscuro sobre el
-       -50 de noche, que es casi negro — se sube a un tono claro de la misma
-       familia en vez de reutilizar el valor de día (hallazgo P0-8 de
-       docs/business/MATURITY_REVIEW.md: el semáforo no puede perder
-       contraste al cambiar de tema). */
-    --color-success-700: #4ade80;
-    --color-warning-700: #fbbf24;
-    --color-danger-700: #f87171;
-
-    --shadow-card: 0 4px 14px rgba(0, 0, 0, 0.35);
-    --shadow-overlay: 0 20px 50px rgba(0, 0, 0, 0.5);
-  }
-}
+/*
+  El auto-seguimiento de prefers-color-scheme queda desactivado a propósito
+  (decisión del usuario, 2026-08-08): el modo oscuro todavía no está
+  rediseñado para los workspaces nuevos (Comunicaciones incluido) y un
+  usuario con el sistema operativo en oscuro no debe aterrizar ahí sin
+  elegirlo. Mientras tanto se gestiona solo en modo claro por defecto; el
+  oscuro sigue disponible como elección EXPLÍCITA desde SelectorTema (ver el
+  bloque :root[data-theme='oscuro'] más abajo, con los mismos valores que
+  tenía este @media) — no se ha borrado la identidad oscura, solo su
+  activación automática por preferencia del sistema.
+*/
 
 /*
-  Selector de tema manual (ver SelectorTema.razor): sobrescribe la
-  preferencia del sistema operativo cuando el usuario elige explícitamente
-  Claro u Oscuro en vez de "Sistema". Mismos valores que el bloque
-  @media de arriba — se repiten aquí (en vez de compartir una regla)
-  porque un atributo en :root siempre debe ganar a un @media, y ambos
-  necesitan existir por separado para que eso sea cierto en los dos
-  sentidos (Oscuro con SO en claro, y Claro con SO en oscuro).
+  Selector de tema manual (ver SelectorTema.razor): se aplica cuando el
+  usuario elige explícitamente Claro u Oscuro en vez de "Sistema" — que,
+  desde que se desactivó el @media (prefers-color-scheme: dark) de arriba,
+  siempre resuelve en claro (los valores de :root de la cabecera del
+  archivo). El bloque de Oscuro conserva los mismos valores que tenía el
+  @media desactivado, listos para cuando se retome el auto-seguimiento del
+  sistema operativo tras el rediseño del modo oscuro.
 */
 :root[data-theme='oscuro'] {
   --color-bg: #0e141b;
