@@ -24,14 +24,25 @@
 
     public async ValueTask DisposeAsync()
     {
-        if (_suscripcion is not null)
+        // H5 (docs/ux-audit/16-transversales.md): el circuito ya puede estar
+        // desconectado cuando Blazor llama a Dispose en una navegación (el
+        // JS interop no tiene a quién volver) — JSDisconnectedException aquí
+        // no es un error real, solo ruido que entierra excepciones genuinas
+        // en los logs del servidor.
+        try
         {
-            await _suscripcion.InvokeVoidAsync("dispose");
-            await _suscripcion.DisposeAsync();
-        }
+            if (_suscripcion is not null)
+            {
+                await _suscripcion.InvokeVoidAsync("dispose");
+                await _suscripcion.DisposeAsync();
+            }
 
-        if (_modulo is not null)
-            await _modulo.DisposeAsync();
+            if (_modulo is not null)
+                await _modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
 
         _referenciaDotNet?.Dispose();
     }

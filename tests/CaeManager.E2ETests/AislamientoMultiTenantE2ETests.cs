@@ -50,8 +50,9 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
             await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
             // Confirmación en el propio tenant A: el Cliente recién creado es visible.
+            // Acotado a la tabla — ver nota de más abajo sobre el chip "Búsqueda: "…"".
             await paginaA.GetByPlaceholder("Buscar por nombre…").FillAsync(razonSocialCliente);
-            await paginaA.GetByText(razonSocialCliente).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            await paginaA.Locator(".tabla-datos").GetByText(razonSocialCliente).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         }
 
         // --- Tenant B: contexto de navegador completamente separado (sin cookies compartidas) ---
@@ -66,8 +67,12 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
         // grid) y se comprueba que la fila del Cliente del tenant A no aparece —
         // sin esta espera, un simple IsVisible() inmediatamente después del FillAsync
         // podría dar un falso "no visible" solo porque el grid no ha reaccionado todavía.
+        // El locator se acota a la tabla (.tabla-datos, docs/ux-audit/02-clientes.md H4):
+        // fuera de ella, el chip "Búsqueda: "…"" (Parte 1 § 9) repite el término buscado
+        // en pantalla y un GetByText sin acotar coincidiría ahí aunque ninguna fila real
+        // exista.
         await paginaB.WaitForTimeoutAsync(500);
-        var filaClienteTenantA = paginaB.GetByText(razonSocialCliente);
+        var filaClienteTenantA = paginaB.Locator(".tabla-datos").GetByText(razonSocialCliente);
         Assert.False(await filaClienteTenantA.IsVisibleAsync());
     }
 

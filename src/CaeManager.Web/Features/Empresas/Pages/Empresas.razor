@@ -90,7 +90,7 @@
                         <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, empresa.Id, empresa.RazonSocial, "informacion")'>
                             @empresa.RazonSocial
                         </button>
-                        <span class="tarjeta-fila-acordeon-meta">@empresa.Cif</span>
+                        <span class="tarjeta-fila-acordeon-meta">@(empresa.Cif ?? "—")</span>
                         <Badge Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)" Tamano="TamanoBadge.Pequeno">
                             @EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)
                         </Badge>
@@ -145,7 +145,8 @@
         </div>
 
         <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                          Etiqueta="empresa(s)" PaginaActualChanged="CambiarPaginaAsync" />
+                          Etiqueta="empresa(s)" PaginaActualChanged="CambiarPaginaAsync"
+                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
     }
 </div>
 

@@ -65,26 +65,35 @@
         </table>
 
         <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_filas.Count"
-                          Etiqueta="documento(s)" PaginaActualChanged="IrAPaginaAsync" />
+                          Etiqueta="documento(s)" PaginaActualChanged="IrAPaginaAsync"
+                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
     }
 </div>
 
 @code {
-    private const int TamanoPagina = 20;
+    private int _tamanoPagina = 20;
 
     private IReadOnlyList<FilaReporteDocumentoDto> _filas = [];
     private bool _cargando = true;
     private bool _error;
     private int _pagina = 1;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_filas.Count / (double)TamanoPagina));
-    private IReadOnlyList<FilaReporteDocumentoDto> FilasDePagina => _filas.Skip((_pagina - 1) * TamanoPagina).Take(TamanoPagina).ToList();
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_filas.Count / (double)_tamanoPagina));
+    private IReadOnlyList<FilaReporteDocumentoDto> FilasDePagina => _filas.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
     private Task IrAPaginaAsync(int pagina)
     {
         _pagina = pagina;
+        return Task.CompletedTask;
+    }
+
+    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    private Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _tamanoPagina = tamano;
+        _pagina = 1;
         return Task.CompletedTask;
     }
 
