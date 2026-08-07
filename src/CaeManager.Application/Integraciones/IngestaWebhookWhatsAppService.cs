@@ -105,7 +105,7 @@ public class IngestaWebhookWhatsAppService(
         }
 
         var mensajeCreado = conversacion.AgregarMensaje(
-            DireccionMensaje.Entrante, mensaje.Telefono, CuerpoParaPersistir(mensaje), mensaje.FechaUtc, mensaje.Wamid);
+            DireccionMensaje.Entrante, conversacion.Canal, mensaje.Telefono, CuerpoParaPersistir(mensaje), mensaje.FechaUtc, mensaje.Wamid);
 
         if (mensaje.MediaId is not null)
             await DescargarYGuardarMediaAsync(linea, mensajeCreado, mensaje, cancellationToken);
@@ -216,7 +216,7 @@ public class IngestaWebhookWhatsAppService(
         }
 
         var mensajeAuto = conversacion.AgregarMensaje(
-            DireccionMensaje.Saliente, linea.NumeroTelefono, autoMensaje, mensajeExternoId: envio.Valor);
+            DireccionMensaje.Saliente, conversacion.Canal, linea.NumeroTelefono, autoMensaje, mensajeExternoId: envio.Valor);
         mensajeAuto.ActualizarEstadoEntrega(EstadoEntregaMensaje.Enviado);
     }
 

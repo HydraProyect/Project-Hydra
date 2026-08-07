@@ -122,6 +122,7 @@ public static class ComunicacionesDatosPruebaSeeder
                 var esEntrante = m % 2 == 0;
                 conversacion.AgregarMensaje(
                     esEntrante ? DireccionMensaje.Entrante : DireccionMensaje.Saliente,
+                    conversacion.Canal,
                     esEntrante ? emailExterno : RemitenteSimuladoTenant,
                     $"<p>{ElementoAleatorio(aleatorio, esEntrante ? FragmentosCuerpoEntrante : FragmentosCuerpoSaliente)}</p>",
                     fechaMensaje);
