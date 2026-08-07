@@ -316,6 +316,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Integraciones.ISuscripcionWebhookRepository, SuscripcionWebhookRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IEventoWebhookRepository, EventoWebhookRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ILineaWhatsAppRepository, LineaWhatsAppRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.IProveedorPlataformaCaeRepository, ProveedorPlataformaCaeRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IContactoWhatsAppRepository, ContactoWhatsAppRepository>();
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
@@ -349,6 +350,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.ApiKeys.IApiKeysQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Integraciones.IIntegracionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Gestiones.IGestionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Integraciones.IProveedoresPlataformaCaeQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
         services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         // Sin estado propio (abre una conexión Npgsql nueva por llamada) — una sola instancia sirve.
