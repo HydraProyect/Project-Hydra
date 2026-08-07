@@ -1,13 +1,15 @@
 @*
     Panel de Trabajador para el Context Workspace. Pestañas: Información,
-    Documentación, Citas, Vehículos, Historial.
+    Documentación, Vehículos, Historial.
 
-    "Citas" no tiene entidad de dominio todavía — se muestra como
-    "Próximamente" en vez de inventar persistencia falsa (decisión
-    explícita del usuario). "Vehículos" muestra los de la Empresa/
-    Subcontrata del trabajador como información contextual — Vehiculo no
-    tiene relación directa con Trabajador en el modelo (misma decisión que
-    ya existía para no conectar Vehiculo con Visita).
+    "Citas" se retiró (docs/ux-audit/05-trabajadores-vehiculos.md H3): un
+    enlace a una pantalla "Próximamente" contradice NavMenu.razor:2-4 ("un
+    enlace a una pantalla que todavía no existe es peor que no tener el
+    enlace") — vuelve cuando exista la entidad de dominio real. "Vehículos"
+    muestra los de la Empresa/Subcontrata del trabajador como información
+    contextual — Vehiculo no tiene relación directa con Trabajador en el
+    modelo (misma decisión que ya existía para no conectar Vehiculo con
+    Visita).
 *@
 @using CaeManager.Application.Trabajadores.Commands.EditarTrabajador
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId
@@ -86,10 +88,6 @@ else
                 <PestanaDocumentacion Ambito="AmbitoAplicacion.Trabajador" PropietarioId="EntidadId" />
                 break;
 
-            case "citas":
-                <EstadoVacio Titulo="Próximamente" Descripcion="La gestión de citas de un trabajador (reconocimientos médicos, formación, etc.) todavía no está disponible en CAE Manager." />
-                break;
-
             case "vehiculos":
                 @if (_cargandoVehiculos)
                 {
@@ -135,7 +133,6 @@ else
     [
         new("informacion", "Información"),
         new("documentacion", "Documentación"),
-        new("citas", "Citas"),
         new("vehiculos", "Vehículos"),
         new("historial", "Historial")
     ];
