@@ -44,6 +44,15 @@ public partial class Clientes : ComponentBase
 
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
+    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    private async Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _paginacion.ItemsPerPage = tamano;
+        await _paginacion.SetCurrentPageIndexAsync(0);
+        if (_grid is not null)
+            await _grid.RefreshDataAsync();
+    }
+
     private bool _puedeReasignarEjecutivo;
     private IReadOnlyList<GestorCaeSelectorDto> _gestoresDisponibles = [];
     private string _ejecutivoUsuarioId = string.Empty;
@@ -73,6 +82,10 @@ public partial class Clientes : ComponentBase
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
+
+    /// <summary>H4 (docs/ux-audit/02-clientes.md): antes solo `q` viajaba en la URL, `soloCriticos` se perdía al recargar o compartir el enlace.</summary>
+    [SupplyParameterFromQuery(Name = "critico")]
+    public bool? SoloCriticosInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -140,12 +153,28 @@ public partial class Clientes : ComponentBase
     /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md). Permite además
     /// que el buscador global (Ctrl/Cmd+K) navegue aquí con el filtro ya
     /// cargado, p. ej. /clientes?q=Cadena+Industrial.
+    ///
+    /// H4 (docs/ux-audit/02-clientes.md): la navegación mejorada de Blazor
+    /// reutiliza esta instancia de componente entre URLs (no la recrea desde
+    /// cero), así que un cambio de filtro que llega solo por la URL —abrir
+    /// un enlace compartido, "atrás/adelante"— actualizaba estos campos pero
+    /// nunca refrescaba el QuickGrid ya montado (que solo vuelve a pedir
+    /// datos cuando algo llama a RefreshDataAsync explícitamente). `_grid`
+    /// es null únicamente en el primer render, cuando QuickGrid todavía va a
+    /// hacer su propia primera carga con estos campos ya al día — por eso el
+    /// refresco explícito solo hace falta, y solo se dispara, en los
+    /// siguientes.
     /// </summary>
-    protected override void OnParametersSet()
+    protected override Task OnParametersSetAsync()
     {
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
-        if (deLaUrl != _busqueda)
-            _busqueda = deLaUrl;
+        var soloCriticosDeLaUrl = SoloCriticosInicial ?? false;
+        var cambio = deLaUrl != _busqueda || soloCriticosDeLaUrl != _soloCriticos;
+
+        _busqueda = deLaUrl;
+        _soloCriticos = soloCriticosDeLaUrl;
+
+        return cambio && _grid is not null ? RecargarAsync() : Task.CompletedTask;
     }
 
     private async ValueTask<GridItemsProviderResult<ClienteListaDto>> ProveerElementosAsync(
@@ -194,6 +223,21 @@ public partial class Clientes : ComponentBase
         NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
+
+    private async Task CambiarSoloCriticosAsync(bool valor)
+    {
+        _soloCriticos = valor;
+        NavigationManager.ActualizarFiltroEnUrl("critico", valor ? "true" : null);
+        await RecargarAsync();
+    }
+
+    // --- H4 (docs/ux-audit/02-clientes.md): chips de filtros activos ---
+
+    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_busqueda) || _soloCriticos;
+
+    private Task QuitarFiltroBusquedaAsync() => BuscarAsync(string.Empty);
+
+    private Task QuitarFiltroCriticosAsync() => CambiarSoloCriticosAsync(false);
 
     private async Task RecargarAsync()
     {

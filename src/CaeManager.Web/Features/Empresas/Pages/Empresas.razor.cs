@@ -21,7 +21,7 @@ public partial class Empresas : ComponentBase
     // § 0.11 — migra /empresas al mismo patrón de Centros.razor § 0.1): cada
     // Empresa es una tarjeta con acordeón de Centros con actividad, así que
     // la paginación se gestiona a mano en vez de con QuickGrid+Paginator.
-    private const int TamanoPagina = 20;
+    private int _tamanoPagina = 20;
 
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
@@ -30,7 +30,7 @@ public partial class Empresas : ComponentBase
     private int _totalElementos;
     private int _pagina = 1;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPagina));
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<ElementoSeleccionable> _clientesDisponiblesSelector => _clientesDisponibles
@@ -162,7 +162,7 @@ public partial class Empresas : ComponentBase
             var resultado = await Mediator.Send(new ObtenerEmpresasQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 Pagina: _pagina,
-                TamanoPagina: TamanoPagina,
+                TamanoPagina: _tamanoPagina,
                 EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
 
             _totalElementos = resultado.TotalElementos;
@@ -181,6 +181,13 @@ public partial class Empresas : ComponentBase
             _cargando = false;
             StateHasChanged();
         }
+    }
+
+    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    private Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _tamanoPagina = tamano;
+        return CargarAsync(resetPagina: true);
     }
 
     private Task CambiarPaginaAsync(int pagina)
