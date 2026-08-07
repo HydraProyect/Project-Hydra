@@ -4,7 +4,7 @@
 >
 > Fuentes primarias: [`ARQUITECTURA-INTEGRACIONES.md` § 12](../ARQUITECTURA-INTEGRACIONES.md), [`docs/ux-audit/12-comunicaciones.md`](ux-audit/12-comunicaciones.md), `ROADMAP.md` (Fases 59, 72-78, 84, 90-91), el código en `src/CaeManager.Domain/Comunicaciones/`, `src/CaeManager.Domain/Integraciones/`, `src/CaeManager.Application/Comunicaciones/`, `src/CaeManager.Infrastructure/Integraciones/`, `src/CaeManager.Web/Features/Comunicaciones/`, y el documento de la sesión de diseño "Contexto del rediseño con GPT" con sus 10 mockups.
 >
-> Estado a 2026-08-07: módulo implementado con dos canales reales (Microsoft 365 Graph y WhatsApp Cloud API de Meta), apagado en producción por falta de rodaje real (ver § 6). El rediseño de la Parte II no está implementado.
+> Estado a 2026-08-08: módulo implementado con dos canales reales (Microsoft 365 Graph y WhatsApp Cloud API de Meta), apagado en producción por falta de rodaje real (ver § 6). Rediseño de la Parte II — orden de ejecución § 16: **paso 0 (renombrado) y paso 1 (canal por mensaje) mergeados** (PRs #128/#129); **paso 2 (workspace unificado: fusión Bandeja+Chat, `UnifiedTimeline`, `ComposerBar` con fallback de canal) implementado y verificado end-to-end** — `/comunicaciones/chat` ya no existe como pantalla aparte, `Bandeja.razor` es ahora el único workspace para ambos canales. Pasos 3 (Action Center) y 4 (Matching Engine) siguen sin construir.
 
 ## 1. Qué es
 
@@ -146,7 +146,7 @@ Piezas propias del canal WhatsApp: enrutamiento híbrido (§ 4), ventana de serv
 - **Plantillas aprobadas de Meta**: no soportadas — fuera de la ventana de 24 h el envío se bloquea sin alternativa.
 - **Multi-gestor por cliente / delegación por vacaciones**: explícitamente diferido, v1 usa la cartera fija existente.
 - **`ParticipanteConversacion`** no se puebla en WhatsApp — asimetría entre canales que un rediseño podría cerrar o formalizar como decisión.
-- **Nombres `*Correo`** sobre un agregado multicanal — deuda nominal aceptada a propósito el 2026-08-04, no resuelta.
+- ~~**Nombres `*Correo`** sobre un agregado multicanal~~ — resuelta en el paso 0 del rediseño (PR #128, 2026-08-07): `ConversacionCorreo`/`MensajeCorreo` → `Conversacion`/`Mensaje`.
 - El conector WhatsApp no pasa por el framework genérico `IIntegrationProvider`/`IIntegrationProviderFactory`/`IIntegrationOrchestrator` (§ 4-6) — un tercer canal de mensajería repetiría el mismo patrón a mano en vez de generalizar; el framework genérico se construye "cuando exista un segundo proveedor real priorizado con caso de uso confirmado por el negocio" (criterio ya fijado, sin decidir todavía si WhatsApp+M365 ya cuentan como ese caso).
 - El zip de paquete documental automático (Fase 77, ligado a visitas por correo) **no se reenvía por Graph/WhatsApp** — queda adjunto en Hydra para reenvío manual (límite de 3 MB de adjunto inline de Graph, sin `createUploadSession` implementado).
 - Sin verificación end-to-end contra credenciales reales de Meta en producción (checklist pendiente del PR de la Fase 84).
@@ -285,10 +285,10 @@ El flujo del mockup (Abierta → Pendiente → Resuelta → Cerrada) coincide co
 | Estados del hilo, asignación de gestor, macros por cliente | ✅ Completo | Mapear "Esperando cliente"; variables dinámicas nuevas |
 | Detección IA de solicitud de visita (`SugerenciaVisitaCorreo`) | ✅ Backend completo, UX = banner + prellenado del drawer | Evolucionar al flujo guiado 03.4 con confianza por campo y pregunta de centro |
 | Workspace Selector (Delegated Workspace) | ✅ Implementado (ADR-004) | Integrarlo en el toolbar del módulo |
-| **Canal por mensaje + hilos mixtos** | ❌ `Canal` está en la conversación | Cambio de dominio + migración (§ 13.1) |
+| **Canal por mensaje** | ✅ `Mensaje.Canal` (paso 1, PR #129) | Hilos mixtos de verdad siguen pendientes del Matching Engine (paso 4, § 13.2) — hoy cada conversación sigue siendo de un solo canal |
 | **Conversation Matching Engine** | ❌ No existe | Servicio IA nuevo + UI de confirmación (§ 13.2) |
-| **UI unificada** (un workspace; hoy `/comunicaciones` y `/comunicaciones/chat` separados) | ❌ Dos páginas | Fusionar Bandeja + Chat en el Communication Workspace con `UnifiedTimeline` |
-| **Composer multicanal** (Responder como, canal Email/WhatsApp/Mixto, firma, variables, programar envío, prioridad, borradores, nota interna, menciones) | ❌ Dos composers separados y mínimos | Componente `ComposerBar` nuevo; hoy no existen firma/borradores/programación/notas internas/prioridad |
+| **UI unificada** (un workspace; hoy `/comunicaciones` y `/comunicaciones/chat` separados) | ✅ Fusionada (paso 2) — `/comunicaciones/chat` eliminada, `Bandeja.razor` es el único workspace | `UnifiedTimeline` con badge de canal por mensaje; pendiente: Adaptive Layout con Drawers (fila propia de esta tabla) |
+| **Composer multicanal** (Responder como, canal Email/WhatsApp/Mixto, firma, variables, programar envío, prioridad, borradores, nota interna, menciones) | ⚠️ `ComposerBar` único con fallback de canal (§ 16.5) implementado — sigue sin selector Email/WhatsApp/Mixto manual (solo automático), sin firma/variables/programar envío/prioridad/borradores/notas internas/menciones | Ampliar `ComposerBar` con esas piezas cuando haga falta de verdad (YAGNI) |
 | **Action Center generalizado** | ⚠️ Solo la acción "Crear visita" como banner | Catálogo de acciones tipadas con confianza (§ 12.6) |
 | **Actualización documental desde conversación** (03.5) | ❌ No existe (la extracción IA existe solo en subida manual/masiva de `/documentos`) | Conectar adjuntos de conversación → pipeline de extracción → propuesta de actualización con reglas |
 | Eventos del sistema en el timeline (visita creada, documento validado, estado cambiado) | ❌ No existen como entradas del hilo | Nuevo tipo de entrada del timeline, emitido por los módulos de operación |
@@ -296,7 +296,7 @@ El flujo del mockup (Abierta → Pendiente → Resuelta → Cerrada) coincide co
 | Búsqueda de conversaciones (H2 del audit) | ❌ No existe | Requisito del toolbar (Ctrl+K) |
 | Clasificación IA de cada conversación (Consulta/Solicitud/…, idioma, confianza promedio) | ❌ No existe | Nuevo servicio de clasificación en la ingesta |
 | Adaptive Layout con Drawers por breakpoint | ❌ Páginas fijas | Aplicar el patrón Adaptive ya adoptado por el portal |
-| Deuda nominal `*Correo` | ⚠️ Aceptada | El rediseño introduce la entidad conceptual "Conversation" — momento natural para resolverla (refactor separado, regla de CLAUDE.md) |
+| Deuda nominal `*Correo` | ✅ Resuelta (paso 0, PR #128 — `Conversacion`/`Mensaje`) | — |
 
 ## 15. Estrategia de implementación acordada en la sesión de diseño
 

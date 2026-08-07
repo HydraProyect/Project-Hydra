@@ -8,7 +8,12 @@
 
 <li class="bandeja-fila @(Activa ? "bandeja-fila-activa" : null)" @onclick="() => OnSeleccionar.InvokeAsync(Conversacion.Id)">
     <div class="bandeja-fila-linea1">
-        <span class="bandeja-fila-remitente">@Conversacion.RemitentePrincipal</span>
+        <span class="bandeja-fila-remitente-grupo">
+            <span class="bandeja-fila-canal" title="@(Conversacion.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")">
+                <Icono Nombre="@(Conversacion.Canal == CanalConversacion.WhatsApp ? "chat" : "correo")" Tamano="TamanoIcono.Pequeno" />
+            </span>
+            <span class="bandeja-fila-remitente">@Conversacion.RemitentePrincipal</span>
+        </span>
         <span class="bandeja-fila-fecha">@FormatearFechaRelativa(Conversacion.FechaUltimoMensajeUtc)</span>
     </div>
     <div class="bandeja-fila-asunto">@Conversacion.Asunto</div>
