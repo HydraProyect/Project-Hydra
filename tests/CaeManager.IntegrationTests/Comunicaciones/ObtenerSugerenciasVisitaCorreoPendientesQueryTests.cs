@@ -47,9 +47,9 @@ public class ObtenerSugerenciasVisitaCorreoPendientesQueryTests : IAsyncLifetime
         await using var contexto = CrearContexto();
 
         var conversacion = canal == CanalConversacion.WhatsApp
-            ? ConversacionCorreo.CrearWhatsApp("+34600000000", Guid.NewGuid(), clienteId: null, ejecutivoId: null)
-            : new ConversacionCorreo("Solicitud de entrada");
-        contexto.ConversacionesCorreo.Add(conversacion);
+            ? Conversacion.CrearWhatsApp("+34600000000", Guid.NewGuid(), clienteId: null, ejecutivoId: null)
+            : new Conversacion("Solicitud de entrada");
+        contexto.Conversaciones.Add(conversacion);
         await contexto.SaveChangesAsync();
 
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, "cliente@ejemplo.com", "Necesitamos entrar mañana");

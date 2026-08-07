@@ -30,7 +30,7 @@ public record SugerenciaGestionDetalleDto(
     Guid Id, Guid? TrabajadorId, string? TrabajadorNombre, Guid? TipoDocumentoId, string? TipoDocumentoNombre, string Resumen);
 
 public record MensajeDetalleDto(
-    Guid Id, DireccionMensaje Direccion, string RemitenteEmail, string CuerpoHtml, DateTime FechaUtc,
+    Guid Id, DireccionMensaje Direccion, string Remitente, string CuerpoHtml, DateTime FechaUtc,
     IReadOnlyList<AdjuntoDetalleDto> Adjuntos, SugerenciaVisitaDetalleDto? SugerenciaVisita,
     SugerenciaGestionDetalleDto? SugerenciaGestion, EstadoEntregaMensaje? EstadoEntrega = null, string? ErrorEntrega = null);
 
@@ -65,7 +65,7 @@ public class ObtenerConversacionPorIdQueryHandler(
     public async Task<ConversacionDetalleDto?> Handle(ObtenerConversacionPorIdQuery request, CancellationToken cancellationToken)
     {
         var conversacion = await (
-            from c in comunicacionesContext.ConversacionesCorreo
+            from c in comunicacionesContext.Conversaciones
             join cliente in clientesContext.Clientes on c.ClienteId equals cliente.Id into clientesUnidos
             from cliente in clientesUnidos.DefaultIfEmpty()
             where c.Id == request.Id
@@ -103,21 +103,21 @@ public class ObtenerConversacionPorIdQueryHandler(
 
         // Se materializa antes de proyectar al DTO porque el saneado corre en
         // memoria: no hay forma de traducir el sanitizador a SQL.
-        var mensajesCrudos = await comunicacionesContext.MensajesCorreo
-            .Where(m => m.ConversacionCorreoId == request.Id)
+        var mensajesCrudos = await comunicacionesContext.Mensajes
+            .Where(m => m.ConversacionId == request.Id)
             .OrderBy(m => m.FechaUtc)
-            .Select(m => new { m.Id, m.Direccion, m.RemitenteEmail, m.CuerpoHtml, m.FechaUtc, m.EstadoEntrega, m.ErrorEntrega })
+            .Select(m => new { m.Id, m.Direccion, m.Remitente, m.CuerpoHtml, m.FechaUtc, m.EstadoEntrega, m.ErrorEntrega })
             .ToListAsync(cancellationToken);
 
-        var adjuntosPorMensaje = (await comunicacionesContext.AdjuntosMensajeCorreo
-            .Where(a => mensajesCrudos.Select(m => m.Id).Contains(a.MensajeCorreoId))
-            .Select(a => new { a.MensajeCorreoId, a.Id, a.NombreArchivo, a.TipoContenido, a.TamanoBytes })
+        var adjuntosPorMensaje = (await comunicacionesContext.AdjuntosMensaje
+            .Where(a => mensajesCrudos.Select(m => m.Id).Contains(a.MensajeId))
+            .Select(a => new { a.MensajeId, a.Id, a.NombreArchivo, a.TipoContenido, a.TamanoBytes })
             .ToListAsync(cancellationToken))
-            .GroupBy(a => a.MensajeCorreoId)
+            .GroupBy(a => a.MensajeId)
             .ToDictionary(g => g.Key, g => g.Select(a => new AdjuntoDetalleDto(a.Id, a.NombreArchivo, a.TipoContenido, a.TamanoBytes)).ToList());
 
         var sugerenciasPendientes = await comunicacionesContext.SugerenciasVisitaCorreo
-            .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeCorreoId) && !s.Resuelta)
+            .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeId) && !s.Resuelta)
             .ToListAsync(cancellationToken);
 
         var centroIdsSugeridos = sugerenciasPendientes.Where(s => s.CentroId is not null).Select(s => s.CentroId!.Value).ToList();
@@ -127,13 +127,13 @@ public class ObtenerConversacionPorIdQueryHandler(
             .ToDictionaryAsync(c => c.Id, c => c.Nombre, cancellationToken);
 
         var sugerenciasPorMensaje = sugerenciasPendientes.ToDictionary(
-            s => s.MensajeCorreoId,
+            s => s.MensajeId,
             s => new SugerenciaVisitaDetalleDto(
                 s.Id, s.CentroId, s.CentroId is not null ? nombresCentro.GetValueOrDefault(s.CentroId.Value) : null,
                 s.FechaInicioSugerida, s.FechaFinSugerida, s.Resumen));
 
         var sugerenciasGestionPendientes = await comunicacionesContext.SugerenciasGestionCorreo
-            .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeCorreoId) && !s.Resuelta)
+            .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeId) && !s.Resuelta)
             .ToListAsync(cancellationToken);
 
         var trabajadorIdsSugeridos = sugerenciasGestionPendientes.Where(s => s.TrabajadorId is not null).Select(s => s.TrabajadorId!.Value).ToList();
@@ -149,7 +149,7 @@ public class ObtenerConversacionPorIdQueryHandler(
             .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
 
         var sugerenciasGestionPorMensaje = sugerenciasGestionPendientes.ToDictionary(
-            s => s.MensajeCorreoId,
+            s => s.MensajeId,
             s => new SugerenciaGestionDetalleDto(
                 s.Id, s.TrabajadorId, s.TrabajadorId is not null ? nombresTrabajador.GetValueOrDefault(s.TrabajadorId.Value) : null,
                 s.TipoDocumentoId, s.TipoDocumentoId is not null ? nombresTipoDocumento.GetValueOrDefault(s.TipoDocumentoId.Value) : null,
@@ -157,13 +157,13 @@ public class ObtenerConversacionPorIdQueryHandler(
 
         var mensajes = mensajesCrudos
             .Select(m => new MensajeDetalleDto(
-                m.Id, m.Direccion, m.RemitenteEmail, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
+                m.Id, m.Direccion, m.Remitente, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
                 adjuntosPorMensaje.GetValueOrDefault(m.Id, []), sugerenciasPorMensaje.GetValueOrDefault(m.Id),
                 sugerenciasGestionPorMensaje.GetValueOrDefault(m.Id), m.EstadoEntrega, m.ErrorEntrega))
             .ToList();
 
         var participantes = await comunicacionesContext.ParticipantesConversacion
-            .Where(p => p.ConversacionCorreoId == request.Id)
+            .Where(p => p.ConversacionId == request.Id)
             .Select(p => new ParticipanteDetalleDto(p.Id, p.Email, p.Rol, p.TipoOrigen, p.EntidadRelacionadaId))
             .ToListAsync(cancellationToken);
 

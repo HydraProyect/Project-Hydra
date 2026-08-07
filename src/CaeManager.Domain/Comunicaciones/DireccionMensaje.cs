@@ -1,6 +1,6 @@
 namespace CaeManager.Domain.Comunicaciones;
 
-/// <summary>Sentido de un MensajeCorreo dentro de su ConversacionCorreo.</summary>
+/// <summary>Sentido de un Mensaje dentro de su Conversacion.</summary>
 public enum DireccionMensaje
 {
     Entrante,

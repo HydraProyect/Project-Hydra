@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260807173202_MigrarCanalGestionAProveedorPlataformaCae")]
+    partial class MigrarCanalGestionAProveedorPlataformaCae
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -391,7 +394,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("Clientes", (string)null);
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.AdjuntoMensaje", b =>
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.AdjuntoMensajeCorreo", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -402,7 +405,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<Guid>("MensajeId")
+                    b.Property<Guid>("MensajeCorreoId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("NombreArchivo")
@@ -423,9 +426,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MensajeId");
+                    b.HasIndex("MensajeCorreoId");
 
-                    b.ToTable("AdjuntosMensaje", (string)null);
+                    b.ToTable("AdjuntosMensajeCorreo", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ContactoWhatsApp", b =>
@@ -457,7 +460,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ContactosWhatsApp", (string)null);
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.Conversacion", b =>
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ConversacionCorreo", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -535,7 +538,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "ConexionIntegracionId", "TelefonoContacto");
 
-                    b.ToTable("Conversaciones", (string)null);
+                    b.ToTable("ConversacionesCorreo", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.MacroRespuesta", b =>
@@ -582,13 +585,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("MacrosRespuesta", (string)null);
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.Mensaje", b =>
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.MensajeCorreo", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ConversacionId")
+                    b.Property<Guid>("ConversacionCorreoId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("CuerpoHtml")
@@ -612,7 +615,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<string>("Remitente")
+                    b.Property<string>("RemitenteEmail")
                         .IsRequired()
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
@@ -622,14 +625,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ConversacionId");
+                    b.HasIndex("ConversacionCorreoId");
 
                     b.HasIndex("FechaUtc");
 
                     b.HasIndex("TenantId", "MensajeExternoId")
                         .IsUnique();
 
-                    b.ToTable("Mensajes", (string)null);
+                    b.ToTable("MensajesCorreo", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ParticipanteConversacion", b =>
@@ -638,7 +641,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ConversacionId")
+                    b.Property<Guid>("ConversacionCorreoId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Email")
@@ -660,7 +663,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ConversacionId");
+                    b.HasIndex("ConversacionCorreoId");
 
                     b.ToTable("ParticipantesConversacion", (string)null);
                 });
@@ -699,7 +702,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("CreadaEnUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("MensajeId")
+                    b.Property<Guid>("MensajeCorreoId")
                         .HasColumnType("uuid");
 
                     b.Property<bool>("Resuelta")
@@ -721,7 +724,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MensajeId");
+                    b.HasIndex("MensajeCorreoId");
 
                     b.ToTable("SugerenciasGestionCorreo", (string)null);
                 });
@@ -744,7 +747,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateOnly?>("FechaInicioSugerida")
                         .HasColumnType("date");
 
-                    b.Property<Guid>("MensajeId")
+                    b.Property<Guid>("MensajeCorreoId")
                         .HasColumnType("uuid");
 
                     b.Property<bool>("Resuelta")
@@ -760,7 +763,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MensajeId");
+                    b.HasIndex("MensajeCorreoId");
 
                     b.ToTable("SugerenciasVisitaCorreo", (string)null);
                 });
@@ -2687,7 +2690,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Estado")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("MensajeOrigenId")
+                    b.Property<Guid?>("MensajeCorreoOrigenId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Notas")
@@ -4487,29 +4490,29 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.AdjuntoMensaje", b =>
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.AdjuntoMensajeCorreo", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Comunicaciones.Mensaje", null)
+                    b.HasOne("CaeManager.Domain.Comunicaciones.MensajeCorreo", null)
                         .WithMany("Adjuntos")
-                        .HasForeignKey("MensajeId")
+                        .HasForeignKey("MensajeCorreoId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.Mensaje", b =>
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.MensajeCorreo", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Comunicaciones.Conversacion", null)
+                    b.HasOne("CaeManager.Domain.Comunicaciones.ConversacionCorreo", null)
                         .WithMany("Mensajes")
-                        .HasForeignKey("ConversacionId")
+                        .HasForeignKey("ConversacionCorreoId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ParticipanteConversacion", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Comunicaciones.Conversacion", null)
+                    b.HasOne("CaeManager.Domain.Comunicaciones.ConversacionCorreo", null)
                         .WithMany("Participantes")
-                        .HasForeignKey("ConversacionId")
+                        .HasForeignKey("ConversacionCorreoId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -4850,14 +4853,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.Conversacion", b =>
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ConversacionCorreo", b =>
                 {
                     b.Navigation("Mensajes");
 
                     b.Navigation("Participantes");
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.Mensaje", b =>
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.MensajeCorreo", b =>
                 {
                     b.Navigation("Adjuntos");
                 });

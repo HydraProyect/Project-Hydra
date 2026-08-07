@@ -69,8 +69,8 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
                 case EntityState.Modified when (Guid)entrada.Property(nameof(EntidadConTenant.TenantId)).OriginalValue! == Guid.Empty:
                     // Entidad NUEVA que el fixup de DetectChanges clasificó
                     // como Modified: las entidades hijas de un agregado
-                    // cargado (p. ej. el segundo MensajeCorreo de un hilo ya
-                    // existente, vía ConversacionCorreo.AgregarMensaje) las
+                    // cargado (p. ej. el segundo Mensaje de un hilo ya
+                    // existente, vía Conversacion.AgregarMensaje) las
                     // descubre EF por la navegación, no por un Add explícito,
                     // y como Entity asigna el Guid en el constructor la clave
                     // "ya está puesta" y EF asume que la fila existe. Un
