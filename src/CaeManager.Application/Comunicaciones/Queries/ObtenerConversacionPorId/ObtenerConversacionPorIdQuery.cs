@@ -30,7 +30,7 @@ public record SugerenciaGestionDetalleDto(
     Guid Id, Guid? TrabajadorId, string? TrabajadorNombre, Guid? TipoDocumentoId, string? TipoDocumentoNombre, string Resumen);
 
 public record MensajeDetalleDto(
-    Guid Id, DireccionMensaje Direccion, string Remitente, string CuerpoHtml, DateTime FechaUtc,
+    Guid Id, DireccionMensaje Direccion, CanalConversacion Canal, string Remitente, string CuerpoHtml, DateTime FechaUtc,
     IReadOnlyList<AdjuntoDetalleDto> Adjuntos, SugerenciaVisitaDetalleDto? SugerenciaVisita,
     SugerenciaGestionDetalleDto? SugerenciaGestion, EstadoEntregaMensaje? EstadoEntrega = null, string? ErrorEntrega = null);
 
@@ -106,7 +106,7 @@ public class ObtenerConversacionPorIdQueryHandler(
         var mensajesCrudos = await comunicacionesContext.Mensajes
             .Where(m => m.ConversacionId == request.Id)
             .OrderBy(m => m.FechaUtc)
-            .Select(m => new { m.Id, m.Direccion, m.Remitente, m.CuerpoHtml, m.FechaUtc, m.EstadoEntrega, m.ErrorEntrega })
+            .Select(m => new { m.Id, m.Direccion, m.Canal, m.Remitente, m.CuerpoHtml, m.FechaUtc, m.EstadoEntrega, m.ErrorEntrega })
             .ToListAsync(cancellationToken);
 
         var adjuntosPorMensaje = (await comunicacionesContext.AdjuntosMensaje
@@ -157,7 +157,7 @@ public class ObtenerConversacionPorIdQueryHandler(
 
         var mensajes = mensajesCrudos
             .Select(m => new MensajeDetalleDto(
-                m.Id, m.Direccion, m.Remitente, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
+                m.Id, m.Direccion, m.Canal, m.Remitente, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
                 adjuntosPorMensaje.GetValueOrDefault(m.Id, []), sugerenciasPorMensaje.GetValueOrDefault(m.Id),
                 sugerenciasGestionPorMensaje.GetValueOrDefault(m.Id), m.EstadoEntrega, m.ErrorEntrega))
             .ToList();
