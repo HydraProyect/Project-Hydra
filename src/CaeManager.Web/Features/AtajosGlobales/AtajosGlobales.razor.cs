@@ -48,14 +48,23 @@ public partial class AtajosGlobales : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_suscripcion is not null)
+        // H5 (docs/ux-audit/16-transversales.md): mismo motivo que
+        // AtajosListaTeclado.razor — el circuito puede desconectarse antes
+        // de que corra este Dispose.
+        try
         {
-            await _suscripcion.InvokeVoidAsync("dispose");
-            await _suscripcion.DisposeAsync();
-        }
+            if (_suscripcion is not null)
+            {
+                await _suscripcion.InvokeVoidAsync("dispose");
+                await _suscripcion.DisposeAsync();
+            }
 
-        if (_modulo is not null)
-            await _modulo.DisposeAsync();
+            if (_modulo is not null)
+                await _modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
 
         _referenciaDotNet?.Dispose();
     }

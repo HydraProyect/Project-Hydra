@@ -224,14 +224,23 @@ public partial class BuscadorGlobal : ComponentBase
         Navigation.LocationChanged -= ManejarCambioDeUbicacion;
         _debounceCts?.Cancel();
 
-        if (_suscripcionAtajo is not null)
+        // H5 (docs/ux-audit/16-transversales.md): mismo motivo que
+        // AtajosListaTeclado.razor — el circuito puede desconectarse antes
+        // de que corra este Dispose.
+        try
         {
-            await _suscripcionAtajo.InvokeVoidAsync("dispose");
-            await _suscripcionAtajo.DisposeAsync();
-        }
+            if (_suscripcionAtajo is not null)
+            {
+                await _suscripcionAtajo.InvokeVoidAsync("dispose");
+                await _suscripcionAtajo.DisposeAsync();
+            }
 
-        if (_modulo is not null)
-            await _modulo.DisposeAsync();
+            if (_modulo is not null)
+                await _modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
 
         _referenciaDotNet?.Dispose();
     }

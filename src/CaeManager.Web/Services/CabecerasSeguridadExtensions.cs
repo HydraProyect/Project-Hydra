@@ -14,18 +14,22 @@ public static class CabecerasSeguridadExtensions
     // son manejadores HTML inline (los registra el propio framework desde
     // blazor.web.js), así que no dependen de ello.
     //
-    // style-src sí lleva 'unsafe-inline', y es deuda consciente: quedan ~16
-    // atributos style="…" repartidos por las páginas (el patrón
-    // style="display:@(…)" de las listas paginadas). Migrarlos es un refactor
-    // de UI independiente de esta auditoría. El riesgo residual es acotado:
-    // el sanitizador ya elimina la etiqueta <style> y los atributos style y
-    // class del HTML de correo, que es la entrada no confiable real.
-    //
-    // connect-src 'self' cubre el WebSocket de SignalR del circuito Blazor
-    // Server — 'self' incluye ws/wss del mismo origen.
+    // El hash sha256 es el único <script> inline que sirve el propio
+    // framework: el componente <ImportMap /> de App.razor (H6, docs/ux-audit/
+    // 16-transversales.md — "Executing inline script violates CSP" en cada
+    // navegación, atribuido aquí) — el mapa de imports con el fingerprint de
+    // cada .razor.js/.js de la app (QuickGrid, ApexCharts, ReconnectModal,
+    // los módulos propios en wwwroot/js). Un <script type="importmap"> no
+    // admite src externo de forma fiable entre navegadores, así que ASP.NET
+    // Core siempre lo renderiza inline — la única forma de permitirlo sin
+    // 'unsafe-inline' es fijar el hash de su contenido exacto.
+    // ADVERTENCIA: este hash cambia si cambia el conjunto de módulos JS de
+    // la app (añadir/quitar un archivo .js o .razor.js, o una librería con
+    // JS isolation) — un build con la CSP rota (mismo error en consola) es
+    // la señal de que hay que recalcularlo.
     private const string PoliticaSeguridadContenido =
         "default-src 'self'; " +
-        "script-src 'self'; " +
+        "script-src 'self' 'sha256-DrLXAMNvj/4Fwhv8YWHGxtNgNMz+MtjuFL2xo4B/uJw='; " +
         "style-src 'self' 'unsafe-inline'; " +
         "img-src 'self' data:; " +
         "font-src 'self'; " +
