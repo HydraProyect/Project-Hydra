@@ -16,8 +16,9 @@
     @if (Canal == CanalConversacion.WhatsApp && !VentanaAbierta)
     {
         <div class="composer-banner composer-banner-cerrado">
-            Han pasado más de 24 h desde el último mensaje del contacto — WhatsApp bloquea el envío libre hasta que
-            escriba de nuevo. Puedes continuar la conversación por correo.
+            <Icono Nombre="alertas" Tamano="TamanoIcono.Pequeno" />
+            <span>Han pasado más de 24 h desde el último mensaje del contacto — WhatsApp bloquea el envío libre hasta que
+            escriba de nuevo. Puedes continuar la conversación por correo.</span>
         </div>
 
         <div class="composer-fallback">
@@ -34,7 +35,8 @@
     else if (Canal == CanalConversacion.WhatsApp)
     {
         <div class="composer-banner composer-banner-abierto">
-            Ventana de respuesta abierta — se cierra @CierreVentanaLocal.
+            <Icono Nombre="chat" Tamano="TamanoIcono.Pequeno" />
+            <span>Ventana de respuesta abierta — se cierra @CierreVentanaLocal.</span>
         </div>
 
         <div class="composer-whatsapp">
@@ -42,8 +44,8 @@
                       disabled="@Enviando" value="@Texto"
                       @oninput="e => TextoChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"
                       @onkeydown="ManejarTeclaAsync"></textarea>
-            <Boton Cargando="Enviando" Deshabilitado="@string.IsNullOrWhiteSpace(Texto)" OnClick="() => OnEnviar.InvokeAsync()">
-                Enviar
+            <Boton Cargando="Enviando" Deshabilitado="@string.IsNullOrWhiteSpace(Texto)" OnClick="() => OnEnviar.InvokeAsync()" class="composer-boton-enviar-circular">
+                <Icono Nombre="enviar" Tamano="TamanoIcono.Pequeno" />
             </Boton>
         </div>
     }
@@ -51,7 +53,7 @@
     {
         <div class="composer-correo">
             <div class="composer-correo-prellenados">
-                <CampoSelect Etiqueta="Usar macro" Valor="@MacroSeleccionadaId" ValorChanged="v => OnAplicarMacro.InvokeAsync(v)">
+                <CampoSelect Etiqueta="Macro / plantilla" Valor="@MacroSeleccionadaId" ValorChanged="v => OnAplicarMacro.InvokeAsync(v)">
                     <option value="">Sin macro</option>
                     @foreach (var macro in Macros)
                     {
@@ -92,7 +94,7 @@
             }
 
             <div class="composer-acciones">
-                <label class="composer-boton-adjuntar">
+                <label class="composer-boton-adjuntar" title="Adjuntar archivo">
                     <Icono Nombre="importar" Tamano="TamanoIcono.Pequeno" /> Adjuntar
                     <InputFile OnChange="e => OnArchivosSeleccionados.InvokeAsync(e)" multiple />
                 </label>
