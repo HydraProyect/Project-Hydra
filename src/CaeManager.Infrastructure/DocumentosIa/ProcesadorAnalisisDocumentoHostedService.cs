@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.ValidacionOficial;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Trabajadores.Deteccion;
@@ -182,6 +183,11 @@ public class ProcesadorAnalisisDocumentoHostedService(
                 await servicios.GetRequiredService<IDeteccionTrabajadoresService>()
                     .ProcesarDocumentoAsync(trabajo.DocumentoId, cancellationToken);
                 break;
+
+            case TipoAnalisisDocumento.VerificacionFirmaDigital:
+                await servicios.GetRequiredService<IValidacionDocumentoOficialService>()
+                    .ProcesarDocumentoAsync(trabajo.DocumentoId, cancellationToken);
+                break;
         }
     }
 
@@ -198,16 +204,22 @@ public class ProcesadorAnalisisDocumentoHostedService(
         if (trabajo.Estado != EstadoTrabajoAnalisisDocumento.Completado) return Task.CompletedTask;
         if (trabajo.UsuarioSolicitanteId is not { } usuarioId) return Task.CompletedTask;
 
-        var titulo = trabajo.Tipo == TipoAnalisisDocumento.VerificacionIa
-            ? "Verificación automática terminada"
-            : "Detección de personal terminada";
-
-        var mensaje = trabajo.Tipo == TipoAnalisisDocumento.VerificacionIa
-            ? "Ya está revisado el documento que subiste. Comprueba el resultado por si necesita tu confirmación."
-            : "Ya se ha analizado el documento que subiste en busca de altas y bajas de personal.";
-
-        var urlAccion = trabajo.Tipo == TipoAnalisisDocumento.VerificacionIa ? "/documentos/revision-ia" : "/trabajadores";
-        var textoAccion = trabajo.Tipo == TipoAnalisisDocumento.VerificacionIa ? "Ver revisión" : "Ver trabajadores";
+        // Con tres tipos, los ternarios originales ya no escalaban.
+        var (titulo, mensaje, urlAccion, textoAccion) = trabajo.Tipo switch
+        {
+            TipoAnalisisDocumento.VerificacionIa => (
+                "Verificación automática terminada",
+                "Ya está revisado el documento que subiste. Comprueba el resultado por si necesita tu confirmación.",
+                "/documentos/revision-ia", "Ver revisión"),
+            TipoAnalisisDocumento.DeteccionTrabajadores => (
+                "Detección de personal terminada",
+                "Ya se ha analizado el documento que subiste en busca de altas y bajas de personal.",
+                "/trabajadores", "Ver trabajadores"),
+            _ => (
+                "Validación de documento oficial terminada",
+                "Ya se ha verificado la firma digital del documento que subiste y cotejado sus datos.",
+                "/documentos", "Ver documentos"),
+        };
 
         servicios.GetRequiredService<INotificacionUsuarioRepository>()
             .Agregar(new NotificacionUsuario(usuarioId, titulo, mensaje, urlAccion, textoAccion));
