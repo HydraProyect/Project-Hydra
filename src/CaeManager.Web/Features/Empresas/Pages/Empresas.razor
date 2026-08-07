@@ -96,6 +96,13 @@
                         </Badge>
                         <AnilloCumplimiento Porcentaje="empresa.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
                                              Etiqueta="@($"{empresa.CumplimientoPorcentaje}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad")" />
+                        @if (empresa.DeteccionesPendientes > 0)
+                        {
+                            <button type="button" class="badge-deteccion"
+                                    @onclick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'>
+                                @(empresa.DeteccionesPendientes == 1 ? "1 detección" : $"{empresa.DeteccionesPendientes} detecciones")
+                            </button>
+                        }
                         <div class="tarjeta-fila-acordeon-acciones">
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, empresa.Id, empresa.RazonSocial, "informacion")'>
                                 Detalles
