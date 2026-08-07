@@ -21,6 +21,17 @@ public class Mensaje : EntidadConTenant
     public Guid ConversacionId { get; private set; }
     public DireccionMensaje Direccion { get; private set; }
 
+    /// <summary>
+    /// Canal por el que viajó este mensaje concreto — paso 1 del rediseño
+    /// Communication Workspace (docs/COMUNICACIONES.md § 16.1/13.1). Hoy
+    /// coincide siempre con <see cref="Conversacion.Canal"/> (una
+    /// conversación todavía no mezcla canales); es el fundamento sobre el
+    /// que se construirán los hilos mixtos cuando exista el Conversation
+    /// Matching Engine (§ 13.2) — a partir de ahí un mismo hilo podrá tener
+    /// mensajes con Canal distinto al de la conversación que los agrega.
+    /// </summary>
+    public CanalConversacion Canal { get; private set; }
+
     /// <summary>Email del remitente en el canal Correo; teléfono E.164 en el canal WhatsApp.</summary>
     public string Remitente { get; private set; } = string.Empty;
 
@@ -41,8 +52,8 @@ public class Mensaje : EntidadConTenant
     }
 
     public Mensaje(
-        Guid conversacionId, DireccionMensaje direccion, string remitente, string cuerpoHtml, DateTime fechaUtc,
-        string? mensajeExternoId = null)
+        Guid conversacionId, DireccionMensaje direccion, CanalConversacion canal, string remitente, string cuerpoHtml,
+        DateTime fechaUtc, string? mensajeExternoId = null)
     {
         if (conversacionId == Guid.Empty)
             throw new ArgumentException("El mensaje debe pertenecer a una conversación.", nameof(conversacionId));
@@ -55,6 +66,7 @@ public class Mensaje : EntidadConTenant
 
         ConversacionId = conversacionId;
         Direccion = direccion;
+        Canal = canal;
         Remitente = remitente.Trim();
         CuerpoHtml = cuerpoHtml;
         FechaUtc = fechaUtc;

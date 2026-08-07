@@ -423,7 +423,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
         var conversacionId = Guid.Empty;
 
         await VerificarAislamientoAsync(
-            () => new Mensaje(conversacionId, DireccionMensaje.Entrante, "remitente@ejemplo.com",
+            () => new Mensaje(conversacionId, DireccionMensaje.Entrante, CanalConversacion.Correo, "remitente@ejemplo.com",
                 "<p>Cuerpo del mensaje.</p>", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)),
             async contexto => conversacionId = await SembrarConversacionAsync(contexto));
     }

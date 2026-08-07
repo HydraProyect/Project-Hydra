@@ -7,7 +7,7 @@ namespace CaeManager.Domain.Tests.Comunicaciones;
 public class EstadoEntregaMensajeTests
 {
     private static Mensaje CrearMensaje(DireccionMensaje direccion) =>
-        new(Guid.NewGuid(), direccion, "+34686543364", "Hola",
+        new(Guid.NewGuid(), direccion, CanalConversacion.WhatsApp, "+34686543364", "Hola",
             new DateTime(2026, 8, 4, 10, 0, 0, DateTimeKind.Utc), "wamid.test");
 
     [Fact]

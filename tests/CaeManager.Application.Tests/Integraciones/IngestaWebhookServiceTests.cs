@@ -95,7 +95,7 @@ public class IngestaWebhookServiceTests
         conexionRepositorio.Agregar(conexion);
         var conversacionExistente = new Conversacion("Duda sobre CAE");
         conversacionExistente.AsociarConexion(conexion.Id, "graph-thread-1");
-        conversacionExistente.AgregarMensaje(DireccionMensaje.Entrante, "cliente@ejemplo.com", "<p>ya estaba</p>", mensajeExternoId: "graph-msg-1");
+        conversacionExistente.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>ya estaba</p>", mensajeExternoId: "graph-msg-1");
         var conversacionRepositorio = new ConversacionRepositorioFalso();
         conversacionRepositorio.Agregar(conversacionExistente);
         var graphClient = new Microsoft365GraphClientFalso
