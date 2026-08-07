@@ -94,7 +94,7 @@ public class PaqueteDocumentalVisitaService(
             del {visita.FechaInicio:dd/MM/yyyy} al {visita.FechaFin:dd/MM/yyyy} ({documentos.Count} documento(s)).</p>
             """;
 
-        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Saliente, RemitenteAutomaticoEmail, cuerpo);
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, RemitenteAutomaticoEmail, cuerpo);
         mensaje.AgregarAdjunto(nombreZip, "application/zip", zipBytes.LongLength, archivoUrlZip);
     }
 
