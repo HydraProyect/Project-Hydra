@@ -67,7 +67,7 @@ public class ResponderConversacionCommandHandler(
         }
         else if (opcionesRemitente.Value.PermitirRemitenteSimulado)
         {
-            mensajeCreado = conversacion.AgregarMensaje(DireccionMensaje.Saliente, RemitenteSimuladoEmail, request.CuerpoHtml);
+            mensajeCreado = conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, RemitenteSimuladoEmail, request.CuerpoHtml);
         }
         else
         {
@@ -126,6 +126,6 @@ public class ResponderConversacionCommandHandler(
         // Sent Items no está en el recurso vigilado por la suscripción (solo
         // Inbox) — un mensaje Saliente propio nunca vuelve por webhook, así
         // que no necesita MensajeExternoId para idempotencia.
-        return Result.Exito(conversacion.AgregarMensaje(DireccionMensaje.Saliente, conexion.BuzonEmail, cuerpoHtml));
+        return Result.Exito(conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, cuerpoHtml));
     }
 }

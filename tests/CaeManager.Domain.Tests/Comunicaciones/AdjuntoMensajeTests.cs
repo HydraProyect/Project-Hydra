@@ -9,7 +9,7 @@ public class AdjuntoMensajeTests
     [Fact]
     public void Mensaje_agrega_un_adjunto_valido()
     {
-        var mensaje = new Mensaje(Guid.NewGuid(), DireccionMensaje.Saliente, "gestor@hydra.local", "<p>Adjunto el formato.</p>", DateTime.UtcNow);
+        var mensaje = new Mensaje(Guid.NewGuid(), DireccionMensaje.Saliente, CanalConversacion.Correo, "gestor@hydra.local", "<p>Adjunto el formato.</p>", DateTime.UtcNow);
 
         var adjunto = mensaje.AgregarAdjunto("formato-centro.pdf", "application/pdf", 12_345, "storage-key-1");
 
