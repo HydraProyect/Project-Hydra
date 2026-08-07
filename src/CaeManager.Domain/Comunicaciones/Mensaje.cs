@@ -3,26 +3,26 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Domain.Comunicaciones;
 
 /// <summary>
-/// Un mensaje individual dentro del hilo de una ConversacionCorreo — mismo
+/// Un mensaje individual dentro del hilo de una Conversacion — mismo
 /// patrón de entidad hija con TenantId propio que VisitaTrabajador.
 /// MensajeExternoId (P3-33) es el Message-ID de Graph — clave de
 /// idempotencia ante reintentos de notificación de webhook; null en
 /// mensajes creados a mano, respondidos sin conexión real, o sembrados como
 /// datos de prueba.
 /// </summary>
-public class MensajeCorreo : EntidadConTenant
+public class Mensaje : EntidadConTenant
 {
     public const int LongitudMaximaMensajeExternoId = 300;
 
-    private readonly List<AdjuntoMensajeCorreo> _adjuntos = [];
+    private readonly List<AdjuntoMensaje> _adjuntos = [];
 
     public const int LongitudMaximaErrorEntrega = 500;
 
-    public Guid ConversacionCorreoId { get; private set; }
+    public Guid ConversacionId { get; private set; }
     public DireccionMensaje Direccion { get; private set; }
 
-    /// <summary>En el canal WhatsApp almacena el teléfono E.164 del remitente (deuda nominal — mismo criterio que mantener los nombres *Correo).</summary>
-    public string RemitenteEmail { get; private set; } = string.Empty;
+    /// <summary>Email del remitente en el canal Correo; teléfono E.164 en el canal WhatsApp.</summary>
+    public string Remitente { get; private set; } = string.Empty;
 
     public string CuerpoHtml { get; private set; } = string.Empty;
     public DateTime FechaUtc { get; private set; }
@@ -34,28 +34,28 @@ public class MensajeCorreo : EntidadConTenant
     /// <summary>Motivo del fallo cuando EstadoEntrega == Fallido (errors[].title de Meta).</summary>
     public string? ErrorEntrega { get; private set; }
 
-    public IReadOnlyList<AdjuntoMensajeCorreo> Adjuntos => _adjuntos.AsReadOnly();
+    public IReadOnlyList<AdjuntoMensaje> Adjuntos => _adjuntos.AsReadOnly();
 
-    private MensajeCorreo()
+    private Mensaje()
     {
     }
 
-    public MensajeCorreo(
-        Guid conversacionCorreoId, DireccionMensaje direccion, string remitenteEmail, string cuerpoHtml, DateTime fechaUtc,
+    public Mensaje(
+        Guid conversacionId, DireccionMensaje direccion, string remitente, string cuerpoHtml, DateTime fechaUtc,
         string? mensajeExternoId = null)
     {
-        if (conversacionCorreoId == Guid.Empty)
-            throw new ArgumentException("El mensaje debe pertenecer a una conversación.", nameof(conversacionCorreoId));
-        if (string.IsNullOrWhiteSpace(remitenteEmail))
-            throw new ArgumentException("El mensaje debe tener un remitente.", nameof(remitenteEmail));
+        if (conversacionId == Guid.Empty)
+            throw new ArgumentException("El mensaje debe pertenecer a una conversación.", nameof(conversacionId));
+        if (string.IsNullOrWhiteSpace(remitente))
+            throw new ArgumentException("El mensaje debe tener un remitente.", nameof(remitente));
         if (string.IsNullOrWhiteSpace(cuerpoHtml))
             throw new ArgumentException("El mensaje no puede estar vacío.", nameof(cuerpoHtml));
         if (mensajeExternoId is not null && mensajeExternoId.Length > LongitudMaximaMensajeExternoId)
             throw new ArgumentException($"El Id externo no puede superar {LongitudMaximaMensajeExternoId} caracteres.", nameof(mensajeExternoId));
 
-        ConversacionCorreoId = conversacionCorreoId;
+        ConversacionId = conversacionId;
         Direccion = direccion;
-        RemitenteEmail = remitenteEmail.Trim();
+        Remitente = remitente.Trim();
         CuerpoHtml = cuerpoHtml;
         FechaUtc = fechaUtc;
         MensajeExternoId = mensajeExternoId;
@@ -79,9 +79,9 @@ public class MensajeCorreo : EntidadConTenant
             : null;
     }
 
-    public AdjuntoMensajeCorreo AgregarAdjunto(string nombreArchivo, string tipoContenido, long tamanoBytes, string archivoUrl)
+    public AdjuntoMensaje AgregarAdjunto(string nombreArchivo, string tipoContenido, long tamanoBytes, string archivoUrl)
     {
-        var adjunto = new AdjuntoMensajeCorreo(Id, nombreArchivo, tipoContenido, tamanoBytes, archivoUrl);
+        var adjunto = new AdjuntoMensaje(Id, nombreArchivo, tipoContenido, tamanoBytes, archivoUrl);
         _adjuntos.Add(adjunto);
         return adjunto;
     }

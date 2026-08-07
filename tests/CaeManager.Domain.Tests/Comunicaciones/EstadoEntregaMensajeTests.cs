@@ -6,7 +6,7 @@ namespace CaeManager.Domain.Tests.Comunicaciones;
 
 public class EstadoEntregaMensajeTests
 {
-    private static MensajeCorreo CrearMensaje(DireccionMensaje direccion) =>
+    private static Mensaje CrearMensaje(DireccionMensaje direccion) =>
         new(Guid.NewGuid(), direccion, "+34686543364", "Hola",
             new DateTime(2026, 8, 4, 10, 0, 0, DateTimeKind.Utc), "wamid.test");
 
@@ -63,7 +63,7 @@ public class EstadoEntregaMensajeTests
 
         mensaje.ActualizarEstadoEntrega(EstadoEntregaMensaje.Fallido, new string('x', 600));
 
-        mensaje.ErrorEntrega.Should().HaveLength(MensajeCorreo.LongitudMaximaErrorEntrega);
+        mensaje.ErrorEntrega.Should().HaveLength(Mensaje.LongitudMaximaErrorEntrega);
     }
 
     [Fact]

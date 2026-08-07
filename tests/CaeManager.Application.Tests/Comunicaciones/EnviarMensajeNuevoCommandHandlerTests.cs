@@ -12,7 +12,7 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 
 public class EnviarMensajeNuevoCommandHandlerTests
 {
-    private static (EnviarMensajeNuevoCommandHandler Handler, ConversacionCorreoRepositorioFalso Conversaciones, Microsoft365GraphClientFalso GraphClient) CrearHandler(
+    private static (EnviarMensajeNuevoCommandHandler Handler, ConversacionRepositorioFalso Conversaciones, Microsoft365GraphClientFalso GraphClient) CrearHandler(
         ConexionIntegracion conexion)
     {
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
@@ -21,7 +21,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
         var graphClient = new Microsoft365GraphClientFalso();
         var accesoGraph = new AccesoGraphService(credencialRepositorio, graphClient);
-        var conversaciones = new ConversacionCorreoRepositorioFalso();
+        var conversaciones = new ConversacionRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
 
         var handler = new EnviarMensajeNuevoCommandHandler(

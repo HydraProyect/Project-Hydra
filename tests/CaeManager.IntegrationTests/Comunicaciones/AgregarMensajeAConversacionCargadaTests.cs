@@ -56,9 +56,9 @@ public class AgregarMensajeAConversacionCargadaTests : IAsyncLifetime
             contexto.ConexionesIntegracion.Add(conexion);
             conexionId = conexion.Id;
 
-            var conversacion = ConversacionCorreo.CrearWhatsApp("+34600111222", conexion.Id, null, Guid.NewGuid());
+            var conversacion = Conversacion.CrearWhatsApp("+34600111222", conexion.Id, null, Guid.NewGuid());
             conversacion.AgregarMensaje(DireccionMensaje.Entrante, "+34600111222", "Primero", mensajeExternoId: "wamid.repro.1");
-            contexto.ConversacionesCorreo.Add(conversacion);
+            contexto.Conversaciones.Add(conversacion);
             await contexto.SaveChangesAsync();
             conversacionId = conversacion.Id;
         }
@@ -67,7 +67,7 @@ public class AgregarMensajeAConversacionCargadaTests : IAsyncLifetime
         // llega TRACKED desde la consulta y el mensaje nuevo entra por fixup.
         await using (var contexto = CrearContexto())
         {
-            var repositorio = new ConversacionCorreoRepository(contexto);
+            var repositorio = new ConversacionRepository(contexto);
             var conversacion = await repositorio.ObtenerAbiertaPorTelefonoAsync(conexionId, "+34600111222");
             conversacion.Should().NotBeNull();
 
@@ -77,7 +77,7 @@ public class AgregarMensajeAConversacionCargadaTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var mensajes = await contexto.MensajesCorreo.CountAsync(m => m.ConversacionCorreoId == conversacionId);
+            var mensajes = await contexto.Mensajes.CountAsync(m => m.ConversacionId == conversacionId);
             mensajes.Should().Be(2);
         }
     }
@@ -89,17 +89,17 @@ public class AgregarMensajeAConversacionCargadaTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var conversacion = new ConversacionCorreo("Hilo de correo");
+            var conversacion = new Conversacion("Hilo de correo");
             conversacion.AsociarConexion(Guid.NewGuid(), "hilo-repro-1");
             conversacion.AgregarMensaje(DireccionMensaje.Entrante, "cliente@ejemplo.com", "<p>Primero</p>", mensajeExternoId: "graph.repro.1");
-            contexto.ConversacionesCorreo.Add(conversacion);
+            contexto.Conversaciones.Add(conversacion);
             await contexto.SaveChangesAsync();
             conversacionId = conversacion.Id;
         }
 
         await using (var contexto = CrearContexto())
         {
-            var repositorio = new ConversacionCorreoRepository(contexto);
+            var repositorio = new ConversacionRepository(contexto);
             var conversacion = await repositorio.ObtenerPorHiloExternoAsync("hilo-repro-1");
             conversacion.Should().NotBeNull();
 
@@ -109,7 +109,7 @@ public class AgregarMensajeAConversacionCargadaTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var mensajes = await contexto.MensajesCorreo.CountAsync(m => m.ConversacionCorreoId == conversacionId);
+            var mensajes = await contexto.Mensajes.CountAsync(m => m.ConversacionId == conversacionId);
             mensajes.Should().Be(2);
         }
     }

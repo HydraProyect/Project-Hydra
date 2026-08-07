@@ -18,7 +18,7 @@ public class PaqueteDocumentalVisitaService(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IEmpresasQueryContext empresasContext,
     ITrabajadoresQueryContext trabajadoresContext,
-    IConversacionCorreoRepository conversacionRepositorio,
+    IConversacionRepository conversacionRepositorio,
     IFileStorageService almacenamiento,
     ILogger<PaqueteDocumentalVisitaService> logger) : IPaqueteDocumentalVisitaService
 {
@@ -30,7 +30,7 @@ public class PaqueteDocumentalVisitaService(
     private record DocumentoParaZipDto(Guid? TrabajadorId, Guid TipoDocumentoId, string ArchivoUrl);
     private record TrabajadorNombreDto(string Nombre, string Apellidos);
 
-    public async Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionCorreoId, CancellationToken cancellationToken = default)
+    public async Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default)
     {
         var visita = await visitasContext.Visitas
             .Where(v => v.Id == visitaId)
@@ -81,7 +81,7 @@ public class PaqueteDocumentalVisitaService(
         var zipBytes = await ConstruirZipAsync(documentos, nombresTipoDocumento, empresa?.RazonSocial, trabajadoresPorId, cancellationToken);
         if (zipBytes is null) return; // ningún archivo pudo abrirse — no tiene sentido adjuntar un zip vacío.
 
-        var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(conversacionCorreoId, cancellationToken);
+        var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(conversacionId, cancellationToken);
         if (conversacion is null) return;
 
         var nombreZip = $"documentacion-visita-{centro.Nombre.Replace(' ', '-')}-{visita.FechaInicio:yyyyMMdd}.zip";

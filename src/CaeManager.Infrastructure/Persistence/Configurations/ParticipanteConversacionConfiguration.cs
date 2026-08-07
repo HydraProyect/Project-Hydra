@@ -13,7 +13,7 @@ public class ParticipanteConversacionConfiguration : IEntityTypeConfiguration<Pa
 
         builder.Property(p => p.Email).IsRequired().HasMaxLength(320);
 
-        builder.HasIndex(p => p.ConversacionCorreoId);
+        builder.HasIndex(p => p.ConversacionId);
 
         // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.
     }

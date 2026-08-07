@@ -30,7 +30,7 @@ public class AsignarEjecutivoConversacionCommandValidator : AbstractValidator<As
 /// abierto).
 /// </summary>
 public class AsignarEjecutivoConversacionCommandHandler(
-    IConversacionCorreoRepository repositorio,
+    IConversacionRepository repositorio,
     IAlcanceDatosService alcanceDatos,
     IDirectorioUsuariosService directorioUsuarios,
     IUnitOfWork unitOfWork)
@@ -43,7 +43,7 @@ public class AsignarEjecutivoConversacionCommandHandler(
         // del tenant (hallazgo N-3): un gestor con el Guid de una conversación
         // que ya no está en su cartera podía reasignarla.
         if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
-            return Result.Fallo(Error.Crear("ConversacionCorreo.NoEncontrada", "No encontramos esta conversación."));
+            return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
 
         // null es legítimo: es "desasignar".
         if (request.EjecutivoId is { } ejecutivoId &&
