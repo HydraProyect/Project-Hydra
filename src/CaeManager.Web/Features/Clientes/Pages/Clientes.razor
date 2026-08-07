@@ -33,7 +33,7 @@
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por nombre…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
         <label class="filtro-critico">
-            <input type="checkbox" @bind="_soloCriticos" @bind:after="RecargarAsync" /> Solo críticos
+            <input type="checkbox" checked="@_soloCriticos" @onchange="e => CambiarSoloCriticosAsync((bool)e.Value!)" /> Solo críticos
         </label>
         @if (_filtrosGuardados.Count > 0)
         {
@@ -49,6 +49,39 @@
             Guardar filtro
         </Boton>
     </div>
+
+    @if (HayFiltrosActivos)
+    {
+        <div class="chips-filtros">
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <span class="chip-filtro">
+                    Búsqueda: "@_busqueda"
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="Quitar filtro de búsqueda">×</button>
+                </span>
+            }
+            @if (_soloCriticos)
+            {
+                <span class="chip-filtro">
+                    Solo críticos
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroCriticosAsync" aria-label="Quitar filtro de críticos">×</button>
+                </span>
+            }
+        </div>
+    }
+
+    @if (_filtrosGuardados.Count > 0)
+    {
+        <div class="chips-filtros">
+            @foreach (var filtro in _filtrosGuardados)
+            {
+                <span class="chip-filtro" title="Filtro guardado">
+                    @filtro.Nombre
+                    <button type="button" class="chip-filtro-quitar" @onclick="() => EliminarFiltroGuardadoAsync(filtro.Id)" aria-label="@($"Borrar filtro guardado {filtro.Nombre}")">×</button>
+                </span>
+            }
+        </div>
+    }
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -80,7 +113,11 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <PropertyColumn Property="@(c => c.RazonSocial)" Title="Razón social" Sortable="true" />
+                <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.RazonSocial))">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "informacion")'>
+                        @context.RazonSocial
+                    </button>
+                </TemplateColumn>
                 <PropertyColumn Property="@(c => c.Cif)" Title="CIF" Sortable="true" />
                 <TemplateColumn Title="Crítico" Align="Align.Center" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EsCritico))">
                     @if (context.EsCritico)
@@ -108,7 +145,8 @@
             </QuickGrid>
 
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="cliente(s)" PaginaActualChanged="CambiarPaginaAsync" />
+                              Etiqueta="cliente(s)" PaginaActualChanged="CambiarPaginaAsync"
+                              TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
         @if (_totalElementos == 0 && !_cargando)
