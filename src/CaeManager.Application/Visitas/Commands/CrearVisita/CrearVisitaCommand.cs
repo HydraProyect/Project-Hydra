@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Visitas.Eventos;
 using CaeManager.Application.Visitas.PaqueteDocumental;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
@@ -48,7 +49,7 @@ public class CrearVisitaCommandHandler(
     IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
     ICentrosQueryContext centrosContext, ITrabajadoresQueryContext trabajadoresContext,
     ISugerenciaVisitaCorreoRepository sugerenciaRepositorio, IComunicacionesQueryContext comunicacionesContext,
-    IPaqueteDocumentalVisitaService paqueteDocumental, IUnitOfWork unitOfWork,
+    IPaqueteDocumentalVisitaService paqueteDocumental, IPublisher publisher, IUnitOfWork unitOfWork,
     ILogger<CrearVisitaCommandHandler> logger)
     : IRequestHandler<CrearVisitaCommand, Result<Guid>>
 {
@@ -104,6 +105,18 @@ public class CrearVisitaCommandHandler(
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "No se pudo generar el paquete documental automático para la visita {VisitaId}.", visita.Id);
+            }
+
+            // Publicado DESPUÉS del commit (ARQUITECTURA-INTEGRACIONES.md
+            // § 6.5): un evento sobre una Visita que todavía no existe en la
+            // base de datos rompería al suscriptor que escribe el timeline.
+            try
+            {
+                await publisher.Publish(new VisitaCreadaEvent(conversacionId, visita.Id), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "No se pudo registrar el evento de timeline para la visita {VisitaId}.", visita.Id);
             }
         }
 
