@@ -40,127 +40,136 @@
         </div>
     </div>
 
-    <div class="barra-filtros">
-        <CampoTexto Placeholder="Buscar por propietario o tipo de documento…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <CampoSelect Etiqueta="Ámbito" Valor="@_ambitoFiltro" ValorChanged="CambiarAmbitoFiltroAsync">
-            <option value="">Todos</option>
-            <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
-            <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
-            <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
-            <option value="@nameof(AmbitoAplicacion.Vehiculo)">Vehículo</option>
-            <option value="@nameof(AmbitoAplicacion.Proyecto)">Proyecto</option>
-        </CampoSelect>
-        <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync">
-            <option value="">Todos</option>
-            <option value="@nameof(EstadoDocumento.Vencido)">Vencido</option>
-            <option value="@nameof(EstadoDocumento.Urgente)">Urgente</option>
-            <option value="@nameof(EstadoDocumento.Proximo)">Próximo</option>
-            <option value="@nameof(EstadoDocumento.Vigente)">Vigente</option>
-            <option value="@nameof(EstadoDocumento.NoAplica)">No aplica</option>
-        </CampoSelect>
-        @if (_filtrosGuardados.Count > 0)
+    <Pestanas Definiciones="_pestanasDocumentos" PestanaActiva="_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="Secciones de documentos">
+        @if (_pestanaActiva == "reclamaciones")
         {
-            <CampoSelect Etiqueta="" Valor="" ValorChanged="AplicarFiltroGuardadoAsync">
-                <option value="">Filtros guardados…</option>
-                @foreach (var filtro in _filtrosGuardados)
-                {
-                    <option value="@filtro.Id">@filtro.Nombre</option>
-                }
-            </CampoSelect>
+            <ReclamacionesTab />
         }
-        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
-            Guardar filtro
-        </Boton>
-    </div>
-
-    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
-
-    @if (_errorCarga)
-    {
-        <EstadoVacio Titulo="No pudimos cargar los documentos" Descripcion="Intenta nuevamente en unos segundos.">
-            <Accion>
-                <Boton OnClick="RecargarAsync">Reintentar</Boton>
-            </Accion>
-        </EstadoVacio>
-    }
-    else
-    {
-        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" />
-
-        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                @if (_seleccionMultiple)
-                {
-                    <TemplateColumn Title="" Align="Align.Center">
-                        <HeaderTemplate Context="columna">
-                            <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
-                        </HeaderTemplate>
-                        <ChildContent>
-                            <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
-                        </ChildContent>
-                    </TemplateColumn>
-                }
-                <PropertyColumn Property="@(d => d.PropietarioNombre)" Title="Propietario" Sortable="true" />
-                <TemplateColumn Title="Ámbito" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Ambito))">
-                    <Badge>@context.Ambito</Badge>
-                </TemplateColumn>
-                <PropertyColumn Property="@(d => d.TipoDocumentoNombre)" Title="Tipo de documento" Sortable="true" />
-                <PropertyColumn Property="@(d => d.FechaEmision)" Format="dd/MM/yyyy" Title="Emisión" Sortable="true" />
-                <TemplateColumn Title="Vencimiento" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.FechaVencimiento))">
-                    @(context.FechaVencimiento is null ? "—" : context.FechaVencimiento.Value.ToString("dd/MM/yyyy"))
-                </TemplateColumn>
-                <TemplateColumn Title="Estado" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))">
-                    <Badge Tono="EstadoDocumentoUi.Tono(context.Estado)">@EstadoDocumentoUi.Texto(context.Estado)</Badge>
-                </TemplateColumn>
-                <TemplateColumn Title="Plataformas">
-                    @if (context.Acreditaciones.Count == 0)
-                    {
-                        <span class="detalle-tecnico">—</span>
-                    }
-                    else
-                    {
-                        <BadgesAcreditacion Acreditaciones="context.Acreditaciones" />
-                    }
-                </TemplateColumn>
-                <TemplateColumn Title="Archivo">
-                    @if (context.ArchivoUrl is not null)
-                    {
-                        <a href="/documentos/@context.Id/archivo" target="_blank">Ver PDF</a>
-                    }
-                    else
-                    {
-                        <span class="detalle-tecnico">Sin adjunto</span>
-                    }
-                </TemplateColumn>
-                <TemplateColumn Title="Acciones" Align="Align.End">
-                    <MenuAcciones>
-                        <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, context.Id, context.TipoDocumentoNombre, "informacion")'>
-                            Ver
-                        </ItemMenuAccion>
-                        <ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
-                            Renovar
-                        </ItemMenuAccion>
-                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.PropietarioNombre, context.TipoDocumentoNombre)">
-                            Eliminar
-                        </ItemMenuAccion>
-                    </MenuAcciones>
-                </TemplateColumn>
-            </QuickGrid>
-
-            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="documento(s)" PaginaActualChanged="CambiarPaginaAsync"
-                              TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-        </div>
-
-        @if (_totalElementos == 0 && !_cargando)
+        else
         {
-            <EstadoVacio Titulo="Aún no hay documentos" Descripcion="Sube el primero para empezar a controlar vigencias.">
-                <Accion>
-                    <Boton OnClick="AbrirCrearAsync">+ Nuevo documento</Boton>
-                </Accion>
-            </EstadoVacio>
+            <div class="barra-filtros">
+                <CampoTexto Placeholder="Buscar por propietario o tipo de documento…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+                <CampoSelect Etiqueta="Ámbito" Valor="@_ambitoFiltro" ValorChanged="CambiarAmbitoFiltroAsync">
+                    <option value="">Todos</option>
+                    <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
+                    <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
+                    <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
+                    <option value="@nameof(AmbitoAplicacion.Vehiculo)">Vehículo</option>
+                    <option value="@nameof(AmbitoAplicacion.Proyecto)">Proyecto</option>
+                </CampoSelect>
+                <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync">
+                    <option value="">Todos</option>
+                    <option value="@nameof(EstadoDocumento.Vencido)">Vencido</option>
+                    <option value="@nameof(EstadoDocumento.Urgente)">Urgente</option>
+                    <option value="@nameof(EstadoDocumento.Proximo)">Próximo</option>
+                    <option value="@nameof(EstadoDocumento.Vigente)">Vigente</option>
+                    <option value="@nameof(EstadoDocumento.NoAplica)">No aplica</option>
+                </CampoSelect>
+                @if (_filtrosGuardados.Count > 0)
+                {
+                    <CampoSelect Etiqueta="" Valor="" ValorChanged="AplicarFiltroGuardadoAsync">
+                        <option value="">Filtros guardados…</option>
+                        @foreach (var filtro in _filtrosGuardados)
+                        {
+                            <option value="@filtro.Id">@filtro.Nombre</option>
+                        }
+                    </CampoSelect>
+                }
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
+                    Guardar filtro
+                </Boton>
+            </div>
+
+            <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
+            @if (_errorCarga)
+            {
+                <EstadoVacio Titulo="No pudimos cargar los documentos" Descripcion="Intenta nuevamente en unos segundos.">
+                    <Accion>
+                        <Boton OnClick="RecargarAsync">Reintentar</Boton>
+                    </Accion>
+                </EstadoVacio>
+            }
+            else
+            {
+                <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" />
+
+                <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+                    <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                        @if (_seleccionMultiple)
+                        {
+                            <TemplateColumn Title="" Align="Align.Center">
+                                <HeaderTemplate Context="columna">
+                                    <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                                </HeaderTemplate>
+                                <ChildContent>
+                                    <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                                </ChildContent>
+                            </TemplateColumn>
+                        }
+                        <PropertyColumn Property="@(d => d.PropietarioNombre)" Title="Propietario" Sortable="true" />
+                        <TemplateColumn Title="Ámbito" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Ambito))">
+                            <Badge>@context.Ambito</Badge>
+                        </TemplateColumn>
+                        <PropertyColumn Property="@(d => d.TipoDocumentoNombre)" Title="Tipo de documento" Sortable="true" />
+                        <PropertyColumn Property="@(d => d.FechaEmision)" Format="dd/MM/yyyy" Title="Emisión" Sortable="true" />
+                        <TemplateColumn Title="Vencimiento" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.FechaVencimiento))">
+                            @(context.FechaVencimiento is null ? "—" : context.FechaVencimiento.Value.ToString("dd/MM/yyyy"))
+                        </TemplateColumn>
+                        <TemplateColumn Title="Estado" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))">
+                            <Badge Tono="EstadoDocumentoUi.Tono(context.Estado)">@EstadoDocumentoUi.Texto(context.Estado)</Badge>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Plataformas">
+                            @if (context.Acreditaciones.Count == 0)
+                            {
+                                <span class="detalle-tecnico">—</span>
+                            }
+                            else
+                            {
+                                <BadgesAcreditacion Acreditaciones="context.Acreditaciones" />
+                            }
+                        </TemplateColumn>
+                        <TemplateColumn Title="Archivo">
+                            @if (context.ArchivoUrl is not null)
+                            {
+                                <a href="/documentos/@context.Id/archivo" target="_blank">Ver PDF</a>
+                            }
+                            else
+                            {
+                                <span class="detalle-tecnico">Sin adjunto</span>
+                            }
+                        </TemplateColumn>
+                        <TemplateColumn Title="Acciones" Align="Align.End">
+                            <MenuAcciones>
+                                <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, context.Id, context.TipoDocumentoNombre, "informacion")'>
+                                    Ver
+                                </ItemMenuAccion>
+                                <ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
+                                    Renovar
+                                </ItemMenuAccion>
+                                <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.PropietarioNombre, context.TipoDocumentoNombre)">
+                                    Eliminar
+                                </ItemMenuAccion>
+                            </MenuAcciones>
+                        </TemplateColumn>
+                    </QuickGrid>
+
+                    <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                      Etiqueta="documento(s)" PaginaActualChanged="CambiarPaginaAsync"
+                                      TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+                </div>
+
+                @if (_totalElementos == 0 && !_cargando)
+                {
+                    <EstadoVacio Titulo="Aún no hay documentos" Descripcion="Sube el primero para empezar a controlar vigencias.">
+                        <Accion>
+                            <Boton OnClick="AbrirCrearAsync">+ Nuevo documento</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+            }
         }
-    }
+    </Pestanas>
 </div>
 
 <Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo documento" : "Renovar documento")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
