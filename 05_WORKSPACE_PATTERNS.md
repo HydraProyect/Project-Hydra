@@ -320,7 +320,7 @@ Reglas que se derivan:
 | DDL-005 · DDL-042 | Entity Workspace y sus entidades (§ 2) |
 | DDL-031 | Ámbitos separados dentro de una entidad (§ 2.3) |
 | DDL-047 · DDL-033 | Recuentos y su desglose (§ 2.4) |
-| DDL-041 | Densidad única (§ 2.5) |
+| DDL-041 | Densidad única (§ 2.6) |
 | DDL-006 · DDL-044 | Context Panel: frontera y nombre (§ 3) |
 | DDL-007 | Action Center como patrón, contrato sin congelar (§ 4) |
 | DDL-009 · DDL-032 | Agencia y procedencia (§ 4.3, § 5.2) |

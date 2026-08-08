@@ -42,16 +42,21 @@ no procede de una fuente trazable, es un error de este documento, no una decisi�
 La escala **ya existe en el producto y el banco visual la ratificó**: `#235BC2` era el primario
 vigente y ganó la comparación contra la alternativa más luminosa (DDL-025). No cambia.
 
-| Token | Claro | Uso |
-|---|---|---|
-| `--color-primary-50` | `#EEF5FF` | Fondo de énfasis muy suave |
-| `--color-primary-100` | `#DCEBFF` | Fondo de selección |
-| `--color-primary-200` | `#BDD9FF` | Bordes de énfasis |
-| `--color-primary-300` | `#5CA2F4` | Enlaces sobre superficie oscura |
-| `--color-primary-400` | `#2F6FDD` | Hover de acción primaria |
-| **`--color-primary-500`** | **`#235BC2`** | **Acción primaria, enlaces, foco, estado activo** |
-| `--color-primary-600` | `#1E4A9E` | Activo / pressed |
-| `--color-primary-700` | `#163A7D` | Reservado |
+| Token | Claro | Uso | Autoridad |
+|---|---|---|---|
+| `--color-primary-50` | `#EEF5FF` | Fondo de énfasis muy suave | **No ratificado** |
+| `--color-primary-100` | `#DCEBFF` | Fondo de selección | **No ratificado** |
+| `--color-primary-200` | `#BDD9FF` | Bordes de énfasis | **No ratificado** |
+| `--color-primary-300` | `#5CA2F4` | Enlaces sobre superficie oscura | `02` § 3.2 |
+| `--color-primary-400` | `#2F6FDD` | Hover de acción primaria | `02` § 3.2 |
+| **`--color-primary-500`** | **`#235BC2`** | **Acción primaria, enlaces, foco, estado activo** | **DDL-025** |
+| `--color-primary-600` | `#1E4A9E` | Activo / pressed | **No ratificado** |
+| `--color-primary-700` | `#163A7D` | Reservado | **No ratificado** |
+
+**La autoridad de esta rampa es parcial** (DDL-059). `02` § 3.2 decide **tres valores por rol** —
+acción, hover y enlace sobre superficie oscura—, no una rampa de ocho escalones. Los cinco
+restantes existen en `tokens.css` desde antes del reset y **ninguna decisión los fija**: son
+valores existentes, no especificación. DDL-025 no puede citarse como respaldo de la rampa entera.
 
 En tema oscuro los escalones se desplazan: `500` toma el valor de `300`, `600` el de `200` y
 `700` el de `100` — el acero pierde contraste sobre fondo oscuro y hay que aclararlo, no
@@ -98,10 +103,14 @@ de agencia.
 
 | Token | Claro | Oscuro |
 |---|---|---|
-| `--color-text` | `#0F1720` | `#E7EAEE` |
+| `--color-text` | `#161E27` — **sin cambio en este reset** | `#E7EAEE` |
 | `--color-text-muted` | **`#5F6E84`** | `#8592A3` |
 | `--color-border` | `#E2E8EC` | `#293644` |
 | `--color-border-strong` | `#CBD5E1` | `#3A4A5C` |
+
+`--color-text` **no forma parte del alcance de este reset**: la tabla "Lo que cambia" de § 12 no
+lo enumera (OD-22). El valor no lo decide este documento — lo declara `02` § 4.1 (DDL-057), y
+aquí solo se consume.
 
 `--color-text-muted` **cambia de valor**: el actual `#738196` da 3.96:1 sobre blanco e incumple
 el umbral para el cuerpo de 14 px que usa toda la aplicación (DDL-029). No es preferencia: es un
@@ -131,8 +140,12 @@ sombra: es lo que impide que la interfaz se convierta en una colección de tarje
 
 ## 4. Radios
 
-Trasladados desde el catálogo de julio por no ser motion (DDL-054). **No cambian de valor**: la
-identidad de ingeniería pide contención, y estos ya la tienen.
+Trasladados desde el catálogo de julio por no ser motion (DDL-054). **No cambian de valor.**
+
+**Valores existentes, no ratificados** (DDL-059). DDL-054 decide **dónde viven** estos tokens —
+que no son motion y pertenecen a `06`—, no **cuánto miden**: ninguna decisión fija `6/10/12/14`.
+Provienen del catálogo de julio, histórico sin autoridad, y del código fundacional. Se documentan
+como estado vigente hasta que una decisión posterior los ratifique o los sustituya.
 
 | Token | Valor | Uso |
 |---|---|---|
@@ -188,6 +201,10 @@ Regla de aplicación por contexto (`01` § 5.6): en **superficies operativas**, 
 cuántas filas caben es medida de calidad. En **superficies de lectura o estados vacíos**, el aire
 sí es un valor.
 
+**Distinción de autoridad** (DDL-059): la **regla de densidad es normativa** y traza a `01` § 5.6
+y DDL-041. La **escala numérica no está ratificada**: ninguna decisión fija estos escalones, que
+vienen del código fundacional. Son cosas distintas y no comparten estatus.
+
 ## 8. Motion
 
 Contrato cerrado con `07` § 8. **No se declara ningún token que no aparezca aquí**; si hace falta
@@ -210,6 +227,10 @@ no declaran función.
 desaparece (DDL-020).
 
 ## 9. Layout
+
+**Valores existentes, no ratificados** (DDL-059). El shell como estructura sí está decidido
+(DDL-015, `03` § 3.1); sus **dimensiones** no las fija ninguna decisión — datan del commit
+fundacional del repositorio. Lo mismo los breakpoints. Se documentan como estado vigente.
 
 | Token | Valor |
 |---|---|
@@ -270,6 +291,7 @@ estaba. Lo que cambia:
 | Acción | Token | Detalle |
 |---|---|---|
 | **Sin cambios** | `--color-primary-*` | Ratificado por DDL-025 |
+| **Sin cambios** | `--color-text` | Conservado en `#161E27`; fuera del alcance del reset (OD-22) |
 | **Sin cambios** | `--radius-*`, escala tipográfica, espaciado, layout | — |
 | **Cambia de valor** | `--color-text-muted` (claro) | `#738196` → `#5F6E84`; corrige incumplimiento de contraste |
 | **Nuevos** | `--color-system-text`, `--color-system-indicator`, `--color-system-tint` | Familia cian, asimétrica por tema |
@@ -324,8 +346,10 @@ Cada paso cierra con verificación end-to-end en navegador, como exige `CLAUDE.m
 | DDL-010 · DDL-039 | Semáforo y su modificador (§ 2.3) |
 | DDL-012 | Retirada del cobre (§ 2.6) |
 | DDL-029 | Corrección del texto secundario (§ 2.5) |
+| DDL-057 | Valor normativo del texto principal claro, declarado en `02` (§ 2.5) |
 | DDL-013 · DDL-028 · DDL-026 · DDL-014 | Superficies, elevación y la regla de la sombra (§ 3, § 5) |
-| DDL-054 | Radios y sombras llegan desde `07` (§ 4, § 5) |
+| DDL-054 | Radios y sombras **pertenecen** a este documento, no a `07` — clasificación, no valores (§ 4, § 5) |
+| DDL-059 | Qué valores de este documento están ratificados y cuáles son solo estado implementado (§ 2.1, § 4, § 7, § 9) |
 | DDL-016 · DDL-020 | Tokens de motion y reducción de movimiento (§ 8) |
 | DDL-021 · DDL-043 | Estructura de temas y estado de `prefers-color-scheme` (§ 10) |
 | DDL-041 | Densidad única, que fija el criterio de espaciado (§ 7) |
