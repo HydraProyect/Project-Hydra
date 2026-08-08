@@ -259,7 +259,7 @@ Los componentes se estilan **siempre a través de los tokens semánticos** (`--c
 `--color-text`), nunca dentro de un bloque de tema. Un componente no debería saber qué tema está
 activo.
 
-## 11. Accesibilidad: umbrales y pares verificados
+## 11. Accesibilidad: umbrales y pares normativos
 
 | Umbral | Aplica a |
 |---|---|
@@ -267,16 +267,52 @@ activo.
 | 3:1 | Texto grande (≥24 px, o ≥18.66 px en negrita) |
 | 3:1 | Componentes de interfaz y bordes significativos |
 
-Pares medidos en el banco visual:
+### Pares de contraste normativos
 
-| Par | Claro | Oscuro |
-|---|---|---|
-| Texto principal sobre superficie | 15.98:1 ✓ | 11.40:1 ✓ |
-| Texto secundario sobre superficie | 5.18:1 ✓ | ≈6.5:1 ✓ |
-| Acción primaria (texto y botón) | 6.27:1 ✓ | — |
-| Enlace sobre superficie oscura | — | >5.5:1 ✓ |
-| Texto de sistema (cian) | 5.58:1 ✓ | >8:1 ✓ |
-| Indicador de sistema (UI) | 3.48:1 ✓ | >8:1 ✓ |
+> Los pares siguientes son **mediciones representativas de usos normativos**, no una matriz
+> exhaustiva de todas las combinaciones posibles. **La conformidad de un color depende de su uso y
+> del fondo sobre el que se presenta**: no se puede inferir conformidad para un uso distinto a
+> partir de un par medido aquí. Ratios calculados sobre los valores que `02` y este documento
+> declaran — reproducibles, no heredados.
+
+**Tema claro**
+
+| Uso | Primer plano | Fondo | Ratio | Criterio |
+|---|---|---|---|---|
+| Texto principal | `--color-text` | Surface | 16.81:1 ✓ | 4.5:1 |
+| Texto principal | `--color-text` | Subtle | 15.33:1 ✓ | 4.5:1 |
+| Texto secundario | `--color-text-muted` | Surface | 5.19:1 ✓ | 4.5:1 |
+| Texto secundario — **caso límite** | `--color-text-muted` | Subtle | 4.73:1 ✓ | 4.5:1 |
+| Texto de sistema | `--color-system-text` | Surface | 5.16:1 ✓ | 4.5:1 |
+| Texto de sistema — **caso límite** | `--color-system-text` | Subtle | 4.70:1 ✓ | 4.5:1 |
+| Acción primaria como texto | `--color-primary-500` | Surface | 6.27:1 ✓ | 4.5:1 |
+| Texto de botón primario | blanco | `--color-primary-500` (relleno) | 6.27:1 ✓ | 4.5:1 |
+| Indicador de sistema | `--color-system-indicator` | Surface | 3.48:1 ✓ | 3:1 |
+| Indicador de sistema — **caso límite** | `--color-system-indicator` | Subtle | 3.17:1 ✓ | 3:1 |
+| Hover primario | `--color-primary-400` | — | **pendiente (OD-30)** | 4.5:1 |
+
+**Tema oscuro**
+
+| Uso | Primer plano | Fondo | Ratio | Criterio |
+|---|---|---|---|---|
+| Texto principal | `--color-text` | Surface | 13.49:1 ✓ | 4.5:1 |
+| Texto principal — **caso límite** | `--color-text` | Elevated | 11.92:1 ✓ | 4.5:1 |
+| Texto secundario | `--color-text-muted` | Surface | 5.14:1 ✓ | 4.5:1 |
+| Texto secundario — **caso límite** | `--color-text-muted` | Elevated | 4.55:1 ✓ | 4.5:1 |
+| Texto de sistema | `--color-system-text` | Surface | 9.13:1 ✓ | 4.5:1 |
+| Enlace | `--color-primary-300` | Surface | 6.15:1 ✓ | 4.5:1 |
+| Enlace — **caso límite** | `--color-primary-300` | Elevated | 5.43:1 ✓ | 4.5:1 |
+
+**Dos casos que esta tabla NO resuelve**, y que no deben leerse como cubiertos: el uso legítimo de
+`--color-primary-400` (**OD-30** — cumple como relleno con texto blanco, no necesariamente como
+texto sobre Canvas o Subtle) y la conformidad de los bordes con el 3:1 de `02` § 8 (**OD-31** —
+ningún token de borde lo alcanza en ningún tema).
+
+**Cómo se verifica la conformidad** (DDL-060): la dirección correcta es *`02` y `06` declaran qué
+usos son legales → la auditoría cruza esos usos contra todos los fondos del sistema → aparecen las
+combinaciones no cubiertas*. **Nunca** al revés: una combinación que no figure en esta tabla no se
+supone válida por ausencia. La matriz completa de ambos temas, calculada el 2026-08-09, vive como
+evidencia en el Log bajo OD-24.
 
 Las **reglas permanentes** de accesibilidad —color que nunca es el único portador de
 significado, foco siempre visible, nada que se abra solo con el puntero— viven en `02` § 8 y no
@@ -350,6 +386,7 @@ Cada paso cierra con verificación end-to-end en navegador, como exige `CLAUDE.m
 | DDL-013 · DDL-028 · DDL-026 · DDL-014 | Superficies, elevación y la regla de la sombra (§ 3, § 5) |
 | DDL-054 | Radios y sombras **pertenecen** a este documento, no a `07` — clasificación, no valores (§ 4, § 5) |
 | DDL-059 | Qué valores de este documento están ratificados y cuáles son solo estado implementado (§ 2.1, § 4, § 7, § 9) |
+| DDL-060 | El contraste pertenece al par y al uso; la tabla es representativa, no exhaustiva (§ 11) |
 | DDL-016 · DDL-020 | Tokens de motion y reducción de movimiento (§ 8) |
 | DDL-021 · DDL-043 | Estructura de temas y estado de `prefers-color-scheme` (§ 10) |
 | DDL-041 | Densidad única, que fija el criterio de espaciado (§ 7) |
