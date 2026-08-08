@@ -764,6 +764,33 @@ como implementado o presente algo que no está construido.
   esta.
 - **Documentos afectados**: `02` § 4.1; `06` § 2.5 (ya corregido al cerrar OD-22).
 
+### DDL-065 — 95 % es la frontera única de "actuar sin revisión humana" (cierra OD-32)
+- **Decisión**: el **umbral de confirmación masiva pasa de 85 % a 95 %**, alineándose con la banda
+  verde del badge y con la auto-creación de la subida masiva. **95 es la frontera única** a partir
+  de la cual el sistema se permite actuar sobre datos sin que una persona abra el elemento.
+- **Estado**: Vigente · **Implementado**: sí, 2026-08-09 (`UmbralConfianzaLote`, etiqueta del
+  botón y `04` § 8.2–8.3).
+- **Motivo**: no era una decisión de diseño distinta sino **un valor introducido sin comprobar el
+  que ya existía**. Las bandas —verde ≥95, ámbar 70–94, rojo <70— vienen del prompt maestro del
+  Issue #19 (Fase 38) y están documentadas en `ROADMAP.md` § Fase 41. La subida masiva ya las
+  respeta para la misma semántica (`UmbralConfianzaAutoCreacion = 95`). El gate de lote llegó
+  después (Fase D) **declarando en su propio comentario seguir el badge verde**, que valía 95.
+- **Lo que lo hacía más grave de lo que parecía**: `AplicarDeteccionIaDocumentoCommand` **no
+  descarta un aviso — renueva el Documento**: escribe la fecha de emisión detectada y recalcula el
+  vencimiento. Su gemelo `ResolverRevisionIaDocumentoCommand` deliberadamente nunca toca el
+  Documento (Issue #19). La acción que **sí muta un registro de cumplimiento** era la que operaba
+  diez puntos por debajo de la frontera. Confirmaba en bloque revisiones que la propia interfaz
+  marcaba en ámbar: *"revisa esto"* y *"aprobado sin abrirlo"* a la vez.
+- **Relación con DDL-064**: el umbral de confirmación masiva y el de confianza visual **comparten
+  ahora valor, a propósito**. No es una fusión: siguen siendo dos reglas —una gobierna una acción,
+  la otra una señal— y DDL-064 las mantiene separadas precisamente para que esta alineación sea
+  **una decisión y no una coincidencia**. Descomponer primero es lo que permitió alinear después.
+- **Efecto**: el lote confirma **menos** elementos, y todos con badge verde. Lo que queda entre 70
+  y 94 sigue disponible una por una, con su revisión, que es lo que la banda ámbar significa.
+- **Documentos afectados**: `04` § 8.2, § 8.3; `RevisionIa.razor` y `RevisionIa.razor.cs`.
+
+---
+
 ### DDL-064 — "Umbral alto" se descompone en tres umbrales con nombre (cierra OD-27)
 - **Decisión**: el término **"umbral alto" deja de existir** en la normativa. En su lugar, tres
   condiciones con nombre propio, que no se sustituyen entre sí:
@@ -771,7 +798,7 @@ como implementado o presente algo que no está construido.
   | Umbral | Valor | Qué gobierna |
   |---|---|---|
   | **De revisión** | 70 % | Por debajo, el dato no se presenta como hecho: se marca para verificación |
-  | **De confirmación masiva** | ≥ 85 % | Junto con datos completos, habilita la acción en lote |
+  | **De confirmación masiva** | ≥ 85 % → **≥ 95 % por DDL-065** | Junto con datos completos, habilita la acción en lote |
   | **De confianza visual** | ≥ 95 % | La señal de confianza alta que ve el usuario en el badge |
 
 - **Estado**: Vigente · **Fecha**: 2026-08-09
@@ -946,10 +973,14 @@ hubiera decidido. El mecanismo hizo lo que se diseñó para hacer.
 
 ## Open Decisions
 
-**Cuatro: OD-26, OD-28, OD-29, OD-32.** Cerradas el 2026-08-09: OD-25 (DDL-059), OD-24 (DDL-060),
-OD-30 (DDL-061), OD-31 (DDL-062 + DDL-063) y OD-27 (DDL-064). OD-30 y OD-31 nacieron del recálculo
-de OD-24; OD-32, de la investigación de OD-27. De las cuatro abiertas, tres son de **trazabilidad**
-y **OD-32 es de producto** — la única que puede cambiar un comportamiento.
+**Tres: OD-26, OD-28, OD-29 — todas de trazabilidad.** Cerradas el 2026-08-09: OD-24 (DDL-060),
+OD-25 (DDL-059), OD-27 (DDL-064), OD-30 (DDL-061), OD-31 (DDL-062 + DDL-063) y OD-32 (DDL-065).
+OD-30 y OD-31 nacieron del recálculo de OD-24; OD-32, de la investigación de OD-27 — **cada
+hallazgo fuera de alcance destapó el siguiente**, que es lo que DDL-040 pretende al obligar a
+registrarlos en vez de arreglarlos sobre la marcha.
+
+Con OD-32 cerrada **no queda ninguna OD de conformidad ni de producto**: las tres restantes son
+correcciones de autoridad documental sin efecto sobre el comportamiento del sistema.
 Las veintiuna Open Decisions del reset quedan cerradas el 2026-08-08.
 OD-22 y OD-23 se abrieron y cerraron ese mismo día al preparar la Fase 4. Las seis siguientes
 salen de la **auditoría de trazabilidad de `01`–`08`** (2026-08-09), que OD-22 motivó: si un valor
@@ -1287,11 +1318,11 @@ su propia entrada.
 **A determinar también**: si ambos comparten una decisión superior sobre presupuesto de movimiento
 que habría que declarar una sola vez, en vez de dos reglas sueltas.
 
-### OD-32 — La acción en lote confirma propuestas que el badge marca en ámbar
+### OD-32 — La acción en lote confirma propuestas que el badge marca en ámbar (cerrada)
 
 **Tipo**: inconsistencia de producto entre el gate de una acción en lote y la señal visual que la
-acompaña. **Abierta** · **Fecha**: 2026-08-09. **Origen**: investigación de OD-27 (DDL-040:
-hallazgo fuera de alcance, se registra y no se arregla dentro).
+acompaña. **Cerrada por DDL-065** · **Fecha**: 2026-08-09. **Origen**: investigación de OD-27
+(DDL-040: hallazgo fuera de alcance, se registró y no se arregló dentro).
 
 `RevisionIa` ofrece **"Confirmar todos los ≥85%"**. `TonoConfianza` pinta el badge verde a partir
 de **95**. Una revisión al **85–94 %** entra en la confirmación masiva mientras su propio badge la
@@ -1313,6 +1344,43 @@ decirlo. **No se resuelve igualando números sin decidir antes qué significa ca
 
 **Nota**: `TonoConfianza` está **duplicado literalmente** en `RevisionIa.razor.cs:132` y
 `SubidaMasiva.razor.cs:390`. Hoy coinciden; cualquier cambio de banda tendría que tocar los dos.
+
+#### Investigación (2026-08-09)
+
+**Existe una convención aguas arriba, y está documentada.** `ROADMAP.md` § Fase 41 fija las bandas
+del badge —**verde ≥95 %, ámbar 70–94 %, rojo <70 %**— y las atribuye al **prompt maestro del
+Issue #19**, no a una elección de interfaz. La banda verde no es decorativa: es la frontera de
+"fiable **sin revisión humana**".
+
+**Y el sistema la respeta en otro sitio para la misma semántica.** La subida masiva crea
+Documentos **sin intervención** cuando `ConfianzaGeneral >= 95`
+(`SubidaMasiva.razor.cs:49`, `UmbralConfianzaAutoCreacion`), y `ROADMAP.md` lo documenta
+explícitamente como *"mismo umbral verde de Revisión IA, Fase 41"*. `ROADMAP.md` § Fase 45 define
+además "automático" como *"confianza de IA por encima del umbral, **sin pasar por revisión
+humana**"*.
+
+| Función | Umbral | Coherente con la convención |
+|---|---|---|
+| Badge verde (Fase 38/41, Issue #19) | 95 | — es la convención |
+| Auto-creación en subida masiva | 95 | ✓ |
+| **Confirmación en lote de revisiones** | **85** | **✗** |
+
+**Orden de aparición**: las bandas entran en `efa2515` (Fase 38); el gate de 85 llega después, en
+`0e3d050` (Fase D), **declarando alinearse con una banda que ya existía y era 95**. El desajuste
+no es una decisión de diseño distinta: es un valor introducido más tarde sin comprobar el que ya
+estaba.
+
+**Lo que hace la acción, que sube la apuesta**: `AplicarDeteccionIaDocumentoCommand` **no descarta
+un aviso — renueva el Documento**, escribe la fecha de emisión detectada y recalcula el
+vencimiento. Su gemelo `ResolverRevisionIaDocumentoCommand` deliberadamente **nunca toca el
+Documento** (Issue #19). Es decir: la acción que sí muta un registro de cumplimiento es la que
+opera 10 puntos por debajo de la frontera que el propio sistema fijó para actuar sin revisión.
+
+**Conclusión de la investigación**: la hipótesis de "dos preguntas legítimas" —que 85 y 95
+respondieran a cosas distintas— **no se sostiene con la evidencia**. Ambas gobiernan lo mismo
+(actuar sobre datos sin que una persona abra el elemento), la convención de 95 está documentada y
+aplicada en otra feature, y el propio código del 85 afirma seguirla. **No decide esta entrada**:
+lo registra para que el cierre sea una decisión y no una inferencia.
 
 ### OD-27 — "Umbral alto" es una condición de ejecución sin definir (cerrada)
 
