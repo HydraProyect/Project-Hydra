@@ -2,7 +2,7 @@
     font: var(--font-label-md);
     color: var(--color-primary-500);
     background: none;
-    border: var(--border-default);
+    border: var(--border-control);
     border-radius: var(--radius-sm);
     padding: var(--space-2) var(--space-3);
     cursor: pointer;

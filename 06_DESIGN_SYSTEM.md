@@ -107,6 +107,12 @@ de agencia.
 | `--color-text-muted` | **`#5F6E84`** | `#8592A3` |
 | `--color-border` | `#E2E8EC` | `#293644` |
 | `--color-border-strong` | `#CBD5E1` | `#3A4A5C` |
+| `--color-border-control` | `#738196` | `#738196` |
+
+`--color-border` y `--color-border-strong` son **estructurales**. `--color-border-control`
+(DDL-063) es el borde que **identifica un control** y el único de los tres sujeto al 3:1 de
+`02` § 8. Mismo valor en ambos temas, algo que ningún otro token de color hace: no es simetría
+buscada sino consecuencia de que `#738196` es el único escalón de la rampa que cumple en los dos.
 
 `--color-text` **no forma parte del alcance de este reset**: la tabla "Lo que cambia" de § 12 no
 lo enumera (OD-22). El valor no lo decide este documento — lo declara `02` § 4.1 (DDL-057), y
@@ -289,6 +295,7 @@ activo.
 | Texto de botón primario | blanco | `--color-primary-500` (relleno) | 6.27:1 ✓ | 4.5:1 |
 | Indicador de sistema | `--color-system-indicator` | Surface | 3.48:1 ✓ | 3:1 |
 | Indicador de sistema — **caso límite** | `--color-system-indicator` | Subtle | 3.17:1 ✓ | 3:1 |
+| Borde de control | `--color-border-control` | Interior del control / Canvas / Subtle | 3.96 / 3.72 / 3.61 ✓ | 3:1 |
 | Acento no textual | `--color-primary-400` | Canvas / Surface / Subtle | 4.44 / 4.73 / 4.31 ✓ | 3:1 |
 
 **Tema oscuro**
@@ -302,9 +309,10 @@ activo.
 | Texto de sistema | `--color-system-text` | Surface | 9.13:1 ✓ | 4.5:1 |
 | Enlace | `--color-primary-300` | Surface | 6.15:1 ✓ | 4.5:1 |
 | Enlace — **caso límite** | `--color-primary-300` | Elevated | 5.43:1 ✓ | 4.5:1 |
+| Borde de control — **caso límite** | `--color-border-control` | Elevated | 3.64:1 ✓ | 3:1 |
 
-**Un caso que esta tabla NO resuelve**, y que no debe leerse como cubierto: la conformidad de los
-bordes con el 3:1 de `02` § 8 (**OD-31** — ningún token de borde lo alcanza en ningún tema).
+Los bordes **estructurales** (`--color-border`, `--color-border-strong`) no figuran aquí a
+propósito: DDL-062 los deja fuera del 3:1 porque agrupan contenido, no identifican un control.
 
 **Cómo se verifica la conformidad** (DDL-060): la dirección correcta es *`02` y `06` declaran qué
 usos son legales → la auditoría cruza esos usos contra todos los fondos del sistema → aparecen las
@@ -386,6 +394,7 @@ Cada paso cierra con verificación end-to-end en navegador, como exige `CLAUDE.m
 | DDL-059 | Qué valores de este documento están ratificados y cuáles son solo estado implementado (§ 2.1, § 4, § 7, § 9) |
 | DDL-060 | El contraste pertenece al par y al uso; la tabla es representativa, no exhaustiva (§ 11) |
 | DDL-061 | `--color-primary-400` es acento no textual, nunca texto ni enlace (§ 2.1, § 11) |
+| DDL-062 · DDL-063 | Qué borde está sujeto al 3:1 y con qué token se satisface (§ 2.5, § 11) |
 | DDL-016 · DDL-020 | Tokens de motion y reducción de movimiento (§ 8) |
 | DDL-021 · DDL-043 | Estructura de temas y estado de `prefers-color-scheme` (§ 10) |
 | DDL-041 | Densidad única, que fija el criterio de espaciado (§ 7) |
