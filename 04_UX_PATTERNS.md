@@ -249,10 +249,25 @@ la acción destructiva se nombra explícitamente ("Eliminar"), nunca "Aceptar".
 Sin confirmación no hay efecto (`01` § 5.4). "Automáticamente" significa *con todo preparado, a
 un clic*.
 
-### 8.2 Anatomía de una propuesta
+### 8.2 Los tres umbrales de confianza (DDL-064)
+
+No existe un único "umbral alto". Son **tres condiciones distintas**, con nombre propio cada una,
+y no se sustituyen entre sí:
+
+| Umbral | Valor | Qué gobierna |
+|---|---|---|
+| **De revisión** | 70 % | Por debajo, el dato no se presenta como hecho: se marca para verificación |
+| **De confirmación masiva** | ≥ 85 % | Junto con datos completos, habilita la acción en lote (§ 8.3) |
+| **De confianza visual** | ≥ 95 % | La señal de confianza alta que ve el usuario en el badge |
+
+Nombrar la condición concreta es obligatorio. **"Umbral alto" no es un término válido** en ningún
+documento: encubría estas tres y hacía que una regla de interfaz y un gate de ejecución
+pareciesen la misma cosa.
+
+### 8.2.1 Anatomía de una propuesta
 Qué propone, con qué confianza, sobre qué datos, y tres salidas: **Confirmar · Editar ·
-Descartar**. Los campos por debajo del umbral alto se marcan para verificación en lugar de
-presentarse como hechos.
+Descartar**. Los campos que no alcanzan el **umbral de revisión (70 %)** se marcan para
+verificación en lugar de presentarse como hechos.
 
 **Editar es el camino normal** cuando la propuesta es casi correcta, no una excepción.
 **Descartar deja rastro**: una propuesta rechazada informa sobre la calidad del sistema.
@@ -262,8 +277,10 @@ Cuando una revisión ofrece varias salidas, cada una hace **una sola cosa** y se
 efecto real. Cerrar un aviso porque ya se corrigió a mano y aceptar lo que la máquina propone son
 acciones distintas y deben poder distinguirse sin leer dos veces.
 
-Las acciones en lote sobre propuestas solo aplican a las que superan el umbral alto **y** tienen
-todos los datos necesarios; nunca se confirma en lote lo que no cumple ambas condiciones.
+Las acciones en lote sobre propuestas solo aplican a las que alcanzan el **umbral de confirmación
+masiva (≥ 85 %)** **y** tienen todos los datos necesarios; nunca se confirma en lote lo que no
+cumple ambas condiciones. La conjunción no es opcional: es lo que impide aprobar en bloque una
+propuesta a la que le falta el dato que la hace aplicable.
 
 ## 9. Microcopy
 
@@ -324,6 +341,7 @@ No tienen arquetipo (DDL-053). Su consistencia **es** este documento. Reglas esp
 | DDL-032 · DDL-033 · DDL-047 | Procedencia, ventana de contexto y desglose (§ 4) |
 | DDL-052 | Léxico cerrado de estados (§ 4.1) |
 | DDL-007 | Interacción con propuestas de la IA (§ 8) |
+| DDL-064 | Los tres umbrales de confianza, con nombre propio cada uno (§ 8.2, § 8.3) |
 | DDL-053 | Las superficies administrativas dependen de este documento (§ 10) |
 | DDL-045 · DDL-054 | Qué movimiento acompaña a estos patrones (§ 3.8, vía `07`) |
 

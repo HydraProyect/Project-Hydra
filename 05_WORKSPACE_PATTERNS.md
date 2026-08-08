@@ -209,8 +209,8 @@ Sobre qué datos              (los extraídos, verificables)
 Confirmar · Editar · Descartar
 ```
 
-- **La confianza es visible siempre**, y los campos por debajo del umbral alto se marcan para
-  verificación en vez de presentarse como hechos.
+- **La confianza es visible siempre**, y los campos que no alcanzan el **umbral de revisión**
+  (`04` § 8.2) se marcan para verificación en vez de presentarse como hechos.
 - **Editar no es una excepción**: es el camino normal cuando la propuesta es casi correcta.
 - **Descartar deja rastro.** Una propuesta rechazada es información sobre la calidad del sistema.
 
