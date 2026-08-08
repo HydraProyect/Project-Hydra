@@ -11,6 +11,7 @@
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
@@ -42,6 +43,7 @@ else
                 Subtitulo="@($"Vence: {(documento.FechaVencimiento is null ? "—" : documento.FechaVencimiento.Value.ToString("dd/MM/yyyy"))}")"
                 OnClic="() => AbrirDocumentoAsync(documento)">
                 <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
+                <BadgesAcreditacion Acreditaciones="documento.Acreditaciones" />
             </FilaEntidadRelacionada>
         }
     </ul>

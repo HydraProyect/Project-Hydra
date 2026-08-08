@@ -1,0 +1,47 @@
+@*
+    Badges "Acreditado en [plataforma]" de un Documento — docs/ux-audit/PLAN-EJECUCION-UX.md
+    § Parte 2 (c). Reutilizado en /documentos y en PestanaDocumentacion del
+    Context Workspace (Trabajador/Empresa/Cliente/Vehículo) — mismo criterio
+    transversal que el resto del Design System, un componente aplicado en
+    ambas pantallas del mismo PR.
+
+    Nunca usa TonoBadge.Exito/Advertencia/Peligro: esos tres están
+    reservados en exclusiva para el semáforo de vigencia documental
+    (DESIGN_SYSTEM.md § Identidad visual — "no negociable"). El estado de
+    acreditación es un semáforo distinto (aceptación en portal, no vigencia)
+    y se distingue solo por Info/Neutro + el texto del estado.
+*@
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
+@using CaeManager.Domain.Documentos
+
+@if (Acreditaciones.Count > 0)
+{
+    <span class="badges-acreditacion">
+        @foreach (var acreditacion in Acreditaciones)
+        {
+            <Badge @key="acreditacion.Id" Tono="TonoDe(acreditacion.Estado)" Tamano="TamanoBadge.Pequeno">
+                @acreditacion.NombrePlataforma: @TextoDe(acreditacion.Estado)
+            </Badge>
+        }
+    </span>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<AcreditacionResumenDto> Acreditaciones { get; set; } = [];
+
+    private static TonoBadge TonoDe(EstadoAcreditacion estado) => estado switch
+    {
+        EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir => TonoBadge.Info,
+        _ => TonoBadge.Neutro
+    };
+
+    private static string TextoDe(EstadoAcreditacion estado) => estado switch
+    {
+        EstadoAcreditacion.PendienteDeSubir => "pendiente de subir",
+        EstadoAcreditacion.Subida => "en validación",
+        EstadoAcreditacion.Aceptada => "aceptado",
+        EstadoAcreditacion.Rechazada => "rechazado",
+        EstadoAcreditacion.NoRequerida => "no requerido",
+        _ => estado.ToString()
+    };
+}
