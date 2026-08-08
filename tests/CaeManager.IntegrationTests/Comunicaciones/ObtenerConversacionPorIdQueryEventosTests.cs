@@ -2,7 +2,9 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -62,7 +64,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser);
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser);
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
 
@@ -72,6 +74,53 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
         evento.Tipo.Should().Be(TipoEventoConversacion.VisitaCreada);
         evento.ReferenciaId.Should().Be(visitaId);
         evento.Descripcion.Should().Contain("Centro Timeline").And.Contain("17/08/2026");
+    }
+
+    [Fact]
+    public async Task Devuelve_el_evento_de_documento_actualizado_con_su_descripcion()
+    {
+        Guid conversacionId, documentoId;
+        await using (var contexto = CrearContexto())
+        {
+            var cliente = new Cliente("Cliente Timeline Documento S.L.", "B10380194", esCritico: false);
+            var empresa = new Empresa("Empresa Timeline Documento S.L.", "B10380186");
+            contexto.Clientes.Add(cliente);
+            contexto.Empresas.Add(empresa);
+            await contexto.SaveChangesAsync();
+
+            var trabajador = Trabajador.DeEmpresa(empresa.Id, "Elena", "Soto", "11223344B");
+            var tipoDocumento = new TipoDocumento("Certificado de formación", 12, true, 1, AmbitoAplicacion.Trabajador);
+            contexto.Trabajadores.Add(trabajador);
+            contexto.TiposDocumento.Add(tipoDocumento);
+            await contexto.SaveChangesAsync();
+
+            var conversacion = new Conversacion("Documentación recibida");
+            conversacion.AsignarCliente(cliente.Id);
+            contexto.Conversaciones.Add(conversacion);
+            await contexto.SaveChangesAsync();
+            conversacionId = conversacion.Id;
+
+            var documento = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 8, 1), new DateOnly(2027, 8, 1));
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+            documentoId = documento.Id;
+
+            contexto.EventosConversacion.Add(new EventoConversacion(conversacionId, TipoEventoConversacion.DocumentoActualizado, documentoId, DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = new ObtenerConversacionPorIdQueryHandler(
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser);
+
+        var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
+
+        detalle.Should().NotBeNull();
+        detalle!.Eventos.Should().ContainSingle();
+        var evento = detalle.Eventos[0];
+        evento.Tipo.Should().Be(TipoEventoConversacion.DocumentoActualizado);
+        evento.ReferenciaId.Should().Be(documentoId);
+        evento.Descripcion.Should().Contain("Certificado de formación").And.Contain("Elena Soto");
     }
 
     private CaeManagerDbContext CrearContexto()
@@ -84,5 +133,4 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
 
         return new CaeManagerDbContext(options, new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(), tenantActual);
     }
-
 }

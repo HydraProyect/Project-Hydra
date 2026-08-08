@@ -1,5 +1,6 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
+using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
 using CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
 using CaeManager.Application.Comunicaciones.Commands.AsignarEjecutivoConversacion;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
@@ -10,14 +11,19 @@ using CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorreo;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacionWhatsApp;
 using CaeManager.Application.Comunicaciones.Eventos;
+using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
 using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
@@ -92,6 +98,24 @@ public partial class Bandeja : ComponentBase, IDisposable
 
     private string _clienteTriageSeleccionado = string.Empty;
     private bool _asignandoCliente;
+
+    // --- Actualizar documentación desde adjunto (§ 12.7) ---
+    private bool _modalActualizarDocumentoVisible;
+    private Guid _adjuntoParaActualizarDocumentoId;
+    private bool _detectandoDocumento;
+    private bool _aplicandoDocumento;
+    private string? _errorActualizarDocumento;
+    private IReadOnlyList<TipoDocumentoListaDto> _tiposDocumentoSelector = [];
+    private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresSelector = [];
+    private IReadOnlyList<EmpresaSelectorDto> _empresasSelector = [];
+    private string _tipoDocumentoIdFormulario = string.Empty;
+    private string _propietarioDocumentoFormulario = nameof(AmbitoAplicacion.Trabajador);
+    private string _trabajadorDocumentoIdFormulario = string.Empty;
+    private string _empresaDocumentoIdFormulario = string.Empty;
+    private string _fechaEmisionDocumentoFormulario = string.Empty;
+    private string _fechaVencimientoDocumentoFormulario = string.Empty;
+    private string _comentariosDocumentoFormulario = string.Empty;
+    private int _confianzaDeteccionDocumento;
 
     private IDisposable? _suscripcionTiempoReal;
 
@@ -626,6 +650,121 @@ public partial class Bandeja : ComponentBase, IDisposable
         {
             Logger.LogError(ex, "Error al descartar la sugerencia de gestión {SugerenciaId}.", sugerenciaId);
             ToastService.Mostrar("No pudimos descartar la sugerencia. Intenta nuevamente.", TonoToast.Error);
+        }
+    }
+
+    /// <summary>
+    /// Abre el flujo "Actualizar documentación desde conversación"
+    /// (docs/COMUNICACIONES.md § 12.7) para un adjunto concreto. Carga los
+    /// selectores y lanza la detección en el mismo gesto — si
+    /// ExtraccionDocumentoAdjuntoOptions está apagado (por defecto), la
+    /// detección vuelve vacía y el gestor rellena los campos a mano.
+    /// </summary>
+    private async Task AbrirActualizarDocumentoAsync(Guid adjuntoId)
+    {
+        _adjuntoParaActualizarDocumentoId = adjuntoId;
+        _modalActualizarDocumentoVisible = true;
+        _errorActualizarDocumento = null;
+        _tipoDocumentoIdFormulario = string.Empty;
+        _propietarioDocumentoFormulario = nameof(AmbitoAplicacion.Trabajador);
+        _trabajadorDocumentoIdFormulario = string.Empty;
+        _empresaDocumentoIdFormulario = string.Empty;
+        _fechaEmisionDocumentoFormulario = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd");
+        _fechaVencimientoDocumentoFormulario = string.Empty;
+        _comentariosDocumentoFormulario = string.Empty;
+        _confianzaDeteccionDocumento = 0;
+
+        _detectandoDocumento = true;
+        StateHasChanged();
+
+        try
+        {
+            _tiposDocumentoSelector = await Mediator.Send(new ObtenerTiposDocumentoQuery());
+            _trabajadoresSelector = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+            _empresasSelector = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(_detalle?.ClienteId));
+
+            var deteccion = await Mediator.Send(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjuntoId));
+            if (deteccion.EsFallido)
+            {
+                _errorActualizarDocumento = deteccion.Error.Mensaje;
+                return;
+            }
+
+            var valor = deteccion.Valor;
+            _confianzaDeteccionDocumento = valor.ConfianzaGeneral;
+            if (valor.TipoDocumentoId is { } tipoDocumentoId) _tipoDocumentoIdFormulario = tipoDocumentoId.ToString();
+            if (valor.Ambito == AmbitoAplicacion.Empresa) _propietarioDocumentoFormulario = nameof(AmbitoAplicacion.Empresa);
+            if (valor.TrabajadorId is { } trabajadorId) _trabajadorDocumentoIdFormulario = trabajadorId.ToString();
+            if (valor.EmpresaId is { } empresaId) _empresaDocumentoIdFormulario = empresaId.ToString();
+            if (valor.FechaEmision is { } fechaEmision) _fechaEmisionDocumentoFormulario = fechaEmision.ToString("yyyy-MM-dd");
+            if (valor.FechaVencimiento is { } fechaVencimiento) _fechaVencimientoDocumentoFormulario = fechaVencimiento.ToString("yyyy-MM-dd");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al detectar la actualización de documentación del adjunto {AdjuntoId}.", adjuntoId);
+            _errorActualizarDocumento = "No pudimos analizar el adjunto. Puedes rellenar los campos a mano.";
+        }
+        finally
+        {
+            _detectandoDocumento = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CerrarModalActualizarDocumento() => _modalActualizarDocumentoVisible = false;
+
+    private async Task AplicarActualizacionDocumentoAsync()
+    {
+        if (!Guid.TryParse(_tipoDocumentoIdFormulario, out var tipoDocumentoId))
+        {
+            _errorActualizarDocumento = "Selecciona un tipo de documento.";
+            return;
+        }
+
+        if (!DateOnly.TryParse(_fechaEmisionDocumentoFormulario, out var fechaEmision))
+        {
+            _errorActualizarDocumento = "Indica la fecha de emisión.";
+            return;
+        }
+
+        var esTrabajador = _propietarioDocumentoFormulario == nameof(AmbitoAplicacion.Trabajador);
+        Guid? trabajadorId = esTrabajador && Guid.TryParse(_trabajadorDocumentoIdFormulario, out var idTrabajador) ? idTrabajador : null;
+        Guid? empresaId = !esTrabajador && Guid.TryParse(_empresaDocumentoIdFormulario, out var idEmpresa) ? idEmpresa : null;
+
+        if (trabajadorId is null && empresaId is null)
+        {
+            _errorActualizarDocumento = esTrabajador ? "Selecciona un trabajador." : "Selecciona una empresa.";
+            return;
+        }
+
+        DateOnly? fechaVencimientoManual = DateOnly.TryParse(_fechaVencimientoDocumentoFormulario, out var fv) ? fv : null;
+
+        _aplicandoDocumento = true;
+        _errorActualizarDocumento = null;
+        try
+        {
+            var resultado = await Mediator.Send(new ActualizarDocumentoDesdeAdjuntoCommand(
+                _adjuntoParaActualizarDocumentoId, tipoDocumentoId, trabajadorId, empresaId, fechaEmision, fechaVencimientoManual,
+                string.IsNullOrWhiteSpace(_comentariosDocumentoFormulario) ? null : _comentariosDocumentoFormulario));
+
+            if (resultado.EsFallido)
+            {
+                _errorActualizarDocumento = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Documentación actualizada.", TonoToast.Exito);
+            _modalActualizarDocumentoVisible = false;
+            await CargarDetalleAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al actualizar la documentación desde el adjunto {AdjuntoId}.", _adjuntoParaActualizarDocumentoId);
+            _errorActualizarDocumento = "No pudimos aplicar la actualización. Intenta nuevamente.";
+        }
+        finally
+        {
+            _aplicandoDocumento = false;
         }
     }
 

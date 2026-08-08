@@ -11,6 +11,7 @@
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
 @using CaeManager.Domain.Comunicaciones
+@using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Comunicaciones.Components
 @using Microsoft.AspNetCore.Components.Forms
 @using MediatR
@@ -206,7 +207,8 @@
                                   OnCrearVisitaDesdeSugerencia="IrACrearVisitaDesdeSugerencia"
                                   OnDescartarSugerenciaVisita="DescartarSugerenciaVisitaAsync"
                                   OnGenerarGestionesDesdeSugerencia="args => GenerarGestionesDesdeSugerenciaAsync(args.SugerenciaId, args.TrabajadorId, args.TipoDocumentoId)"
-                                  OnDescartarSugerenciaGestion="DescartarSugerenciaGestionAsync" />
+                                  OnDescartarSugerenciaGestion="DescartarSugerenciaGestionAsync"
+                                  OnActualizarDocumentoDesdeAdjunto="AbrirActualizarDocumentoAsync" />
 
                 <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
                              Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"
@@ -249,4 +251,71 @@
             </aside>
         }
     </div>
+
+    <Modal Visible="_modalActualizarDocumentoVisible" VisibleChanged="v => { if (!v) CerrarModalActualizarDocumento(); }"
+           Titulo="Actualizar documentación" Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="!_aplicandoDocumento">
+        <ChildContent>
+            @if (_detectandoDocumento)
+            {
+                <EstadoCargando Filas="4" />
+            }
+            else
+            {
+                @if (_confianzaDeteccionDocumento > 0)
+                {
+                    <p class="modal-actualizar-documento-confianza">
+                        <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" /> Detección de la IA — confianza @_confianzaDeteccionDocumento%. Revisa y corrige antes de aplicar.
+                    </p>
+                }
+                @if (_errorActualizarDocumento is not null)
+                {
+                    <p class="modal-actualizar-documento-error">@_errorActualizarDocumento</p>
+                }
+
+                <div class="modal-actualizar-documento-formulario">
+                    <CampoSelect Etiqueta="Tipo de documento" Valor="@_tipoDocumentoIdFormulario" ValorChanged="v => _tipoDocumentoIdFormulario = v">
+                        <option value="">Selecciona un tipo…</option>
+                        @foreach (var tipo in _tiposDocumentoSelector.Where(t => t.AmbitoAplicacion is AmbitoAplicacion.Trabajador or AmbitoAplicacion.Empresa))
+                        {
+                            <option value="@tipo.Id">@tipo.Nombre (@(tipo.AmbitoAplicacion == AmbitoAplicacion.Trabajador ? "Trabajador" : "Empresa"))</option>
+                        }
+                    </CampoSelect>
+
+                    <CampoSelect Etiqueta="Pertenece a" Valor="@_propietarioDocumentoFormulario" ValorChanged="v => _propietarioDocumentoFormulario = v">
+                        <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
+                        <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
+                    </CampoSelect>
+
+                    @if (_propietarioDocumentoFormulario == nameof(AmbitoAplicacion.Trabajador))
+                    {
+                        <CampoSelect Etiqueta="Trabajador" Valor="@_trabajadorDocumentoIdFormulario" ValorChanged="v => _trabajadorDocumentoIdFormulario = v">
+                            <option value="">Selecciona un trabajador…</option>
+                            @foreach (var trabajador in _trabajadoresSelector)
+                            {
+                                <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+                            }
+                        </CampoSelect>
+                    }
+                    else
+                    {
+                        <CampoSelect Etiqueta="Empresa" Valor="@_empresaDocumentoIdFormulario" ValorChanged="v => _empresaDocumentoIdFormulario = v">
+                            <option value="">Selecciona una empresa…</option>
+                            @foreach (var empresa in _empresasSelector)
+                            {
+                                <option value="@empresa.Id">@empresa.RazonSocial</option>
+                            }
+                        </CampoSelect>
+                    }
+
+                    <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionDocumentoFormulario" ValorChanged="v => _fechaEmisionDocumentoFormulario = v" />
+                    <CampoTexto Etiqueta="Fecha de caducidad (si no se calcula sola)" Type="date" Valor="@_fechaVencimientoDocumentoFormulario" ValorChanged="v => _fechaVencimientoDocumentoFormulario = v" />
+                    <CampoTextarea Etiqueta="Comentarios" Valor="@_comentariosDocumentoFormulario" ValorChanged="v => _comentariosDocumentoFormulario = v" Filas="2" />
+                </div>
+            }
+        </ChildContent>
+        <Pie>
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_aplicandoDocumento" OnClick="CerrarModalActualizarDocumento">Cancelar</Boton>
+            <Boton Cargando="_aplicandoDocumento" Deshabilitado="_detectandoDocumento" OnClick="AplicarActualizacionDocumentoAsync">Aplicar y registrar</Boton>
+        </Pie>
+    </Modal>
 </div>
