@@ -1,8 +1,10 @@
-﻿using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
+﻿using CaeManager.Application.Comunicaciones.Matching;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -58,7 +60,8 @@ public class CuerpoMensajeSaneadoTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(), new GanssSanitizadorHtmlService(),
-            new CurrentUserServiceFalso(rol: "GestorCae"));
+            new CurrentUserServiceFalso(rol: "GestorCae"),
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(_conversacionId), CancellationToken.None);
 
