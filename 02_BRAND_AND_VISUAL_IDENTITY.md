@@ -162,6 +162,10 @@ contraste**; la **sombra solo cuando existe una relación espacial real**, es de
 
 Bordes: `#E2E8EC` (normal) y `#CBD5E1` (reforzado) en claro; `#293644` y `#3A4A5C` en oscuro.
 
+**Texto principal** (DDL-057): `#161E27` en claro — 16.81:1 sobre Surface ✓, 15.79:1 sobre
+Canvas ✓; `#E7EAEE` en oscuro (§ 5). **Texto secundario**: `#5F6E84` en claro (DDL-029) y
+`#8592A3` en oscuro (§ 5).
+
 ### 4.2 Islas, no card-ificación (DDL-014)
 
 Las "islas" son **jerarquía de zonas funcionales** dentro de una superficie. Hydra **no se
@@ -185,7 +189,7 @@ Texto principal `#E7EAEE` (11.40:1 sobre Surface ✓); texto secundario `#8592A3
 
 **El modo oscuro no está rediseñado todavía**, y `prefers-color-scheme` sigue desactivado a
 propósito: un usuario con el sistema operativo en oscuro no debe aterrizar ahí sin elegirlo. La
-reactivación es una decisión de calendario abierta (OD-08). Lo que **sí** es obligatorio desde
+reactivación ocurre después del reset, no antes (DDL-043). Lo que **sí** es obligatorio desde
 ya: **toda arquitectura de tokens nace contemplando los dos temas**, nunca uno con el otro como
 parche.
 

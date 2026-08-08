@@ -88,8 +88,8 @@ mirando esta persona y qué necesita decidir?", no "¿qué campos tiene esta tab
 ### 5.2 Workspace-first
 Las entidades sobre las que se **opera de verdad** se convierten en espacios de trabajo, no en
 filas. Centro 360 es el patrón maestro de esa idea (DDL-005). Qué entidades merecen ese
-tratamiento es una decisión de producto abierta (OD-07): no todas lo merecen, y forzarlo donde
-no hay operación real es complejidad especulativa.
+tratamiento **está decidido** (DDL-042): Centro, Empresa y Trabajador. No todas lo merecen, y
+forzarlo donde no hay operación real es complejidad especulativa.
 
 ### 5.3 Automation-first
 Las integraciones y los conectores no son funciones que el usuario ejecuta una por una: son
