@@ -1,10 +1,12 @@
-﻿using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
+﻿using CaeManager.Application.Comunicaciones.Matching;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -73,7 +75,8 @@ public class VisibilidadTriageTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(clienteIds: [_clientePropio]),
-            new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "Cliente"));
+            new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "Cliente"),
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)));
 
         var detalle = await handler.Handle(
             new ObtenerConversacionPorIdQuery(_conversacionSinCliente), CancellationToken.None);
