@@ -91,7 +91,7 @@ El cian es **asimétrico por tema**, y no por capricho: es un hallazgo medido de
 
 | Uso | Claro | Oscuro |
 |---|---|---|
-| Texto e iconos de sistema | `#0C7792` (5.58:1 ✓) | `#2BD4F0` (>8:1 ✓) |
+| Texto e iconos de sistema | `#0C7792` (5.16:1 ✓) | `#2BD4F0` (>8:1 ✓) |
 | Indicador no textual (punto "en curso", borde, tinte) | `#0E96B4` (3.48:1 ✓) | `#2BD4F0` |
 
 **No existe un cian brillante válido en modo claro.** Medido: `#00F0FF` da 1.41:1, `#00C2E0`
@@ -185,7 +185,8 @@ evolucionar; su existencia no se discute en este ciclo.
 La identidad oscura es **slate** — valores en la tabla de § 4.1 —, elegida sobre la alternativa
 grafito por transmitir plataforma operativa antes que herramienta informática.
 
-Texto principal `#E7EAEE` (11.40:1 sobre Surface ✓); texto secundario `#8592A3` (≈6.5:1 ✓).
+Texto principal `#E7EAEE` (13.49:1 sobre Surface ✓); texto secundario `#8592A3` (5.14:1 sobre
+Surface ✓, 4.55:1 sobre Elevated ✓ — es el par más ajustado del tema).
 
 **El modo oscuro no está rediseñado todavía**, y `prefers-color-scheme` sigue desactivado a
 propósito: un usuario con el sistema operativo en oscuro no debe aterrizar ahí sin elegirlo. La
