@@ -44,7 +44,9 @@ public static class IdentitySeeder
         IUserStore<ApplicationUser> userStore,
         ILogger logger,
         IConfiguration configuration,
-        IHostEnvironment entorno)
+        IHostEnvironment entorno,
+        Persistence.CaeManagerDbContext dbContext,
+        CancellationToken cancellationToken = default)
     {
         foreach (var rol in Identity.Roles.Todos)
         {
@@ -106,5 +108,16 @@ public static class IdentitySeeder
         }
 
         await userManager.SetTwoFactorEnabledAsync(administrador, true);
+
+        // Solo fuera de producción: el admin real de producción debe ver el
+        // modal de AceptacionTerminosGate igual que cualquier usuario, pero
+        // el admin de desarrollo/E2E/CI no debe quedar bloqueado por un
+        // diálogo ajeno a lo que esos entornos verifican (ver
+        // AceptacionTerminosSeedHelper).
+        if (!entorno.IsProduction())
+        {
+            await Persistence.Seed.AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(
+                dbContext, administrador.Id, cancellationToken);
+        }
     }
 }
