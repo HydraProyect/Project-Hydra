@@ -48,7 +48,7 @@ como implementado o presente algo que no está construido.
   la ambigüedad causó el ciclo de rediseños de 2026-07.
 - **Impacto**: criterio raíz de todo el reset; filtra cada decisión visual posterior.
 - **Reemplaza**: la interpretación implícita "premium = look fluido / micro-interacciones" de las
-  rondas de 2026-07 (`DESIGN_SYSTEM.md` § Historial).
+  rondas de 2026-07 (histórico `DESIGN_SYSTEM.md` § Historial, archivado).
 - **Documentos afectados**: `01_PRODUCT_EXPERIENCE.md`.
 
 ### DDL-002 — El CRUD deja de ser el paradigma mental principal
@@ -101,7 +101,7 @@ como implementado o presente algo que no está construido.
 - **Estado**: Vigente · **Fecha**: 2026-08-08
 - **Motivo**: la falta de frontera generó propuestas contradictorias (ensanchar el panel a 90%
   vs panel angosto ~480-520px, decisión cerrada).
-- **Documentos afectados**: `05`; el contenido de `PLAN-CONTEXT-WORKSPACE.md` migra a `05`.
+- **Documentos afectados**: `05`; el contenido del histórico `PLAN-CONTEXT-WORKSPACE.md` (archivado) migra a `05`.
 
 ### DDL-007 — Action Center: patrón de plataforma, contrato sin congelar
 - **Decisión**: el Action Center (decisiones, no información; confianza visible;
@@ -254,7 +254,7 @@ como implementado o presente algo que no está construido.
 - **Estado**: Vigente · **Fecha**: 2026-08-08
 - **Motivo**: la afirmación "todo el portal migró a Adaptive Layout"
   (`docs/COMUNICACIONES.md` § 10.5) y el § 8.1 "cerrado pero no implementado" de
-  `PLAN-CONTEXT-WORKSPACE.md` demuestran el modo de fallo.
+  del histórico `PLAN-CONTEXT-WORKSPACE.md` (archivado) demuestran el modo de fallo.
 - **Documentos afectados**: todos.
 
 ### DDL-024 — Regla de precedencia y resolución de conflictos
@@ -444,7 +444,7 @@ como implementado o presente algo que no está construido.
   doble de ancho en la columna más disputada de la fila sin añadir nada. Coherente además con la
   tarjeta de visita del Home, que ya usaba el badge simple.
 - **Reemplaza**: DDL-038 (badge de dos segmentos) y, antes que él, la expresión "badge `success`
-  con borde `warning.500`" de `DESIGN_SYSTEM.md` § Color.
+  con borde `warning.500`" del histórico `DESIGN_SYSTEM.md` § Color (archivado).
 - **Riesgo asumido y cómo se mitiga**: al aparecer solo en la columna "Estado", el modificador
   puede leerse como un **estado base** más, cuando en el modelo es un modificador contextual de
   `Vigente` (mismo `EstadoDocumento`, distinta fecha de referencia). Se mitiga por dos vías:
@@ -509,6 +509,47 @@ como implementado o presente algo que no está construido.
   traslada a `06`; mantenerlo en un documento de movimiento es lo que convierte a `07` en un
   catálogo de efectos.
 - **Documentos afectados**: `07` § 5, `06` § tokens de superficie.
+
+---
+
+### DDL-055 — La autoridad viene de la posición en la cadena, no de la antigüedad ni del detalle
+- **Decisión**: se congela como regla de gobernanza del repositorio:
+  > **Un documento no obtiene autoridad por ser más antiguo, más detallado, más cercano al
+  > código ni por contener una especificación más concreta. La autoridad viene exclusivamente de
+  > su posición en la cadena normativa vigente.**
+
+  Y su corolario operativo: **un documento histórico no puede utilizarse como fuente para una
+  decisión de diseño o de implementación.** Si una regla necesaria no está en la cadena vigente,
+  **no se recupera del histórico**: se localiza su decisión en este Log o se registra una nueva.
+  Encontrarla en un documento archivado es contexto, no autorización.
+- **Estado**: Vigente · **Fecha**: 2026-08-08
+- **Motivo**: archivar los documentos superados no basta. Sin esta regla, dentro de seis meses
+  alguien abre un documento histórico, lee "los drawers deben…" y lo copia a código — y la
+  cabecera de "histórico" no lo impide por sí sola.
+- **Consecuencia sobre el código**: si el código contradice la normativa, **el código no modifica
+  la normativa**. Se registra como divergencia; cambiar la norma exige una decisión nueva que
+  sustituya explícitamente a la anterior.
+- **Se hace verificable**: `scripts/validar-gobernanza-docs.py`, ejecutado en CI, comprueba las
+  seis propiedades de la frontera (`docs/README.md` § 5). Un fallo no es un problema de formato:
+  significa que la frontera de autoridad se ha roto.
+- **Documentos afectados**: `docs/README.md` (nuevo), `CLAUDE.md`, todos los archivados.
+
+### DDL-056 — Migración documental ejecutada (cierra la parte pendiente de DDL-022)
+- **Decisión**: los cuatro documentos de diseño anteriores (`DESIGN_SYSTEM.md`, `UX_PATTERNS.md`,
+  `PLAN-CONTEXT-WORKSPACE.md`, `PLAN-MASTER-DETAIL-WORKSPACE.md` — todos históricos y archivados)
+  se trasladan a `docs/archive/design/` con cabecera de **no
+  normativo** que declara estado, sustituto, decisiones relacionadas y por qué se conservan. No
+  se borran: cada uno guarda evidencia que la normativa cita.
+- **Estado**: Vigente · **Fecha**: 2026-08-08
+- **Motivo**: DDL-022 decidió la sustitución pero **no se había ejecutado**. Mientras tanto
+  `CLAUDE.md` seguía mandando leer los documentos antiguos "antes de escribir código o UI nueva",
+  de modo que el reset no gobernaba nada y el repositorio tenía **dos sistemas vivos a la vez** —
+  peor que antes de empezar.
+- **Alcance**: `docs/ux-audit/**` se queda donde está como evidencia de la auditoría;
+  `docs/COMUNICACIONES.md` es mixto (Parte I vigente, Parte II es un blueprint) y queda pendiente
+  de alinear con `docs/blueprints/`.
+- **Documentos afectados**: `CLAUDE.md`, `README.md`, `PROJECT.md`, `ARCHITECTURE.md`,
+  `CODING_STANDARDS.md`, `docs/MULTITENANCY.md`, `docs/ux-audit/PLAN-EJECUCION-UX.md`.
 
 ---
 
@@ -663,6 +704,8 @@ como implementado o presente algo que no está construido.
 ## Open Decisions
 
 **Ninguna.** Las veintiuna Open Decisions del reset quedan cerradas el 2026-08-08.
+
+La frontera de autoridad se verifica en CI (DDL-055): `scripts/validar-gobernanza-docs.py`.
 
 | Grupo | ODs | Cerradas por |
 |---|---|---|

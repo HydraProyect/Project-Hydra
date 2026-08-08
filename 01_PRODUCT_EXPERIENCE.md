@@ -148,7 +148,7 @@ paso.
 - ✅ "Cumplimiento actualizado. 42 documentos verificados, 3 requieren revisión."
 - ❌ "¡Excelente! Todo está increíble."
 
-Reglas heredadas de `UX_PATTERNS.md` que siguen vigentes y se consolidarán en `04`: todo en
+Reglas heredadas del histórico `UX_PATTERNS.md` (archivado) que siguen vigentes y se consolidan en `04`: todo en
 español, tono directo y humano, nunca jerga técnica de cara al usuario; el mensaje explica qué
 pasó y, si aplica, qué puede hacer la persona ahora.
 

@@ -30,7 +30,7 @@ Dentro de cada tenant, el modelo CAE es el ya existente, sin cambios:
 - `Trabajador` y `Vehiculo` pertenecen a una única `Empresa` **o** a una única `Subcontrata` (personal/flota subcontratados — mutuamente excluyente). Su relación con los Clientes es derivada: vía `Asignacion` + `Centro` (Trabajador) o transitiva (Vehículo). **No llevan `ClienteId`** — el dominio no garantiza un único Cliente para ellos.
 - `Centro` pertenece a un único `Cliente` (`ClienteId`, FK real) y es operado por una `Empresa` (`EmpresaId`).
 - `Documento` tiene propietario polimórfico excluyente: `Trabajador`, `Cliente`, `Empresa` o `Vehiculo`.
-- La "vista de Cliente" (Context Workspace, ver `PLAN-CONTEXT-WORKSPACE.md`) construye la sensación de que "todo pertenece al Cliente" mediante **consultas agregadas de lectura**, nunca desnormalizando FKs.
+- La "vista de Cliente" (Context Panel, ver `05_WORKSPACE_PATTERNS.md` § 3) construye la sensación de que "todo pertenece al Cliente" mediante **consultas agregadas de lectura**, nunca desnormalizando FKs.
 
 `TenantId` es **ortogonal** a este grafo: se añade a las tablas sin sustituir ni reordenar ninguna relación.
 

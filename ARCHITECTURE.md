@@ -121,7 +121,7 @@ No se usa un `IRepository<T>` genérico. Cada agregado raíz (Cliente, Centro, E
 
 ## Manejo de errores
 
-- Errores esperables de negocio (validación, reglas violadas, "no encontrado") → `Result<T>` / `Result`, nunca excepciones. La UI los traduce a microcopy en español (ver `UX_PATTERNS.md`).
+- Errores esperables de negocio (validación, reglas violadas, "no encontrado") → `Result<T>` / `Result`, nunca excepciones. La UI los traduce a microcopy en español (ver `04_UX_PATTERNS.md`).
 - Excepciones reservadas para errores verdaderamente inesperados (fallo de infraestructura). `LoggingBehavior` las registra con nivel Error (correlacionadas con tenant y usuario), Sentry las reporta si hay DSN configurado, y `app.UseExceptionHandler("/Error")` las traduce a la página de error genérica. No se traducen a `Result<T>`.
 
 ## Autenticación y autorización

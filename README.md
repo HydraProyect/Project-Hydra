@@ -60,7 +60,8 @@ Este repositorio documenta sus propias decisiones extensamente — pensado tanto
 | Persistencia y la regla de negocio del estado de un Documento | `DATABASE.md` |
 | Multi-tenancy: aislamiento, catálogos, resolución de tenant | `docs/MULTITENANCY.md` |
 | Qué es "plataforma" vs. "módulo de negocio" en este código | `docs/PLATFORM.md` |
-| Convenciones de código, diseño de UI/UX | `CODING_STANDARDS.md`, `DESIGN_SYSTEM.md`, `UX_PATTERNS.md` |
+| Convenciones de código | `CODING_STANDARDS.md` |
+| Diseño, UX e identidad visual | `01_PRODUCT_EXPERIENCE.md` … `08_COMPONENT_CATALOG.md` + `DESIGN_DECISION_LOG.md` (ver `docs/README.md`) |
 | Desplegar (Railway) | `DEPLOY.md` |
 | Historial de fases y qué queda pendiente | `ROADMAP.md` |
 | El porqué de una decisión de arquitectura ya tomada | los `ADR-*.md` de la raíz |

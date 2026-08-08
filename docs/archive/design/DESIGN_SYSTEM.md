@@ -1,5 +1,20 @@
 # Design System 3.2 — CAE Manager (identidad ProjectHydra)
 
+> ## ESTADO: HISTÓRICO · NO NORMATIVO
+>
+> Este documento pertenece al sistema de diseño **anterior** al reset documental de agosto de 2026.
+> Puede contener decisiones, propuestas o especificaciones que fueron sustituidas después.
+>
+> **Este documento NO constituye autoridad sobre el sistema vigente.**
+>
+> - Decisiones vigentes → `DESIGN_DECISION_LOG.md`
+> - Normativa vigente → `01_PRODUCT_EXPERIENCE.md` … `08_COMPONENT_CATALOG.md`
+> - Especificación de una superficie → `docs/blueprints/`
+>
+> **Sustituido por**: `02_BRAND_AND_VISUAL_IDENTITY.md` (identidad y color) · `06_DESIGN_SYSTEM.md` (tokens) · `07_MOTION_SYSTEM.md` (movimiento) · `08_COMPONENT_CATALOG.md` (componentes)
+> **Decisiones relacionadas**: DDL-008, DDL-012, DDL-013, DDL-016, DDL-022, DDL-025 a DDL-030, DDL-045, DDL-054
+> **Por qué se conserva**: su bloque "Historial" documenta las cuatro rondas de identidad de 2026-07 y es la evidencia de por qué el reset existe.
+
 ## Estado de este documento
 
 Este documento es la fuente de verdad de identidad visual y tokens para **todo** el sistema desde el día uno. El catálogo de componentes, en cambio, se documenta en detalle **a medida que cada componente se implementa de verdad** — especificar hoy el Do/Don't/accesibilidad/responsive de 30 componentes que no existen todavía es trabajo especulativo que se desactualiza antes de usarse (YAGNI). La Fase 0 (ver `ROADMAP.md`) implementó y documentó aquí el primer conjunto real; el resto se añade componente a componente conforme se construye.
