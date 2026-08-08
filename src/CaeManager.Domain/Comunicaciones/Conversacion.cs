@@ -175,6 +175,40 @@ public class Conversacion : EntidadBase
         ClienteId = clienteId;
     }
 
+    /// <summary>
+    /// Fusiona los mensajes de <paramref name="origen"/> en este hilo —
+    /// resultado de una vinculación confirmada por el gestor tras el
+    /// Conversation Matching Engine (docs/COMUNICACIONES.md § 13.2). Nunca
+    /// automático: solo <c>VincularConversacionCommandHandler</c> la llama,
+    /// después de que el gestor confirma la propuesta. Cada mensaje conserva
+    /// su propio <see cref="Mensaje.Canal"/> — con esto nace un hilo mixto de
+    /// verdad (§ 13.1). <paramref name="origen"/> queda sin mensajes propios;
+    /// el llamador es responsable de marcarla <see cref="EstadoConversacion.Cerrada"/>.
+    /// Los Participantes de <paramref name="origen"/> no se trasladan: hoy
+    /// WhatsApp (el único canal que hace de origen en este flujo) nunca los
+    /// puebla (§ 14, hueco ya identificado), así que no hay nada que perder.
+    /// </summary>
+    public void AbsorberMensajesDe(Conversacion origen)
+    {
+        if (origen.Id == Id)
+            throw new InvalidOperationException("Una conversación no puede fusionarse consigo misma.");
+
+        foreach (var mensaje in origen._mensajes)
+        {
+            mensaje.ReasignarConversacion(Id);
+            _mensajes.Add(mensaje);
+
+            if (mensaje.FechaUtc > FechaUltimoMensajeUtc)
+                FechaUltimoMensajeUtc = mensaje.FechaUtc;
+
+            if (mensaje.Direccion == DireccionMensaje.Entrante &&
+                (FechaUltimoMensajeEntranteUtc is null || mensaje.FechaUtc > FechaUltimoMensajeEntranteUtc))
+                FechaUltimoMensajeEntranteUtc = mensaje.FechaUtc;
+        }
+
+        origen._mensajes.Clear();
+    }
+
     private void EstablecerAsunto(string asunto)
     {
         if (string.IsNullOrWhiteSpace(asunto))

@@ -45,5 +45,13 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
             .Select(g => new { g.Key, Total = g.Count() })
             .ToDictionaryAsync(g => g.Key, g => g.Total, cancellationToken);
 
+    public async Task<IReadOnlyList<Conversacion>> ObtenerAbiertasPorClienteAsync(
+        Guid clienteId, Guid excluirConversacionId, CancellationToken cancellationToken = default) =>
+        await dbContext.Conversaciones
+            .Where(c => c.ClienteId == clienteId && c.Id != excluirConversacionId
+                        && (c.Estado == EstadoConversacion.Abierta || c.Estado == EstadoConversacion.Pendiente))
+            .OrderByDescending(c => c.FechaUltimoMensajeUtc)
+            .ToListAsync(cancellationToken);
+
     public void Agregar(Conversacion conversacion) => dbContext.Conversaciones.Add(conversacion);
 }

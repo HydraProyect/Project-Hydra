@@ -38,5 +38,13 @@ public class ConversacionRepositorioFalso : IConversacionRepository
             .GroupBy(c => c.EjecutivoAsignadoId!.Value)
             .ToDictionary(g => g.Key, g => g.Count()));
 
+    public Task<IReadOnlyList<Conversacion>> ObtenerAbiertasPorClienteAsync(
+        Guid clienteId, Guid excluirConversacionId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Conversacion>>(Conversaciones
+            .Where(c => c.ClienteId == clienteId && c.Id != excluirConversacionId
+                        && (c.Estado == EstadoConversacion.Abierta || c.Estado == EstadoConversacion.Pendiente))
+            .OrderByDescending(c => c.FechaUltimoMensajeUtc)
+            .ToList());
+
     public void Agregar(Conversacion conversacion) => Conversaciones.Add(conversacion);
 }

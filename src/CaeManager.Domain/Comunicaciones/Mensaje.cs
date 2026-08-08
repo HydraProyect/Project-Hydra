@@ -97,4 +97,20 @@ public class Mensaje : EntidadConTenant
         _adjuntos.Add(adjunto);
         return adjunto;
     }
+
+    /// <summary>
+    /// Traslada este mensaje a otra Conversacion — solo lo llama
+    /// <see cref="Conversacion.AbsorberMensajesDe"/> al confirmar una
+    /// vinculación propuesta por el Conversation Matching Engine
+    /// (docs/COMUNICACIONES.md § 13.2). El mensaje conserva su propio
+    /// <see cref="Canal"/>: es exactamente lo que hace nacer un hilo mixto de
+    /// verdad.
+    /// </summary>
+    public void ReasignarConversacion(Guid nuevaConversacionId)
+    {
+        if (nuevaConversacionId == Guid.Empty)
+            throw new ArgumentException("La nueva conversación no puede estar vacía.", nameof(nuevaConversacionId));
+
+        ConversacionId = nuevaConversacionId;
+    }
 }

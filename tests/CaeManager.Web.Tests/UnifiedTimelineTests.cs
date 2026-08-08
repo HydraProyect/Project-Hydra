@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Web.Features.Comunicaciones.Components;
@@ -92,5 +93,44 @@ public class UnifiedTimelineTests : BunitContext
         cut.Find(".timeline-adjunto-actualizar-documento").Click();
 
         adjuntoRecibido.Should().Be(adjuntoId);
+    }
+
+    [Fact]
+    public void Una_sugerencia_de_vinculacion_muestra_el_asunto_destino_y_dispara_el_callback_con_su_id()
+    {
+        var conversacionDestinoId = Guid.NewGuid();
+        var desglose = new DesgloseCoincidenciaDto(40, 0, 0, 0, 0, 0, 10);
+        Guid? destinoRecibido = null;
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [])
+            .Add(p => p.Participantes, [])
+            .Add(p => p.SugerenciaVinculacion, new SugerenciaVinculacionDetalleDto(conversacionDestinoId, "Consulta sobre visita", desglose))
+            .Add(p => p.OnVincularConversacion, id => destinoRecibido = id));
+
+        cut.Markup.Should().Contain("Consulta sobre visita");
+        cut.Find(".timeline-sugerencia-vinculacion").Should().NotBeNull();
+
+        cut.FindAll(".timeline-sugerencia-vinculacion button")[1].Click();
+
+        destinoRecibido.Should().Be(conversacionDestinoId);
+    }
+
+    [Fact]
+    public void Descartar_una_sugerencia_de_vinculacion_la_oculta_sin_llamar_al_callback()
+    {
+        var desglose = new DesgloseCoincidenciaDto(40, 0, 0, 0, 0, 0, 10);
+        var vinculado = false;
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [])
+            .Add(p => p.Participantes, [])
+            .Add(p => p.SugerenciaVinculacion, new SugerenciaVinculacionDetalleDto(Guid.NewGuid(), "Consulta sobre visita", desglose))
+            .Add(p => p.OnVincularConversacion, _ => vinculado = true));
+
+        cut.FindAll(".timeline-sugerencia-vinculacion button")[0].Click();
+
+        cut.FindAll(".timeline-sugerencia-vinculacion").Should().BeEmpty();
+        vinculado.Should().BeFalse();
     }
 }
