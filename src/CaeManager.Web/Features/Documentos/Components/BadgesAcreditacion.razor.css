@@ -1,0 +1,5 @@
+.badges-acreditacion {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}

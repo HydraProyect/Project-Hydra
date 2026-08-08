@@ -184,7 +184,7 @@ public class OrdenacionListadosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerDocumentosQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso());
+            new AlcanceDatosServiceFalso(), contexto, contexto);
 
         var resultado = await handler.Handle(
             new ObtenerDocumentosQuery(
