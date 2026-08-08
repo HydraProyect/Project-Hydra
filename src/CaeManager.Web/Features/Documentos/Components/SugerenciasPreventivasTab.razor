@@ -1,0 +1,82 @@
+@*
+    Acción preventiva, no reactiva (pedido explícito del usuario, 2026-08-08):
+    cuando a varios técnicos con Asignación activa al mismo Centro les falta
+    el mismo TipoDocumento exigido allí, agrupa el patrón en vez de dejar que
+    cada uno aparezca como una alerta suelta — para resolverlo de una vez
+    antes de que el siguiente técnico llegue al Centro sin el documento.
+    Misma pestaña de /documentos que Reclamaciones, mismo motivo: reutilizar
+    la pantalla en vez de sumar una entrada al menú lateral.
+*@
+@using CaeManager.Application.Alertas.Queries.ObtenerSugerenciasPreventivas
+@using MediatR
+@inject IMediator Mediator
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="No pudimos cargar las sugerencias" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_sugerencias.Count == 0)
+{
+    <EstadoVacio Titulo="Sin patrones pendientes" Descripcion="Ningún centro tiene el mismo documento faltante en más de un técnico ahora mismo." />
+}
+else
+{
+    @foreach (var sugerencia in _sugerencias)
+    {
+        <Tarjeta @key="new { sugerencia.CentroId, sugerencia.TipoDocumentoId }" Titulo="@($"{sugerencia.CentroNombre} — {sugerencia.TipoDocumentoNombre}")">
+            <ChildContent>
+                <p class="texto-vacio-seccion">
+                    @sugerencia.Trabajadores.Count técnicos con Asignación activa a este centro no tienen este documento.
+                </p>
+                <ul class="workspace-lista-entidades">
+                    @foreach (var trabajador in sugerencia.Trabajadores)
+                    {
+                        <li @key="trabajador.TrabajadorId">
+                            @trabajador.TrabajadorNombre
+                            <a href="@ObtenerEnlaceCrear(trabajador.TrabajadorId, sugerencia.TipoDocumentoId)">Crear documento</a>
+                        </li>
+                    }
+                </ul>
+            </ChildContent>
+        </Tarjeta>
+    }
+}
+
+@code {
+    private bool _cargando = true;
+    private bool _error;
+    private IReadOnlyList<SugerenciaPreventivaDto> _sugerencias = [];
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+        StateHasChanged();
+
+        try
+        {
+            _sugerencias = await Mediator.Send(new ObtenerSugerenciasPreventivasQuery());
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private static string ObtenerEnlaceCrear(Guid trabajadorId, Guid tipoDocumentoId) =>
+        $"/documentos?TrabajadorId={trabajadorId}&TipoDocumentoId={tipoDocumentoId}";
+}

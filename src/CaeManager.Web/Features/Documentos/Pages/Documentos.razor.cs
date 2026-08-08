@@ -79,7 +79,8 @@ public partial class Documentos : ComponentBase
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanasDocumentos =
     [
         new("listado", "Listado"),
-        new("reclamaciones", "Reclamaciones")
+        new("reclamaciones", "Reclamaciones"),
+        new("sugerencias", "Sugerencias preventivas")
     ];
 
     private string _pestanaActiva = "listado";
