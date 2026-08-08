@@ -98,6 +98,18 @@ Una entrada nunca se edita para cambiar lo que se decidió en su momento — si 
 
 **Estado**: Vigente
 
+## 2026-08-08 — Confirmación del término "Acreditación" (Draft → Approved)
+
+**Decisión**: Se confirma **Acreditación** como término de negocio Approved: el estado de un Documento frente a un acceso de plataforma Inbound destino concreto (Dokify, Nalanda, Twind…) — se refiere a la subida de los documentos Outbound de Hydra a las plataformas Inbound de las titulares, mediante las integraciones existentes o futuras (Dokify, etc.). Un mismo documento puede estar vigente en Hydra, aceptado en una plataforma y pendiente en otra a la vez.
+
+**Motivo**: El término se dio de alta como `Draft` en `UBIQUITOUS_LANGUAGE.md` el 2026-08-08 al construir la entidad `AcreditacionDocumentoPlataforma` (Lote 2-C, `PLAN-EJECUCION-UX.md` § Parte 2 (b)), porque el propio término no tenía todavía la confirmación explícita de negocio que exige "Reglas de este documento" — solo el bloque que lo usa estaba autorizado (entrada del 2026-08-05 de este mismo registro). El propietario confirma en conversación el mismo alcance con el que se implementó.
+
+**Alternativas descartadas**: ninguna — es una confirmación del término tal como ya estaba definido, no una redefinición.
+
+**Impacto**: Término **Acreditación** pasa a `Approved` en `docs/business/UBIQUITOUS_LANGUAGE.md`.
+
+**Estado**: Vigente
+
 ## Documentos relacionados
 
 - Todos los documentos de `docs/business/` — cualquiera puede generar una entrada aquí cuando su contenido pasa de `Draft`/`In Progress` a `Approved`.
