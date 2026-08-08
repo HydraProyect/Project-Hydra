@@ -17,6 +17,19 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
+  gobernanza-docs:
+    name: Frontera de autoridad documental
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Comprueba que ningún documento sin autoridad esté gobernando decisiones
+      # (docs/README.md, DDL-055). Un fallo aquí no es de formato.
+      - name: Validar gobernanza documental
+        run: python scripts/validar-gobernanza-docs.py
+
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest
