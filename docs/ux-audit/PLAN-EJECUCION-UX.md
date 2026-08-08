@@ -636,6 +636,36 @@ match ⇒ selección manual / alta por tenant. Dominios editables desde el catá
 
 ### (b) Entidad `AcreditacionDocumentoPlataforma`
 
+**Estado (Lote 2-C, dominio y persistencia) — hecho, 2026-08-08.** `AcreditacionDocumentoPlataforma`
+(`EntidadBase`, con `Version`/soft delete — necesita concurrencia optimista real: dos
+gestores marcando la misma acreditación a la vez no deben pisarse) referencia el
+`CanalGestionDocumental` concreto (el acceso de un Centro a una plataforma, no el catálogo
+`ProveedorPlataformaCae` directamente — con N accesos por Centro, cada acceso es la unidad
+real de "dónde hay que subir esto"). Estados `PendienteDeSubir/Subida/Aceptada/Rechazada/NoRequerida`.
+`Rechazar(causa, motivoLiteral, fechaUtc)` exige siempre las dos cosas (validado en el
+constructor de `RechazoAcreditacionDocumentoPlataforma`, invocado **antes** de tocar
+`Estado` — un motivo inválido no debe dejar la entidad a medio camino, bug real atrapado por
+el primer test de esta clase) y añade una entrada al historial (`HistorialRechazos`,
+colección de solo lectura respaldada por campo privado, mismo patrón que
+`Conversacion.Mensajes`) — los rechazos anteriores nunca se sobreescriben.
+`ReiniciarPorRenovacionDocumento()` cubre la invariante "renovar Documento ⇒ todas sus
+acreditaciones a Pendiente de subir" sin tocar el historial. Migración
+`AgregarAcreditacionDocumentoPlataforma` + RLS en la misma tanda
+(`HabilitarRlsAcreditacionDocumentoPlataforma`, mismo patrón que
+`HabilitarRlsEventosConversacion`). Repositorio mínimo (`ObtenerPorIdAsync`/`Agregar`) —
+sin más métodos porque nada los necesita todavía. Alta de "Acreditación" en
+`UBIQUITOUS_LANGUAGE.md` como **Draft** (no Approved: el término en sí no tiene
+confirmación explícita de negocio propia, solo el bloque que lo usa está autorizado).
+Verificado con 375 Domain + 249 Application + 100 Web + 13 Architecture + IntegrationTests
+(incluye `PoliticasRlsCubrenModeloTests`), todos en verde, y
+`dotnet ef migrations has-pending-model-changes` limpio. **Sin UI y sin la lógica que
+deriva qué plataformas aplican a un documento** (trabajador→asignaciones activas→centros→canal,
+o centros con actividad real de una Empresa) **ni el disparador automático al
+crear/renovar un Documento — eso es Lote 2-D, todavía sin construir** (mismo criterio YAGNI
+que el catálogo `ProveedorPlataformaCae` del Lote 2-A: "sin UI todavía, hasta que haya un
+consumidor real"). Por eso este lote no lleva verificación end-to-end en navegador — nada
+cambia en la UI, la cobertura son los tests.
+
 Documento × plataforma, estados: **Pendiente de subir / Subida (en validación) / Aceptada /
 Rechazada / No requerida**. El estado Rechazada exige **siempre** causa tipificada (Ilegible,
 Documento equivocado, Datos erróneos, Caducado al presentar, Falta firma/sello, Formato no
