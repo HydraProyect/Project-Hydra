@@ -76,6 +76,14 @@ public partial class Documentos : ComponentBase
 
     private GridItemsProvider<DocumentoListaDto>? _proveedorElementos;
 
+    private static readonly IReadOnlyList<PestanaDefinicion> _pestanasDocumentos =
+    [
+        new("listado", "Listado"),
+        new("reclamaciones", "Reclamaciones")
+    ];
+
+    private string _pestanaActiva = "listado";
+
     // --- P3-31: selección múltiple, atajos j/k, filtros guardados ---
     private readonly HashSet<Guid> _seleccionados = [];
 
