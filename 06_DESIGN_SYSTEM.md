@@ -265,7 +265,7 @@ activo.
 |---|---|
 | 4.5:1 | Texto normal |
 | 3:1 | Texto grande (≥24 px, o ≥18.66 px en negrita) |
-| 3:1 | Componentes de interfaz y bordes significativos |
+| 3:1 | Componentes de interfaz: borde que identifica un control e indicadores de estado (`02` § 8, DDL-062) |
 
 ### Pares de contraste normativos
 

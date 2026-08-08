@@ -234,7 +234,17 @@ una identidad válida.
 |---|---|
 | **4.5:1** | Texto normal |
 | **3:1** | Texto grande (≥24px, o ≥18.66px en negrita) |
-| **3:1** | Componentes de interfaz y bordes significativos |
+| **3:1** | Componentes de interfaz: el borde que **identifica un control** y los indicadores de estado |
+
+**Qué borde está sujeto al 3:1** (DDL-062). El umbral aplica al borde que constituye el **límite
+visual de un control interactivo** —campo de texto, área de texto, selector, zona de soltar, botón
+que no lleva relleno— y a los **indicadores de estado**, incluido el de foco. **No aplica** a
+separadores, contornos de agrupación ni bordes de tarjeta, panel o modal: agrupan contenido, no
+identifican un control, y exigirles 3:1 obligaría a un contorno oscuro en toda la interfaz —
+exactamente la card-ificación que DDL-014 prohíbe.
+
+Regla de decisión ante un borde nuevo: *si el borde desaparece, ¿deja de poder distinguirse dónde
+empieza y acaba un control?* Si la respuesta es sí, está sujeto al 3:1.
 
 Reglas permanentes:
 
