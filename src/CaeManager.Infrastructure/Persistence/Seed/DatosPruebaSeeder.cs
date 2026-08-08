@@ -605,6 +605,7 @@ public static class DatosPruebaSeeder
                 }
 
                 await userManager.AddToRoleAsync(usuario, rol);
+                await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, usuario.Id, cancellationToken);
                 usuariosPorRol[rol].Add(usuario);
             }
         }
