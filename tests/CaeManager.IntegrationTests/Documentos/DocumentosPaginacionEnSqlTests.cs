@@ -88,7 +88,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerDocumentosQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso());
+            new AlcanceDatosServiceFalso(), contexto, contexto);
 
         var resultado = await handler.Handle(
             new ObtenerDocumentosQuery(null, null, null, estado, Pagina: 1, TamanoPagina: 50), CancellationToken.None);
@@ -111,7 +111,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerDocumentosQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso());
+            new AlcanceDatosServiceFalso(), contexto, contexto);
 
         var resultado = await handler.Handle(
             new ObtenerDocumentosQuery(null, null, null, null, Pagina: 1, TamanoPagina: 50), CancellationToken.None);
@@ -129,7 +129,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerDocumentosQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso());
+            new AlcanceDatosServiceFalso(), contexto, contexto);
 
         var resultado = await handler.Handle(
             new ObtenerDocumentosQuery(null, null, null, null, Pagina: 1, TamanoPagina: 2), CancellationToken.None);

@@ -1,0 +1,136 @@
+@*
+    Contenido copiado de docs/business/legal/TERMINOS_Y_CONDICIONES.md en la
+    versión CaeManager.Domain.Cumplimiento.VersionTerminos.Actual — docs/
+    no se publica en el contenedor de despliegue (ver Dockerfile), así que
+    esta página es la copia servible, no una vista dinámica del archivo.
+    Al editar el documento fuente, copiar aquí y subir VersionTerminos.Actual
+    en el mismo cambio — es lo único que dispara la re-aceptación.
+*@
+@page "/legal/terminos"
+@layout CaeManager.Web.Components.Layout.AuthLayout
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+
+<PageTitle>Términos y Condiciones — CAE Manager</PageTitle>
+
+<div class="documento-legal">
+    <h1>Términos y Condiciones de Uso</h1>
+    <p class="documento-legal-aviso">
+        Versión @CaeManager.Domain.Cumplimiento.VersionTerminos.Actual — borrador operativo, pendiente de revisión legal final.
+        Algunas cláusulas quedan señaladas como <em>pendientes de confirmar</em> y se completarán en versiones posteriores.
+    </p>
+
+    <h2>1. Definiciones</h2>
+    <p>Este contrato usa el vocabulario oficial del glosario de negocio de Hydra, sin traducción ni redefinición:</p>
+    <ul>
+        <li><strong>Tenant</strong>: la organización que compra y usa Hydra; frontera absoluta de aislamiento de datos.</li>
+        <li><strong>Cliente</strong>: cualquier organización que contrata Hydra.</li>
+        <li><strong>Cliente Directo</strong>: Cliente que gestiona su propia operación CAE dentro de Hydra.</li>
+        <li><strong>Cliente Delegante</strong>: Cliente que delega la operación de su CAE en una Consultora.</li>
+        <li><strong>Consultora</strong>: organización que compra Hydra y gestiona la CAE de varios Clientes Delegantes por delegación.</li>
+        <li><strong>Delegated Workspace</strong>: el espacio en el que una Consultora opera en nombre de un Cliente Delegante.</li>
+        <li><strong>Datos de Servicio</strong>: el contenido que el Cliente introduce en la plataforma (documentos, datos de trabajadores, y mensajes cuando el módulo de mensajería esté disponible).</li>
+    </ul>
+
+    <h2>2. Objeto</h2>
+    <p>
+        Hydra concede al Cliente una licencia de uso <strong>no exclusiva, revocable en los términos de este contrato,
+        e intransferible/no sublicenciable</strong>, sobre la plataforma SaaS Hydra, durante el plazo de vigencia de la
+        suscripción contratada. Esta licencia no implica cesión alguna de derechos de propiedad intelectual sobre el
+        software, que permanece en todo momento titularidad de Hydra.
+    </p>
+
+    <h2>3. Ámbito subjetivo</h2>
+    <p>
+        El servicio se presta <strong>exclusivamente a usuarios profesionales en el marco de su actividad empresarial
+        o profesional (relación B2B)</strong>. Queda excluido cualquier uso por consumidores en los términos de la
+        normativa de defensa de consumidores y usuarios.
+    </p>
+
+    <h2>4. Figuras de acceso a la plataforma</h2>
+    <ul>
+        <li><strong>Usuario del Tenant</strong>: persona autorizada por el Cliente para acceder a la plataforma en nombre de su organización, con el rol que el Cliente le asigne.</li>
+        <li><strong>Tercero Autorizado</strong>: contratista o subcontratista al que el Cliente autoriza a acceder a la plataforma con el único fin de aportar documentación relativa a su propia coordinación de actividades empresariales.</li>
+        <li><strong>Operador Delegado</strong>: usuario de una Consultora autorizado a operar un Delegated Workspace en nombre de un Cliente Delegante.</li>
+    </ul>
+    <p class="documento-legal-pendiente">Pendiente de confirmar: el encaje contractual exacto de la figura de Operador Delegado y de la Consultora como parte del contrato, sujeto a la calificación legal de la Consultora frente al RGPD.</p>
+
+    <h2>5. Responsabilidad del cumplimiento CAE/RGPD del contenido — cláusula de neutralidad</h2>
+    <p>Esta es la cláusula central del posicionamiento legal de Hydra:</p>
+    <ol>
+        <li>El cumplimiento de las obligaciones derivadas de la coordinación de actividades empresariales (incluida la normativa de prevención de riesgos laborales aplicable) corresponde al Cliente, a sus contratistas y a los Terceros Autorizados que introducen datos en la plataforma — <strong>no a Hydra</strong>, salvo en su condición de encargado del tratamiento conforme al Anexo de Protección de Datos (DPA).</li>
+        <li>El Cliente garantiza que dispone de base legítima suficiente para introducir en la plataforma los datos de terceros (trabajadores propios, de contratistas o de subcontratistas) que aporte.</li>
+        <li>El Cliente es responsable de informar a sus propios trabajadores y a los de sus contratistas del tratamiento de sus datos conforme a la normativa aplicable.</li>
+    </ol>
+    <p>
+        Hydra no verifica la validez de las autorizaciones ni de la documentación introducida por el Cliente: el
+        sistema calcula y muestra el estado documental que el Cliente introduce, sin arrogarse una función de
+        verificación legal que corresponde al propio Cliente.
+    </p>
+
+    <h2>6. Obligaciones del Cliente</h2>
+    <p>El Cliente se compromete a:</p>
+    <ul>
+        <li>Hacer un uso lícito y adecuado de la plataforma, conforme a este contrato y a la normativa aplicable.</li>
+        <li>Custodiar sus credenciales de acceso y las de los usuarios que autorice, y notificar a Hydra sin demora injustificada cualquier compromiso de seguridad de dichas credenciales.</li>
+        <li>No realizar ingeniería inversa, descompilación o cualquier intento de acceder al código fuente de la plataforma salvo en los casos permitidos por la ley.</li>
+        <li>No sobrecargar deliberadamente el servicio ni realizar pruebas de intrusión sin autorización expresa de Hydra.</li>
+        <li>Mantener actualizados sus datos de contacto y de facturación.</li>
+    </ul>
+
+    <h2>7. Disponibilidad y mantenimiento</h2>
+    <p>
+        Hydra no garantiza la disponibilidad absoluta e ininterrumpida del servicio. Podrá realizar ventanas de
+        mantenimiento programado, que procurará que sean breves, justificadas y preferentemente fuera del horario
+        laboral habitual, notificándolas con antelación razonable salvo en casos de urgencia.
+    </p>
+
+    <h2>8. Cambios en el servicio</h2>
+    <p>
+        Los cambios impuestos por modificaciones normativas no constituyen incumplimiento contractual por parte de
+        Hydra, aunque supongan una modificación de funcionalidades existentes. Los cambios sustanciales no derivados
+        de una obligación normativa se notificarán al Cliente con una antelación mínima de un mes.
+    </p>
+
+    <h2>9. Duración, renovación y precios</h2>
+    <p>
+        La duración inicial y las condiciones de renovación se fijan en la orden de pedido correspondiente. Salvo
+        pacto distinto, el contrato se renueva tácitamente por periodos sucesivos. Los precios podrán actualizarse
+        anualmente; las condiciones particulares pactadas expresamente con un Cliente prevalecen sobre las
+        condiciones generales de este documento.
+    </p>
+    <p class="documento-legal-pendiente">Pendiente de confirmar: plazo de preaviso para oponerse a la renovación (referencia de mercado: 2 meses).</p>
+
+    <h2>10. Terminación y devolución/portabilidad de datos</h2>
+    <p>
+        A la finalización del contrato, por cualquier causa, el Cliente tiene derecho a obtener una copia completa
+        de sus Datos de Servicio, en un formato estándar documentado, <strong>sin coste adicional</strong>.
+    </p>
+
+    <h2>11. Limitación de responsabilidad</h2>
+    <p>
+        Sin perjuicio de la responsabilidad que resulte inexcusable conforme a la normativa aplicable, la
+        responsabilidad total de Hydra frente al Cliente derivada de este contrato queda limitada al importe
+        efectivamente abonado por el Cliente durante la anualidad en que se produzca el hecho causante. Quedan
+        excluidos los daños indirectos y el lucro cesante.
+    </p>
+
+    <h2>12. Confidencialidad</h2>
+    <p>
+        Ambas partes se obligan a mantener confidencial la información de carácter confidencial de la otra parte a
+        la que tengan acceso con motivo de la ejecución de este contrato, obligación que subsistirá tras la
+        finalización del contrato.
+    </p>
+    <p class="documento-legal-pendiente">Pendiente de confirmar: plazo exacto de subsistencia de la confidencialidad tras la terminación (referencia de mercado: 2-5 años).</p>
+
+    <h2>13. Referencias comerciales</h2>
+    <p>
+        El Cliente autoriza a Hydra a mencionar su nombre y logotipo como referencia comercial, autorización
+        revocable en cualquier momento mediante comunicación escrita.
+    </p>
+
+    <h2>14. Notificaciones, ley aplicable y fuero</h2>
+    <p>Este contrato se rige por la legislación española.</p>
+    <p class="documento-legal-pendiente">Pendiente de confirmar: domicilio/fuero exacto para la resolución de controversias.</p>
+
+    <p class="documento-legal-enlace"><a href="/legal/privacidad">Ver Política de Privacidad →</a></p>
+</div>

@@ -636,6 +636,52 @@ match ⇒ selección manual / alta por tenant. Dominios editables desde el catá
 
 ### (b) Entidad `AcreditacionDocumentoPlataforma`
 
+**Estado (Lote 2-C, dominio y persistencia) — hecho, 2026-08-08** ([#142](https://github.com/christopherjp1-jpg/Project-Hydra/pull/142)). `AcreditacionDocumentoPlataforma`
+(`EntidadBase`, con `Version`/soft delete — necesita concurrencia optimista real: dos
+gestores marcando la misma acreditación a la vez no deben pisarse) referencia el
+`CanalGestionDocumental` concreto (el acceso de un Centro a una plataforma, no el catálogo
+`ProveedorPlataformaCae` directamente — con N accesos por Centro, cada acceso es la unidad
+real de "dónde hay que subir esto"). Estados `PendienteDeSubir/Subida/Aceptada/Rechazada/NoRequerida`.
+`Rechazar(causa, motivoLiteral, fechaUtc)` exige siempre las dos cosas (validado en el
+constructor de `RechazoAcreditacionDocumentoPlataforma`, invocado **antes** de tocar
+`Estado` — un motivo inválido no debe dejar la entidad a medio camino, bug real atrapado por
+el primer test de esta clase) y añade una entrada al historial (`HistorialRechazos`,
+colección de solo lectura respaldada por campo privado, mismo patrón que
+`Conversacion.Mensajes`) — los rechazos anteriores nunca se sobreescriben.
+`ReiniciarPorRenovacionDocumento()` cubre la invariante "renovar Documento ⇒ todas sus
+acreditaciones a Pendiente de subir" sin tocar el historial. Migración
+`AgregarAcreditacionDocumentoPlataforma` + RLS en la misma tanda
+(`HabilitarRlsAcreditacionDocumentoPlataforma`, mismo patrón que
+`HabilitarRlsEventosConversacion`). Repositorio mínimo (`ObtenerPorIdAsync`/`Agregar`) —
+sin más métodos porque nada los necesita todavía. Alta de "Acreditación" en
+`UBIQUITOUS_LANGUAGE.md` como **Draft** (no Approved: el término en sí no tiene
+confirmación explícita de negocio propia, solo el bloque que lo usa está autorizado).
+Verificado con 375 Domain + 249 Application + 100 Web + 13 Architecture + IntegrationTests
+(incluye `PoliticasRlsCubrenModeloTests`), todos en verde, y
+`dotnet ef migrations has-pending-model-changes` limpio. **Sin UI y sin la lógica que
+deriva qué plataformas aplican a un documento** (trabajador→asignaciones activas→centros→canal,
+o centros con actividad real de una Empresa) **ni el disparador automático al
+crear/renovar un Documento — eso es Lote 2-D, todavía sin construir** (mismo criterio YAGNI
+que el catálogo `ProveedorPlataformaCae` del Lote 2-A: "sin UI todavía, hasta que haya un
+consumidor real"). Por eso este lote no lleva verificación end-to-end en navegador — nada
+cambia en la UI, la cobertura son los tests.
+
+**Estado (Lote 2-D, disparador automático) — hecho, 2026-08-08.**
+`IDerivarCanalesAplicablesDocumentoService` (`src/CaeManager.Application/Documentos/Acreditacion/`)
+deriva qué `CanalGestionDocumental` de tipo Plataforma aplican a un Documento: para
+Trabajador, sus asignaciones activas → centro; para Empresa, mismo criterio que
+`ObtenerCentrosConActividadDeEmpresaQueryHandler` (Empresa → Trabajadores → asignaciones
+activas → centro, Centro cuelga de Cliente no de Empresa). Cliente/Vehículo/Proyecto quedan
+fuera a propósito — el plan solo menciona Trabajador y Empresa. `CrearDocumentoCommandHandler`
+crea una `AcreditacionDocumentoPlataforma` por cada canal aplicable en el mismo
+`SaveChangesAsync` que el Documento; `RenovarDocumentoCommandHandler` reinicia las ya
+existentes a Pendiente de subir (sin re-derivar canales nuevos — si la asignación del
+trabajador cambió entre creación y renovación es un caso todavía sin decisión, deliberadamente
+fuera de este lote). Verificado con IntegrationTests contra Postgres real (crear documento de
+trabajador con/sin asignación activa, canal Email vs Plataforma, renovar con un rechazo real
+ya registrado en el historial) — todos en verde junto con el resto de las 4 suites rápidas.
+Sin migración (no hay cambio de modelo). Sin UI todavía — sigue sin construir (c)/(d)/(e).
+
 Documento × plataforma, estados: **Pendiente de subir / Subida (en validación) / Aceptada /
 Rechazada / No requerida**. El estado Rechazada exige **siempre** causa tipificada (Ilegible,
 Documento equivocado, Datos erróneos, Caducado al presentar, Falta firma/sello, Formato no
@@ -653,6 +699,28 @@ Badges por plataforma en la lista de Documentos y en `PestanaDocumentacion`
 (Trabajador/Empresa) con edición manual del estado. En **Eliminar y Renovar** de un Documento
 con acreditaciones: preguntar si es a raíz de un rechazo y capturar causa+motivo antes del
 soft delete. Historial de rechazos visible en el panel del Documento.
+
+**Estado (badges de solo lectura) — hecho, 2026-08-08.** `BadgesAcreditacion.razor`
+(`src/CaeManager.Web/Features/Documentos/Components/`) — componente compartido
+aplicado en el mismo PR a `/documentos` (nueva columna "Plataformas" del
+QuickGrid) y a `PestanaDocumentacion` (Trabajador/Empresa/Cliente/Vehículo,
+mismo componente reutilizado en las cuatro pantallas), tal como pide "Modo
+de trabajo" punto 2 (transversal, una vez). Cada acreditación se pinta como
+"{Plataforma}: {estado}" — **nunca `TonoBadge.Exito/Advertencia/Peligro`**,
+reservados en exclusiva para el semáforo de vigencia documental
+(DESIGN_SYSTEM.md, no negociable): usa `Info` para Rechazada/PendienteDeSubir
+y `Neutro` para el resto, diferenciado por texto, no por color. Un test
+bUnit dedicado (`Nunca_usa_los_tonos_reservados...`) deja esa regla en CI, no
+solo en comentario. `ObtenerDocumentosQueryHandler` gana un segundo paso tras
+paginar (mismo criterio que `ObtenerConversacionPorIdQueryHandler`: nunca
+sobre todo el tenant, solo sobre la página ya materializada) que junta
+`AcreditacionDocumentoPlataforma` con el nombre del proveedor. Verificado en
+navegador con datos reales (una acreditación Rechazada con causa/motivo real
+y otra PendienteDeSubir) en ambas pantallas. **Sin edición manual del estado
+todavía, ni el flujo de Eliminar/Renovar con captura de causa — queda para un
+lote posterior** (edición real de estado es una decisión de UX propia —
+¿quién puede marcar Aceptada/Rechazada manualmente y con qué confirmación? —
+sin decidir todavía, deliberadamente fuera de este lote de solo-lectura).
 
 ### (d) Pestaña de acreditación en el Centro
 

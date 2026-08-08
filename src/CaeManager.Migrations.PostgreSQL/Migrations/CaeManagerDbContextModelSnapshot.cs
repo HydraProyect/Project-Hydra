@@ -887,6 +887,76 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("PreferenciasDashboardUsuario", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Cumplimiento.AceptacionTerminos", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("FechaAceptacionUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("VersionDocumento")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UsuarioId", "VersionDocumento");
+
+                    b.ToTable("AceptacionesTerminos", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CanalGestionDocumentalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CanalGestionDocumentalId");
+
+                    b.HasIndex("TenantId", "DocumentoId");
+
+                    b.HasIndex("TenantId", "DocumentoId", "CanalGestionDocumentalId")
+                        .IsUnique();
+
+                    b.ToTable("AcreditacionesDocumentoPlataforma", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Documentos.AprobacionDocumento", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1104,6 +1174,38 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "DocumentoId");
 
                     b.ToTable("FirmasDigitalesDocumento", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.RechazoAcreditacionDocumentoPlataforma", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AcreditacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Causa")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MotivoLiteral")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcreditacionId");
+
+                    b.HasIndex("TenantId", "AcreditacionId");
+
+                    b.ToTable("RechazosAcreditacionDocumentoPlataforma", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.RevisionIaDocumento", b =>
@@ -3579,6 +3681,76 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ProyectosTecnicos", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Reclamaciones.ReclamacionDocumental", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DestinatarioEmail")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EnviadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("FechaEnvioUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ClienteId");
+
+                    b.ToTable("ReclamacionesDocumentales", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Reclamaciones.ReclamacionDocumentalDocumento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ReclamacionDocumentalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReclamacionDocumentalId");
+
+                    b.HasIndex("TenantId", "DocumentoId");
+
+                    b.ToTable("ReclamacionesDocumentalesDocumentos", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Retencion.SolicitudPurga", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4545,6 +4717,23 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Centros.CanalGestionDocumental", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CanalGestionDocumentalId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Documentos.Documento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DocumentoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Documentos.Documento", b =>
                 {
                     b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
@@ -4590,6 +4779,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasOne("CaeManager.Domain.Documentos.Documento", null)
                         .WithMany()
                         .HasForeignKey("DocumentoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.RechazoAcreditacionDocumentoPlataforma", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", null)
+                        .WithMany("HistorialRechazos")
+                        .HasForeignKey("AcreditacionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -4736,6 +4934,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("TenantId", "TrabajadorId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Reclamaciones.ReclamacionDocumentalDocumento", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Reclamaciones.ReclamacionDocumental", null)
+                        .WithMany("Documentos")
+                        .HasForeignKey("ReclamacionDocumentalId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -4893,9 +5100,19 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Navigation("Adjuntos");
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>
+                {
+                    b.Navigation("HistorialRechazos");
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Integraciones.LineaWhatsApp", b =>
                 {
                     b.Navigation("MiembrosPool");
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Reclamaciones.ReclamacionDocumental", b =>
+                {
+                    b.Navigation("Documentos");
                 });
 #pragma warning restore 612, 618
         }

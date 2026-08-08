@@ -1,12 +1,15 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Integraciones;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +22,9 @@ public record ObtenerDocumentosQuery(
     string? OrdenarPor = null, bool Descendente = false)
     : IRequest<ResultadoPaginado<DocumentoListaDto>>;
 
+/// <summary>docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — una entrada por CanalGestionDocumental aplicable, no por ProveedorPlataformaCae (el mismo proveedor puede tener más de un acceso).</summary>
+public record AcreditacionResumenDto(Guid Id, string NombrePlataforma, EstadoAcreditacion Estado);
+
 public record DocumentoListaDto(
     Guid Id,
     AmbitoAplicacion Ambito,
@@ -27,7 +33,8 @@ public record DocumentoListaDto(
     DateOnly FechaEmision,
     DateOnly? FechaVencimiento,
     EstadoDocumento Estado,
-    string? ArchivoUrl);
+    string? ArchivoUrl,
+    IReadOnlyList<AcreditacionResumenDto> Acreditaciones);
 
 /// <summary>
 /// Une los Documentos de Trabajador/Cliente/Empresa (cada uno vive en la
@@ -39,7 +46,7 @@ public record DocumentoListaDto(
 /// usan el Dashboard y RenovarDocumentoCommand — para que nunca haya dos
 /// sitios de la aplicación mostrando vigencias distintas (ver DATABASE.md).
 /// </summary>
-public class ObtenerDocumentosQueryHandler(IClientesQueryContext clientesContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerDocumentosQueryHandler(IClientesQueryContext clientesContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos, ICentrosQueryContext centrosContext, IProveedoresPlataformaCaeQueryContext proveedoresContext)
     : IRequestHandler<ObtenerDocumentosQuery, ResultadoPaginado<DocumentoListaDto>>
 {
     public async Task<ResultadoPaginado<DocumentoListaDto>> Handle(ObtenerDocumentosQuery request, CancellationToken cancellationToken)
@@ -243,18 +250,50 @@ public class ObtenerDocumentosQueryHandler(IClientesQueryContext clientesContext
             .Take(request.TamanoPagina)
             .Select(x => new DocumentoListaDto(
                 x.Id, x.Ambito, x.PropietarioNombre, x.TipoDocumentoNombre, x.FechaEmision, x.FechaVencimiento,
-                EstadoDocumento.Vigente, x.ArchivoUrl))
+                EstadoDocumento.Vigente, x.ArchivoUrl, new List<AcreditacionResumenDto>()))
             .ToListAsync(cancellationToken);
 
         // Ahora solo sobre la página, no sobre todo el tenant.
+        var documentoIds = pagina.Select(d => d.Id).ToList();
+        var acreditacionesPorDocumento = await ObtenerAcreditacionesPorDocumentoAsync(documentoIds, cancellationToken);
+
         var elementos = pagina
             .Select(d => d with
             {
                 Estado = CalculadoraEstadoDocumento.Calcular(
-                    d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
+                    d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
+                Acreditaciones = acreditacionesPorDocumento.GetValueOrDefault(d.Id, [])
             })
             .ToList();
 
         return new ResultadoPaginado<DocumentoListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
+    }
+
+    /// <summary>docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — badges por plataforma. Solo sobre la página ya paginada, nunca sobre todo el tenant.</summary>
+    private async Task<Dictionary<Guid, List<AcreditacionResumenDto>>> ObtenerAcreditacionesPorDocumentoAsync(
+        List<Guid> documentoIds, CancellationToken cancellationToken)
+    {
+        if (documentoIds.Count == 0) return [];
+
+        var crudas = await (
+            from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
+            where documentoIds.Contains(acreditacion.DocumentoId)
+            join canal in centrosContext.CanalesGestionDocumental on acreditacion.CanalGestionDocumentalId equals canal.Id
+            select new { acreditacion.DocumentoId, acreditacion.Id, acreditacion.Estado, canal.ProveedorPlataformaCaeId })
+            .ToListAsync(cancellationToken);
+
+        var proveedorIds = crudas.Where(c => c.ProveedorPlataformaCaeId is not null)
+            .Select(c => c.ProveedorPlataformaCaeId!.Value).Distinct().ToList();
+        var nombresProveedor = await proveedoresContext.ProveedoresPlataformaCae
+            .Where(p => proveedorIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => p.Nombre, cancellationToken);
+
+        return crudas
+            .GroupBy(c => c.DocumentoId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(c => new AcreditacionResumenDto(
+                    c.Id, c.ProveedorPlataformaCaeId is { } id ? nombresProveedor.GetValueOrDefault(id, "Plataforma") : "Plataforma", c.Estado))
+                    .ToList());
     }
 }

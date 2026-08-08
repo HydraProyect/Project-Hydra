@@ -35,6 +35,7 @@ public class RenovarDocumentoCommandHandler(
     IDocumentoRepository repositorio, ITiposDocumentoQueryContext dbContext,
     IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext,
     ITrabajoAnalisisDocumentoRepository colaAnalisis, ICurrentUserService currentUserService,
+    IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio,
     IUnitOfWork unitOfWork)
     : IRequestHandler<RenovarDocumentoCommand, Result>
 {
@@ -76,6 +77,17 @@ public class RenovarDocumentoCommandHandler(
         }
 
         documento.ActualizarComentarios(request.Comentarios);
+
+        // Invariante de docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b): la
+        // versión anterior del documento ya no es la que hay que validar en
+        // ningún portal — renovar reinicia todas sus acreditaciones a
+        // Pendiente de subir. El historial de rechazos no se toca (sigue
+        // siendo un hecho pasado real). No se re-derivan canales nuevos aquí
+        // — si la asignación del trabajador cambió, es un caso fuera de
+        // alcance de este lote (Lote 2-D), sin decisión tomada todavía.
+        var acreditaciones = await acreditacionRepositorio.ObtenerPorDocumentoIdAsync(documento.Id, cancellationToken);
+        foreach (var acreditacion in acreditaciones)
+            acreditacion.ReiniciarPorRenovacionDocumento();
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
