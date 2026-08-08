@@ -163,7 +163,7 @@ Piezas propias del canal WhatsApp: enrutamiento híbrido (§ 4), ventana de serv
 2. **El canal es un atributo del mensaje, no del módulo.** Para el gestor no existe "Correo" vs "WhatsApp": existe la conversación. Un mismo hilo mezcla cronológicamente emails, WhatsApp, eventos del sistema ("el certificado fue validado", "se creó la visita V-2026-0815"), detecciones/sugerencias de IA y notas internas. WhatsApp **nunca es otra pantalla** — la pantalla `/comunicaciones/chat` separada desaparece.
 3. **IA como copiloto, no invitado**: nunca un chat flotante; acciones inteligentes con nivel de confianza en el momento adecuado, siempre con confirmación del gestor. (Coincide con la disciplina ya establecida en el proyecto — `DeteccionTrabajador`, `SugerenciaVisitaCorreo`: la IA propone, nunca decide.)
 4. **El usuario entra a responder "¿qué conversaciones requieren mi atención?"**, no "¿qué correos tengo?".
-5. **Menos clics, más contexto. Diseño adaptativo, no responsive.** Todo el portal migró a Adaptive Layout; este módulo es un Workspace adaptativo, no un grid fijo.
+5. **Menos clics, más contexto. Diseño adaptativo, no responsive.** Este módulo se diseña como Workspace adaptativo, no como grid fijo. *(Corrección 2026-08-08: la redacción anterior afirmaba que "todo el portal migró a Adaptive Layout", lo cual era falso — solo este módulo lo hizo. Era una de las contradicciones que motivaron el reset documental; ver DDL-023.)*
 6. La **sidebar global de Hydra se mantiene** — el Workspace vive dentro de la entrada "Comunicaciones" del menú; la sidebar deja de ser protagonista pero nunca desaparece.
 
 ## 11. Arquitectura visual (blueprint 01)
