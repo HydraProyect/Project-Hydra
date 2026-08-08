@@ -1,5 +1,6 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
@@ -59,7 +60,9 @@ public class CrearDocumentoCommandHandler(
     IEmpresasQueryContext empresasContext,
     IUnitOfWork unitOfWork,
     ITrabajoAnalisisDocumentoRepository colaAnalisis,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService,
+    IDerivarCanalesAplicablesDocumentoService derivarCanalesAplicables,
+    IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDocumentoCommand request, CancellationToken cancellationToken)
@@ -131,6 +134,16 @@ public class CrearDocumentoCommandHandler(
         };
 
         repositorio.Agregar(documento);
+
+        // Acreditación por plataforma destino (docs/ux-audit/PLAN-EJECUCION-UX.md
+        // § Parte 2 (b)/Lote 2-D): al nacer el Documento, se derivan los accesos
+        // de plataforma que hoy le aplican (Trabajador/Empresa → asignaciones
+        // activas → centro → canal) y se crea una AcreditacionDocumentoPlataforma
+        // por cada uno, en Pendiente de subir. Mismo SaveChangesAsync que el
+        // Documento — o se confirman juntas o ninguna.
+        var canalesAplicables = await derivarCanalesAplicables.ObtenerCanalGestionDocumentalIdsAplicablesAsync(documento, cancellationToken);
+        foreach (var canalId in canalesAplicables)
+            acreditacionRepositorio.Agregar(new AcreditacionDocumentoPlataforma(documento.Id, canalId));
 
         // Los dos análisis pesados se encolan en vez de ejecutarse aquí: son
         // llamadas a un modelo externo, con su latencia, y hacerlas dentro del
