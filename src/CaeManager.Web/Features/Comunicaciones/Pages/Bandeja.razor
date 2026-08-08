@@ -208,7 +208,9 @@
                                   OnDescartarSugerenciaVisita="DescartarSugerenciaVisitaAsync"
                                   OnGenerarGestionesDesdeSugerencia="args => GenerarGestionesDesdeSugerenciaAsync(args.SugerenciaId, args.TrabajadorId, args.TipoDocumentoId)"
                                   OnDescartarSugerenciaGestion="DescartarSugerenciaGestionAsync"
-                                  OnActualizarDocumentoDesdeAdjunto="AbrirActualizarDocumentoAsync" />
+                                  OnActualizarDocumentoDesdeAdjunto="AbrirActualizarDocumentoAsync"
+                                  SugerenciaVinculacion="_detalle.SugerenciaVinculacion"
+                                  OnVincularConversacion="VincularConversacionAsync" />
 
                 <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
                              Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"

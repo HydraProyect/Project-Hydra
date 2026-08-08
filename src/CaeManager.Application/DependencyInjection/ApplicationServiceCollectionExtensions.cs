@@ -3,6 +3,7 @@ using CaeManager.Application.Alertas;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Deteccion;
+using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.ValidacionOficial;
 using CaeManager.Application.Documentos.ValidacionOficial.Parsers;
@@ -52,6 +53,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IDeteccionTrabajadoresService, DeteccionTrabajadoresService>();
         services.AddScoped<ISugerenciaVisitaCorreoService, SugerenciaVisitaCorreoService>();
         services.AddScoped<ISugerenciaGestionCorreoService, SugerenciaGestionCorreoService>();
+        services.AddScoped<IMotorCoincidenciaConversacionesService, MotorCoincidenciaConversacionesService>();
         services.AddScoped<IPaqueteDocumentalVisitaService, PaqueteDocumentalVisitaService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
         services.AddScoped<IValidacionDocumentoOficialService, ValidacionDocumentoOficialService>();
