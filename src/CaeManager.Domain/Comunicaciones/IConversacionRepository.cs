@@ -21,5 +21,14 @@ public interface IConversacionRepository
     Task<IReadOnlyDictionary<Guid, int>> ContarWhatsAppVivasPorEjecutivoAsync(
         IReadOnlyCollection<Guid> ejecutivoIds, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Candidatas del Conversation Matching Engine (§ 13.2): conversaciones
+    /// Abierta/Pendiente del mismo Cliente, excluyendo <paramref name="excluirConversacionId"/>.
+    /// Sin Mensajes/Participantes incluidos — el motor de coincidencia de hoy
+    /// no los necesita (ver MotorCoincidenciaConversacionesService).
+    /// </summary>
+    Task<IReadOnlyList<Conversacion>> ObtenerAbiertasPorClienteAsync(
+        Guid clienteId, Guid excluirConversacionId, CancellationToken cancellationToken = default);
+
     void Agregar(Conversacion conversacion);
 }
