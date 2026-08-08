@@ -39,7 +39,7 @@ SOLID, DRY, KISS, YAGNI. Código mantenible siempre por encima de código "rápi
 ## Blazor (Presentation)
 
 - Cada componente no trivial se divide en `Componente.razor` (marcado) + `Componente.razor.cs` (code-behind) — no lógica compleja embebida en `@code { }` dentro del `.razor`.
-- CSS aislado por componente (`Componente.razor.css`); los tokens de `DESIGN_SYSTEM.md` se consumen como variables CSS globales, nunca valores hardcodeados en un componente individual.
+- CSS aislado por componente (`Componente.razor.css`); los tokens de `06_DESIGN_SYSTEM.md` se consumen como variables CSS globales, nunca valores hardcodeados en un componente individual.
 - Estado de una feature (filtros activos, selección de tabla) vive en una clase `*State` inyectada como scoped service de esa feature, no en variables sueltas repartidas entre componentes.
 - Los componentes de página (`Pages/`) orquestan: llaman a MediatR vía un servicio de aplicación, gestionan estado de carga/error, y delegan el render a componentes de presentación puros (`Components/`) que reciben datos por parámetro y no conocen MediatR.
 - **El render mode no se propaga hacia arriba, del Body hacia el Layout.** Que una página declare `@rendermode InteractiveServer` NO hace interactivo lo que vive en `MainLayout.razor` fuera de `@Body` (menús, botones, componentes globales como `AnfitrionToasts`) — cada uno necesita su propio `@rendermode` en su punto de uso. Un Layout tampoco puede declarar `@rendermode` sobre sí mismo (falla en tiempo de ejecución: `Body` es un `RenderFragment` que no cruza el límite de serialización). Bug real encontrado al construir el buscador global: los toasts llevaban toda la Fase 2 sin funcionar por este motivo exacto, sin que ningún test lo detectara porque las aserciones comprobaban la presencia del contenedor `.toast`, no de un toast real. Si un componente vive en el Layout y necesita interactividad, dale su propio `@rendermode InteractiveServer` en el punto donde el Layout lo usa.
@@ -62,7 +62,7 @@ SOLID, DRY, KISS, YAGNI. Código mantenible siempre por encima de código "rápi
 - [ ] ¿Respeta la organización Feature-First dentro de su capa?
 - [ ] ¿El dominio protege sus invariantes o confía en que "alguien más" valide?
 - [ ] ¿Hay estados Loading/Empty/Error/Forbidden contemplados si es UI?
-- [ ] ¿El microcopy está en español y sigue el tono de `UX_PATTERNS.md`?
+- [ ] ¿El microcopy está en español y sigue el tono de `04_UX_PATTERNS.md`?
 - [ ] ¿Hay una prueba que falle si la regla de negocio se rompe?
 - [ ] ¿Se introdujo una abstracción que no tiene todavía un segundo caso de uso real? Si sí, simplificar.
 - [ ] **¿Hay al menos un test E2E (`tests/CaeManager.E2ETests`) o bUnit (`tests/CaeManager.Web.Tests`) del flujo nuevo que añade esta fase**, si toca un flujo de usuario o un componente de lógica no trivial? Esta regla existe precisamente porque las Fases 7-23 se cerraron sin ella y generaron un backlog de 13 bugs/mejoras sin cubrir — ver ROADMAP.md, "Iniciativa de hardening" § 2 y § 8.

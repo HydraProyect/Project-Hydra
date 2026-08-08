@@ -31,8 +31,31 @@ Las obligaciones RGPD/LOPDGDD siguen aplicando íntegras al tratamiento de datos
 - `docs/INTEGRATION_GUIDELINES.md` — guía paso a paso para construir un conector nuevo, cuando llegue el primero (no antes).
 - `ROADMAP.md` — historial de fases y backlog. Es largo — usa `grep` por sección en vez de leerlo entero.
 - `RGPD-TRATAMIENTO-DATOS.md` — datos personales tratados, base legal, subencargados. No sustituye revisión legal.
-- `CODING_STANDARDS.md`, `DESIGN_SYSTEM.md`, `UX_PATTERNS.md` — convenciones de código y producto, antes de escribir código o UI nueva.
-- `PLAN-MASTER-DETAIL-WORKSPACE.md` (propuesta previa, no implementada) / `PLAN-CONTEXT-WORKSPACE.md` — rediseño de navegación contextual. **El Context Workspace está implementado** (`src/CaeManager.Web/Components/Workspace/`), con la auditoría línea a línea contra el código en § 0 de ese plan; lo que sigue abierto son sus huecos (deep-link `?ctx=`, cierre al navegar por el menú, teclado, modo acoplado).
+- `CODING_STANDARDS.md` — convenciones de código, antes de escribir código.
+- **Diseño y UX: los ocho documentos normativos del reset (2026-08-08).** Sustituyen a
+  `DESIGN_SYSTEM.md`, `UX_PATTERNS.md`, `PLAN-CONTEXT-WORKSPACE.md` y
+  `PLAN-MASTER-DETAIL-WORKSPACE.md`, que quedan como **histórico y no se consultan para trabajo
+  nuevo**. Lee solo el que corresponda a la tarea:
+
+  | Pregunta | Documento |
+  |---|---|
+  | Qué debe conseguir la experiencia | `01_PRODUCT_EXPERIENCE.md` |
+  | Colores, superficies, tipografía, iconografía | `02_BRAND_AND_VISUAL_IDENTITY.md` |
+  | Dónde vive una pantalla, navegación, rutas | `03_INFORMATION_ARCHITECTURE.md` |
+  | Cómo se comporta una interacción, microcopy | `04_UX_PATTERNS.md` |
+  | Cómo se estructura una superficie de trabajo | `05_WORKSPACE_PATTERNS.md` |
+  | Tokens y reglas de sistema | `06_DESIGN_SYSTEM.md` |
+  | Qué movimiento existe y qué comunica | `07_MOTION_SYSTEM.md` |
+  | Qué componentes hay y cuándo se usan | `08_COMPONENT_CATALOG.md` |
+  | Cómo se aplica a una superficie concreta | `docs/blueprints/` |
+  | **Por qué existe una regla y qué reemplaza** | `DESIGN_DECISION_LOG.md` |
+
+  **Reglas de esa normativa que aplican a cualquier sesión**: no se resuelve en silencio un
+  conflicto entre documentos — se registra en el Decision Log (DDL-024); no se añade un patrón,
+  un token o un efecto de movimiento sin la decisión previa (DDL-040, `07` § 8); y ningún
+  documento afirma como construido algo que no lo está (DDL-023). El Context Workspace sigue
+  teniendo huecos reales declarados en `05` § 3.6 (deep-link, cierre al navegar, teclado): no
+  los des por hechos.
 
 ## Disciplina de decisión para cambios de arquitectura
 

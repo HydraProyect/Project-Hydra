@@ -1,5 +1,20 @@
 # Patrones de UX y Microcopy — CAE Manager
 
+> ## ESTADO: HISTÓRICO · NO NORMATIVO
+>
+> Este documento pertenece al sistema de diseño **anterior** al reset documental de agosto de 2026.
+> Puede contener decisiones, propuestas o especificaciones que fueron sustituidas después.
+>
+> **Este documento NO constituye autoridad sobre el sistema vigente.**
+>
+> - Decisiones vigentes → `DESIGN_DECISION_LOG.md`
+> - Normativa vigente → `01_PRODUCT_EXPERIENCE.md` … `08_COMPONENT_CATALOG.md`
+> - Especificación de una superficie → `docs/blueprints/`
+>
+> **Sustituido por**: `04_UX_PATTERNS.md`
+> **Decisiones relacionadas**: DDL-002, DDL-022, DDL-036, DDL-052
+> **Por qué se conserva**: registra los patrones tal como se construyeron, incluidos los que el reset derogó.
+
 Todo el sistema usa exactamente los mismos patrones para las mismas acciones. Un usuario que aprende a crear un Cliente ya sabe crear un Trabajador o un Centro.
 
 ## Regla de microcopy

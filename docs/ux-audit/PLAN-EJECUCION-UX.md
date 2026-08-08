@@ -34,7 +34,8 @@ Parte 2**.
    pantallas en el mismo PR (paginador único, patrón de export, overflow de acciones). No
    parchear pantalla a pantalla.
 3. No mezclar refactors independientes en un PR. YAGNI: lo que pide la ficha, nada más.
-4. Seguir `UX_PATTERNS.md`, `DESIGN_SYSTEM.md`, `CODING_STANDARDS.md`. Si un arreglo cambia o
+4. Seguir la normativa vigente de diseño (`01`–`08`, ver `docs/README.md`) y `CODING_STANDARDS.md`.
+   Los antiguos `UX_PATTERNS.md`/`DESIGN_SYSTEM.md` están archivados y no son normativos. Si un arreglo cambia o
    crea un patrón, **actualizar el documento normativo en el mismo PR**.
 5. Reglas de repo de siempre (CLAUDE.md): `Version` en Commands de edición, sin SQL crudo ni
    `IgnoreQueryFilters()`, ninguna tabla nueva sin `TenantId`, cargar Ids con el filtro de
