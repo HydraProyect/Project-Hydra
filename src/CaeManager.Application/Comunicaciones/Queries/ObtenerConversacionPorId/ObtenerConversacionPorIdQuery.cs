@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
@@ -48,6 +49,14 @@ public record ParticipanteDetalleDto(
 /// </summary>
 public record EventoDetalleDto(Guid Id, TipoEventoConversacion Tipo, Guid ReferenciaId, DateTime FechaUtc, string Descripcion);
 
+/// <summary>
+/// Propuesta del Conversation Matching Engine (§ 13.2) — solo se calcula
+/// para conversaciones WhatsApp abiertas/pendientes con Cliente resuelto (ver
+/// ObtenerConversacionPorIdQueryHandler). No se persiste nada: se recalcula
+/// en cada lectura, y confirmarla es VincularConversacionCommand.
+/// </summary>
+public record SugerenciaVinculacionDetalleDto(Guid ConversacionDestinoId, string AsuntoDestino, DesgloseCoincidenciaDto Desglose);
+
 public record ConversacionDetalleDto(
     Guid Id,
     Guid? ClienteId,
@@ -62,14 +71,15 @@ public record ConversacionDetalleDto(
     IReadOnlyList<EventoDetalleDto> Eventos,
     CanalConversacion Canal = CanalConversacion.Correo,
     string? TelefonoContacto = null,
-    DateTime? FechaUltimoMensajeEntranteUtc = null);
+    DateTime? FechaUltimoMensajeEntranteUtc = null,
+    SugerenciaVinculacionDetalleDto? SugerenciaVinculacion = null);
 
 public class ObtenerConversacionPorIdQueryHandler(
     IClientesQueryContext clientesContext, ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
     ITrabajadoresQueryContext trabajadoresContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     IVisitasQueryContext visitasContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext,
     IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService, IMotorCoincidenciaConversacionesService motorCoincidencia)
     : IRequestHandler<ObtenerConversacionPorIdQuery, ConversacionDetalleDto?>
 {
     // Ver ObtenerConversacionesQueryHandler: mismo literal, mismo motivo.
@@ -181,11 +191,31 @@ public class ObtenerConversacionPorIdQueryHandler(
             .ToListAsync(cancellationToken);
 
         var eventos = await ObtenerEventosAsync(request.Id, cancellationToken);
+        var sugerenciaVinculacion = await ObtenerSugerenciaVinculacionAsync(
+            conversacion.Id, conversacion.ClienteId, conversacion.Canal, conversacion.Estado, conversacion.FechaUltimoMensajeUtc, cancellationToken);
 
         return new ConversacionDetalleDto(
             conversacion.Id, conversacion.ClienteId, conversacion.ClienteRazonSocial, conversacion.Asunto,
             conversacion.Estado, conversacion.EjecutivoAsignadoId, conversacion.Etiquetas, conversacion.FechaUltimoMensajeUtc,
-            mensajes, participantes, eventos, conversacion.Canal, conversacion.TelefonoContacto, conversacion.FechaUltimoMensajeEntranteUtc);
+            mensajes, participantes, eventos, conversacion.Canal, conversacion.TelefonoContacto, conversacion.FechaUltimoMensajeEntranteUtc,
+            sugerenciaVinculacion);
+    }
+
+    /// <summary>
+    /// Solo tiene sentido proponer vincular un hilo WhatsApp vivo con
+    /// Cliente ya resuelto (§ 13.2 exige "mismo Cliente" como primer
+    /// criterio) — un hilo de correo, uno cerrado/resuelto, o uno todavía en
+    /// triage no calculan nada.
+    /// </summary>
+    private async Task<SugerenciaVinculacionDetalleDto?> ObtenerSugerenciaVinculacionAsync(
+        Guid conversacionId, Guid? clienteId, CanalConversacion canal, EstadoConversacion estado,
+        DateTime fechaUltimoMensajeUtc, CancellationToken cancellationToken)
+    {
+        if (canal != CanalConversacion.WhatsApp || clienteId is null) return null;
+        if (estado != EstadoConversacion.Abierta && estado != EstadoConversacion.Pendiente) return null;
+
+        var candidato = await motorCoincidencia.ProponerVinculacionAsync(conversacionId, clienteId.Value, fechaUltimoMensajeUtc, cancellationToken);
+        return candidato is null ? null : new SugerenciaVinculacionDetalleDto(candidato.ConversacionId, candidato.Asunto, candidato.Desglose);
     }
 
     private async Task<IReadOnlyList<EventoDetalleDto>> ObtenerEventosAsync(Guid conversacionId, CancellationToken cancellationToken)
@@ -259,6 +289,8 @@ public class ObtenerConversacionPorIdQueryHandler(
                         : nombresEmpresa.GetValueOrDefault(documento.EmpresaId ?? Guid.Empty, "una empresa"))
                     + ".",
             TipoEventoConversacion.DocumentoActualizado => "Se ha actualizado un documento a partir de esta conversación.",
+
+            TipoEventoConversacion.ConversacionVinculada => "Se vinculó otra conversación a este hilo (Conversation Matching Engine).",
 
             _ => "Evento del sistema."
         };

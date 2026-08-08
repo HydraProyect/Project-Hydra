@@ -10,6 +10,7 @@ using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaVisita;
 using CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorreo;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacionWhatsApp;
+using CaeManager.Application.Comunicaciones.Commands.VincularConversacion;
 using CaeManager.Application.Comunicaciones.Eventos;
 using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
 using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
@@ -629,6 +630,36 @@ public partial class Bandeja : ComponentBase, IDisposable
         {
             Logger.LogError(ex, "Error al generar gestiones desde la sugerencia {SugerenciaId}.", sugerenciaId);
             ToastService.Mostrar("No pudimos generar las gestiones. Intenta nuevamente.", TonoToast.Error);
+        }
+    }
+
+    /// <summary>
+    /// Confirma la propuesta del Conversation Matching Engine (§ 13.2):
+    /// fusiona la conversación WhatsApp abierta en la conversación elegida y
+    /// selecciona el resultado — el hilo original (ahora Cerrada, sin
+    /// mensajes propios) deja de tener sentido seguir viendo.
+    /// </summary>
+    private async Task VincularConversacionAsync(Guid conversacionDestinoId)
+    {
+        if (_conversacionSeleccionadaId is not { } conversacionOrigenId) return;
+
+        try
+        {
+            var resultado = await Mediator.Send(new VincularConversacionCommand(conversacionOrigenId, conversacionDestinoId));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar("Conversaciones vinculadas.", TonoToast.Exito);
+            await SeleccionarConversacionAsync(conversacionDestinoId);
+            await CargarListaAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al vincular la conversación {Origen} con {Destino}.", conversacionOrigenId, conversacionDestinoId);
+            ToastService.Mostrar("No pudimos vincular la conversación. Intenta nuevamente.", TonoToast.Error);
         }
     }
 
