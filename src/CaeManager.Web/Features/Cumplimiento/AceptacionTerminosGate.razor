@@ -1,0 +1,95 @@
+@*
+    Aceptación obligatoria de Términos y Condiciones + Política de Privacidad
+    (docs/business/DECISION_LOG.md 2026-08-08). Montado una sola vez en
+    MainLayout, dentro de AuthorizeView/Authorized — mismo criterio que
+    ContextWorkspace/AsistenteIa: necesita su propio @@rendermode porque todo
+    lo que vive fuera de @@Body no hereda el modo interactivo del Body.
+
+    Cubre "usuario nuevo" (nunca aceptó) y "usuario existente tras un cambio
+    material de los términos" (VersionTerminos.Actual subió) con el mismo
+    mecanismo — no hace falta distinguir los dos casos.
+*@
+@using CaeManager.Application.Cumplimiento.Commands.AceptarTerminos
+@using CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos
+@using MediatR
+@inject IMediator Mediator
+
+@if (_debeAceptar)
+{
+    <Modal Visible="true" Titulo="Términos y Condiciones" Bloqueante="true" Ancho="AnchoModal.Grande">
+        <ChildContent>
+            <p>
+                Antes de continuar, confirma que has leído y aceptas los Términos y Condiciones de uso y la
+                Política de Privacidad de CAE Manager — incluida la responsabilidad de tu organización sobre la
+                gestión y el tratamiento de los datos de sus clientes y trabajadores que introduzcas en la
+                plataforma.
+            </p>
+            <p>
+                <a href="/legal/terminos" target="_blank" rel="noopener noreferrer">Leer Términos y Condiciones completos ↗</a>
+                &nbsp;·&nbsp;
+                <a href="/legal/privacidad" target="_blank" rel="noopener noreferrer">Leer Política de Privacidad completa ↗</a>
+            </p>
+            <label class="campo-checkbox">
+                <input type="checkbox" checked="@_marcado" @onchange="e => _marcado = (bool)e.Value!" />
+                He leído y acepto los Términos y Condiciones y la Política de Privacidad.
+            </label>
+            @if (_error is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_error</div>
+            }
+        </ChildContent>
+        <Pie>
+            <Boton Deshabilitado="!_marcado" Cargando="_aceptando" OnClick="AceptarAsync">Aceptar y continuar</Boton>
+        </Pie>
+    </Modal>
+}
+
+@code {
+    private bool _debeAceptar;
+    private bool _marcado;
+    private bool _aceptando;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _debeAceptar = await Mediator.Send(new ObtenerEstadoAceptacionTerminosQuery());
+        }
+        catch (Exception)
+        {
+            // Mejor esfuerzo: si la comprobación falla (p. ej. circuito
+            // recién abierto sin sesión resuelta todavía), no bloquea al
+            // usuario con un gate que no puede completar — se reintenta en
+            // la siguiente navegación/render.
+            _debeAceptar = false;
+        }
+    }
+
+    private async Task AceptarAsync()
+    {
+        if (!_marcado) return;
+
+        _aceptando = true;
+        _error = null;
+        try
+        {
+            var resultado = await Mediator.Send(new AceptarTerminosCommand());
+            if (resultado.EsFallido)
+            {
+                _error = resultado.Error.Mensaje;
+                return;
+            }
+
+            _debeAceptar = false;
+        }
+        catch (Exception)
+        {
+            _error = "No pudimos registrar tu aceptación. Intenta nuevamente.";
+        }
+        finally
+        {
+            _aceptando = false;
+        }
+    }
+}

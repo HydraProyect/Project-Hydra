@@ -60,4 +60,59 @@ public class ModalTests : BunitContext
 
         valorNotificado.Should().BeNull();
     }
+
+    [Fact]
+    public void Bloqueante_no_pinta_el_boton_cerrar()
+    {
+        var cut = Render<Modal>(parametros => parametros
+            .Add(p => p.Visible, true)
+            .Add(p => p.Titulo, "Prueba")
+            .Add(p => p.Bloqueante, true)
+            .AddChildContent("<p>Contenido</p>"));
+
+        cut.FindAll(".modal-cerrar").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Bloqueante_no_cierra_con_Escape_aunque_CerrarAlHacerClicFuera_sea_true()
+    {
+        bool? valorNotificado = null;
+        var cut = Render<Modal>(parametros => parametros
+            .Add(p => p.Visible, true)
+            .Add(p => p.VisibleChanged, v => valorNotificado = v)
+            .Add(p => p.Titulo, "Prueba")
+            .Add(p => p.Bloqueante, true)
+            .AddChildContent("<p>Contenido</p>"));
+
+        cut.Find(".modal-contenido").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        valorNotificado.Should().BeNull();
+    }
+
+    [Fact]
+    public void Bloqueante_no_cierra_al_clicar_fuera()
+    {
+        bool? valorNotificado = null;
+        var cut = Render<Modal>(parametros => parametros
+            .Add(p => p.Visible, true)
+            .Add(p => p.VisibleChanged, v => valorNotificado = v)
+            .Add(p => p.Titulo, "Prueba")
+            .Add(p => p.Bloqueante, true)
+            .AddChildContent("<p>Contenido</p>"));
+
+        cut.Find(".modal-superposicion").Click();
+
+        valorNotificado.Should().BeNull();
+    }
+
+    [Fact]
+    public void Sin_Bloqueante_sigue_pintando_el_boton_cerrar()
+    {
+        var cut = Render<Modal>(parametros => parametros
+            .Add(p => p.Visible, true)
+            .Add(p => p.Titulo, "Prueba")
+            .AddChildContent("<p>Contenido</p>"));
+
+        cut.FindAll(".modal-cerrar").Should().ContainSingle();
+    }
 }
