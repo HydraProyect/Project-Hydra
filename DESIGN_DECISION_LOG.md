@@ -264,6 +264,34 @@ como implementado o presente algo que no está construido.
 - **Estado**: Vigente · **Fecha**: 2026-08-08
 - **Documentos afectados**: cabecera de este Log; `CLAUDE.md`.
 
+### DDL-058 — Las tres formas de contaminación de autoridad son metodología permanente
+- **Decisión**: la clasificación de las tres formas en que la autoridad fluye al revés deja de ser
+  la observación de una auditoría y pasa a ser **parte permanente de la metodología de
+  gobernanza**, junto a DDL-024 y DDL-055:
+
+  | Forma | Enunciado del error | Cómo se detecta |
+  |---|---|---|
+  | **Código → normativa** | "Está implementado, luego está decidido" | El valor del documento coincide literalmente con el del código y no existe decisión que lo fije |
+  | **Documento → documento** | "Este documento lo cita, luego el anterior lo decidió" | Se sigue la cadena de citas hasta el final: si termina en un archivado, en un histórico o en nada, no había autoridad |
+  | **Redacción → normativa** | "Hay que rellenar esta celda o esta regla, ponemos X" | El valor no existe en ninguna capa anterior; su primera aparición en el historial es el commit que redactó el documento |
+
+- **Estado**: Vigente · **Fecha**: 2026-08-09
+- **Motivo**: la auditoría de trazabilidad de `01`–`08` demostró que OD-22 no era un caso aislado
+  sino una de tres variantes, cada una con su propia mecánica y su propia forma de pasar
+  desapercibida. Sin la clasificación, cada hallazgo se trata como incidente suelto y se corrige
+  sin ver que responde a un patrón.
+- **Por qué la tercera es la más peligrosa**: produce una cadena documental **aparentemente
+  trazable**. Cada documento cita al anterior y ninguno miente; el fallo está en el origen, no en
+  la cadena. Es la única de las tres que no se detecta leyendo el documento — hay que ir al
+  historial.
+- **Consecuencia operativa**: ante cualquier regla o valor concreto de un documento normativo, la
+  pregunta de control no es "¿tiene una cita?" sino **"¿dónde termina la cadena de citas?"**. Una
+  cita a un documento archivado, a un histórico o al código no cierra la cadena: la traslada.
+- **Verificación automática**: la frontera con los archivados ya se comprueba en CI
+  (`scripts/validar-gobernanza-docs.py`, DDL-055) y detectó por sí sola dos infracciones durante
+  esta auditoría. Las otras dos formas **no** están automatizadas todavía.
+- **Documentos afectados**: cabecera de este Log; `CLAUDE.md` (pendiente de reflejar la regla).
+
 ---
 
 ## Decisiones cerradas por el banco visual (Fase 2)
@@ -428,8 +456,13 @@ como implementado o presente algo que no está construido.
 - **Estado**: Vigente · **Fecha**: 2026-08-08
 - **Nota de gobernanza (2026-08-08)**: era la única entrada del Log que contenía
   **especificación** (microcopy literal, reglas de formato) y no solo decisión. **Migración
-  ejecutada**: su contenido vive ya en `04` (§ 2.4, § 2.5, § 3.3, § 3.8, § 4.1, § 9) y en `06`
-  (radios, sombras y densidad). Esta entrada se conserva como registro de que las reglas se
+  ejecutada**: su contenido vive ya en `04` (§ 2.4, § 2.5, § 3.3, § 3.8, § 4.1, § 9) y en `08`
+  (§ 4.4, anillo y badge). **Corrección (2026-08-09, DDL-059)**: esta nota afirmaba además "y en
+  `06` (radios, sombras y densidad)". Es falso: DDL-036 son once reglas de presentación —verbos,
+  badges, microcopy, ranuras, iconografía, anillo—, **ninguna dimensional**; no decidió radios ni
+  sombras, y la densidad la decide DDL-041. Era una sobreatribución en la capa de máxima
+  autoridad, y es lo que hacía parecer que los radios estaban respaldados desde dos sitios cuando
+  no lo estaban desde ninguno. Esta entrada se conserva como registro de que las reglas se
   adoptaron y de dónde viven ahora — **no como su especificación**. El Log no debe volverse una
   especificación paralela (DDL-022).
 - **Documentos afectados**: `04`, `05`, `06`, `08`.
@@ -701,9 +734,340 @@ como implementado o presente algo que no está construido.
 
 ---
 
+## Decisiones posteriores al reset (Fase 4)
+
+### DDL-057 — Texto principal en tema claro (cierra OD-23)
+- **Decisión**: se declara **`#161E27`** como valor normativo del texto principal en tema claro,
+  y su sitio es `02` § 4.1 — la capa de identidad —, no `06`.
+- **Estado**: Vigente · **Fecha**: 2026-08-08
+- **Motivo**: **continuidad de identidad visual y suficiencia de contraste** (16.81:1 sobre
+  Surface, 15.79:1 sobre Canvas; el umbral de `02` § 8 es 4.5:1). El reset no aportó evidencia
+  de querer un tono nuevo para el texto principal: es el mismo criterio que DDL-025 aplicó al
+  azul — se ratifica lo que ya expresaba la identidad, no se rediseña sin motivo.
+- **Lo que esta decisión explícitamente NO afirma**: que `#161E27` sea "el valor correcto", ni
+  que quede ratificado por el histórico o por el código. **El valor histórico y el código
+  existente son evidencia de continuidad, no autoridad.** La autoridad la crea esta decisión, y
+  vive desde ahora en `02`.
+- **Efecto sobre la cadena**: repara la única celda de la paleta clara que no tenía fuente aguas
+  arriba. `02` § 4.1 declara → `06` § 2.5 consume → `tokens.css` implementa. La permanencia del
+  valor la respalda la tabla "Lo que cambia" de `06` § 12, que no lo enumera. Esto es distinto de
+  "el código ya usa `#161E27`, así que lo dejamos": el valor coincide, la dirección de autoridad
+  no.
+- **Consecuencia en código**: ninguna ahora. `tokens.css` ya resuelve `#161E27` vía
+  `--color-neutral-900`, de modo que la implementación pasa a estar respaldada por normativa sin
+  necesidad de cambiarla. Que siga en código no es una decisión aparte: es la consecuencia de
+  esta.
+- **Documentos afectados**: `02` § 4.1; `06` § 2.5 (ya corregido al cerrar OD-22).
+
+### DDL-059 — Código existente ≠ decisión (cierra OD-25)
+- **Decisión**: **un valor puede permanecer implementado sin tener autoridad normativa.** Su
+  presencia en producción constituye evidencia del estado actual, **no autorización para
+  conservarlo**. `06` puede documentar un valor existente como tal, pero no presentarlo como
+  especificación cerrada. Estatus de los cuatro bloques auditados en OD-25:
+
+  | Bloque | Estatus | Alcance real de la autoridad |
+  |---|---|---|
+  | Rampa `--color-primary-*` | **Parcialmente ratificado** | `500` por DDL-025; `400` y `300` por `02` § 3.2 (hover y enlace sobre oscuro). `50`, `100`, `200`, `600`, `700`: **no ratificados** |
+  | Radios | **No ratificados — valores existentes** | DDL-054 decide **dónde viven**, no cuánto miden |
+  | Escala de espaciado | **No ratificada — valores existentes** | La **regla de densidad** sí es normativa (`01` § 5.6, DDL-041); la escala numérica no |
+  | Layout y breakpoints | **No ratificados — valores existentes** | El shell como estructura está decidido (DDL-015); sus dimensiones no |
+
+- **Estado**: Vigente · **Fecha**: 2026-08-09
+- **Qué NO hace esta decisión**: no borra ningún valor del código, no los ratifica en silencio, no
+  los sustituye y **no usa el histórico como autoridad**. Ninguno de los tres bloques no
+  ratificados genera un DDL automáticamente: una decisión posterior determinará explícitamente si
+  se ratifican los valores existentes o se diseñan nuevos. Mientras tanto, el código permanece
+  intacto.
+- **Diferencia con OD-22**: allí había un valor **inventado** en `06` y se pudo retirar la falsa
+  especificación porque `02` podía decidir el verdadero. Aquí hay **valores reales en producción**
+  sin decisión que determine si deben conservarse. Eso exige una decisión posterior, no una
+  corrección editorial — y por eso el cierre clasifica en vez de resolver.
+- **Regla que consolida** (con DDL-055 y DDL-058): hay que seguir la cadena hasta ver dónde
+  termina. **Si termina en `tokens.css`, la cadena no está cerrada.**
+- **Corrección derivada**: la nota de gobernanza de DDL-036 afirmaba que su contenido migró a `06`
+  en "radios, sombras y densidad". No decidió ninguna de las tres; se corrige en esa entrada.
+- **Documentos afectados**: `06` § 2.1, § 4, § 7, § 9, § 13; nota de DDL-036 en este Log.
+
+---
+
+**Nota de procedencia** (DDL-024): OD-22 y OD-23 son el primer caso en que la regla de conflictos
+se ejerce sobre el sistema ya congelado. Detectaron un valor inventado durante la redacción de un
+documento normativo que estaba en camino de convertirse en especificación oficial sin que nadie lo
+hubiera decidido. El mecanismo hizo lo que se diseñó para hacer.
+
+---
+
 ## Open Decisions
 
-**Ninguna.** Las veintiuna Open Decisions del reset quedan cerradas el 2026-08-08.
+**Cinco: OD-24, OD-26, OD-27, OD-28, OD-29.** OD-25 se cerró con DDL-059 el 2026-08-09.
+Las veintiuna Open Decisions del reset quedan cerradas el 2026-08-08.
+OD-22 y OD-23 se abrieron y cerraron ese mismo día al preparar la Fase 4. Las seis siguientes
+salen de la **auditoría de trazabilidad de `01`–`08`** (2026-08-09), que OD-22 motivó: si un valor
+sin procedencia había llegado a `06`, no había razón para suponerlo único. No lo era.
+
+> **Regla de trabajo para todas ellas** (DDL-024, DDL-055): la auditoría identifica, la OD decide,
+> el documento normativo consume, el código implementa. **No se cierra ninguna por continuidad ni
+> por lo que diga el código.** Que un valor exista en `tokens.css` demuestra implementación, no
+> decisión. Ninguna toca código.
+
+### Hallazgo estructural de la auditoría — tres formas de contaminación de autoridad
+
+Es el resultado más importante de la pasada, por encima de cualquier anomalía concreta: el fallo
+de OD-22 no era un caso aislado sino **una de tres formas** en que la autoridad fluye al revés.
+Se registra aquí porque condiciona cómo se cierran OD-24…OD-29 y cómo se redacta lo que venga:
+
+| Forma | Mecanismo | Dónde apareció |
+|---|---|---|
+| **Redacción → normativa** | "Hay que rellenar esta celda o esta regla, ponemos X" | OD-22 (`#0F1720`), D3, D4, la mitad nueva de D5 |
+| **Código → documento** | "El código tiene este valor, luego es normativa" | C1–C4, D7 |
+| **Documento → documento** | "Este documento dice X, luego el anterior lo decidió" | D6, la mitad heredada de D5 |
+
+La tercera es la más difícil de ver, porque la cadena de citas **parece** correcta: cada documento
+cita al anterior y ninguno miente. Lo que falta está al principio de la cadena, no en ella.
+
+### OD-24 — Ratios de contraste declarados sin trazabilidad
+
+**Tipo**: mediciones normativas no reproducibles. **Abierta** · **Fecha**: 2026-08-09.
+
+Cuatro ratios declarados en `02` y `06` no reproducen al recalcularlos sobre los propios valores
+que esos documentos fijan:
+
+| Fuente | Par | Declarado | Recalculado |
+|---|---|---|---|
+| `06` § 11 | Texto principal / Surface claro | 15.98:1 | **16.81:1** |
+| `02` § 5 · `06` § 11 | Texto principal / Surface oscuro | 11.40:1 | **13.49:1** |
+| `02` § 5 · `06` § 11 | Texto secundario / Surface oscuro | ≈6.5:1 | **5.14:1** |
+| `02` § 3.3 · `06` § 11 | Texto de sistema / blanco | 5.58:1 | **5.16:1** |
+
+**Los cuatro siguen superando su umbral**: no hay defecto de accesibilidad. Pero superar el umbral
+no hace correcta la cifra, y **A3 y A4 sobreestiman** el contraste real, que es la dirección
+peligrosa: declaran un margen que no existe.
+
+**Patrón que da la pista**: los cinco ratios que **sí** reproducen al decimal (5.18, 6.27, 4.73,
+3.48, 3.96) proceden de DDL-025 y DDL-029 — mediciones reales del banco. Los cuatro que fallan no
+tienen DDL detrás. Misma firma que `#0F1720`.
+
+**Qué debe decidir**: si `02`/`06` conservan ratios; si se sustituyen por mediciones
+reproducibles; **qué ratios son normativos y cuáles son solo evidencia**; y qué impide que un
+número calculado durante la redacción vuelva a presentarse como "medido en el banco".
+
+### OD-25 — Autoridad de los valores visuales copiados del código (cerrada)
+
+**Tipo**: contaminación código → documento (DDL-058, forma 1). **Cerrada por DDL-059** ·
+**Fecha**: 2026-08-09.
+
+Cuatro bloques de `06` declaran valores verificados como **copia literal de `tokens.css`**:
+
+| Bloque | Valores | Fuente declarada | Problema |
+|---|---|---|---|
+| § 2.1 | `primary-50/100/200/600/700` | DDL-025 | DDL-025 ratificó **solo** `#235BC2` |
+| § 4 | 5 radios (6/10/12/14/9999 px) | DDL-054 | DDL-054 **reclasifica** radios como no-motion; no fija valores |
+| § 7 | `space-10/12/16/24` | — | ninguna |
+| § 9 | `260px`, `64px`, 4 breakpoints | — | ninguna |
+
+**La pregunta no es si los valores son buenos**, sino cuáles son normativos y cuáles son
+implementación. **No se asume que deban convertirse en decisión**: puede que la conclusión
+correcta sea que `06` no debe normarlos todavía y pertenecen al ámbito de implementación.
+
+Dos son además **sobreatribución**: citan una decisión que cubre menos de lo que se le atribuye.
+Es un fallo distinto de "sin fuente" y más difícil de detectar, porque la cita existe.
+
+#### Investigación (2026-08-09)
+
+| Comprobación | Resultado |
+|---|---|
+| `02` como fuente de la rampa primaria | **Cero apariciones** de `primary` o de los cinco hexes en `02`. `02` § 3.2 declara **tres** valores **por rol** (acción, hover, enlace sobre oscuro), no una rampa de ocho escalones |
+| DDL sobre valores de radio, escala de espaciado, breakpoints o dimensiones del shell | **Ninguna.** Lo más cercano es DDL-011 ("no se adopta ninguna escala de librería como identidad"), que **restringe** sin fijar valores |
+| Antigüedad en el código | `--radius-card-sm`, `--space-24` y `--sidebar-width` datan del commit fundacional (`41a7453`, "Versión base Hydra"). `--color-primary-200` entró después, en una realineación de tokens |
+| Regla de aplicación del espaciado (`06` § 7) | **Sí trazable**: cita `01` § 5.6 (densidad). Se separa del problema: la *regla* tiene fuente, la *escala de valores* no |
+
+**Hallazgo adicional, dentro del propio Log**: la nota de gobernanza de **DDL-036** afirma que su
+contenido migró a `06` "(radios, sombras y densidad)". El cuerpo de DDL-036 **no decide radios ni
+sombras** — son once reglas de presentación (verbos, badges, microcopy, ranuras, iconografía,
+anillo), ninguna dimensional; y la densidad la decide DDL-041, no DDL-036. Es una sobreatribución
+**en la capa de máxima autoridad**, y es lo que hace que los radios parezcan respaldados desde dos
+sitios (DDL-036 y DDL-054) cuando no lo están desde ninguno.
+
+**Cierre**: **DDL-059**. Ninguno de los cuatro bloques se eleva a normativa por continuidad con el
+código. La rampa queda **parcialmente ratificada** —tres escalones con autoridad real, cinco sin
+ella— y los otros tres bloques quedan como **valores existentes no ratificados**, documentados
+como estado vigente sin presentarse como especificación. `06` § 4 conserva la cita a DDL-054 pero
+reformulada: decide **dónde viven** los radios, no cuánto miden. La nota de DDL-036 se corrige en
+su propia entrada.
+
+### OD-26 — `07` introduce restricciones sin autoridad identificable
+
+**Tipo**: redacción → normativa, en motion. **Abierta** · **Fecha**: 2026-08-09.
+
+- `07` § 4: "**máximo dos focos de movimiento simultáneos por pantalla**". DDL-016 fija los tres
+  tiers y el presupuesto de Tier C (1–2 usos por pantalla); **este límite no está en ninguna DDL**.
+  Primera aparición en el historial: el commit del reset.
+- `07` § 7: dos rechazos permanentes —paralaje y desplazamientos decorativos; animaciones de
+  entrada por elemento en listas largas— con la columna "Decisión" en **"—"**. El documento admite
+  por sí mismo que no hay decisión detrás, y sin embargo `07` § 7 existe *precisamente* para que
+  ningún brief futuro los reintroduzca: son prohibiciones permanentes sin decisión permanente.
+
+**A determinar también**: si ambos comparten una decisión superior sobre presupuesto de movimiento
+que habría que declarar una sola vez, en vez de dos reglas sueltas.
+
+### OD-27 — "Umbral alto" es una condición de ejecución sin definir
+
+**Tipo**: término normativo indefinido con efecto operativo. **Abierta** · **Fecha**: 2026-08-09.
+**Prioridad alta.**
+
+"Umbral alto" se invoca tres veces —`04` § 8.2, `04` § 8.3, `05` § 4.2— como si estuviera
+definido. **No lo está en ningún documento ni en ninguna DDL** (verificado: cero apariciones en
+este Log).
+
+No es vaguedad de redacción. La cadena es:
+
+```
+"umbral alto"  →  condición de acción  →  acción en lote  →  IA sobre superficie operativa
+```
+
+`04` § 8.3 condiciona las confirmaciones en lote de propuestas de IA a superarlo. Sin definición,
+**la implementación tendría que decidir por su cuenta qué significa "alto"** — exactamente en el
+punto donde `01` § 5.4 y `05` § 4.4 ponen el límite duro de la confirmación humana.
+
+### OD-28 — Límites numéricos de interacción sin fuente
+
+**Tipo**: redacción → normativa. **Abierta** · **Fecha**: 2026-08-09.
+
+Tres límites concretos cuya primera aparición en todo el historial es el commit del reset, sin
+antecedente en este Log, en los documentos archivados ni en el código:
+
+| Regla | Dónde | Comprobado |
+|---|---|---|
+| "Nunca más de **tres** avisos visibles" | `04` § 7.1, repetido en `08` § 4.4 | Sin fuente en Log, archivo ni código — `AnfitrionToasts` no implementa límite alguno |
+| Matriz de composición de superficies + "**dos** niveles de overlay es el máximo" | `05` § 7 | Sin DDL. Es **estructura normativa nueva**, y `05` es justamente donde se decidió que viven los patrones estructurales |
+| "Ninguna situación que requiera atención está a más de **un clic**" | `03` § 4.1 | Sin fuente. Se presenta junto a una regla heredada (ver OD-29), lo que le presta una continuidad que no tiene |
+
+El caso de la matriz de `05` § 7 es el más serio de los tres: no es un número aislado sino un
+sistema de reglas de composición del que se derivan cuatro consecuencias explícitas.
+
+### OD-29 — Reglas heredadas del histórico, normadas sin ratificación
+
+**Tipo**: documento → documento, con raíz en documentación archivada sin autoridad. **Abierta** ·
+**Fecha**: 2026-08-09.
+
+Tres reglas que `03`, `04` y `08` presentan como normativa y que la auditoría trazó hasta
+`docs/archive/design/` — histórico explícitamente **sin autoridad** (DDL-056):
+
+| Regla | Ruta de contaminación |
+|---|---|
+| "≤3 clics desde el Dashboard" | `UX_PATTERNS.md` archivado (§ 139) → `03` § 4.1, que la marca como "histórica" y la conserva |
+| Filtros persisten en URL / orden no | `UX_PATTERNS.md`, histórico archivado sin autoridad (§§ 60, 65) → `03` § 5.2 → **`04` § 3.2 y § 3.3 citan a `03`** como si `03` lo hubiera decidido |
+| `AnilloCumplimiento`: "umbral propio, distinto del semáforo" | `DESIGN_SYSTEM.md`, histórico archivado sin autoridad (§ 189), que **describía el código** (100 % Éxito, ≥50 % Advertencia, resto Peligro) → `08` § 4.4 |
+
+**Qué debe decidir**: cuáles de estas reglas se **ratifican** como decisión propia —con DDL— y
+cuáles se retiran. Conservar una regla porque estaba antes es precisamente lo que DDL-055
+descarta: la autoridad viene de la posición en la cadena, no de la antigüedad.
+
+**Nota sobre la dirección de referencia** (D6): el problema no se arregla añadiendo una cita. Hay
+que determinar **cuál de los dos documentos debe ser autoridad** sobre la persistencia en URL —
+`03` (dónde vive el estado) o `04` (cómo se comporta la lista)— antes de decidir el contenido.
+
+### OD-23 — `02` no declara el texto principal en modo claro (cerrada)
+
+**Tipo**: laguna normativa en `02`. **Cerrada por DDL-057** · **Fecha**: 2026-08-08.
+
+`02` § 3–5 declara valor para todos los roles cromáticos del tema claro — azul, cian, semáforo,
+cobre retirado, los cuatro niveles de superficie, ambos bordes — y para el texto principal y
+secundario del tema **oscuro** (§ 5). El texto principal **claro** es la única celda que falta.
+
+**Por qué importa**: esa ausencia es la causa mecánica de OD-22. `06` necesitaba el valor, `02`
+no lo daba, y se rellenó con un valor inventado. Cerrar OD-22 sin cerrar esto deja el hueco que
+lo produjo abierto para el siguiente documento que lo necesite.
+
+**La pregunta**: ¿cuál es el valor normativo del texto principal en tema claro? La decisión
+pertenece a `02`, no a `06`. Reglas que la acotan:
+
+- **No se resuelve escribiendo el valor que hay en el código.** Sería repetir el error de OD-22
+  con el signo cambiado: el código no es autoridad, tampoco cuando coincide con lo esperado.
+- **No se resuelve desde `06`.** `06` deriva de `02`, no al revés.
+- `#161E27` es la continuidad de hecho y da 16.81:1 sobre Surface y 15.79:1 sobre Canvas, pero
+  eso lo hace *admisible*, no *decidido*.
+
+**Cierre**: **DDL-057** declara `#161E27` en `02` § 4.1 por continuidad de identidad y
+suficiencia de contraste, dejando explícito que el histórico y el código son evidencia, no
+autoridad. `06` § 2.5 pasa de documentar continuidad a consumir una especificación con fuente.
+
+**Detalle de ubicación**: la decisión se declara en `02` § 4.1, no en § 5 como se planteó al
+proponerla. § 5 es *Modo oscuro*: alojar ahí el valor del tema claro habría vuelto a separar el
+valor de su tema. § 4.1 ya emparejaba claro/oscuro para superficies y bordes, y es donde el
+texto principal queda junto a los fondos contra los que se mide.
+
+### OD-22 — `--color-text` en modo claro: `#0F1720` vs. `#161E27` (cerrada)
+
+**Tipo**: conflicto de especificación entre dos afirmaciones de `06`. **No** es una divergencia
+de implementación: no se resuelve mirando el código, porque el código no tiene autoridad aquí.
+
+**Estado**: **Cerrada** · **Fecha**: 2026-08-08 (abierta y cerrada el mismo día).
+
+Los hechos, sin interpretarlos:
+
+| # | Fuente | Afirma |
+|---|---|---|
+| 1 | `06` § 2.5, tabla de neutros y texto | `--color-text` (claro) = `#0F1720` |
+| 2 | `06` § tabla "Lo que cambia" | enumera los cambios de token uno a uno y **no** incluye `--color-text`; el único cambio cromático de texto que contempla es `--color-text-muted` |
+| 3 | `06` § tabla "Impacto medido en el código actual" | mide 4 cambios; `--color-text` no aparece |
+| 4 | Implementación (`tokens.css:66` → `tokens.css:47`) | `--color-text` resuelve `#161E27` vía `--color-neutral-900` |
+| 5 | Histórico archivado (`docs/archive/design/DESIGN_SYSTEM.md`) | `#161E27` como texto principal — sin autoridad, solo fija la procedencia del valor actual |
+| 6 | `02` | no declara ningún valor para el texto principal en claro |
+| 7 | Banco visual (DDL-025…DDL-030) | ninguna decisión fija `--color-text`: DDL-028 fija canvas, surface y bordes; DDL-029 fija solo el muted; DDL-026 fija la identidad oscura |
+
+**La pregunta abierta no es "¿qué color queremos?"**, sino: *¿cuál es la procedencia de una
+especificación que aparece en `06` sin trazabilidad?* Mientras no esté demostrada, `#0F1720` no
+es una decisión válida y no puede implementarse. El código actual (`#161E27`) **tampoco es prueba
+en contra**: no tiene autoridad sobre esta capa.
+
+#### Investigación de procedencia (2026-08-08)
+
+| # | Comprobación | Resultado |
+|---|---|---|
+| 1 | Este Log: `#0F1720` y `--color-text` | **Cero apariciones** fuera de esta entrada. Ninguna DDL fija un valor para `--color-text` en claro |
+| 2 | `02` § 3–5: valor normativo del texto principal | `02` **no lo declara**. Es la única laguna de su paleta: declara azul, cian, semáforo, cobre retirado, los cuatro niveles de superficie en ambos temas, ambos bordes, y el texto principal **oscuro** `#E7EAEE` y secundario oscuro `#8592A3` (§ 5), pero deja sin valor el texto principal **claro** |
+| 3 | Banco visual / criterios de contraste | No existe artefacto del banco versionado: su registro es este Log (DDL-025…DDL-037), y no contiene el valor. **Además el contraste no lo explica**: `#161E27` ya daba 16.81:1 sobre Surface y 15.79:1 sobre Canvas; `#0F1720` da 18.05:1. Ambos pasan con enorme margen, así que ninguna medición del banco pudo motivar el cambio |
+| 4 | Origen del `#161E27` actual | Introducido en `6e05ec0` ("Identidad visual propia y jerarquía del Dashboard"), muy anterior al reset |
+| 5 | Git: introducción de `#0F1720` | **Primera aparición en todo el historial del repositorio** en el commit del reset (`bad7d7c` → `b7ac8db`). Solo dos commits tocan `06` y ambos son el reset: el valor **nació con el documento**, no lo heredó |
+
+**Traza fila a fila de la tabla de `06` § 2.5** — las otras tres celdas sí tienen fuente aguas
+arriba, lo que aísla la anomalía:
+
+| Celda de `06` § 2.5 | Fuente |
+|---|---|
+| `--color-text` oscuro `#E7EAEE` | `02` § 5 |
+| `--color-text-muted` claro `#5F6E84` | DDL-029 · `02` § 8 |
+| `--color-text-muted` oscuro `#8592A3` | `02` § 5 |
+| `--color-border` / `-strong` | DDL-028 · `02` § 4.1 |
+| **`--color-text` claro `#0F1720`** | **ninguna** |
+
+**Conclusión de la investigación**: no existe ninguna fuente que respalde `#0F1720`. Es una
+derivación editorial no trazada, aparecida al redactar `06` para rellenar la única fila que `02`
+había dejado sin valor. No se convierte en decisión.
+
+**Laguna descubierta de paso, que OD-22 no cierra**: `02` no declara el texto principal en modo
+claro. Se registra aparte como **OD-23** — decidir el valor normativo pertenece a `02`, y
+resolverlo dentro de `06` sería repetir el mecanismo que produjo `#0F1720`.
+
+#### Veredicto (2026-08-08)
+
+> `#0F1720` fue una **derivación editorial sin autoridad** y se elimina. `#161E27` permanece
+> como valor **no modificado por el reset**, pero la autoridad normativa definitiva de ese valor
+> debe quedar establecida en `02`. La ausencia del texto principal claro en `02` es una nueva
+> laguna normativa (OD-23) y no debe resolverse dentro de `06`.
+
+Dos precisiones que el cierre **no** afirma, para que no se lean por implicación:
+
+- **`#161E27` no queda "decidido" por el código ni por el documento histórico.** Ninguno de los
+  dos tiene autoridad. Lo que respalda su permanencia es normativa: la tabla "Lo que cambia" de
+  `06` § 12 no enumera `--color-text`, luego `06` afirma que no cambia.
+- **Retirar `#0F1720` no es sustituirlo por otra decisión.** `06` § 2.5 pasa a documentar
+  continuidad marcada como "sin cambio en este reset", no una especificación nueva.
+
+**Ejecutado al cerrar**: `06` § 2.5 retira `#0F1720` y remite el valor a `02`; `06` § 12 añade
+`--color-text` a la fila "Sin cambios". Sin DDL nuevo por este cierre: no se decidió nada, se
+retiró algo que nunca se decidió. El valor se decide aparte, en DDL-057.
 
 La frontera de autoridad se verifica en CI (DDL-055): `scripts/validar-gobernanza-docs.py`.
 
