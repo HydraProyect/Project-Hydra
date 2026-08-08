@@ -324,7 +324,7 @@ como implementado o presente algo que no está construido.
 - **Documentos afectados**: `02`, `06`.
 
 ### DDL-027 — Hydra Cyan: familia asimétrica por tema (cierra OD-02)
-- **Decisión**: modo claro — texto/icono de sistema `#0C7792` (5.58:1), indicador no textual
+- **Decisión**: modo claro — texto/icono de sistema `#0C7792` (**5.16:1**), indicador no textual
   `#0E96B4` (3.48:1). Modo oscuro — `#2BD4F0` para ambos usos. El cian **nunca** rellena un
   botón sólido ni actúa como color de acción.
 - **Estado**: Vigente · **Fecha**: 2026-08-08
@@ -332,6 +332,11 @@ como implementado o presente algo que no está construido.
   claro**: `#00F0FF` da 1.41:1, `#00C2E0` 2.14:1 y `#06B6D4` 2.43:1, todos por debajo de su
   umbral. La asimetría por tema es además coherente con la semántica: el sistema "brilla" en
   oscuro y se contiene en claro.
+- **Corrección (2026-08-09, OD-24)**: esta entrada declaraba **5.58:1** para `#0C7792`. El valor
+  real es **5.16:1**; se corrige aquí y en `02` § 3.3 y `06` § 11. **La decisión no cambia**:
+  5.16 sigue por encima del 4.5:1 exigido al texto normal, y ninguno de los candidatos descartados
+  se acerca. Fue la única de las nueve mediciones de este Log que no reproducía — las otras cuatro
+  de esta misma entrada (3.48, 1.41, 2.14, 2.43) son exactas.
 - **Documentos afectados**: `02`, `06`.
 
 ### DDL-028 — Superficies claras (cierra OD-04)
@@ -759,6 +764,37 @@ como implementado o presente algo que no está construido.
   esta.
 - **Documentos afectados**: `02` § 4.1; `06` § 2.5 (ya corregido al cerrar OD-22).
 
+### DDL-060 — El contraste pertenece al par **y al uso** (cierra OD-24)
+- **Decisión**: `06` § 11 deja de presentarse como matriz de accesibilidad y pasa a declarar
+  **pares normativos representativos, con su uso**. Tres consecuencias:
+  1. **La tabla lleva columna de Uso/Contexto.** Un ratio no es una propiedad intrínseca de un
+     color: pertenece al par **y al uso**. `#2F6FDD` con 4.73:1 "sobre blanco" es válido como
+     relleno con texto blanco y no necesariamente como texto sobre el fondo de página — una tabla
+     sin contexto induce precisamente al uso incorrecto.
+  2. **Declara explícitamente que no es exhaustiva.** Ningún consumidor puede inferir conformidad
+     para un uso distinto a partir de un par medido, ni suponer válida una combinación por el
+     hecho de no figurar.
+  3. **Incluye los casos límite**, que son los que importan: muted sobre Subtle claro (4.73) y
+     sobre Elevated oscuro (4.55), sistema sobre Subtle claro (4.70), indicador sobre Subtle
+     (3.17).
+- **Estado**: Vigente · **Fecha**: 2026-08-09
+- **Dirección de verificación** (lo más importante de esta decisión): *`02` y `06` declaran qué
+  usos son legales → la auditoría cruza esos usos contra todos los fondos → aparecen las
+  combinaciones no cubiertas.* **Nunca** *`06` enumera combinaciones → lo no enumerado se supone
+  válido.* La segunda dirección es la que produjo este problema, y con una tabla más grande lo
+  habría reproducido igual dentro de unos meses.
+- **La matriz completa no se convierte en normativa**: `06` crecería con combinaciones que no
+  representan usos reales, y cada uso nuevo obligaría a ampliar una tabla que debe describir
+  decisiones, no ser un motor de combinatoria. Queda como **evidencia de auditoría** bajo OD-24.
+- **Correcciones de cifra ejecutadas**: `06` § 11 y `02` § 5 pasan de 15.98 → 16.81, de 11.40 →
+  13.49 y de ≈6.5 → 5.14; DDL-027, `02` § 3.3 y `06` § 11 pasan de 5.58 → 5.16. La decisión de
+  DDL-027 **no cambia**: 5.16 sigue sobre el umbral.
+- **No cierra** OD-30 ni OD-31, que salieron del recálculo y quedan abiertas y referenciadas desde
+  la propia tabla para que nadie las lea como resueltas.
+- **Documentos afectados**: `06` § 11; `02` § 3.3, § 5; entrada DDL-027 de este Log.
+
+---
+
 ### DDL-059 — Código existente ≠ decisión (cierra OD-25)
 - **Decisión**: **un valor puede permanecer implementado sin tener autoridad normativa.** Su
   presencia en producción constituye evidencia del estado actual, **no autorización para
@@ -799,7 +835,8 @@ hubiera decidido. El mecanismo hizo lo que se diseñó para hacer.
 
 ## Open Decisions
 
-**Cinco: OD-24, OD-26, OD-27, OD-28, OD-29.** OD-25 se cerró con DDL-059 el 2026-08-09.
+**Seis: OD-26, OD-27, OD-28, OD-29, OD-30, OD-31.** OD-25 se cerró con DDL-059 y OD-24 con
+DDL-060, ambas el 2026-08-09; OD-30 y OD-31 nacieron del recálculo de OD-24.
 Las veintiuna Open Decisions del reset quedan cerradas el 2026-08-08.
 OD-22 y OD-23 se abrieron y cerraron ese mismo día al preparar la Fase 4. Las seis siguientes
 salen de la **auditoría de trazabilidad de `01`–`08`** (2026-08-09), que OD-22 motivó: si un valor
@@ -825,9 +862,56 @@ Se registra aquí porque condiciona cómo se cierran OD-24…OD-29 y cómo se re
 La tercera es la más difícil de ver, porque la cadena de citas **parece** correcta: cada documento
 cita al anterior y ninguno miente. Lo que falta está al principio de la cadena, no en ella.
 
-### OD-24 — Ratios de contraste declarados sin trazabilidad
+### OD-30 — `#2F6FDD` solo cumple sobre Surface, y no se declara para qué uso
 
-**Tipo**: mediciones normativas no reproducibles. **Abierta** · **Fecha**: 2026-08-09.
+**Tipo**: valor por debajo de umbral en parte de sus superficies. **Abierta** · **Fecha**:
+2026-08-09. **Origen**: recálculo completo de OD-24 (DDL-040: hallazgo fuera de alcance, se
+registra y no se arregla dentro).
+
+`02` § 3.2 declara `#2F6FDD` con "4.73:1 sobre blanco ✓". El dato es correcto, pero **solo
+describe una de sus dos lecturas posibles**, y ni `02` ni `06` dicen cuál es:
+
+- **Como relleno de botón con texto blanco**: 4.73:1 es el par blanco/`#2F6FDD` — **cumple**.
+- **Como color de texto o enlace en estado hover**: sobre Canvas da **4.44** y sobre Subtle
+  **4.31** — **por debajo de 4.5**. Solo cumple sobre Surface.
+
+`06` § 2.1 lo etiqueta "Hover de acción primaria", que no desambigua: la acción primaria puede ser
+un botón o un enlace. **Si existe hover de enlace en `#2F6FDD` sobre el fondo de página, hay un
+incumplimiento real en producción**; si es solo relleno de botón, no lo hay y lo que falta es
+declararlo.
+
+**Qué debe decidir**: primero, cuál es el uso real (comprobación de código, no de documento);
+después, si se restringe el token a relleno, se oscurece para cumplir en las tres superficies, o
+se separan dos tokens por uso. **No se decide el valor antes de saber el uso.**
+
+### OD-31 — Ningún borde declarado alcanza el 3:1 que exige `02` § 8
+
+**Tipo**: conflicto entre una regla de `02` y los valores que el propio `02` declara. **Abierta** ·
+**Fecha**: 2026-08-09. **Origen**: recálculo completo de OD-24 (DDL-040).
+
+`02` § 8 fija **3:1** para "componentes de interfaz y **bordes significativos**". Los cuatro
+tokens de borde del sistema quedan muy por debajo contra cualquier superficie de su tema: en claro
+1.13–1.48; en oscuro 1.17–2.04. **Ninguna combinación de las catorce llega a 3:1.**
+
+**Por qué no es automáticamente un defecto**: el umbral de 3:1 aplica al límite visual que
+identifica un **control** —el borde de un campo de formulario, por ejemplo—, no a un separador o
+al contorno de una tarjeta. Un borde decorativo no tiene que alcanzarlo. El problema es que **`02`
+§ 8 no distingue**: dice "bordes significativos" sin definir cuáles lo son, y con los valores
+actuales ningún borde podría serlo.
+
+**Qué debe decidir**: si se acota la redacción de `02` § 8 a los bordes que sí identifican un
+control, y en ese caso **qué token usan esos bordes**, porque ninguno de los cuatro actuales
+sirve. Es la única de las ODs abiertas que puede terminar exigiendo un token nuevo.
+
+**Nota de alcance**: este hallazgo estaba fuera del radar de toda la auditoría anterior. No lo
+detectó la lectura de los documentos —`02` § 8 y los tokens de borde son coherentes leídos por
+separado—, sino el recálculo cruzado que pediste antes de decidir la tabla de `06` § 11.
+
+### OD-24 — Ratios de contraste declarados sin trazabilidad (cerrada)
+
+**Tipo**: mediciones normativas no reproducibles. **Cerrada por DDL-060** · **Fecha**: 2026-08-09.
+Generó OD-30 y OD-31, que siguen abiertas. La matriz completa de § 3 se conserva aquí como
+**evidencia de auditoría**, no como normativa.
 
 Cuatro ratios declarados en `02` y `06` no reproducen al recalcularlos sobre los propios valores
 que esos documentos fijan:
@@ -843,9 +927,80 @@ que esos documentos fijan:
 no hace correcta la cifra, y **A3 y A4 sobreestiman** el contraste real, que es la dirección
 peligrosa: declaran un margen que no existe.
 
-**Patrón que da la pista**: los cinco ratios que **sí** reproducen al decimal (5.18, 6.27, 4.73,
-3.48, 3.96) proceden de DDL-025 y DDL-029 — mediciones reales del banco. Los cuatro que fallan no
-tienen DDL detrás. Misma firma que `#0F1720`.
+#### Investigación (2026-08-09)
+
+**1 · Resolución hacia atrás.** Se buscó, entre **todos** los pares posibles de la paleta declarada
+en `02`, `06` y `tokens.css`, alguno que produjera cada cifra: si un ratio correspondiera a un par
+real mal etiquetado, sería un error de documentación y no un número sin origen.
+
+| Cifra | Par que la produce |
+|---|---|
+| 11.40 · 5.58 | **Ninguno** en toda la paleta |
+| 15.98 | Solo 16.02, que es la isla del tema **oscuro** contra una superficie de hover **clara ya retirada**. Par que nadie mediría: coincidencia aritmética |
+| ≈6.5 | Solo 6.55, que es `primary-300` sobre isla oscura — **color de enlace**, no texto secundario |
+
+Ninguna de las cuatro es una medición real mal declarada.
+
+**2 · Verificación completa de la capa de decisión.** Se recalcularon **las nueve** mediciones que
+declara este Log. **Ocho reproducen exactas**: 6.27 y 4.78 (DDL-025); 3.48, 1.41, 2.14 y 2.43
+(DDL-027); 3.96 y 5.18 (DDL-029). **Una no**: `#0C7792` = **5.58 declarado, 5.16 real**, en
+DDL-027 — la misma entrada que acierta las otras cuatro. El protocolo de medición del banco
+funcionó; se le escapó un valor.
+
+> **Corrección de esta misma entrada**: su primera redacción afirmaba que "los cuatro que fallan no
+> tienen DDL detrás". **Es falso para 5.58**, que sí está declarado en DDL-027. La afirmación se
+> corrige aquí en vez de reescribirse en silencio (DDL-024).
+
+#### Las cuatro no son un solo problema
+
+| Clase | Cifras | Naturaleza |
+|---|---|---|
+| **Cifra errónea dentro de una decisión válida** | 5.58 (DDL-027 · `02` § 3.3 · `06` § 11) | `#0C7792` da 5.16, que **sigue superando 4.5:1**. La decisión de DDL-027 no queda invalidada — solo su cifra de apoyo. Enmendar evidencia dentro de un DDL, no decidir de nuevo |
+| **Sin respaldo en ninguna capa** | 15.98 · 11.40 · ≈6.5 | Ni en el Log, ni derivables de ningún par, ni presentes en el historial antes del commit del reset. Contaminación **redacción → normativa** (DDL-058, forma 3) |
+
+**Dirección del error, que reordena la prioridad**: 15.98 (real 16.81) y 11.40 (real 13.49)
+**subestiman** — declaran menos margen del que hay, dirección inofensiva. ≈6.5 (real 5.14) y 5.58
+(real 5.16) **sobreestiman**: afirman un margen que no existe, y una de las dos está en un DDL.
+
+**Hallazgo colateral**: `06` § 11 titula su tabla "Pares medidos en el **banco visual**". La
+investigación de OD-22 ya estableció que **no existe artefacto del banco versionado** — su único
+registro es este Log. Una tabla de mediciones no puede atribuirse a una fuente que no existe como
+documento; o sus cifras vienen del Log, o se recalculan.
+
+#### 3 · Recálculo del conjunto completo (2026-08-09)
+
+Antes de decidir qué filas merece tener la tabla, se calcularon **todos** los pares de primer
+plano y superficie que el sistema declara, en ambos temas y contra su umbral (`02` § 8).
+
+**Tema claro** — superficies Canvas `#F6F8FA` · Surface `#FFFFFF` · Subtle `#F1F5F7`:
+
+| Primer plano | Umbral | Canvas | Surface | Subtle |
+|---|---|---|---|---|
+| Texto principal `#161E27` | 4.5 | 15.79 ✓ | 16.81 ✓ | 15.33 ✓ |
+| Texto secundario `#5F6E84` | 4.5 | 4.87 ✓ | 5.19 ✓ | 4.73 ✓ |
+| Texto de sistema `#0C7792` | 4.5 | 4.85 ✓ | 5.16 ✓ | 4.70 ✓ |
+| Acción primaria `#235BC2` | 4.5 | 5.89 ✓ | 6.27 ✓ | 5.72 ✓ |
+| **Hover primario `#2F6FDD`** | 4.5 | **4.44 ✗** | 4.73 ✓ | **4.31 ✗** |
+| Indicador de sistema `#0E96B4` | 3.0 | 3.27 ✓ | 3.48 ✓ | 3.17 ✓ |
+| **Borde normal `#E2E8EC`** | 3.0 | **1.16 ✗** | **1.24 ✗** | **1.13 ✗** |
+| **Borde reforzado `#CBD5E1`** | 3.0 | **1.39 ✗** | **1.48 ✗** | **1.35 ✗** |
+
+**Tema oscuro** — Canvas `#0E141B` · Surface `#17212C` · Subtle `#131B24` · Elevated `#202B36`:
+
+| Primer plano | Umbral | Canvas | Surface | Subtle | Elevated |
+|---|---|---|---|---|---|
+| Texto principal `#E7EAEE` | 4.5 | 15.34 ✓ | 13.49 ✓ | 14.38 ✓ | 11.92 ✓ |
+| Texto secundario `#8592A3` | 4.5 | 5.85 ✓ | 5.14 ✓ | 5.49 ✓ | 4.55 ✓ |
+| Texto de sistema `#2BD4F0` | 4.5 | 10.38 ✓ | 9.13 ✓ | 9.73 ✓ | 8.07 ✓ |
+| Enlace `#5CA2F4` | 4.5 | 6.99 ✓ | 6.15 ✓ | 6.55 ✓ | 5.43 ✓ |
+| **Borde normal `#293644`** | 3.0 | **1.50 ✗** | **1.32 ✗** | **1.41 ✗** | **1.17 ✗** |
+| **Borde reforzado `#3A4A5C`** | 3.0 | **2.04 ✗** | **1.79 ✗** | **1.91 ✗** | **1.58 ✗** |
+
+**Lectura**: los textos cumplen en todas las combinaciones de ambos temas, algunos con margen
+fino —secundario sobre Subtle claro 4.73 y sobre Elevated oscuro 4.55—, pero cumplen. Los dos
+problemas reales **no estaban en ninguna de las cuatro filas de `06` § 11**, que es exactamente
+lo que una tabla de cuatro pares elegidos a mano no puede detectar. Se registran como **OD-30** y
+**OD-31**: son hallazgos ajenos al alcance de OD-24 y **no se arreglan dentro de ella** (DDL-040).
 
 **Qué debe decidir**: si `02`/`06` conservan ratios; si se sustituyen por mediciones
 reproducibles; **qué ratios son normativos y cuáles son solo evidencia**; y qué impide que un
