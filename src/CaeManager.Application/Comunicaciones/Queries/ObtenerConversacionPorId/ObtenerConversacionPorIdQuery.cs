@@ -2,6 +2,8 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
@@ -65,7 +67,7 @@ public record ConversacionDetalleDto(
 public class ObtenerConversacionPorIdQueryHandler(
     IClientesQueryContext clientesContext, ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
     ITrabajadoresQueryContext trabajadoresContext, ITiposDocumentoQueryContext tiposDocumentoContext,
-    IVisitasQueryContext visitasContext,
+    IVisitasQueryContext visitasContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext,
     IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
     ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerConversacionPorIdQuery, ConversacionDetalleDto?>
@@ -186,11 +188,6 @@ public class ObtenerConversacionPorIdQueryHandler(
             mensajes, participantes, eventos, conversacion.Canal, conversacion.TelefonoContacto, conversacion.FechaUltimoMensajeEntranteUtc);
     }
 
-    /// <summary>
-    /// Solo <see cref="TipoEventoConversacion.VisitaCreada"/> existe hoy — el
-    /// switch crece cuando el flujo de "Actualizar documentación" (§ 16.7)
-    /// publique su propio tipo, no antes.
-    /// </summary>
     private async Task<IReadOnlyList<EventoDetalleDto>> ObtenerEventosAsync(Guid conversacionId, CancellationToken cancellationToken)
     {
         var eventosCrudos = await comunicacionesContext.EventosConversacion
@@ -212,19 +209,57 @@ public class ObtenerConversacionPorIdQueryHandler(
             .Select(c => new { c.Id, c.Nombre })
             .ToDictionaryAsync(c => c.Id, c => c.Nombre, cancellationToken);
 
-        return eventosCrudos.Select(e => new EventoDetalleDto(
-            e.Id, e.Tipo, e.ReferenciaId, e.FechaUtc, DescribirEvento(e.Tipo, e.ReferenciaId, visitas, nombresCentroVisita))).ToList();
+        var documentoIds = eventosCrudos.Where(e => e.Tipo == TipoEventoConversacion.DocumentoActualizado).Select(e => e.ReferenciaId).ToList();
+        var documentos = await documentosContext.Documentos
+            .Where(d => documentoIds.Contains(d.Id))
+            .Select(d => new DocumentoResumenParaEvento(d.Id, d.TipoDocumentoId, d.TrabajadorId, d.EmpresaId))
+            .ToDictionaryAsync(d => d.Id, cancellationToken);
+
+        var tipoDocumentoIdsEventos = documentos.Values.Select(d => d.TipoDocumentoId).Distinct().ToList();
+        var nombresTipoDocumentoEventos = await tiposDocumentoContext.TiposDocumento
+            .Where(t => tipoDocumentoIdsEventos.Contains(t.Id))
+            .Select(t => new { t.Id, t.Nombre })
+            .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
+
+        var trabajadorIdsDocumentos = documentos.Values.Where(d => d.TrabajadorId is not null).Select(d => d.TrabajadorId!.Value).ToList();
+        var nombresTrabajadorDocumentos = await trabajadoresContext.Trabajadores
+            .Where(t => trabajadorIdsDocumentos.Contains(t.Id))
+            .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos })
+            .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
+
+        var empresaIdsDocumentos = documentos.Values.Where(d => d.EmpresaId is not null).Select(d => d.EmpresaId!.Value).ToList();
+        var nombresEmpresaDocumentos = await empresasContext.Empresas
+            .Where(e => empresaIdsDocumentos.Contains(e.Id))
+            .Select(e => new { e.Id, e.RazonSocial })
+            .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
+
+        return eventosCrudos.Select(e => new EventoDetalleDto(e.Id, e.Tipo, e.ReferenciaId, e.FechaUtc, DescribirEvento(
+            e.Tipo, e.ReferenciaId, visitas, nombresCentroVisita, documentos, nombresTipoDocumentoEventos,
+            nombresTrabajadorDocumentos, nombresEmpresaDocumentos))).ToList();
     }
 
     private record VisitaResumenParaEvento(Guid Id, Guid CentroId, DateOnly FechaInicio, DateOnly FechaFin);
 
+    private record DocumentoResumenParaEvento(Guid Id, Guid TipoDocumentoId, Guid? TrabajadorId, Guid? EmpresaId);
+
     private static string DescribirEvento(
         TipoEventoConversacion tipo, Guid referenciaId,
-        Dictionary<Guid, VisitaResumenParaEvento> visitasPorId, Dictionary<Guid, string> nombresCentroVisita) => tipo switch
+        Dictionary<Guid, VisitaResumenParaEvento> visitasPorId, Dictionary<Guid, string> nombresCentroVisita,
+        Dictionary<Guid, DocumentoResumenParaEvento> documentosPorId, Dictionary<Guid, string> nombresTipoDocumento,
+        Dictionary<Guid, string> nombresTrabajador, Dictionary<Guid, string> nombresEmpresa) => tipo switch
         {
             TipoEventoConversacion.VisitaCreada when visitasPorId.TryGetValue(referenciaId, out var visita) =>
                 $"Se ha creado una visita en {nombresCentroVisita.GetValueOrDefault(visita.CentroId, "el centro")} para el {FormatearRangoFechas(visita.FechaInicio, visita.FechaFin)}.",
             TipoEventoConversacion.VisitaCreada => "Se ha creado una visita a partir de esta conversación.",
+
+            TipoEventoConversacion.DocumentoActualizado when documentosPorId.TryGetValue(referenciaId, out var documento) =>
+                $"Se ha actualizado el documento {nombresTipoDocumento.GetValueOrDefault(documento.TipoDocumentoId, "sin tipo")} de "
+                    + (documento.TrabajadorId is { } trabajadorId
+                        ? nombresTrabajador.GetValueOrDefault(trabajadorId, "un trabajador")
+                        : nombresEmpresa.GetValueOrDefault(documento.EmpresaId ?? Guid.Empty, "una empresa"))
+                    + ".",
+            TipoEventoConversacion.DocumentoActualizado => "Se ha actualizado un documento a partir de esta conversación.",
+
             _ => "Evento del sistema."
         };
 
