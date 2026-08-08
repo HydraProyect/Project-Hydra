@@ -5,7 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentValidation" Version="11.*" />
+    <PackageReference Include="FluentValidation" Version="12.*" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.*" />
     <PackageReference Include="MediatR" Version="12.*" />
     <PackageReference Include="MediatR.Contracts" Version="2.*" />
