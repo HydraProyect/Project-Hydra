@@ -764,6 +764,35 @@ como implementado o presente algo que no está construido.
   esta.
 - **Documentos afectados**: `02` § 4.1; `06` § 2.5 (ya corregido al cerrar OD-22).
 
+### DDL-064 — "Umbral alto" se descompone en tres umbrales con nombre (cierra OD-27)
+- **Decisión**: el término **"umbral alto" deja de existir** en la normativa. En su lugar, tres
+  condiciones con nombre propio, que no se sustituyen entre sí:
+
+  | Umbral | Valor | Qué gobierna |
+  |---|---|---|
+  | **De revisión** | 70 % | Por debajo, el dato no se presenta como hecho: se marca para verificación |
+  | **De confirmación masiva** | ≥ 85 % | Junto con datos completos, habilita la acción en lote |
+  | **De confianza visual** | ≥ 95 % | La señal de confianza alta que ve el usuario en el badge |
+
+- **Estado**: Vigente · **Fecha**: 2026-08-09
+- **Por qué descomposición y no definición**: definir "umbral alto = 85 %" —o 95— habría
+  convertido **una ambigüedad existente en una autoridad falsa nueva**. El término no representaba
+  una regla imprecisa: representaba **tres reglas colapsadas**, y una de ellas (la visual) ni
+  siquiera es una condición de ejecución. Elegir un número habría borrado dos de las tres.
+- **Dirección de autoridad**: el histórico documentaba `≥85 %` para la confirmación masiva, y la
+  implementación lo confirma — pero **ninguno de los dos decide**. La cadena que sostiene esta
+  entrada es *comportamiento histórico → implementación actual → **decisión normativa explícita***.
+  Los valores quedan vigentes porque **se deciden aquí**, no porque estuvieran antes.
+- **Lo que esta decisión NO hace**: **no cambia ninguno de los tres valores.** La investigación
+  establece qué hace cada uno; esta es una decisión de terminología y autoridad. La contradicción
+  entre el gate de lote (85) y el badge verde (95) pertenece a **OD-32** y no se resuelve
+  incidentalmente aquí.
+- **Regla que deja instalada**: nombrar la condición concreta es obligatorio. Un documento que
+  escriba "umbral alto" está mezclando una regla de interfaz con un gate de ejecución.
+- **Documentos afectados**: `04` § 8.2, § 8.3; `05` § 4.2.
+
+---
+
 ### DDL-063 — `--color-border-control`: el token del borde que identifica un control (cierra OD-31)
 - **Decisión**: se crea `--color-border-control` con valor **`#738196`**, **el mismo en ambos
   temas**. Lo consumen los bordes clasificados por DDL-062 como límite visual de un control; los
@@ -917,9 +946,10 @@ hubiera decidido. El mecanismo hizo lo que se diseñó para hacer.
 
 ## Open Decisions
 
-**Cuatro: OD-26, OD-27, OD-28, OD-29.** OD-25 se cerró con DDL-059, OD-24 con DDL-060, OD-30 con
-DDL-061 y OD-31 con DDL-062 + DDL-063, todas el 2026-08-09; OD-30 y OD-31 nacieron del recálculo
-de OD-24. Las cuatro que quedan son de **trazabilidad**, no de conformidad.
+**Cuatro: OD-26, OD-28, OD-29, OD-32.** Cerradas el 2026-08-09: OD-25 (DDL-059), OD-24 (DDL-060),
+OD-30 (DDL-061), OD-31 (DDL-062 + DDL-063) y OD-27 (DDL-064). OD-30 y OD-31 nacieron del recálculo
+de OD-24; OD-32, de la investigación de OD-27. De las cuatro abiertas, tres son de **trazabilidad**
+y **OD-32 es de producto** — la única que puede cambiar un comportamiento.
 Las veintiuna Open Decisions del reset quedan cerradas el 2026-08-08.
 OD-22 y OD-23 se abrieron y cerraron ese mismo día al preparar la Fase 4. Las seis siguientes
 salen de la **auditoría de trazabilidad de `01`–`08`** (2026-08-09), que OD-22 motivó: si un valor
@@ -1257,10 +1287,40 @@ su propia entrada.
 **A determinar también**: si ambos comparten una decisión superior sobre presupuesto de movimiento
 que habría que declarar una sola vez, en vez de dos reglas sueltas.
 
-### OD-27 — "Umbral alto" es una condición de ejecución sin definir
+### OD-32 — La acción en lote confirma propuestas que el badge marca en ámbar
 
-**Tipo**: término normativo indefinido con efecto operativo. **Abierta** · **Fecha**: 2026-08-09.
-**Prioridad alta.**
+**Tipo**: inconsistencia de producto entre el gate de una acción en lote y la señal visual que la
+acompaña. **Abierta** · **Fecha**: 2026-08-09. **Origen**: investigación de OD-27 (DDL-040:
+hallazgo fuera de alcance, se registra y no se arregla dentro).
+
+`RevisionIa` ofrece **"Confirmar todos los ≥85%"**. `TonoConfianza` pinta el badge verde a partir
+de **95**. Una revisión al **85–94 %** entra en la confirmación masiva mientras su propio badge la
+muestra en **ámbar (Advertencia)** — la interfaz señala "revisa esto" y el botón de lote la
+aprueba sin abrirla.
+
+El comentario del código sostiene que ambos usan el mismo criterio (`UmbralConfianzaLote = 85`:
+*"mismo criterio que ya usa el badge verde"*). No es así, y esa creencia es probablemente la causa
+de la divergencia.
+
+**Por qué importa más de lo que parece**: `01` § 5.4 y `05` § 4.4 fijan que la IA propone y la
+persona confirma. Una acción en lote que aprueba en bloque lo que la propia interfaz marca como
+dudoso erosiona esa garantía sin que nadie lo haya decidido.
+
+**Qué debe decidir**: si el gate del lote sube a 95 para alinearse con la señal visual, si el
+badge baja a 85, o si son deliberadamente distintos —"suficiente para confirmar en bloque" y
+"suficiente para no mirarlo" pueden ser dos preguntas legítimas— y entonces la interfaz debe
+decirlo. **No se resuelve igualando números sin decidir antes qué significa cada banda.**
+
+**Nota**: `TonoConfianza` está **duplicado literalmente** en `RevisionIa.razor.cs:132` y
+`SubidaMasiva.razor.cs:390`. Hoy coinciden; cualquier cambio de banda tendría que tocar los dos.
+
+### OD-27 — "Umbral alto" es una condición de ejecución sin definir (cerrada)
+
+**Tipo**: término normativo indefinido con efecto operativo. **Cerrada por DDL-064** ·
+**Fecha**: 2026-08-09.
+
+> **Cerrada por descomposición, no por definición.** El término no encubría un valor sin declarar
+> sino **tres condiciones distintas**. Generó OD-32, que sigue abierta.
 
 "Umbral alto" se invoca tres veces —`04` § 8.2, `04` § 8.3, `05` § 4.2— como si estuviera
 definido. **No lo está en ningún documento ni en ninguna DDL** (verificado: cero apariciones en
@@ -1275,6 +1335,46 @@ No es vaguedad de redacción. La cadena es:
 `04` § 8.3 condiciona las confirmaciones en lote de propuestas de IA a superarlo. Sin definición,
 **la implementación tendría que decidir por su cuenta qué significa "alto"** — exactamente en el
 punto donde `01` § 5.4 y `05` § 4.4 ponen el límite duro de la confirmación humana.
+
+#### Investigación (2026-08-09)
+
+**1 · Decisión aguas arriba**: ninguna. Cero apariciones del término en este Log.
+
+**2 · ¿Heredado del histórico?** No como abstracción. El archivado `UX_PATTERNS.md` § 116
+documentaba el comportamiento **concreto**: *"Confirmar todos los ≥85%"*, aplicable solo a
+revisiones con confianza alta **y** fecha detectada. El reset lo abstrajo a "umbral alto" y
+**perdió el número por el camino**. La abstracción nació al redactar `04` (DDL-058, forma 3),
+sobre un comportamiento que sí estaba documentado con precisión.
+
+**3 · Implementación**: existe, y **no hay un umbral sino cinco**, todos llamados "umbral":
+
+| Condición | Valor | Dónde |
+|---|---|---|
+| Por debajo, no se sugiere nada | 70 | `DetectarCamposDocumento` y `DetectarActualizacionDocumentoDesdeAdjunto` — **duplicado** |
+| Por debajo, exige revisión humana | 70 | `VerificacionIaDocumentoService` (cita Issue #19, "70-95 % revisar") |
+| Por debajo, reintento con otro proveedor | 70 | `DocumentAIRouterService` |
+| **Gate de la acción en lote** | **85** | `RevisionIa.razor.cs:12` (`UmbralConfianzaLote`) |
+| **Badge verde = "alto" visual** | **95** | `TonoConfianza` (`>=95` Éxito · `>=70` Advertencia · resto Peligro) |
+
+**4 · Qué condición representa "alto"**: **ninguna sola.** `04` § 8.2 ("los campos por debajo del
+umbral alto se marcan para verificación") corresponde en código a **70**; `04` § 8.3 ("las acciones
+en lote solo aplican a las que superan el umbral alto") corresponde a **85**; y el "alto" que el
+usuario *ve* —el badge verde— es **95**. `04` usa un mismo término para tres condiciones distintas.
+
+**Contradicción dentro del propio código**: el comentario de `UmbralConfianzaLote = 85` afirma
+*"mismo criterio que ya usa el badge verde de confianza (TonoConfianza)"*. **Es falso**: el verde
+empieza en 95. Una revisión al 85–94 % se incluye en "Confirmar todos los ≥85%" mientras su propio
+badge la muestra en **ámbar**. Se registra aparte como **OD-32**: es un problema de producto, no
+del término documental, y no se arregla dentro de OD-27 (DDL-040).
+
+**Conclusión de la investigación**: **no se puede definir "umbral alto = X %" tomando X del
+código**, porque el código ofrece tres X distintas y una de ellas se documenta a sí misma de forma
+incorrecta. Hacerlo sería la primera forma de contaminación de DDL-058 con el agravante de elegir
+arbitrariamente entre tres candidatos.
+
+Lo que sí acierta `04` § 8.3: la condición de lote **es** conjuntiva —confianza suficiente **y**
+datos completos—, y así está implementada (`ConfianzaGeneral >= umbral && FechaEmisionDetectada is
+not null`). El defecto está en el término, no en la estructura de la regla.
 
 ### OD-28 — Límites numéricos de interacción sin fuente
 
