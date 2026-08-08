@@ -764,6 +764,27 @@ como implementado o presente algo que no está construido.
   esta.
 - **Documentos afectados**: `02` § 4.1; `06` § 2.5 (ya corregido al cerrar OD-22).
 
+### DDL-062 — Alcance del 3:1 para bordes (resuelve la mitad normativa de OD-31)
+- **Decisión**: `02` § 8 acota el umbral de 3:1 al borde que constituye el **límite visual de un
+  control interactivo** —campo de texto, área de texto, selector, zona de soltar, botón sin
+  relleno— y a los **indicadores de estado**, incluido el de foco. **No aplica** a separadores,
+  contornos de agrupación ni bordes de tarjeta, panel o modal.
+- **Estado**: Vigente · **Fecha**: 2026-08-09
+- **Motivo**: la redacción anterior decía "bordes significativos" **sin definir cuáles lo son**, y
+  con los valores actuales ningún borde podría serlo. La lectura estricta —todo borde visible a
+  3:1— obligaría a un contorno oscuro en las 93 aplicaciones del token, que es exactamente la
+  card-ificación que DDL-014 prohíbe. El criterio correcto no es la visibilidad del borde sino su
+  **función**.
+- **Regla de decisión que deja instalada**: *si el borde desaparece, ¿deja de poder distinguirse
+  dónde empieza y acaba un control?* Si la respuesta es sí, está sujeto al 3:1.
+- **Lo que NO resuelve**: qué token usan los bordes de control. **Ninguno de los dos actuales
+  sirve** —`--color-border` da 1.18:1 como está implementado y `--color-border-strong` daría
+  1.48:1—, así que hace falta un valor nuevo. Esa mitad de OD-31 **sigue abierta** a propósito: la
+  norma se fija antes que el token, y el token antes que el código.
+- **Documentos afectados**: `02` § 8; `06` § 11.
+
+---
+
 ### DDL-061 — `--color-primary-400` se define por su rol real, no por una intención no implementada (cierra OD-30)
 - **Decisión**: `#2F6FDD` queda definido como **acento no textual**. Rol: señalar interacción sin
   portar texto. Usos permitidos: borde o marca de estado interactivo, indicador visual de foco,
@@ -965,9 +986,42 @@ actuales ningún borde podría serlo.
 control, y en ese caso **qué token usan esos bordes**, porque ninguno de los cuatro actuales
 sirve. Es la única de las ODs abiertas que puede terminar exigiendo un token nuevo.
 
+> **Mitad normativa resuelta por DDL-062** (2026-08-09): el 3:1 aplica al borde que identifica un
+> control y a los indicadores de estado; no a separadores ni contornos de agrupación.
+> **Sigue abierta la mitad del token**: qué valor usan los bordes de control. `--color-border`
+> (1.18:1 implementado) y `--color-border-strong` (1.48:1 declarado) **no sirven ninguno de los
+> dos**. Requiere un valor nuevo, y por tanto una decisión propia — no se elige aquí.
+
 **Nota de alcance**: este hallazgo estaba fuera del radar de toda la auditoría anterior. No lo
 detectó la lectura de los documentos —`02` § 8 y los tokens de borde son coherentes leídos por
 separado—, sino el recálculo cruzado que pediste antes de decidir la tabla de `06` § 11.
+
+#### Investigación de uso real (2026-08-09)
+
+El borde llega casi siempre por el token compuesto `--border-default`
+(`1px solid var(--color-border)`), con **93 usos** en `src/`. Clasificados por lo que hace el borde:
+
+| Clase | Consumidores | ¿Aplica el 3:1? |
+|---|---|---|
+| **Identifica un control** | `CampoTexto` · `CampoTextarea` · `CampoSelect` · `CampoBuscarSelect` · `SelectorEntidad` · `Boton` · `BotonCopiar` · `ZonaSoltarArchivo` (reposo) | **Sí** — es el límite visual que distingue el control de su fondo |
+| **Separador o contorno estructural** | `Tarjeta` · `TarjetaMetrica` · `Modal` · `Drawer` · `SeccionColapsable` · `BarraAccionesLote` · `Pestanas` · páginas de Account | **No** — agrupan, no identifican un control |
+| **Estado / foco** | `--border-focus` (`2px solid var(--color-primary-500)`) | Sí, y **cumple**: 6.27:1 |
+
+**Hay un incumplimiento real, y está en la primera clase.** Un campo de texto sobre Surface cuyo
+único límite visual es un borde de **1.18:1** —valor implementado `#E8EDF2`; 1.24:1 con el
+`#E2E8EC` que declara la normativa— no ofrece la frontera que 1.4.11 exige para identificar un
+control. Afecta a los cinco componentes de entrada del sistema, no a un caso aislado.
+
+**Dos datos que acotan el alcance del arreglo**:
+- **El indicador de foco no está afectado**: usa otro token y da 6.27:1. Lo que falla es el estado
+  de reposo del control, no su foco.
+- **`--color-border-strong` no existe en `tokens.css`**: es un token del reset todavía no
+  implementado, con cero consumidores. Está disponible como destino sin romper nada — pero su
+  valor declarado (`#CBD5E1`, 1.48:1) **tampoco alcanza 3:1**, así que no resuelve por sí solo.
+
+**Diferencia con OD-30**: allí la alarma se disolvió al mirar el uso real. Aquí el uso real
+**confirma** el problema y lo acota. Es la primera OD de esta serie que va a exigir un cambio de
+valor o un token nuevo, no solo una corrección de autoridad.
 
 ### OD-24 — Ratios de contraste declarados sin trazabilidad (cerrada)
 
