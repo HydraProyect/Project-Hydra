@@ -173,6 +173,31 @@ a.timeline-adjunto-chip:hover {
     flex-shrink: 0;
 }
 
+.timeline-adjunto-grupo {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.timeline-adjunto-actualizar-documento {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    border: 1px dashed var(--color-primary-300);
+    background: none;
+    color: var(--color-primary-600);
+    font: var(--font-body-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.timeline-adjunto-actualizar-documento:hover {
+    background-color: var(--color-primary-50);
+    border-color: var(--color-primary-500);
+}
+
 .timeline-sugerencia {
     display: flex;
     align-items: center;
