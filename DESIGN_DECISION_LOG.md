@@ -764,6 +764,32 @@ como implementado o presente algo que no está construido.
   esta.
 - **Documentos afectados**: `02` § 4.1; `06` § 2.5 (ya corregido al cerrar OD-22).
 
+### DDL-061 — `--color-primary-400` se define por su rol real, no por una intención no implementada (cierra OD-30)
+- **Decisión**: `#2F6FDD` queda definido como **acento no textual**. Rol: señalar interacción sin
+  portar texto. Usos permitidos: borde o marca de estado interactivo, indicador visual de foco,
+  iconografía decorativa donde corresponda. **Criterio: 3:1** de elemento no textual, que cumple
+  sobre todas las superficies claras (4.31–4.73). **No se usa como color de texto ni de enlace**:
+  daría 4.44 sobre Canvas y 4.31 sobre Subtle, bajo el 4.5 del texto normal. Se retira la etiqueta
+  "Hover de acción primaria" de `06` § 2.1 y "Hover / variante" de `02` § 3.2.
+- **Estado**: Vigente · **Fecha**: 2026-08-09
+- **Qué corrige exactamente**: la investigación de OD-30 confirmó que el problema **no era un
+  incumplimiento de contraste sino una discrepancia entre el rol declarado y el uso implementado**.
+  El token estaba etiquetado como hover de acción primaria aunque **ningún consumidor lo utiliza
+  para ese propósito**. La corrección modifica únicamente la semántica documental: **no modifica el
+  valor, ni los consumidores, ni los requisitos de contraste**. Queda escrito para que quien vea
+  dentro de meses que el nombre cambió no lo interprete como un rediseño.
+- **Por qué la etiqueta falsa era el riesgo**: "Hover de acción primaria" con "4.73:1 sobre blanco
+  ✓" al lado invita a aplicarlo como color de texto sobre el fondo de página, donde da 4.44. La
+  cifra era cierta y el uso que sugería, incorrecto — el caso exacto que DDL-060 describe.
+- **Lo que esta decisión NO hace**: no convierte los cuatro consumidores actuales en lista
+  normativa. La normativa define **token → rol semántico → usos permitidos → restricción de
+  contraste**; el código puede tener cuatro consumidores o treinta mientras respeten ese contrato.
+  Acoplar el Design System a la implementación concreta sería reintroducir la contaminación
+  código → normativa que DDL-059 acaba de cerrar.
+- **Documentos afectados**: `02` § 3.2; `06` § 2.1, § 11.
+
+---
+
 ### DDL-060 — El contraste pertenece al par **y al uso** (cierra OD-24)
 - **Decisión**: `06` § 11 deja de presentarse como matriz de accesibilidad y pasa a declarar
   **pares normativos representativos, con su uso**. Tres consecuencias:
@@ -835,8 +861,8 @@ hubiera decidido. El mecanismo hizo lo que se diseñó para hacer.
 
 ## Open Decisions
 
-**Seis: OD-26, OD-27, OD-28, OD-29, OD-30, OD-31.** OD-25 se cerró con DDL-059 y OD-24 con
-DDL-060, ambas el 2026-08-09; OD-30 y OD-31 nacieron del recálculo de OD-24.
+**Cinco: OD-26, OD-27, OD-28, OD-29, OD-31.** OD-25 se cerró con DDL-059, OD-24 con DDL-060 y
+OD-30 con DDL-061, todas el 2026-08-09; OD-30 y OD-31 nacieron del recálculo de OD-24.
 Las veintiuna Open Decisions del reset quedan cerradas el 2026-08-08.
 OD-22 y OD-23 se abrieron y cerraron ese mismo día al preparar la Fase 4. Las seis siguientes
 salen de la **auditoría de trazabilidad de `01`–`08`** (2026-08-09), que OD-22 motivó: si un valor
@@ -862,11 +888,14 @@ Se registra aquí porque condiciona cómo se cierran OD-24…OD-29 y cómo se re
 La tercera es la más difícil de ver, porque la cadena de citas **parece** correcta: cada documento
 cita al anterior y ninguno miente. Lo que falta está al principio de la cadena, no en ella.
 
-### OD-30 — `#2F6FDD` solo cumple sobre Surface, y no se declara para qué uso
+### OD-30 — `#2F6FDD` solo cumple sobre Surface, y no se declara para qué uso (cerrada)
 
-**Tipo**: valor por debajo de umbral en parte de sus superficies. **Abierta** · **Fecha**:
-2026-08-09. **Origen**: recálculo completo de OD-24 (DDL-040: hallazgo fuera de alcance, se
-registra y no se arregla dentro).
+**Tipo**: valor por debajo de umbral en parte de sus superficies. **Cerrada por DDL-061** ·
+**Fecha**: 2026-08-09. **Origen**: recálculo completo de OD-24 (DDL-040: hallazgo fuera de alcance,
+se registra y no se arregla dentro).
+
+> **Conclusión**: **no hay defecto de implementación, no hay cambio de token, no hay nuevo
+> requisito de contraste.** Se corrige únicamente la autoridad semántica del token.
 
 `02` § 3.2 declara `#2F6FDD` con "4.73:1 sobre blanco ✓". El dato es correcto, pero **solo
 describe una de sus dos lecturas posibles**, y ni `02` ni `06` dicen cuál es:
@@ -883,6 +912,39 @@ declararlo.
 **Qué debe decidir**: primero, cuál es el uso real (comprobación de código, no de documento);
 después, si se restringe el token a relleno, se oscurece para cumplir en las tres superficies, o
 se separan dos tokens por uso. **No se decide el valor antes de saber el uso.**
+
+#### Investigación de uso real (2026-08-09)
+
+Se siguió la cadena hasta el final, como exige DDL-058: *normativa → uso declarado → implementación
+→ fondo efectivo*. `--color-primary-400` tiene **cuatro consumidores** en `src/` (excluidos los
+artefactos de `obj/`), y **ninguno lo usa como texto**:
+
+| Consumidor | Propiedad | Naturaleza | Umbral que aplica |
+|---|---|---|---|
+| `ZonaSoltarArchivo.razor.css:15` | `border-color` en el estado activo de arrastre | Límite de control | 3:1 |
+| `ZonaSoltarArchivo.razor.css:36` | `color` de `.zona-soltar-archivo-icono` | **Icono decorativo** (`02` § 7: `aria-hidden`, acompañado de texto visible) | Ninguno |
+| `list-page.css:571` | `box-shadow: inset 2px 0 0` — barra de acento de la fila con foco de teclado | Indicador de foco | 3:1 |
+| `list-page.css:576` | `box-shadow: 0 0 0 1px` — mismo indicador en tarjeta | Indicador de foco | 3:1 |
+
+Contraste contra los fondos **efectivos**, no los hipotéticos:
+
+| Caso real | Ratio | |
+|---|---|---|
+| Borde de zona activa contra su relleno `--color-primary-50` | 4.31 | ✓ 3:1 |
+| Borde de zona activa contra Canvas / Surface (exterior) | 4.44 / 4.73 | ✓ 3:1 |
+| Barra de foco de fila contra el fondo de fila enfocada | 4.31 | ✓ 3:1 |
+| Anillo de foco de tarjeta contra Surface / Canvas | 4.73 / 4.44 | ✓ 3:1 |
+
+**No hay incumplimiento en producción.** El umbral de 4.5 que hacía saltar la alarma **no aplica a
+ninguno de los cuatro usos**: los tres no decorativos son elementos no textuales, sujetos a 3:1, y
+lo superan con margen.
+
+**Pero el hallazgo real es otro, y no es menor**: `02` § 3.2 lo llama "Hover / variante" y `06`
+§ 2.1 "Hover de acción primaria". **Ningún hover de botón usa este token.** Sus usos reales son
+estado activo de zona de soltar, icono decorativo e indicador de foco de teclado. La etiqueta
+documental no describe lo que hace — y, peor, **invita al uso que sí incumpliría**: quien lea
+"hover de acción primaria" con "4.73:1 sobre blanco ✓" al lado puede aplicarlo como color de texto
+sobre Canvas, donde da 4.44. Es exactamente el riesgo que DDL-060 describe.
 
 ### OD-31 — Ningún borde declarado alcanza el 3:1 que exige `02` § 8
 

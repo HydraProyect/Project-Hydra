@@ -48,7 +48,7 @@ vigente y ganó la comparación contra la alternativa más luminosa (DDL-025). N
 | `--color-primary-100` | `#DCEBFF` | Fondo de selección | **No ratificado** |
 | `--color-primary-200` | `#BDD9FF` | Bordes de énfasis | **No ratificado** |
 | `--color-primary-300` | `#5CA2F4` | Enlaces sobre superficie oscura | `02` § 3.2 |
-| `--color-primary-400` | `#2F6FDD` | Hover de acción primaria | `02` § 3.2 |
+| `--color-primary-400` | `#2F6FDD` | **Acento no textual**: borde y marca de estado interactivo, indicador de foco, icono decorativo. **Nunca texto ni enlace** (DDL-061) | `02` § 3.2 |
 | **`--color-primary-500`** | **`#235BC2`** | **Acción primaria, enlaces, foco, estado activo** | **DDL-025** |
 | `--color-primary-600` | `#1E4A9E` | Activo / pressed | **No ratificado** |
 | `--color-primary-700` | `#163A7D` | Reservado | **No ratificado** |
@@ -289,7 +289,7 @@ activo.
 | Texto de botón primario | blanco | `--color-primary-500` (relleno) | 6.27:1 ✓ | 4.5:1 |
 | Indicador de sistema | `--color-system-indicator` | Surface | 3.48:1 ✓ | 3:1 |
 | Indicador de sistema — **caso límite** | `--color-system-indicator` | Subtle | 3.17:1 ✓ | 3:1 |
-| Hover primario | `--color-primary-400` | — | **pendiente (OD-30)** | 4.5:1 |
+| Acento no textual | `--color-primary-400` | Canvas / Surface / Subtle | 4.44 / 4.73 / 4.31 ✓ | 3:1 |
 
 **Tema oscuro**
 
@@ -303,10 +303,8 @@ activo.
 | Enlace | `--color-primary-300` | Surface | 6.15:1 ✓ | 4.5:1 |
 | Enlace — **caso límite** | `--color-primary-300` | Elevated | 5.43:1 ✓ | 4.5:1 |
 
-**Dos casos que esta tabla NO resuelve**, y que no deben leerse como cubiertos: el uso legítimo de
-`--color-primary-400` (**OD-30** — cumple como relleno con texto blanco, no necesariamente como
-texto sobre Canvas o Subtle) y la conformidad de los bordes con el 3:1 de `02` § 8 (**OD-31** —
-ningún token de borde lo alcanza en ningún tema).
+**Un caso que esta tabla NO resuelve**, y que no debe leerse como cubierto: la conformidad de los
+bordes con el 3:1 de `02` § 8 (**OD-31** — ningún token de borde lo alcanza en ningún tema).
 
 **Cómo se verifica la conformidad** (DDL-060): la dirección correcta es *`02` y `06` declaran qué
 usos son legales → la auditoría cruza esos usos contra todos los fondos del sistema → aparecen las
@@ -387,6 +385,7 @@ Cada paso cierra con verificación end-to-end en navegador, como exige `CLAUDE.m
 | DDL-054 | Radios y sombras **pertenecen** a este documento, no a `07` — clasificación, no valores (§ 4, § 5) |
 | DDL-059 | Qué valores de este documento están ratificados y cuáles son solo estado implementado (§ 2.1, § 4, § 7, § 9) |
 | DDL-060 | El contraste pertenece al par y al uso; la tabla es representativa, no exhaustiva (§ 11) |
+| DDL-061 | `--color-primary-400` es acento no textual, nunca texto ni enlace (§ 2.1, § 11) |
 | DDL-016 · DDL-020 | Tokens de motion y reducción de movimiento (§ 8) |
 | DDL-021 · DDL-043 | Estructura de temas y estado de `prefers-color-scheme` (§ 10) |
 | DDL-041 | Densidad única, que fija el criterio de espaciado (§ 7) |

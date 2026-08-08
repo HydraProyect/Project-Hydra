@@ -77,8 +77,14 @@ hasta volverse un azul secundario.
 | Uso | Valor | Contraste |
 |---|---|---|
 | Acción primaria, enlaces, foco, estado activo | `#235BC2` | 6.27:1 sobre blanco ✓ |
-| Hover / variante | `#2F6FDD` | 4.73:1 sobre blanco ✓ |
+| Variante / acento de interacción | `#2F6FDD` | 4.31–4.73:1 según superficie ✓ (criterio 3:1) |
 | Enlaces sobre superficie oscura | `#5CA2F4` | >5.5:1 ✓ |
+
+**`#2F6FDD` es un acento no textual** (DDL-061). Su rol es señalar interacción sin portar texto:
+borde o marca de estado interactivo, indicador visual de foco, e iconografía decorativa donde
+corresponda. Su criterio es el **3:1** de elemento no textual, que cumple sobre todas las
+superficies claras. **No se usa como color de texto ni de enlace**: sobre Canvas daría 4.44 y
+sobre Subtle 4.31, por debajo del 4.5 exigido al texto normal.
 
 Escala completa 50–900: se deriva de este anclaje en `06`. **No se inventa ni se importa de una
 librería** (DDL-011).
