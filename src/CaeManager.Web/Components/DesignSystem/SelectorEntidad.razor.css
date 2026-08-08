@@ -12,7 +12,7 @@
     padding: var(--space-1) 0;
     list-style: none;
     background: var(--color-surface);
-    border: var(--border-default);
+    border: var(--border-control);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-overlay);
     max-height: 16rem;

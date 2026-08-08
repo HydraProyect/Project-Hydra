@@ -167,6 +167,14 @@ contraste**; la **sombra solo cuando existe una relación espacial real**, es de
 | Overlay | `#FFFFFF` + **sombra** | `#202B36` + sombra | Modales, drawers, popovers |
 
 Bordes: `#E2E8EC` (normal) y `#CBD5E1` (reforzado) en claro; `#293644` y `#3A4A5C` en oscuro.
+Los dos son **estructurales**: agrupan y expresan profundidad, y no están sujetos al 3:1
+(DDL-062).
+
+**Borde de control** (DDL-063): `#738196`, **el mismo valor en ambos temas**. Es el borde que
+identifica un control interactivo y por tanto sí está sujeto al 3:1 — da 3.61:1 en claro y 3.64:1
+en oscuro contra el fondo más restrictivo de cada tema. Es el escalón que DDL-029 retiró del
+**texto** por quedarse en 3.96:1: insuficiente para cuerpo de 14 px, holgado para un elemento no
+textual.
 
 **Texto principal** (DDL-057): `#161E27` en claro — 16.81:1 sobre Surface ✓, 15.79:1 sobre
 Canvas ✓; `#E7EAEE` en oscuro (§ 5). **Texto secundario**: `#5F6E84` en claro (DDL-029) y
