@@ -1,5 +1,15 @@
 # docs/archive — informes históricos
 
+> ## ESTADO: HISTÓRICO · NO NORMATIVO
+>
+> **Todo el contenido de esta carpeta es registro histórico y no constituye autoridad sobre el
+> sistema vigente.** Se conserva por trazabilidad: muestra qué se pensó, qué problemas
+> aparecieron y por qué una decisión cambió.
+>
+> **Un documento de esta carpeta no puede utilizarse como fuente para una decisión de diseño o
+> de implementación.** Si una regla necesaria no está en la cadena normativa vigente, no se
+> recupera de aquí: se registra una decisión nueva. Ver `docs/README.md` § 3.
+
 Snapshots fechados que ya cumplieron su propósito — no son fuente de verdad de nada vigente y no se reescriben (mismo criterio que `docs/business/MATURITY_REVIEW.md` y `DECISION_LOG.md`: un informe nuevo se añade aparte, no se edita uno viejo para que "siga estando al día"). Si buscas el estado actual de algo, ve al documento normativo correspondiente (`docs/MULTITENANCY.md`, `ARCHITECTURE.md`, `DATABASE.md`, los ADR en la raíz...), no aquí.
 
 | Documento | Qué es | Por qué es histórico |

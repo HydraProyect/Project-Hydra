@@ -1,5 +1,20 @@
 # Arquitectura — Context Workspace
 
+> ## ESTADO: HISTÓRICO · NO NORMATIVO
+>
+> Este documento pertenece al sistema de diseño **anterior** al reset documental de agosto de 2026.
+> Puede contener decisiones, propuestas o especificaciones que fueron sustituidas después.
+>
+> **Este documento NO constituye autoridad sobre el sistema vigente.**
+>
+> - Decisiones vigentes → `DESIGN_DECISION_LOG.md`
+> - Normativa vigente → `01_PRODUCT_EXPERIENCE.md` … `08_COMPONENT_CATALOG.md`
+> - Especificación de una superficie → `docs/blueprints/`
+>
+> **Sustituido por**: `05_WORKSPACE_PATTERNS.md` § 3
+> **Decisiones relacionadas**: DDL-006, DDL-022, DDL-044
+> **Por qué se conserva**: su § 0 es la auditoría línea a línea contra el código y sigue siendo la evidencia de los huecos declarados en `05` § 3.6. **Aviso**: su § 5.3 y § 9 mandan editar en Drawer — regla derogada por `04` § 2.2.
+
 **Estado**: Diseño de arquitectura, decisiones cerradas (ver abajo). **Implementado en `main`** (`src/CaeManager.Web/Components/Workspace/` — `ContextWorkspace.razor`, `ContextWorkspaceService`, `WorkspaceFrame`, `EntidadWorkspace`, paneles por entidad `XxxWorkspacePanel.razor` en cada Feature). **Auditado contra el código real el 2026-08-03 — ver § 0 para la lista completa de correspondencias y divergencias verificadas.** Resumen: el modelo de estado (pila, breadcrumb, cambio de pestaña sin tocar la pila, instancia única) coincide con el diseño; lo que **no** se construyó es la integración con la URL del navegador (§ 10, por tanto tampoco el cierre automático de § 8.1), la mayoría del teclado de § 11 (solo `Escape` está implementado) y el comportamiento "acoplado/push" de escritorio de § 12 (el panel es overlay `position: fixed` en todos los tamaños). Las reglas (R1-R8) y el modelo conceptual (§ 1-§ 2) siguen siendo la referencia normativa de intención; § 6/§ 10/§ 11/§ 12/§ 13 tienen ahora notas de estado real junto a la especificación original — no asumir que todo lo escrito abajo ya está construido. Este documento define el sistema de navegación contextual pedido — un panel lateral único e "inteligente" que sustituye el concepto genérico de "Side Workspace" descrito en `PLAN-MASTER-DETAIL-WORKSPACE.md` § 4 por una especificación concreta y con reglas más estrictas. **Este documento sustituye la tabla de pestañas de `PLAN-MASTER-DETAIL-WORKSPACE.md` § 4** por la especificada más abajo (§ 6), corregida contra el código real en § 0.
 
 **Decisiones cerradas con el usuario (2026-07-25)**: cierre automático del panel al navegar a otra pantalla por el menú principal (§ 8.1); Subcontrata sí tiene Context Workspace propio, panel mínimo igual que Empresa (§ 6); Centro/Trabajador → Vehículos se resuelve como vista transitiva vía Empresa/Subcontrata, sin relación de modelo nueva (§ 15); Documento → Versiones se resuelve reutilizando `Auditoria` (misma fuente que Historial) añadiendo `FechaSubida`/`FechaCambio`, sin entidad `VersionDocumento` nueva (§ 15). **Los 7 gaps de § 15 quedan cerrados**: Documento → Validación (§ 15.6) se resolvió confirmando que no es una pestaña de este Context Workspace — es trazabilidad de quién aprobó cada verificación IA (automática vs manual), implementada como `AprobacionDocumento` + gráfico de Dashboard, ver `ROADMAP.md` Fase 45. `Documento` se queda con Información · Versiones · Historial (sin Validación) en el registro de § 6.

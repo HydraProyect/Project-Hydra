@@ -66,8 +66,7 @@ El usuario debe poder encontrar cualquier información en menos de tres clics. E
 - `DOMAIN.md` — modelo de dominio: agregados, relaciones, invariantes.
 - `DATABASE.md` — modelo de datos, reglas de negocio, justificación de cada entidad desde la realidad del sector.
 - `docs/MULTITENANCY.md` — normativa multi-tenant (aislamiento, catálogos, resolución de tenant).
-- `DESIGN_SYSTEM.md` — identidad visual, tokens, catálogo de componentes.
-- `UX_PATTERNS.md` — patrones de interacción y microcopy.
+- **Diseño y UX**: `01_PRODUCT_EXPERIENCE.md` … `08_COMPONENT_CATALOG.md`, con `DESIGN_DECISION_LOG.md` como autoridad sobre las decisiones. Los antiguos `DESIGN_SYSTEM.md` y `UX_PATTERNS.md` quedaron archivados en el reset de 2026-08 y **no son normativos** — ver `docs/README.md`.
 - `CODING_STANDARDS.md` — convenciones de código.
 - `ROADMAP.md` — fases de entrega y criterios de aceptación.
 - `docs/business/` — documentación de negocio (pricing, ICP, modelo comercial, go-to-market) separada de la documentación técnica.

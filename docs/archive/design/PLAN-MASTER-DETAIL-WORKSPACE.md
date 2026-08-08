@@ -1,5 +1,20 @@
 # Plan técnico — Rediseño de navegación contextual: Master-Detail Workspace
 
+> ## ESTADO: HISTÓRICO · NO NORMATIVO
+>
+> Este documento pertenece al sistema de diseño **anterior** al reset documental de agosto de 2026.
+> Puede contener decisiones, propuestas o especificaciones que fueron sustituidas después.
+>
+> **Este documento NO constituye autoridad sobre el sistema vigente.**
+>
+> - Decisiones vigentes → `DESIGN_DECISION_LOG.md`
+> - Normativa vigente → `01_PRODUCT_EXPERIENCE.md` … `08_COMPONENT_CATALOG.md`
+> - Especificación de una superficie → `docs/blueprints/`
+>
+> **Sustituido por**: `05_WORKSPACE_PATTERNS.md` (ya lo estaba antes por `PLAN-CONTEXT-WORKSPACE.md`)
+> **Decisiones relacionadas**: DDL-006, DDL-022
+> **Por qué se conserva**: su § 2 contiene el grafo de relaciones verificado contra el dominio, evidencia de por qué la navegación no puede asumir un árbol de un solo padre (`03` § 6).
+
 **Estado**: Propuesta / análisis. No implementado. Este documento es la fase de análisis pedida antes de tocar código — ninguna sección de esto es una decisión tomada, es la base para decidir.
 
 ## 0. Resumen del hallazgo principal
