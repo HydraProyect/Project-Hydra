@@ -1,0 +1,169 @@
+@*
+    Reclamación documental saliente por lote — vista previa + envío manual
+    (MVP1, decisión del usuario 2026-08-08: no hay job automático todavía).
+    Agrupa por Cliente los Documentos de sus Trabajadores que vencen en los
+    próximos 3 meses o ya vencieron, para reclamarlos en un único correo por
+    Cliente en vez de uno por Documento — pestaña dentro de /documentos para
+    reutilizar esta pantalla en vez de crear una entrada nueva en el menú.
+*@
+@using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
+@using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion
+@using CaeManager.Domain.Documentos
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="No pudimos cargar las reclamaciones" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_lotes.Count == 0)
+{
+    <EstadoVacio Titulo="Nada pendiente de reclamar" Descripcion="Ningún cliente tiene documentos que venzan en los próximos 3 meses." />
+}
+else
+{
+    @foreach (var lote in _lotes)
+    {
+        var seleccionados = _seleccionPorCliente[lote.ClienteId];
+        var enviando = _enviandoClienteId == lote.ClienteId;
+
+        <Tarjeta @key="lote.ClienteId" Titulo="@lote.RazonSocialCliente" Class="tarjeta-reclamacion">
+            <AccionesHeader>
+                <Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || lote.DestinatariosEmail.Count == 0)"
+                       Cargando="enviando" OnClick="() => EnviarAsync(lote)">
+                    Enviar reclamación (@seleccionados.Count)
+                </Boton>
+            </AccionesHeader>
+
+            <ChildContent>
+                <p class="texto-vacio-seccion">
+                    @(lote.UltimaReclamacionFechaUtc is null
+                        ? "Nunca reclamado."
+                        : $"Última reclamación: {FormatearHaceTiempo(lote.UltimaReclamacionFechaUtc.Value)}.")
+                </p>
+
+                @if (lote.DestinatariosEmail.Count == 0)
+                {
+                    <div class="alerta-formulario" role="alert">
+                        Este cliente no tiene ningún usuario de portal con email — no se puede enviar la reclamación hasta que tenga uno.
+                    </div>
+                }
+                else
+                {
+                    <p class="texto-vacio-seccion">Destinatarios: @string.Join(", ", lote.DestinatariosEmail)</p>
+                }
+
+                <table class="tabla-datos">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Trabajador</th>
+                            <th>Documento</th>
+                            <th>Vencimiento</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var documento in lote.Documentos)
+                        {
+                            <tr @key="documento.DocumentoId">
+                                <td>
+                                    <input type="checkbox" checked="@seleccionados.Contains(documento.DocumentoId)"
+                                           @onchange="e => AlternarSeleccion(lote.ClienteId, documento.DocumentoId, (bool)e.Value!)" />
+                                </td>
+                                <td>@documento.TrabajadorNombre</td>
+                                <td>@documento.TipoDocumentoNombre</td>
+                                <td>@documento.FechaVencimiento.ToString("dd/MM/yyyy")</td>
+                                <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </ChildContent>
+        </Tarjeta>
+    }
+}
+
+@code {
+    private bool _cargando = true;
+    private bool _error;
+    private IReadOnlyList<LoteReclamacionClienteDto> _lotes = [];
+    private readonly Dictionary<Guid, HashSet<Guid>> _seleccionPorCliente = [];
+    private Guid? _enviandoClienteId;
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+        StateHasChanged();
+
+        try
+        {
+            _lotes = await Mediator.Send(new ObtenerLoteReclamacionQuery());
+            _seleccionPorCliente.Clear();
+            foreach (var lote in _lotes)
+                _seleccionPorCliente[lote.ClienteId] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void AlternarSeleccion(Guid clienteId, Guid documentoId, bool seleccionado)
+    {
+        var seleccionados = _seleccionPorCliente[clienteId];
+        if (seleccionado) seleccionados.Add(documentoId);
+        else seleccionados.Remove(documentoId);
+    }
+
+    private async Task EnviarAsync(LoteReclamacionClienteDto lote)
+    {
+        var documentoIds = _seleccionPorCliente[lote.ClienteId].ToList();
+        if (documentoIds.Count == 0) return;
+
+        _enviandoClienteId = lote.ClienteId;
+        try
+        {
+            var resultado = await Mediator.Send(new EnviarReclamacionCommand(lote.ClienteId, documentoIds));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar($"Reclamación enviada a {lote.RazonSocialCliente}.", TonoToast.Exito);
+            await CargarAsync();
+        }
+        finally
+        {
+            _enviandoClienteId = null;
+        }
+    }
+
+    private static string FormatearHaceTiempo(DateTime fechaUtc)
+    {
+        var dias = (int)(DateTime.UtcNow - fechaUtc).TotalDays;
+        return dias switch
+        {
+            <= 0 => "hoy",
+            1 => "hace 1 día",
+            _ => $"hace {dias} días"
+        };
+    }
+}
