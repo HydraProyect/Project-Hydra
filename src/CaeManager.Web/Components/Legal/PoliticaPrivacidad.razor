@@ -1,0 +1,88 @@
+@*
+    Contenido copiado de docs/business/legal/POLITICA_PRIVACIDAD.md — ver el
+    comentario de TerminosCondiciones.razor (mismo criterio: docs/ no se
+    publica en el contenedor de despliegue, esta página es la copia servible).
+*@
+@page "/legal/privacidad"
+@layout CaeManager.Web.Components.Layout.AuthLayout
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+
+<PageTitle>Política de Privacidad — CAE Manager</PageTitle>
+
+<div class="documento-legal">
+    <h1>Política de Privacidad</h1>
+    <p class="documento-legal-aviso">
+        Versión @CaeManager.Domain.Cumplimiento.VersionTerminos.Actual — borrador operativo, pendiente de revisión legal final.
+    </p>
+
+    <h2>Cómo leer este documento</h2>
+    <p>Hydra trata datos personales en dos papeles distintos:</p>
+    <ul>
+        <li><strong>Como responsable del tratamiento</strong>, cuando gestiona el propio sitio web y la relación comercial con quien lo visita o contrata.</li>
+        <li><strong>Como encargado del tratamiento</strong>, cuando presta el servicio SaaS y procesa, por instrucción y cuenta de cada tenant, los datos que ese tenant introduce en la plataforma.</li>
+    </ul>
+    <p>
+        Si tu organización usa la plataforma Hydra, el responsable de tus datos como trabajador o usuario de esa
+        organización <strong>es tu empleador o la empresa que gestiona tu coordinación de actividades empresariales,
+        no Hydra</strong> — Hydra actúa por instrucción suya.
+    </p>
+
+    <h2>1. Responsable del tratamiento (ámbito web)</h2>
+    <p class="documento-legal-pendiente">Pendiente de confirmar: razón social, contacto de privacidad y si el volumen de datos tratados obliga a designar un Delegado de Protección de Datos (DPO).</p>
+
+    <h2>2. Tratamiento como responsable — por canal de captación</h2>
+    <table class="documento-legal-tabla">
+        <thead>
+            <tr><th>Canal</th><th>Finalidad</th><th>Categorías de datos</th><th>Legitimación</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Formulario de contacto</td><td>Responder a la consulta</td><td>Nombre, email, empresa, contenido del mensaje</td><td>Interés legítimo en atender la consulta</td></tr>
+            <tr><td>Solicitud de demo / presupuesto</td><td>Gestionar la solicitud comercial</td><td>Nombre, email, teléfono, empresa, cargo</td><td>Medidas precontractuales a solicitud del interesado</td></tr>
+            <tr><td>Newsletter / comunicaciones comerciales</td><td>Envío de contenido comercial</td><td>Nombre, email</td><td>Consentimiento expreso, revocable en cualquier momento</td></tr>
+            <tr><td>Alta de cuenta de prueba/piloto</td><td>Aprovisionar el tenant de prueba</td><td>Nombre, email, empresa, datos de la cuenta</td><td>Medidas precontractuales / ejecución del contrato</td></tr>
+        </tbody>
+    </table>
+
+    <h2>3. Destinatarios y transferencias internacionales</h2>
+    <p>
+        <strong>Compromiso adoptado: sin transferencias de datos personales fuera del Espacio Económico Europeo.</strong>
+        Los datos recogidos por el sitio web y por la plataforma se alojan y procesan íntegramente dentro del EEE.
+    </p>
+
+    <h2>4. Derechos de las personas interesadas (ámbito web)</h2>
+    <p>Cualquier persona cuyos datos trate Hydra como responsable puede ejercer, en los términos previstos por el RGPD:</p>
+    <ul>
+        <li>Derecho de acceso, rectificación y supresión.</li>
+        <li>Derecho a la limitación y oposición al tratamiento.</li>
+        <li>Derecho a la portabilidad de los datos.</li>
+        <li>Derecho a retirar el consentimiento en cualquier momento, sin que ello afecte a la licitud del tratamiento previo.</li>
+    </ul>
+    <p>
+        El interesado tiene también derecho a presentar una reclamación ante la Agencia Española de Protección de
+        Datos (<a href="https://www.aepd.es" target="_blank" rel="noopener noreferrer">www.aepd.es</a>) si considera
+        que el tratamiento no se ajusta a la normativa.
+    </p>
+
+    <h2>5. Tratamiento como encargado (ámbito plataforma)</h2>
+    <p>
+        Cuando una organización contrata Hydra como plataforma SaaS, <strong>Hydra actúa como encargado del
+        tratamiento</strong> de los datos que esa organización (el tenant) introduce en la plataforma.
+    </p>
+    <ul>
+        <li><strong>El responsable del tratamiento es el tenant</strong>, no Hydra. Cualquier persona cuyos datos figuren en la plataforma debe dirigir el ejercicio de sus derechos a su empleador o a la organización que gestiona su coordinación de actividades empresariales — no a Hydra directamente.</li>
+        <li>Si una solicitud de ejercicio de derechos llega por error a Hydra, se traslada al responsable correspondiente sin demora injustificada.</li>
+        <li>Las obligaciones de Hydra como encargado (medidas de seguridad, subencargados autorizados, notificación de brechas, asistencia al responsable) se detallan en el Anexo de Protección de Datos (DPA), aplicable a todo tenant desde la contratación.</li>
+    </ul>
+    <p class="documento-legal-pendiente">Pendiente de confirmar: la posición de una Consultora de PRL que opera un Delegated Workspace en nombre de un Cliente Delegante, sujeta a calificación legal.</p>
+
+    <h2>6. Menores</h2>
+    <p>El Sitio y la plataforma están dirigidos exclusivamente a un uso profesional B2B y no están destinados a menores de edad.</p>
+
+    <h2>7. Modificaciones de esta política</h2>
+    <p>
+        Hydra podrá modificar esta política para adaptarla a novedades legislativas o cambios en las finalidades del
+        tratamiento. Los cambios sustanciales se comunicarán con antelación razonable.
+    </p>
+
+    <p class="documento-legal-enlace"><a href="/legal/terminos">← Ver Términos y Condiciones</a></p>
+</div>

@@ -96,6 +96,7 @@ public static class SegundoTenantSeeder
                     await userManager.UpdateAsync(administrador);
                 }
                 await userManager.SetTwoFactorEnabledAsync(administrador, true);
+                await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, administrador.Id, cancellationToken);
 
                 logger.LogInformation("Administrador del segundo tenant de verificación sembrado.");
             }

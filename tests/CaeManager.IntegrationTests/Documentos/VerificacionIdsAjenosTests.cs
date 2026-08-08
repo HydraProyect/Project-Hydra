@@ -1,5 +1,6 @@
 using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento;
 using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento;
@@ -74,7 +75,9 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
 
         var handler = new CrearDocumentoCommandHandler(
             new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto, contexto,
-            contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso());
+            contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
+            new DerivarCanalesAplicablesDocumentoService(contexto, contexto, contexto),
+            new AcreditacionDocumentoPlataformaRepository(contexto));
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(

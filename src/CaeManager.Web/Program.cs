@@ -356,7 +356,7 @@ using (var scope = app.Services.CreateScope())
     // como tenant #1 (ver AmbitoTenantExplicito, docs/MULTITENANCY.md § 8.4).
     using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
     {
-        await IdentitySeeder.SeedAsync(userManager, roleManager, userStore, logger, app.Configuration, app.Environment);
+        await IdentitySeeder.SeedAsync(userManager, roleManager, userStore, logger, app.Configuration, app.Environment, dbContext);
     }
 
     // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
