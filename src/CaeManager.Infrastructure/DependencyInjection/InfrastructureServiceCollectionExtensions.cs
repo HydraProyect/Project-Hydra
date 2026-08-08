@@ -411,6 +411,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<DeteccionPreviaDocumentoOptions>(
             configuration.GetSection(DeteccionPreviaDocumentoOptions.SeccionConfiguracion));
 
+        // Mismo criterio que el kill switch de arriba, para el flujo
+        // "Actualizar documentación desde conversación" (ver
+        // ExtraccionDocumentoAdjuntoOptions) — decisión del usuario, 2026-08-08.
+        services.Configure<ExtraccionDocumentoAdjuntoOptions>(
+            configuration.GetSection(ExtraccionDocumentoAdjuntoOptions.SeccionConfiguracion));
+
         // Cola durable en PostgreSQL (P2 #22 de docs/business/MATURITY_REVIEW.md
         // — antes, Channel<T> en memoria: un reinicio del proceso perdía los
         // encargos pendientes sin dejar rastro). Scoped como cualquier otro
