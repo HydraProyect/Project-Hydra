@@ -700,6 +700,28 @@ Badges por plataforma en la lista de Documentos y en `PestanaDocumentacion`
 con acreditaciones: preguntar si es a raíz de un rechazo y capturar causa+motivo antes del
 soft delete. Historial de rechazos visible en el panel del Documento.
 
+**Estado (badges de solo lectura) — hecho, 2026-08-08.** `BadgesAcreditacion.razor`
+(`src/CaeManager.Web/Features/Documentos/Components/`) — componente compartido
+aplicado en el mismo PR a `/documentos` (nueva columna "Plataformas" del
+QuickGrid) y a `PestanaDocumentacion` (Trabajador/Empresa/Cliente/Vehículo,
+mismo componente reutilizado en las cuatro pantallas), tal como pide "Modo
+de trabajo" punto 2 (transversal, una vez). Cada acreditación se pinta como
+"{Plataforma}: {estado}" — **nunca `TonoBadge.Exito/Advertencia/Peligro`**,
+reservados en exclusiva para el semáforo de vigencia documental
+(DESIGN_SYSTEM.md, no negociable): usa `Info` para Rechazada/PendienteDeSubir
+y `Neutro` para el resto, diferenciado por texto, no por color. Un test
+bUnit dedicado (`Nunca_usa_los_tonos_reservados...`) deja esa regla en CI, no
+solo en comentario. `ObtenerDocumentosQueryHandler` gana un segundo paso tras
+paginar (mismo criterio que `ObtenerConversacionPorIdQueryHandler`: nunca
+sobre todo el tenant, solo sobre la página ya materializada) que junta
+`AcreditacionDocumentoPlataforma` con el nombre del proveedor. Verificado en
+navegador con datos reales (una acreditación Rechazada con causa/motivo real
+y otra PendienteDeSubir) en ambas pantallas. **Sin edición manual del estado
+todavía, ni el flujo de Eliminar/Renovar con captura de causa — queda para un
+lote posterior** (edición real de estado es una decisión de UX propia —
+¿quién puede marcar Aceptada/Rechazada manualmente y con qué confirmación? —
+sin decidir todavía, deliberadamente fuera de este lote de solo-lectura).
+
 ### (d) Pestaña de acreditación en el Centro
 
 "De lo que este centro exige, qué está acreditado en su plataforma."
