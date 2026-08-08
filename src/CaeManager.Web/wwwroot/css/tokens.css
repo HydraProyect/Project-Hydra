@@ -66,6 +66,11 @@
   --color-text: var(--color-neutral-900);
   --color-text-muted: var(--color-neutral-500);
   --color-border: var(--color-neutral-200);
+  /* Borde que identifica un control interactivo. Sujeto al 3:1 de 02 § 8
+     (DDL-062); --color-border no lo alcanza (1.18:1) y es solo estructural.
+     Se define una sola vez: el valor es el mismo en ambos temas — 3.61:1 en
+     claro y 3.64:1 en oscuro contra el fondo más restrictivo (DDL-063). */
+  --color-border-control: var(--color-neutral-500);
 
   /* Tipografía */
   --font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -112,6 +117,7 @@
   --radius-full: 9999px;  /* badges, pills, avatares */
 
   --border-default: 1px solid var(--color-border);
+  --border-control: 1px solid var(--color-border-control);
   --border-focus: 2px solid var(--color-primary-500);
 
   --shadow-card: 0 4px 14px rgba(22, 30, 39, 0.07);

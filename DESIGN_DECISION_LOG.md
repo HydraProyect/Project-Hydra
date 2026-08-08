@@ -764,6 +764,41 @@ como implementado o presente algo que no está construido.
   esta.
 - **Documentos afectados**: `02` § 4.1; `06` § 2.5 (ya corregido al cerrar OD-22).
 
+### DDL-063 — `--color-border-control`: el token del borde que identifica un control (cierra OD-31)
+- **Decisión**: se crea `--color-border-control` con valor **`#738196`**, **el mismo en ambos
+  temas**. Lo consumen los bordes clasificados por DDL-062 como límite visual de un control; los
+  estructurales siguen con `--color-border`.
+- **Estado**: Vigente · **Implementado**: sí, 2026-08-09 — **es el primer cambio de código de esta
+  serie**.
+- **Motivo**: ningún token existente cumplía. Evaluados por su **peor** caso contra todos los
+  fondos efectivos: `--color-border` 1.13/1.17, `--color-border-strong` 1.35/1.58, `neutral-300`
+  1.26, `neutral-400` 1.92 en claro. **`neutral-500` es el único escalón que cumple en los dos
+  temas** (3.61 claro, 3.64 oscuro). `--color-text-muted` también cumpliría, pero un borde tan
+  oscuro como el texto secundario da a cada campo un peso de caja que compite con DDL-014.
+- **Por qué el mismo valor en ambos temas**: no es simetría buscada sino consecuencia — es el
+  único escalón que satisface las dos condiciones a la vez. Ningún otro token de color del sistema
+  se comporta así.
+- **De dónde sale el valor**: es el escalón que **DDL-029 retiró del texto** por dar 3.96:1,
+  insuficiente para cuerpo de 14 px. Como elemento **no textual** su umbral es 3:1, no 4.5:1, así
+  que el mismo valor que era inválido para texto es holgado para un borde. No se recicla por
+  comodidad: se aplica donde su contraste sí es el correcto.
+- **Por qué no se reutiliza `--color-border-strong`**: DDL-028 le da semántica **estructural** —
+  el borde reforzado que expresa el nivel Elevated sin sombra. Fundir ambos usos obligaría a que
+  la expresión de profundidad y el límite de un control compartan valor para siempre.
+- **Alcance de la implementación**: solo los consumidores clasificados como límite de control —
+  los cinco componentes de entrada, `Boton` en su variante secundaria (las demás se identifican
+  por relleno o por texto), `BotonCopiar`, `ZonaSoltarArchivo` en reposo, los `input` de las
+  páginas de Account y los tres controles del shell. **Los 93 consumidores no se tocaron
+  indiscriminadamente**: separadores, tarjetas, modales y paneles siguen con `--color-border`.
+- **Verificación end-to-end** (`CLAUDE.md`): comprobado en navegador sobre `/cuenta/iniciar-sesion`.
+  Claro 3.96 contra el relleno del campo y 3.82 contra la página; oscuro 4.11 y 4.68. La tarjeta
+  contenedora conserva `#E8EDF2`, el borde estructural — la distinción se ve, no solo se declara.
+  Sin errores de consola.
+- **Documentos afectados**: `02` § 4.1; `06` § 2.5, § 11, § 13; `tokens.css` y catorce hojas de
+  estilo de componente.
+
+---
+
 ### DDL-062 — Alcance del 3:1 para bordes (resuelve la mitad normativa de OD-31)
 - **Decisión**: `02` § 8 acota el umbral de 3:1 al borde que constituye el **límite visual de un
   control interactivo** —campo de texto, área de texto, selector, zona de soltar, botón sin
@@ -882,8 +917,9 @@ hubiera decidido. El mecanismo hizo lo que se diseñó para hacer.
 
 ## Open Decisions
 
-**Cinco: OD-26, OD-27, OD-28, OD-29, OD-31.** OD-25 se cerró con DDL-059, OD-24 con DDL-060 y
-OD-30 con DDL-061, todas el 2026-08-09; OD-30 y OD-31 nacieron del recálculo de OD-24.
+**Cuatro: OD-26, OD-27, OD-28, OD-29.** OD-25 se cerró con DDL-059, OD-24 con DDL-060, OD-30 con
+DDL-061 y OD-31 con DDL-062 + DDL-063, todas el 2026-08-09; OD-30 y OD-31 nacieron del recálculo
+de OD-24. Las cuatro que quedan son de **trazabilidad**, no de conformidad.
 Las veintiuna Open Decisions del reset quedan cerradas el 2026-08-08.
 OD-22 y OD-23 se abrieron y cerraron ese mismo día al preparar la Fase 4. Las seis siguientes
 salen de la **auditoría de trazabilidad de `01`–`08`** (2026-08-09), que OD-22 motivó: si un valor
@@ -967,10 +1003,14 @@ documental no describe lo que hace — y, peor, **invita al uso que sí incumpli
 "hover de acción primaria" con "4.73:1 sobre blanco ✓" al lado puede aplicarlo como color de texto
 sobre Canvas, donde da 4.44. Es exactamente el riesgo que DDL-060 describe.
 
-### OD-31 — Ningún borde declarado alcanza el 3:1 que exige `02` § 8
+### OD-31 — Ningún borde declarado alcanza el 3:1 que exige `02` § 8 (cerrada)
 
-**Tipo**: conflicto entre una regla de `02` y los valores que el propio `02` declara. **Abierta** ·
-**Fecha**: 2026-08-09. **Origen**: recálculo completo de OD-24 (DDL-040).
+**Tipo**: conflicto entre una regla de `02` y los valores que el propio `02` declara.
+**Cerrada en dos mitades**: la normativa por **DDL-062** (qué borde está sujeto al 3:1) y la de
+token por **DDL-063** (con qué valor se satisface) · **Fecha**: 2026-08-09.
+
+> **La única OD de esta serie con un incumplimiento real en producción**, y la única que terminó
+> cambiando código. Las demás corrigieron autoridad; esta corrigió la interfaz. **Origen**: recálculo completo de OD-24 (DDL-040).
 
 `02` § 8 fija **3:1** para "componentes de interfaz y **bordes significativos**". Los cuatro
 tokens de borde del sistema quedan muy por debajo contra cualquier superficie de su tema: en claro
@@ -991,6 +1031,42 @@ sirve. Es la única de las ODs abiertas que puede terminar exigiendo un token nu
 > **Sigue abierta la mitad del token**: qué valor usan los bordes de control. `--color-border`
 > (1.18:1 implementado) y `--color-border-strong` (1.48:1 declarado) **no sirven ninguno de los
 > dos**. Requiere un valor nuevo, y por tanto una decisión propia — no se elige aquí.
+
+#### Investigación del token (2026-08-09)
+
+**Fondos adyacentes reales de los cinco controles.** El interior del control es
+`--color-surface`; el exterior puede ser Surface, Canvas o Subtle según viva en una tarjeta, en la
+página o en una isla. El borde debe cumplir contra **todos**, no solo contra blanco.
+
+| Tema | Fondo más restrictivo | Condición sobre el borde |
+|---|---|---|
+| Claro | Subtle `#F1F5F7` | luminancia ≤ 0.2691 |
+| Oscuro | Elevated `#202B36` | luminancia ≥ 0.1690 |
+
+**Candidatos dentro de la paleta existente**, evaluados por su **peor** caso, no por el mejor:
+
+| Candidato | Claro (peor) | Oscuro (peor) | |
+|---|---|---|---|
+| `--color-border` declarado `#E2E8EC` / `#293644` | 1.13 | 1.17 | ✗ |
+| `--color-border-strong` `#CBD5E1` / `#3A4A5C` | 1.35 | 1.58 | ✗ |
+| `neutral-300` `#D5DCE5` | 1.26 | — | ✗ |
+| `neutral-400` `#A9B4C2` | 1.92 | **6.84** | ✗ claro · ✓ oscuro |
+| **`neutral-500` `#738196`** | **3.61** | **3.64** | **✓ en ambos** |
+| `--color-text-muted` `#5F6E84` / `#8592A3` | 4.73 | 4.55 | ✓, pero peso de texto |
+
+**No hace falta inventar un color.** `neutral-500` cumple el 3:1 en los dos temas con el **mismo
+valor**, contra todos los fondos efectivos. Es además el escalón que DDL-029 retiró del **texto**
+por dar 3.96:1 —insuficiente para cuerpo de 14 px— y que aquí encuentra un rol legítimo: como
+elemento **no textual** su umbral es 3:1, no 4.5:1. El valor no se recicla por comodidad; se
+aplica donde su contraste sí es el correcto.
+
+`--color-text-muted` también cumpliría, pero un borde tan oscuro como el texto secundario daría a
+cada campo un peso de caja que compite con la contención que pide DDL-014.
+
+**Sobre el nombre**: `--color-border-strong` **no debe absorber este uso**. Su semántica en el
+reset es estructural —DDL-028 lo asigna al borde reforzado que expresa el nivel **Elevated** sin
+sombra—, que es una función distinta de identificar un control. Fundir ambas en un token obligaría
+a que la expresión de profundidad y el límite de un control compartan valor para siempre.
 
 **Nota de alcance**: este hallazgo estaba fuera del radar de toda la auditoría anterior. No lo
 detectó la lectura de los documentos —`02` § 8 y los tokens de borde son coherentes leídos por

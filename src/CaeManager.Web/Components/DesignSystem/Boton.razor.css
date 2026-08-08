@@ -62,7 +62,10 @@
 
 .boton-secundario {
     background-color: var(--color-surface);
-    border-color: var(--color-border);
+    /* El borde es lo único que delimita este botón sobre la superficie:
+       está sujeto al 3:1 de 02 § 8 (DDL-062/063). Las variantes primaria y
+       de peligro se identifican por su relleno, y la fantasma por su texto. */
+    border-color: var(--color-border-control);
     color: var(--color-text);
 }
 
