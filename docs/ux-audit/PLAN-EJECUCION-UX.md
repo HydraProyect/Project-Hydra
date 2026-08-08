@@ -666,6 +666,22 @@ que el catálogo `ProveedorPlataformaCae` del Lote 2-A: "sin UI todavía, hasta 
 consumidor real"). Por eso este lote no lleva verificación end-to-end en navegador — nada
 cambia en la UI, la cobertura son los tests.
 
+**Estado (Lote 2-D, disparador automático) — hecho, 2026-08-08.**
+`IDerivarCanalesAplicablesDocumentoService` (`src/CaeManager.Application/Documentos/Acreditacion/`)
+deriva qué `CanalGestionDocumental` de tipo Plataforma aplican a un Documento: para
+Trabajador, sus asignaciones activas → centro; para Empresa, mismo criterio que
+`ObtenerCentrosConActividadDeEmpresaQueryHandler` (Empresa → Trabajadores → asignaciones
+activas → centro, Centro cuelga de Cliente no de Empresa). Cliente/Vehículo/Proyecto quedan
+fuera a propósito — el plan solo menciona Trabajador y Empresa. `CrearDocumentoCommandHandler`
+crea una `AcreditacionDocumentoPlataforma` por cada canal aplicable en el mismo
+`SaveChangesAsync` que el Documento; `RenovarDocumentoCommandHandler` reinicia las ya
+existentes a Pendiente de subir (sin re-derivar canales nuevos — si la asignación del
+trabajador cambió entre creación y renovación es un caso todavía sin decisión, deliberadamente
+fuera de este lote). Verificado con IntegrationTests contra Postgres real (crear documento de
+trabajador con/sin asignación activa, canal Email vs Plataforma, renovar con un rechazo real
+ya registrado en el historial) — todos en verde junto con el resto de las 4 suites rápidas.
+Sin migración (no hay cambio de modelo). Sin UI todavía — sigue sin construir (c)/(d)/(e).
+
 Documento × plataforma, estados: **Pendiente de subir / Subida (en validación) / Aceptada /
 Rechazada / No requerida**. El estado Rechazada exige **siempre** causa tipificada (Ilegible,
 Documento equivocado, Datos erróneos, Caducado al presentar, Falta firma/sello, Formato no
