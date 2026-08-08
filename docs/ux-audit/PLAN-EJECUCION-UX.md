@@ -636,7 +636,7 @@ match ⇒ selección manual / alta por tenant. Dominios editables desde el catá
 
 ### (b) Entidad `AcreditacionDocumentoPlataforma`
 
-**Estado (Lote 2-C, dominio y persistencia) — hecho, 2026-08-08.** `AcreditacionDocumentoPlataforma`
+**Estado (Lote 2-C, dominio y persistencia) — hecho, 2026-08-08** ([#142](https://github.com/christopherjp1-jpg/Project-Hydra/pull/142)). `AcreditacionDocumentoPlataforma`
 (`EntidadBase`, con `Version`/soft delete — necesita concurrencia optimista real: dos
 gestores marcando la misma acreditación a la vez no deben pisarse) referencia el
 `CanalGestionDocumental` concreto (el acceso de un Centro a una plataforma, no el catálogo
