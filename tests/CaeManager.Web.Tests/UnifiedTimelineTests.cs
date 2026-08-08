@@ -14,12 +14,14 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class UnifiedTimelineTests : BunitContext
 {
-    private static MensajeDetalleDto CrearMensaje(DateTime fechaUtc, string cuerpo = "Hola") => new(
+    private static MensajeDetalleDto CrearMensaje(
+        DateTime fechaUtc, string cuerpo = "Hola", IReadOnlyList<AdjuntoDetalleDto>? adjuntos = null) => new(
         Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", cuerpo, fechaUtc,
-        [], null, null);
+        adjuntos ?? [], null, null);
 
-    private static EventoDetalleDto CrearEvento(DateTime fechaUtc, string descripcion = "Se ha creado una visita.") =>
-        new(Guid.NewGuid(), TipoEventoConversacion.VisitaCreada, Guid.NewGuid(), fechaUtc, descripcion);
+    private static EventoDetalleDto CrearEvento(
+        DateTime fechaUtc, string descripcion = "Se ha creado una visita.", TipoEventoConversacion tipo = TipoEventoConversacion.VisitaCreada) =>
+        new(Guid.NewGuid(), tipo, Guid.NewGuid(), fechaUtc, descripcion);
 
     [Fact]
     public void Intercala_eventos_entre_mensajes_por_orden_cronologico()
@@ -60,5 +62,35 @@ public class UnifiedTimelineTests : BunitContext
 
         cut.FindAll(".timeline-evento-fila").Should().BeEmpty();
         cut.FindAll(".timeline-mensaje-fila").Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Un_evento_de_documento_actualizado_incluye_el_enlace_ver_documento()
+    {
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [])
+            .Add(p => p.Participantes, [])
+            .Add(p => p.Eventos, [CrearEvento(
+                DateTime.UtcNow, "Se ha actualizado el documento Certificado de Elena Soto.", TipoEventoConversacion.DocumentoActualizado)]));
+
+        cut.Markup.Should().Contain("Se ha actualizado el documento Certificado de Elena Soto.");
+        cut.Find(".timeline-evento-enlace").TextContent.Should().Be("Ver documento");
+    }
+
+    [Fact]
+    public void Un_adjunto_muestra_el_boton_actualizar_documentacion_y_dispara_el_callback_con_su_id()
+    {
+        var adjuntoId = Guid.NewGuid();
+        Guid? adjuntoRecibido = null;
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [CrearMensaje(
+                DateTime.UtcNow, adjuntos: [new AdjuntoDetalleDto(adjuntoId, "TC2_Julio.pdf", "application/pdf", 1024)])])
+            .Add(p => p.Participantes, [])
+            .Add(p => p.OnActualizarDocumentoDesdeAdjunto, id => adjuntoRecibido = id));
+
+        cut.Find(".timeline-adjunto-actualizar-documento").Click();
+
+        adjuntoRecibido.Should().Be(adjuntoId);
     }
 }

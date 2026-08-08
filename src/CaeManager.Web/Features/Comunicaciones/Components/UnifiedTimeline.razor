@@ -35,6 +35,10 @@
                     {
                         <a class="timeline-evento-enlace" href="/visitas">Ver visita</a>
                     }
+                    else if (evento.Tipo == TipoEventoConversacion.DocumentoActualizado)
+                    {
+                        <a class="timeline-evento-enlace" href="/documentos">Ver documento</a>
+                    }
                     <span class="timeline-mensaje-fecha">@FormatearFechaRelativa(evento.FechaUtc)</span>
                 </div>
             </div>
@@ -80,11 +84,18 @@
                         <div class="timeline-adjuntos">
                             @foreach (var adjunto in mensaje.Adjuntos)
                             {
-                                <a class="timeline-adjunto-chip" href="@($"/comunicaciones/adjuntos/{adjunto.Id}/archivo")" target="_blank">
-                                    <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
-                                    <span class="timeline-adjunto-nombre">@adjunto.NombreArchivo</span>
-                                    <span class="timeline-adjunto-tamano">@FormatearTamano(adjunto.TamanoBytes)</span>
-                                </a>
+                                <span class="timeline-adjunto-grupo">
+                                    <a class="timeline-adjunto-chip" href="@($"/comunicaciones/adjuntos/{adjunto.Id}/archivo")" target="_blank">
+                                        <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
+                                        <span class="timeline-adjunto-nombre">@adjunto.NombreArchivo</span>
+                                        <span class="timeline-adjunto-tamano">@FormatearTamano(adjunto.TamanoBytes)</span>
+                                    </a>
+                                    <button type="button" class="timeline-adjunto-actualizar-documento"
+                                            title="Actualizar documentación con este adjunto"
+                                            @onclick="() => OnActualizarDocumentoDesdeAdjunto.InvokeAsync(adjunto.Id)">
+                                        <Icono Nombre="tipos-documento" Tamano="TamanoIcono.Pequeno" /> Actualizar documentación
+                                    </button>
+                                </span>
                             }
                         </div>
                     }
@@ -148,6 +159,7 @@
     [Parameter] public EventCallback<Guid> OnDescartarSugerenciaVisita { get; set; }
     [Parameter] public EventCallback<(Guid SugerenciaId, Guid TrabajadorId, Guid TipoDocumentoId)> OnGenerarGestionesDesdeSugerencia { get; set; }
     [Parameter] public EventCallback<Guid> OnDescartarSugerenciaGestion { get; set; }
+    [Parameter] public EventCallback<Guid> OnActualizarDocumentoDesdeAdjunto { get; set; }
 
     /// <summary>Mezcla Mensajes y Eventos en una sola cronología — ambos DTOs son inmutables y llegan ya ordenados por su fuente, pero mezclados hace falta un único OrderBy.</summary>
     private IEnumerable<object> ItemsOrdenados() =>
