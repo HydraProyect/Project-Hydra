@@ -16,6 +16,7 @@ using CaeManager.Application.Incidencias;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Notificaciones;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Retencion;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Tenants;
@@ -42,6 +43,7 @@ using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
+using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
@@ -68,7 +70,7 @@ public class CaeManagerDbContext(
         IConfiguracionQueryContext, IAuditoriaQueryContext, ITenantsQueryContext,
         IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext,
         IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
-        IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext
+        IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -174,6 +176,9 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.Soporte.RegistroActividadSoporte> RegistrosActividadSoporte => Set<CaeManager.Domain.Soporte.RegistroActividadSoporte>();
     IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> ITenantsQueryContext.RegistrosActividadSoporte => RegistrosActividadSoporte;
     public DbSet<AceptacionTerminos> AceptacionesTerminos => Set<AceptacionTerminos>();
+    public DbSet<ReclamacionDocumental> ReclamacionesDocumentales => Set<ReclamacionDocumental>();
+    IQueryable<ReclamacionDocumental> IReclamacionesQueryContext.ReclamacionesDocumentales => ReclamacionesDocumentales;
+    public DbSet<ReclamacionDocumentalDocumento> ReclamacionesDocumentalesDocumentos => Set<ReclamacionDocumentalDocumento>();
     public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
     IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
     public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();
