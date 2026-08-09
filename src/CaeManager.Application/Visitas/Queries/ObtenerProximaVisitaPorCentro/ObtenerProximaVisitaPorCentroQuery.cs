@@ -13,18 +13,18 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 /// antes termina (la ventana de riesgo más apremiante).
 /// </summary>
 public record ObtenerProximaVisitaPorCentroQuery(IReadOnlyList<Guid> CentroIds)
-    : IRequest<IReadOnlyDictionary<Guid, VisitaResumenDto>>;
+    : IRequest<IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>>;
 
 public record VisitaResumenDto(Guid VisitaId, DateOnly FechaInicio, DateOnly FechaFin);
 
 public class ObtenerProximaVisitaPorCentroQueryHandler(IVisitasQueryContext visitasContext)
-    : IRequestHandler<ObtenerProximaVisitaPorCentroQuery, IReadOnlyDictionary<Guid, VisitaResumenDto>>
+    : IRequestHandler<ObtenerProximaVisitaPorCentroQuery, IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>>
 {
-    public async Task<IReadOnlyDictionary<Guid, VisitaResumenDto>> Handle(
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>> Handle(
         ObtenerProximaVisitaPorCentroQuery request, CancellationToken cancellationToken)
     {
         if (request.CentroIds.Count == 0)
-            return new Dictionary<Guid, VisitaResumenDto>();
+            return new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>();
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
@@ -33,10 +33,23 @@ public class ObtenerProximaVisitaPorCentroQueryHandler(IVisitasQueryContext visi
             .Select(v => new { v.Id, v.CentroId, v.FechaInicio, v.FechaFin })
             .ToListAsync(cancellationToken);
 
+        // Se devuelven TODAS las visitas activas, no solo la primera.
+        //
+        // Las visitas NO se fusionan en un rango (DDL-035, OD-18): dos visitas
+        // del 12 al 14 y del 20 al 22 no son "del 12 al 22". Un rango fusionado
+        // dice que el centro está visitado once días seguidos, que es falso, y
+        // borra la información que el gestor necesita — cuántas visitas hay y
+        // cuándo es cada una.
+        //
+        // El handler ya cargaba todas y descartaba el resto con .First(); solo
+        // deja de tirarlas.
         return visitasActivas
             .GroupBy(v => v.CentroId)
             .ToDictionary(
                 g => g.Key,
-                g => g.OrderBy(v => v.FechaFin).ThenBy(v => v.FechaInicio).Select(v => new VisitaResumenDto(v.Id, v.FechaInicio, v.FechaFin)).First());
+                g => (IReadOnlyList<VisitaResumenDto>)g
+                    .OrderBy(v => v.FechaFin).ThenBy(v => v.FechaInicio)
+                    .Select(v => new VisitaResumenDto(v.Id, v.FechaInicio, v.FechaFin))
+                    .ToList());
     }
 }

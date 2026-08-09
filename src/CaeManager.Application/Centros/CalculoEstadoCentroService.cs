@@ -17,7 +17,21 @@ namespace CaeManager.Application.Centros;
 /// nada Vigente aparece aquí, igual que ObtenerAlertasQuery no lista
 /// Documentos al día.
 /// </summary>
-public record CausaEstadoCentro(string Descripcion, EstadoDocumento? Estado, bool Bloqueante);
+/// <summary>
+/// A quién pertenece la incidencia. Hasta ahora el ámbito solo se podía
+/// deducir del sufijo de <see cref="CausaEstadoCentro.Descripcion"/>
+/// ("… — Empresa" frente a "… — Nombre del trabajador"), que no es un dato:
+/// es una cadena de presentación. El blueprint del Centro 360 § 3.2 exige que
+/// el desglose de un recuento declare cuántas incidencias son de cada ámbito
+/// (DDL-031, DDL-047), y eso no se puede sostener sobre un sufijo.
+/// </summary>
+public enum AmbitoCausa
+{
+    Empresa,
+    Trabajador
+}
+
+public record CausaEstadoCentro(string Descripcion, EstadoDocumento? Estado, bool Bloqueante, AmbitoCausa Ambito);
 
 public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEstadoCentro> Causas);
 
@@ -125,7 +139,7 @@ public class CalculoEstadoCentroService(
             if (estado is EstadoDocumento.NoAplica or EstadoDocumento.Vigente) continue;
             if (!centroIdsPorEmpresa.TryGetValue(documento.EmpresaId, out var centrosDeEmpresa)) continue;
 
-            var causa = new CausaEstadoCentro($"{documento.Nombre} — Empresa", estado, Bloqueante: false);
+            var causa = new CausaEstadoCentro($"{documento.Nombre} — Empresa", estado, Bloqueante: false, AmbitoCausa.Empresa);
             foreach (var centroId in centrosDeEmpresa)
                 causasPorCentro[centroId].Add(causa);
         }
@@ -171,7 +185,7 @@ public class CalculoEstadoCentroService(
                 if (estado is EstadoDocumento.NoAplica or EstadoDocumento.Vigente) continue;
 
                 causasPorCentro[asignacion.CentroId].Add(
-                    new CausaEstadoCentro($"{documento.Nombre} — {asignacion.TrabajadorNombre}", estado, Bloqueante: false));
+                    new CausaEstadoCentro($"{documento.Nombre} — {asignacion.TrabajadorNombre}", estado, Bloqueante: false, AmbitoCausa.Trabajador));
             }
         }
 
@@ -219,7 +233,7 @@ public class CalculoEstadoCentroService(
                 var bloquea = filasPorPar.TryGetValue((tipo.Id, asignacion.CentroId), out var fila) && fila.BloqueaAcceso;
 
                 causasPorCentro[asignacion.CentroId].Add(new CausaEstadoCentro(
-                    $"{tipo.Nombre} — {asignacion.TrabajadorNombre}", EstadoDocumento.Faltante, Bloqueante: bloquea));
+                    $"{tipo.Nombre} — {asignacion.TrabajadorNombre}", EstadoDocumento.Faltante, Bloqueante: bloquea, AmbitoCausa.Trabajador));
             }
         }
     }
