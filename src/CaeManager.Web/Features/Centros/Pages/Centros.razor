@@ -241,7 +241,8 @@
                                                           VisitaId="visita?.VisitaId" VisitaFechaFin="visita?.FechaFin"
                                                           EmpresaId="centro.EmpresaId" EmpresaNombre="@centro.EmpresaRazonSocial"
                                                           IncidenciasEmpresa="IncidenciasDeEmpresa(centro)"
-                                                          SeleccionMultiple="_seleccionMultiple" />
+                                                          SeleccionMultiple="_seleccionMultiple"
+                                                          OnDocumentoGuardado="() => RefrescarCentroAsync(centro.Id)" />
                         </div>
                     }
                 </div>

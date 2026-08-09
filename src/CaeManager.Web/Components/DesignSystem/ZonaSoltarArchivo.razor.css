@@ -76,17 +76,13 @@
     margin: var(--space-1) 0 0;
 }
 
-/* Oculto visualmente pero accesible (foco/teclado/lectores de pantalla) — el
-   <label for> de arriba ya cubre "clic en cualquier parte abre el selector",
-   así que el input no necesita ser el elemento clicado directamente. */
-.zona-soltar-archivo-input {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-}
+/*
+  El ocultamiento visual de .zona-soltar-archivo-input NO se estiliza aquí a
+  propósito — vive en base.css sin aislar. <InputFile> es un componente
+  integrado de Blazor y no propaga el atributo de scope de CSS isolation a su
+  <input> renderizado (a diferencia de un elemento HTML plano como el <label>
+  de arriba, que sí lo lleva) — una regla scoped aquí nunca lo alcanza, así
+  que el selector nativo "Elegir archivos / Ningún archivo seleccionado"
+  quedaba visible debajo de la zona de arrastrar (bug real, mismo motivo que
+  el ripple de Boton.razor.css: ver ese comentario en base.css).
+*/

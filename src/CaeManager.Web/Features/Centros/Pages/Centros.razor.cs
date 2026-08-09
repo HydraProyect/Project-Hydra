@@ -228,6 +228,27 @@ public partial class Centros : ComponentBase
         return CargarAsync();
     }
 
+    /// <summary>
+    /// Tras guardar un documento in situ desde el acordeón (Gestionar, item 3
+    /// del backlog Centro 360) hace falta refrescar el estado/recuentos de
+    /// ESA fila — pero CargarAsync() completo colapsaría el acordeón que el
+    /// usuario acaba de usar (limpia _expandidos). Un CentroId filtrado
+    /// devuelve solo esa fila y se sustituye en sitio, sin tocar expansión ni
+    /// selección ni paginación.
+    /// </summary>
+    private async Task RefrescarCentroAsync(Guid centroId)
+    {
+        var resultado = await Mediator.Send(new ObtenerCentrosQuery(Busqueda: null, ClienteId: null, CentroId: centroId));
+        var actualizado = resultado.Elementos.FirstOrDefault();
+        if (actualizado is null) return;
+
+        var indice = _elementosPagina.FindIndex(c => c.Id == centroId);
+        if (indice >= 0)
+            _elementosPagina[indice] = actualizado;
+
+        StateHasChanged();
+    }
+
     // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     private Task CambiarTamanoPaginaAsync(int tamano)
     {
