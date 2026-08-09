@@ -9,6 +9,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Features.Centros.Components;
 using CaeManager.Web.Features.Clientes.Components;
 using CaeManager.Web.Features.Empresas.Components;
 using FluentValidation;
@@ -247,6 +248,22 @@ public partial class Centros : ComponentBase
             _elementosPagina[indice] = actualizado;
 
         StateHasChanged();
+    }
+
+    private DrawerAsignacionMasiva _drawerAsignacion = default!;
+
+    /// <summary>
+    /// Item 4 del backlog Centro 360: "Asignar a centros seleccionados…" en
+    /// la barra de lote. A diferencia de RefrescarCentroAsync (una sola
+    /// fila), el usuario puede añadir más centros dentro del propio drawer
+    /// (la matriz no se recorta) — no hay un conjunto de filas afectadas
+    /// conocido de antemano, así que se recarga la página completa, mismo
+    /// criterio que ya usa "Eliminar seleccionados" en esta misma barra.
+    /// </summary>
+    private Task ManejarAsignacionMasivaGuardadaAsync()
+    {
+        _seleccionados.Clear();
+        return CargarAsync();
     }
 
     // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
