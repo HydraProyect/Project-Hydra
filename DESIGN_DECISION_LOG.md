@@ -505,7 +505,9 @@ como implementado o presente algo que no está construido.
 ### DDL-037 — Identificación de canal por icono, no por color de marca
 - **Decisión**: el canal (correo, WhatsApp) se identifica por la **forma del icono**; el matiz
   de marca solo se admite desaturado en el trazo del icono, nunca como relleno del chip.
-- **Estado**: Vigente (matiz exacto pendiente → OD-15) · **Fecha**: 2026-08-08
+- **Estado**: **Vigente solo en su parte de forma** —canal por forma del icono—. Su parte
+  cromática (matiz desaturado en el trazo) quedó **sustituida por DDL-048**, que cerró OD-15
+  descartando el matiz. · **Fecha**: 2026-08-08 · **Propagado a `02` § 3.6 el 2026-08-09** (OD-34)
 - **Motivo**: el verde de WhatsApp colisiona con el verde del semáforo de cumplimiento y su
   variante verde-azulada con Hydra Cyan. En una plataforma donde el verde significa "vigente",
   un chip verde de canal enseña al ojo lo contrario de lo que el sistema quiere decir.
@@ -726,10 +728,17 @@ como implementado o presente algo que no está construido.
 - **Documentos afectados**: `05`, `docs/COMUNICACIONES.md`.
 
 ### DDL-052 — Diccionario cerrado de estados (cierra OD-20)
-- **Decisión**: se crea en `docs/business/UBIQUITOUS_LANGUAGE.md` un diccionario **mínimo y
-  cerrado** de estados, declarando para cada término qué abarca y **en qué eje vive**. Ejes
-  separados: documental (Al día · Próximo · Vencido · Faltante · Pendiente de subir) y de aviso
-  (p. ej. Falta notificar) — no comparten semáforo ni se mezclan.
+- **Decisión**: los ejes de estado son **separados y no se mezclan** — documental, de acreditación
+  y de aviso —, y cada término declara en cuál vive. `UBIQUITOUS_LANGUAGE.md` **enlaza** a donde
+  vive cada definición.
+- **Corrección (2026-08-09, DDL-066)**: la redacción original encargaba a
+  `docs/business/UBIQUITOUS_LANGUAGE.md` **alojar** un diccionario y enumeraba el eje documental
+  como *"Al día · Próximo · Vencido · Faltante · Pendiente de subir"*. **Ambas cosas eran
+  incorrectas.** La autoridad conceptual ya existía en `DOMAIN.md` § 68 (`Vigente` · `Proximo` ·
+  `Urgente` · `Vencido` · `NoAplica`); "Al día" no es término de ningún documento; `Faltante` no
+  es estado de vigencia; y "Pendiente de subir" pertenece al eje de **acreditación**. Es decir:
+  **esta entrada mezcló los ejes que ella misma prohibía mezclar.** Se conserva su principio de
+  separación y su requisito de modificador; se retira su enumeración. Ver OD-33.
 - **Requisito derivado de DDL-039**: **"Riesgo en visita" se registra como modificador
   contextual de `Vigente`**, nunca como valor de `EstadoDocumento`. Sin esa entrada, una
   integración lo persistiría como estado y rompería la regla del estado derivado.
@@ -763,6 +772,49 @@ como implementado o presente algo que no está construido.
   necesidad de cambiarla. Que siga en código no es una decisión aparte: es la consecuencia de
   esta.
 - **Documentos afectados**: `02` § 4.1; `06` § 2.5 (ya corregido al cerrar OD-22).
+
+### DDL-066 — `DOMAIN.md` es la autoridad del estado de Documento; DDL-052 se corrige (cierra OD-33)
+- **Decisión**: **no se crea ninguna capa normativa nueva.** La autoridad conceptual del estado de
+  Documento **ya existe** y es `DOMAIN.md` § 68. La anomalía se corrige devolviendo cada pieza a
+  su sitio:
+
+  | Pieza | Dónde queda |
+  |---|---|
+  | **Definición conceptual del estado** | `DOMAIN.md` § 68 — `Vigente` · `Proximo` · `Urgente` · `Vencido` · `NoAplica`, calculados y nunca almacenados |
+  | **Índice** | `UBIQUITOUS_LANGUAGE.md` **apunta** a esa definición; no la duplica ni la aloja |
+  | **Principio de separación de ejes y "Riesgo en visita" como modificador** | DDL-052, que en eso **sigue vigente** |
+  | **Implementación** | Código: verificable, **nunca fuente de autoridad** |
+
+- **Estado**: Vigente · **Fecha**: 2026-08-09
+- **Qué se corrige de DDL-052**: **su enumeración concreta**, no su principio. La lista
+  *"Al día · Próximo · Vencido · Faltante · Pendiente de subir"* queda **identificada como
+  incorrecta y obsoleta** por tres motivos, ninguno tomado del código:
+  1. **"Al día" no es un término del sistema.** Cero apariciones en `01`–`08`, blueprints o
+     cualquier otra capa. El nombre normativo es **`Vigente`**, el de `DOMAIN.md` § 68. **"Al día"
+     se elimina de la normativa como categoría ficticia.**
+  2. **`Faltante` no es un estado de vigencia.** Es un resultado de la lógica de alertas.
+  3. **"Pendiente de subir" pertenece al eje de acreditación**, ya definido y **Approved** en
+     `UBIQUITOUS_LANGUAGE.md` desde el 2026-08-08.
+  Faltaban además `Urgente` y `NoAplica`, que sí son de vigencia.
+- **Por qué esto importa más que un error de nombres**: DDL-052 **mezcló ejes que ella misma
+  estableció que no debían mezclarse**. El fallo no está en la lista sino en haberla escrito
+  cuando la autoridad conceptual ya existía en otro documento.
+- **Por qué no se aloja el diccionario en `UBIQUITOUS_LANGUAGE.md`**: su función declarada es
+  *"enlaza, no redefine"*. Convertirlo en autoridad del vocabulario produciría **una contradicción
+  nueva** — y sería repetir exactamente el patrón que OD-33 acaba de detectar. **La anomalía no se
+  resuelve creando otra capa normativa.**
+- **"Riesgo en visita"** se mantiene como **modificador contextual de `Vigente`**, nunca como
+  sexto estado ni como valor de `EstadoDocumento`. Es la parte de DDL-052 que sí era correcta, y
+  la tensión interna de aquella entrada —enumerar "Al día" pero modificar `Vigente`— **queda
+  resuelta** al reconocer `Vigente` como el término normativo.
+- **Método**: la corrección procede de **la cadena documental ya existente** (`DOMAIN.md` § 68,
+  la carta de `UBIQUITOUS_LANGUAGE.md`, el eje de acreditación ya aprobado), **no del código**.
+  Que `EstadoDocumento` coincida con `DOMAIN.md` es confirmación de que la implementación sigue a
+  su autoridad, no la razón de la decisión (DDL-055, DDL-059).
+- **Documentos afectados**: entrada DDL-052 de este Log; `UBIQUITOUS_LANGUAGE.md` (fila de
+  enlace); `02` § 3.4; `04` § 4.1.
+
+---
 
 ### DDL-065 — 95 % es la frontera única de "actuar sin revisión humana" (cierra OD-32)
 - **Decisión**: el **umbral de confirmación masiva pasa de 85 % a 95 %**, alineándose con la banda
@@ -973,10 +1025,11 @@ hubiera decidido. El mecanismo hizo lo que se diseñó para hacer.
 
 ## Open Decisions
 
-**Cinco: OD-26, OD-28, OD-29, OD-33, OD-34.** OD-33 y OD-34 salen de la **pasada de divergencia
-sobre `main` consolidado** (2026-08-09), cuyo objetivo no era buscar decisiones nuevas sino
-verificar la coherencia acumulada — y encontró dos roturas que ninguna auditoría anterior había
-visto porque solo aparecen al cruzar documentos entre sí.
+**Tres: OD-26, OD-28, OD-29 — todas de trazabilidad.** OD-33 y OD-34 salieron de la **pasada de
+divergencia sobre `main` consolidado** (2026-08-09), cuyo objetivo no era buscar decisiones nuevas
+sino verificar la coherencia acumulada — y encontró dos roturas que ninguna auditoría anterior
+había visto porque solo aparecen al cruzar documentos entre sí. Ambas quedaron cerradas el mismo
+día: OD-34 como **propagación sin DDL** y OD-33 con **DDL-066**, sin añadir capa normativa.
 
 Cerradas el 2026-08-09: OD-24 (DDL-060),
 OD-25 (DDL-059), OD-27 (DDL-064), OD-30 (DDL-061), OD-31 (DDL-062 + DDL-063) y OD-32 (DDL-065).
@@ -1323,11 +1376,15 @@ su propia entrada.
 **A determinar también**: si ambos comparten una decisión superior sobre presupuesto de movimiento
 que habría que declarar una sola vez, en vez de dos reglas sueltas.
 
-### OD-33 — DDL-052 declara un diccionario de estados que no existe
+### OD-33 — DDL-052 declara un diccionario de estados que no existe (cerrada)
 
 **Tipo**: ruptura de la cadena de autoridad — una decisión de máxima autoridad atribuye contenido
-a un artefacto que no lo contiene. **Abierta** · **Fecha**: 2026-08-09. **Origen**: pasada de
-divergencia sobre `main` consolidado.
+a un artefacto que no lo contiene. **Cerrada por DDL-066** · **Fecha**: 2026-08-09. **Origen**:
+pasada de divergencia sobre `main` consolidado.
+
+> **Se cerró sin crear ninguna capa normativa nueva.** La autoridad ya existía en `DOMAIN.md` § 68;
+> lo que faltaba era reconocerla. Crear el diccionario habría repetido el patrón que esta misma OD
+> detectó.
 
 **No es "OD-27 otra vez".** Allí un término normativo perdió su valor al abstraerse. Aquí una
 decisión **declara que existe un artefacto de autoridad** y tres documentos lo consumen como tal:
@@ -1423,10 +1480,18 @@ qué se hace con los cuatro puntos de divergencia; si "Al día" y `Vigente` son 
 si lo son, **cuál es el nombre**; y si "Pendiente de subir" debe salir de la enumeración
 documental por pertenecer al eje de acreditación ya aprobado.
 
-### OD-34 — `02` se contradice a sí mismo sobre el matiz de marca de canal
+### OD-34 — `02` se contradice a sí mismo sobre el matiz de marca de canal (cerrada)
 
-**Tipo**: conflicto de contenido dentro de un mismo documento normativo (DDL-024). **Abierta** ·
-**Fecha**: 2026-08-09. **Origen**: pasada de divergencia sobre `main` consolidado.
+**Tipo**: conflicto de contenido dentro de un mismo documento normativo (DDL-024).
+**Cerrada como propagación, sin DDL nuevo** · **Fecha**: 2026-08-09. **Origen**: pasada de
+divergencia sobre `main` consolidado.
+
+> **No requería decisión.** DDL-048 ya había resuelto la cuestión y se declaraba a sí misma
+> sustituta de la parte abierta de DDL-037, nombrando `02` § 3.6 como documento afectado. Lo
+> ejecutado el 2026-08-09: `02` § 3.6 retira la regla cromática y el puntero muerto a OD-15; el
+> **Estado de DDL-037** pasa a declarar que solo sigue vigente en su parte de forma. `04`, `05`,
+> `08` y los blueprints **no se tocan**: la investigación verificó que no contienen la regla.
+> Sin DDL nuevo — propagar una decisión existente no es decidir.
 
 | Dónde | Qué afirma |
 |---|---|
