@@ -10,11 +10,12 @@
     cursor: pointer;
     border: var(--border-default);
     overflow: hidden;
-    /* Spring: overshoot ligero al elevarse en hover, luego se asienta —
-       más "vivo" que un ease lineal sin llegar a rebotar de forma vistosa. */
-    transition: background-color var(--transition-base), border-color var(--transition-base),
-        opacity var(--transition-base),
-        transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    /* Tier A usa aceleracion estandar (07 § 3). La curva "spring" con
+       overshoot que habia aqui no esta en el contrato cerrado de 07 § 8, y
+       anadir una curva nueva exige decidirla antes en 07. */
+    transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard),
+        opacity var(--motion-fast) var(--ease-standard),
+        transform var(--motion-fast) var(--ease-standard);
     white-space: nowrap;
 }
 
@@ -114,8 +115,8 @@
 
 @media (prefers-reduced-motion: reduce) {
     .boton {
-        transition: background-color var(--transition-base), border-color var(--transition-base),
-            opacity var(--transition-base);
+        transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard),
+            opacity var(--motion-fast) var(--ease-standard);
     }
 
     .boton:active:not(:disabled) {

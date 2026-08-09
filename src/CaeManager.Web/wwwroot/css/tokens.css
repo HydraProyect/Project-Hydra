@@ -171,10 +171,10 @@
   --ease-fluid: cubic-bezier(0.16, 1, 0.3, 1); /* Tier B — entrada rápida, asentamiento largo */
   --motion-live-cycle: 2.2s;  /* Tier C — pulso de estado vivo, nunca de estado crítico */
 
-  /* DEPRECADOS: no declaran función (07 § 8). Se conservan como alias
-     mientras se migran sus consumidores; se retiran al terminar el barrido. */
-  --transition-fast: var(--motion-fast) var(--ease-standard);
-  --transition-base: var(--motion-base) var(--ease-standard);
+  /* DEPRECADO, ultimo superviviente. Le queda un unico consumidor:
+     Dashboard.razor.css, la barra comparativa que se rellena. Ni 07 § 6 ni
+     07 § 8 asignan funcion a "un valor que se anima hasta su medida", asi que
+     no se puede elegir su token de destino sin decidirlo antes (ODM-07). */
   --transition-slow: var(--motion-slow) var(--ease-standard);
 
   /* Layout */

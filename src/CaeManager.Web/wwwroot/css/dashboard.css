@@ -48,7 +48,7 @@
 
 /* Revelado escalonado de las tarjetas KPI (ver .stagger-item en list-page.css) — solo en el nivel crítico. */
 .rejilla-kpis-criticos .tarjeta-metrica {
-    animation: revelar-escalonado var(--transition-slow) ease-out backwards;
+    animation: revelar-escalonado var(--motion-transition) var(--ease-fluid) backwards;
 }
 
 .rejilla-kpis-criticos .tarjeta-metrica:nth-child(1) { animation-delay: 0ms; }

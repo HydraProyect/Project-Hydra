@@ -3,7 +3,7 @@
     border: 2px dashed var(--color-border-control);
     border-radius: var(--radius-lg);
     background: var(--color-surface);
-    transition: border-color var(--transition-base), background-color var(--transition-base);
+    transition: border-color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
 }
 
 .zona-soltar-archivo:focus-visible {

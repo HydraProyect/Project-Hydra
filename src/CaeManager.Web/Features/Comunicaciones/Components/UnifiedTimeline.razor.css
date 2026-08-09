@@ -152,7 +152,7 @@
     color: var(--color-text);
     font: var(--font-body-sm);
     text-decoration: none;
-    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+    transition: border-color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
 }
 
 a.timeline-adjunto-chip:hover {
@@ -189,7 +189,7 @@ a.timeline-adjunto-chip:hover {
     color: var(--color-primary-600);
     font: var(--font-body-sm);
     cursor: pointer;
-    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
 }
 
 .timeline-adjunto-actualizar-documento:hover {

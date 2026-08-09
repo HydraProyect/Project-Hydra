@@ -93,7 +93,7 @@ button {
   opacity: 0.22;
   pointer-events: none;
   transform: scale(0);
-  animation: expandir-ondulacion 550ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: expandir-ondulacion var(--motion-slow) var(--ease-standard) forwards;
 }
 
 @keyframes expandir-ondulacion {

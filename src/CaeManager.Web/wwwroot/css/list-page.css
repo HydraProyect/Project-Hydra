@@ -359,7 +359,7 @@
     color: var(--color-text-muted);
     cursor: pointer;
     border-radius: var(--radius-sm);
-    transition: transform var(--transition-fast);
+    transition: transform var(--motion-fast) var(--ease-standard);
     transform: rotate(-90deg);
 }
 
@@ -560,9 +560,10 @@
     border-bottom: none;
 }
 
+/* Resalte de fila: es la funcion que --motion-base declara (07 § 8). */
 .tabla-datos tr:hover td {
     background-color: var(--color-surface-hover);
-    transition: background-color var(--transition-fast);
+    transition: background-color var(--motion-base) var(--ease-standard);
 }
 
 /* Fila con foco de teclado (atajos j/k, P3-31) */
@@ -632,7 +633,7 @@
 
 .tabla-datos tbody tr,
 .stagger-item {
-    animation: revelar-escalonado var(--transition-slow) ease-out backwards;
+    animation: revelar-escalonado var(--motion-transition) var(--ease-fluid) backwards;
 }
 
 .tabla-datos tbody tr:nth-child(1), .stagger-item:nth-child(1)   { animation-delay: 0ms; }

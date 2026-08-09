@@ -20,7 +20,7 @@
     height: 100vh;
     display: flex;
     flex-direction: column;
-    animation: entrar-desde-derecha 0.2s ease-out;
+    animation: entrar-desde-derecha var(--motion-transition) var(--ease-fluid);
 }
 
 @keyframes entrar-desde-derecha {

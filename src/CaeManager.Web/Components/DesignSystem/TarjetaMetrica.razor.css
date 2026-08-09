@@ -56,7 +56,7 @@
     text-decoration: none;
     color: inherit;
     cursor: pointer;
-    transition: transform var(--transition-fast);
+    transition: transform var(--motion-fast) var(--ease-standard);
 }
 
 /* Sin sombra: --shadow-overlay tiene un unico uso permitido, el nivel

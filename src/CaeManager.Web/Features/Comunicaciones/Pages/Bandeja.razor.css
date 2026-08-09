@@ -81,7 +81,7 @@
     color: var(--color-text-muted);
     font: var(--font-body-md);
     text-decoration: none;
-    transition: border-color var(--transition-fast), color var(--transition-fast), background-color var(--transition-fast);
+    transition: border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
 }
 
 .bandeja-toolbar-enlace:hover {
@@ -144,7 +144,7 @@
     color: var(--color-text-muted);
     font: var(--font-label-md);
     cursor: pointer;
-    transition: border-color var(--transition-fast), color var(--transition-fast), background-color var(--transition-fast);
+    transition: border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
 }
 
 .bandeja-toggle:hover {
@@ -221,7 +221,7 @@
     border-top: var(--border-default);
     border-left: 3px solid transparent;
     cursor: pointer;
-    transition: background-color var(--transition-fast), border-left-color var(--transition-fast);
+    transition: background-color var(--motion-fast) var(--ease-standard), border-left-color var(--motion-fast) var(--ease-standard);
 }
 
 .bandeja-lista ::deep .bandeja-fila:hover {

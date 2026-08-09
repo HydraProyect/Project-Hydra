@@ -52,7 +52,7 @@
     background-color: var(--color-surface);
     color: var(--color-text);
     font: var(--font-body-md);
-    transition: border-color var(--transition-base), box-shadow var(--transition-base);
+    transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
 }
 
 .tarjeta-2fa ::deep input:focus {
@@ -88,7 +88,7 @@
     font: var(--font-label-md);
     font-weight: 600;
     cursor: pointer;
-    transition: background-color var(--transition-base), transform var(--transition-fast);
+    transition: background-color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
 
 .boton-primario:hover {

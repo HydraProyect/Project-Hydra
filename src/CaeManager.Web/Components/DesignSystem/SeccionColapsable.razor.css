@@ -21,7 +21,7 @@
     color: var(--color-text);
     cursor: pointer;
     text-align: left;
-    transition: background-color var(--transition-fast);
+    transition: background-color var(--motion-fast) var(--ease-standard);
 }
 
 .seccion-colapsable-cabecera:hover {
@@ -36,7 +36,7 @@
 .seccion-colapsable-chevron {
     display: inline-flex;
     color: var(--color-text-muted);
-    transition: transform var(--transition-fast);
+    transition: transform var(--motion-fast) var(--ease-standard);
 }
 
 .seccion-colapsable-chevron-abierta {

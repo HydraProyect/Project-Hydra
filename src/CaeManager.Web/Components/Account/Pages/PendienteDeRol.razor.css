@@ -42,7 +42,7 @@
     font: var(--font-label-md);
     font-weight: 600;
     cursor: pointer;
-    transition: background-color var(--transition-base), transform var(--transition-fast);
+    transition: background-color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
 
 .boton-primario:hover {
