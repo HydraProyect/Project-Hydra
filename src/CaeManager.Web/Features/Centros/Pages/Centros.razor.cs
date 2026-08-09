@@ -1,8 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Commands.CrearCentro;
-using CaeManager.Application.Centros.Commands.EliminarCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentros;
-using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
@@ -59,11 +57,6 @@ public partial class Centros : ComponentBase
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
-
-    private bool _confirmarEliminarVisible;
-    private Guid _idAEliminar;
-    private string _nombreAEliminar = string.Empty;
-    private bool _eliminando;
 
     private readonly HashSet<Guid> _seleccionados = [];
 
@@ -454,57 +447,6 @@ public partial class Centros : ComponentBase
             _erroresCampo[campo] = resultado.Errors[0].ErrorMessage;
     }
 
-    private void AbrirEliminar(Guid id, string nombre)
-    {
-        _idAEliminar = id;
-        _nombreAEliminar = nombre;
-        _confirmarEliminarVisible = true;
-    }
-
-    private async Task ConfirmarEliminarAsync()
-    {
-        _eliminando = true;
-
-        try
-        {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarCentroCommand(_idAEliminar, usuarioId ?? Guid.Empty));
-
-            if (resultado.EsFallido)
-            {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-            }
-            else
-            {
-                var idEliminado = _idAEliminar;
-                ToastService.Mostrar("Centro eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
-                _confirmarEliminarVisible = false;
-                await CargarAsync();
-            }
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar("No pudimos eliminar el centro. Intenta nuevamente en unos segundos.", TonoToast.Error);
-        }
-        finally
-        {
-            _eliminando = false;
-        }
-    }
-
-    /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarCentroCommand.</summary>
-    private async Task DeshacerEliminarAsync(Guid id)
-    {
-        var resultado = await Mediator.Send(new RestaurarCentroCommand(id));
-
-        ToastService.Mostrar(
-            resultado.EsExitoso ? "Centro restaurado." : resultado.Error.Mensaje,
-            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
-
-        if (resultado.EsExitoso)
-            await CargarAsync();
-    }
-
     private bool TodosSeleccionados =>
         _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
 
@@ -651,6 +593,22 @@ public partial class Centros : ComponentBase
         centro.Recuentos.Vencidas.Concat(centro.Recuentos.Proximas)
             .Where(i => i.Ambito == AmbitoCausa.Empresa)
             .ToList();
+
+    /// <summary>
+    /// 3ª ranura de indicadores del Centro (contrato de fidelidad 2026-08-09
+    /// § 1.6, bug C-2), cuando no hay visita que mostrar en su lugar. El
+    /// Badge de Estado solo aporta algo que los recuentos de vencidos/
+    /// próximos no digan ya: Vencido/Próximo/Falta documentación quedan
+    /// reflejados en esas dos ranuras (mismo criterio de bucketing que
+    /// <c>ObtenerCentrosQuery.Desglosar</c>), así que repetirlos aquí era
+    /// justo la redundancia que hacía desbordar la columna. Bloqueado
+    /// (el peor caso posible) y Urgente (que Desglosar no cuenta en ningún
+    /// recuento) sí necesitan la ranura; "sin incidencias" (0 y 0) también,
+    /// para que la fila no quede completamente muda.
+    /// </summary>
+    private static bool MostrarEstadoEnIndicadores(CentroListaDto centro) =>
+        centro.Estado is EstadoCentro.Bloqueado or EstadoCentro.Urgente
+        || (centro.Recuentos.TotalVencidas == 0 && centro.Recuentos.TotalProximas == 0);
 
     /// <summary>
     /// Nombre accesible de un badge de solo recuento. Es lo unico que oye un
