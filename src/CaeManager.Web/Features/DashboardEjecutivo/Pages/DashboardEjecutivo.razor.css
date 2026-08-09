@@ -8,8 +8,8 @@
 .rejilla-categorias-kpi {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: var(--espaciado-md, 1rem);
-    margin-bottom: var(--espaciado-md, 1rem);
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
 }
 
 .categoria-kpi-titulo {
@@ -17,7 +17,7 @@
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    color: var(--color-texto-secundario, #6b7280);
+    color: var(--color-text-muted);
 }
 
 .checkbox-kpi {

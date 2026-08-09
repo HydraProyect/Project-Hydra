@@ -17,7 +17,7 @@
     height: 12px;
     border-radius: var(--radius-full);
     overflow: hidden;
-    background-color: var(--color-neutral-100);
+    background-color: var(--color-surface-subtle);
 }
 
 .barra-comparativa-segmento {

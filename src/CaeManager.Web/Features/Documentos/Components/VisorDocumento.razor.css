@@ -3,5 +3,5 @@
     height: 70vh;
     border: var(--border-default);
     border-radius: var(--radius-md);
-    background: var(--color-neutral-100);
+    background: var(--color-surface-subtle);
 }

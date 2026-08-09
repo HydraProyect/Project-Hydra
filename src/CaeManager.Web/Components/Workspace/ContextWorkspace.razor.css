@@ -5,13 +5,21 @@
     bottom: 0;
     width: 100%;
     max-width: 520px;
-    background-color: var(--color-surface);
+    /* Nivel OVERLAY, no Elevated (ODM-01, decidido por el propietario del
+       producto el 2026-08-09). El criterio no es que sea `position: fixed`
+       por si solo, sino que crea una capa SOBRE el contenido existente y
+       compite con el por el plano visual: Subtle es superficie interna,
+       Elevated es elevacion dentro del flujo, y Overlay es lo que se
+       superpone al contexto actual.
+       La sombra NO se anade aqui: ya existia antes de esta migracion, y
+       Overlay es el unico nivel donde 06 § 5 la permite. */
+    background-color: var(--color-overlay);
     box-shadow: var(--shadow-overlay);
     border-left: var(--border-default);
     z-index: 1050;
     display: flex;
     flex-direction: column;
-    animation: workspace-entrar 0.2s ease-out;
+    animation: workspace-entrar var(--motion-transition) var(--ease-fluid);
 }
 
 .workspace-panel:focus-visible,
@@ -67,7 +75,7 @@
     color: var(--color-text-muted);
     cursor: pointer;
     white-space: nowrap;
-    transition: color var(--transition-fast), background-color var(--transition-fast);
+    transition: color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
 }
 
 .workspace-boton-volver:hover {

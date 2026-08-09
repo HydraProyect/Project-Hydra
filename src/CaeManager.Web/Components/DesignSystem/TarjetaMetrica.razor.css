@@ -6,7 +6,6 @@
     background-color: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-card-sm);
-    box-shadow: var(--shadow-card);
     border-left: 3px solid var(--color-neutral-300);
 }
 
@@ -57,12 +56,14 @@
     text-decoration: none;
     color: inherit;
     cursor: pointer;
-    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    transition: transform var(--motion-fast) var(--ease-standard);
 }
 
+/* Sin sombra: --shadow-overlay tiene un unico uso permitido, el nivel
+   Overlay (06 § 5), y una tarjeta metrica no lo es. El realce vertical
+   queda pendiente de decision (ODM-06). */
 .tarjeta-metrica-clicable:hover {
     transform: translateY(-2px);
-    box-shadow: var(--shadow-overlay);
 }
 
 @media (prefers-reduced-motion: reduce) {

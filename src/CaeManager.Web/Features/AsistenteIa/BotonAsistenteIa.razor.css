@@ -14,7 +14,8 @@
     color: var(--color-neutral-0);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    transition: transform var(--motion-fast) var(--ease-standard),
+        box-shadow var(--motion-fast) var(--ease-standard);
 }
 
 .boton-asistente-ia:hover {

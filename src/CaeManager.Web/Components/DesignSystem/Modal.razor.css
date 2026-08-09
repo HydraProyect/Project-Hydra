@@ -9,8 +9,10 @@
     padding: var(--space-4);
 }
 
+/* Nivel Overlay (06 § 3): flota sobre el contenido con relación espacial
+   real, y por eso es de los pocos sitios donde la sombra está permitida. */
 .modal-contenido {
-    background-color: var(--color-surface);
+    background-color: var(--color-overlay);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-overlay);
     width: 100%;
