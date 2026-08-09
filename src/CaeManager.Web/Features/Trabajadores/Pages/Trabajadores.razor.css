@@ -12,16 +12,14 @@
     margin-bottom: var(--space-2);
 }
 
-/* Tono de TEXTO del semáforo: el -700 (06 § 2.3). El -500 es color de marca
-   de estado, no de texto — #22C55E da 1.99:1 y #EF4444 3.76:1 sobre blanco,
-   ambos por debajo del 4.5:1. --color-success-600 nunca existió: resolvía por
-   el fallback al -500. */
+/* PENDIENTE ODM-03: --color-success-600 no existe en la escala; hoy resuelve
+   por el fallback al -500. Su destino canónico no se decide aquí. */
 .pista-documento-exito {
-    color: var(--color-success-700);
+    color: var(--color-success-600, var(--color-success-500));
 }
 
 .pista-documento-error {
-    color: var(--color-danger-700);
+    color: var(--color-danger-500);
 }
 
 .pista-documento-info {

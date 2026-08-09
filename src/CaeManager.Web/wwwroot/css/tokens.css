@@ -72,12 +72,11 @@
   --color-system-tint: color-mix(in srgb, var(--color-system-indicator) 10%, transparent);
 
   /* Superficie / texto (tema claro por defecto) */
-  /* Canvas — fondo de página. 06 § 3 lo nombra --color-canvas; --color-bg se
-     conserva como alias porque más de cincuenta archivos lo consumen y los
-     nombres de variable son estables entre rediseños (06 § 1). Mismo patrón
-     que los alias --font-h1..h4 de más abajo: un solo valor, dos nombres. */
-  --color-canvas: #f6f8fa;
-  --color-bg: var(--color-canvas);
+  /* Canvas — fondo de página (02 § 4.1). Solo cambia el VALOR: #FAFBFC pasa a
+     #F6F8FA. El nombre del token no se toca — 06 § 3 lo llama --color-canvas
+     y aquí se llama --color-bg; esa divergencia de nombre se registra, no se
+     resuelve renombrando ni añadiendo un alias (ODM-04). */
+  --color-bg: #f6f8fa;
   --color-surface: var(--color-neutral-0);
   --color-surface-hover: var(--color-neutral-100);
   /* Cuarto nivel de profundidad (02 § 4.1, DDL-013/DDL-028):
@@ -207,8 +206,7 @@
   sistema operativo tras el rediseño del modo oscuro.
 */
 :root[data-theme='oscuro'] {
-  --color-canvas: #0e141b;
-  --color-bg: var(--color-canvas);
+  --color-bg: #0e141b;
   --color-surface: #17212c;
   --color-surface-hover: #202b36;
   --color-surface-subtle: #131b24;
@@ -248,8 +246,7 @@
 }
 
 :root[data-theme='claro'] {
-  --color-canvas: #f6f8fa;
-  --color-bg: var(--color-canvas);
+  --color-bg: #f6f8fa;
   --color-surface: var(--color-neutral-0);
   --color-surface-hover: var(--color-neutral-100);
   --color-surface-subtle: #f1f5f7;

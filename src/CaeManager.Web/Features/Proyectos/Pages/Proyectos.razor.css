@@ -55,15 +55,16 @@
     margin-top: var(--space-2);
 }
 
-/* El tono de texto del semáforo es el -700 (06 § 2.3): --color-danger-500 da
-   3.76:1 sobre blanco e incumple el 4.5:1 del texto. Mismo criterio que
-   .menu-acciones-item-destructivo. */
 .enlace-peligro {
+    color: var(--color-danger-500);
+}
+
+.enlace-peligro:hover {
     color: var(--color-danger-700);
 }
 
 .aviso-error {
-    color: var(--color-danger-700);
-    font: var(--font-body-md);
+    color: var(--color-danger-500);
+    font-size: var(--tipografia-sm); /* PENDIENTE ODM-02 */
     margin-bottom: var(--space-4);
 }
