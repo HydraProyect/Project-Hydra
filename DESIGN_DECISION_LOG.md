@@ -773,6 +773,21 @@ como implementado o presente algo que no está construido.
   esta.
 - **Documentos afectados**: `02` § 4.1; `06` § 2.5 (ya corregido al cerrar OD-22).
 
+### DDL-067 — Cortes de tono de `AnilloCumplimiento`: se mantienen por decisión explícita, no por herencia (cierra OD-29 en su tercio de decisión)
+- **Decisión**: `AnilloCumplimiento` conserva `100 % Éxito · ≥50 % Advertencia · resto Peligro`.
+- **Estado**: Vigente · **Fecha**: 2026-08-09
+- **Motivo**: decisión propia del propietario del producto, tomada con la investigación completa
+  delante — no continuidad tácita. La investigación de OD-29 estableció que estos cortes **nunca
+  habían pasado por una decisión**, ni antes ni después del reset, y que no existe una semántica
+  de cumplimiento previa de la que pudieran derivarse: el plan del reset fija el numerador, el
+  denominador y el caso `null`, pero ninguna banda de color para ningún porcentaje del sistema.
+  El origen es el commit que construyó el componente (`c943035`/`123f703`, "Centro 360 lote
+  0-F"), sin motivo registrado.
+- **Lo que esta decisión NO afirma**: que los cortes fueran correctos por estar ya construidos, o
+  que el legacy los legitimara. El legacy no es autoridad (DDL-055, DDL-059) — es la razón por la
+  que hizo falta esta decisión en primer lugar, no su fundamento.
+- **Documentos afectados**: `08` § 4.4.
+
 ### DDL-066 — `DOMAIN.md` es la autoridad del estado de Documento; DDL-052 se corrige (cierra OD-33)
 - **Decisión**: **no se crea ninguna capa normativa nueva.** La autoridad conceptual del estado de
   Documento **ya existe** y es `DOMAIN.md` § 68. La anomalía se corrige devolviendo cada pieza a
@@ -1025,21 +1040,24 @@ hubiera decidido. El mecanismo hizo lo que se diseñó para hacer.
 
 ## Open Decisions
 
-**Tres: OD-26, OD-28, OD-29 — todas de trazabilidad.** OD-33 y OD-34 salieron de la **pasada de
-divergencia sobre `main` consolidado** (2026-08-09), cuyo objetivo no era buscar decisiones nuevas
-sino verificar la coherencia acumulada — y encontró dos roturas que ninguna auditoría anterior
-había visto porque solo aparecen al cruzar documentos entre sí. Ambas quedaron cerradas el mismo
-día: OD-34 como **propagación sin DDL** y OD-33 con **DDL-066**, sin añadir capa normativa.
+**Ninguna.** Las veintiuna Open Decisions del reset quedan cerradas el 2026-08-08.
+Las trece que se abrieron después, todas el 2026-08-09 al ejercitar la gobernanza sobre el
+sistema ya congelado, quedan también cerradas: OD-22 a OD-34, con OD-29 como cierre de la
+serie iniciada por la comprobación previa a la divergencia 8.
 
-Cerradas el 2026-08-09: OD-24 (DDL-060),
-OD-25 (DDL-059), OD-27 (DDL-064), OD-30 (DDL-061), OD-31 (DDL-062 + DDL-063) y OD-32 (DDL-065).
-OD-30 y OD-31 nacieron del recálculo de OD-24; OD-32, de la investigación de OD-27 — **cada
-hallazgo fuera de alcance destapó el siguiente**, que es lo que DDL-040 pretende al obligar a
-registrarlos en vez de arreglarlos sobre la marcha.
+**Encadenamiento**: OD-22 (auditoría de trazabilidad de `01`–`08`) → OD-23…OD-25 → OD-24 →
+OD-30/OD-31 (nacidas de su recálculo) → OD-26…OD-28 → OD-27 → OD-32 (nacida de su investigación)
+→ pasada de divergencia sobre `main` consolidado → OD-33/OD-34 → OD-29 (cierre de la matriz de
+contaminación de DDL-058, con la última decisión real, DDL-067). **Cada hallazgo fuera de
+alcance destapó el siguiente** — es lo que DDL-040 pretende al obligar a registrarlos en vez de
+arreglarlos sobre la marcha.
 
-Con OD-32 cerrada **no queda ninguna OD de conformidad ni de producto**: las tres restantes son
-correcciones de autoridad documental sin efecto sobre el comportamiento del sistema.
-Las veintiuna Open Decisions del reset quedan cerradas el 2026-08-08.
+**Balance de la serie**: de trece ODs, **cuatro** exigieron decisión real —OD-31 (accesibilidad,
+único cambio de código de producto puro), OD-30 (semántica de un token), OD-32 (comportamiento de
+IA sobre datos de cumplimiento) y OD-29/DDL-067 (cortes de un componente)—; el resto se cerró
+corrigiendo autoridad documental sin tocar el sistema. Once DDL nuevas (057–067), y un solo cambio
+de código de accesibilidad más uno de comportamiento — el resto, sin excepción, fue reparación de
+la cadena de citas.
 OD-22 y OD-23 se abrieron y cerraron ese mismo día al preparar la Fase 4. Las seis siguientes
 salen de la **auditoría de trazabilidad de `01`–`08`** (2026-08-09), que OD-22 motivó: si un valor
 sin procedencia había llegado a `06`, no había razón para suponerlo único. No lo era.
@@ -1881,10 +1899,36 @@ respaldada, sin que cambie nada de lo que el sistema permite.
 > queda con dos reglas: la matriz de composición de `05` § 7 y el "≤1 clic" de `03` § 4.1, ambas
 > con primera aparición en el commit del reset y sin antecedente.
 
-### OD-29 — Reglas heredadas del histórico, normadas sin ratificación
+### OD-29 — Reglas heredadas del histórico, normadas sin ratificación (cerrada)
 
-**Tipo**: documento → documento, con raíz en documentación archivada sin autoridad. **Abierta** ·
-**Fecha**: 2026-08-09.
+**Tipo**: documento → documento, con raíz en documentación archivada sin autoridad.
+**Cerrada — un tercio por decisión (DDL-067), dos tercios por propagación de trazabilidad, sin
+DDL** · **Fecha**: 2026-08-09.
+
+> **La premisa de apertura era que las cuatro reglas compartían el mismo defecto. No era así.**
+> Verificado el mérito de cada una fuera del Log —`ROADMAP.md`, `docs/business/`, el código—,
+> resultaron ser tres casos distintos, y solo uno exigía decisión real.
+
+#### Cierre
+
+| Regla | Resultado |
+|---|---|
+| Filtros en URL | **Ya decidido fuera del Log** — `ROADMAP.md`: doce páginas, helper propio. Propagada la trazabilidad a `03` § 5.2. Sin DDL |
+| Orden no persiste | **Ya decidido fuera del Log**, con motivo propio (restricción de QuickGrid + juicio de UX, ninguno heredado). Propagada a `03` § 5.2. Sin DDL |
+| "≤3 avisos" | **Ya decidido fuera del Log** — `ToastService` cita `MATURITY_REVIEW.md` P2 #28. Propagada a `04` § 7.1. Sin DDL. **Detalle sin cubrir, registrado y no bloqueante**: el descarte del más antiguo no distingue tono, y ningún documento lo decide — ni el histórico ni P2 #28 llegan a esa granularidad |
+| `AnilloCumplimiento` | **Decisión real, tomada.** DDL-067: se mantienen los cortes, por elección explícita del propietario del producto, no por herencia |
+
+**Sobre "≤3 clics" de `03` § 4.1** (la cuarta regla citada en el hallazgo original de la
+divergencia, ya marcada "histórica" y no incluida en la tabla de contaminación de esta OD): tiene
+mecanismo real que la sostiene —buscador global y atajos, ambos normativos en `03` § 4.2 e
+implementados— a diferencia del "≤1 clic" que OD-28 retiró por carecer de uno. Se deja como está,
+sin acción.
+
+**Por qué no se abrió DDL para las tres primeras**: hacerlo habría sido exactamente el error que
+esta serie corrige desde OD-22 — fabricar autoridad retrospectiva para algo que ya tenía la suya,
+solo que en un documento distinto del Log. `ROADMAP.md` y `docs/business/` son también capas de
+autoridad de este proyecto (`CLAUDE.md` los cita como tal); el defecto no era de contenido, era
+que el Log no lo sabía.
 
 Tres reglas que `03`, `04` y `08` presentan como normativa y que la auditoría trazó hasta
 `docs/archive/design/` — histórico explícitamente **sin autoridad** (DDL-056):
@@ -1903,6 +1947,105 @@ descarta: la autoridad viene de la posición en la cadena, no de la antigüedad.
 **Nota sobre la dirección de referencia** (D6): el problema no se arregla añadiendo una cita. Hay
 que determinar **cuál de los dos documentos debe ser autoridad** sobre la persistencia en URL —
 `03` (dónde vive el estado) o `04` (cómo se comporta la lista)— antes de decidir el contenido.
+
+#### Investigación (2026-08-09)
+
+La premisa de esta OD era que las cuatro reglas comparten el mismo defecto —histórico sin
+autoridad—. **No es así.** Verificado el mérito de cada una **fuera** del Log —en `ROADMAP.md`,
+`docs/business/` y el código—, resultan ser tres casos distintos:
+
+**1 · Filtros en URL / orden no — con evidencia de producto extensa, no solo histórica.**
+`ROADMAP.md` documenta la implementación deliberada en **doce páginas**, con un helper propio
+(`NavigationManagerExtensions.ActualizarFiltroEnUrl`), fecha y alcance verificados. Y **el orden**
+tiene su propia justificación de producto, no heredada: *"una URL que ordena con la flecha en
+neutro es peor que no ofrecerlo"* — razón de ingeniería (QuickGrid no restaura el indicador de
+cabecera sin ≈60 refs por columna) más una razón de UX, ninguna de las dos en el histórico.
+**Confirmado en código**: 20 páginas usan el helper; el orden no aparece en ninguna URL.
+
+Sobre la nota D6: la dirección de cita **ya es la correcta**. `03` declara su propia autoridad
+como *"dónde vive cada cosa… navegación y rutas"* — URL es su territorio por carta fundacional, no
+por accidente — y `04` § 3.2 cita a `03` § 5.2 exactamente como corresponde a esa frontera. El
+problema no era la dirección de la cita: era que **ninguna de las dos** tenía DDL detrás de un
+hecho documentado extensamente en otro sitio.
+
+**2 · "Nunca más de 3 avisos" — implementado, con causa registrada, en la capa de máxima
+autoridad de producto que existe para esto.** `ToastService.cs` fija `MaximoVisibles = 3` con un
+comentario que cita, entre comillas, el histórico archivado sin autoridad y **`P2 #28` de
+`docs/business/MATURITY_REVIEW.md`**, y añade: *"la regla ya estaba escrita, esto es lo que la
+hace cierta"*. `MATURITY_REVIEW.md` § 28 registra el ítem como **hecho**, y el commit `35945bb`
+(2026-08-01) declara en su propio título haber cerrado esa promesa heredada del histórico.
+**Corrige un hallazgo previo de esta serie**: en la investigación de OD-28 dije que
+`AnfitrionToasts` no implementaba límite alguno — cierto de ese componente, pero el límite vive en
+`ToastService`, que no miré entonces. Además el comportamiento incluye un detalle decidido que
+ningún documento normativo recoge: **el más antiguo cede el sitio, sin excepción por tono**,
+incluido un error.
+
+**3 · `AnilloCumplimiento` — el único de los cuatro sin evidencia fuera del histórico.**
+El código implementa exactamente `100 % Éxito · ≥50 % Advertencia · resto Peligro`, pero **cero
+apariciones** en `ROADMAP.md` o `docs/business/` que expliquen por qué esos cortes. El histórico archivado (`DESIGN_SYSTEM.md`, sin autoridad) § 189 no decidía
+nada: **describía el componente ya construido**. Es el único caso puro de la clase que esta OD
+nombra en su tipo — documento → documento con raíz histórica sin ningún refuerzo posterior.
+
+#### Segunda pasada, exclusiva sobre `AnilloCumplimiento` (2026-08-09)
+
+**El origen es anterior al reset, no del reset.** El componente entra en `c943035` /
+`123f703` ("Centro 360 lote 0-F — badge circular de % de cumplimiento", #108), con el umbral ya
+fijado en el mensaje del propio commit: *"Tono propio por umbral (100 % Éxito, ≥50 % Advertencia,
+resto Peligro)"* — declarado como hecho consumado, sin motivo. **No hay entrada de `ROADMAP.md`
+para ese lote** que lo desarrolle; el único texto es la descripción, casi idéntica, que después
+migró al archivado y de ahí a `08` § 4.4.
+
+**Se buscó una intención de producto aguas arriba y no apareció ninguna.** `50 %` no se usa como
+corte de nada más en todo el sistema — las apariciones en `docs/business/` son de precio y
+márgenes, sin relación. El semáforo documental (`06` § 2.3) corta por **fecha**, no por
+porcentaje, así que no hay un umbral hermano del que este pudiera heredarse. Y `08` § 4.4 ya
+declara expresamente que es *"umbral propio, **distinto del semáforo**"* — es decir, el propio
+sistema afirma que no deriva de él, lo que descarta esa vía también. DDL-036 decide dónde se
+coloca el porcentaje dentro del anillo, no sus cortes de color.
+
+**Conclusión**: no hay decisión perdida que recuperar. Es un corte arbitrario tomado al construir
+el componente, nunca sometido a criterio de producto ni de diseño, en ningún punto de la
+historia del repositorio — anterior y posterior al reset. Es la única de las cuatro reglas de
+OD-29 que exige una decisión real, no una propagación de trazabilidad.
+
+#### Tercera pasada — comparación semántica con la métrica de cumplimiento (2026-08-09)
+
+**Corrección de referente**: no existe consumidor de `AnilloCumplimiento` ni de
+`CumplimientoPorcentaje` bajo `Cliente` en ningún punto del código ni de `docs/ux-audit/`. Los
+únicos dos consumidores reales son **Centro** y **Empresa**. La comparación se hizo contra esos.
+
+Respuestas a las siete preguntas, con fuente:
+
+| Pregunta | Respuesta |
+|---|---|
+| ¿Mide el mismo fenómeno que el porcentaje del producto? | **Sí, sin transformación.** `Centros.razor:98` pasa `Porcentaje="centro.CumplimientoPorcentaje"` directamente; la etiqueta del propio componente lo declara: *"documentos al día / requeridos entre los trabajadores de este centro"* |
+| ¿Qué representa 100 %? | Todos los documentos requeridos están al día |
+| ¿Qué representa un valor intermedio? | La fracción exacta de documentos al día sobre los requeridos |
+| ¿Existe ya semántica de estados asociada al porcentaje en el plan del reset? | **No.** `PLAN-EJECUCION-UX.md` § (0.5) —el lote que define la métrica— habla solo del número y de su regla `null` ("sin requisitos"); **no menciona colores ni cortes**. El "tono propio por umbral" aparece por primera vez en § (0.8), el lote que construye el anillo, **al mismo tiempo** que el componente — no antes |
+| ¿El anillo representa el mismo dato o uno distinto? | El mismo. § (0.8) lo dice explícitamente: *"sustituye el % en texto plano… mismo cálculo, solo cambia la representación"* — confirmado también en el mensaje del commit original |
+| ¿Sobre qué unidad se calcula? | Documentos al día / documentos requeridos, agregados por Trabajador→Centro o por Centro→Empresa |
+| ¿La UI antigua y la actual reciben el mismo dato de origen? | Sí — **un único método**, `CalcularCumplimientoAsync`, alimenta el "7/9" del acordeón, el badge en texto y el anillo. No hay dos fuentes que puedan haber divergido |
+
+**Resultado del test que planteaba la instrucción**: es exactamente la misma métrica, sin
+indicador distinto ni fragmentación de semántica. Pero la consecuencia no es la que el test
+suponía en su rama afirmativa: **no hay una "semántica de cumplimiento que ya tenga el producto"
+de la que derivar los cortes**, porque esa semántica —más allá del número y de la regla
+`null`— **nunca se decidió**. El plan del reset fija el numerador/denominador y el caso
+`null`; no fija bandas de color para ningún porcentaje, en ningún documento. Los cortes actuales
+no son una mala abstracción de algo decidido: son la única pieza de todo este flujo que jamás
+pasó por una decisión, ni siquiera implícita.
+
+**Consecuencia para el cierre**: no hay atajo que evite la decisión. `AnilloCumplimiento` necesita
+que se fijen sus cortes —o se decida no colorear por umbral— como una decisión propia y explícita,
+no como herencia del legacy (que tampoco la tenía) ni como derivación de una semántica de producto
+preexistente (que no existe).
+
+**Conclusión que cambia el cierre**: la pregunta no es "¿se ratifican o se retiran?" con la misma
+respuesta para las cuatro. Es **de dónde saca cada una su autoridad real**: dos de ellas ya la
+tienen fuera del Log —`ROADMAP.md` documenta la primera, `MATURITY_REVIEW.md` y el propio código
+documentan la segunda—, y lo que falta no es decidir su contenido sino **que el Log deje de ser el
+único sitio que no lo sabe**. La tercera no tiene nada, en ningún documento, y esa es la que exige
+una decisión real.
 
 ### OD-23 — `02` no declara el texto principal en modo claro (cerrada)
 

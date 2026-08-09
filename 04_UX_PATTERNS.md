@@ -238,7 +238,13 @@ asignada, se dice.
 ### 7.1 Avisos
 Esquina superior derecha, autodescartables salvo los de error, que requieren descarte manual. Un
 aviso con acción vive más tiempo. **Nunca más de tres visibles** a la vez: a partir de ahí no se
-leen, se cierran.
+leen, se cierran. Ejecutado en `ToastService` (`MaximoVisibles`), cierre de
+`docs/business/MATURITY_REVIEW.md` P2 #28 (OD-29).
+
+**Detalle no cubierto por esa entrada, sin decidir**: la implementación actual descarta el aviso
+más antiguo para hacer sitio al nuevo **sin excepción por tono**, incluido un error. Ni el
+histórico ni P2 #28 dicen qué debe pasar cuando la cola está llena y llega un error — es una
+regla de código, no una decisión documentada.
 
 Siempre con icono y color semántico coherentes con el resultado.
 

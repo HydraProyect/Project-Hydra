@@ -126,7 +126,7 @@ Un componente puramente presentacional cumple 1–6 y nada más. Los requisitos 
 | **ProgresoConMensajes** | Proceso largo con etapas | Dice **en qué va**, no solo que sigue trabajando |
 | **IndicadorPasos** | Progreso de un flujo | Solo indica progreso; el contenido de cada paso lo aporta quien lo usa (`05` § 6) |
 | **Badge** | Estado o recuento | Léxico cerrado (`04` § 4.1). En variante de solo recuento, **exige ventana de contexto** (`04` § 4.2) |
-| **AnilloCumplimiento** | Fracción de cumplimiento | **No pinta nada si no hay universo**: "sin requisitos" no es un 0 %. Umbral propio, distinto del semáforo documental — son preguntas distintas |
+| **AnilloCumplimiento** | Fracción de cumplimiento | **No pinta nada si no hay universo**: "sin requisitos" no es un 0 %. Cortes de tono: `100 %` Éxito · `≥50 %` Advertencia · resto Peligro — **decisión propia, no derivada del semáforo documental** (DDL-067) |
 | **FiltroEstado** | Filtrar por estado | Opciones **de peor a mejor**; "sin datos" es opción propia (`04` § 3.2) |
 
 ### 4.5 Navegación y soporte
