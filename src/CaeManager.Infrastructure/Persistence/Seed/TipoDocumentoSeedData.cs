@@ -8,20 +8,33 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// documentos base de Empresa y de Vehículo indicados directamente por el
 /// usuario (2026-07). Los Id son fijos y deterministas para que las
 /// migraciones sean reproducibles.
+///
+/// <c>EsObligatorio</c> del lado Trabajador (2026-08-09, indicado
+/// directamente por el usuario): en España, para que una empresa entre a
+/// trabajar en una planta industrial mediante CAE, casi ningún centro pide
+/// menos que el DNI/NIE en vigor, el apto médico, la formación PRL
+/// (Art. 19), el justificante de entrega de EPIs y el registro de
+/// información de riesgos del puesto (Art. 18) de cada trabajador — el
+/// lado Empresa (EVR/PAP, corriente con SS/Hacienda, RLC/RNT, seguro de
+/// RC, concierto con el SPA) ya estaba marcado obligatorio desde antes.
+/// Un centro que exija menos lo desmarca desde /tipos-documento →
+/// "Requisitos del Centro" (<c>TipoDocumentoCentro</c> manda sobre este
+/// criterio global, ver <c>ResolucionTipoDocumentoCentro</c>): no hace
+/// falta ninguna decisión de UI nueva, el mecanismo ya existía.
 /// </summary>
 public static class TipoDocumentoSeedData
 {
     public static readonly (Guid Id, string Nombre, int? VigenciaMeses, bool AplicaVencimiento, int Orden, AmbitoAplicacion Ambito, bool EsObligatorio, string? Notas)[] Datos =
     [
         // --- Catálogo original de Trabajador (Fase 0, hoja "Parametros" del Excel) ---
-        (new Guid("10000000-0000-0000-0000-000000000001"), "Apto médico laboral", 12, true, 1, AmbitoAplicacion.Trabajador, false, "Renovación anual estándar."),
-        (new Guid("10000000-0000-0000-0000-000000000002"), "EPIS (firma)", 12, true, 2, AmbitoAplicacion.Trabajador, false, "Se firman cada año según nota de origen."),
+        (new Guid("10000000-0000-0000-0000-000000000001"), "Apto médico laboral", 12, true, 1, AmbitoAplicacion.Trabajador, true, "Renovación anual estándar. Obligatorio por defecto (2026-08-09): sí o sí exigido en CAE."),
+        (new Guid("10000000-0000-0000-0000-000000000002"), "EPIS (firma)", 12, true, 2, AmbitoAplicacion.Trabajador, true, "Se firman cada año según nota de origen. Obligatorio por defecto (2026-08-09): justificante de entrega de EPIs."),
         (new Guid("10000000-0000-0000-0000-000000000003"), "Reciclaje 4h", 48, true, 3, AmbitoAplicacion.Trabajador, false, "Cada 4 años, según Dpto. Formación."),
-        (new Guid("10000000-0000-0000-0000-000000000004"), "Formación Art. 19", 36, true, 4, AmbitoAplicacion.Trabajador, false, "Recordatorio cada 3 años."),
+        (new Guid("10000000-0000-0000-0000-000000000004"), "Formación Art. 19", 36, true, 4, AmbitoAplicacion.Trabajador, true, "Recordatorio cada 3 años. Obligatorio por defecto (2026-08-09): formación PRL Art. 19."),
         (new Guid("10000000-0000-0000-0000-000000000005"), "Formación 60h (base convenio)", null, false, 5, AmbitoAplicacion.Trabajador, false, "Formación base, no consta caducidad."),
         (new Guid("10000000-0000-0000-0000-000000000006"), "Formación 20h", null, false, 6, AmbitoAplicacion.Trabajador, false, "Mismo curso de convenio que 60h/6h, no consta caducidad."),
         (new Guid("10000000-0000-0000-0000-000000000007"), "Formación 6h", null, false, 7, AmbitoAplicacion.Trabajador, false, "Mismo curso de convenio que 60h/20h, no consta caducidad."),
-        (new Guid("10000000-0000-0000-0000-000000000008"), "Información Art. 18", null, false, 8, AmbitoAplicacion.Trabajador, false, "No consta periodicidad de renovación."),
+        (new Guid("10000000-0000-0000-0000-000000000008"), "Información Art. 18", null, false, 8, AmbitoAplicacion.Trabajador, true, "No consta periodicidad de renovación. Obligatorio por defecto (2026-08-09): registro de entrega de información de riesgos del puesto."),
         (new Guid("10000000-0000-0000-0000-000000000009"), "Carretillas elevadoras", null, false, 9, AmbitoAplicacion.Trabajador, false, "Configurable si el convenio interno define vigencia."),
         (new Guid("10000000-0000-0000-0000-00000000000A"), "PEMP (plataformas elevadoras)", null, false, 10, AmbitoAplicacion.Trabajador, false, "Configurable si el convenio interno define vigencia."),
         (new Guid("10000000-0000-0000-0000-00000000000B"), "LOTO (4h)", null, false, 11, AmbitoAplicacion.Trabajador, false, "Configurable si el convenio interno define vigencia."),
@@ -52,6 +65,10 @@ public static class TipoDocumentoSeedData
         (new Guid("50000013-0000-0000-0000-000000000013"), "Permiso de trabajo", null, false, 34, AmbitoAplicacion.Trabajador, false, "Solo aplica a trabajadores extranjeros de fuera de la UE — vencimiento manual."),
         (new Guid("50000014-0000-0000-0000-000000000014"), "Certificado de Registro de Ciudadano de la UE", null, false, 35, AmbitoAplicacion.Trabajador, false, "Solo aplica a trabajadores extranjeros de la UE — vencimiento manual."),
         (new Guid("50000015-0000-0000-0000-000000000015"), "Certificado A1 de Seguridad Social", null, false, 36, AmbitoAplicacion.Trabajador, false, "Trabajadores desplazados temporalmente desde otro país de la UE — vigencia ligada a la duración del desplazamiento."),
+
+        // --- Documento base de identidad del Trabajador (2026-08-09, indicado
+        // directamente por el usuario: sí o sí exigido en cualquier CAE) ---
+        (new Guid("50000016-0000-0000-0000-000000000016"), "DNI o NIE en vigor", null, false, 37, AmbitoAplicacion.Trabajador, true, "Verifica identidad y permiso de trabajo. Vigencia según DGT/Extranjería — vencimiento manual. Obligatorio por defecto (2026-08-09)."),
 
         // --- Documentos base de Empresa, obligatorios para todos los clientes (2026-07, indicados directamente por el usuario) ---
         (new Guid("20000000-0000-0000-0000-000000000001"), "Certificado de estar al corriente con la Seguridad Social", 1, true, 16, AmbitoAplicacion.Empresa, true, "Mensual."),
