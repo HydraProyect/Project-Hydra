@@ -90,10 +90,27 @@
                                 @onclick="() => AlternarExpansion(centro.Id)">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
-                        <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
-                            @centro.Nombre
-                        </button>
-                        <span class="tarjeta-fila-acordeon-meta">@centro.ClienteRazonSocial · @centro.EmpresaRazonSocial@(string.IsNullOrEmpty(centro.CodigoCentro) ? "" : $" · {centro.CodigoCentro}")</span>
+                        <AnilloCumplimiento Porcentaje="centro.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
+                                             Etiqueta="@($"{centro.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />
+                        @*
+                            Identidad del centro en dos líneas (lámina L3): nombre encima,
+                            cliente · empresa · código debajo. Antes iban en la misma línea
+                            y el meta empujaba los indicadores a una posición distinta en
+                            cada fila.
+                        *@
+                        <span class="tarjeta-fila-acordeon-identidad">
+                            <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
+                                @centro.Nombre
+                            </button>
+                            <span class="tarjeta-fila-acordeon-meta">@centro.ClienteRazonSocial · @centro.EmpresaRazonSocial@(string.IsNullOrEmpty(centro.CodigoCentro) ? "" : $" · {centro.CodigoCentro}")</span>
+                        </span>
+                        @*
+                            Zona de indicadores de ancho FIJO. Es lo que hace que los
+                            recuentos, el estado y la visita caigan en la misma vertical en
+                            todas las filas, independientemente de lo largo que sea el
+                            nombre del centro (lámina L3, blueprint § 3.2).
+                        *@
+                        <span class="tarjeta-fila-acordeon-indicadores">
                         @*
                             Ranuras FIJAS de recuento (blueprint § 3.2, lámina L3):
                             vencidos y próximos caen siempre en la misma vertical,
@@ -136,8 +153,6 @@
                             </span>
                         </span>
                         <Badge Tono="EstadoCentroUi.Tono(centro.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado)</Badge>
-                        <AnilloCumplimiento Porcentaje="centro.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
-                                             Etiqueta="@($"{centro.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />
                         @if (visita is not null)
                         {
                             <button type="button" class="badge-visita"
@@ -145,6 +160,7 @@
                                 Visita @visita.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
                             </button>
                         }
+                        </span>
                         <div class="tarjeta-fila-acordeon-acciones">
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
                                 Detalles

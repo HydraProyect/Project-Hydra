@@ -326,16 +326,54 @@
     border-bottom: var(--border-default);
 }
 
+/*
+  Identidad del centro en dos líneas (lámina L3). Ocupa el espacio sobrante y
+  recorta con elipsis: es la única zona elástica de la fila, para que todo lo
+  demás pueda tener posición fija.
+*/
+.tarjeta-fila-acordeon-identidad {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.tarjeta-fila-acordeon-identidad > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
 .tarjeta-fila-acordeon-meta {
     color: var(--color-text-muted);
     font: var(--font-body-sm);
+}
+
+/*
+  Zona de indicadores de ANCHO FIJO (lámina L3, blueprint § 3.2).
+
+  Es lo que hace que recuentos, estado y visita caigan en la misma vertical en
+  todas las filas. Con el reparto libre anterior, un centro de nombre largo
+  desplazaba sus indicadores respecto al de arriba y la columna dejaba de
+  poderse leer de un vistazo — que es justo lo que la lámina resuelve
+  reservando la ranura.
+*/
+.tarjeta-fila-acordeon-indicadores {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-2);
+    align-items: center;
+    width: 15rem;
+    flex-shrink: 0;
 }
 
 .tarjeta-fila-acordeon-acciones {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-left: auto;
+    flex-shrink: 0;
 }
 
 .tarjeta-fila-acordeon-contenido {
