@@ -1,16 +1,16 @@
 .descripcion-pagina {
-    color: var(--color-texto-secundario);
-    margin-bottom: var(--espaciado-xl);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-8);
     max-width: 65ch;
 }
 
 .bloque-selector-cliente {
     max-width: 360px;
-    margin-bottom: var(--espaciado-xl);
+    margin-bottom: var(--space-8);
 }
 
 .acciones-seccion {
-    margin-bottom: var(--espaciado-lg);
+    margin-bottom: var(--space-6);
 }
 
 /* Tabla de proyectos */
@@ -21,15 +21,15 @@
 }
 
 .fila-seleccionada td {
-    background: var(--color-superficie-secundaria);
+    background: var(--color-surface-subtle);
 }
 
 /* Formularios (nuevo proyecto, edición, alta de técnico) */
 .rejilla-formulario {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: var(--espaciado-md);
-    margin-bottom: var(--espaciado-lg);
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
 }
 
 @media (max-width: 640px) {
@@ -51,20 +51,19 @@
 
 .acciones-formulario {
     display: flex;
-    gap: var(--espaciado-sm);
-    margin-top: var(--espaciado-sm);
+    gap: var(--space-2);
+    margin-top: var(--space-2);
 }
 
+/* El tono de texto del semáforo es el -700 (06 § 2.3): --color-danger-500 da
+   3.76:1 sobre blanco e incumple el 4.5:1 del texto. Mismo criterio que
+   .menu-acciones-item-destructivo. */
 .enlace-peligro {
-    color: var(--color-peligro);
-}
-
-.enlace-peligro:hover {
-    color: var(--color-peligro-hover, var(--color-peligro));
+    color: var(--color-danger-700);
 }
 
 .aviso-error {
-    color: var(--color-peligro);
-    font-size: var(--tipografia-sm);
-    margin-bottom: var(--espaciado-md);
+    color: var(--color-danger-700);
+    font: var(--font-body-md);
+    margin-bottom: var(--space-4);
 }
