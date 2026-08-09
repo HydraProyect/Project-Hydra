@@ -1,8 +1,9 @@
 # 02 — Brand and Visual Identity
 
-**Estado**: Normativo · **Implementado hasta**: nada. Los valores de este documento **no están
-en `tokens.css`** todavía; el producto sigue con la paleta de 2026-07. La implementación es una
-fase posterior (ver § 11).
+**Estado**: Normativo · **Implementado hasta**: **solo el borde de control** `#738196` (DDL-063,
+2026-08-09), que sí está en `tokens.css`. El resto de valores de este documento **no lo están**
+todavía; el producto sigue con la paleta de 2026-07. La implementación es una fase posterior
+(ver § 11).
 
 **Autoridad**: este documento define **cómo debe sentirse y reconocerse** Hydra: personalidad,
 sistema cromático, superficies, tipografía e iconografía. `01` define qué debe conseguir la

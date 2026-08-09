@@ -973,7 +973,12 @@ hubiera decidido. El mecanismo hizo lo que se diseñó para hacer.
 
 ## Open Decisions
 
-**Tres: OD-26, OD-28, OD-29 — todas de trazabilidad.** Cerradas el 2026-08-09: OD-24 (DDL-060),
+**Cinco: OD-26, OD-28, OD-29, OD-33, OD-34.** OD-33 y OD-34 salen de la **pasada de divergencia
+sobre `main` consolidado** (2026-08-09), cuyo objetivo no era buscar decisiones nuevas sino
+verificar la coherencia acumulada — y encontró dos roturas que ninguna auditoría anterior había
+visto porque solo aparecen al cruzar documentos entre sí.
+
+Cerradas el 2026-08-09: OD-24 (DDL-060),
 OD-25 (DDL-059), OD-27 (DDL-064), OD-30 (DDL-061), OD-31 (DDL-062 + DDL-063) y OD-32 (DDL-065).
 OD-30 y OD-31 nacieron del recálculo de OD-24; OD-32, de la investigación de OD-27 — **cada
 hallazgo fuera de alcance destapó el siguiente**, que es lo que DDL-040 pretende al obligar a
@@ -1317,6 +1322,79 @@ su propia entrada.
 
 **A determinar también**: si ambos comparten una decisión superior sobre presupuesto de movimiento
 que habría que declarar una sola vez, en vez de dos reglas sueltas.
+
+### OD-33 — DDL-052 declara un diccionario de estados que no existe
+
+**Tipo**: ruptura de la cadena de autoridad — una decisión de máxima autoridad atribuye contenido
+a un artefacto que no lo contiene. **Abierta** · **Fecha**: 2026-08-09. **Origen**: pasada de
+divergencia sobre `main` consolidado.
+
+**No es "OD-27 otra vez".** Allí un término normativo perdió su valor al abstraerse. Aquí una
+decisión **declara que existe un artefacto de autoridad** y tres documentos lo consumen como tal:
+
+| Consumidor | Qué afirma |
+|---|---|
+| `04` § 4.1 | "El estado se nombra con el **léxico cerrado** (DDL-052)" — regla operativa |
+| `08` § 4.4 | `Badge`: "Léxico cerrado (`04` § 4.1)" |
+| `02` § 10 | Registra DDL-052 con "Riesgo en visita" como modificador |
+
+**`docs/business/UBIQUITOUS_LANGUAGE.md` no contiene ninguna sección de estados.** Sus apartados
+son términos de negocio, colisiones de nombre y cargos; cero apariciones de Vigente, Vencido o
+Faltante como entradas de diccionario.
+
+#### Investigación (2026-08-09) — qué fijó realmente DDL-052
+
+La pregunta que OD-25 enseñó a no saltarse: ¿decidió el **contenido** o solo la **existencia**?
+**Ni una cosa ni la otra: decidió parte del contenido.**
+
+| DDL-052 sí decide | DDL-052 no decide |
+|---|---|
+| Que el diccionario existe y **dónde vive** | La **definición** de cada término ("qué abarca") |
+| Que hay **dos ejes** que no se mezclan: documental y de aviso | — |
+| Una **enumeración** del eje documental | — |
+| Que "Riesgo en visita" es **modificador contextual de `Vigente`**, nunca valor de `EstadoDocumento` | — |
+
+**Y la enumeración que sí decidió diverge del dominio en cuatro puntos.** DDL-052 enumera
+*"Al día · Próximo · Vencido · Faltante · Pendiente de subir"*; `EstadoDocumento`
+(`src/CaeManager.Domain/Documentos/EstadoDocumento.cs`) tiene `NoAplica`, `Vigente`, `Proximo`,
+`Urgente`, `Vencido`, `Faltante`:
+
+- **"Al día" vs `Vigente`** — dos nombres para lo que probablemente es el mismo estado.
+- **`Urgente` no aparece** en DDL-052, y `02` § 3.4 sí lo usa ("Urgente, vencido, bloqueado").
+- **`NoAplica` no aparece** en DDL-052.
+- **"Pendiente de subir" no existe** en el dominio.
+
+**Tensión dentro de la propia DDL-052**: su enumeración dice "Al día", pero su requisito derivado
+dice que "Riesgo en visita" modifica **`Vigente`** — un nombre que su propia lista no incluye.
+
+**Lo que esta entrada NO concluye**: que el enum del dominio sea el correcto y DDL-052 esté
+equivocada. **El código no es autoridad** (DDL-055, DDL-059); la divergencia se registra, no se
+resuelve a favor de la implementación. Tampoco se inventa aquí ninguna definición.
+
+**Qué debe decidir**: si el diccionario se escribe en `UBIQUITOUS_LANGUAGE.md` o la cadena preveía
+otra ubicación; qué enumeración es la vigente y qué pasa con los cuatro puntos de divergencia; y
+si "Al día" y `Vigente` son el mismo término, en cuyo caso hay que decidir **cuál es el nombre**.
+
+### OD-34 — `02` se contradice a sí mismo sobre el matiz de marca de canal
+
+**Tipo**: conflicto de contenido dentro de un mismo documento normativo (DDL-024). **Abierta** ·
+**Fecha**: 2026-08-09. **Origen**: pasada de divergencia sobre `main` consolidado.
+
+| Dónde | Qué afirma |
+|---|---|
+| `02` § 3.6 | "los canales se identifican **por la forma del icono**; el matiz de marca **solo se admite desaturado en el trazo** (DDL-037, **valor en OD-15**)" |
+| `02` § 10 | "DDL-048 — **Canal por icono neutro** — el matiz de marca queda **descartado**: no hay hueco cromático libre" |
+
+El mismo documento admite y descarta el matiz de marca. Además, "valor en OD-15" es un **puntero
+muerto**: OD-15 está cerrada, y quien la cerró fue precisamente DDL-048 — resolviendo lo contrario
+de lo que § 3.6 sugiere que queda pendiente.
+
+**Qué debe investigarse, en orden temporal**: DDL-037 → OD-15 → DDL-048. **No se resuelve por "la
+más nueva gana"**: hay que verificar qué autoridad tiene cada entrada y qué propagación
+corresponde. Que DDL-048 sea posterior y explícita es una pista fuerte, no una demostración.
+
+**Alcance de la propagación a comprobar al cerrar**: `08` § 4.5 (`Icono`) y `04` § 4.1 también
+tratan la identificación de canal.
 
 ### OD-32 — La acción en lote confirma propuestas que el badge marca en ámbar (cerrada)
 
