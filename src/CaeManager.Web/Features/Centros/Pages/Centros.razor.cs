@@ -681,22 +681,29 @@ public partial class Centros : ComponentBase
     /// </summary>
     private static RenderFragment DesgloseIncidencias(IReadOnlyList<IncidenciaCentroDto> incidencias) => builder =>
     {
-        var secuencia = 0;
+        // Numeros de secuencia LITERALES, no una variable incrementada
+        // (ASP0006): el analizador de Blazor lo senala porque el numero debe
+        // ser constante para la misma posicion del codigo fuente, no
+        // depender de cuantas iteraciones se ejecutaron antes. Reutilizar el
+        // mismo literal en cada vuelta del foreach es el patron que la
+        // documentacion de Blazor recomienda para bucles de longitud
+        // variable — el diffing usa la posicion en el arbol, no un contador
+        // unico por elemento.
         foreach (var grupo in new[] { AmbitoCausa.Empresa, AmbitoCausa.Trabajador })
         {
             var deEsteAmbito = incidencias.Where(i => i.Ambito == grupo).ToList();
             if (deEsteAmbito.Count == 0) continue;
 
-            builder.OpenElement(secuencia++, "span");
-            builder.AddAttribute(secuencia++, "class", "ventana-linea ventana-grupo");
-            builder.AddContent(secuencia++, grupo == AmbitoCausa.Empresa ? "Empresa" : "Trabajadores");
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "ventana-linea ventana-grupo");
+            builder.AddContent(2, grupo == AmbitoCausa.Empresa ? "Empresa" : "Trabajadores");
             builder.CloseElement();
 
             foreach (var incidencia in deEsteAmbito)
             {
-                builder.OpenElement(secuencia++, "span");
-                builder.AddAttribute(secuencia++, "class", "ventana-linea");
-                builder.AddContent(secuencia++, incidencia.Descripcion);
+                builder.OpenElement(3, "span");
+                builder.AddAttribute(4, "class", "ventana-linea");
+                builder.AddContent(5, incidencia.Descripcion);
                 builder.CloseElement();
             }
         }
