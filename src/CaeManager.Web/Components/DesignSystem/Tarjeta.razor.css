@@ -2,7 +2,6 @@
     background-color: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-card);
 }
 
 .tarjeta-header {

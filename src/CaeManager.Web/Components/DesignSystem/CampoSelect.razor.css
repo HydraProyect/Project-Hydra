@@ -6,7 +6,7 @@
     background-color: var(--color-surface);
     color: var(--color-text);
     font: var(--font-body-md);
-    transition: border-color var(--transition-base), box-shadow var(--transition-base);
+    transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
 }
 
 .campo-select:focus {

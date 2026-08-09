@@ -33,7 +33,7 @@
     display: flex;
     flex-direction: column;
     min-width: 160px;
-    background-color: var(--color-surface);
+    background-color: var(--color-overlay);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-overlay);
     padding: var(--space-2);

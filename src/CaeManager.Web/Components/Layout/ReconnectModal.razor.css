@@ -101,7 +101,7 @@
     min-height: 44px;
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: background-color var(--transition-base), border-color var(--transition-base);
+    transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
 }
 
     #components-reconnect-modal button:hover {

@@ -48,7 +48,7 @@
 
 /* Revelado escalonado de las tarjetas KPI (ver .stagger-item en list-page.css) — solo en el nivel crítico. */
 .rejilla-kpis-criticos .tarjeta-metrica {
-    animation: revelar-escalonado var(--transition-slow) ease-out backwards;
+    animation: revelar-escalonado var(--motion-transition) var(--ease-fluid) backwards;
 }
 
 .rejilla-kpis-criticos .tarjeta-metrica:nth-child(1) { animation-delay: 0ms; }
@@ -63,44 +63,11 @@
 }
 
 /*
-  Gradient mesh muy sutil, solo en las tarjetas KPI críticas (no en
-  TarjetaMetrica en general — se usa también en resúmenes de importación,
-  donde este efecto diluiría el "destacado" en vez de reforzarlo).
+  El gradient mesh animado de las tarjetas KPI se retiró (DDL-045, 07 § 5).
+  No respondía qué pasó, qué pasa ni qué terminó: oscilaba permanentemente
+  sin relación con ningún evento, así que su función real era decoración, y
+  la decoración se rechaza por defecto (07 § 1).
 */
-.rejilla-kpis-criticos .tarjeta-metrica {
-    position: relative;
-    overflow: hidden;
-    isolation: isolate;
-}
-
-.rejilla-kpis-criticos .tarjeta-metrica::before {
-    content: '';
-    position: absolute;
-    inset: -50%;
-    z-index: 0;
-    background:
-        radial-gradient(circle at 15% 20%, color-mix(in srgb, var(--color-primary-500) 10%, transparent) 0%, transparent 55%),
-        radial-gradient(circle at 85% 75%, color-mix(in srgb, var(--color-secondary-500) 8%, transparent) 0%, transparent 55%);
-    animation: flotar-gradiente 16s ease-in-out infinite;
-    pointer-events: none;
-}
-
-.rejilla-kpis-criticos .tarjeta-metrica-etiqueta,
-.rejilla-kpis-criticos .tarjeta-metrica-valor {
-    position: relative;
-    z-index: 1;
-}
-
-@keyframes flotar-gradiente {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(3%, -3%) scale(1.06); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .rejilla-kpis-criticos .tarjeta-metrica::before {
-        animation: none;
-    }
-}
 
 .rejilla-desglose {
     display: grid;
