@@ -29,6 +29,16 @@ public class SugerenciaGestionCorreo : EntidadConTenant
     public Guid? TrabajadorId { get; private set; }
     public Guid? TipoDocumentoId { get; private set; }
     public string Resumen { get; private set; } = string.Empty;
+
+    /// <summary>Confianza agregada de la IA (0-100) — mismo criterio que SugerenciaVisitaCorreo.Confianza.</summary>
+    public int Confianza { get; private set; }
+
+    /// <summary>Confianza específica de Trabajador (0-100).</summary>
+    public int ConfianzaTrabajador { get; private set; }
+
+    /// <summary>Confianza específica de TipoDocumento (0-100).</summary>
+    public int ConfianzaTipoDocumento { get; private set; }
+
     public bool Resuelta { get; private set; }
     public DateTime CreadaEnUtc { get; private set; } = DateTime.UtcNow;
 
@@ -36,16 +46,27 @@ public class SugerenciaGestionCorreo : EntidadConTenant
     {
     }
 
-    public SugerenciaGestionCorreo(Guid mensajeId, Guid? trabajadorId, Guid? tipoDocumentoId, string resumen)
+    public SugerenciaGestionCorreo(
+        Guid mensajeId, Guid? trabajadorId, Guid? tipoDocumentoId, string resumen,
+        int confianza, int confianzaTrabajador, int confianzaTipoDocumento)
     {
         if (mensajeId == Guid.Empty)
             throw new ArgumentException("La sugerencia debe estar ligada a un mensaje.", nameof(mensajeId));
         if (string.IsNullOrWhiteSpace(resumen))
             throw new ArgumentException("La sugerencia debe explicar qué se detectó.", nameof(resumen));
+        if (confianza is < 0 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(confianza), confianza, "La confianza debe estar entre 0 y 100.");
+        if (confianzaTrabajador is < 0 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(confianzaTrabajador), confianzaTrabajador, "La confianza debe estar entre 0 y 100.");
+        if (confianzaTipoDocumento is < 0 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(confianzaTipoDocumento), confianzaTipoDocumento, "La confianza debe estar entre 0 y 100.");
 
         MensajeId = mensajeId;
         TrabajadorId = trabajadorId;
         TipoDocumentoId = tipoDocumentoId;
+        Confianza = confianza;
+        ConfianzaTrabajador = confianzaTrabajador;
+        ConfianzaTipoDocumento = confianzaTipoDocumento;
 
         var normalizado = resumen.Trim();
         Resumen = normalizado.Length > LongitudMaximaResumen ? normalizado[..LongitudMaximaResumen] : normalizado;

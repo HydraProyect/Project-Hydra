@@ -130,6 +130,19 @@ public partial class Bandeja : ComponentBase, IDisposable
             ? ultimo.Add(Conversacion.DuracionVentanaServicio).ToLocalTime().ToString("dd/MM 'a las' HH:mm")
             : string.Empty;
 
+    // --- Action Center (docs/COMUNICACIONES.md § 12.6): agrega las sugerencias
+    // de todos los mensajes de la conversación — antes cada una se pintaba
+    // junto a su propio mensaje en UnifiedTimeline, ahora viven todas juntas
+    // en AccionCenter, en la columna derecha. ---
+    private IReadOnlyList<SugerenciaVisitaDetalleDto> SugerenciasVisitaPendientes =>
+        _detalle?.Mensajes.Where(m => m.SugerenciaVisita is not null).Select(m => m.SugerenciaVisita!).ToList() ?? [];
+
+    private IReadOnlyList<SugerenciaGestionDetalleDto> SugerenciasGestionPendientes =>
+        _detalle?.Mensajes.Where(m => m.SugerenciaGestion is not null).Select(m => m.SugerenciaGestion!).ToList() ?? [];
+
+    private bool HayAccionesPendientes =>
+        SugerenciasVisitaPendientes.Count > 0 || SugerenciasGestionPendientes.Count > 0 || _detalle?.SugerenciaVinculacion is not null;
+
     protected override async Task OnInitializedAsync()
     {
         // Módulo congelado por defecto (ComunicacionesOptions, P2 #26 de
@@ -351,6 +364,15 @@ public partial class Bandeja : ComponentBase, IDisposable
                 _macrosDisponibles = [];
                 _centrosClienteActivo = [];
             }
+
+            // Selectores del Action Center (docs/COMUNICACIONES.md § 12.6): se
+            // cargan aquí en vez de solo al abrir el modal de "Actualizar
+            // documento" (más abajo) porque la revisión de una sugerencia de
+            // gestión puede necesitarlos antes de que el gestor toque ese
+            // otro flujo. Sin filtro de Cliente — mismo catálogo general que
+            // ya usa ese modal.
+            _tiposDocumentoSelector = await Mediator.Send(new ObtenerTiposDocumentoQuery());
+            _trabajadoresSelector = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
         }
         catch (Exception ex)
         {
@@ -579,8 +601,21 @@ public partial class Bandeja : ComponentBase, IDisposable
         }
     }
 
-    private void IrACrearVisitaDesdeSugerencia(Guid sugerenciaId) =>
-        NavigationManager.NavigateTo($"/visitas?sugerenciaId={sugerenciaId}");
+    /// <summary>
+    /// Navega a /visitas con la sugerencia y, si el gestor corrigió Centro o
+    /// fechas en la revisión del Action Center, los overrides correspondientes
+    /// — ver comentario de CentroIdOverride en Visitas.razor.cs.
+    /// </summary>
+    private void IrACrearVisitaDesdeSugerencia(
+        Guid sugerenciaId, Guid? centroIdCorregido = null, DateOnly? fechaInicioCorregida = null, DateOnly? fechaFinCorregida = null)
+    {
+        var query = $"sugerenciaId={sugerenciaId}";
+        if (centroIdCorregido is not null) query += $"&centroId={centroIdCorregido}";
+        if (fechaInicioCorregida is not null) query += $"&fechaInicio={fechaInicioCorregida:yyyy-MM-dd}";
+        if (fechaFinCorregida is not null) query += $"&fechaFin={fechaFinCorregida:yyyy-MM-dd}";
+
+        NavigationManager.NavigateTo($"/visitas?{query}");
+    }
 
     private async Task DescartarSugerenciaVisitaAsync(Guid sugerenciaId)
     {

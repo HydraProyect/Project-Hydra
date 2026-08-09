@@ -25,6 +25,16 @@ public class SugerenciaVisitaCorreo : EntidadConTenant
     public DateOnly? FechaInicioSugerida { get; private set; }
     public DateOnly? FechaFinSugerida { get; private set; }
     public string Resumen { get; private set; } = string.Empty;
+
+    /// <summary>Confianza agregada de la IA (0-100) — la que se muestra en la cabecera de la tarjeta del Action Center. Sin banda calculada aquí (docs/COMUNICACIONES.md § 12.6 define los cortes: alta ≥90 / media 70-89 / baja &lt;70, es responsabilidad de quien la presenta).</summary>
+    public int Confianza { get; private set; }
+
+    /// <summary>Confianza específica de Centro (0-100) — decide si el campo se muestra editable en la revisión (§ 33: la UI no decide fiabilidad, solo representa el estado recibido).</summary>
+    public int ConfianzaCentro { get; private set; }
+
+    /// <summary>Confianza específica del par de fechas (0-100) — se piden juntas en el mismo prompt, así que comparten una confianza.</summary>
+    public int ConfianzaFechas { get; private set; }
+
     public bool Resuelta { get; private set; }
     public DateTime CreadaEnUtc { get; private set; } = DateTime.UtcNow;
 
@@ -33,7 +43,8 @@ public class SugerenciaVisitaCorreo : EntidadConTenant
     }
 
     public SugerenciaVisitaCorreo(
-        Guid mensajeId, Guid? centroId, DateOnly? fechaInicioSugerida, DateOnly? fechaFinSugerida, string resumen)
+        Guid mensajeId, Guid? centroId, DateOnly? fechaInicioSugerida, DateOnly? fechaFinSugerida, string resumen,
+        int confianza, int confianzaCentro, int confianzaFechas)
     {
         if (mensajeId == Guid.Empty)
             throw new ArgumentException("La sugerencia debe estar ligada a un mensaje.", nameof(mensajeId));
@@ -41,11 +52,20 @@ public class SugerenciaVisitaCorreo : EntidadConTenant
             throw new ArgumentException("La sugerencia debe explicar qué se detectó.", nameof(resumen));
         if (fechaInicioSugerida is not null && fechaFinSugerida is not null && fechaFinSugerida < fechaInicioSugerida)
             throw new ArgumentException("La fecha de fin sugerida no puede ser anterior a la de inicio.", nameof(fechaFinSugerida));
+        if (confianza is < 0 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(confianza), confianza, "La confianza debe estar entre 0 y 100.");
+        if (confianzaCentro is < 0 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(confianzaCentro), confianzaCentro, "La confianza debe estar entre 0 y 100.");
+        if (confianzaFechas is < 0 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(confianzaFechas), confianzaFechas, "La confianza debe estar entre 0 y 100.");
 
         MensajeId = mensajeId;
         CentroId = centroId;
         FechaInicioSugerida = fechaInicioSugerida;
         FechaFinSugerida = fechaFinSugerida;
+        Confianza = confianza;
+        ConfianzaCentro = confianzaCentro;
+        ConfianzaFechas = confianzaFechas;
 
         var normalizado = resumen.Trim();
         Resumen = normalizado.Length > LongitudMaximaResumen ? normalizado[..LongitudMaximaResumen] : normalizado;
