@@ -42,14 +42,14 @@ public class MigracionesTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Siembra_los_70_tipos_de_documento_del_catalogo()
+    public async Task Siembra_los_71_tipos_de_documento_del_catalogo()
     {
-        // 15+21=36 de Trabajador (excel original + ampliación Fase 37) +
-        // 13+17=30 de Empresa (documentos base obligatorios del cliente +
-        // ampliación Fase 37) + 4 de Vehículo (ITC, ficha técnica, seguro,
-        // autorización de circulación).
+        // 15+21+1=37 de Trabajador (excel original + ampliación Fase 37 +
+        // "DNI o NIE en vigor", 2026-08-09) + 13+17=30 de Empresa (documentos
+        // base obligatorios del cliente + ampliación Fase 37) + 4 de Vehículo
+        // (ITC, ficha técnica, seguro, autorización de circulación).
         var total = await _dbContext.TiposDocumento.CountAsync();
-        total.Should().Be(70);
+        total.Should().Be(71);
     }
 
     [Fact]
