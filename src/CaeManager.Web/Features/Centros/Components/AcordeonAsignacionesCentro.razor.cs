@@ -40,8 +40,13 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     /// </summary>
     [Parameter] public IReadOnlyList<IncidenciaCentroDto> IncidenciasEmpresa { get; set; } = [];
 
-    /// <summary>Se dispara tras guardar un documento in situ — Centros.razor vuelve a pedir esta fila (ver ManejarDocumentoGuardadoAsync).</summary>
-    [Parameter] public EventCallback OnDocumentoGuardado { get; set; }
+    /// <summary>
+    /// Se dispara tras guardar un documento o una asignación in situ —
+    /// Centros.razor vuelve a pedir esta fila (ver RefrescarCentroAsync).
+    /// Un nombre solo, no uno por tipo de guardado: al padre le basta con
+    /// saber "algo de este centro cambió", no distinguir la causa.
+    /// </summary>
+    [Parameter] public EventCallback OnCambio { get; set; }
 
     /// <summary>
     /// "Selección múltiple" de la página (Centros.razor) — los checkboxes de
@@ -70,41 +75,11 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     private IReadOnlyList<TrabajadorSinAsignacionDto> _trabajadoresVisitaSinAsignacion = [];
     private readonly HashSet<Guid> _asignandoDesdeVisita = [];
 
-    private static readonly IReadOnlyList<PestanaDefinicion> _pestanasAlta =
-    [
-        new("Lista", "Lista"),
-        new("Matriz", "Matriz")
-    ];
-
-    private bool _drawerAltaVisible;
-    private string _vistaAlta = "Lista";
-    private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
-    private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
-    private readonly HashSet<Guid> _trabajadorIdsSeleccionados = [];
-    private readonly HashSet<Guid> _centroIdsSeleccionados = [];
-    private readonly HashSet<(Guid TrabajadorId, Guid CentroId)> _celdasExcluidas = [];
-    private string _fechaAlta = string.Empty;
-    private bool _guardandoAlta;
-    private string? _mensajeErrorAlta;
-    private IReadOnlyList<DocumentoFaltanteDto> _documentosFaltantes = [];
-
     private bool _confirmarBajaLoteVisible;
     private string _fechaBajaLote = string.Empty;
     private bool _procesandoBajaLote;
 
-    private IReadOnlyList<ElementoSeleccionable> _trabajadoresComoOpciones =>
-        _trabajadoresDisponibles.Select(t => new ElementoSeleccionable(t.Id, $"{t.NombreCompleto} ({t.Dni})")).ToList();
-
-    private IReadOnlyList<ElementoSeleccionable> _centrosComoOpciones =>
-        _centrosDisponibles.Select(c => new ElementoSeleccionable(c.Id, $"{c.Nombre} ({c.ClienteRazonSocial})")).ToList();
-
-    private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresSeleccionadosOrdenados =>
-        _trabajadoresDisponibles.Where(t => _trabajadorIdsSeleccionados.Contains(t.Id))
-            .OrderBy(t => t.NombreCompleto).ToList();
-
-    private IReadOnlyList<CentroSelectorDto> _centrosSeleccionadosOrdenados =>
-        _centrosDisponibles.Where(c => _centroIdsSeleccionados.Contains(c.Id))
-            .OrderBy(c => c.Nombre).ToList();
+    private DrawerAsignacionMasiva _drawerAsignacion = default!;
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
@@ -270,17 +245,21 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
             : _drawerGestion.AbrirCrearParaFaltanteEmpresaAsync(EmpresaId, incidencia.TipoDocumentoId!.Value);
 
     /// <summary>
-    /// El bloque Empresa (IncidenciasEmpresa) llega como Parameter desde
-    /// Centros.razor — este componente no lo puede refrescar por sí solo, así
-    /// que además de recargar su propia lista de Trabajador avisa al padre
-    /// (OnDocumentoGuardado) para que vuelva a pedir la fila del Centro.
+    /// El bloque Empresa (IncidenciasEmpresa) y el badge/estado de la fila de
+    /// Centro llegan como Parameter desde Centros.razor — este componente no
+    /// los puede refrescar por sí solo, así que además de recargar su propia
+    /// lista de Trabajador avisa al padre (OnCambio) para que vuelva a pedir
+    /// la fila del Centro. Misma reacción tras guardar un documento o una
+    /// asignación: los dos cambian el estado calculado del Centro.
     /// </summary>
     private async Task ManejarDocumentoGuardadoAsync()
     {
         await CargarAsync();
-        if (OnDocumentoGuardado.HasDelegate)
-            await OnDocumentoGuardado.InvokeAsync();
+        if (OnCambio.HasDelegate)
+            await OnCambio.InvokeAsync();
     }
+
+    private Task ManejarAsignacionGuardadaAsync() => ManejarDocumentoGuardadoAsync();
 
     private static string TextoVigenciaEmpresa(IncidenciaCentroDto incidencia)
     {
@@ -289,161 +268,6 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
 
         var texto = fecha.ToString("dd/MM/yyyy");
         return incidencia.Estado == EstadoDocumento.Vencido ? $"Vencio {texto}" : $"Caduca {texto}";
-    }
-
-    private async Task AbrirDrawerAltaAsync()
-    {
-        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
-        _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
-
-        _vistaAlta = "Lista";
-        _trabajadorIdsSeleccionados.Clear();
-        _centroIdsSeleccionados.Clear();
-        // El Centro de esta fila queda pre-marcado — el gestor puede seguir
-        // añadiendo otros centros si quiere, la matriz no se recorta (PLAN-EJECUCION-UX.md § 0.1).
-        if (_centrosDisponibles.Any(c => c.Id == CentroId))
-            _centroIdsSeleccionados.Add(CentroId);
-        _celdasExcluidas.Clear();
-        _documentosFaltantes = [];
-        _fechaAlta = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
-        _mensajeErrorAlta = null;
-        _drawerAltaVisible = true;
-    }
-
-    private async Task AlternarTrabajadorAsync(Guid trabajadorId, bool marcado)
-    {
-        if (marcado)
-            _trabajadorIdsSeleccionados.Add(trabajadorId);
-        else
-        {
-            _trabajadorIdsSeleccionados.Remove(trabajadorId);
-            _celdasExcluidas.RemoveWhere(c => c.TrabajadorId == trabajadorId);
-        }
-
-        await ActualizarPreflightAsync();
-    }
-
-    private async Task AlternarCentroAsync(Guid centroId, bool marcado)
-    {
-        if (marcado)
-            _centroIdsSeleccionados.Add(centroId);
-        else
-        {
-            _centroIdsSeleccionados.Remove(centroId);
-            _celdasExcluidas.RemoveWhere(c => c.CentroId == centroId);
-        }
-
-        await ActualizarPreflightAsync();
-    }
-
-    private void AlternarCeldaMatriz(Guid trabajadorId, Guid centroId, bool incluida)
-    {
-        if (incluida)
-            _celdasExcluidas.Remove((trabajadorId, centroId));
-        else
-            _celdasExcluidas.Add((trabajadorId, centroId));
-    }
-
-    private async Task ActualizarPreflightAsync()
-    {
-        if (_trabajadorIdsSeleccionados.Count == 0 || _centroIdsSeleccionados.Count == 0)
-        {
-            _documentosFaltantes = [];
-            return;
-        }
-
-        _documentosFaltantes = await Mediator.Send(new ObtenerDocumentosFaltantesParaAsignacionQuery(
-            _trabajadorIdsSeleccionados.ToList(), _centroIdsSeleccionados.ToList()));
-    }
-
-    private async Task GuardarAltaAsync()
-    {
-        _guardandoAlta = true;
-        _mensajeErrorAlta = null;
-
-        try
-        {
-            if (_trabajadorIdsSeleccionados.Count == 0)
-            {
-                _mensajeErrorAlta = "Selecciona al menos un trabajador.";
-                return;
-            }
-
-            if (_centroIdsSeleccionados.Count == 0)
-            {
-                _mensajeErrorAlta = "Selecciona al menos un centro.";
-                return;
-            }
-
-            if (!DateOnly.TryParse(_fechaAlta, out var fechaAlta))
-            {
-                _mensajeErrorAlta = "Introduce una fecha de alta válida.";
-                return;
-            }
-
-            var creadas = 0;
-            var yaActivas = 0;
-            var errores = new List<string>();
-
-            if (_celdasExcluidas.Count == 0)
-            {
-                var resultado = await Mediator.Send(new CrearAsignacionesCommand(
-                    _trabajadorIdsSeleccionados.ToList(), _centroIdsSeleccionados.ToList(), fechaAlta));
-
-                if (resultado.EsFallido)
-                {
-                    _mensajeErrorAlta = resultado.Error.Mensaje;
-                    return;
-                }
-
-                creadas = resultado.Valor.Creadas;
-                yaActivas = resultado.Valor.YaActivas;
-                errores.AddRange(resultado.Valor.Errores);
-            }
-            else
-            {
-                foreach (var centroId in _centroIdsSeleccionados)
-                {
-                    var trabajadorIdsParaCentro = _trabajadorIdsSeleccionados
-                        .Where(t => !_celdasExcluidas.Contains((t, centroId)))
-                        .ToList();
-
-                    if (trabajadorIdsParaCentro.Count == 0) continue;
-
-                    var resultado = await Mediator.Send(new CrearAsignacionesCommand(trabajadorIdsParaCentro, [centroId], fechaAlta));
-
-                    if (resultado.EsFallido)
-                    {
-                        _mensajeErrorAlta = resultado.Error.Mensaje;
-                        return;
-                    }
-
-                    creadas += resultado.Valor.Creadas;
-                    yaActivas += resultado.Valor.YaActivas;
-                    errores.AddRange(resultado.Valor.Errores);
-                }
-            }
-
-            var resumen = $"{creadas} asignación(es) creada(s)" + (yaActivas > 0 ? $", {yaActivas} ya estaban activas." : ".");
-            ToastService.Mostrar(resumen, errores.Count > 0 ? TonoToast.Advertencia : TonoToast.Exito);
-            foreach (var error in errores)
-                ToastService.Mostrar(error, TonoToast.Advertencia);
-
-            _drawerAltaVisible = false;
-            await CargarAsync();
-        }
-        catch (ValidationException)
-        {
-            _mensajeErrorAlta = "Revisa los datos introducidos.";
-        }
-        catch (Exception)
-        {
-            _mensajeErrorAlta = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
-        }
-        finally
-        {
-            _guardandoAlta = false;
-        }
     }
 
     private void AbrirConfirmarBajaLoteAsync()

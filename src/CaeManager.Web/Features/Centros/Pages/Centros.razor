@@ -242,7 +242,7 @@
                                                           EmpresaId="centro.EmpresaId" EmpresaNombre="@centro.EmpresaRazonSocial"
                                                           IncidenciasEmpresa="IncidenciasDeEmpresa(centro)"
                                                           SeleccionMultiple="_seleccionMultiple"
-                                                          OnDocumentoGuardado="() => RefrescarCentroAsync(centro.Id)" />
+                                                          OnCambio="() => RefrescarCentroAsync(centro.Id)" />
                         </div>
                     }
                 </div>
@@ -316,7 +316,17 @@
                           OnCreado="ManejarEmpresaCreadaAsync" />
 
 <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true">
+    <AccionesExtra>
+        @* Item 4 del backlog Centro 360 — funcionalidad nueva sin contrato previo,
+           mismo patrón que "Asignar a centro…" de /trabajadores (Fase B). *@
+        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(_seleccionados)">
+            Asignar a centros seleccionados…
+        </Boton>
+    </AccionesExtra>
+</BarraAccionesLote>
+
+<DrawerAsignacionMasiva @ref="_drawerAsignacion" OnGuardado="ManejarAsignacionMasivaGuardadaAsync" />
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"
