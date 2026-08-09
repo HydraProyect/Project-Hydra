@@ -32,8 +32,11 @@ p {
   margin: 0;
 }
 
+/* 02 § 3.2 asigna #235BC2 (--color-primary-500) a "accion primaria,
+   enlaces, foco, estado activo". El -600 es el escalon de activo/pressed y
+   06 § 2.1 lo marca ademas como no ratificado: no es color de enlace. */
 a {
-  color: var(--color-primary-600);
+  color: var(--color-primary-500);
 }
 
 /*

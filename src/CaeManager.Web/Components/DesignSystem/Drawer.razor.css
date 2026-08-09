@@ -32,6 +32,14 @@
     }
 }
 
+/* prefers-reduced-motion desactiva Tier B SIEMPRE (DDL-020, 07 § 4). Faltaba:
+   era la unica entrada de overlay del sistema que seguia animandose. */
+@media (prefers-reduced-motion: reduce) {
+    .drawer-panel {
+        animation: none;
+    }
+}
+
 .drawer-header {
     display: flex;
     align-items: center;
