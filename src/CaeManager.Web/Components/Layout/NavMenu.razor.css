@@ -119,12 +119,12 @@
 .nav-principal ::deep .nav-item.active {
     background-color: var(--color-primary-50);
     border-color: var(--color-primary-100);
-    color: var(--color-primary-700);
+    color: var(--color-primary-500);
     font-weight: 600;
 }
 
 .nav-principal ::deep .nav-item.active .icono {
-    color: var(--color-primary-600);
+    color: var(--color-primary-500);
 }
 
 .nav-principal ::deep .nav-item.active:hover {

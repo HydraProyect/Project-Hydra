@@ -163,7 +163,7 @@
 
 .bandeja-filtros-avanzados summary {
     font: var(--font-label-md);
-    color: var(--color-primary-600);
+    color: var(--color-primary-500);
     cursor: pointer;
     list-style: none;
 }
@@ -275,7 +275,7 @@
 
 .bandeja-lista ::deep .bandeja-fila-canal-correo {
     background-color: var(--color-primary-50);
-    color: var(--color-primary-600);
+    color: var(--color-primary-500);
 }
 
 .bandeja-lista ::deep .bandeja-fila-contenido {
@@ -405,7 +405,7 @@
 
 .bandeja-badge-canal-correo {
     background-color: var(--color-primary-50);
-    color: var(--color-primary-600);
+    color: var(--color-primary-500);
 }
 
 /* --- Columna de contexto del cliente (06_CONTEXT_WORKSPACE, versión acotada
@@ -446,7 +446,7 @@
     height: 44px;
     border-radius: var(--radius-full);
     background-color: var(--color-primary-50);
-    color: var(--color-primary-600);
+    color: var(--color-primary-500);
     font: var(--font-heading-sm);
 }
 
