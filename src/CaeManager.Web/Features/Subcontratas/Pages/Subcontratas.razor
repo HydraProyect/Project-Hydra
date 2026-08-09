@@ -58,7 +58,11 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <PropertyColumn Property="@(s => s.RazonSocial)" Title="Razón social" Sortable="true" />
+                <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<SubcontrataListaDto>.ByAscending(s => s.RazonSocial))">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, context.Id, context.RazonSocial, "informacion")'>
+                        @context.RazonSocial
+                    </button>
+                </TemplateColumn>
                 <TemplateColumn Title="CIF" Sortable="true" SortBy="@(GridSort<SubcontrataListaDto>.ByAscending(s => s.Cif))">
                     @(context.Cif ?? "—")
                 </TemplateColumn>

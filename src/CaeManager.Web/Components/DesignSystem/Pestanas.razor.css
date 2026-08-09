@@ -45,7 +45,3 @@
     flex: 1;
     min-height: 0;
 }
-
-.pestanas-panel:focus-visible {
-    outline: none;
-}
