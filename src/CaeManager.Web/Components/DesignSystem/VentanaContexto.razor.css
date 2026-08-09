@@ -1,0 +1,95 @@
+/*
+    El disparador es inline: se incrusta dentro de una celda, de un badge o
+    junto a una fecha sin romper la línea. `position: relative` lo convierte en
+    el ancla del panel.
+*/
+.ventana-contexto {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    /* `help` y no `pointer`: no navega ni ejecuta nada, solo explica. */
+    cursor: help;
+}
+
+.ventana-contexto-inerte {
+    cursor: inherit;
+}
+
+.ventana-contexto:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/*
+    Nivel Overlay (06 § 3): flota sobre el contenido, así que es de los pocos
+    sitios donde --shadow-overlay está permitida.
+
+    `visibility` además de `opacity`: solo con opacidad el panel seguiría
+    capturando el puntero e interceptando clics de la fila que hay debajo.
+*/
+.ventana-contexto-panel {
+    position: absolute;
+    bottom: calc(100% + var(--space-1));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+
+    width: max-content;
+    max-width: 260px;
+    padding: var(--space-2) var(--space-3);
+
+    background-color: var(--color-overlay);
+    color: var(--color-text);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-overlay);
+
+    font: var(--font-body-sm);
+    font-weight: 400;
+    text-align: left;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: normal;
+
+    opacity: 0;
+    visibility: hidden;
+    /* Tier A — apertura de ventana de contexto (07 § 6). */
+    transition: opacity var(--motion-base) var(--ease-standard),
+        visibility var(--motion-base) var(--ease-standard);
+}
+
+/*
+    Las dos condiciones que exige DDL-032, juntas y en la misma regla para que
+    no se pueda retirar una sin ver la otra: puntero Y foco de teclado.
+*/
+.ventana-contexto:hover > .ventana-contexto-panel,
+.ventana-contexto:focus-visible > .ventana-contexto-panel {
+    opacity: 1;
+    visibility: visible;
+}
+
+.ventana-contexto-titulo {
+    display: block;
+    margin-bottom: var(--space-1);
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+/*
+    Cian solo cuando la ventana habla del sistema actuando (02 § 3.1). Un
+    recuento de estados no lo es: no lleva esta clase y se queda en texto
+    normal, para que el cian no acabe absorbiendo el rol de "información".
+*/
+.ventana-contexto-titulo-sistema {
+    color: var(--color-system-text);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.6875rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ventana-contexto-panel {
+        transition: none;
+    }
+}

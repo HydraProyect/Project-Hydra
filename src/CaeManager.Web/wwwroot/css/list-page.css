@@ -486,21 +486,87 @@
     min-width: 0;
 }
 
-.lista-documentos-requeridos {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-}
+/*
+  Tercer nivel del Centro 360 — variante A (OD-12, blueprint § 3.4, DDL-034).
 
-.fila-documento-requerido {
-    display: flex;
+  La rejilla se declara UNA vez, en el contenedor, y la heredan cabecera y
+  filas: es lo unico que garantiza que las cuatro columnas caigan en la misma
+  vertical cuando una fila no tiene fecha de vigencia. Con flex libre cada fila
+  reparte el espacio segun su propio contenido y la lectura por columna, que es
+  el motivo de existir de esta variante, se pierde.
+
+  Los anchos vienen del banco visual: 168px basta para el badge de estado mas
+  largo del lexico cerrado, y 76px para "Gestionar".
+*/
+.tabla-documentos-requeridos {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 168px minmax(0, 150px) 76px;
     align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) 0;
+    column-gap: var(--space-3);
+    border-left: 2px solid var(--color-border);
+    padding-left: var(--space-3);
+    margin-left: var(--space-6);
 }
 
-.fila-documento-requerido-nombre {
-    flex: 1;
+/* La cabecera y cada fila son `display: contents`: sus celdas participan en la
+   rejilla del padre en vez de crear una anidada. */
+.documentos-requeridos-cabecera,
+.fila-documento-requerido {
+    display: contents;
+}
+
+.documentos-requeridos-cabecera > * {
+    font: var(--font-body-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    padding-bottom: var(--space-1);
+    border-bottom: var(--border-default);
+    margin-bottom: var(--space-1);
+}
+
+.fila-documento-requerido > * {
+    padding: var(--space-1) 0;
+    min-width: 0;
+}
+
+.celda-documento-nombre {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.celda-documento-vigencia {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    /* Fechas en columna: sin numeracion tabular los digitos no alinean y la
+       comparacion vertical, que es para lo que existe la columna, cuesta. */
+    font-variant-numeric: tabular-nums;
+}
+
+.columna-accion {
+    text-align: right;
+    justify-self: end;
+}
+
+/*
+  Accion presente pero atenuada cuando el documento no la necesita
+  (04 § 2.5). No se oculta: sigue siendo alcanzable con teclado y recupera
+  contraste completo al enfocarla o apuntarla.
+*/
+.accion-atenuada {
+    opacity: 0.55;
+}
+
+.accion-atenuada:hover,
+.accion-atenuada:focus-visible {
+    opacity: 1;
+}
+
+/* Cada linea del detalle de una ventana de contexto, como bloque propio. */
+.ventana-linea {
+    display: block;
+    padding: 1px 0;
 }
 
 .texto-vacio-seccion {

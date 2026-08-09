@@ -1,0 +1,17 @@
+/*
+    Marca no textual: cuadrado pequeño con tinte de sistema. El indicador usa
+    --color-system-text (5.16:1 sobre Surface) y no --color-system-indicator,
+    porque aquí el icono hace de glifo legible, no de punto de estado.
+*/
+.marca-procedencia-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1875rem;
+    height: 1.1875rem;
+    flex-shrink: 0;
+
+    color: var(--color-system-text);
+    background-color: var(--color-system-tint);
+    border-radius: var(--radius-sm);
+}

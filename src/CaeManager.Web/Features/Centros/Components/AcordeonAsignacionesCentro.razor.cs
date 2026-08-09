@@ -361,4 +361,38 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
             _procesandoBajaLote = false;
         }
     }
+
+    /// <summary>
+    /// Columna "Vigencia" del tercer nivel (blueprint § 3.4). El verbo cambia
+    /// segun el estado porque una fecha suelta no dice si ya paso o esta por
+    /// llegar, y esa es justo la pregunta del gestor.
+    /// </summary>
+    private static string TextoVigencia(DocumentoRequeridoDto documento)
+    {
+        if (documento.DocumentoId is null)
+        {
+            return "—";
+        }
+
+        if (documento.FechaVencimiento is not { } fecha)
+        {
+            // Documento sin caducidad: no es un hueco de datos, es una
+            // propiedad del tipo documental. Se declara en vez de dejar "—",
+            // que se leeria como "falta el dato".
+            return "Sin caducidad";
+        }
+
+        var texto = fecha.ToString("dd/MM/yyyy");
+        return documento.Estado == EstadoDocumento.Vencido ? $"Vencio {texto}" : $"Caduca {texto}";
+    }
+
+    /// <summary>
+    /// Si la accion necesita peso visual. Un documento al dia conserva
+    /// "Gestionar" pero atenuado (04 section 2.5): sigue disponible, deja de
+    /// competir por la atencion con las filas que si piden intervencion.
+    /// </summary>
+    private static bool RequiereIntervencion(DocumentoRequeridoDto documento) =>
+        documento.DocumentoId is null
+        || documento.CaducaEnVentanaVisita
+        || documento.Estado is EstadoDocumento.Vencido or EstadoDocumento.Proximo or EstadoDocumento.Faltante;
 }
