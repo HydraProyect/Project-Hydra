@@ -16,8 +16,9 @@
     z-index: 1030;
 }
 
+/* Nivel Overlay (06 § 3): panel deslizante con superposición propia. */
 .asistente-panel {
-    background-color: var(--color-surface);
+    background-color: var(--color-overlay);
     box-shadow: var(--shadow-overlay);
     width: 100%;
     max-width: 440px;
@@ -25,7 +26,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    animation: entrar-desde-derecha 0.2s ease-out;
+    animation: entrar-desde-derecha var(--motion-transition) var(--ease-fluid);
 }
 
 @keyframes entrar-desde-derecha {
@@ -156,7 +157,7 @@
 .asistente-mensaje-error {
     align-self: stretch;
     font: var(--font-body-sm);
-    color: var(--color-danger-500);
+    color: var(--color-danger-700);
     text-align: center;
     padding: var(--space-2);
 }
@@ -174,7 +175,9 @@
     resize: none;
     font: var(--font-body-md);
     font-family: var(--font-family);
-    border: var(--border-default);
+    /* Borde que identifica un control: sujeto al 3:1 de 02 § 8
+       (DDL-062/063). --color-border no lo alcanza (1.18:1). */
+    border: var(--border-control);
     border-radius: var(--radius-md);
     padding: var(--space-2) var(--space-3);
     min-height: 40px;
@@ -183,9 +186,12 @@
     color: var(--color-text);
 }
 
-.asistente-textarea:focus {
-    outline: none;
-    border: var(--border-focus);
+/* El foco es un outline solido de 2px y NUNCA se sustituye por un efecto
+   (02 § 8, 08 § 3.2). Cambiar el borde de 1px a 2px ademas desplazaba el
+   contenido al enfocar. Mismo patron que CampoTextarea del sistema. */
+.asistente-textarea:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -1px;
 }
 
 .asistente-boton-enviar {

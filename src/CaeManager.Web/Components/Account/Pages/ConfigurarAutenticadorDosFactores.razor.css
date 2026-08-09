@@ -3,7 +3,6 @@
     background-color: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-card);
     padding: var(--space-8);
 }
 
@@ -15,7 +14,7 @@
 }
 
 .clave-manual {
-    background-color: var(--color-neutral-50);
+    background-color: var(--color-surface-subtle);
     border-radius: var(--radius-sm);
     padding: var(--space-3);
     font-family: monospace;
@@ -35,7 +34,7 @@
 }
 
 .texto-2fa-exito {
-    color: var(--color-success-500);
+    color: var(--color-success-700);
     font-weight: 600;
 }
 
@@ -53,7 +52,7 @@
     background-color: var(--color-surface);
     color: var(--color-text);
     font: var(--font-body-md);
-    transition: border-color var(--transition-base), box-shadow var(--transition-base);
+    transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
 }
 
 .tarjeta-2fa ::deep input:focus {
@@ -64,14 +63,14 @@
 
 .tarjeta-2fa ::deep .validation-message {
     display: block;
-    color: var(--color-danger-500);
+    color: var(--color-danger-700);
     font: var(--font-body-sm);
     margin-top: var(--space-1);
 }
 
 .alerta-login {
     background-color: var(--color-danger-50);
-    color: var(--color-danger-500);
+    color: var(--color-danger-700);
     border-radius: var(--radius-sm);
     padding: var(--space-3);
     font: var(--font-body-sm);
@@ -89,11 +88,10 @@
     font: var(--font-label-md);
     font-weight: 600;
     cursor: pointer;
-    transition: background-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-fast);
+    transition: background-color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
 
 .boton-primario:hover {
     background-color: var(--color-primary-600);
-    box-shadow: var(--shadow-card);
     transform: translateY(-1px);
 }

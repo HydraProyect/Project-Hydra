@@ -12,7 +12,7 @@
     max-width: 360px;
     height: 8px;
     border-radius: var(--radius-full);
-    background-color: var(--color-neutral-100);
+    background-color: var(--color-surface-subtle);
     overflow: hidden;
 }
 

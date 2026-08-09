@@ -17,7 +17,7 @@
 }
 
 .badge-neutro {
-    background-color: var(--color-neutral-100);
+    background-color: var(--color-surface-subtle);
     color: var(--color-neutral-700);
 }
 

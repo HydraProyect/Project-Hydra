@@ -12,12 +12,16 @@
     margin-bottom: var(--space-2);
 }
 
+/* ODM-03 queda resuelta por la regla de contraste de BUG-02, no por
+   inferencia sobre el nombre: --color-success-600 nunca existio y resolvia
+   por el fallback al -500, que como foreground da 2.28:1 sobre Surface. El
+   -700 da 5.02:1 y es el tono de texto que 06 § 2.3 asigna al semaforo. */
 .pista-documento-exito {
-    color: var(--color-success-600, var(--color-success-500));
+    color: var(--color-success-700);
 }
 
 .pista-documento-error {
-    color: var(--color-danger-500);
+    color: var(--color-danger-700);
 }
 
 .pista-documento-info {

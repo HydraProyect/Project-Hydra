@@ -26,12 +26,6 @@
   --color-secondary-500: #475569;
   --color-secondary-600: #35404f;
 
-  /* Color — acento (cobre): únicamente detalles puntuales (p. ej. un
-     subrayado, un ícono destacado). Nunca sustituye al semáforo de estado ni
-     se usa como color de acción — ver DESIGN_SYSTEM.md "color con intención". */
-  --color-accent-50: #fbf1e7;
-  --color-accent-500: #c97b2a;
-  --color-accent-600: #a9631e;
 
   /* Color — neutro, más cálido que un gris de librería genérica */
   --color-neutral-0: #ffffff;
@@ -59,13 +53,50 @@
   --color-info-50: var(--color-secondary-50);
   --color-info-500: var(--color-secondary-500);
 
+  /* Color — Hydra Cyan: "el sistema actuando" (02 § 3.3, DDL-027). Se nombra
+     por su ROL, no por su matiz, y es asimétrico por tema: el cian brilla en
+     oscuro y se contiene en claro. Presupuesto estricto de uso — IA cuando
+     actúa, automatización, sincronización, conectores, estado en tiempo real
+     y procedencia del dato. Nunca rellena un botón sólido, nunca es color de
+     acción, nunca sustituye a info, nunca es decoración (DDL-009).
+     No existe un cian brillante válido en modo claro: #00F0FF da 1.41:1,
+     #00C2E0 2.14:1 y #06B6D4 2.43:1 — los tres por debajo de su umbral. */
+  --color-system-text: #0c7792;      /* 5.16:1 sobre Surface ✓ (4.5:1) */
+  --color-system-indicator: #0e96b4; /* 3.48:1 sobre Surface ✓ (3:1) */
+  --color-system-tint: color-mix(in srgb, var(--color-system-indicator) 10%, transparent);
+
   /* Superficie / texto (tema claro por defecto) */
-  --color-bg: var(--color-neutral-50);
+  /* Canvas — fondo de página (02 § 4.1). Solo cambia el VALOR: #FAFBFC pasa a
+     #F6F8FA. El nombre del token no se toca — 06 § 3 lo llama --color-canvas
+     y aquí se llama --color-bg; esa divergencia de nombre se registra, no se
+     resuelve renombrando ni añadiendo un alias (ODM-04). */
+  --color-bg: #f6f8fa;
   --color-surface: var(--color-neutral-0);
   --color-surface-hover: var(--color-neutral-100);
+  /* Cuarto nivel de profundidad (02 § 4.1, DDL-013/DDL-028):
+     Canvas → Surface → Elevated → Overlay. La profundidad se expresa por
+     fondo, borde y contraste; la sombra SOLO en Overlay, que es el único
+     nivel con relación espacial real sobre el contenido.
+     En claro Elevated y Overlay comparten fondo y se distinguen por borde
+     reforzado frente a sombra: es lo que impide que la interfaz se convierta
+     en una colección de tarjetas flotantes (DDL-014). */
+  --color-surface-subtle: #f1f5f7; /* islas internas, agrupaciones */
+  --color-elevated: #ffffff;       /* panel contextual, inspector */
+  --color-overlay: #ffffff;        /* modal, drawer, popover */
   --color-text: var(--color-neutral-900);
-  --color-text-muted: var(--color-neutral-500);
-  --color-border: var(--color-neutral-200);
+  /* Texto secundario. NO es --color-neutral-500 (#738196): ese escalón da
+     3.96:1 sobre blanco e incumple el 4.5:1 exigido al cuerpo de 14px que usa
+     toda la aplicación (DDL-029). #5F6E84 da 5.19:1 sobre Surface y 4.73:1
+     sobre Subtle. El escalón #738196 sigue vivo, pero solo como borde de
+     control, donde su criterio es el 3:1 (DDL-063). */
+  --color-text-muted: #5f6e84;
+  /* Borde estructural (02 § 4.1). No es --color-neutral-200 (#E8EDF2): ese
+     escalón sigue siendo paleta y lo consume el barrido de EstadoCargando. */
+  --color-border: #e2e8ec;
+  /* Borde estructural reforzado: distingue el nivel Elevated del Surface en
+     claro, donde ambos comparten fondo (02 § 4.1). Agrupa contenido, no
+     identifica un control: NO está sujeto al 3:1 (DDL-062). */
+  --color-border-strong: #cbd5e1;
   /* Borde que identifica un control interactivo. Sujeto al 3:1 de 02 § 8
      (DDL-062); --color-border no lo alcanza (1.18:1) y es solo estructural.
      Se define una sola vez: el valor es el mismo en ambos temas — 3.61:1 en
@@ -120,13 +151,31 @@
   --border-control: 1px solid var(--color-border-control);
   --border-focus: 2px solid var(--color-primary-500);
 
-  --shadow-card: 0 4px 14px rgba(22, 30, 39, 0.07);
+  /* Unica sombra del sistema. La elevacion se expresa por fondo, borde y
+     contraste; la sombra queda reservada al nivel Overlay, donde existe una
+     relacion espacial real sobre el contenido (DDL-013). --shadow-card se
+     retiro: aplicar sombra a una tarjeta convierte la interfaz en una
+     coleccion de rectangulos flotantes, que es lo que DDL-014 prohibe. */
   --shadow-overlay: 0 20px 50px rgba(22, 30, 39, 0.16);
 
-  /* Motion — sutil, nunca decorativa (ver DESIGN_SYSTEM.md) */
-  --transition-fast: 150ms ease;
-  --transition-base: 200ms ease;
-  --transition-slow: 250ms ease;
+  /* Motion — contrato cerrado con 07 § 8: NO se declara ningún token que no
+     aparezca en esa tabla; si hace falta uno nuevo, se decide primero en 07.
+     Cada token declara su FUNCIÓN: un token de duración sin función asignada
+     es una invitación a usarlo en cualquier sitio, que es como se acumula el
+     motion. Los tres escalones de Tier A sustituyen a --transition-*. */
+  --motion-fast: 120ms;       /* Tier A — cambio de color y de estado de control */
+  --motion-base: 180ms;       /* Tier A — feedback causal, resalte de fila, ventana de contexto */
+  --motion-slow: 250ms;       /* Tier A — toasts y avisos */
+  --motion-transition: 360ms; /* Tier B — entrada/salida de overlay, expansión, revelado */
+  --ease-standard: ease;      /* Tier A — aceleración simple */
+  --ease-fluid: cubic-bezier(0.16, 1, 0.3, 1); /* Tier B — entrada rápida, asentamiento largo */
+  --motion-live-cycle: 2.2s;  /* Tier C — pulso de estado vivo, nunca de estado crítico */
+
+  /* DEPRECADO, ultimo superviviente. Le queda un unico consumidor:
+     Dashboard.razor.css, la barra comparativa que se rellena. Ni 07 § 6 ni
+     07 § 8 asignan funcion a "un valor que se anima hasta su medida", asi que
+     no se puede elegir su token de destino sin decidirlo antes (ODM-07). */
+  --transition-slow: var(--motion-slow) var(--ease-standard);
 
   /* Layout */
   --sidebar-width: 260px;
@@ -158,15 +207,28 @@
   --color-bg: #0e141b;
   --color-surface: #17212c;
   --color-surface-hover: #202b36;
+  --color-surface-subtle: #131b24;
+  --color-elevated: #202b36;
+  --color-overlay: #202b36;
   --color-text: #e7eaee;
   --color-text-muted: #8592a3;
   --color-border: #293644;
+  --color-border-strong: #3a4a5c;
+  /* El borde de control NO se redeclara aquí: #738196 es el mismo valor en
+     ambos temas, único token de color que lo hace. No es simetría buscada
+     sino consecuencia de que es el único escalón que cumple 3:1 en los dos
+     (3.61:1 en claro, 3.64:1 en oscuro contra el fondo más restrictivo). */
+
+  /* Hydra Cyan — asimétrico por tema (DDL-027): el sistema brilla en oscuro
+     y se contiene en claro. Aquí texto e indicador convergen en el mismo
+     valor porque sobre fondo oscuro el brillante ya cumple 4.5:1 (>8:1). */
+  --color-system-text: #2bd4f0;
+  --color-system-indicator: #2bd4f0;
 
   --color-success-50: #052e1a;
   --color-warning-50: #3a2405;
   --color-danger-50: #3a0a0a;
   --color-secondary-50: #1d2733;
-  --color-accent-50: #2a1f14;
 
   --color-primary-500: var(--color-primary-300);
   --color-primary-600: var(--color-primary-200);
@@ -176,28 +238,32 @@
   --color-warning-700: #fbbf24;
   --color-danger-700: #f87171;
 
-  --shadow-card: 0 4px 14px rgba(0, 0, 0, 0.35);
   --shadow-overlay: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
 :root[data-theme='claro'] {
-  --color-bg: var(--color-neutral-50);
+  --color-bg: #f6f8fa;
   --color-surface: var(--color-neutral-0);
   --color-surface-hover: var(--color-neutral-100);
+  --color-surface-subtle: #f1f5f7;
+  --color-elevated: #ffffff;
+  --color-overlay: #ffffff;
   --color-text: var(--color-neutral-900);
-  --color-text-muted: var(--color-neutral-500);
-  --color-border: var(--color-neutral-200);
+  --color-text-muted: #5f6e84; /* DDL-029 — ver comentario en :root */
+  --color-border: #e2e8ec;
+  --color-border-strong: #cbd5e1;
+
+  --color-system-text: #0c7792;
+  --color-system-indicator: #0e96b4;
 
   --color-success-50: #eefdf3;
   --color-warning-50: #fff8eb;
   --color-danger-50: #fef2f2;
   --color-secondary-50: #f1f4f7;
-  --color-accent-50: #fbf1e7;
 
   --color-primary-500: #235bc2;
   --color-primary-600: #1e4a9e;
   --color-primary-700: #163a7d;
 
-  --shadow-card: 0 4px 14px rgba(22, 30, 39, 0.07);
   --shadow-overlay: 0 20px 50px rgba(22, 30, 39, 0.16);
 }

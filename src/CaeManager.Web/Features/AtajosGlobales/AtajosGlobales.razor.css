@@ -22,7 +22,7 @@
     text-align: center;
     padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-sm);
-    background-color: var(--color-neutral-100);
+    background-color: var(--color-surface-subtle);
     border: var(--border-default);
     font-family: monospace;
     font-size: 0.85em;
