@@ -57,7 +57,9 @@ panel se sienta "colocado" y no "disparado". Tier C define la suya por caso.
 
 ## 4. Presupuesto y límites
 
-- **Máximo dos focos de movimiento simultáneos por pantalla.** Un tercero ya no comunica: compite.
+- **Presupuesto de Tier C: 1–2 usos excepcionales por pantalla** (DDL-016). Es el único límite de
+  cantidad que este sistema declara. Tier A es la base y **no se cuenta**: un resalte de fila, un
+  control cambiando de estado y un proceso en curso pueden coexistir sin que eso sea un exceso.
 - **El movimiento nunca retrasa la percepción de velocidad.** Si una animación de entrada hace
   que el contenido tarde en ser legible, la animación sobra.
 - **Ningún efecto es el único portador de significado.** Si al desactivar el movimiento la
@@ -135,8 +137,7 @@ Registrados para que ningún brief futuro los reintroduzca como novedad:
 | **Glow que sigue al puntero** | Ornamento puro; compite con la información en superficies densas | DDL-018 |
 | **Gradientes animados de fondo** | Decoración sin relación con ningún evento | DDL-045 |
 | **Glow de texto en hover** | Énfasis anulado por repetición | DDL-045 |
-| **Paralaje y desplazamientos decorativos** | No comunican causalidad y degradan el rendimiento de listas largas | — |
-| **Animaciones de entrada por elemento en listas largas** | Retrasan la legibilidad, que es justo lo que una lista operativa no puede permitirse | — |
+| **Retraso de entrada que crece con el número de filas** | Si la última fila espera proporcionalmente a la longitud de la lista, el movimiento retrasa la legibilidad — justo lo que una lista operativa no puede permitirse. **No aplica al revelado escalonado de § 6**, cuyo retraso está topado (DDL-054) | DDL-016 (regla madre) |
 
 ## 8. Tokens que `06` debe declarar
 
