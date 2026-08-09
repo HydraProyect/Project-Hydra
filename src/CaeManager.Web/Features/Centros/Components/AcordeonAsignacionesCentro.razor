@@ -41,7 +41,7 @@ else if (_cargando)
 else
 {
     <div class="acordeon-asignaciones-cabecera">
-        <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirDrawerAltaAsync">+ Asignar trabajador</Boton>
+        <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_seleccionados.Count == 0" OnClick="AbrirConfirmarBajaLoteAsync">
             Dar de baja seleccionados
         </Boton>
@@ -116,7 +116,11 @@ else
                             @EstadoDocumentoUi.Texto(incidencia.Estado!.Value)
                         </Badge>
                     </span>
-                    <span class="celda-documento-vigencia" role="cell">@TextoVigenciaEmpresa(incidencia)</span>
+                    <span role="cell">
+                        <TextoFechaCopiable Fecha="incidencia.FechaVencimiento" Class="celda-documento-vigencia">
+                            @TextoVigenciaEmpresa(incidencia)
+                        </TextoFechaCopiable>
+                    </span>
                     <span class="columna-accion" role="cell">
                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
                                OnClick="() => GestionarEmpresaAsync(incidencia)">
@@ -337,7 +341,11 @@ else
                                                     </Badge>
                                                 }
                                             </span>
-                                            <span class="celda-documento-vigencia" role="cell">@TextoVigencia(documento)</span>
+                                            <span role="cell">
+                                                <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="celda-documento-vigencia">
+                                                    @TextoVigencia(documento)
+                                                </TextoFechaCopiable>
+                                            </span>
                                             <span class="columna-accion" role="cell">
                                                 @*
                                                     La acción existe SIEMPRE y se atenúa cuando el documento no
@@ -362,105 +370,6 @@ else
     }
 }
 
-<Drawer Visible="_drawerAltaVisible" VisibleChanged="v => _drawerAltaVisible = v" Titulo="Asignar trabajador"
-        CerrarAlHacerClicFuera="@(_mensajeErrorAlta is null && !_guardandoAlta)">
-    <ChildContent>
-        @if (_mensajeErrorAlta is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorAlta</div>
-        }
-
-        <CampoTexto Etiqueta="Fecha de alta" Type="date" Valor="@_fechaAlta" ValorChanged="v => _fechaAlta = v" />
-
-        <Pestanas Definiciones="_pestanasAlta" PestanaActiva="@_vistaAlta" PestanaActivaChanged="v => _vistaAlta = v" EtiquetaGrupo="Vista de alta">
-            @if (_vistaAlta == "Lista")
-            {
-                <SelectorMultiple Etiqueta="Trabajadores"
-                                   Elementos="@_trabajadoresComoOpciones"
-                                   Seleccionados="@_trabajadorIdsSeleccionados"
-                                   OnAlternar="args => AlternarTrabajadorAsync(args.Id, args.Marcado)"
-                                   TextoVacio="No hay trabajadores dados de alta." />
-
-                <SelectorMultiple Etiqueta="Centros"
-                                   Elementos="@_centrosComoOpciones"
-                                   Seleccionados="@_centroIdsSeleccionados"
-                                   OnAlternar="args => AlternarCentroAsync(args.Id, args.Marcado)"
-                                   TextoVacio="No hay centros dados de alta." />
-            }
-            else
-            {
-                @if (_trabajadorIdsSeleccionados.Count == 0 || _centroIdsSeleccionados.Count == 0)
-                {
-                    <EstadoVacio Titulo="Selecciona trabajadores y centros"
-                                  Descripcion="Marca al menos un trabajador y un centro en la pestaña Lista para ver la matriz." />
-                }
-                else
-                {
-                    <p class="texto-ayuda-matriz">Desmarca una celda para excluir esa combinación del alta.</p>
-                    <div class="matriz-asignaciones-contenedor">
-                        <table class="matriz-asignaciones">
-                            <thead>
-                                <tr>
-                                    <th></th>
-                                    @foreach (var centro in _centrosSeleccionadosOrdenados)
-                                    {
-                                        <th>@centro.Nombre</th>
-                                    }
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var trabajador in _trabajadoresSeleccionadosOrdenados)
-                                {
-                                    <tr>
-                                        <th scope="row">@trabajador.NombreCompleto</th>
-                                        @foreach (var centro in _centrosSeleccionadosOrdenados)
-                                        {
-                                            var t = trabajador.Id;
-                                            var c = centro.Id;
-                                            <td>
-                                                <input type="checkbox"
-                                                       checked="@(!_celdasExcluidas.Contains((t, c)))"
-                                                       @onchange="e => AlternarCeldaMatriz(t, c, e.Value is bool marcado && marcado)" />
-                                            </td>
-                                        }
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            }
-        </Pestanas>
-
-        @if (_documentosFaltantes.Count > 0)
-        {
-            <div class="alerta-preflight-asignacion" role="status">
-                <p>
-                    <strong>@_documentosFaltantes.Count combinación(es)</strong> quedarán sin este documento obligatorio al confirmar:
-                </p>
-                <ul>
-                    @foreach (var faltante in _documentosFaltantes.Take(5))
-                    {
-                        <li>@faltante.TrabajadorNombre — @faltante.TipoDocumentoNombre (@faltante.CentroNombre)</li>
-                    }
-                </ul>
-                @if (_documentosFaltantes.Count > 5)
-                {
-                    <p>y @(_documentosFaltantes.Count - 5) más…</p>
-                }
-            </div>
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoAlta" OnClick="() => _drawerAltaVisible = false">
-            Cancelar
-        </Boton>
-        <Boton Cargando="_guardandoAlta" OnClick="GuardarAltaAsync">
-            @(_documentosFaltantes.Count > 0 ? "Asignar igualmente" : "Guardar")
-        </Boton>
-    </Pie>
-</Drawer>
-
 <Modal Visible="_confirmarBajaLoteVisible" VisibleChanged="v => _confirmarBajaLoteVisible = v" Titulo="@($"Dar de baja a {_seleccionados.Count} trabajador(es)")">
     <ChildContent>
         <p>Dejarán de estar activos en @CentroNombre a partir de la fecha indicada. El historial de la asignación se conserva.</p>
@@ -477,3 +386,4 @@ else
 </Modal>
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
+<DrawerAsignacionMasiva @ref="_drawerAsignacion" OnGuardado="ManejarAsignacionGuardadaAsync" />
