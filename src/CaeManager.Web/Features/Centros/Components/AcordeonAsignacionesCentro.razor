@@ -86,6 +86,46 @@ else
                 </Boton>
             </span>
         </div>
+        @*
+            Tabla de documentos del bloque Empresa (contrato de fidelidad
+            2026-08-09 § 1.5): mismas columnas fijas Documento · Estado ·
+            Vigencia · Acción que la tabla de Trabajador, misma rejilla
+            (tabla-documentos-requeridos). Sin toggle de expandir: a
+            diferencia de Trabajador (muchas filas, una tabla por fila), aquí
+            solo hay un sujeto y el bloque entero ya solo aparece cuando hay
+            incidencias que resolver.
+        *@
+        <div class="tabla-documentos-requeridos" role="table" aria-label="@($"Documentación con incidencia de {EmpresaNombre}")">
+            <div class="documentos-requeridos-cabecera" role="row">
+                <span role="columnheader">Documento</span>
+                <span role="columnheader">Estado</span>
+                <span role="columnheader">Vigencia</span>
+                <span role="columnheader" class="columna-accion">Acción</span>
+            </div>
+            @foreach (var incidencia in IncidenciasEmpresa)
+            {
+                <div class="fila-documento-requerido" role="row" @key="incidencia.TipoDocumentoId">
+                    <span class="celda-documento-nombre" role="cell">
+                        <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarEmpresa(incidencia)">
+                            @incidencia.Descripcion
+                        </button>
+                    </span>
+                    @* Estado siempre presente: IncidenciasEmpresa solo contiene causas ya calculadas con un valor real. *@
+                    <span role="cell">
+                        <Badge Tono="EstadoDocumentoUi.Tono(incidencia.Estado!.Value)" Tamano="TamanoBadge.Pequeno">
+                            @EstadoDocumentoUi.Texto(incidencia.Estado!.Value)
+                        </Badge>
+                    </span>
+                    <span class="celda-documento-vigencia" role="cell">@TextoVigenciaEmpresa(incidencia)</span>
+                    <span class="columna-accion" role="cell">
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                               OnClick="() => GestionarEmpresa(incidencia)">
+                            Gestionar
+                        </Boton>
+                    </span>
+                </div>
+            }
+        </div>
         <div class="separador-ambito">Trabajadores</div>
     }
 

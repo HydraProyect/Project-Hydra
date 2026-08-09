@@ -34,7 +34,15 @@ public record ObtenerCentrosQuery(
 /// de Empresa y cuántas de Trabajadores (blueprint Centro 360 § 3.2,
 /// DDL-031/DDL-047) en vez de dar un número desnudo.
 /// </summary>
-public record IncidenciaCentroDto(string Descripcion, AmbitoCausa Ambito);
+/// <param name="Estado">
+/// Va explícito y no se infiere de en qué lista (Vencidas/Próximas) vive la
+/// incidencia — esa lista funde Vencido y Faltante bajo "vencidas" (ver
+/// Desglosar), y la tabla de documentos del bloque Empresa (Centro 360)
+/// necesita el valor real para pintar el badge correcto.
+/// </param>
+public record IncidenciaCentroDto(
+    string Descripcion, AmbitoCausa Ambito, EstadoDocumento? Estado,
+    Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento);
 
 /// <summary>
 /// Desglose de las incidencias de un centro por estado. No lleva contadores
@@ -205,7 +213,8 @@ public class ObtenerCentrosQueryHandler(
 
         foreach (var causa in resultado.Causas)
         {
-            var incidencia = new IncidenciaCentroDto(causa.Descripcion, causa.Ambito);
+            var incidencia = new IncidenciaCentroDto(
+                causa.Descripcion, causa.Ambito, causa.Estado, causa.DocumentoId, causa.TipoDocumentoId, causa.FechaVencimiento);
             switch (causa.Estado)
             {
                 case EstadoDocumento.Vencido or EstadoDocumento.Faltante:

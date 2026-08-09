@@ -95,23 +95,35 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Retorna_Vencido_cuando_un_documento_de_la_empresa_esta_vencido()
     {
+        Guid tipoEmpresaId;
+        Guid documentoEmpresaId;
+        var fechaVencimiento = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+
         await using (var contexto = CrearContexto())
         {
             var tipoEmpresa = new TipoDocumento("Seguro RC", null, aplicaVencimientoAutomatico: false, 2, AmbitoAplicacion.Empresa);
             contexto.TiposDocumento.Add(tipoEmpresa);
             await contexto.SaveChangesAsync();
+            tipoEmpresaId = tipoEmpresa.Id;
 
-            contexto.Documentos.Add(Documento.DeEmpresa(
-                _empresaId, tipoEmpresa.Id, DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1)));
+            var documentoEmpresa = Documento.DeEmpresa(
+                _empresaId, tipoEmpresa.Id, DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), fechaVencimiento);
+            contexto.Documentos.Add(documentoEmpresa);
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
             await contexto.SaveChangesAsync();
+            documentoEmpresaId = documentoEmpresa.Id;
         }
 
         var resultado = await CalcularAsync();
 
         resultado.Estado.Should().Be(EstadoCentro.Vencido);
-        resultado.Causas.Should().ContainSingle(c => c.Estado == EstadoDocumento.Vencido && c.Descripcion.Contains("Empresa"));
+        // DocumentoId/TipoDocumentoId/FechaVencimiento alimentan la tabla de
+        // documentos del bloque Empresa en Centro 360 (Documento · Estado ·
+        // Vigencia · Acción) sin una consulta aparte — deben venir poblados.
+        resultado.Causas.Should().ContainSingle(c =>
+            c.Estado == EstadoDocumento.Vencido && c.Descripcion.Contains("Empresa")
+            && c.DocumentoId == documentoEmpresaId && c.TipoDocumentoId == tipoEmpresaId && c.FechaVencimiento == fechaVencimiento);
     }
 
     [Fact]
