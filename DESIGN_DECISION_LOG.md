@@ -1766,9 +1766,17 @@ Lo que sí acierta `04` § 8.3: la condición de lote **es** conjuntiva —confi
 datos completos—, y así está implementada (`ConfianzaGeneral >= umbral && FechaEmisionDetectada is
 not null`). El defecto está en el término, no en la estructura de la regla.
 
-### OD-28 — Límites numéricos de interacción sin fuente
+### OD-28 — Límites numéricos de interacción sin fuente (cerrada)
 
-**Tipo**: redacción → normativa. **Abierta** · **Fecha**: 2026-08-09.
+**Tipo**: redacción → normativa. **Cerrada sin DDL nuevo** · **Fecha**: 2026-08-09.
+
+> **Descomposición, no ratificación en bloque.** De las dos reglas investigadas —la matriz de
+> composición de `05` § 7 (quince celdas, cuatro reglas derivadas) y el "≤1 clic" de `03` § 4.1—
+> solo dos elementos de la matriz tenían autoridad y se conservan; todo lo demás se retiró sin
+> sustituto numérico ni decisión inferida del código. La investigación corrigió dos errores
+> propios en ambos sentidos: atribuí autoridad donde no la había (Action Center "no es una
+> pantalla") y no encontré autoridad donde sí la había (el overlay que devuelve el foco, en
+> `04` § 11).
 
 Tres límites concretos cuya primera aparición en todo el historial es el commit del reset, sin
 antecedente en este Log, en los documentos archivados ni en el código:
@@ -1795,6 +1803,12 @@ mecanismo concreto: buscador global + atajos), no hay ningún patrón de `03`/`0
 garantizar el clic único desde una situación urgente arbitraria hasta su resolución. Es una
 aspiración sin mecanismo declarado, no una regla verificable.
 
+**Cierre (2026-08-09): retirada, sin sustituto.** La inferencia *"la acción existe" → "cuesta ≤1
+clic llegar a ella"* no está autorizada, y menos aún su extensión de "en el Home" a "desde
+cualquier situación, en cualquier superficie". Sin DDL nuevo: `03` § 1.1 conserva su alcance real
+—cada elemento del Home lleva una acción primaria—, y `03` § 4.1 se queda solo con la regla
+heredada de los tres clics, cuyo propio tratamiento de procedencia es cosa de OD-29.
+
 El caso de la matriz de `05` § 7 es el más serio de los tres: no es un número aislado sino un
 sistema de reglas de composición del que se derivan cuatro consecuencias explícitas.
 
@@ -1812,17 +1826,50 @@ commit del reset, para la matriz entera y para las cuatro reglas derivadas.
 | "**Dos niveles de overlay** es el máximo, y el segundo solo puede ser confirmación" | No. Ningún documento fija ese número |
 | Fila **Action Center**: no abre Entity Workspace ni Context Panel | No. DDL-007 fija el contrato del patrón (decisiones, confianza, Confirmar/Editar/Descartar); no restringe qué puede abrir |
 | Regla 2, **"Navegar a un Entity Workspace cierra el panel"** | **Parece la misma decisión de `05` § 3.6, pero no lo es.** § 3.6 documenta una decisión cerrada el 2026-07-25, con motivo distinto: cierre al navegar **por el menú principal** — y está **sin implementar**, es deuda declarada. La regla 2 de § 7 es un disparador **distinto**: navegar a un Entity Workspace **desde dentro del panel**. Ninguna decisión cubre ese caso |
-| Reglas 3 y 4 (Action Center embebido; un overlay se cierra solo) | Parcial: "embebido, no pantalla" sí está en DDL-007 / `05` § 4.5; "se cierra solo y devuelve el foco" no tiene DDL propia, aunque es coherente con `08` § 3.2 (contrato de componente) |
+| Regla 3 ("Action Center vive embebido… no es una pantalla") | No. **Corrección a esta misma investigación**: atribuí esto a DDL-007/`05` § 4.5; releído el § 4 completo, en ningún punto dice "no es una pantalla" — DDL-007 fija el contrato de la propuesta (confianza, Confirmar/Editar/Descartar), no su forma de composición |
+| Regla 4 ("un overlay se cierra solo y devuelve a quien lo abrió") | **Sí — corrección en sentido contrario**: `04` § 11 lo dice literalmente: *"los overlays atrapan el foco… y lo devuelven al elemento que los abrió al cerrarse"*. No lo vi en la primera pasada por buscar solo en `05`/`08` |
 
-**Conclusión**: de toda la matriz, **una sola celda** —Context Panel no se anida— deriva de
-autoridad existente. El resto es un sistema de composición coherente y razonable, pero **escrito
-de una vez durante la redacción de `05`**, sin que cada relación pasara por una decisión. Es la
-forma 3 de DDL-058 en su versión más grande: no una regla suelta, sino una arquitectura entera.
+**Conclusión**: de toda la matriz, **dos** de sus elementos derivan de autoridad existente
+—Context Panel no se anida, y un overlay se cierra devolviendo el foco (esta segunda corregida
+más abajo)—. El resto es un sistema de composición coherente y razonable, pero **escrito de una
+vez durante la redacción de `05`**, sin que cada relación pasara por una decisión. Es la forma 3
+de DDL-058 en su versión más grande: no una regla suelta, sino una arquitectura entera.
 
 **3 · Por qué no se puede simplemente "ratificar en bloque".** A diferencia de OD-26, aquí no hay
 una regla madre (como DDL-016 o `07` § 2) de la que la matriz sea una aplicación directa. Ratificar
 las quince celdas con un solo DDL sería exactamente el atajo que DDL-058 prohíbe: convertiría una
 redacción en decisión por volumen, no por autoridad.
+
+#### Cierre — descomposición, sin DDL nuevo (2026-08-09)
+
+**No se ratifica la matriz en bloque.** Se descompone celda por celda, y cada pieza recibe
+exactamente la autoridad que tiene, ni más:
+
+| Elemento | Decisión |
+|---|---|
+| Context Panel → Context Panel: no | **Conservado** — regla normativa existente (`03` § 1.3, § 3.2) |
+| Un overlay se cierra solo, devuelve el foco | **Conservado** — `04` § 11 lo dice literalmente (corrección de esta investigación) |
+| "Dos niveles de overlay es el máximo" | **Retirado**, sin sustituir por otro número |
+| "Nunca un flujo dentro de un flujo" | **Retirado** — misma ausencia de autoridad que el punto anterior; era la mitad no examinada de la misma regla 1 |
+| Fila Action Center restringida (no abre EW ni CP) | **Retirado** por falta de autoridad |
+| "El Action Center… no es una pantalla" | **Retirado** — no lo dice DDL-007 ni ningún otro punto de `05` § 4 (corrección de esta investigación) |
+| "Navegar a un Entity Workspace cierra el panel" | **Retirado de la matriz; queda como comportamiento pendiente de decisión** — no es la misma decisión que el cierre por menú de § 3.6, y no se usa esa decisión para autorizar esta por extensión |
+
+**No convertir "A no puede contener A" en "el sistema admite como máximo dos niveles".** Son
+afirmaciones de naturaleza distinta —una prohíbe la reentrada de un patrón consigo mismo, con
+antecedente directo; la otra fija un número global de composición— y tratarlas como la misma
+regla es precisamente la extrapolación que esta OD existe para detectar.
+
+**Sobre el disparador de cierre del panel**: se preserva la deuda conocida de § 3.6 —cierre por
+menú, decidido y sin implementar— sin dejar que sirva de autorización retroactiva para un
+disparador distinto. Si ese comportamiento debe existir, requiere su propia decisión, no una
+inferencia de que "cerrar el panel al navegar" ya está resuelto en general.
+
+**Resultado**: 2 reglas conservadas por autoridad existente (una de ellas corregida en esta misma
+investigación, en cada sentido), 5 retiradas por falta de autoridad o por generalización
+indebida, ninguna regla numérica nueva, ninguna decisión inferida del código, ningún DDL creado
+para legitimar contenido que apareció en el reset. Mismo patrón que OD-26: menos normativa, toda
+respaldada, sin que cambie nada de lo que el sistema permite.
 
 > **Corrección de esta entrada (2026-08-09, hallada al investigar OD-26)**: la regla de los tres
 > avisos **sí tiene antecedente**. El histórico archivado `UX_PATTERNS.md` § 113 dice *"nunca
