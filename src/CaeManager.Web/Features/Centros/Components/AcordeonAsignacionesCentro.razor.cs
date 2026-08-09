@@ -12,6 +12,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelecto
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Documentos.Components;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 
@@ -38,6 +39,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     /// del centro, filtradas por ámbito. El acordeón solo las presenta.
     /// </summary>
     [Parameter] public IReadOnlyList<IncidenciaCentroDto> IncidenciasEmpresa { get; set; } = [];
+
+    /// <summary>Se dispara tras guardar un documento in situ — Centros.razor vuelve a pedir esta fila (ver ManejarDocumentoGuardadoAsync).</summary>
+    [Parameter] public EventCallback OnDocumentoGuardado { get; set; }
 
     /// <summary>
     /// "Selección múltiple" de la página (Centros.razor) — los checkboxes de
@@ -241,27 +245,42 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
         else _seleccionados.Remove(asignacionId);
     }
 
-    /// <summary>
-    /// Un documento faltante no tiene DocumentoId todavía — lleva al drawer
-    /// de creación con el propietario y el tipo ya elegidos, mismo patrón que
-    /// "Gestionar" en Alertas.razor.cs.
-    /// </summary>
-    private void Gestionar(Guid trabajadorId, DocumentoRequeridoDto documento) => NavigationManager.NavigateTo(
-        documento.DocumentoId is { } documentoId
-            ? $"/documentos?documentoId={documentoId}"
-            : $"/documentos?trabajadorId={trabajadorId}&tipoDocumentoId={documento.TipoDocumentoId}");
+    private DrawerGestionDocumento _drawerGestion = default!;
 
     /// <summary>
-    /// Mismo patrón que <see cref="Gestionar"/> con el parámetro de query que
-    /// ya soporta Documentos.razor.cs para un "faltante" de Empresa
-    /// (<c>empresaIdFaltante</c>) — hoy siempre resuelve a la rama con
-    /// DocumentoId (AgregarCausasDeEmpresaAsync no detecta falta total), la
-    /// otra rama queda lista para cuando ese alcance se amplíe.
+    /// Gestionar in situ (contrato de fidelidad 2026-08-09, item 3 del
+    /// backlog): antes navegaba a /documentos, ahora abre el mismo drawer
+    /// compartido sin salir de Centro 360. Un documento faltante no tiene
+    /// DocumentoId todavía — abre el drawer de creación con el propietario y
+    /// el tipo ya elegidos, mismo patrón que "Gestionar" en Alertas.razor.cs.
     /// </summary>
-    private void GestionarEmpresa(IncidenciaCentroDto incidencia) => NavigationManager.NavigateTo(
+    private Task GestionarAsync(Guid trabajadorId, DocumentoRequeridoDto documento) =>
+        documento.DocumentoId is { } documentoId
+            ? _drawerGestion.AbrirEditarAsync(documentoId)
+            : _drawerGestion.AbrirCrearParaFaltanteAsync(trabajadorId, documento.TipoDocumentoId);
+
+    /// <summary>
+    /// Mismo patrón que <see cref="GestionarAsync"/> — hoy siempre resuelve a
+    /// la rama con DocumentoId (AgregarCausasDeEmpresaAsync no detecta falta
+    /// total), la otra rama queda lista para cuando ese alcance se amplíe.
+    /// </summary>
+    private Task GestionarEmpresaAsync(IncidenciaCentroDto incidencia) =>
         incidencia.DocumentoId is { } documentoId
-            ? $"/documentos?documentoId={documentoId}"
-            : $"/documentos?empresaIdFaltante={EmpresaId}&tipoDocumentoId={incidencia.TipoDocumentoId}");
+            ? _drawerGestion.AbrirEditarAsync(documentoId)
+            : _drawerGestion.AbrirCrearParaFaltanteEmpresaAsync(EmpresaId, incidencia.TipoDocumentoId!.Value);
+
+    /// <summary>
+    /// El bloque Empresa (IncidenciasEmpresa) llega como Parameter desde
+    /// Centros.razor — este componente no lo puede refrescar por sí solo, así
+    /// que además de recargar su propia lista de Trabajador avisa al padre
+    /// (OnDocumentoGuardado) para que vuelva a pedir la fila del Centro.
+    /// </summary>
+    private async Task ManejarDocumentoGuardadoAsync()
+    {
+        await CargarAsync();
+        if (OnDocumentoGuardado.HasDelegate)
+            await OnDocumentoGuardado.InvokeAsync();
+    }
 
     private static string TextoVigenciaEmpresa(IncidenciaCentroDto incidencia)
     {
