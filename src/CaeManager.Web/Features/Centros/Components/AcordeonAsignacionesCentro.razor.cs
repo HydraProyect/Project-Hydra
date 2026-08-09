@@ -251,6 +251,27 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
             ? $"/documentos?documentoId={documentoId}"
             : $"/documentos?trabajadorId={trabajadorId}&tipoDocumentoId={documento.TipoDocumentoId}");
 
+    /// <summary>
+    /// Mismo patrón que <see cref="Gestionar"/> con el parámetro de query que
+    /// ya soporta Documentos.razor.cs para un "faltante" de Empresa
+    /// (<c>empresaIdFaltante</c>) — hoy siempre resuelve a la rama con
+    /// DocumentoId (AgregarCausasDeEmpresaAsync no detecta falta total), la
+    /// otra rama queda lista para cuando ese alcance se amplíe.
+    /// </summary>
+    private void GestionarEmpresa(IncidenciaCentroDto incidencia) => NavigationManager.NavigateTo(
+        incidencia.DocumentoId is { } documentoId
+            ? $"/documentos?documentoId={documentoId}"
+            : $"/documentos?empresaIdFaltante={EmpresaId}&tipoDocumentoId={incidencia.TipoDocumentoId}");
+
+    private static string TextoVigenciaEmpresa(IncidenciaCentroDto incidencia)
+    {
+        if (incidencia.FechaVencimiento is not { } fecha)
+            return "Sin caducidad";
+
+        var texto = fecha.ToString("dd/MM/yyyy");
+        return incidencia.Estado == EstadoDocumento.Vencido ? $"Vencio {texto}" : $"Caduca {texto}";
+    }
+
     private async Task AbrirDrawerAltaAsync()
     {
         _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
