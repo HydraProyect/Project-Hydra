@@ -47,6 +47,48 @@ else
         </Boton>
     </div>
 
+    @*
+        Ámbito EMPRESA (OD-13, blueprint § 3.3). Aparece solo cuando la empresa
+        del centro tiene documentación con incidencia, y lista únicamente lo que
+        hay que resolver — el resto se consulta desde "Detalles" de la empresa.
+
+        La nota no es decorativa: sin ella, ver una lista corta se leería como
+        "la empresa casi no tiene documentación", cuando lo que dice es "esto es
+        lo que falla". Un vacío nunca se presenta como éxito (04 § 6).
+    *@
+    @if (IncidenciasEmpresa.Count > 0)
+    {
+        <div class="separador-ambito">Empresa</div>
+        <div class="fila-sujeto-ambito">
+            <span class="sujeto-ambito-identidad">
+                <span class="sujeto-ambito-nombre">@EmpresaNombre</span>
+                <span class="sujeto-ambito-nota">Solo se listan las incidencias; el resto de su documentación está en Detalles.</span>
+            </span>
+            <span class="sujeto-ambito-indicadores">
+                <VentanaContexto Etiqueta="@($"{IncidenciasEmpresa.Count} {(IncidenciasEmpresa.Count == 1 ? "documento de empresa con incidencia" : "documentos de empresa con incidencia")}")"
+                                 Titulo="Documentación de la empresa">
+                    <Disparador>
+                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                            @IncidenciasEmpresa.Count
+                        </Badge>
+                    </Disparador>
+                    <Detalle>
+                        @foreach (var incidencia in IncidenciasEmpresa)
+                        {
+                            <span class="ventana-linea">@incidencia.Descripcion</span>
+                        }
+                    </Detalle>
+                </VentanaContexto>
+            </span>
+            <span class="sujeto-ambito-accion">
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirDetalleEmpresa">
+                    Detalles
+                </Boton>
+            </span>
+        </div>
+        <div class="separador-ambito">Trabajadores</div>
+    }
+
     @if (_trabajadoresVisitaSinAsignacion.Count > 0)
     {
         <div class="alerta-info" role="status">

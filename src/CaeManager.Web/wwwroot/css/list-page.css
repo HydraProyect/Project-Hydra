@@ -835,3 +835,65 @@
 .ventana-grupo:first-child {
     margin-top: 0;
 }
+
+
+/*
+  Ámbito Empresa dentro del acordeón de un Centro (OD-13, blueprint § 3.3).
+
+  Los dos ámbitos van declarados y separados: sin el rótulo, el bloque de la
+  empresa se leería como "un trabajador más" y el recuento del Centro —que
+  agrega los dos— dejaría de poder explicarse.
+*/
+.separador-ambito {
+    font: var(--font-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--color-text-muted);
+    padding: var(--space-3) 0 var(--space-1);
+}
+
+.fila-sujeto-ambito {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    border-bottom: var(--border-default);
+}
+
+.sujeto-ambito-identidad {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.sujeto-ambito-nombre {
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+/*
+  La nota que exige el blueprint: sin ella, una lista corta se leería como
+  "la empresa casi no tiene documentación" en vez de "esto es lo que falla".
+*/
+.sujeto-ambito-nota {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+/*
+  Misma anchura que la zona de indicadores de la fila de Centro, para que el
+  recuento de la empresa caiga en la vertical de los recuentos de arriba.
+*/
+.sujeto-ambito-indicadores {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 15rem;
+    flex-shrink: 0;
+}
+
+.sujeto-ambito-accion {
+    flex-shrink: 0;
+}

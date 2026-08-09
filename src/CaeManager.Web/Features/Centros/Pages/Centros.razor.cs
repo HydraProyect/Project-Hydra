@@ -614,6 +614,16 @@ public partial class Centros : ComponentBase
         StateHasChanged();
     }
     /// <summary>
+    /// Incidencias del ambito Empresa de un centro. Se derivan de los recuentos
+    /// que la fila ya tiene: el bloque Empresa del acordeon no lanza ninguna
+    /// consulta propia (OD-13, blueprint seccion 3.3).
+    /// </summary>
+    private static IReadOnlyList<IncidenciaCentroDto> IncidenciasDeEmpresa(CentroListaDto centro) =>
+        centro.Recuentos.Vencidas.Concat(centro.Recuentos.Proximas)
+            .Where(i => i.Ambito == AmbitoCausa.Empresa)
+            .ToList();
+
+    /// <summary>
     /// Nombre accesible de un badge de solo recuento. Es lo unico que oye un
     /// lector de pantalla, asi que dice el total Y el reparto por ambito: un
     /// numero desnudo deja el color como unico portador de significado, que es

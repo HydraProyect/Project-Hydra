@@ -52,7 +52,8 @@ public record RecuentosCentroDto(
 }
 
 public record CentroListaDto(
-    Guid Id, string Nombre, string? CodigoCentro, Guid ClienteId, string ClienteRazonSocial, string EmpresaRazonSocial,
+    Guid Id, string Nombre, string? CodigoCentro, Guid ClienteId, string ClienteRazonSocial,
+    Guid EmpresaId, string EmpresaRazonSocial,
     EstadoCentro Estado, int? CumplimientoPorcentaje, RecuentosCentroDto Recuentos);
 
 /// <summary>
@@ -111,7 +112,7 @@ public class ObtenerCentrosQueryHandler(
             var todas = await consulta
                 .Select(x => new FilaCentro(
                     x.centro.Id, x.centro.Nombre, x.centro.CodigoCentro, x.centro.ClienteId,
-                    x.cliente.RazonSocial, x.empresa.RazonSocial))
+                    x.cliente.RazonSocial, x.centro.EmpresaId, x.empresa.RazonSocial))
                 .ToListAsync(cancellationToken);
 
             var idsTodas = todas.Select(c => c.Id).ToList();
@@ -166,7 +167,7 @@ public class ObtenerCentrosQueryHandler(
             .Take(request.TamanoPagina)
             .Select(x => new FilaCentro(
                 x.centro.Id, x.centro.Nombre, x.centro.CodigoCentro, x.centro.ClienteId,
-                x.cliente.RazonSocial, x.empresa.RazonSocial))
+                x.cliente.RazonSocial, x.centro.EmpresaId, x.empresa.RazonSocial))
             .ToListAsync(cancellationToken);
 
         var idsPagina = pagina.Select(c => c.Id).ToList();
@@ -180,7 +181,8 @@ public class ObtenerCentrosQueryHandler(
     private static CentroListaDto AplicarEstado(
         FilaCentro fila, IReadOnlyDictionary<Guid, ResultadoEstadoCentro> estados,
         IReadOnlyDictionary<Guid, FraccionCumplimiento> cumplimiento) =>
-        new(fila.Id, fila.Nombre, fila.CodigoCentro, fila.ClienteId, fila.ClienteRazonSocial, fila.EmpresaRazonSocial,
+        new(fila.Id, fila.Nombre, fila.CodigoCentro, fila.ClienteId, fila.ClienteRazonSocial,
+            fila.EmpresaId, fila.EmpresaRazonSocial,
             estados.TryGetValue(fila.Id, out var resultado) ? resultado.Estado : EstadoCentro.Vigente,
             cumplimiento.TryGetValue(fila.Id, out var fraccion) ? fraccion.Porcentaje : null,
             resultado is null ? RecuentosCentroDto.Vacio : Desglosar(resultado));
@@ -235,5 +237,6 @@ public class ObtenerCentrosQueryHandler(
         };
 
     private record FilaCentro(
-        Guid Id, string Nombre, string? CodigoCentro, Guid ClienteId, string ClienteRazonSocial, string EmpresaRazonSocial);
+        Guid Id, string Nombre, string? CodigoCentro, Guid ClienteId, string ClienteRazonSocial,
+        Guid EmpresaId, string EmpresaRazonSocial);
 }
