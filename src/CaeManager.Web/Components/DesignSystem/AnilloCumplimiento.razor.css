@@ -1,6 +1,14 @@
-.anillo-cumplimiento {
+/*
+  Envoltorio de posicionamiento (lámina L3, ".ring"): el SVG dibuja el aro,
+  el texto va encima como <span> HTML absoluto — ver comentario del .razor.
+*/
+.anillo-cumplimiento-envoltorio {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
-    display: block;
+    vertical-align: middle;
 }
 
 .anillo-cumplimiento-pequeno {
@@ -13,15 +21,21 @@
     height: 32px;
 }
 
+.anillo-cumplimiento {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
 .anillo-cumplimiento-pista {
     fill: none;
     stroke: var(--color-neutral-300);
-    stroke-width: 3;
+    stroke-width: 3.5;
 }
 
 .anillo-cumplimiento-progreso {
     fill: none;
-    stroke-width: 3;
+    stroke-width: 3.5;
     stroke-linecap: round;
     transform: rotate(-90deg);
     transform-origin: 18px 18px;
@@ -29,16 +43,20 @@
 }
 
 .anillo-cumplimiento-texto {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font: var(--font-label-md);
-    font-size: 10px;
-    font-weight: 600;
-    text-anchor: middle;
-    dominant-baseline: central;
-    fill: currentColor;
+    font-size: 8.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: currentColor;
 }
 
-.anillo-cumplimiento-pequeno .anillo-cumplimiento-texto {
-    font-size: 11px;
+.anillo-cumplimiento-medio .anillo-cumplimiento-texto {
+    font-size: 10px;
 }
 
 /* *-700, no *-500 — mismo motivo que Badge.razor.css: contraste AA sobre fondo claro. */
@@ -58,4 +76,11 @@
 .anillo-cumplimiento-peligro .anillo-cumplimiento-texto {
     stroke: var(--color-danger-700);
     color: var(--color-danger-700);
+}
+
+/* Sin universo (Porcentaje null): "—" en muted, sin aro — nunca 0%/100%. */
+.anillo-cumplimiento-sin-universo .anillo-cumplimiento-texto {
+    position: static;
+    font-weight: 400;
+    color: var(--color-text-muted);
 }

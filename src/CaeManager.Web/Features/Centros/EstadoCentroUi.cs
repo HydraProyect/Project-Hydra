@@ -47,7 +47,10 @@ public static class EstadoCentroUi
         EstadoCentro.Urgente => "Urgente",
         EstadoCentro.Vencido => "Vencido",
         EstadoCentro.Faltante => "Falta documentación",
-        EstadoCentro.Bloqueado => "Bloqueado",
+        // "Acceso bloqueado", no "Bloqueado" ni "Bloquea acceso": nombra el
+        // estado del sujeto, no lo que el documento provoca (decisión
+        // cerrada del lámina, protocolo de cierre — banco visual Ronda 1).
+        EstadoCentro.Bloqueado => "Acceso bloqueado",
         _ => "Vigente"
     };
 }
