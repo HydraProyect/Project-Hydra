@@ -1361,9 +1361,14 @@ como estado vigente sin presentarse como especificación. `06` § 4 conserva la 
 reformulada: decide **dónde viven** los radios, no cuánto miden. La nota de DDL-036 se corrige en
 su propia entrada.
 
-### OD-26 — `07` introduce restricciones sin autoridad identificable
+### OD-26 — `07` introduce restricciones sin autoridad identificable (cerrada)
 
-**Tipo**: redacción → normativa, en motion. **Abierta** · **Fecha**: 2026-08-09.
+**Tipo**: redacción → normativa, en motion. **Cerrada sin DDL nuevo** · **Fecha**: 2026-08-09.
+
+> **Las tres reglas se retiraron o reformularon; ninguna se ratificó, y ninguna necesitó una
+> decisión nueva.** Dos eran redundantes con reglas que ya existían (`07` § 2, DDL-016) y la
+> tercera atribuía un antipatrón real al patrón equivocado. El resultado neto es **menos
+> normativa, toda con autoridad** — sin que cambie nada de lo que el sistema permite.
 
 - `07` § 4: "**máximo dos focos de movimiento simultáneos por pantalla**". DDL-016 fija los tres
   tiers y el presupuesto de Tier C (1–2 usos por pantalla); **este límite no está en ninguna DDL**.
@@ -1375,6 +1380,108 @@ su propia entrada.
 
 **A determinar también**: si ambos comparten una decisión superior sobre presupuesto de movimiento
 que habría que declarar una sola vez, en vez de dos reglas sueltas.
+
+#### Investigación (2026-08-09)
+
+**1 · Procedencia.** Ninguna de las tres reglas existe fuera de `07`: cero apariciones en los
+documentos archivados y **primera aparición en el historial en el commit del reset** (`bad7d7c`)
+para "dos focos de movimiento", "Paralaje" y "Animaciones de entrada por elemento". Contaminación
+**redacción → normativa** confirmada (DDL-058, forma 3).
+
+**2 · La regla de los dos focos no deriva de DDL-016, la generaliza.** DDL-016 fija un
+presupuesto **para Tier C**: *"1–2 usos excepcionales por pantalla"*. `07` § 4 lo convierte en
+*"máximo dos focos de movimiento simultáneos por pantalla"*, **sin acotarlo a un tier**. Son
+reglas distintas: una limita cuántos efectos *signature* hay en una pantalla; la otra, cuántos
+elementos se mueven a la vez, sea cual sea su tier.
+
+**3 · Y así redactada contradice al propio `07`.** § 3 declara Tier A *"siempre disponible; es la
+base"* y su catálogo incluye el resalte de fila al apuntar y el cambio de estado de todo control.
+En una lista operativa con un toast visible y un proceso en curso, los focos simultáneos superan
+dos **de forma rutinaria y correcta**. La regla, leída literalmente, prohíbe el funcionamiento
+normal que el mismo documento describe: o significa algo más estrecho de lo que dice, o es
+inaplicable.
+
+**4 · Los dos rechazos son la única fila sin decisión de su tabla.** `07` § 7 tiene seis filas;
+cuatro citan DDL-017, DDL-018 o DDL-045. Las dos últimas —paralaje y desplazamientos decorativos;
+animaciones de entrada por elemento en listas largas— llevan **"—"** en la columna *Decisión*. Y
+esa sección existe explícitamente *"para que ningún brief futuro los reintroduzca como novedad"*:
+**son prohibiciones permanentes sin decisión permanente detrás**, lo que las hace imposibles de
+defender ante una propuesta que las cuestione.
+
+#### Cierre parcial 1/2 — la regla de los dos focos se retira (2026-08-09)
+
+**No ratificada, y sin sustituto numérico.** Dos motivos independientes, no uno:
+
+1. **No tiene autoridad aguas arriba.** DDL-016 establece un presupuesto **para Tier C**; no
+   autoriza un límite global de elementos en movimiento. **La derivación se rechaza
+   explícitamente**: convertir un presupuesto de tier en un máximo absoluto no es aplicar la
+   decisión, es ampliarla.
+2. **Es incompatible con el modelo del propio `07`.** Tier A es comportamiento base y coexiste
+   legítimamente con varios estados dinámicos.
+
+**No se sustituye "dos" por otro número**: no hay evidencia para fijar ninguno. `07` § 4 conserva
+el presupuesto de Tier C de DDL-016 y declara explícitamente que **Tier A no se cuenta**.
+Cualquier restricción futura de simultaneidad **exige investigación y decisión propias** —no puede
+derivarse de DDL-016—, lo que ya impone `07` § 8 para todo lo que amplíe el sistema.
+
+**Sin DDL nuevo**: no se decidió nada, se retiró algo que nunca se decidió (mismo criterio que
+OD-22 con `#0F1720`). DDL-016 conserva su autoridad **exclusivamente** sobre el presupuesto de
+Tier C.
+
+#### Investigación 2/2 — los dos rechazos de `07` § 7
+
+Son **casos distintos**, y agruparlos habría sido el error:
+
+**a) "Paralaje y desplazamientos decorativos"** — sin antecedente en ninguna capa: cero
+apariciones en archivados, ninguna DDL, primera aparición en el commit del reset. **Pero no
+prohíbe nada nuevo**: `07` § 2 ya clasifica *Decoración* como *"Prohibida por defecto. No hay
+prueba que pueda pasar"*, y DDL-001 aporta el test que la filtra. La fila es **redundante**, no
+errónea: ratificarla no añade autoridad y retirarla no pierde ninguna regla — solo la memoria de
+que se consideró.
+
+**b) "Animaciones de entrada por elemento en listas largas"** — aquí sí hay antecedente, y el
+resultado es peor que "sin decisión": **contradice una decisión que sí tiene autoridad.**
+
+- El histórico archivado documenta el **revelado escalonado** (`.stagger-item`, `animation-delay`
+  creciente por `nth-child` sobre filas de tabla y tarjetas KPI): es exactamente "animación de
+  entrada por elemento en una lista".
+- **DDL-054 lo conservó**, acotado a la primera carga de una superficie, y `07` § 6 lo lista como
+  **permitido** en Tier B.
+- De modo que `07` **permite el efecto en § 6 y lo rechaza permanentemente en § 7**. Lo único que
+  separa ambas filas es el calificativo **"largas"**, que el documento no define en ninguna parte.
+
+#### Cierre 2/2 (2026-08-09)
+
+**(a) Paralaje y desplazamientos decorativos — retirada sin sustitución.** Regla nacida en el
+reset, sin autoridad, **redundante** con `07` § 2 (*Decoración: prohibida por defecto*) y DDL-001,
+que aporta el criterio. No añadía restricción: duplicaba una regla existente. Ratificarla habría
+creado **una segunda fuente para algo ya normado** — el patrón que esta serie entera ha estado
+corrigiendo. Retirarla no cambia lo que el sistema permite. Sin DDL nuevo.
+
+**(b) La pregunta era qué pretendía excluir "listas largas". La investigación responde: un
+antipatrón real, que el patrón conservado no exhibe.**
+
+| Comprobación | Resultado |
+|---|---|
+| ¿Existe una definición de "lista larga"? | **No**, en ninguna capa del repositorio. La restricción no tenía condición verificable |
+| ¿Cómo se comporta el revelado escalonado conservado por DDL-054? | El retraso **está topado**: `nth-child(1..11)` escalona de 0 a 250 ms y **`nth-child(n+12)` fija 275 ms para todas las filas restantes**. Una lista de 12 filas y una de 500 tienen el **mismo** retraso máximo |
+| ¿Está documentado ese tope fuera del código? | **Sí** — el catálogo archivado ya describía el rango "0–275 ms" |
+| ¿Y con movimiento reducido? | El efecto **se desactiva entero** (DDL-020) |
+
+**Conclusión**: el rechazo describía un antipatrón legítimo —que la última fila espere en
+proporción a la longitud de la lista— pero **atribuido al patrón equivocado**. El revelado
+escalonado está diseñado precisamente para no incurrir en él. No había una condición objetiva que
+justificara la excepción de "listas largas", así que **se retira el rechazo y se conserva
+DDL-054**, sin reabrirla.
+
+**Lo que se conserva es el antipatrón, no la prohibición del patrón**: la fila de § 7 se reformula
+para nombrar lo que de verdad hay que evitar —retraso de entrada que **crece** con el número de
+filas— y se le asigna la autoridad que sí tiene, DDL-016 y su regla madre. Deja de contradecir
+a § 6.
+
+**Nota de método**: el código se usó aquí para **establecer qué es el patrón que DDL-054
+conservó**, no para decidir. La autoridad sigue siendo DDL-054 y `07` § 6; el tope de 275 ms es la
+descripción del objeto de esa decisión, y además ya constaba en el histórico.
 
 ### OD-33 — DDL-052 declara un diccionario de estados que no existe (cerrada)
 
@@ -1668,12 +1775,22 @@ antecedente en este Log, en los documentos archivados ni en el código:
 
 | Regla | Dónde | Comprobado |
 |---|---|---|
-| "Nunca más de **tres** avisos visibles" | `04` § 7.1, repetido en `08` § 4.4 | Sin fuente en Log, archivo ni código — `AnfitrionToasts` no implementa límite alguno |
+| ~~"Nunca más de **tres** avisos visibles"~~ | `04` § 7.1, repetido en `08` § 4.4 | **Corregido el 2026-08-09** — ver nota abajo |
 | Matriz de composición de superficies + "**dos** niveles de overlay es el máximo" | `05` § 7 | Sin DDL. Es **estructura normativa nueva**, y `05` es justamente donde se decidió que viven los patrones estructurales |
 | "Ninguna situación que requiera atención está a más de **un clic**" | `03` § 4.1 | Sin fuente. Se presenta junto a una regla heredada (ver OD-29), lo que le presta una continuidad que no tiene |
 
 El caso de la matriz de `05` § 7 es el más serio de los tres: no es un número aislado sino un
 sistema de reglas de composición del que se derivan cuatro consecuencias explícitas.
+
+> **Corrección de esta entrada (2026-08-09, hallada al investigar OD-26)**: la regla de los tres
+> avisos **sí tiene antecedente**. El histórico archivado `UX_PATTERNS.md` § 113 dice *"nunca
+> apilar más de 3 visibles simultáneamente"*, junto con las duraciones de autodescarte. Mi
+> búsqueda original no lo encontró por usar un patrón que no cubría esa redacción.
+>
+> **Consecuencia**: esa regla **no pertenece a OD-28** (redacción → normativa) sino a la clase de
+> **OD-29** (documento → documento con raíz en histórico sin autoridad). Se traslada allí. OD-28
+> queda con dos reglas: la matriz de composición de `05` § 7 y el "≤1 clic" de `03` § 4.1, ambas
+> con primera aparición en el commit del reset y sin antecedente.
 
 ### OD-29 — Reglas heredadas del histórico, normadas sin ratificación
 
@@ -1688,6 +1805,7 @@ Tres reglas que `03`, `04` y `08` presentan como normativa y que la auditoría t
 | "≤3 clics desde el Dashboard" | `UX_PATTERNS.md` archivado (§ 139) → `03` § 4.1, que la marca como "histórica" y la conserva |
 | Filtros persisten en URL / orden no | `UX_PATTERNS.md`, histórico archivado sin autoridad (§§ 60, 65) → `03` § 5.2 → **`04` § 3.2 y § 3.3 citan a `03`** como si `03` lo hubiera decidido |
 | `AnilloCumplimiento`: "umbral propio, distinto del semáforo" | `DESIGN_SYSTEM.md`, histórico archivado sin autoridad (§ 189), que **describía el código** (100 % Éxito, ≥50 % Advertencia, resto Peligro) → `08` § 4.4 |
+| "Nunca más de tres avisos visibles" | `UX_PATTERNS.md`, histórico archivado sin autoridad (§ 113: *"nunca apilar más de 3 visibles simultáneamente"*) → `04` § 7.1 → `08` § 4.4 lo cita. **Trasladada desde OD-28 el 2026-08-09** |
 
 **Qué debe decidir**: cuáles de estas reglas se **ratifican** como decisión propia —con DDL— y
 cuáles se retiran. Conservar una regla porque estaba antes es precisamente lo que DDL-055
