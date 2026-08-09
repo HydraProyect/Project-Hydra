@@ -37,26 +37,12 @@ a {
 }
 
 /*
-  Glow muy sutil en hover — solo enlaces de contenido (import/export,
-  "volver", "ver todas"...), nunca permanente ni en títulos estáticos. La
-  navegación lateral (.nav-item) y los resultados del buscador global
-  (.buscador-item) tienen su propio tratamiento de hover (fondo, no
-  texto) y quedan excluidos explícitamente para no duplicar el efecto.
+  El glow en hover de enlaces se retiró (DDL-045, 07 § 5). Su función
+  declarada era énfasis, pero aparecía en cada enlace de cada pantalla: un
+  énfasis que se repite en todas partes se anula por repetición y pasa a ser
+  decoración. Con él desaparecen las dos excepciones que existían solo para
+  apagarlo (.nav-item, .buscador-item) y su regla de reduced-motion.
 */
-a:hover {
-  text-shadow: 0 0 12px color-mix(in srgb, var(--color-primary-500) 35%, transparent);
-}
-
-.nav-item:hover,
-.buscador-item:hover {
-  text-shadow: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  a:hover {
-    text-shadow: none;
-  }
-}
 
 button {
   font-family: inherit;
@@ -89,7 +75,8 @@ button {
 }
 
 /*
-  Ripple de .boton (ver wwwroot/js/microinteracciones.js). Va aquí, global
+  Ripple de .boton-primario (ver wwwroot/js/microinteracciones.js), acotado
+  a las acciones primarias por DDL-045 / 07 § 5. Va aquí, global
   y sin aislar, a propósito: el <span class="boton-ondulacion"> lo crea
   document.createElement en JS puro, y una regla dentro de Boton.razor.css
   quedaría reescrita por Blazor a ".boton-ondulacion[b-xxxxxxxx]" — un
