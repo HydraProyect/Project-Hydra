@@ -3,6 +3,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Empresas;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,9 +28,33 @@ public record ObtenerCentrosQuery(
 /// PLAN-EJECUCION-UX.md § 0.5) — <c>null</c> cuando no hay ningún par
 /// Trabajador×TipoDocumento obligatorio aplicable, ver <see cref="FraccionCumplimiento"/>.
 /// </param>
+/// <summary>
+/// Una incidencia concreta del centro, con el ámbito al que pertenece. Es lo
+/// que permite que la ventana de contexto de un recuento declare cuántas son
+/// de Empresa y cuántas de Trabajadores (blueprint Centro 360 § 3.2,
+/// DDL-031/DDL-047) en vez de dar un número desnudo.
+/// </summary>
+public record IncidenciaCentroDto(string Descripcion, AmbitoCausa Ambito);
+
+/// <summary>
+/// Desglose de las incidencias de un centro por estado. No lleva contadores
+/// propios: se derivan de las listas, para que no puedan desincronizarse del
+/// detalle que muestra la ventana de contexto.
+/// </summary>
+public record RecuentosCentroDto(
+    IReadOnlyList<IncidenciaCentroDto> Vencidas,
+    IReadOnlyList<IncidenciaCentroDto> Proximas)
+{
+    public static readonly RecuentosCentroDto Vacio = new([], []);
+
+    public int TotalVencidas => Vencidas.Count;
+    public int TotalProximas => Proximas.Count;
+}
+
 public record CentroListaDto(
-    Guid Id, string Nombre, string? CodigoCentro, Guid ClienteId, string ClienteRazonSocial, string EmpresaRazonSocial,
-    EstadoCentro Estado, int? CumplimientoPorcentaje);
+    Guid Id, string Nombre, string? CodigoCentro, Guid ClienteId, string ClienteRazonSocial,
+    Guid EmpresaId, string EmpresaRazonSocial,
+    EstadoCentro Estado, int? CumplimientoPorcentaje, RecuentosCentroDto Recuentos);
 
 /// <summary>
 /// El <see cref="CentroListaDto.Estado"/> no está persistido — lo calcula
@@ -78,16 +103,20 @@ public class ObtenerCentrosQueryHandler(
         if (request.CentroId is not null)
             consulta = consulta.Where(x => x.centro.Id == request.CentroId);
 
+        // El cumplimiento, como el estado, no está persistido: se calcula. Para
+        // ordenar por él hay que conocerlo de todos los centros que pasan los
+        // filtros ANTES de paginar, así que toma el mismo camino que el estado.
         var necesitaEstadoCompleto =
             request.Estado is not null ||
-            string.Equals(request.OrdenarPor, nameof(CentroListaDto.Estado), StringComparison.Ordinal);
+            string.Equals(request.OrdenarPor, nameof(CentroListaDto.Estado), StringComparison.Ordinal) ||
+            string.Equals(request.OrdenarPor, nameof(CentroListaDto.CumplimientoPorcentaje), StringComparison.Ordinal);
 
         if (necesitaEstadoCompleto)
         {
             var todas = await consulta
                 .Select(x => new FilaCentro(
                     x.centro.Id, x.centro.Nombre, x.centro.CodigoCentro, x.centro.ClienteId,
-                    x.cliente.RazonSocial, x.empresa.RazonSocial))
+                    x.cliente.RazonSocial, x.centro.EmpresaId, x.empresa.RazonSocial))
                 .ToListAsync(cancellationToken);
 
             var idsTodas = todas.Select(c => c.Id).ToList();
@@ -142,7 +171,7 @@ public class ObtenerCentrosQueryHandler(
             .Take(request.TamanoPagina)
             .Select(x => new FilaCentro(
                 x.centro.Id, x.centro.Nombre, x.centro.CodigoCentro, x.centro.ClienteId,
-                x.cliente.RazonSocial, x.empresa.RazonSocial))
+                x.cliente.RazonSocial, x.centro.EmpresaId, x.empresa.RazonSocial))
             .ToListAsync(cancellationToken);
 
         var idsPagina = pagina.Select(c => c.Id).ToList();
@@ -156,9 +185,40 @@ public class ObtenerCentrosQueryHandler(
     private static CentroListaDto AplicarEstado(
         FilaCentro fila, IReadOnlyDictionary<Guid, ResultadoEstadoCentro> estados,
         IReadOnlyDictionary<Guid, FraccionCumplimiento> cumplimiento) =>
-        new(fila.Id, fila.Nombre, fila.CodigoCentro, fila.ClienteId, fila.ClienteRazonSocial, fila.EmpresaRazonSocial,
+        new(fila.Id, fila.Nombre, fila.CodigoCentro, fila.ClienteId, fila.ClienteRazonSocial,
+            fila.EmpresaId, fila.EmpresaRazonSocial,
             estados.TryGetValue(fila.Id, out var resultado) ? resultado.Estado : EstadoCentro.Vigente,
-            cumplimiento.TryGetValue(fila.Id, out var fraccion) ? fraccion.Porcentaje : null);
+            cumplimiento.TryGetValue(fila.Id, out var fraccion) ? fraccion.Porcentaje : null,
+            resultado is null ? RecuentosCentroDto.Vacio : Desglosar(resultado));
+
+    /// <summary>
+    /// Las causas ya venían calculadas para decidir el estado del centro; aquí
+    /// solo se agrupan por estado. No hay consulta nueva: es el mismo dato que
+    /// ya viajaba, que hasta ahora la lista descartaba.
+    /// "Faltante" cuenta como vencido — un requisito sin documento no está al
+    /// día, y el lexico cerrado no tiene una tercera casilla en la fila.
+    /// </summary>
+    private static RecuentosCentroDto Desglosar(ResultadoEstadoCentro resultado)
+    {
+        var vencidas = new List<IncidenciaCentroDto>();
+        var proximas = new List<IncidenciaCentroDto>();
+
+        foreach (var causa in resultado.Causas)
+        {
+            var incidencia = new IncidenciaCentroDto(causa.Descripcion, causa.Ambito);
+            switch (causa.Estado)
+            {
+                case EstadoDocumento.Vencido or EstadoDocumento.Faltante:
+                    vencidas.Add(incidencia);
+                    break;
+                case EstadoDocumento.Proximo:
+                    proximas.Add(incidencia);
+                    break;
+            }
+        }
+
+        return new RecuentosCentroDto(vencidas, proximas);
+    }
 
     private static IOrderedEnumerable<CentroListaDto> OrdenarEnMemoria(
         IEnumerable<CentroListaDto> elementos, string? ordenarPor, bool descendente) =>
@@ -177,9 +237,27 @@ public class ObtenerCentrosQueryHandler(
             // gestor espera al ordenar por cumplimiento.
             (nameof(CentroListaDto.Estado), false) => elementos.OrderBy(x => x.Estado).ThenBy(x => x.Nombre),
             (nameof(CentroListaDto.Estado), true) => elementos.OrderByDescending(x => x.Estado).ThenBy(x => x.Nombre),
+            // Orden por cumplimiento (blueprint § 3.1, DDL-036): existe para
+            // atacar los peores centros SIN depender de que haya una visita
+            // próxima. Ascendente deja arriba el porcentaje más bajo, que es lo
+            // que el gestor busca al pedir este orden.
+            //
+            // "Sin requisitos" (Porcentaje null) va SIEMPRE al final, en los dos
+            // sentidos: un centro que no exige nada no es ni el mejor ni el peor
+            // cumplidor — no participa de la comparación, y colarlo en un
+            // extremo lo presentaría como un 0% o un 100% que no existe.
+            (nameof(CentroListaDto.CumplimientoPorcentaje), false) =>
+                elementos.OrderBy(x => x.CumplimientoPorcentaje is null)
+                    .ThenBy(x => x.CumplimientoPorcentaje)
+                    .ThenBy(x => x.Nombre),
+            (nameof(CentroListaDto.CumplimientoPorcentaje), true) =>
+                elementos.OrderBy(x => x.CumplimientoPorcentaje is null)
+                    .ThenByDescending(x => x.CumplimientoPorcentaje)
+                    .ThenBy(x => x.Nombre),
             _ => elementos.OrderBy(x => x.ClienteRazonSocial).ThenBy(x => x.Nombre)
         };
 
     private record FilaCentro(
-        Guid Id, string Nombre, string? CodigoCentro, Guid ClienteId, string ClienteRazonSocial, string EmpresaRazonSocial);
+        Guid Id, string Nombre, string? CodigoCentro, Guid ClienteId, string ClienteRazonSocial,
+        Guid EmpresaId, string EmpresaRazonSocial);
 }

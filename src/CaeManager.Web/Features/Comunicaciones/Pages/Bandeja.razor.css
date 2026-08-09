@@ -294,12 +294,33 @@
     gap: var(--space-2);
 }
 
+/*
+  «Cliente | Asunto» fusionados en un solo título (banco visual, Iteración 2).
+  min-width: 0 en el envoltorio para que el elipsis del hijo funcione dentro
+  de un flex item — sin él, un título largo empuja la fecha fuera de la fila
+  en vez de recortarse.
+*/
+.bandeja-lista ::deep .bandeja-fila-titulo {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-1);
+    min-width: 0;
+    overflow: hidden;
+}
+
 .bandeja-lista ::deep .bandeja-fila-remitente {
     font: var(--font-label-md);
     color: var(--color-text);
+    flex-shrink: 0;
+    max-width: 45%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.bandeja-lista ::deep .bandeja-fila-separador {
+    color: var(--color-border-strong);
+    flex-shrink: 0;
 }
 
 .bandeja-lista ::deep .bandeja-fila-fecha {

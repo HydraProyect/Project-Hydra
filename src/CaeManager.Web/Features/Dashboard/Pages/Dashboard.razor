@@ -29,12 +29,19 @@
     }
     else
     {
+        @* Iconografía obligatoria en superficies de resumen (02 § 7, DDL-036):
+           sin ella, un número de color sobre fondo blanco lee como una hoja
+           de cálculo. Los nombres de icono responden a qué representa el
+           KPI, no a su color — el tono semántico ya lo lleva Tono. *@
         <div class="rejilla-kpis-criticos">
-            <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()" Tono="TonoBadge.Peligro" Enlace="/alertas?estado=Vencido" />
-            <TarjetaMetrica Etiqueta="Urgentes (≤15 días)" Valor="@_kpis.DocumentosUrgentes.ToString()" Tono="TonoBadge.Peligro" Enlace="/alertas?estado=Urgente" />
-            <TarjetaMetrica Etiqueta="Próximos (≤30 días)" Valor="@_kpis.DocumentosProximos.ToString()" Tono="TonoBadge.Advertencia" Enlace="/alertas?estado=Proximo" />
+            <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()"
+                            NombreIcono="advertencia" Tono="TonoBadge.Peligro" Enlace="/alertas?estado=Vencido" />
+            <TarjetaMetrica Etiqueta="Urgentes (≤15 días)" Valor="@_kpis.DocumentosUrgentes.ToString()"
+                            NombreIcono="reloj" Tono="TonoBadge.Peligro" Enlace="/alertas?estado=Urgente" />
+            <TarjetaMetrica Etiqueta="Próximos (≤30 días)" Valor="@_kpis.DocumentosProximos.ToString()"
+                            NombreIcono="calendario" Tono="TonoBadge.Advertencia" Enlace="/alertas?estado=Proximo" />
             <TarjetaMetrica Etiqueta="SLA documental" Valor="@($"{_kpis.TasaCumplimientoDocumental}%")"
-                            Tono="@SlaDocumentalTono(_kpis.TasaCumplimientoDocumental)" Enlace="/documentos" />
+                            NombreIcono="check" Tono="@SlaDocumentalTono(_kpis.TasaCumplimientoDocumental)" Enlace="/documentos" />
         </div>
 
         @if (_mostrarDocumentosAtencion && _desglose is not null)
@@ -74,10 +81,10 @@
 
         <h2 class="dashboard-subtitulo">Actividad general</h2>
         <div class="rejilla-kpis-secundarios">
-            <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" Enlace="/trabajadores" />
-            <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" Enlace="/centros" />
-            <TarjetaMetrica Discreta="true" Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" Enlace="/documentos?estado=Vigente" />
-            <TarjetaMetrica Discreta="true" Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" Enlace="/visitas" />
+            <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" Enlace="/trabajadores" />
+            <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" Enlace="/centros" />
+            <TarjetaMetrica Discreta="true" Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" NombreIcono="check" Enlace="/documentos?estado=Vigente" />
+            <TarjetaMetrica Discreta="true" Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" NombreIcono="visitas" Enlace="/visitas" />
         </div>
 
         @if (_mostrarDocumentosAtencion && _desglose is not null)

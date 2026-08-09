@@ -326,16 +326,54 @@
     border-bottom: var(--border-default);
 }
 
+/*
+  Identidad del centro en dos líneas (lámina L3). Ocupa el espacio sobrante y
+  recorta con elipsis: es la única zona elástica de la fila, para que todo lo
+  demás pueda tener posición fija.
+*/
+.tarjeta-fila-acordeon-identidad {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.tarjeta-fila-acordeon-identidad > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
 .tarjeta-fila-acordeon-meta {
     color: var(--color-text-muted);
     font: var(--font-body-sm);
+}
+
+/*
+  Zona de indicadores de ANCHO FIJO (lámina L3, blueprint § 3.2).
+
+  Es lo que hace que recuentos, estado y visita caigan en la misma vertical en
+  todas las filas. Con el reparto libre anterior, un centro de nombre largo
+  desplazaba sus indicadores respecto al de arriba y la columna dejaba de
+  poderse leer de un vistazo — que es justo lo que la lámina resuelve
+  reservando la ranura.
+*/
+.tarjeta-fila-acordeon-indicadores {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-2);
+    align-items: center;
+    width: 15rem;
+    flex-shrink: 0;
 }
 
 .tarjeta-fila-acordeon-acciones {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-left: auto;
+    flex-shrink: 0;
 }
 
 .tarjeta-fila-acordeon-contenido {
@@ -486,21 +524,92 @@
     min-width: 0;
 }
 
-.lista-documentos-requeridos {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-}
+/*
+  Tercer nivel del Centro 360 — variante A (OD-12, blueprint § 3.4, DDL-034).
 
-.fila-documento-requerido {
-    display: flex;
+  La rejilla se declara UNA vez, en el contenedor, y la heredan cabecera y
+  filas: es lo unico que garantiza que las cuatro columnas caigan en la misma
+  vertical cuando una fila no tiene fecha de vigencia. Con flex libre cada fila
+  reparte el espacio segun su propio contenido y la lectura por columna, que es
+  el motivo de existir de esta variante, se pierde.
+
+  Los anchos vienen del banco visual: 168px basta para el badge de estado mas
+  largo del lexico cerrado, y 76px para "Gestionar".
+*/
+.tabla-documentos-requeridos {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 168px minmax(0, 150px) 76px;
     align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) 0;
+    column-gap: var(--space-3);
+    border-left: 2px solid var(--color-border);
+    padding-left: var(--space-3);
+    margin-left: var(--space-6);
 }
 
-.fila-documento-requerido-nombre {
-    flex: 1;
+/* La cabecera y cada fila son `display: contents`: sus celdas participan en la
+   rejilla del padre en vez de crear una anidada. */
+.documentos-requeridos-cabecera,
+.fila-documento-requerido {
+    display: contents;
+}
+
+.documentos-requeridos-cabecera > * {
+    font: var(--font-body-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    padding-bottom: var(--space-1);
+    border-bottom: var(--border-default);
+    margin-bottom: var(--space-1);
+}
+
+.fila-documento-requerido > * {
+    padding: var(--space-1) 0;
+    min-width: 0;
+}
+
+.celda-documento-nombre {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.celda-documento-vigencia {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    /* Fechas en columna: sin numeracion tabular los digitos no alinean y la
+       comparacion vertical, que es para lo que existe la columna, cuesta. */
+    font-variant-numeric: tabular-nums;
+}
+
+/*
+  Sin `justify-self: end`: eso encoge la celda al ancho de su contenido y su
+  borde izquierdo deja de coincidir con el de la cabecera — la columna se ve
+  desalineada aunque la rejilla sea correcta. La celda ocupa su columna entera
+  y es el CONTENIDO el que se alinea a la derecha.
+*/
+.columna-accion {
+    text-align: right;
+}
+
+/*
+  Accion presente pero atenuada cuando el documento no la necesita
+  (04 § 2.5). No se oculta: sigue siendo alcanzable con teclado y recupera
+  contraste completo al enfocarla o apuntarla.
+*/
+.accion-atenuada {
+    opacity: 0.55;
+}
+
+.accion-atenuada:hover,
+.accion-atenuada:focus-visible {
+    opacity: 1;
+}
+
+/* Cada linea del detalle de una ventana de contexto, como bloque propio. */
+.ventana-linea {
+    display: block;
+    padding: 1px 0;
 }
 
 .texto-vacio-seccion {
@@ -678,4 +787,113 @@
     .tabla-datos td {
         white-space: nowrap;
     }
+}
+
+
+/*
+  Ranuras fijas de recuento en la fila de Centro (blueprint § 3.2, lámina L3).
+  Dos casillas de ancho fijo: vencidos y próximos. Existen aunque la fila no
+  tenga ese recuento — es lo que permite leer la columna en vertical y lo que
+  impide que la etiqueta de estado se corra a la izquierda cuando falta un
+  número.
+*/
+.ranuras-recuento {
+    display: grid;
+    grid-template-columns: 26px 26px;
+    gap: var(--space-1);
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.ranura-recuento {
+    display: flex;
+    justify-content: flex-start;
+    min-width: 0;
+}
+
+/*
+  Badge de solo recuento (DDL-036): sin etiqueta de texto. Solo es admisible
+  porque va dentro de una VentanaContexto, que aporta el nombre accesible y el
+  desglose literal — el número por sí solo dejaría el color como único
+  portador de significado.
+*/
+.badge-solo-recuento {
+    min-width: 26px;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Cabecera de ámbito dentro del desglose de una ventana de contexto. */
+.ventana-grupo {
+    font: var(--font-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.ventana-grupo:first-child {
+    margin-top: 0;
+}
+
+
+/*
+  Ámbito Empresa dentro del acordeón de un Centro (OD-13, blueprint § 3.3).
+
+  Los dos ámbitos van declarados y separados: sin el rótulo, el bloque de la
+  empresa se leería como "un trabajador más" y el recuento del Centro —que
+  agrega los dos— dejaría de poder explicarse.
+*/
+.separador-ambito {
+    font: var(--font-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--color-text-muted);
+    padding: var(--space-3) 0 var(--space-1);
+}
+
+.fila-sujeto-ambito {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    border-bottom: var(--border-default);
+}
+
+.sujeto-ambito-identidad {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.sujeto-ambito-nombre {
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+/*
+  La nota que exige el blueprint: sin ella, una lista corta se leería como
+  "la empresa casi no tiene documentación" en vez de "esto es lo que falla".
+*/
+.sujeto-ambito-nota {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+/*
+  Misma anchura que la zona de indicadores de la fila de Centro, para que el
+  recuento de la empresa caiga en la vertical de los recuentos de arriba.
+*/
+.sujeto-ambito-indicadores {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 15rem;
+    flex-shrink: 0;
+}
+
+.sujeto-ambito-accion {
+    flex-shrink: 0;
 }

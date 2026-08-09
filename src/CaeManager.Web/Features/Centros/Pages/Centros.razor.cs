@@ -1,3 +1,4 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentros;
@@ -36,7 +37,7 @@ public partial class Centros : ComponentBase
 
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
 
-    private IReadOnlyDictionary<Guid, VisitaResumenDto> _visitasPorCentro = new Dictionary<Guid, VisitaResumenDto>();
+    private IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>> _visitasPorCentro = new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>();
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
@@ -199,6 +200,8 @@ public partial class Centros : ComponentBase
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 ClienteId: null,
                 Estado: Enum.TryParse<EstadoCentro>(_estadoFiltro, out var estado) ? estado : null,
+                OrdenarPor: _ordenarPor,
+                Descendente: _ordenDescendente,
                 Pagina: _pagina,
                 TamanoPagina: _tamanoPagina,
                 CentroId: _centroIdFiltro));
@@ -212,7 +215,7 @@ public partial class Centros : ComponentBase
             // Batch por página (no por fila) — mismo criterio que el badge de
             // cumplimiento: evita N+1 aunque solo se pinte cuando hay visita.
             _visitasPorCentro = _elementosPagina.Count == 0
-                ? new Dictionary<Guid, VisitaResumenDto>()
+                ? new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>()
                 : await Mediator.Send(new ObtenerProximaVisitaPorCentroQuery(_elementosPagina.Select(c => c.Id).ToList()));
         }
         catch (Exception)
@@ -612,4 +615,97 @@ public partial class Centros : ComponentBase
 
         StateHasChanged();
     }
+    /// <summary>
+    /// Orden de la lista. Por defecto null: cliente y luego nombre, el orden de
+    /// catalogo. El orden por cumplimiento se pide expresamente (blueprint
+    /// seccion 3.1, DDL-036) y existe para atacar los peores centros sin
+    /// depender de que haya una visita proxima.
+    /// </summary>
+    private string? _ordenarPor;
+    private bool _ordenDescendente;
+
+    private async Task CambiarOrdenAsync(string? ordenarPor)
+    {
+        // Volver a pedir el mismo orden invierte el sentido: es el gesto que
+        // el usuario ya conoce de cualquier cabecera de tabla.
+        if (string.Equals(_ordenarPor, ordenarPor, StringComparison.Ordinal))
+        {
+            _ordenDescendente = !_ordenDescendente;
+        }
+        else
+        {
+            _ordenarPor = ordenarPor;
+            _ordenDescendente = false;
+        }
+
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    /// <summary>
+    /// Incidencias del ambito Empresa de un centro. Se derivan de los recuentos
+    /// que la fila ya tiene: el bloque Empresa del acordeon no lanza ninguna
+    /// consulta propia (OD-13, blueprint seccion 3.3).
+    /// </summary>
+    private static IReadOnlyList<IncidenciaCentroDto> IncidenciasDeEmpresa(CentroListaDto centro) =>
+        centro.Recuentos.Vencidas.Concat(centro.Recuentos.Proximas)
+            .Where(i => i.Ambito == AmbitoCausa.Empresa)
+            .ToList();
+
+    /// <summary>
+    /// Nombre accesible de un badge de solo recuento. Es lo unico que oye un
+    /// lector de pantalla, asi que dice el total Y el reparto por ambito: un
+    /// numero desnudo deja el color como unico portador de significado, que es
+    /// lo que 02 seccion 8 prohibe (DDL-033).
+    /// </summary>
+    private static string DescribirRecuento(IReadOnlyList<IncidenciaCentroDto> incidencias, string calificativo)
+    {
+        var deEmpresa = incidencias.Count(i => i.Ambito == AmbitoCausa.Empresa);
+        var deTrabajadores = incidencias.Count - deEmpresa;
+        var cabeza = incidencias.Count == 1
+            ? $"1 documento {calificativo}"
+            : $"{incidencias.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
+
+        var partes = new List<string>();
+        if (deEmpresa > 0) partes.Add(deEmpresa == 1 ? "1 de empresa" : $"{deEmpresa} de empresa");
+        if (deTrabajadores > 0) partes.Add(deTrabajadores == 1 ? "1 de trabajadores" : $"{deTrabajadores} de trabajadores");
+
+        return partes.Count == 0 ? cabeza : $"{cabeza}: {string.Join(" y ", partes)}";
+    }
+
+    /// <summary>
+    /// Detalle visible de la ventana, agrupado por ambito. La agrupacion no es
+    /// estetica: el blueprint seccion 3.2 exige que el desglose declare de
+    /// quien es cada incidencia, porque el recuento agrega los dos ambitos
+    /// (DDL-031, DDL-047).
+    /// </summary>
+    private static RenderFragment DesgloseIncidencias(IReadOnlyList<IncidenciaCentroDto> incidencias) => builder =>
+    {
+        // Numeros de secuencia LITERALES, no una variable incrementada
+        // (ASP0006): el analizador de Blazor lo senala porque el numero debe
+        // ser constante para la misma posicion del codigo fuente, no
+        // depender de cuantas iteraciones se ejecutaron antes. Reutilizar el
+        // mismo literal en cada vuelta del foreach es el patron que la
+        // documentacion de Blazor recomienda para bucles de longitud
+        // variable — el diffing usa la posicion en el arbol, no un contador
+        // unico por elemento.
+        foreach (var grupo in new[] { AmbitoCausa.Empresa, AmbitoCausa.Trabajador })
+        {
+            var deEsteAmbito = incidencias.Where(i => i.Ambito == grupo).ToList();
+            if (deEsteAmbito.Count == 0) continue;
+
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "ventana-linea ventana-grupo");
+            builder.AddContent(2, grupo == AmbitoCausa.Empresa ? "Empresa" : "Trabajadores");
+            builder.CloseElement();
+
+            foreach (var incidencia in deEsteAmbito)
+            {
+                builder.OpenElement(3, "span");
+                builder.AddAttribute(4, "class", "ventana-linea");
+                builder.AddContent(5, incidencia.Descripcion);
+                builder.CloseElement();
+            }
+        }
+    };
 }
