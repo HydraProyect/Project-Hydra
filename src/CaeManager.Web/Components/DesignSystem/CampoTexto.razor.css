@@ -39,7 +39,7 @@
 
 .campo-mensaje-error {
     font: var(--font-body-sm);
-    color: var(--color-danger-500);
+    color: var(--color-danger-700);
 }
 
 /* iOS hace zoom automático al enfocar un input con font-size < 16px — el

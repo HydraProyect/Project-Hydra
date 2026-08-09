@@ -158,16 +158,19 @@
 }
 
 /* Acciones de fila */
+/* --color-peligro y --color-peligro-hover mapean a danger-500 y danger-700,
+   pero como FOREGROUND el -500 incumple el 4.5:1 (3.76:1 sobre Surface), asi
+   que el estado de reposo sube tambien a -700 y las dos reglas colapsan en el
+   mismo valor. La escala del semaforo solo tiene -50, -500 y -700: no hay un
+   tercer tono con el que distinguir el hover sin inventarlo. La regla :hover
+   se retira por ser un no-op; la afordancia de hover del enlace destructivo
+   queda registrada como ODM-12. */
 .enlace-peligro {
-    color: var(--color-danger-500);
-}
-
-.enlace-peligro:hover {
     color: var(--color-danger-700);
 }
 
 .aviso-error {
-    color: var(--color-danger-500);
+    color: var(--color-danger-700);
     font: var(--font-body-md);
     margin-bottom: var(--space-4);
 }

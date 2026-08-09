@@ -157,7 +157,7 @@
 .asistente-mensaje-error {
     align-self: stretch;
     font: var(--font-body-sm);
-    color: var(--color-danger-500);
+    color: var(--color-danger-700);
     text-align: center;
     padding: var(--space-2);
 }

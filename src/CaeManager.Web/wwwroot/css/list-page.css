@@ -141,7 +141,7 @@
 
 .alerta-formulario {
     background-color: var(--color-danger-50);
-    color: var(--color-danger-500);
+    color: var(--color-danger-700);
     border-radius: var(--radius-sm);
     padding: var(--space-3);
     font: var(--font-body-sm);
