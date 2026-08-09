@@ -1779,8 +1779,50 @@ antecedente en este Log, en los documentos archivados ni en el código:
 | Matriz de composición de superficies + "**dos** niveles de overlay es el máximo" | `05` § 7 | Sin DDL. Es **estructura normativa nueva**, y `05` es justamente donde se decidió que viven los patrones estructurales |
 | "Ninguna situación que requiera atención está a más de **un clic**" | `03` § 4.1 | Sin fuente. Se presenta junto a una regla heredada (ver OD-29), lo que le presta una continuidad que no tiene |
 
+#### Investigación (2026-08-09)
+
+Sin antecedente en `docs/archive/`; primera aparición en el commit del reset.
+
+**La afirmación más cercana que sí tiene autoridad es más estrecha.** `03` § 1.1 (Operational Home,
+sin DDL propia citada) dice *"cada elemento que requiere atención lleva **una sola acción
+primaria"* — eso garantiza que la acción **existe en la fila**, dentro del Home. La regla de § 4.1
+generaliza dos veces: de "existe la acción" a "cuesta un clic llegar a ella", y de "en el Home" a
+"desde cualquier situación que requiera atención, en cualquier superficie". Ninguna de las dos
+generalizaciones está decidida.
+
+**No hay mecanismo que la verifique.** A diferencia del "≤3 clics" (ver OD-29, que sí tiene un
+mecanismo concreto: buscador global + atajos), no hay ningún patrón de `03`/`05` cuyo objeto sea
+garantizar el clic único desde una situación urgente arbitraria hasta su resolución. Es una
+aspiración sin mecanismo declarado, no una regla verificable.
+
 El caso de la matriz de `05` § 7 es el más serio de los tres: no es un número aislado sino un
 sistema de reglas de composición del que se derivan cuatro consecuencias explícitas.
+
+#### Investigación (2026-08-09)
+
+**1 · Procedencia.** Sin antecedente en `docs/archive/`; primera aparición en el historial en el
+commit del reset, para la matriz entera y para las cuatro reglas derivadas.
+
+**2 · Célula por célula: qué deriva de autoridad existente y qué no.**
+
+| Elemento | ¿Deriva de algo decidido? |
+|---|---|
+| Context Panel → Context Panel: **no** | **Sí** — `03` § 1.3 y `05` § 3.2: *"Nunca anidado: existe una única instancia… montada en el layout raíz"* |
+| Flow Surface → Flow Surface: **no** (regla 1, "nunca un flujo dentro de un flujo") | No. `05` § 6 no prohíbe el anidado; solo describe abandonar sin datos a medias |
+| "**Dos niveles de overlay** es el máximo, y el segundo solo puede ser confirmación" | No. Ningún documento fija ese número |
+| Fila **Action Center**: no abre Entity Workspace ni Context Panel | No. DDL-007 fija el contrato del patrón (decisiones, confianza, Confirmar/Editar/Descartar); no restringe qué puede abrir |
+| Regla 2, **"Navegar a un Entity Workspace cierra el panel"** | **Parece la misma decisión de `05` § 3.6, pero no lo es.** § 3.6 documenta una decisión cerrada el 2026-07-25, con motivo distinto: cierre al navegar **por el menú principal** — y está **sin implementar**, es deuda declarada. La regla 2 de § 7 es un disparador **distinto**: navegar a un Entity Workspace **desde dentro del panel**. Ninguna decisión cubre ese caso |
+| Reglas 3 y 4 (Action Center embebido; un overlay se cierra solo) | Parcial: "embebido, no pantalla" sí está en DDL-007 / `05` § 4.5; "se cierra solo y devuelve el foco" no tiene DDL propia, aunque es coherente con `08` § 3.2 (contrato de componente) |
+
+**Conclusión**: de toda la matriz, **una sola celda** —Context Panel no se anida— deriva de
+autoridad existente. El resto es un sistema de composición coherente y razonable, pero **escrito
+de una vez durante la redacción de `05`**, sin que cada relación pasara por una decisión. Es la
+forma 3 de DDL-058 en su versión más grande: no una regla suelta, sino una arquitectura entera.
+
+**3 · Por qué no se puede simplemente "ratificar en bloque".** A diferencia de OD-26, aquí no hay
+una regla madre (como DDL-016 o `07` § 2) de la que la matriz sea una aplicación directa. Ratificar
+las quince celdas con un solo DDL sería exactamente el atajo que DDL-058 prohíbe: convertiría una
+redacción en decisión por volumen, no por autoridad.
 
 > **Corrección de esta entrada (2026-08-09, hallada al investigar OD-26)**: la regla de los tres
 > avisos **sí tiene antecedente**. El histórico archivado `UX_PATTERNS.md` § 113 dice *"nunca
