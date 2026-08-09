@@ -24,7 +24,7 @@
     font: var(--font-body-md);
     color: var(--color-neutral-0);
     overflow: hidden;
-    animation: entrar-toast var(--transition-slow) ease-out;
+    animation: entrar-toast var(--motion-slow) var(--ease-standard);
 }
 
 @keyframes entrar-toast {

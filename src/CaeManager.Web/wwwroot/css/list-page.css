@@ -141,7 +141,7 @@
 
 .alerta-formulario {
     background-color: var(--color-danger-50);
-    color: var(--color-danger-500);
+    color: var(--color-danger-700);
     border-radius: var(--radius-sm);
     padding: var(--space-3);
     font: var(--font-body-sm);
@@ -281,7 +281,9 @@
 
 .paginador-tamano-select {
     padding: var(--space-1) var(--space-2);
-    border: var(--border-default);
+    /* Borde que identifica un control: sujeto al 3:1 de 02 § 8
+       (DDL-062/063). --color-border no lo alcanza (1.18:1). */
+    border: var(--border-control);
     border-radius: var(--radius-sm);
     background-color: var(--color-surface);
     color: var(--color-text);
@@ -359,7 +361,7 @@
     color: var(--color-text-muted);
     cursor: pointer;
     border-radius: var(--radius-sm);
-    transition: transform var(--transition-fast);
+    transition: transform var(--motion-fast) var(--ease-standard);
     transform: rotate(-90deg);
 }
 
@@ -560,9 +562,10 @@
     border-bottom: none;
 }
 
+/* Resalte de fila: es la funcion que --motion-base declara (07 § 8). */
 .tabla-datos tr:hover td {
     background-color: var(--color-surface-hover);
-    transition: background-color var(--transition-fast);
+    transition: background-color var(--motion-base) var(--ease-standard);
 }
 
 /* Fila con foco de teclado (atajos j/k, P3-31) */
@@ -632,7 +635,7 @@
 
 .tabla-datos tbody tr,
 .stagger-item {
-    animation: revelar-escalonado var(--transition-slow) ease-out backwards;
+    animation: revelar-escalonado var(--motion-transition) var(--ease-fluid) backwards;
 }
 
 .tabla-datos tbody tr:nth-child(1), .stagger-item:nth-child(1)   { animation-delay: 0ms; }

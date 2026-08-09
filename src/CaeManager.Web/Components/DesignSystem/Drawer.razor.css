@@ -11,15 +11,16 @@
     z-index: 1040;
 }
 
+/* Nivel Overlay (06 § 3). */
 .drawer-panel {
-    background-color: var(--color-surface);
+    background-color: var(--color-overlay);
     box-shadow: var(--shadow-overlay);
     width: 100%;
     max-width: 420px;
     height: 100vh;
     display: flex;
     flex-direction: column;
-    animation: entrar-desde-derecha 0.2s ease-out;
+    animation: entrar-desde-derecha var(--motion-transition) var(--ease-fluid);
 }
 
 @keyframes entrar-desde-derecha {
@@ -28,6 +29,14 @@
     }
     to {
         transform: translateX(0);
+    }
+}
+
+/* prefers-reduced-motion desactiva Tier B SIEMPRE (DDL-020, 07 § 4). Faltaba:
+   era la unica entrada de overlay del sistema que seguia animandose. */
+@media (prefers-reduced-motion: reduce) {
+    .drawer-panel {
+        animation: none;
     }
 }
 
