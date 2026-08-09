@@ -48,8 +48,11 @@
     background: transparent;
 }
 
-.buscador-input:focus {
-    outline: none;
+/* Sin esto el foco del buscador global era invisible: outline: none sin
+   sustituto incumple "el foco siempre visible" (02 § 8). */
+.buscador-input:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
 }
 
 .buscador-resultados {

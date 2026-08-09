@@ -281,7 +281,9 @@
 
 .paginador-tamano-select {
     padding: var(--space-1) var(--space-2);
-    border: var(--border-default);
+    /* Borde que identifica un control: sujeto al 3:1 de 02 § 8
+       (DDL-062/063). --color-border no lo alcanza (1.18:1). */
+    border: var(--border-control);
     border-radius: var(--radius-sm);
     background-color: var(--color-surface);
     color: var(--color-text);
