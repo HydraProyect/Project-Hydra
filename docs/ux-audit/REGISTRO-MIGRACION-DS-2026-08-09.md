@@ -147,6 +147,103 @@ texto sobre relleno, los trazos decorativos (`-300`/`-400`) y el degradado del e
 
 `BUILD PASSED` · **sin verificación visual**.
 
+### 1.5 `--shadow-card` y el acento cobre retirados — `06` § 12 paso 4
+
+DDL-013 y DDL-012. Los **20 usos** de `--shadow-card` en **11 hojas** se clasificaron uno a uno
+con la tabla de `06` § 12 antes de tocarlos. Resultado: **ninguno era el caso legítimo** — no hay
+una sola sombra que se convierta en `--shadow-overlay`.
+
+| Clasificación | Migración | Dónde |
+|---|---|---|
+| Tarjeta que solo necesita separarse del fondo | Fondo y borde, sin sustituto | `Tarjeta` · `TarjetaMetrica` · las cinco tarjetas de Account · burbuja de `UnifiedTimeline` · las tres columnas de `Bandeja` |
+| Jerarquía que el orden visual ya daba | Se elimina | Hover de `Boton` (primario, secundario, destructivo) · `.boton-primario:hover` de las cinco páginas de Account · `.nav-item:hover` |
+
+Se retira además `--shadow-overlay` del hover de `TarjetaMetrica`: ese token tiene **un único uso
+permitido**, el nivel Overlay (`06` § 5), y una tarjeta métrica no lo es. El `translateY(-2px)`
+que lo acompaña **no se toca** (ODM-06).
+
+Nueve declaraciones `transition` dejaban de animar nada y pierden su término `box-shadow`. Las de
+`Campo*` se conservan: allí la sombra sigue siendo el anillo de foco, que sí cambia.
+
+El **único** consumo real del cobre era `.timeline-sugerencia-icono-ia`. Pasa a
+`--color-system-text`: el presupuesto de uso del cian cubre literalmente *"IA cuando actúa"*
+(`02` § 3.3), así que la equivalencia es inequívoca.
+
+`BUILD PASSED` · `E2E VERIFIED`.
+
+### 1.6 Veredictos de `07` § 5 sobre los efectos de julio
+
+Los tres que `07` § 5.2 nombra por archivo, con el veredicto que ya tenían decidido (DDL-045):
+
+| Efecto | Veredicto | Archivo |
+|---|---|---|
+| Gradient mesh animado de las tarjetas KPI | **Retirado** | `wwwroot/css/dashboard.css` |
+| Glow en hover de enlaces | **Retirado** (con sus dos excepciones) | `wwwroot/css/base.css` |
+| Ripple | **Acotado** a `.boton-primario` | `wwwroot/js/microinteracciones.js` |
+
+`BUILD PASSED` · `E2E VERIFIED` (el `::before` del mesh computa `content: none`).
+
+### 1.7 Duraciones con función declarada — `06` § 12 paso 5
+
+Cada sustitución se decide por la **función** que `07` § 8 asigna al token, no por coincidencia de
+nombre: `--transition-base` **no** se convierte en `--motion-base` por llamarse igual.
+
+| Función (`07` § 8) | Token | Qué se migró |
+|---|---|---|
+| Cambio de estado de control | `--motion-fast` + `--ease-standard` | Los 44 usos de `--transition-fast` y `--transition-base`. Todos resultaron ser lo mismo: hover, foco, activo o arrastre |
+| Resalte de fila | `--motion-base` + `--ease-standard` | `.tabla-datos tr:hover td` |
+| Toasts y avisos | `--motion-slow` + `--ease-standard` | Entrada del toast |
+| Transición espacial (Tier B) | `--motion-transition` + `--ease-fluid` | Entrada de Drawer, ContextWorkspace y panel del Asistente; entrada del buscador global (`07` § 5 #4); revelado escalonado de listas y dashboard (DDL-054 — los retrasos topados no se tocan) |
+
+Valores a mano sustituidos por su token: los 100 ms de NavMenu y los 0,15 s del botón del
+Asistente y de las pestañas de Facturación.
+
+Dos correcciones contra el **contrato cerrado** de `07` § 8:
+
+- La curva *spring* con overshoot de `Boton` (`cubic-bezier(0.34, 1.56, 0.64, 1)`) no existe en
+  ese contrato. Tier A usa aceleración estándar (`07` § 3), y añadir una curva se decide en `07`.
+- El ripple duraba **550 ms**. Es feedback causal de Tier A, cuyo techo son 250 ms (`07` § 3).
+
+`--transition-fast` y `--transition-base` quedan retirados. `--transition-slow` sobrevive con un
+único consumidor por ODM-07.
+
+`BUILD PASSED` · `E2E VERIFIED`.
+
+### 1.8 Borde de control y foco visible fuera del sistema de diseño
+
+Los componentes de `DesignSystem/` ya cumplían DDL-063; los controles que viven en features, no.
+
+**Borde que identifica un control → `--border-control`** (3:1, `02` § 8): `.asistente-textarea` ·
+`.composer-whatsapp-input` · `.bandeja-toggle` · `.paginador-tamano-select` · `.enlace-hoy` ·
+`.boton-buscador-global`. Se aplicó la regla de decisión de `02` § 8 —*si el borde desaparece,
+¿deja de distinguirse dónde empieza y acaba el control?*—: quedan fuera tarjetas, paneles,
+columnas, chips, tablas y separadores, que agrupan contenido y no están sujetos al 3:1 (DDL-062).
+
+**Foco visible** (`02` § 8, `08` § 3.2 punto 8):
+
+- `.buscador-input` hacía `outline: none` **sin sustituto**: el foco del buscador global era
+  literalmente invisible al navegar con teclado.
+- `.asistente-textarea` sustituía el outline por un cambio de borde —justo lo que `08` § 3.2
+  prohíbe— y de paso desplazaba el contenido al pasar el borde de 1 px a 2 px.
+
+Ambos pasan al patrón que ya usan `CampoTexto` y `CampoTextarea`.
+
+`BUILD PASSED` · `E2E VERIFIED`.
+
+### 1.9 Enlace global y `prefers-reduced-motion` del Drawer
+
+`02` § 3.2 asigna `#235BC2` a *"acción primaria, enlaces, foco, estado activo"*. El enlace global
+de `base.css` usaba `--color-primary-600`, que es el escalón de activo/pressed y que `06` § 2.1
+marca además como **no ratificado**. Los usos de `-600` como **fondo** de hover/pressed se
+conservan: ahí sí es su rol. Los ocho usos restantes como color de **texto** quedan registrados
+en ODM-09.
+
+El `Drawer` no tenía bloque `prefers-reduced-motion`: era la única entrada de overlay del sistema
+que seguía animándose con el movimiento reducido activo, y DDL-020 lo desactiva **siempre** para
+Tier B.
+
+`BUILD PASSED`.
+
 ---
 
 ## 2. Pendientes de decisión
@@ -254,11 +351,118 @@ Decision Log. **Ninguna se ha resuelto por inferencia.** Una recomendación no e
 - **Estado**: la **sombra** sí se retira (ver § 1 del lote de sombras: `--shadow-overlay` tiene un
   único uso permitido, el nivel Overlay, y una tarjeta no lo es). El `translateY` no se toca.
 
+### ODM-07 · Duraciones sin función asignada en el contrato cerrado de `07` § 8
+
+- **Ubicación**: `Features/Dashboard/Pages/Dashboard.razor.css:25` (barra comparativa que se
+  rellena) · `Components/DesignSystem/AnilloCumplimiento.razor.css:28` (`stroke-dasharray`, el
+  anillo dibujándose) · `Boton.razor.css:132` (giro del spinner, 0.6 s) ·
+  `EstadoCargando.razor.css:17` (brillo del esqueleto, 1.4 s) ·
+  `ProgresoConMensajes.razor.css:27` (progreso indeterminado, 1.6 s).
+- **Evidencia**: `07` § 8 declara siete tokens y cierra el contrato: *"no se declara ningún token
+  de motion que no aparezca en esta tabla"*. Ninguno de esos siete cubre "un valor que se anima
+  hasta su medida" ni "un ciclo de espera indeterminado". `--motion-live-cycle` (2–2,5 s) tiene
+  función asignada —*pulso de estado vivo*— y un spinner a 2,2 s por vuelta no es eso.
+- **Por qué requiere decisión**: mapearlos a un token existente sería usar un token para una
+  función que no declara, que es exactamente lo que `07` § 8 quiere impedir. Y declarar uno nuevo
+  se decide en `07`, no en una hoja de estilo.
+- **Alternativas**: (A) `07` añade una función y `06` un token para "carga indeterminada".
+  (B) se asigna una de las existentes por decisión expresa. (C) se acepta que estas cinco quedan
+  fuera del sistema de motion y se documenta por qué.
+- **Estado**: **sin tocar**. `--transition-slow` sobrevive en `tokens.css` como token deprecado
+  con un único consumidor por esta razón.
+- **Impacto**: cinco declaraciones. Bajo en superficie, alto en criterio: fija si el contrato de
+  `07` § 8 es exhaustivo o admite huecos declarados.
+
+### ODM-08 · El velo de los overlays no tiene token
+
+- **Ubicación**: `Modal.razor.css:4` · `Drawer.razor.css:4` · `AsistenteIa.razor.css:13`
+  (`rgba(15, 23, 42, 0.45)`) · `BuscadorGlobal.razor.css:4` (`rgba(15, 23, 42, 0.5)`).
+- **Evidencia**: cuatro velos a mano, con dos opacidades distintas y un color que no pertenece a
+  ninguna rampa del sistema (`#0F172A` es slate de librería). `06` § 1.2 prohíbe que un componente
+  codifique un color a mano, pero `06` § 3 no declara ningún token de velo.
+- **Por qué requiere decisión**: el token no existe y crearlo es ampliar el sistema, no migrar.
+  Además hay que elegir **una** opacidad: hoy el buscador global usa 0.5 y los demás 0.45, sin que
+  ninguna decisión respalde la diferencia.
+- **Alternativas**: (A) `06` declara `--color-scrim` con un valor derivado de la rampa neutra.
+  (B) se declara por nivel (modal frente a buscador) si la diferencia es intencionada.
+- **Recomendación**: (A) con un solo valor. La diferencia actual parece deriva, no decisión.
+
+### ODM-09 · `--color-primary-700` y `--color-primary-600` como color de texto
+
+- **Ubicación**: `UnifiedTimeline.razor.css:219` (`-700`) · `NavMenu.razor.css:127`,
+  `UnifiedTimeline.razor.css:189, 267`, `Bandeja.razor.css:89, 166, 278, 387, 428` (`-600`).
+- **Evidencia**: `06` § 2.1 declara `-600` como *"Activo / pressed"* y `-700` como *"Reservado"*,
+  y marca **ambos como no ratificados**. `02` § 3.2 solo decide tres valores por rol: acción
+  (`-500`), acento no textual (`-400`) y enlace sobre superficie oscura (`-300`).
+- **Por qué requiere decisión**: el enlace global sí se corrigió a `-500` porque `02` § 3.2 lo
+  nombra literalmente. Estos nueve no son todos enlaces —hay títulos de sección, elementos activos
+  de navegación y remitentes— y decidir su rol uno a uno es asignar significado, no migrar.
+- **Impacto**: nueve declaraciones, concentradas en Comunicaciones.
+- **Contraste**: ninguno falla — `-600` da 8.59:1 y `-700` 11.35:1 sobre Surface. Es un problema
+  de **rol**, no de accesibilidad.
+
+### ODM-10 · Foco suprimido en el panel de pestañas
+
+- **Ubicación**: `Components/DesignSystem/Pestanas.razor.css:49`
+- **Evidencia**: `.pestanas-panel:focus-visible { outline: none }`. `02` § 8 dice "el foco siempre
+  visible" sin excepciones, pero `08` § 3.2 acota los requisitos 7–9 a **superficies
+  interactivas**, y un `tabpanel` que recibe foco programático para que el teclado entre en su
+  contenido no es un control.
+- **Por qué requiere decisión**: las dos lecturas son defendibles y el resultado es opuesto.
+- **Estado**: **sin tocar**. Los otros dos `outline: none` de la aplicación sí se corrigieron
+  porque estaban sobre controles reales (input de búsqueda y textarea del asistente).
+
 ---
 
 ## 3. Mejoras propuestas
 
-*(en curso)*
+Ninguna implementada. Todas son opcionales y ninguna bloquea nada.
+
+### MP-01 · `.enlace-accion` debería ser `MenuAcciones`
+
+- **Problema**: Facturación y Proyectos pintan sus acciones de fila como botones sueltos con una
+  clase sin estilos (ver BUG-01), mientras el resto del producto usa **MenuAcciones**.
+- **Mejora**: sustituirlos por `MenuAcciones`, que ya resuelve agrupación, opción destructiva
+  distinguida y teclado (`08` § 4.1).
+- **Beneficio**: dos páginas dejan de ser la excepción visual del catálogo.
+- **Coste**: bajo — dos ficheros `.razor`. **Riesgo**: bajo. `08` § 4.1 advierte que **no** se usa
+  MenuAcciones con una sola acción: Facturación tiene una sola ("Eliminar"), así que ahí la
+  respuesta correcta puede ser estilar el botón, no agrupar.
+
+### MP-02 · El esqueleto de carga no cambia con el tema
+
+- **Problema**: `EstadoCargando.razor.css:12-14` construye su degradado con
+  `--color-neutral-100/-200`, paleta cruda. En tema oscuro el esqueleto brilla en gris claro sobre
+  fondo oscuro — el mismo defecto que este lote corrigió en otras doce superficies.
+- **Mejora**: reconstruirlo sobre `--color-surface-subtle` y `--color-border`.
+- **Beneficio**: el esqueleto deja de ser el único elemento que ignora el tema.
+- **Coste**: bajo. **Riesgo**: bajo, pero **no se hizo** porque un degradado no es "una
+  superficie" y elegir sus dos paradas es una decisión visual, no una sustitución.
+
+### MP-03 · Un solo sitio para el tamaño de fuente fuera de escala
+
+- **Problema**: 26 declaraciones `font-size` con valor literal (`10px`, `11px`, `0.78rem`,
+  `0.85rem`, `0.6875rem`, `1.15rem`…). Algunas son deliberadas —el `1rem` de los campos en móvil
+  evita el zoom automático de iOS—, pero la mayoría son escalones inventados.
+- **Mejora**: cruzarlas contra la escala de `06` § 6 y dejar solo las que tengan una razón escrita.
+- **Beneficio**: la escala tipográfica vuelve a ser la única fuente.
+- **Coste**: medio. **Riesgo**: medio — cambia tamaños visibles. Depende además de ODM-02.
+
+### MP-04 · El botón flotante del Asistente lleva sombras propias
+
+- **Problema**: `BotonAsistenteIa.razor.css:15, 23` declara dos `box-shadow` a mano.
+- **Mejora**: si flota sobre el contenido es nivel Overlay y le corresponde `--shadow-overlay`;
+  si no, no le corresponde ninguna (`06` § 5 le da un único uso permitido a ese token).
+- **Coste**: trivial. **Riesgo**: bajo. **No se hizo** porque decidir si un FAB es Overlay es la
+  misma pregunta que ODM-01, y conviene responderlas juntas.
+
+### MP-05 · Fallbacks muertos en ComposerBar
+
+- **Problema**: `ComposerBar.razor.css:15-21` usa `var(--color-success-50, #ecfdf5)` y tres más.
+  Los tokens existen, así que el fallback nunca se aplica — pero su valor **no coincide** con el
+  del token (`#ECFDF5` frente a `#EEFDF3`). Es una segunda fuente silenciosa del mismo valor.
+- **Mejora**: retirar los cuatro fallbacks.
+- **Coste**: trivial. **Riesgo**: ninguno. **No se hizo** por mantener el lote acotado.
 
 ---
 
@@ -276,16 +480,96 @@ Decision Log. **Ninguna se ha resuelto por inferencia.** Una recomendación no e
 - **No corregido en esta sesión**: elegir entre estilar `.enlace-accion` o sustituirlo por
   `MenuAcciones` es una decisión de patrón, no una sustitución de token.
 
-*(en curso)*
+### BUG-02 · `--color-danger-500` como color de texto incumple el 4.5:1
+
+- **Evidencia**: once declaraciones usan `--color-danger-500` (`#EF4444`) como `color` de texto.
+  Sobre Surface da **3.76:1**, por debajo del 4.5:1 que `02` § 8 exige al texto normal. `06` § 2.3
+  es explícito: cada color del semáforo lleva "su fondo (`-50`) y **su tono de texto (`-700`)**".
+- **Ubicaciones**: `Login.razor.css:59, 66` y sus cuatro gemelas de Account ·
+  `CampoTexto.razor.css:42` (mensaje de validación) · `AsistenteIa.razor.css:160` ·
+  `Facturacion.razor.css:164, 172` · `Proyectos.razor.css:59, 67` ·
+  `Trabajadores.razor.css:22` · `list-page.css:144`.
+- **No corregido**: es el mismo eje que ODM-03 y el semáforo es innegociable (DDL-010). Corregir
+  once sitios de golpe cambia el rojo de todos los mensajes de error del producto: merece decisión
+  expresa, no un barrido nocturno. La corrección es mecánica una vez decidido.
+- **Precedente a favor de `-700`**: `Badge.razor.css` ya lleva un comentario explicando que
+  `-500` sobre `-50` incumplía el AA "no negociable" (hallazgo P0-8), y `MenuAcciones` usa `-700`
+  para su opción destructiva.
+
+### BUG-03 · Un color de texto a mano en la traza de soporte
+
+- **Evidencia**: `Components/Layout/TrazaSoporte.razor.css:7` declara `color: #1a1206`, un valor
+  que no pertenece a ninguna rampa del sistema. Incumple `06` § 1.2.
+- **No corregido**: la traza de soporte se pinta sobre un fondo ámbar propio, y elegir su token de
+  texto (¿`--color-warning-700`? ¿`--color-text`?) es una decisión cromática, no una sustitución.
 
 ---
 
 ## 5. Deuda técnica
 
-*(en curso)*
+### DT-01 · La suite de integración es inestable
+
+Dos ejecuciones completas de `CaeManager.IntegrationTests` fallaron con **tests distintos**
+(`Aislamiento_Subcontrata` la primera, `El_desempate_por_Id_hace_estable_la_paginacion` la
+segunda). **Ambos pasan al ejecutarse en solitario.** Esta rama no toca **ni un solo archivo
+`.cs`** —57 archivos modificados, todos `.css`, `.js` o `.md`—, así que la inestabilidad es
+previa y no la introduce la migración. Apunta a estado compartido de base de datos entre tests en
+paralelo.
+
+### DT-02 · Los `<button>` de la aplicación no heredan estilo del sistema
+
+`base.css` solo declara `button { font-family: inherit }`. Cualquier `<button>` que no lleve la
+clase `.boton` se pinta con el estilo nativo del navegador — así se explica BUG-01. Un reseteo
+mínimo evitaría que el próximo botón sin clase pase inadvertido.
+
+### DT-03 · `--color-neutral-*` sigue siendo consumido directamente
+
+Después del barrido quedan 30 referencias directas a la rampa neutra desde componentes:
+`-0` como texto sobre relleno (correcto), `-300`/`-400` como trazos decorativos y `-700` como
+texto de badge. `06` § 10 pide consumir siempre tokens semánticos. No hay hoy token semántico para
+"trazo decorativo" ni para "texto sobre relleno", así que cerrar esta deuda **empieza por una
+decisión en `06`**, no por un reemplazo.
+
+### DT-04 · `06` § 12 declara 23 hojas afectadas por `--shadow-card`; son 11
+
+La medición de 2026-08-08 contó también los artefactos generados en `obj/` (los `.rz.scp.css` y
+los bundles). Los usos reales eran 20 declaraciones en 11 hojas de código fuente. No cambia
+ninguna conclusión del documento —sigue siendo el cambio de mayor superficie del reset— pero la
+cifra conviene corregirla si `06` § 12 se vuelve a citar.
 
 ---
 
 ## 6. Bloqueos reales
 
-Ninguno. Ninguna de las ODM abiertas impide continuar con el resto de superficies.
+**Ninguno.** Las diez ODM abiertas afectan a declaraciones concretas; ninguna impide continuar con
+el resto del portal. Los cinco pasos de `06` § 12 están ejecutados.
+
+---
+
+## 7. Verificación
+
+| Nivel | Alcance |
+|---|---|
+| `BUILD PASSED` | Solución completa, tras cada uno de los ocho commits. |
+| `TESTS PASSED` | 384 Domain · 256 Application · 13 Architecture · 111 Web · 12 E2E · 349/350 Integration (ver DT-01). |
+| `STATIC CHECK PASSED` | Barrido cruzado de todo `var(--…)` contra los tokens declarados: cero referencias inexistentes salvo `--color-info-600` (ODM-05). Cero `--shadow-card`, cero `--color-accent-*`, cero `--transition-fast/-base`. |
+| `E2E VERIFIED` | Aplicación levantada contra Postgres local y recorrida autenticada: login, dashboard, clientes, facturación, proyectos, comunicaciones y apertura de Drawer. |
+
+Lo verificado en navegador, con valores computados reales:
+
+- Los 19 tokens del reset resuelven a su valor normativo (`--color-bg` `#F6F8FA`, `--color-border`
+  `#E2E8EC`, `--color-text-muted` `#5F6E84`, la familia cian, los siete de motion).
+- `--shadow-card`, `--color-accent-500`, `--transition-fast` y `--transition-base` ya **no
+  resuelven a nada**: están retirados de verdad, no solo sin usar.
+- `.tarjeta` y `.tarjeta-metrica` con `box-shadow: none`; el `::before` del gradient mesh con
+  `content: none`.
+- Facturación y Proyectos con espaciado real (32 px donde antes el navegador computaba 0) y el
+  texto secundario en `rgb(95, 110, 132)`.
+- Los toggles inactivos de la bandeja con borde `rgb(115, 129, 150)` y el activo con
+  `rgb(35, 91, 194)`: el borde de control y la marca de estado no se pisan.
+- El Drawer entra en 0,36 s con `cubic-bezier(0.16, 1, 0.3, 1)` y conserva `--shadow-overlay`,
+  que es su único uso legítimo.
+- Consola sin errores atribuibles a la migración; las nueve hojas de estilo sirven 200.
+
+**Lo que NO se ha verificado**: tema oscuro (sigue sin rediseñar, DDL-043) y comportamiento
+responsive por debajo de 1280 px.
