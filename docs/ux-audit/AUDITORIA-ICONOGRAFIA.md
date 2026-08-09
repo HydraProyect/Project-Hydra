@@ -238,6 +238,88 @@ Nada de esto se ejecuta sin su decisión; el orden importa:
 
 ---
 
+## Anexo A — Listado icono a icono: qué transmite y con qué buscarlo en Flaticon
+
+Método de búsqueda recomendado: en Flaticon, filtrar por estilo **Lineal** (outline), buscar el
+término en inglés (catálogo mucho más amplio que en español), y al encontrar un glifo válido
+**abrir el pack del autor ("View pack") y sacar del mismo pack todos los demás** — la
+consistencia viene del pack, no de 50 búsquedas sueltas. Antes de comprar, abrir el SVG y
+comprobar que contiene `stroke=` real: si todo son `<path fill="...">`, el contorno está
+expandido y no se puede normalizar a trazo 1,75 / `currentColor` sin redibujar. La fuente de
+iconos "UIcons" de Flaticon queda descartada (dependencia, `02` § 7).
+
+### A.1 Catálogo existente (38) — para sustitución o referencia de estilo
+
+| Icono | Qué debe transmitir | Búsqueda en Flaticon |
+|---|---|---|
+| `clientes` | La organización a la que sirves; relación de servicio | `briefcase` · `client` |
+| `empresas` | Empresa contratista: entidad corporativa | `office building` · `company` |
+| `centros` | Lugar físico de trabajo | `factory` · `workplace location` |
+| `subcontratas` | Empresa subordinada en la cadena de contratación | `hierarchy` · `organization structure` |
+| `trabajadores` | Las personas cuya documentación gestionas | `workers` · `employees group` |
+| `vehiculos` | Flota y maquinaria que entra al centro | `truck` · `van vehicle` |
+| `documentos` | La unidad de trabajo del CAE: el documento | `document` · `file` |
+| `tipos-documento` | Catálogo/clasificación de documentos | `document stack` · `file types` |
+| `proyectos` | Obra o proyecto que agrupa la coordinación | `blueprint` · `construction project` |
+| `visitas` | Inspección presencial al centro | `site inspection` · `clipboard checklist` |
+| `asignaciones` ⚠ | Vínculo trabajador↔centro (hoy sin uso) | `task assignment` · `user link` |
+| `evaluaciones` ⚠ | Valoración/evaluación (hoy sin uso) | `assessment` · `evaluation checklist` |
+| `incidencias` | Algo fue mal y hay que actuar | `incident report` · `warning report` |
+| `cartera` | El conjunto de clientes bajo gestión | `portfolio` · `folder briefcase` |
+| `dashboard` | Vista de conjunto del estado | `dashboard` · `gauge meter` |
+| `menu` | Abrir la navegación (móvil) | `hamburger menu` |
+| `chevron` | Plegar/desplegar; jerarquía | `chevron down` |
+| `volver` | Regresar al nivel anterior | `back arrow` · `arrow left` |
+| `reportes` | Datos agregados, informes | `analytics report` · `chart document` |
+| `calendario` | Fechas, vencimientos, planificación | `calendar` |
+| `buscar` | Búsqueda global | `magnifying glass` · `search` |
+| `alertas` | "Hay avisos esperándote" (campana de navegación) | `notification bell` |
+| `advertencia` | Atención: riesgo, algo requiere acción | `warning triangle` |
+| `reloj` | El plazo aprieta; urgencia temporal | `clock deadline` · `time` |
+| `check` | Verificado, al día, correcto | `check mark` · `tick` |
+| `imagen` | Hueco de contenido visual (empty state, drop zone) | `image placeholder` · `picture` |
+| `editar` | Modificar lo que estás viendo | `pencil edit` |
+| `importar` | Traer datos externos al sistema | `import file` · `upload document` |
+| `enviar` | Despachar un mensaje | `paper plane` · `send` |
+| `cerrar-sesion` | Salir de la cuenta | `logout` · `sign out` |
+| `chat` | Conversación de mensajería (WhatsApp) | `chat bubble` · `speech balloon` |
+| `correo` | Conversación por email | `envelope` · `email` |
+| `ia` | "Esto lo hizo/propuso Hydra" — procedencia del sistema | `sparkles` · `ai stars` |
+| `configuracion` | Ajustes del sistema | `gear settings` |
+| `usuarios` | Cuentas que acceden a la plataforma | `user group` · `team` |
+| `roles` | Qué puede hacer cada uno | `id badge` · `user shield` |
+| `seguridad` | Protección y control de acceso | `padlock` · `lock security` |
+| `auditoria` | Quién hizo qué y cuándo; trazabilidad | `history clock` · `audit log` |
+
+### A.2 Iconografía faltante (compra prioritaria — cubre los huecos de § 2)
+
+| Icono propuesto | Qué debe transmitir | Búsqueda en Flaticon |
+|---|---|---|
+| `exito-circulo` | Resultado correcto (badge/toast del semáforo, accesible sin color) | `check circle` |
+| `error-circulo` | Vencido, fallo, resultado negativo | `cross circle` · `x mark circle` |
+| `info` | Información neutra (toasts/avisos) | `info circle` |
+| `cerrar` | Cerrar/descartar — sustituye los 10 `×` textuales | `close` · `x mark` |
+| `mas-opciones` | Más acciones disponibles — sustituye `⋯` | `ellipsis` · `more options dots` |
+| `siguiente` / `anterior` | Paginación — sustituye `←`/`→` (mismo glifo espejado; `anterior` puede reutilizar `volver`) | `arrow right` / `arrow left` |
+| `adjunto` | Fichero adjunto (composer de Comunicaciones) | `paperclip` · `attachment` |
+| `filtro` | Filtrar listas | `filter funnel` |
+| `descargar` | Exportar/descargar informes y documentos | `download` · `export file` |
+| `tema` | Selector claro/oscuro | `sun moon` · `day night mode` |
+| `vacio` | Estado vacío genérico cuando la entidad no tiene glifo propio | `empty box` · `open box` |
+
+### A.3 Gamificación v1 (DDL-068 — lista corta a propósito)
+
+| Icono | Qué debe transmitir | Búsqueda en Flaticon |
+|---|---|---|
+| `pulso` | Actividad viva del equipo (tarjeta "Pulso del equipo") | `pulse` · `activity heartbeat line` |
+| Trazado de confirmación | — no se compra: reutiliza el path de `check` (debe ser trazo dibujable, nunca relleno) | — |
+| `tendencia` | Mejora/empeora frente al propio histórico; y el futuro ranking de contratas del backlog | `trend arrow` · `growth arrow` |
+
+**Recordatorio DDL-068**: no buscar ni comprar medallas, trofeos, llamas de racha, podios,
+estrellas de nivel ni copas — son mecánicas rechazadas de forma permanente.
+
+---
+
 ## Fuentes externas consultadas (Flaticon, 2026-08-09)
 
 - Catálogo animado y formatos: flaticon.com/animated-icons (~57.000 animados; Lottie JSON, GIF,
