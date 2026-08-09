@@ -8,8 +8,15 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 
 public partial class RevisionIa : ComponentBase
 {
-    /// <summary>Fase D ("Confirmar todos ≥85%"): umbral a partir del cual el gestor confía por defecto en la detección — mismo criterio que ya usa el badge verde de confianza (TonoConfianza).</summary>
-    private const int UmbralConfianzaLote = 85;
+    /// <summary>
+    /// Umbral de confirmación masiva (04 § 8.2, DDL-065): 95 — la misma frontera que el sistema
+    /// usa en todas partes para <b>actuar sin revisión humana</b> (banda verde de
+    /// <see cref="TonoConfianza"/>, Issue #19; auto-creación de SubidaMasiva).
+    /// Estuvo en 85 desde la Fase D, con un comentario que afirmaba seguir el badge verde: no era
+    /// cierto, el verde empieza en 95, y esta acción <b>renueva el Documento</b> — no descarta un
+    /// aviso. Confirmaba en bloque revisiones que su propio badge marcaba en ámbar (OD-32).
+    /// </summary>
+    private const int UmbralConfianzaLote = 95;
 
     private IReadOnlyList<RevisionIaDocumentoDto> _revisiones = [];
     private bool _cargando = true;
