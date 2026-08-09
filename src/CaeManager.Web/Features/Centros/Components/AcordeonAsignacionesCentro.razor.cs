@@ -39,10 +39,29 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     /// </summary>
     [Parameter] public IReadOnlyList<IncidenciaCentroDto> IncidenciasEmpresa { get; set; } = [];
 
+    /// <summary>
+    /// "Selección múltiple" de la página (Centros.razor) — los checkboxes de
+    /// fila de Trabajador solo se pintan con esto activo, mismo criterio que
+    /// ya aplica la fila de Centro (§ 0.9): son ruido permanente para una
+    /// acción ocasional, no algo "de serie".
+    /// </summary>
+    [Parameter] public bool SeleccionMultiple { get; set; }
+
     private bool _cargando = true;
     private bool _errorCarga;
     private IReadOnlyList<TrabajadorAsignacionDocumentacionDto> _trabajadores = [];
     private readonly HashSet<Guid> _seleccionados = [];
+    private bool _seleccionMultipleAnterior;
+
+    /// <summary>
+    /// Qué filas de Trabajador tienen su tabla de documentos abierta (variante
+    /// A, OD-12 cerrada). Estado propio del componente, no de
+    /// <c>SeccionColapsable</c> (contrato de fidelidad 2026-08-09 § 1.2/1.4):
+    /// esa composición queda prohibida como base visual de esta fila, aunque
+    /// el mecanismo de expandir/colapsar en sí — el mismo bool toggle — sí se
+    /// reutiliza, igual que ya hace la fila de Centro con su propio HashSet.
+    /// </summary>
+    private readonly HashSet<Guid> _expandidosTrabajador = [];
 
     private IReadOnlyList<TrabajadorSinAsignacionDto> _trabajadoresVisitaSinAsignacion = [];
     private readonly HashSet<Guid> _asignandoDesdeVisita = [];
@@ -84,6 +103,14 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
             .OrderBy(c => c.Nombre).ToList();
 
     protected override Task OnInitializedAsync() => CargarAsync();
+
+    /// <summary>Apagar "Selección múltiple" limpia la selección de trabajadores — mismo criterio que Centros.razor.cs.AlternarSeleccionMultiple.</summary>
+    protected override void OnParametersSet()
+    {
+        if (_seleccionMultipleAnterior && !SeleccionMultiple)
+            _seleccionados.Clear();
+        _seleccionMultipleAnterior = SeleccionMultiple;
+    }
 
     private async Task CargarAsync()
     {
@@ -156,9 +183,57 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     private static int DocumentosAlDia(TrabajadorAsignacionDocumentacionDto trabajador) =>
         trabajador.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
 
-    /// <summary>Badge circular junto al "7/9" (PLAN-EJECUCION-UX.md § 0.8) — misma fracción, solo cambia la representación.</summary>
-    private static int PorcentajeCumplimiento(TrabajadorAsignacionDocumentacionDto trabajador) =>
-        (int)Math.Round(DocumentosAlDia(trabajador) * 100.0 / trabajador.Documentos.Count);
+    private void AlternarExpansionTrabajador(Guid asignacionId)
+    {
+        if (!_expandidosTrabajador.Add(asignacionId))
+            _expandidosTrabajador.Remove(asignacionId);
+    }
+
+    /// <summary>
+    /// Documentos vencidos del trabajador para la 1ª ranura de recuento
+    /// (contrato de fidelidad 2026-08-09 § 1.1/1.4). "Faltante cuenta como
+    /// vencido" — mismo criterio que <c>ObtenerCentrosQuery.Desglosar</c> a
+    /// nivel de Centro, para que el léxico cerrado no necesite una tercera
+    /// casilla también aquí.
+    /// </summary>
+    private static IReadOnlyList<DocumentoRequeridoDto> DocumentosVencidos(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        trabajador.Documentos.Where(d => d.Estado is EstadoDocumento.Vencido or EstadoDocumento.Faltante).ToList();
+
+    /// <summary>Documentos próximos a vencer del trabajador, para la 2ª ranura de recuento.</summary>
+    private static IReadOnlyList<DocumentoRequeridoDto> DocumentosProximos(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        trabajador.Documentos.Where(d => d.Estado == EstadoDocumento.Proximo).ToList();
+
+    /// <summary>
+    /// Documentos en ventana urgente del trabajador, para la 3ª ranura.
+    /// "Urgente" es la única severidad que ni la 1ª ni la 2ª ranura recogen
+    /// (mismo criterio que <c>ObtenerCentrosQuery.Desglosar</c>, que tampoco
+    /// la cuenta en ninguno de los dos recuentos del Centro) — por eso es lo
+    /// único que le queda por decir a esta ranura sin repetir lo que ya dicen
+    /// las dos anteriores. Mostrar aquí <c>trabajador.PeorEstado</c> siempre
+    /// (como hacía la cabecera de <c>SeccionColapsable</c>) duplicaba el
+    /// recuento de vencidos/próximos con otro badge al lado — justo el efecto
+    /// que la lámina evita dejando esta ranura vacía en la mayoría de filas.
+    /// </summary>
+    private static IReadOnlyList<DocumentoRequeridoDto> DocumentosUrgentes(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        trabajador.Documentos.Where(d => d.Estado == EstadoDocumento.Urgente).ToList();
+
+    /// <summary>Nombre accesible del badge de solo recuento — mismo criterio que <c>Centros.razor.cs.DescribirRecuento</c>, sin el desglose por ámbito porque aquí el sujeto ya es un único trabajador.</summary>
+    private static string DescribirRecuentoTrabajador(IReadOnlyList<DocumentoRequeridoDto> documentos, string calificativo) =>
+        documentos.Count == 1
+            ? $"1 documento {calificativo}"
+            : $"{documentos.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
+
+    private static string DescribirDocumentoIncidencia(DocumentoRequeridoDto documento) => documento.Estado switch
+    {
+        EstadoDocumento.Faltante => $"{documento.TipoDocumentoNombre} — pendiente de subir",
+        EstadoDocumento.Vencido when documento.FechaVencimiento is { } vencio => $"{documento.TipoDocumentoNombre} — venció {vencio:dd/MM/yyyy}",
+        EstadoDocumento.Proximo when documento.FechaVencimiento is { } caduca => $"{documento.TipoDocumentoNombre} — caduca {caduca:dd/MM/yyyy}",
+        _ => documento.TipoDocumentoNombre
+    };
+
+    /// <summary>"Detalles" de la fila de Trabajador (blueprint § 3.3, contrato § 1.4) — mismo patrón que Trabajadores.razor/Incidencias.razor/Gestiones.razor, no una ruta nueva.</summary>
+    private Task AbrirDetalleTrabajador(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, trabajador.TrabajadorId, trabajador.TrabajadorNombre, "informacion");
 
     private void AlternarSeleccion(Guid asignacionId, bool marcado)
     {
