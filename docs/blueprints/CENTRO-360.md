@@ -150,20 +150,20 @@ de tenant activo; ninguna consulta usa SQL crudo.
 Honestas y verificadas el 2026-08-08. Ninguna es un fallo funcional; todas son deuda respecto a
 la normativa recién cerrada:
 
-| # | Divergencia | Origen | Impacto |
-|---|---|---|---|
-| 1 | Los recuentos de fila **no abren ventana de contexto** | `04` § 4.2 (DDL-033) — norma nueva | Alto: hoy el color es el único portador en los badges numéricos |
-| 2 | La marca de procedencia **no existe como componente** | `08` § 6 (DDL-032) | Alto: es la pieza que más superficies necesitan |
-| 3 | El ámbito **Empresa no está separado** dentro del centro | `05` § 2.3 (DDL-031) | Medio: el recuento agrega sin declarar de quién |
-| 4 | Las visitas múltiples **no se representan** con recuento y detalle | `05` § 2.5 (DDL-035) | Bajo hasta que aparezca el caso real |
-| 5 | El **orden por cumplimiento** no existe | `04` § 3.3 (DDL-036) | Medio |
-| 6 | Las tarjetas y filas **usan sombra** | `06` § 5 (DDL-013) | Alto en superficie de código; bajo en riesgo |
-| 7 | El **ripple** se aplica a todos los botones, incluidos los de fila | `07` § 5 (DDL-045) | Bajo |
-| 8 | El texto secundario usa el valor que **incumple contraste** | `06` § 2.5 (DDL-029) | Alto: es un incumplimiento objetivo |
-| 9 | El Context Panel **no tiene deep-link ni cierre automático** | `05` § 3.6 | Medio: impide enlazar directamente a una sección |
+| # | Divergencia | Origen | Impacto | Estado (2026-08-09) |
+|---|---|---|---|---|
+| 1 | Los recuentos de fila **no abren ventana de contexto** | `04` § 4.2 (DDL-033) — norma nueva | Alto: hoy el color es el único portador en los badges numéricos | **Parcialmente cerrada** (PR #161): `VentanaContexto.razor` existe y se aplica a los recuentos de fila de `Centros.razor`. No se ha extendido todavía a todas las superficies que `08` § 6 exige. |
+| 2 | La marca de procedencia **no existe como componente** | `08` § 6 (DDL-032) | Alto: es la pieza que más superficies necesitan | **Parcialmente cerrada** (PR #161): `MarcaProcedencia.razor` existe (envuelve `VentanaContexto` con icono cian, sin etiqueta de texto). Aplicado donde lo consume el trabajo de Centro 360; no auditado su uso en el resto de superficies que `08` § 6 cubre. |
+| 3 | El ámbito **Empresa no está separado** dentro del centro | `05` § 2.3 (DDL-031) | Medio: el recuento agrega sin declarar de quién | **Cerrada** (PR #161, OD-13): bloque `fila-sujeto-ambito` separa Empresa de Trabajadores dentro del acordeón del centro. |
+| 4 | Las visitas múltiples **no se representan** con recuento y detalle | `05` § 2.5 (DDL-035) | Bajo hasta que aparezca el caso real | **Cerrada** (PR #161): `ObtenerProximaVisitaPorCentroQuery` deja de colapsar a una sola visita por centro; la fila muestra recuento + `VentanaContexto` cuando hay más de una. |
+| 5 | El **orden por cumplimiento** no existe | `04` § 3.3 (DDL-036) | Medio | **Cerrada** (PR #161): ordenación por `CumplimientoPorcentaje` añadida (DB-side e in-memory), "sin requisitos" siempre al final en ambos sentidos. |
+| 6 | Las tarjetas y filas **usan sombra** | `06` § 5 (DDL-013) | Alto en superficie de código; bajo en riesgo | Sin cambios en esta ronda — no auditada de nuevo. |
+| 7 | El **ripple** se aplica a todos los botones, incluidos los de fila | `07` § 5 (DDL-045) | Bajo | Sin cambios en esta ronda — no auditada de nuevo. |
+| 8 | El texto secundario usa el valor que **incumple contraste** | `06` § 2.5 (DDL-029) | Alto: es un incumplimiento objetivo | Sin cambios en esta ronda — no auditada de nuevo. |
+| 9 | El Context Panel **no tiene deep-link ni cierre automático** | `05` § 3.6 | Medio: impide enlazar directamente a una sección | Sigue abierta — `05` § 3.6 la declara explícitamente como hueco real, no dar por hecha. |
 
-**Orden recomendado de corrección**: 8 (incumplimiento objetivo, acotado) → 2 y 1 (desbloquean el
-resto de superficies) → 3 → 5 → 6 caso por caso → 7 → 4 y 9 cuando toque.
+**Orden recomendado de corrección**: 8 (incumplimiento objetivo, acotado) → completar 2 y 1 en el
+resto de superficies → 6 caso por caso → 7 → 9 cuando toque.
 
 ## 9. Decisiones que gobiernan esta superficie
 
