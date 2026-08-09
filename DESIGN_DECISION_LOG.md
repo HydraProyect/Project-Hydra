@@ -1361,9 +1361,14 @@ como estado vigente sin presentarse como especificación. `06` § 4 conserva la 
 reformulada: decide **dónde viven** los radios, no cuánto miden. La nota de DDL-036 se corrige en
 su propia entrada.
 
-### OD-26 — `07` introduce restricciones sin autoridad identificable
+### OD-26 — `07` introduce restricciones sin autoridad identificable (cerrada)
 
-**Tipo**: redacción → normativa, en motion. **Abierta** · **Fecha**: 2026-08-09.
+**Tipo**: redacción → normativa, en motion. **Cerrada sin DDL nuevo** · **Fecha**: 2026-08-09.
+
+> **Las tres reglas se retiraron o reformularon; ninguna se ratificó, y ninguna necesitó una
+> decisión nueva.** Dos eran redundantes con reglas que ya existían (`07` § 2, DDL-016) y la
+> tercera atribuía un antipatrón real al patrón equivocado. El resultado neto es **menos
+> normativa, toda con autoridad** — sin que cambie nada de lo que el sistema permite.
 
 - `07` § 4: "**máximo dos focos de movimiento simultáneos por pantalla**". DDL-016 fija los tres
   tiers y el presupuesto de Tier C (1–2 usos por pantalla); **este límite no está en ninguna DDL**.
@@ -1445,12 +1450,38 @@ resultado es peor que "sin decisión": **contradice una decisión que sí tiene 
 - De modo que `07` **permite el efecto en § 6 y lo rechaza permanentemente en § 7**. Lo único que
   separa ambas filas es el calificativo **"largas"**, que el documento no define en ninguna parte.
 
-**Qué debe decidir**: para (a), si se ratifica como memoria de rechazo o se retira por redundante
-con § 2 — ninguna de las dos opciones cambia lo que el sistema permite. Para (b), **cuál de las
-dos afirmaciones de `07` vale**: si DDL-054 y § 6 son correctas, la fila de § 7 debe retirarse o
-acotarse a lo que § 6 ya prohíbe (paginación y filtrado en vivo); si el rechazo es correcto, hay
-que reabrir DDL-054, que es una decisión vigente. **No se resuelve retirando la fila sin más**:
-eso dejaría sin explicar por qué el reset escribió un rechazo que su propio catálogo desmiente.
+#### Cierre 2/2 (2026-08-09)
+
+**(a) Paralaje y desplazamientos decorativos — retirada sin sustitución.** Regla nacida en el
+reset, sin autoridad, **redundante** con `07` § 2 (*Decoración: prohibida por defecto*) y DDL-001,
+que aporta el criterio. No añadía restricción: duplicaba una regla existente. Ratificarla habría
+creado **una segunda fuente para algo ya normado** — el patrón que esta serie entera ha estado
+corrigiendo. Retirarla no cambia lo que el sistema permite. Sin DDL nuevo.
+
+**(b) La pregunta era qué pretendía excluir "listas largas". La investigación responde: un
+antipatrón real, que el patrón conservado no exhibe.**
+
+| Comprobación | Resultado |
+|---|---|
+| ¿Existe una definición de "lista larga"? | **No**, en ninguna capa del repositorio. La restricción no tenía condición verificable |
+| ¿Cómo se comporta el revelado escalonado conservado por DDL-054? | El retraso **está topado**: `nth-child(1..11)` escalona de 0 a 250 ms y **`nth-child(n+12)` fija 275 ms para todas las filas restantes**. Una lista de 12 filas y una de 500 tienen el **mismo** retraso máximo |
+| ¿Está documentado ese tope fuera del código? | **Sí** — el catálogo archivado ya describía el rango "0–275 ms" |
+| ¿Y con movimiento reducido? | El efecto **se desactiva entero** (DDL-020) |
+
+**Conclusión**: el rechazo describía un antipatrón legítimo —que la última fila espere en
+proporción a la longitud de la lista— pero **atribuido al patrón equivocado**. El revelado
+escalonado está diseñado precisamente para no incurrir en él. No había una condición objetiva que
+justificara la excepción de "listas largas", así que **se retira el rechazo y se conserva
+DDL-054**, sin reabrirla.
+
+**Lo que se conserva es el antipatrón, no la prohibición del patrón**: la fila de § 7 se reformula
+para nombrar lo que de verdad hay que evitar —retraso de entrada que **crece** con el número de
+filas— y se le asigna la autoridad que sí tiene, DDL-016 y su regla madre. Deja de contradecir
+a § 6.
+
+**Nota de método**: el código se usó aquí para **establecer qué es el patrón que DDL-054
+conservó**, no para decidir. La autoridad sigue siendo DDL-054 y `07` § 6; el tope de 275 ms es la
+descripción del objeto de esa decisión, y además ya constaba en el histórico.
 
 ### OD-33 — DDL-052 declara un diccionario de estados que no existe (cerrada)
 

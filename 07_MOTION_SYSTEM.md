@@ -137,8 +137,7 @@ Registrados para que ningún brief futuro los reintroduzca como novedad:
 | **Glow que sigue al puntero** | Ornamento puro; compite con la información en superficies densas | DDL-018 |
 | **Gradientes animados de fondo** | Decoración sin relación con ningún evento | DDL-045 |
 | **Glow de texto en hover** | Énfasis anulado por repetición | DDL-045 |
-| **Paralaje y desplazamientos decorativos** | No comunican causalidad y degradan el rendimiento de listas largas | — |
-| **Animaciones de entrada por elemento en listas largas** | Retrasan la legibilidad, que es justo lo que una lista operativa no puede permitirse | — |
+| **Retraso de entrada que crece con el número de filas** | Si la última fila espera proporcionalmente a la longitud de la lista, el movimiento retrasa la legibilidad — justo lo que una lista operativa no puede permitirse. **No aplica al revelado escalonado de § 6**, cuyo retraso está topado (DDL-054) | DDL-016 (regla madre) |
 
 ## 8. Tokens que `06` debe declarar
 
