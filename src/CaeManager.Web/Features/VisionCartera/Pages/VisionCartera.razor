@@ -29,18 +29,21 @@
     }
     else
     {
+        @* Iconografía obligatoria en superficies de resumen (02 § 7, DDL-036) —
+           mismo criterio y mismos iconos que Dashboard.razor: es la misma
+           rejilla reutilizada, ver el comentario de VisionCartera.razor.css. *@
         <div class="rejilla-kpis-criticos">
-            <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()" Tono="TonoBadge.Peligro" />
-            <TarjetaMetrica Etiqueta="Urgentes (≤15 días)" Valor="@_kpis.DocumentosUrgentes.ToString()" Tono="TonoBadge.Peligro" />
-            <TarjetaMetrica Etiqueta="Próximos (≤30 días)" Valor="@_kpis.DocumentosProximos.ToString()" Tono="TonoBadge.Advertencia" />
-            <TarjetaMetrica Etiqueta="SLA documental promedio" Valor="@($"{_kpis.TasaCumplimientoDocumentalPromedio}%")" Tono="@SlaDocumentalTono(_kpis.TasaCumplimientoDocumentalPromedio)" />
+            <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()" NombreIcono="advertencia" Tono="TonoBadge.Peligro" />
+            <TarjetaMetrica Etiqueta="Urgentes (≤15 días)" Valor="@_kpis.DocumentosUrgentes.ToString()" NombreIcono="reloj" Tono="TonoBadge.Peligro" />
+            <TarjetaMetrica Etiqueta="Próximos (≤30 días)" Valor="@_kpis.DocumentosProximos.ToString()" NombreIcono="calendario" Tono="TonoBadge.Advertencia" />
+            <TarjetaMetrica Etiqueta="SLA documental promedio" Valor="@($"{_kpis.TasaCumplimientoDocumentalPromedio}%")" NombreIcono="check" Tono="@SlaDocumentalTono(_kpis.TasaCumplimientoDocumentalPromedio)" />
         </div>
 
         <h2 class="dashboard-subtitulo">Actividad general</h2>
         <div class="rejilla-kpis-secundarios">
-            <TarjetaMetrica Discreta="true" Etiqueta="Clientes" Valor="@_kpis.TotalClientes.ToString()" />
-            <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" />
-            <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" />
+            <TarjetaMetrica Discreta="true" Etiqueta="Clientes" Valor="@_kpis.TotalClientes.ToString()" NombreIcono="clientes" />
+            <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" />
+            <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" />
         </div>
 
         <Tarjeta Titulo="Clientes con más riesgo" Class="tarjeta-clientes-riesgo">

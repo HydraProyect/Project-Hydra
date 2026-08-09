@@ -5,6 +5,8 @@ using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 using CaeManager.Application.Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion;
+using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Web.Components.Workspace;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Documentos;
@@ -17,12 +19,25 @@ namespace CaeManager.Web.Features.Centros.Components;
 
 public partial class AcordeonAsignacionesCentro : ComponentBase
 {
+    [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
+
     [Parameter, EditorRequired] public Guid CentroId { get; set; }
     [Parameter, EditorRequired] public string CentroNombre { get; set; } = string.Empty;
 
     /// <summary>Próxima visita activa del centro (Centros.razor la resuelve en lote) — null si no tiene ninguna.</summary>
     [Parameter] public Guid? VisitaId { get; set; }
     [Parameter] public DateOnly? VisitaFechaFin { get; set; }
+
+    /// <summary>Empresa titular del centro, sujeto del ámbito Empresa (OD-13).</summary>
+    [Parameter] public Guid EmpresaId { get; set; }
+    [Parameter] public string EmpresaNombre { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Incidencias del ámbito Empresa, ya calculadas por la fila de Centro. No
+    /// se vuelven a consultar: son las mismas causas que decidieron el estado
+    /// del centro, filtradas por ámbito. El acordeón solo las presenta.
+    /// </summary>
+    [Parameter] public IReadOnlyList<IncidenciaCentroDto> IncidenciasEmpresa { get; set; } = [];
 
     private bool _cargando = true;
     private bool _errorCarga;
@@ -361,4 +376,46 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
             _procesandoBajaLote = false;
         }
     }
+
+    /// <summary>
+    /// Abre el Context Panel de la Empresa. Es el destino que declara la nota
+    /// del bloque: aqui solo se listan incidencias, la documentacion completa
+    /// de la empresa se consulta en su propia ficha (blueprint seccion 3.3).
+    /// </summary>
+    private Task AbrirDetalleEmpresa() =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, EmpresaId, EmpresaNombre, "documentacion");
+
+    /// <summary>
+    /// Columna "Vigencia" del tercer nivel (blueprint § 3.4). El verbo cambia
+    /// segun el estado porque una fecha suelta no dice si ya paso o esta por
+    /// llegar, y esa es justo la pregunta del gestor.
+    /// </summary>
+    private static string TextoVigencia(DocumentoRequeridoDto documento)
+    {
+        if (documento.DocumentoId is null)
+        {
+            return "—";
+        }
+
+        if (documento.FechaVencimiento is not { } fecha)
+        {
+            // Documento sin caducidad: no es un hueco de datos, es una
+            // propiedad del tipo documental. Se declara en vez de dejar "—",
+            // que se leeria como "falta el dato".
+            return "Sin caducidad";
+        }
+
+        var texto = fecha.ToString("dd/MM/yyyy");
+        return documento.Estado == EstadoDocumento.Vencido ? $"Vencio {texto}" : $"Caduca {texto}";
+    }
+
+    /// <summary>
+    /// Si la accion necesita peso visual. Un documento al dia conserva
+    /// "Gestionar" pero atenuado (04 section 2.5): sigue disponible, deja de
+    /// competir por la atencion con las filas que si piden intervencion.
+    /// </summary>
+    private static bool RequiereIntervencion(DocumentoRequeridoDto documento) =>
+        documento.DocumentoId is null
+        || documento.CaducaEnVentanaVisita
+        || documento.Estado is EstadoDocumento.Vencido or EstadoDocumento.Proximo or EstadoDocumento.Faltante;
 }

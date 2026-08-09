@@ -1,0 +1,106 @@
+/*
+    El disparador es inline: se incrusta dentro de una celda, de un badge o
+    junto a una fecha sin romper la línea. `position: relative` lo convierte en
+    el ancla del panel.
+*/
+.ventana-contexto {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    /* `help` y no `pointer`: no navega ni ejecuta nada, solo explica. */
+    cursor: help;
+}
+
+.ventana-contexto-inerte {
+    cursor: inherit;
+}
+
+.ventana-contexto:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/*
+    Nivel Overlay (06 § 3): flota sobre el contenido, así que es de los pocos
+    sitios donde --shadow-overlay está permitida.
+
+    Se oculta con `display` para que, cerrado, no capture el puntero ni
+    intercepte clics de la fila que hay debajo.
+*/
+.ventana-contexto-panel {
+    position: absolute;
+    bottom: calc(100% + var(--space-1));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+
+    width: max-content;
+    max-width: 260px;
+    padding: var(--space-2) var(--space-3);
+
+    background-color: var(--color-overlay);
+    color: var(--color-text);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-overlay);
+
+    font: var(--font-body-sm);
+    font-weight: 400;
+    text-align: left;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: normal;
+
+    /*
+        Se oculta con `display`, no con `opacity` + `visibility`.
+
+        El par opacity/visibility se probó primero y falló en la propia
+        aplicación: la regla de apertura se aplicaba —`visibility` pasaba a
+        `visible`— pero la opacidad se quedaba en 0, así que el panel existía
+        para el lector de pantalla y era invisible para todo lo demás. Peor que
+        no abrirse, porque no se nota.
+
+        `display` no admite transición, y eso está permitido: 07 § 4 dice que
+        Tier A puede degradarse a cambio instantáneo — lo que nunca puede es
+        desaparecer. La ventana se abre; no se desvanece.
+    */
+    display: none;
+}
+
+/*
+    Las condiciones que exige DDL-032, juntas y en la misma regla para que no
+    se pueda retirar una sin ver la otra: puntero Y foco de teclado.
+
+    `:focus-within` además de `:focus-visible` a propósito. `:focus-visible`
+    depende de una heurística del navegador sobre si el foco "merece" indicarse,
+    y se ha comprobado en este proyecto que puede no aplicarse aunque el
+    elemento tenga el foco por teclado — con lo que la ventana no se abriría y
+    el recuento se quedaría sin su desglose, que es justo el defecto que
+    DDL-033 cierra. `:focus-within` no depende de ninguna heurística.
+*/
+.ventana-contexto:hover > .ventana-contexto-panel,
+.ventana-contexto:focus-visible > .ventana-contexto-panel,
+.ventana-contexto:focus-within > .ventana-contexto-panel {
+    display: block;
+}
+
+.ventana-contexto-titulo {
+    display: block;
+    margin-bottom: var(--space-1);
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+/*
+    Cian solo cuando la ventana habla del sistema actuando (02 § 3.1). Un
+    recuento de estados no lo es: no lleva esta clase y se queda en texto
+    normal, para que el cian no acabe absorbiendo el rol de "información".
+*/
+.ventana-contexto-titulo-sistema {
+    color: var(--color-system-text);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.6875rem;
+}
+
