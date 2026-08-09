@@ -750,3 +750,50 @@
         white-space: nowrap;
     }
 }
+
+
+/*
+  Ranuras fijas de recuento en la fila de Centro (blueprint § 3.2, lámina L3).
+  Dos casillas de ancho fijo: vencidos y próximos. Existen aunque la fila no
+  tenga ese recuento — es lo que permite leer la columna en vertical y lo que
+  impide que la etiqueta de estado se corra a la izquierda cuando falta un
+  número.
+*/
+.ranuras-recuento {
+    display: grid;
+    grid-template-columns: 26px 26px;
+    gap: var(--space-1);
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.ranura-recuento {
+    display: flex;
+    justify-content: flex-start;
+    min-width: 0;
+}
+
+/*
+  Badge de solo recuento (DDL-036): sin etiqueta de texto. Solo es admisible
+  porque va dentro de una VentanaContexto, que aporta el nombre accesible y el
+  desglose literal — el número por sí solo dejaría el color como único
+  portador de significado.
+*/
+.badge-solo-recuento {
+    min-width: 26px;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Cabecera de ámbito dentro del desglose de una ventana de contexto. */
+.ventana-grupo {
+    font: var(--font-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.ventana-grupo:first-child {
+    margin-top: 0;
+}

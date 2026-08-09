@@ -94,6 +94,47 @@
                             @centro.Nombre
                         </button>
                         <span class="tarjeta-fila-acordeon-meta">@centro.ClienteRazonSocial · @centro.EmpresaRazonSocial@(string.IsNullOrEmpty(centro.CodigoCentro) ? "" : $" · {centro.CodigoCentro}")</span>
+                        @*
+                            Ranuras FIJAS de recuento (blueprint § 3.2, lámina L3):
+                            vencidos y próximos caen siempre en la misma vertical,
+                            estén o no presentes en esa fila. Con un flex libre, una
+                            fila sin recuento corre la etiqueta de estado hacia la
+                            izquierda y deja de poderse leer la columna en vertical.
+                        *@
+                        <span class="ranuras-recuento">
+                            <span class="ranura-recuento">
+                                @if (centro.Recuentos.TotalVencidas > 0)
+                                {
+                                    <VentanaContexto Etiqueta="@DescribirRecuento(centro.Recuentos.Vencidas, "vencido")"
+                                                     Titulo="@($"{centro.Recuentos.TotalVencidas} {(centro.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
+                                        <Disparador>
+                                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                                @centro.Recuentos.TotalVencidas
+                                            </Badge>
+                                        </Disparador>
+                                        <Detalle>
+                                            @DesgloseIncidencias(centro.Recuentos.Vencidas)
+                                        </Detalle>
+                                    </VentanaContexto>
+                                }
+                            </span>
+                            <span class="ranura-recuento">
+                                @if (centro.Recuentos.TotalProximas > 0)
+                                {
+                                    <VentanaContexto Etiqueta="@DescribirRecuento(centro.Recuentos.Proximas, "próximo a vencer")"
+                                                     Titulo="@($"{centro.Recuentos.TotalProximas} {(centro.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
+                                        <Disparador>
+                                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                                @centro.Recuentos.TotalProximas
+                                            </Badge>
+                                        </Disparador>
+                                        <Detalle>
+                                            @DesgloseIncidencias(centro.Recuentos.Proximas)
+                                        </Detalle>
+                                    </VentanaContexto>
+                                }
+                            </span>
+                        </span>
                         <Badge Tono="EstadoCentroUi.Tono(centro.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado)</Badge>
                         <AnilloCumplimiento Porcentaje="centro.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
                                              Etiqueta="@($"{centro.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />

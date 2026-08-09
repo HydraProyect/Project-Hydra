@@ -1,3 +1,4 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentros;
@@ -612,4 +613,53 @@ public partial class Centros : ComponentBase
 
         StateHasChanged();
     }
+    /// <summary>
+    /// Nombre accesible de un badge de solo recuento. Es lo unico que oye un
+    /// lector de pantalla, asi que dice el total Y el reparto por ambito: un
+    /// numero desnudo deja el color como unico portador de significado, que es
+    /// lo que 02 seccion 8 prohibe (DDL-033).
+    /// </summary>
+    private static string DescribirRecuento(IReadOnlyList<IncidenciaCentroDto> incidencias, string calificativo)
+    {
+        var deEmpresa = incidencias.Count(i => i.Ambito == AmbitoCausa.Empresa);
+        var deTrabajadores = incidencias.Count - deEmpresa;
+        var cabeza = incidencias.Count == 1
+            ? $"1 documento {calificativo}"
+            : $"{incidencias.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
+
+        var partes = new List<string>();
+        if (deEmpresa > 0) partes.Add(deEmpresa == 1 ? "1 de empresa" : $"{deEmpresa} de empresa");
+        if (deTrabajadores > 0) partes.Add(deTrabajadores == 1 ? "1 de trabajadores" : $"{deTrabajadores} de trabajadores");
+
+        return partes.Count == 0 ? cabeza : $"{cabeza}: {string.Join(" y ", partes)}";
+    }
+
+    /// <summary>
+    /// Detalle visible de la ventana, agrupado por ambito. La agrupacion no es
+    /// estetica: el blueprint seccion 3.2 exige que el desglose declare de
+    /// quien es cada incidencia, porque el recuento agrega los dos ambitos
+    /// (DDL-031, DDL-047).
+    /// </summary>
+    private static RenderFragment DesgloseIncidencias(IReadOnlyList<IncidenciaCentroDto> incidencias) => builder =>
+    {
+        var secuencia = 0;
+        foreach (var grupo in new[] { AmbitoCausa.Empresa, AmbitoCausa.Trabajador })
+        {
+            var deEsteAmbito = incidencias.Where(i => i.Ambito == grupo).ToList();
+            if (deEsteAmbito.Count == 0) continue;
+
+            builder.OpenElement(secuencia++, "span");
+            builder.AddAttribute(secuencia++, "class", "ventana-linea ventana-grupo");
+            builder.AddContent(secuencia++, grupo == AmbitoCausa.Empresa ? "Empresa" : "Trabajadores");
+            builder.CloseElement();
+
+            foreach (var incidencia in deEsteAmbito)
+            {
+                builder.OpenElement(secuencia++, "span");
+                builder.AddAttribute(secuencia++, "class", "ventana-linea");
+                builder.AddContent(secuencia++, incidencia.Descripcion);
+                builder.CloseElement();
+            }
+        }
+    };
 }

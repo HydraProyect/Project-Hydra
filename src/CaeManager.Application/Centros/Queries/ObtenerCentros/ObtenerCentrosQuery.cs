@@ -3,6 +3,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Empresas;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,9 +28,32 @@ public record ObtenerCentrosQuery(
 /// PLAN-EJECUCION-UX.md § 0.5) — <c>null</c> cuando no hay ningún par
 /// Trabajador×TipoDocumento obligatorio aplicable, ver <see cref="FraccionCumplimiento"/>.
 /// </param>
+/// <summary>
+/// Una incidencia concreta del centro, con el ámbito al que pertenece. Es lo
+/// que permite que la ventana de contexto de un recuento declare cuántas son
+/// de Empresa y cuántas de Trabajadores (blueprint Centro 360 § 3.2,
+/// DDL-031/DDL-047) en vez de dar un número desnudo.
+/// </summary>
+public record IncidenciaCentroDto(string Descripcion, AmbitoCausa Ambito);
+
+/// <summary>
+/// Desglose de las incidencias de un centro por estado. No lleva contadores
+/// propios: se derivan de las listas, para que no puedan desincronizarse del
+/// detalle que muestra la ventana de contexto.
+/// </summary>
+public record RecuentosCentroDto(
+    IReadOnlyList<IncidenciaCentroDto> Vencidas,
+    IReadOnlyList<IncidenciaCentroDto> Proximas)
+{
+    public static readonly RecuentosCentroDto Vacio = new([], []);
+
+    public int TotalVencidas => Vencidas.Count;
+    public int TotalProximas => Proximas.Count;
+}
+
 public record CentroListaDto(
     Guid Id, string Nombre, string? CodigoCentro, Guid ClienteId, string ClienteRazonSocial, string EmpresaRazonSocial,
-    EstadoCentro Estado, int? CumplimientoPorcentaje);
+    EstadoCentro Estado, int? CumplimientoPorcentaje, RecuentosCentroDto Recuentos);
 
 /// <summary>
 /// El <see cref="CentroListaDto.Estado"/> no está persistido — lo calcula
@@ -158,7 +182,37 @@ public class ObtenerCentrosQueryHandler(
         IReadOnlyDictionary<Guid, FraccionCumplimiento> cumplimiento) =>
         new(fila.Id, fila.Nombre, fila.CodigoCentro, fila.ClienteId, fila.ClienteRazonSocial, fila.EmpresaRazonSocial,
             estados.TryGetValue(fila.Id, out var resultado) ? resultado.Estado : EstadoCentro.Vigente,
-            cumplimiento.TryGetValue(fila.Id, out var fraccion) ? fraccion.Porcentaje : null);
+            cumplimiento.TryGetValue(fila.Id, out var fraccion) ? fraccion.Porcentaje : null,
+            resultado is null ? RecuentosCentroDto.Vacio : Desglosar(resultado));
+
+    /// <summary>
+    /// Las causas ya venían calculadas para decidir el estado del centro; aquí
+    /// solo se agrupan por estado. No hay consulta nueva: es el mismo dato que
+    /// ya viajaba, que hasta ahora la lista descartaba.
+    /// "Faltante" cuenta como vencido — un requisito sin documento no está al
+    /// día, y el lexico cerrado no tiene una tercera casilla en la fila.
+    /// </summary>
+    private static RecuentosCentroDto Desglosar(ResultadoEstadoCentro resultado)
+    {
+        var vencidas = new List<IncidenciaCentroDto>();
+        var proximas = new List<IncidenciaCentroDto>();
+
+        foreach (var causa in resultado.Causas)
+        {
+            var incidencia = new IncidenciaCentroDto(causa.Descripcion, causa.Ambito);
+            switch (causa.Estado)
+            {
+                case EstadoDocumento.Vencido or EstadoDocumento.Faltante:
+                    vencidas.Add(incidencia);
+                    break;
+                case EstadoDocumento.Proximo:
+                    proximas.Add(incidencia);
+                    break;
+            }
+        }
+
+        return new RecuentosCentroDto(vencidas, proximas);
+    }
 
     private static IOrderedEnumerable<CentroListaDto> OrdenarEnMemoria(
         IEnumerable<CentroListaDto> elementos, string? ordenarPor, bool descendente) =>

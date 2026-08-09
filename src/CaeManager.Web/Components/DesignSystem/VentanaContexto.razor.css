@@ -25,8 +25,8 @@
     Nivel Overlay (06 § 3): flota sobre el contenido, así que es de los pocos
     sitios donde --shadow-overlay está permitida.
 
-    `visibility` además de `opacity`: solo con opacidad el panel seguiría
-    capturando el puntero e interceptando clics de la fila que hay debajo.
+    Se oculta con `display` para que, cerrado, no capture el puntero ni
+    intercepte clics de la fila que hay debajo.
 */
 .ventana-contexto-panel {
     position: absolute;
@@ -52,21 +52,37 @@
     letter-spacing: normal;
     white-space: normal;
 
-    opacity: 0;
-    visibility: hidden;
-    /* Tier A — apertura de ventana de contexto (07 § 6). */
-    transition: opacity var(--motion-base) var(--ease-standard),
-        visibility var(--motion-base) var(--ease-standard);
+    /*
+        Se oculta con `display`, no con `opacity` + `visibility`.
+
+        El par opacity/visibility se probó primero y falló en la propia
+        aplicación: la regla de apertura se aplicaba —`visibility` pasaba a
+        `visible`— pero la opacidad se quedaba en 0, así que el panel existía
+        para el lector de pantalla y era invisible para todo lo demás. Peor que
+        no abrirse, porque no se nota.
+
+        `display` no admite transición, y eso está permitido: 07 § 4 dice que
+        Tier A puede degradarse a cambio instantáneo — lo que nunca puede es
+        desaparecer. La ventana se abre; no se desvanece.
+    */
+    display: none;
 }
 
 /*
-    Las dos condiciones que exige DDL-032, juntas y en la misma regla para que
-    no se pueda retirar una sin ver la otra: puntero Y foco de teclado.
+    Las condiciones que exige DDL-032, juntas y en la misma regla para que no
+    se pueda retirar una sin ver la otra: puntero Y foco de teclado.
+
+    `:focus-within` además de `:focus-visible` a propósito. `:focus-visible`
+    depende de una heurística del navegador sobre si el foco "merece" indicarse,
+    y se ha comprobado en este proyecto que puede no aplicarse aunque el
+    elemento tenga el foco por teclado — con lo que la ventana no se abriría y
+    el recuento se quedaría sin su desglose, que es justo el defecto que
+    DDL-033 cierra. `:focus-within` no depende de ninguna heurística.
 */
 .ventana-contexto:hover > .ventana-contexto-panel,
-.ventana-contexto:focus-visible > .ventana-contexto-panel {
-    opacity: 1;
-    visibility: visible;
+.ventana-contexto:focus-visible > .ventana-contexto-panel,
+.ventana-contexto:focus-within > .ventana-contexto-panel {
+    display: block;
 }
 
 .ventana-contexto-titulo {
@@ -88,8 +104,3 @@
     font-size: 0.6875rem;
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .ventana-contexto-panel {
-        transition: none;
-    }
-}
