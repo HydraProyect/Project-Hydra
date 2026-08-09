@@ -171,8 +171,13 @@ pantalla dentro de un workspace, la ruta antigua se conserva como redirección.
 
 ### 5.2 Qué persiste en la URL
 - **Filtros: sí.** Un estado de lista debe poder compartirse y recargarse sin perder el contexto,
-  y los filtros activos se muestran como chips removibles.
-- **Orden: no.** Es preferencia de lectura momentánea, no contexto compartible.
+  y los filtros activos se muestran como chips removibles. Ejecutado en las doce páginas con
+  panel de filtros del código, con helper propio (`NavigationManagerExtensions`); ver
+  `ROADMAP.md`, "Filtros persistidos en URL" (OD-29).
+- **Orden: no.** Es preferencia de lectura momentánea, no contexto compartible — y hay una razón
+  de ingeniería además de la de lectura: QuickGrid no restaura su indicador de cabecera sin
+  capturar una referencia por columna, y una URL que ordena con la flecha en neutro es peor que
+  no ofrecerlo. Ver `ROADMAP.md`, mismo punto.
 - **Drill-down entre listas: por Id exacto**, nunca por texto libre. Un nombre parecido entre dos
   filas haría el filtro ambiguo.
 
