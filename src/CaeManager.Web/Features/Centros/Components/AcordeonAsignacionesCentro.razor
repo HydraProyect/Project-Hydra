@@ -156,7 +156,11 @@ else
                                         @foreach (var documento in trabajador.Documentos)
                                         {
                                             <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
-                                                <span class="celda-documento-nombre" role="cell">@documento.TipoDocumentoNombre</span>
+                                                <span class="celda-documento-nombre" role="cell">
+                                                    <button type="button" class="enlace-nombre-fila" @onclick="() => Gestionar(trabajador.TrabajadorId, documento)">
+                                                        @documento.TipoDocumentoNombre
+                                                    </button>
+                                                </span>
                                                 <span role="cell">
                                                     @if (documento.DocumentoId is null)
                                                     {

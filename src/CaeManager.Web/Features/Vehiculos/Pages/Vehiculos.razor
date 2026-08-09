@@ -77,7 +77,11 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <PropertyColumn Property="@(v => v.Nombre)" Sortable="true" />
+                <TemplateColumn Title="Nombre" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.Nombre))">
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, context.Id, context.Nombre, "informacion")'>
+                        @context.Nombre
+                    </button>
+                </TemplateColumn>
                 <PropertyColumn Property="@(v => v.Modelo)" Sortable="true" />
                 <PropertyColumn Property="@(v => v.NumeroPlaca)" Title="Placa" Sortable="true" />
                 <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="Empresa / Subcontrata" Sortable="true" />

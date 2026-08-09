@@ -149,7 +149,7 @@
 
 .alerta-info {
     background-color: var(--color-primary-50);
-    color: var(--color-primary-700);
+    color: var(--color-primary-500);
     border-radius: var(--radius-sm);
     padding: var(--space-3);
     font: var(--font-body-sm);

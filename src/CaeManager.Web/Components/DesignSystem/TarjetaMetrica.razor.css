@@ -68,22 +68,11 @@
     font: var(--font-heading-sm);
 }
 
+/* Sin sombra ni realce de hover: --shadow-overlay tiene un unico uso
+   permitido, el nivel Overlay (06 § 5), y una tarjeta metrica no lo es
+   (ODM-06, resuelto). El cursor ya senala que es interactiva. */
 .tarjeta-metrica-clicable {
     text-decoration: none;
     color: inherit;
     cursor: pointer;
-    transition: transform var(--motion-fast) var(--ease-standard);
-}
-
-/* Sin sombra: --shadow-overlay tiene un unico uso permitido, el nivel
-   Overlay (06 § 5), y una tarjeta metrica no lo es. El realce vertical
-   queda pendiente de decision (ODM-06). */
-.tarjeta-metrica-clicable:hover {
-    transform: translateY(-2px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .tarjeta-metrica-clicable:hover {
-        transform: none;
-    }
 }
