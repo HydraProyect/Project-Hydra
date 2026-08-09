@@ -257,8 +257,13 @@ y no se sustituyen entre sí:
 | Umbral | Valor | Qué gobierna |
 |---|---|---|
 | **De revisión** | 70 % | Por debajo, el dato no se presenta como hecho: se marca para verificación |
-| **De confirmación masiva** | ≥ 85 % | Junto con datos completos, habilita la acción en lote (§ 8.3) |
+| **De confirmación masiva** | ≥ 95 % | Junto con datos completos, habilita la acción en lote (§ 8.3) |
 | **De confianza visual** | ≥ 95 % | La señal de confianza alta que ve el usuario en el badge |
+
+Los dos últimos **comparten valor a propósito** (DDL-065): 95 es la frontera única de **actuar sin
+revisión humana**, y la señal que el usuario ve debe coincidir con lo que el sistema se permite
+hacer sin que él abra el elemento. Siguen siendo **dos reglas** —una gobierna una acción, la otra
+una señal—; que compartan número es una decisión, no una fusión.
 
 Nombrar la condición concreta es obligatorio. **"Umbral alto" no es un término válido** en ningún
 documento: encubría estas tres y hacía que una regla de interfaz y un gate de ejecución
@@ -278,7 +283,7 @@ efecto real. Cerrar un aviso porque ya se corrigió a mano y aceptar lo que la m
 acciones distintas y deben poder distinguirse sin leer dos veces.
 
 Las acciones en lote sobre propuestas solo aplican a las que alcanzan el **umbral de confirmación
-masiva (≥ 85 %)** **y** tienen todos los datos necesarios; nunca se confirma en lote lo que no
+masiva (≥ 95 %)** **y** tienen todos los datos necesarios; nunca se confirma en lote lo que no
 cumple ambas condiciones. La conjunción no es opcional: es lo que impide aprobar en bloque una
 propuesta a la que le falta el dato que la hace aplicable.
 
