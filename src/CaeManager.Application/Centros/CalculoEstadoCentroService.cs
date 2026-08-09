@@ -144,8 +144,11 @@ public class CalculoEstadoCentroService(
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new
             {
-                documento.Id, EmpresaId = documento.EmpresaId!.Value, documento.TipoDocumentoId,
-                documento.FechaVencimiento, tipoDocumento.Nombre
+                documento.Id,
+                EmpresaId = documento.EmpresaId!.Value,
+                documento.TipoDocumentoId,
+                documento.FechaVencimiento,
+                tipoDocumento.Nombre
             })
             .ToListAsync(cancellationToken);
 
