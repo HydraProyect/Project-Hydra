@@ -15,7 +15,7 @@
 }
 
 .clave-manual {
-    background-color: var(--color-neutral-50);
+    background-color: var(--color-surface-subtle);
     border-radius: var(--radius-sm);
     padding: var(--space-3);
     font-family: monospace;

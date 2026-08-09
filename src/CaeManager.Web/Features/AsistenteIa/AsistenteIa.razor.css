@@ -16,8 +16,9 @@
     z-index: 1030;
 }
 
+/* Nivel Overlay (06 § 3): panel deslizante con superposición propia. */
 .asistente-panel {
-    background-color: var(--color-surface);
+    background-color: var(--color-overlay);
     box-shadow: var(--shadow-overlay);
     width: 100%;
     max-width: 440px;

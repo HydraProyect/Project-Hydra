@@ -13,7 +13,7 @@
     width: 100%;
     max-width: 560px;
     max-height: 60vh;
-    background-color: var(--color-surface);
+    background-color: var(--color-overlay);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-overlay);
     display: flex;

@@ -263,7 +263,7 @@
     height: 18px;
     border-radius: var(--radius-full);
     border: 2px solid var(--color-surface);
-    background-color: var(--color-neutral-100);
+    background-color: var(--color-surface-subtle);
     color: var(--color-text-muted);
 }
 
@@ -472,7 +472,7 @@
     margin-top: var(--space-4);
     padding: var(--space-3);
     border-radius: var(--radius-md);
-    background-color: var(--color-neutral-50);
+    background-color: var(--color-surface-subtle);
 }
 
 .bandeja-cliente-notas-titulo {

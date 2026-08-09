@@ -5,7 +5,13 @@
     bottom: 0;
     width: 100%;
     max-width: 520px;
-    background-color: var(--color-surface);
+    /* 06 § 3 asigna "panel contextual, inspector" al nivel Elevated. En claro
+       Elevated y Surface comparten fondo, así que el cambio solo se nota en
+       oscuro (#202B36 en vez de #17212C), que es lo que el documento pide.
+       Pendiente de decisión: Elevated se define SIN sombra, pero este panel es
+       `position: fixed` sobre el contenido — sí hay relación espacial real.
+       No se resuelve aquí (ver ODM-01 en el registro de migración). */
+    background-color: var(--color-elevated);
     box-shadow: var(--shadow-overlay);
     border-left: var(--border-default);
     z-index: 1050;

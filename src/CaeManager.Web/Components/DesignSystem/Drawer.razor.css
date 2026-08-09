@@ -11,8 +11,9 @@
     z-index: 1040;
 }
 
+/* Nivel Overlay (06 § 3). */
 .drawer-panel {
-    background-color: var(--color-surface);
+    background-color: var(--color-overlay);
     box-shadow: var(--shadow-overlay);
     width: 100%;
     max-width: 420px;

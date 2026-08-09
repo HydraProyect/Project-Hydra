@@ -62,7 +62,7 @@
 
 .zona-soltar-archivo-subtitulo kbd {
     font: var(--font-body-sm);
-    background: var(--color-neutral-100);
+    background: var(--color-surface-subtle);
     border: var(--border-default);
     border-radius: var(--radius-sm);
     padding: 0 var(--space-1);

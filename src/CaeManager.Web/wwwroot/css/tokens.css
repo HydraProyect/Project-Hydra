@@ -72,7 +72,12 @@
   --color-system-tint: color-mix(in srgb, var(--color-system-indicator) 10%, transparent);
 
   /* Superficie / texto (tema claro por defecto) */
-  --color-bg: var(--color-neutral-50);
+  /* Canvas — fondo de página. 06 § 3 lo nombra --color-canvas; --color-bg se
+     conserva como alias porque más de cincuenta archivos lo consumen y los
+     nombres de variable son estables entre rediseños (06 § 1). Mismo patrón
+     que los alias --font-h1..h4 de más abajo: un solo valor, dos nombres. */
+  --color-canvas: #f6f8fa;
+  --color-bg: var(--color-canvas);
   --color-surface: var(--color-neutral-0);
   --color-surface-hover: var(--color-neutral-100);
   /* Cuarto nivel de profundidad (02 § 4.1, DDL-013/DDL-028):
@@ -92,7 +97,9 @@
      sobre Subtle. El escalón #738196 sigue vivo, pero solo como borde de
      control, donde su criterio es el 3:1 (DDL-063). */
   --color-text-muted: #5f6e84;
-  --color-border: var(--color-neutral-200);
+  /* Borde estructural (02 § 4.1). No es --color-neutral-200 (#E8EDF2): ese
+     escalón sigue siendo paleta y lo consume el barrido de EstadoCargando. */
+  --color-border: #e2e8ec;
   /* Borde estructural reforzado: distingue el nivel Elevated del Surface en
      claro, donde ambos comparten fondo (02 § 4.1). Agrupa contenido, no
      identifica un control: NO está sujeto al 3:1 (DDL-062). */
@@ -200,7 +207,8 @@
   sistema operativo tras el rediseño del modo oscuro.
 */
 :root[data-theme='oscuro'] {
-  --color-bg: #0e141b;
+  --color-canvas: #0e141b;
+  --color-bg: var(--color-canvas);
   --color-surface: #17212c;
   --color-surface-hover: #202b36;
   --color-surface-subtle: #131b24;
@@ -240,7 +248,8 @@
 }
 
 :root[data-theme='claro'] {
-  --color-bg: var(--color-neutral-50);
+  --color-canvas: #f6f8fa;
+  --color-bg: var(--color-canvas);
   --color-surface: var(--color-neutral-0);
   --color-surface-hover: var(--color-neutral-100);
   --color-surface-subtle: #f1f5f7;
@@ -248,7 +257,7 @@
   --color-overlay: #ffffff;
   --color-text: var(--color-neutral-900);
   --color-text-muted: #5f6e84; /* DDL-029 — ver comentario en :root */
-  --color-border: var(--color-neutral-200);
+  --color-border: #e2e8ec;
   --color-border-strong: #cbd5e1;
 
   --color-system-text: #0c7792;
