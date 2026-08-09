@@ -30,9 +30,7 @@
     background: none;
     cursor: pointer;
     color: var(--color-text-muted);
-    /* PENDIENTE ODM-02: --tipografia-sm no existe. El contrato de los tokens
-       tipograficos (font shorthand vs font-size) no esta decidido. */
-    font-size: var(--tipografia-sm);
+    font: var(--font-body-md);
     font-weight: 500;
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
@@ -150,12 +148,12 @@
 
 .total-importe {
     color: var(--color-primary-500);
-    font-size: var(--tipografia-lg); /* PENDIENTE ODM-02 */
+    font: var(--font-body-lg);
 }
 
 .nota-resumen {
     color: var(--color-text-muted);
-    font-size: var(--tipografia-xs); /* PENDIENTE ODM-02 */
+    font: var(--font-body-sm);
     margin-top: var(--space-4);
 }
 
@@ -170,6 +168,6 @@
 
 .aviso-error {
     color: var(--color-danger-500);
-    font-size: var(--tipografia-sm); /* PENDIENTE ODM-02 */
+    font: var(--font-body-md);
     margin-bottom: var(--space-4);
 }

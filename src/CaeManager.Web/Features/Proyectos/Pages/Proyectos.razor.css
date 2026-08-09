@@ -65,6 +65,6 @@
 
 .aviso-error {
     color: var(--color-danger-500);
-    font-size: var(--tipografia-sm); /* PENDIENTE ODM-02 */
+    font: var(--font-body-md);
     margin-bottom: var(--space-4);
 }
