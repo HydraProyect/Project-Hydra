@@ -244,6 +244,33 @@ Tier B.
 
 `BUILD PASSED`.
 
+### 1.10 Decisiones aplicadas del propietario del producto (2026-08-09)
+
+| Punto | Decisión | Efecto |
+|---|---|---|
+| ODM-01 | Context Panel es **Overlay** | `--color-overlay` como fondo; sin sombra añadida |
+| ODM-02 | Se **mantiene** `font: var(--font-*)` | Las cinco `--tipografia-*` pendientes migradas |
+| ODM-03 | Resuelta por la regla de BUG-02 | `--color-success-700` |
+| BUG-02 | **Corregir antes del PR**, con token existente | 18 declaraciones a `-700` |
+| ODM-07 | **Sigue pendiente** | `--transition-slow` sobrevive; no es fallo de la migración |
+
+Con ODM-02 aplicada, **no queda ninguna referencia a un token inexistente** en Facturación ni en
+Proyectos. La única del portal es `--color-info-600` (ODM-05).
+
+`BUILD PASSED` · `TESTS PASSED` · `STATIC CHECK PASSED`.
+
+### 1.11 Estado del contrato de tokens al cierre
+
+| Comprobación | Resultado |
+|---|---|
+| Referencias `var(--…)` a tokens no declarados | 1 (`--color-info-600`, ODM-05) |
+| `--shadow-card` · `--color-accent-*` | 0 |
+| `--transition-fast` · `--transition-base` | 0 |
+| `--transition-slow` | 1 consumidor (ODM-07) |
+| Tono `-500` del semáforo como `color:` de texto | 0 |
+| `outline: none` sobre un control | 0 (queda 1 sobre un `tabpanel`, ODM-10) |
+| Paleta cruda `--color-neutral-*` como fondo | 0 |
+
 ---
 
 ## 2. Pendientes de decisión
@@ -251,7 +278,7 @@ Tier B.
 Numeradas `ODM-nn` (Open Decision de Migración) para no colisionar con la serie `OD-nn` del
 Decision Log. **Ninguna se ha resuelto por inferencia.** Una recomendación no es una decisión.
 
-### ODM-01 · ¿El Context Panel es Elevated u Overlay?
+### ODM-01 · ¿El Context Panel es Elevated u Overlay? — **DECIDIDA: Overlay**
 
 - **Ubicación**: `Components/Workspace/ContextWorkspace.razor.css:14`
 - **Evidencia**: `06` § 3 asigna literalmente "panel contextual, inspector" al nivel **Elevated**,
@@ -266,10 +293,16 @@ Decision Log. **Ninguna se ha resuelto por inferencia.** Una recomendación no e
   `#202B36`, así que **la decisión solo afecta a sombra y borde**, no al fondo.
 - **Estado**: el fondo ya usa `--color-elevated` porque el valor es idéntico en las dos lecturas.
   Sombra y borde quedan como estaban.
-- **Recomendación**: (A). El Context Panel no se abre sobre una superposición que oscurezca el
-  contenido; se acopla al lateral. Es un inspector, no un modal.
+- **DECISIÓN** (propietario del producto, 2026-08-09): **Overlay**. El criterio no es que el panel
+  sea `position: fixed` por sí solo, sino que **crea una capa sobre el contenido existente y
+  compite con él por el plano visual**. La taxonomía queda: *Subtle* → superficies internas ·
+  *Elevated* → elementos elevados dentro del flujo · *Overlay* → contenido que se superpone al
+  contexto actual.
+- **Aplicado**: `background-color: var(--color-overlay)`. **No se añadió sombra**: la que hay es
+  anterior a esta migración y Overlay es el único nivel donde `06` § 5 la permite. Mi
+  recomendación previa (Elevated) queda descartada.
 
-### ODM-02 · Contrato de los tokens tipográficos: `font` shorthand o propiedades sueltas
+### ODM-02 · Contrato de los tokens tipográficos — **DECIDIDA: se mantiene `font` shorthand**
 
 - **Ubicación**: `Facturacion.razor.css:35, 152, 157, 172` · `Proyectos.razor.css:68` (marcadas
   `PENDIENTE ODM-02` en el código).
@@ -286,10 +319,14 @@ Decision Log. **Ninguna se ha resuelto por inferencia.** Una recomendación no e
   cinco reglas no fijan tamaño.
 - **Impacto**: cinco declaraciones, dos páginas. Bajo, pero elegir (B) redefine la arquitectura
   tipográfica entera.
-- **Recomendación**: (A), por consistencia con el resto del código; pero **es decisión de `06`**,
-  no de esta migración.
+- **DECISIÓN** (propietario del producto, 2026-08-09): **(A)**. `font: var(--font-*)` es el
+  contrato tipográfico actual. **No se introducen tokens de tamaño sueltos**: eso sería una
+  evolución del contrato, no una migración. Cualquier rediseño tipográfico posterior se registra
+  como OD nueva.
+- **Aplicado**: las cinco declaraciones pasan a `font: var(--font-body-sm/-md/-lg)`. En
+  `.pestana-btn` el `font-weight: 500` va después del shorthand y conserva su peso.
 
-### ODM-03 · Destino canónico de `--color-success-600`
+### ODM-03 · Destino canónico de `--color-success-600` — **RESUELTA por la regla de BUG-02**
 
 - **Ubicación**: `Features/Trabajadores/Pages/Trabajadores.razor.css:18`
 - **Evidencia**: `.pista-documento-exito` usa `var(--color-success-600, var(--color-success-500))`.
@@ -302,8 +339,10 @@ Decision Log. **Ninguna se ha resuelto por inferencia.** Una recomendación no e
 - **Alternativas**: (A) `--color-success-700`, coherente con `06` § 2.3 y con el 4.5:1 —
   `#22C55E` sobre blanco da 1.99:1. (B) `--color-success-500`, que conserva la apariencia actual.
 - **Impacto**: una declaración. Pero fija precedente para todo texto de estado del producto.
-- **Recomendación**: (A). El mismo argumento que ya cerró el hallazgo P0-8 en `Badge.razor.css`,
-  cuyo comentario explica que `-500` sobre `-50` incumplía el AA no negociable.
+- **RESUELTA**: no por inferencia sobre el nombre, sino por la regla de contraste que el
+  propietario fijó al decidir BUG-02 — *un tono de estado diseñado para superficies no sirve como
+  foreground si no alcanza 4.5:1*. Medido: `success-500` da 2.08–2.28:1 y `success-700` 4.57–5.02:1
+  sobre todos los fondos del sistema. Aplicado `--color-success-700`.
 
 ### ODM-04 · El token de Canvas se llama distinto en la norma y en el código
 
@@ -412,6 +451,42 @@ Decision Log. **Ninguna se ha resuelto por inferencia.** Una recomendación no e
 - **Estado**: **sin tocar**. Los otros dos `outline: none` de la aplicación sí se corrigieron
   porque estaban sobre controles reales (input de búsqueda y textarea del asistente).
 
+### ODM-11 · Texto blanco sobre relleno `danger-500` incumple el 4.5:1
+
+- **Ubicación**: `Boton.razor.css:88-91` (`.boton-destructivo`) · `AnfitrionToasts.razor.css:55-63`
+  (los tres toasts) · `ReconnectModal.razor.css:124-125` · `app.css:4`.
+- **Evidencia**: blanco sobre `#EF4444` da **3.76:1**; sobre `#22C55E` (toast de éxito)
+  **1.99:1** y sobre `#F59E0B` (aviso) **1.87:1**. Los tres por debajo del 4.5:1 de `02` § 8.
+  Es el mismo defecto que BUG-02 pero en el par contrario: no es el tono usado como texto, es el
+  **texto sobre el relleno**.
+- **Por qué requiere decisión y no se corrigió con BUG-02**: aquí el valor del relleno **es
+  normativo**. `02` § 3.4 fija `#22C55E`, `#F59E0B` y `#EF4444` como innegociables (DDL-010) y
+  declara que el semáforo domina sobre la marca. Corregirlo obliga a elegir entre oscurecer el
+  relleno —tocar un valor innegociable—, cambiar el color del texto a uno oscuro sobre el relleno
+  claro, o aceptar el par como excepción documentada.
+- **Alternativas**: (A) el relleno de los estados usa el `-700` y el texto sigue blanco
+  (`danger-700` con blanco da 8.31:1). (B) el texto pasa a `--color-text` sobre los rellenos claros
+  (success y warning) y sigue blanco sobre danger. (C) se documenta como excepción con
+  justificación de marca.
+- **Impacto**: el botón destructivo y los tres toasts, presentes en todo el producto.
+- **Recomendación**: (A) para los toasts, donde el relleno no porta significado de marca sino de
+  aviso. El botón destructivo merece mirarse aparte.
+
+### ODM-12 · El enlace destructivo se queda sin afordancia de hover
+
+- **Ubicación**: `Facturacion.razor.css:161` · `Proyectos.razor.css:58` (`.enlace-peligro`).
+- **Evidencia**: la equivalencia confirmada mapea `--color-peligro` a `danger-500` y
+  `--color-peligro-hover` a `danger-700`. Al aplicar BUG-02, el estado de reposo sube también a
+  `-700` y **las dos reglas colapsan en el mismo valor**. La escala del semáforo solo tiene `-50`,
+  `-500` y `-700`: no hay un tercer tono con el que distinguir el hover sin inventarlo.
+- **Estado**: la regla `:hover` se retiró por ser un no-op literal. El enlace conserva su color
+  rojo estable, pero **ya no señala que es interactivo al apuntarlo**.
+- **Por qué requiere decisión**: la salida natural es la que ya usa `MenuAcciones` —hover por
+  **fondo**, no por color de texto— pero eso es adoptar un patrón, no sustituir un token. Se cruza
+  además con BUG-01 y MP-01: `.enlace-accion` no tiene estilos en ninguna hoja.
+- **Recomendación**: resolver ODM-12, BUG-01 y MP-01 en una sola pasada sobre las acciones de fila
+  de Facturación y Proyectos.
+
 ---
 
 ## 3. Mejoras propuestas
@@ -480,7 +555,7 @@ Ninguna implementada. Todas son opcionales y ninguna bloquea nada.
 - **No corregido en esta sesión**: elegir entre estilar `.enlace-accion` o sustituirlo por
   `MenuAcciones` es una decisión de patrón, no una sustitución de token.
 
-### BUG-02 · `--color-danger-500` como color de texto incumple el 4.5:1
+### BUG-02 · Tono `-500` del semáforo como color de texto — **CORREGIDO**
 
 - **Evidencia**: once declaraciones usan `--color-danger-500` (`#EF4444`) como `color` de texto.
   Sobre Surface da **3.76:1**, por debajo del 4.5:1 que `02` § 8 exige al texto normal. `06` § 2.3
@@ -489,12 +564,26 @@ Ninguna implementada. Todas son opcionales y ninguna bloquea nada.
   `CampoTexto.razor.css:42` (mensaje de validación) · `AsistenteIa.razor.css:160` ·
   `Facturacion.razor.css:164, 172` · `Proyectos.razor.css:59, 67` ·
   `Trabajadores.razor.css:22` · `list-page.css:144`.
-- **No corregido**: es el mismo eje que ODM-03 y el semáforo es innegociable (DDL-010). Corregir
-  once sitios de golpe cambia el rojo de todos los mensajes de error del producto: merece decisión
-  expresa, no un barrido nocturno. La corrección es mecánica una vez decidido.
-- **Precedente a favor de `-700`**: `Badge.razor.css` ya lleva un comentario explicando que
-  `-500` sobre `-50` incumplía el AA "no negociable" (hallazgo P0-8), y `MenuAcciones` usa `-700`
-  para su opción destructiva.
+- **DECISIÓN** (propietario del producto, 2026-08-09): el semáforo es innegociable como
+  **semántica**, pero `danger-500` no tiene por qué serlo como **tono concreto para texto**. Si el
+  sistema ya dispone de un tono más oscuro que alcance 4.5:1, se usa ese; si no existiera, se
+  elevaría a decisión de Design System en vez de inventar un token.
+- **Comprobado**: `-700` existe y cumple **sobre todos los fondos del sistema**.
+
+  | Tono | Surface | Canvas | Subtle | fondo `-50` |
+  |---|---|---|---|---|
+  | `danger-500` | 3.76 ✗ | 3.53 ✗ | 3.43 ✗ | 3.44 ✗ |
+  | `danger-700` | 8.31 ✓ | 7.81 ✓ | 7.58 ✓ | 7.60 ✓ |
+  | `success-500` | 2.28 ✗ | 2.14 ✗ | 2.08 ✗ | 2.08 ✗ |
+  | `success-700` | 5.02 ✓ | 4.71 ✓ | 4.57 ✓ | 4.59 ✓ |
+
+- **Aplicado**: 18 declaraciones. Quedan fuera los usos de `-500` como relleno, borde o trazo
+  —botón destructivo, toasts, borde de campo con error, franja de `TarjetaMetrica`—: no son texto
+  y su criterio es el 3:1, que sí cumplen. El par contrario (texto blanco **sobre** relleno
+  `-500`) es ODM-11.
+- **Precedente coherente**: `Badge.razor.css` ya llevaba un comentario explicando que `-500` sobre
+  `-50` incumplía el AA "no negociable" (hallazgo P0-8), y `MenuAcciones` ya usaba `-700` para su
+  opción destructiva. Esta corrección extiende ese criterio al resto del producto.
 
 ### BUG-03 · Un color de texto a mano en la traza de soporte
 
@@ -511,7 +600,7 @@ Ninguna implementada. Todas son opcionales y ninguna bloquea nada.
 
 Dos ejecuciones completas de `CaeManager.IntegrationTests` fallaron con **tests distintos**
 (`Aislamiento_Subcontrata` la primera, `El_desempate_por_Id_hace_estable_la_paginacion` la
-segunda). **Ambos pasan al ejecutarse en solitario.** Esta rama no toca **ni un solo archivo
+segunda). **Ambos pasan al ejecutarse en solitario, y la batería final pasó 350/350.** Esta rama no toca **ni un solo archivo
 `.cs`** —57 archivos modificados, todos `.css`, `.js` o `.md`—, así que la inestabilidad es
 previa y no la introduce la migración. Apunta a estado compartido de base de datos entre tests en
 paralelo.
@@ -551,7 +640,7 @@ el resto del portal. Los cinco pasos de `06` § 12 están ejecutados.
 | Nivel | Alcance |
 |---|---|
 | `BUILD PASSED` | Solución completa, tras cada uno de los ocho commits. |
-| `TESTS PASSED` | 384 Domain · 256 Application · 13 Architecture · 111 Web · 12 E2E · 349/350 Integration (ver DT-01). |
+| `TESTS PASSED` | **1126/1126** en la batería final: 384 Domain · 256 Application · 13 Architecture · 111 Web · 12 E2E · **350/350** Integration. |
 | `STATIC CHECK PASSED` | Barrido cruzado de todo `var(--…)` contra los tokens declarados: cero referencias inexistentes salvo `--color-info-600` (ODM-05). Cero `--shadow-card`, cero `--color-accent-*`, cero `--transition-fast/-base`. |
 | `E2E VERIFIED` | Aplicación levantada contra Postgres local y recorrida autenticada: login, dashboard, clientes, facturación, proyectos, comunicaciones y apertura de Drawer. |
 
@@ -570,6 +659,23 @@ Lo verificado en navegador, con valores computados reales:
 - El Drawer entra en 0,36 s con `cubic-bezier(0.16, 1, 0.3, 1)` y conserva `--shadow-overlay`,
   que es su único uso legítimo.
 - Consola sin errores atribuibles a la migración; las nueve hojas de estilo sirven 200.
+
+Verificado además tras aplicar las decisiones del propietario:
+
+- **BUG-02 con medición en el DOM real**: el mensaje de error de inicio de sesión renderiza
+  `rgb(153, 27, 27)` sobre blanco — **8.31:1 medido en vivo**, frente a los 3.76:1 anteriores.
+- Las reglas servidas confirman `--color-danger-700` en `.campo-mensaje-error`,
+  `.alerta-formulario`, `.asistente-mensaje-error`, `.pista-documento-error` y `.enlace-peligro`;
+  `--color-success-700` en `.pista-documento-exito` y `.texto-2fa-exito`.
+- `.enlace-peligro:hover` ya no existe en ninguna hoja (ODM-12).
+- `.workspace-panel` sirve `background-color: var(--color-overlay)` (ODM-01).
+- `.pestana-btn`, `.total-importe` y `.nota-resumen` sirven `font: var(--font-*)` (ODM-02).
+
+**Nota de método**: el panel de vista previa sirvió durante un rato el bundle de CSS *scoped*
+cacheado, mostrando el estado anterior. Se detectó comparando la hoja del navegador con la que
+devuelve el servidor (`curl`) y se resolvió forzando recarga sin caché. Conviene comprobarlo
+siempre antes de dar por buena una verificación visual en este proyecto: los nombres de archivo
+llevan huella de contenido y es fácil confundir una caché con una regresión.
 
 **Lo que NO se ha verificado**: tema oscuro (sigue sin rediseñar, DDL-043) y comportamiento
 responsive por debajo de 1280 px.
