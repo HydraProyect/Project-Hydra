@@ -17,3 +17,6 @@ App_Data/
 
 # Carpeta temporal que crea el cliente de Google Drive mientras sincroniza.
 .tmp.driveupload/
+
+# Variables reales del stack local (deploy/local/.env.example es la plantilla)
+deploy/local/.env

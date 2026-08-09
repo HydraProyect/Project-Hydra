@@ -1,0 +1,74 @@
+# Stack de producción local (etapa puente post-Railway, ver
+# RUNBOOK-DESPLIEGUE-LOCAL.md): app + PostgreSQL 18 + Cloudflare Tunnel en una
+# sola máquina. No confundir con el docker-compose.yml de la raíz, que es solo
+# el Postgres de desarrollo.
+#
+# El TLS lo termina Cloudflare en su edge; cloudflared entrega el tráfico a la
+# app por la red interna del compose con X-Forwarded-Proto: https, que la app
+# ya acepta (Program.cs limpia KnownProxies a propósito — mismo motivo que con
+# el edge de Railway).
+#
+# Uso:  cp .env.example .env   (rellenar)
+#       docker compose -f docker-compose.produccion.yml up -d --build
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: caemanager-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      AlmacenamientoArchivos__Ruta: /data/documentos
+      DataProtection__RutaClaves: /data/dataprotection-keys
+      # El backup a S3 del BackupHostedService queda apagado en esta etapa: el
+      # backup lo hace scripts/backup-borg.sh (cron del host) contra el
+      # Storage Box de Hetzner, que no habla S3.
+      Backups__Activo: "false"
+    volumes:
+      - caemanager-data:/data
+    # Solo loopback: el acceso público entra por el Tunnel, no por este puerto.
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/salud"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  db:
+    # Misma versión mayor que llevaba producción en Railway (18.4) y que el
+    # pg_dump de la imagen de la app (postgresql-client-18 del Dockerfile).
+    image: postgres:18
+    container_name: caemanager-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: caemanager
+    volumes:
+      - caemanager-postgres-data:/var/lib/postgresql/data
+    # Sin `ports` a propósito: la BD solo es alcanzable desde la red interna
+    # del compose, nunca desde fuera de la máquina.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: caemanager-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN}
+    depends_on:
+      - app
+
+volumes:
+  caemanager-data:
+  caemanager-postgres-data:

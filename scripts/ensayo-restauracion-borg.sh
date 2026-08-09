@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Ensayo de restauración del backup Borg (equivalente post-Railway de
+# scripts/ensayo-restauracion.sh, que ensayaba contra el bucket S3 del
+# BackupHostedService).
+#
+# Extrae el último archivo `caemanager-*` del repo Borg del Storage Box y lo
+# restaura de extremo a extremo contra un PostgreSQL desechable en Docker, SIN
+# tocar el stack real: pg_restore del dump, filas en las tablas núcleo, al
+# menos una clave XML de Data Protection y recuento de PDFs restaurados. El
+# resultado se anota en docs/ENSAYO-RESTAURACION.md (fecha + resultado).
+#
+# Requisitos: borg y docker en el host. pg_restore corre DENTRO del contenedor
+# desechable (postgres:18), así que no hace falta cliente 18 en el host.
+#
+# Uso:
+#   BORG_REPO='ssh://uXXXXXX@uXXXXXX.your-storagebox.de:23/./backups/caemanager' \
+#   BORG_PASSPHRASE='...' ./scripts/ensayo-restauracion-borg.sh
+set -euo pipefail
+
+: "${BORG_REPO:?Define BORG_REPO (ssh://uXXXXXX@uXXXXXX.your-storagebox.de:23/./backups/caemanager)}"
+: "${BORG_PASSPHRASE:?Define BORG_PASSPHRASE (la passphrase del repo Borg)}"
+export BORG_REPO BORG_PASSPHRASE
+
+DIR_TRABAJO="$(mktemp -d)"
+trap 'rm -rf "$DIR_TRABAJO"; docker rm -f ensayo-restauracion-pg >/dev/null 2>&1 || true' EXIT
+
+echo "==> 1/5 Localizando el archivo más reciente en $BORG_REPO ..."
+ULTIMO=$(borg list --glob-archives 'caemanager-*' --short | sort | tail -1)
+[ -n "$ULTIMO" ] || { echo "ERROR: no hay archivos caemanager-* en el repo Borg"; exit 1; }
+echo "    Archivo elegido: $ULTIMO"
+
+echo "==> 2/5 Extrayendo CaeManager.dump + dataprotection-keys + documentos (juntos, del MISMO archivo)..."
+(cd "$DIR_TRABAJO" && borg extract "::$ULTIMO")
+
+echo "==> 3/5 Levantando PostgreSQL 18 desechable..."
+docker rm -f ensayo-restauracion-pg >/dev/null 2>&1 || true
+docker run -d --name ensayo-restauracion-pg -e POSTGRES_PASSWORD=ensayo \
+    -e POSTGRES_DB=caemanager postgres:18 >/dev/null
+until docker exec ensayo-restauracion-pg pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
+
+echo "==> 4/5 Restaurando el dump con pg_restore (dentro del contenedor)..."
+docker exec -i ensayo-restauracion-pg pg_restore --clean --if-exists --no-owner \
+    --username=postgres --dbname=caemanager < "$DIR_TRABAJO/CaeManager.dump"
+
+echo "==> 5/5 Verificaciones..."
+comprobar_tabla() {
+    local tabla="$1"
+    local filas
+    filas=$(docker exec ensayo-restauracion-pg psql -U postgres -d caemanager \
+        -tAc "SELECT COUNT(*) FROM \"$tabla\";")
+    echo "    $tabla: $filas filas"
+}
+# Tablas núcleo: si alguna no existe, pg_restore no restauró el esquema completo y el script falla aquí.
+comprobar_tabla "Clientes"
+comprobar_tabla "Empresas"
+comprobar_tabla "Trabajadores"
+comprobar_tabla "Documentos"
+comprobar_tabla "AspNetUsers"
+comprobar_tabla "Tenants"
+
+CLAVES=$(ls "$DIR_TRABAJO/dataprotection-keys"/*.xml 2>/dev/null | wc -l)
+echo "    dataprotection-keys/: $CLAVES archivo(s) de clave"
+[ "$CLAVES" -ge 1 ] || { echo "ERROR: el backup no contiene ninguna clave XML — ver RUNBOOK-CLAVES.md (restaurar solo la BD deja las credenciales cifradas irrecuperables)"; exit 1; }
+
+PDFS=$(find "$DIR_TRABAJO/documentos" -type f 2>/dev/null | wc -l)
+echo "    documentos/: $PDFS archivo(s) restaurado(s)"
+
+echo ""
+echo "ENSAYO COMPLETADO. Pasos manuales restantes (no automatizables desde aquí):"
+echo "  1. Arranca la app contra este Postgres con DataProtection__RutaClaves apuntando a"
+echo "     $DIR_TRABAJO/dataprotection-keys (o una copia) y comprueba que una Empresa con"
+echo "     credenciales guardadas las muestra legibles (RUNBOOK-CLAVES.md § Recuperación, paso 3)."
+echo "  2. Anota fecha, archivo usado y resultado en docs/ENSAYO-RESTAURACION.md."
