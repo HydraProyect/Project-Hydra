@@ -21,6 +21,11 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// "Requisitos del Centro" (<c>TipoDocumentoCentro</c> manda sobre este
 /// criterio global, ver <c>ResolucionTipoDocumentoCentro</c>): no hace
 /// falta ninguna decisión de UI nueva, el mecanismo ya existía.
+///
+/// "Modalidad Preventiva" (Empresa) pasa a obligatoria por defecto el
+/// mismo día (2026-08-09, indicado directamente por el usuario): un único
+/// tipo de documento cubre la modalidad preventiva de la empresa, sea SPA,
+/// Propia o Mancomunada — no se modela como grupo de alternativas.
 /// </summary>
 public static class TipoDocumentoSeedData
 {
@@ -91,7 +96,7 @@ public static class TipoDocumentoSeedData
         (new Guid("40000000-0000-0000-0000-000000000003"), "Procedimiento de Coordinación de Actividades Empresariales", null, false, 31, AmbitoAplicacion.Empresa, true, "Vigente hasta revisión — vencimiento manual."),
         (new Guid("40000000-0000-0000-0000-000000000004"), "Política Preventiva", null, false, 32, AmbitoAplicacion.Empresa, false, "Vigente hasta revisión — vencimiento manual."),
         (new Guid("40000000-0000-0000-0000-000000000005"), "Organigrama Preventivo", null, false, 33, AmbitoAplicacion.Empresa, false, "Vigente hasta cambios — vencimiento manual."),
-        (new Guid("40000000-0000-0000-0000-000000000006"), "Modalidad Preventiva", null, false, 34, AmbitoAplicacion.Empresa, false, "Vigente hasta cambios — vencimiento manual."),
+        (new Guid("40000000-0000-0000-0000-000000000006"), "Modalidad Preventiva", null, false, 34, AmbitoAplicacion.Empresa, true, "Vigente hasta cambios — vencimiento manual. Obligatorio por defecto (2026-08-09): un único tipo cubre la modalidad preventiva de la empresa, sea SPA, Propia o Mancomunada — no se modela como alternativas separadas (ver ROADMAP.md)."),
         (new Guid("40000000-0000-0000-0000-000000000007"), "Escritura de Constitución", null, false, 35, AmbitoAplicacion.Empresa, false, "Documento permanente — algunos clientes lo piden, no todos."),
         (new Guid("40000000-0000-0000-0000-000000000008"), "Poder del Representante Legal", null, false, 36, AmbitoAplicacion.Empresa, false, "Vigente hasta modificación — vencimiento manual."),
         (new Guid("40000000-0000-0000-0000-000000000009"), "ISO 45001", null, false, 37, AmbitoAplicacion.Empresa, false, "Certificación opcional — vigencia según auditoría del organismo certificador."),
