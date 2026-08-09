@@ -10,7 +10,7 @@
 .asistente-superposicion {
     position: fixed;
     inset: 0;
-    background-color: rgba(15, 23, 42, 0.45);
+    background-color: var(--color-scrim);
     display: flex;
     justify-content: flex-end;
     z-index: 1030;

@@ -135,7 +135,7 @@ Cuatro niveles (DDL-013). La profundidad se expresa por **fondo, borde y contras
 
 | Token | Claro | Oscuro | Nivel |
 |---|---|---|---|
-| `--color-canvas` | `#F6F8FA` | `#0E141B` | Fondo de página |
+| `--color-bg` | `#F6F8FA` | `#0E141B` | Fondo de página |
 | `--color-surface` | `#FFFFFF` | `#17212C` | Contenido |
 | `--color-surface-subtle` | `#F1F5F7` | `#131B24` | Islas internas, agrupaciones |
 | `--color-elevated` | `#FFFFFF` + `--color-border-strong` | `#202B36` | Panel contextual, inspector |

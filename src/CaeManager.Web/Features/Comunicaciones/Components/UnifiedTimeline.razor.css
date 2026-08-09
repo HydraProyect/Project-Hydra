@@ -126,7 +126,7 @@
 }
 
 .timeline-ticks.leido {
-    color: var(--color-info-600, #0284c7);
+    color: var(--color-system-text);
 }
 
 .timeline-error-entrega {
@@ -186,7 +186,7 @@ a.timeline-adjunto-chip:hover {
     border-radius: var(--radius-full);
     border: 1px dashed var(--color-primary-300);
     background: none;
-    color: var(--color-primary-600);
+    color: var(--color-primary-500);
     font: var(--font-body-sm);
     cursor: pointer;
     transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
@@ -215,7 +215,7 @@ a.timeline-adjunto-chip:hover {
     align-items: center;
     gap: var(--space-2);
     font: var(--font-body-sm);
-    color: var(--color-primary-700);
+    color: var(--color-primary-500);
 }
 
 /* Cian, no cobre: el presupuesto de uso del cian cubre literalmente "IA
@@ -264,7 +264,7 @@ a.timeline-adjunto-chip:hover {
 }
 
 .timeline-evento-enlace {
-    color: var(--color-primary-600);
+    color: var(--color-primary-500);
     text-decoration: none;
     font-weight: 600;
 }
