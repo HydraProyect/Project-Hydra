@@ -37,7 +37,7 @@ public partial class Centros : ComponentBase
 
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
 
-    private IReadOnlyDictionary<Guid, VisitaResumenDto> _visitasPorCentro = new Dictionary<Guid, VisitaResumenDto>();
+    private IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>> _visitasPorCentro = new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>();
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
@@ -200,6 +200,8 @@ public partial class Centros : ComponentBase
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 ClienteId: null,
                 Estado: Enum.TryParse<EstadoCentro>(_estadoFiltro, out var estado) ? estado : null,
+                OrdenarPor: _ordenarPor,
+                Descendente: _ordenDescendente,
                 Pagina: _pagina,
                 TamanoPagina: _tamanoPagina,
                 CentroId: _centroIdFiltro));
@@ -213,7 +215,7 @@ public partial class Centros : ComponentBase
             // Batch por página (no por fila) — mismo criterio que el badge de
             // cumplimiento: evita N+1 aunque solo se pinte cuando hay visita.
             _visitasPorCentro = _elementosPagina.Count == 0
-                ? new Dictionary<Guid, VisitaResumenDto>()
+                ? new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>()
                 : await Mediator.Send(new ObtenerProximaVisitaPorCentroQuery(_elementosPagina.Select(c => c.Id).ToList()));
         }
         catch (Exception)
@@ -613,6 +615,33 @@ public partial class Centros : ComponentBase
 
         StateHasChanged();
     }
+    /// <summary>
+    /// Orden de la lista. Por defecto null: cliente y luego nombre, el orden de
+    /// catalogo. El orden por cumplimiento se pide expresamente (blueprint
+    /// seccion 3.1, DDL-036) y existe para atacar los peores centros sin
+    /// depender de que haya una visita proxima.
+    /// </summary>
+    private string? _ordenarPor;
+    private bool _ordenDescendente;
+
+    private async Task CambiarOrdenAsync(string? ordenarPor)
+    {
+        // Volver a pedir el mismo orden invierte el sentido: es el gesto que
+        // el usuario ya conoce de cualquier cabecera de tabla.
+        if (string.Equals(_ordenarPor, ordenarPor, StringComparison.Ordinal))
+        {
+            _ordenDescendente = !_ordenDescendente;
+        }
+        else
+        {
+            _ordenarPor = ordenarPor;
+            _ordenDescendente = false;
+        }
+
+        _pagina = 1;
+        await CargarAsync();
+    }
+
     /// <summary>
     /// Incidencias del ambito Empresa de un centro. Se derivan de los recuentos
     /// que la fila ya tiene: el bloque Empresa del acordeon no lanza ninguna

@@ -36,6 +36,16 @@
         <CampoTexto Placeholder="Buscar por nombre…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
         <FiltroEstado Etiqueta="Cumplimiento" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                       Opciones="EstadoCentroUi.Opciones" />
+        @*
+            Orden por cumplimiento (blueprint § 3.1, DDL-036). Existe para
+            atacar los peores centros SIN depender de que haya una visita
+            próxima, que es la única forma que había hasta ahora de priorizar.
+        *@
+        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+               OnClick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))"
+               aria-pressed="@(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? "true" : "false")">
+            Cumplimiento @(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? (_ordenDescendente ? "↓" : "↑") : "")
+        </Boton>
     </div>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -77,7 +87,8 @@
             @foreach (var centro in _elementosPagina)
             {
                 <div class="@("tarjeta-fila-acordeon" + (centro.Id == _idEnfocado ? " fila-enfocada" : ""))" @key="centro.Id">
-                    @{ var visita = _visitasPorCentro.GetValueOrDefault(centro.Id); }
+                    @{ var visitas = _visitasPorCentro.GetValueOrDefault(centro.Id) ?? []; }
+                    @{ var visita = visitas.FirstOrDefault(); }
                     @{ var expandido = _expandidos.Contains(centro.Id); }
                     <div class="tarjeta-fila-acordeon-cabecera">
                         @if (_seleccionMultiple)
@@ -153,12 +164,40 @@
                             </span>
                         </span>
                         <Badge Tono="EstadoCentroUi.Tono(centro.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado)</Badge>
-                        @if (visita is not null)
+                        @*
+                            Visitas SIN fusionar (DDL-035, OD-18). Con una sola visita
+                            se muestra su fecha; con varias, el recuento y el detalle
+                            por visita en la ventana de contexto.
+
+                            Dos visitas del 12 al 14 y del 20 al 22 no son "del 12 al
+                            22": un rango fusionado diría que el centro está visitado
+                            once días seguidos, que es falso, y borraría cuántas
+                            visitas hay y cuándo es cada una.
+                        *@
+                        @if (visitas.Count == 1)
                         {
                             <button type="button" class="badge-visita"
                                     @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
-                                Visita @visita.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
+                                Visita @visita!.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
                             </button>
+                        }
+                        else if (visitas.Count > 1)
+                        {
+                            <VentanaContexto Etiqueta="@($"{visitas.Count} visitas programadas: {string.Join("; ", visitas.Select(v => $"del {v.FechaInicio:dd/MM} al {v.FechaFin:dd/MM}"))}")"
+                                             Titulo="@($"{visitas.Count} visitas programadas")">
+                                <Disparador>
+                                    <button type="button" class="badge-visita"
+                                            @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
+                                        @visitas.Count visitas
+                                    </button>
+                                </Disparador>
+                                <Detalle>
+                                    @foreach (var v in visitas)
+                                    {
+                                        <span class="ventana-linea">Del @v.FechaInicio.ToString("dd/MM") al @v.FechaFin.ToString("dd/MM")</span>
+                                    }
+                                </Detalle>
+                            </VentanaContexto>
                         }
                         </span>
                         <div class="tarjeta-fila-acordeon-acciones">

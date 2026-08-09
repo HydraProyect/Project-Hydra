@@ -103,9 +103,13 @@ public class ObtenerCentrosQueryHandler(
         if (request.CentroId is not null)
             consulta = consulta.Where(x => x.centro.Id == request.CentroId);
 
+        // El cumplimiento, como el estado, no está persistido: se calcula. Para
+        // ordenar por él hay que conocerlo de todos los centros que pasan los
+        // filtros ANTES de paginar, así que toma el mismo camino que el estado.
         var necesitaEstadoCompleto =
             request.Estado is not null ||
-            string.Equals(request.OrdenarPor, nameof(CentroListaDto.Estado), StringComparison.Ordinal);
+            string.Equals(request.OrdenarPor, nameof(CentroListaDto.Estado), StringComparison.Ordinal) ||
+            string.Equals(request.OrdenarPor, nameof(CentroListaDto.CumplimientoPorcentaje), StringComparison.Ordinal);
 
         if (necesitaEstadoCompleto)
         {
@@ -233,6 +237,23 @@ public class ObtenerCentrosQueryHandler(
             // gestor espera al ordenar por cumplimiento.
             (nameof(CentroListaDto.Estado), false) => elementos.OrderBy(x => x.Estado).ThenBy(x => x.Nombre),
             (nameof(CentroListaDto.Estado), true) => elementos.OrderByDescending(x => x.Estado).ThenBy(x => x.Nombre),
+            // Orden por cumplimiento (blueprint § 3.1, DDL-036): existe para
+            // atacar los peores centros SIN depender de que haya una visita
+            // próxima. Ascendente deja arriba el porcentaje más bajo, que es lo
+            // que el gestor busca al pedir este orden.
+            //
+            // "Sin requisitos" (Porcentaje null) va SIEMPRE al final, en los dos
+            // sentidos: un centro que no exige nada no es ni el mejor ni el peor
+            // cumplidor — no participa de la comparación, y colarlo en un
+            // extremo lo presentaría como un 0% o un 100% que no existe.
+            (nameof(CentroListaDto.CumplimientoPorcentaje), false) =>
+                elementos.OrderBy(x => x.CumplimientoPorcentaje is null)
+                    .ThenBy(x => x.CumplimientoPorcentaje)
+                    .ThenBy(x => x.Nombre),
+            (nameof(CentroListaDto.CumplimientoPorcentaje), true) =>
+                elementos.OrderBy(x => x.CumplimientoPorcentaje is null)
+                    .ThenByDescending(x => x.CumplimientoPorcentaje)
+                    .ThenBy(x => x.Nombre),
             _ => elementos.OrderBy(x => x.ClienteRazonSocial).ThenBy(x => x.Nombre)
         };
 
