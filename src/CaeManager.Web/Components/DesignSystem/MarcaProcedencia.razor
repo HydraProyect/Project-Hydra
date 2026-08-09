@@ -1,0 +1,39 @@
+@*
+    Marca de procedencia (08 § 6, DDL-032).
+
+    Dice que un dato lo leyó Hydra, no una persona. Es icono más ventana de
+    contexto, SIN etiqueta de texto: la etiqueta la aporta el nombre accesible
+    de la ventana, que es obligatorio.
+
+    Cian, no azul: la regla de agencia (02 § 3.1, DDL-009) responde "¿quién
+    actúa aquí?" con "Hydra". El azul se reserva para lo que hace el usuario.
+
+    No se usa para decorar una fila que "parece" automática: si no puedes
+    declarar de dónde salió el dato en Detalle, no pongas la marca.
+*@
+<VentanaContexto Etiqueta="@Etiqueta"
+                 Titulo="@Titulo"
+                 TituloDeSistema="true"
+                 class="marca-procedencia">
+    <Disparador>
+        <span class="marca-procedencia-icono">
+            <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
+        </span>
+    </Disparador>
+    <Detalle>
+        @Detalle
+    </Detalle>
+</VentanaContexto>
+
+@code {
+    /// <summary>
+    /// De dónde salió el dato, en una frase. Es lo único que oye un lector de
+    /// pantalla: "Fecha leída por Hydra del PDF, confianza 94%", no "icono".
+    /// </summary>
+    [Parameter, EditorRequired] public string Etiqueta { get; set; } = string.Empty;
+
+    /// <summary>Detalle visible: origen, confianza, fecha de lectura.</summary>
+    [Parameter, EditorRequired] public RenderFragment? Detalle { get; set; }
+
+    [Parameter] public string Titulo { get; set; } = "Leído por Hydra";
+}
