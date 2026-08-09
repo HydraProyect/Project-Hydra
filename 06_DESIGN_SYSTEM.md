@@ -1,7 +1,8 @@
 # 06 — Design System
 
-**Estado**: Normativo · **Implementado hasta**: nada. `tokens.css` sigue con los valores de
-2026-07. La migración está especificada en § 12 y es una fase posterior.
+**Estado**: Normativo · **Implementado hasta**: **solo `--color-border-control`** (DDL-063,
+2026-08-09), que existe en `tokens.css` y lo consumen catorce hojas de estilo. Todo lo demás sigue
+con los valores de 2026-07: la migración está especificada en § 12 y es una fase posterior.
 
 **Autoridad**: este documento **materializa en tokens y reglas de sistema** decisiones tomadas en
 otros documentos. **No crea decisiones de producto ni de UX.** Si al leerlo aparece una regla que
