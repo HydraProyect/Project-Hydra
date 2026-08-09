@@ -1,0 +1,99 @@
+@*
+    Ventana de contexto (08 § 6, DDL-032/DDL-033).
+
+    Es la pieza que permite que un recuento numérico o una marca sin etiqueta
+    sean admisibles: 02 § 8 exige que el color NUNCA sea el único portador de
+    significado, y un número suelto solo se acepta si abre el desglose literal.
+
+    Dos reglas innegociables, y por eso están en el componente y no en cada
+    llamador:
+
+      1. Se abre con puntero Y con foco de teclado. "Nada que se abra solo con
+         hover" (02 § 8). Por eso el disparador es focusable y el CSS usa
+         :hover y :focus-visible, no solo el primero.
+      2. Lleva nombre accesible obligatorio. Sin él, un lector de pantalla
+         anuncia un número sin contexto, que es exactamente el defecto que
+         este componente existe para cerrar — de ahí que Etiqueta sea
+         EditorRequired y se valide en tiempo de ejecución.
+
+    Movimiento: la apertura es feedback causal de Tier A (07 § 6), con
+    --motion-base. No hay Tier B aquí: no es un cambio de contexto.
+*@
+<span class="ventana-contexto @(Deshabilitada ? "ventana-contexto-inerte" : null) @ClaseLlamador"
+      tabindex="@(Deshabilitada ? null : "0")"
+      role="note"
+      aria-label="@Etiqueta"
+      @attributes="AtributosSinClase">
+    @Disparador
+    @if (!Deshabilitada)
+    {
+        <span class="ventana-contexto-panel" role="presentation">
+            @if (!string.IsNullOrWhiteSpace(Titulo))
+            {
+                <b class="ventana-contexto-titulo @(TituloDeSistema ? "ventana-contexto-titulo-sistema" : null)">@Titulo</b>
+            }
+            @Detalle
+        </span>
+    }
+</span>
+
+@code {
+    /// <summary>Lo que se ve siempre: el número, el icono o el badge que abre la ventana.</summary>
+    [Parameter, EditorRequired] public RenderFragment? Disparador { get; set; }
+
+    /// <summary>El desglose literal. Es lo que hace admisible un disparador sin etiqueta.</summary>
+    [Parameter, EditorRequired] public RenderFragment? Detalle { get; set; }
+
+    /// <summary>
+    /// Nombre accesible. Debe decir lo mismo que el detalle, en una frase: es
+    /// lo único que oye quien no ve el panel.
+    /// </summary>
+    [Parameter, EditorRequired] public string Etiqueta { get; set; } = string.Empty;
+
+    /// <summary>Título del panel. Opcional: un detalle de una sola línea no lo necesita.</summary>
+    [Parameter] public string? Titulo { get; set; }
+
+    /// <summary>
+    /// El título va en cian solo cuando la ventana habla de Hydra actuando
+    /// —procedencia del dato, sincronización— (02 § 3.1). Un recuento de
+    /// estados NO es agencia del sistema: es un recuento, y va en texto normal.
+    /// </summary>
+    [Parameter] public bool TituloDeSistema { get; set; }
+
+    /// <summary>
+    /// Apaga la ventana conservando el disparador. Para el caso en que no hay
+    /// desglose que dar: sin contenido, una ventana vacía es peor que ninguna.
+    /// </summary>
+    [Parameter] public bool Deshabilitada { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AtributosAdicionales { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // Falla pronto y en desarrollo: una ventana sin nombre accesible
+        // reintroduce justo el defecto que DDL-033 cierra, y en producción
+        // pasaría inadvertida porque visualmente no se nota.
+        if (!Deshabilitada && string.IsNullOrWhiteSpace(Etiqueta))
+        {
+            throw new InvalidOperationException(
+                "VentanaContexto exige Etiqueta: sin nombre accesible, el disparador "
+                + "queda con el color como único portador de significado (02 § 8, DDL-033).");
+        }
+    }
+
+    private string? ClaseLlamador =>
+        AtributosAdicionales is not null
+        && AtributosAdicionales.TryGetValue("class", out var clase)
+        && clase is string texto
+        && !string.IsNullOrWhiteSpace(texto)
+            ? texto
+            : null;
+
+    // "class" se combina a mano: Blazor reemplaza el atributo splatteado en vez
+    // de fusionarlo (misma nota que Boton/Badge).
+    private Dictionary<string, object>? AtributosSinClase =>
+        AtributosAdicionales is null || !AtributosAdicionales.ContainsKey("class")
+            ? AtributosAdicionales
+            : AtributosAdicionales.Where(kvp => kvp.Key != "class").ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+}

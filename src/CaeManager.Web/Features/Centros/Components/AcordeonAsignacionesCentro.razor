@@ -47,6 +47,48 @@ else
         </Boton>
     </div>
 
+    @*
+        Ámbito EMPRESA (OD-13, blueprint § 3.3). Aparece solo cuando la empresa
+        del centro tiene documentación con incidencia, y lista únicamente lo que
+        hay que resolver — el resto se consulta desde "Detalles" de la empresa.
+
+        La nota no es decorativa: sin ella, ver una lista corta se leería como
+        "la empresa casi no tiene documentación", cuando lo que dice es "esto es
+        lo que falla". Un vacío nunca se presenta como éxito (04 § 6).
+    *@
+    @if (IncidenciasEmpresa.Count > 0)
+    {
+        <div class="separador-ambito">Empresa</div>
+        <div class="fila-sujeto-ambito">
+            <span class="sujeto-ambito-identidad">
+                <span class="sujeto-ambito-nombre">@EmpresaNombre</span>
+                <span class="sujeto-ambito-nota">Solo se listan las incidencias; el resto de su documentación está en Detalles.</span>
+            </span>
+            <span class="sujeto-ambito-indicadores">
+                <VentanaContexto Etiqueta="@($"{IncidenciasEmpresa.Count} {(IncidenciasEmpresa.Count == 1 ? "documento de empresa con incidencia" : "documentos de empresa con incidencia")}")"
+                                 Titulo="Documentación de la empresa">
+                    <Disparador>
+                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                            @IncidenciasEmpresa.Count
+                        </Badge>
+                    </Disparador>
+                    <Detalle>
+                        @foreach (var incidencia in IncidenciasEmpresa)
+                        {
+                            <span class="ventana-linea">@incidencia.Descripcion</span>
+                        }
+                    </Detalle>
+                </VentanaContexto>
+            </span>
+            <span class="sujeto-ambito-accion">
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirDetalleEmpresa">
+                    Detalles
+                </Boton>
+            </span>
+        </div>
+        <div class="separador-ambito">Trabajadores</div>
+    }
+
     @if (_trabajadoresVisitaSinAsignacion.Count > 0)
     {
         <div class="alerta-info" role="status">
@@ -94,29 +136,88 @@ else
                                 }
                                 else
                                 {
-                                    <div class="lista-documentos-requeridos">
+                                    @*
+                                        Tercer nivel, variante A (OD-12 cerrada en el banco visual,
+                                        blueprint § 3.4, DDL-034): columnas FIJAS
+                                        Documento · Estado · Vigencia · Acción.
+
+                                        La rejilla vive en el contenedor y no en cada fila: es lo
+                                        que hace que las cuatro columnas caigan en la misma
+                                        vertical aunque una fila no tenga fecha de vigencia.
+                                    *@
+                                    <div class="tabla-documentos-requeridos" role="table"
+                                         aria-label="@($"Documentación exigida a {trabajador.TrabajadorNombre}")">
+                                        <div class="documentos-requeridos-cabecera" role="row">
+                                            <span role="columnheader">Documento</span>
+                                            <span role="columnheader">Estado</span>
+                                            <span role="columnheader">Vigencia</span>
+                                            <span role="columnheader" class="columna-accion">Acción</span>
+                                        </div>
                                         @foreach (var documento in trabajador.Documentos)
                                         {
-                                            <div class="fila-documento-requerido" @key="documento.TipoDocumentoId">
-                                                <span class="fila-documento-requerido-nombre">@documento.TipoDocumentoNombre</span>
-                                                @if (documento.DocumentoId is null)
-                                                {
-                                                    <Badge Tono="TonoBadge.Neutro" title="Requisito del centro sin ningún documento subido todavía">
-                                                        Pendiente de Subir
-                                                    </Badge>
-                                                }
-                                                else
-                                                {
-                                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)"
-                                                           class="@(documento.CaducaEnVentanaVisita ? "badge-riesgo-ventana-visita" : null)"
-                                                           title="@(documento.CaducaEnVentanaVisita ? "Vigente hoy, pero caduca antes de que termine la próxima visita" : null)">
-                                                        @EstadoDocumentoUi.Texto(documento.Estado)
-                                                    </Badge>
-                                                }
-                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                                       OnClick="() => Gestionar(trabajador.TrabajadorId, documento)">
-                                                    Gestionar
-                                                </Boton>
+                                            <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
+                                                <span class="celda-documento-nombre" role="cell">@documento.TipoDocumentoNombre</span>
+                                                <span role="cell">
+                                                    @if (documento.DocumentoId is null)
+                                                    {
+                                                        <VentanaContexto Etiqueta="Pendiente de subir: el centro lo exige y no hay ningún documento todavía"
+                                                                         Titulo="Pendiente de subir">
+                                                            <Disparador>
+                                                                <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">Pendiente de Subir</Badge>
+                                                            </Disparador>
+                                                            <Detalle>
+                                                                Este centro exige el documento y todavía no hay ninguno subido.
+                                                            </Detalle>
+                                                        </VentanaContexto>
+                                                    }
+                                                    else if (documento.CaducaEnVentanaVisita)
+                                                    {
+                                                        @*
+                                                            "Riesgo en visita" es MODIFICADOR sobre Vigente, no un
+                                                            cuarto estado (DDL-039, DDL-052): el badge conserva su
+                                                            tono y la ventana explica la fecha de referencia.
+                                                        *@
+                                                        <VentanaContexto Etiqueta="Riesgo en visita: vigente hoy, caduca antes de que termine la próxima visita"
+                                                                         Titulo="Vigente hoy, caduca en la visita">
+                                                            <Disparador>
+                                                                <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)"
+                                                                       Tamano="TamanoBadge.Pequeno"
+                                                                       class="badge-riesgo-ventana-visita">
+                                                                    @EstadoDocumentoUi.Texto(documento.Estado)
+                                                                </Badge>
+                                                            </Disparador>
+                                                            <Detalle>
+                                                                @if (documento.FechaVencimiento is { } vence)
+                                                                {
+                                                                    <span class="ventana-linea">Válido hasta el @vence.ToString("dd/MM/yyyy").</span>
+                                                                }
+                                                                <span class="ventana-linea">
+                                                                    La próxima visita termina después de esa fecha, así que
+                                                                    dejaría de estar al día durante ella.
+                                                                </span>
+                                                            </Detalle>
+                                                        </VentanaContexto>
+                                                    }
+                                                    else
+                                                    {
+                                                        <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">
+                                                            @EstadoDocumentoUi.Texto(documento.Estado)
+                                                        </Badge>
+                                                    }
+                                                </span>
+                                                <span class="celda-documento-vigencia" role="cell">@TextoVigencia(documento)</span>
+                                                <span class="columna-accion" role="cell">
+                                                    @*
+                                                        La acción existe SIEMPRE y se atenúa cuando el documento no
+                                                        la necesita (blueprint § 3.4, 04 § 2.5) — no desaparece: un
+                                                        documento al día también puede querer sustituirse.
+                                                    *@
+                                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                           class="@(RequiereIntervencion(documento) ? null : "accion-atenuada")"
+                                                           OnClick="() => Gestionar(trabajador.TrabajadorId, documento)">
+                                                        Gestionar
+                                                    </Boton>
+                                                </span>
                                             </div>
                                         }
                                     </div>
