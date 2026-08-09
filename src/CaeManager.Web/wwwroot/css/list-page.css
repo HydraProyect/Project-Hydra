@@ -544,9 +544,14 @@
     font-variant-numeric: tabular-nums;
 }
 
+/*
+  Sin `justify-self: end`: eso encoge la celda al ancho de su contenido y su
+  borde izquierdo deja de coincidir con el de la cabecera — la columna se ve
+  desalineada aunque la rejilla sea correcta. La celda ocupa su columna entera
+  y es el CONTENIDO el que se alinea a la derecha.
+*/
 .columna-accion {
     text-align: right;
-    justify-self: end;
 }
 
 /*
