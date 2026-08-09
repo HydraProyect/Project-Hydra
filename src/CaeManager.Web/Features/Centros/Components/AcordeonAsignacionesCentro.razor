@@ -20,11 +20,11 @@
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
 @using FluentValidation
 @using MediatR
 @inject IMediator Mediator
 @inject ToastService ToastService
-@inject NavigationManager NavigationManager
 
 @if (_errorCarga)
 {
@@ -106,7 +106,7 @@ else
             {
                 <div class="fila-documento-requerido" role="row" @key="incidencia.TipoDocumentoId">
                     <span class="celda-documento-nombre" role="cell">
-                        <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarEmpresa(incidencia)">
+                        <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarEmpresaAsync(incidencia)">
                             @incidencia.Descripcion
                         </button>
                     </span>
@@ -119,7 +119,7 @@ else
                     <span class="celda-documento-vigencia" role="cell">@TextoVigenciaEmpresa(incidencia)</span>
                     <span class="columna-accion" role="cell">
                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                               OnClick="() => GestionarEmpresa(incidencia)">
+                               OnClick="() => GestionarEmpresaAsync(incidencia)">
                             Gestionar
                         </Boton>
                     </span>
@@ -285,7 +285,7 @@ else
                                     {
                                         <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
                                             <span class="celda-documento-nombre" role="cell">
-                                                <button type="button" class="enlace-nombre-fila" @onclick="() => Gestionar(trabajador.TrabajadorId, documento)">
+                                                <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
                                                     @documento.TipoDocumentoNombre
                                                 </button>
                                             </span>
@@ -346,7 +346,7 @@ else
                                                 *@
                                                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                                        class="@("accion-fila-enlace" + (RequiereIntervencion(documento) ? null : " accion-atenuada"))"
-                                                       OnClick="() => Gestionar(trabajador.TrabajadorId, documento)">
+                                                       OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
                                                     Gestionar
                                                 </Boton>
                                             </span>
@@ -475,3 +475,5 @@ else
         </Boton>
     </Pie>
 </Modal>
+
+<DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
