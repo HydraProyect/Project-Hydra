@@ -1310,6 +1310,18 @@ Decisiones que sí hacen falta antes de implementar (a tratar como un documento 
 - Semántica exacta del filtro de periodo (¿trimestre fiscal o natural? ¿bimestre desde qué mes?) y si aplica igual a todos los KPIs o cada uno define su propia granularidad.
 - Tipo de gráfico por KPI: ¿el usuario elige el tipo (barra/línea/donut) o cada KPI trae uno fijo? Afecta directamente si hace falta evaluar la librería de gráficos que `DESIGN_SYSTEM.md` § Pendientes ya deja anotada como "pendiente evaluar cuando haya necesidad real" — con comparativas multi-serie por periodo, probablemente ya sea ese momento (una barra CSS simple, como la de aprobación automática/manual, no alcanza para series temporales).
 
+## Backlog — Gamificación dirigida: ranking de cumplimiento de contratas (DDL-068, 2026-08-09)
+
+Decidido en DDL-068 como candidato futuro, sin implementar: un **ranking de cumplimiento documental
+de contratas visible para las propias contratas** ("estás en el puesto 12 de 40"), de modo que la
+presión competitiva recaiga en quien debe aportar la documentación — no en el equipo gestor — y
+reduzca el trabajo de persecución del coordinador. Adyacente a los supplier scorecards de compras;
+sin precedente en plataformas CAE. Punto de partida técnico: el ranking de empresas por riesgo ya
+existente en el Dashboard Ejecutivo. Antes de construirlo hay que decidir: ¿ranking por tenant o por
+cliente?, ¿qué ven exactamente las contratas (posición absoluta, cuartil, solo su %)?, ¿opt-in del
+tenant? La métrica sería el % de cumplimiento ya calculado (documentos al día / requeridos), nunca
+velocidad ni volumen (rechazado en DDL-068).
+
 ## Iniciativa de hardening — CI/CD, tests E2E, multi-tenant, seguridad, observabilidad, RGPD
 
 Planteada por el usuario el 2026-07-17: antes de vender el producto a clientes corporativos reales hace falta resolver ocho frentes que hasta ahora no se habían tratado como bloque. Priorización explícita del usuario, **no en fila** — tres franjas según si son trabajo de ingeniería secuencial o decisiones que se pueden (y deben) resolver hoy en paralelo sin esperar a nada:
@@ -1460,6 +1472,7 @@ Lista de bugs/mejoras reportados tras probar Fase 23 en Railway. **Corrección d
     - **Investigado y verificado en navegador (2026-07-16)**: no era un bug de código — `/importacion` (Fase 5, formato completo multi-hoja CAE) nunca tuvo plantilla en blanco a propósito, porque procesa un archivo de importación existente (ver "Fuera de alcance de v1"). Las plantillas descargables sí existen y funcionan (`/clientes/plantilla.xlsx`, `/clientes/plantilla-combinada.xlsx`, `/documentos/plantilla.xlsx`, con sus endpoints registrados en `ClientesEndpoints.cs`/`DocumentosEndpoints.cs`), pero solo son accesibles desde enlaces en `/clientes` y `/documentos` — el menú lateral (`NavMenu.razor`) solo enlaza a `/importacion`, así que un usuario que entra por "Importar desde Excel" nunca las descubre. Añadido un enlace de descubrimiento en `Importacion.razor` hacia `/clientes/importar` y `/clientes/importar-combinado`, confirmado visible en navegador.
 
 14. **Feature — widget de notificaciones diarias**: durante la ronda de mejoras visuales de 2026-07 (ver `DESIGN_SYSTEM.md` → "Micro-interacciones") el usuario confirmó que quiere este widget, pero no para esa ronda: "no por ahora pero añádelo en el roadmap y pendiente de definir bien". El prototipo de referencia aportado (`EfCoreModels.cs`) usa una entidad `TareaPendiente` con reinicio/racha diaria, que **no tiene equivalente en el dominio actual de CAE Manager** — no es un ajuste visual, es una feature de producto nueva. Pendiente de definir antes de diseñar o implementar: ¿qué notifica exactamente? (¿documentos que vencen próximamente, tareas manuales asignadas a un usuario, ambos?), ¿es informativo (solo lectura) o accionable (marcar como hecho, con racha/reinicio diario como el prototipo)?, ¿vive en el Dashboard o es un panel/dropdown propio en la barra superior?, ¿por perfil de usuario o global? ([Issue #3](https://github.com/christopherjp1-jpg/Project-Hydra/issues/3))
+    - **Parcialmente resuelto (2026-08-09, DDL-068)**: la **racha/reinicio diario del prototipo queda rechazada** — DDL-068 rechaza de forma permanente rachas con pérdida y el resto de mecánicas de gamificación entre personas. Las demás preguntas del widget (qué notifica, informativo vs accionable sin racha, dónde vive) siguen abiertas.
 
 ## Backlog pendiente — reportado por el usuario el 2026-07-19 (🟡 la mitad de seguridad quedó resuelta por `docs/business/MATURITY_REVIEW.md`, sin cross-reference — ver saneo del 2026-08-03)
 

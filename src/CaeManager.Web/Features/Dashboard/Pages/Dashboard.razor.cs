@@ -16,6 +16,7 @@ public partial class Dashboard : ComponentBase
     private KpisDashboardDto? _kpis;
     private DesgloseDashboardDto? _desglose;
     private EstadisticasAprobacionDocumentoDto? _estadisticasAprobacion;
+    private PulsoEquipoDto? _pulso;
     private bool _error;
 
     // Escalera de visibilidad por rol (ver ROADMAP.md, Fases 3 y 31): cada
@@ -67,6 +68,7 @@ public partial class Dashboard : ComponentBase
             {
                 _desglose = await Mediator.Send(new ObtenerDesgloseDashboardQuery());
                 _estadisticasAprobacion = await Mediator.Send(new ObtenerEstadisticasAprobacionDocumentoQuery());
+                _pulso = await Mediator.Send(new ObtenerPulsoEquipoQuery());
             }
         }
         catch (Exception)
@@ -81,6 +83,25 @@ public partial class Dashboard : ComponentBase
     private int PorcentajeAutomatica => TotalAprobaciones == 0 ? 0 : _estadisticasAprobacion!.Automaticas * 100 / TotalAprobaciones;
 
     private int PorcentajeManual => TotalAprobaciones == 0 ? 0 : 100 - PorcentajeAutomatica;
+
+    /// <summary>
+    /// Estado de cierre verificado (DDL-068): con cartera y cero
+    /// vencidos/urgentes se enuncia el hecho y el siguiente vencimiento por
+    /// delante — "cero" solo tranquiliza si dice también qué viene después.
+    /// Es distinto del vacío por falta de cartera, que ya tiene su propia
+    /// rama (04 § 6: un vacío mostrado como éxito sin verificar es engañoso).
+    /// </summary>
+    private string TextoCierreCumplimiento =>
+        _desglose?.ProximoVencimiento is { } proximo
+            ? $"Cumplimiento al día: 0 documentos vencidos y 0 urgentes en tu cartera. Próximo vencimiento: {proximo.TipoDocumentoNombre} de {proximo.TrabajadorNombre}, el {proximo.FechaVencimiento:dd/MM/yyyy} ({TextoDias(proximo.DiasRestantes)})."
+            : "Cumplimiento al día: 0 documentos vencidos y 0 urgentes en tu cartera. Sin vencimientos por delante.";
+
+    private static string TextoDias(int dias) => dias switch
+    {
+        0 => "hoy",
+        1 => "en 1 día",
+        _ => $"en {dias} días"
+    };
 
     private static TonoBadge SlaDocumentalTono(int tasa) => tasa switch
     {
