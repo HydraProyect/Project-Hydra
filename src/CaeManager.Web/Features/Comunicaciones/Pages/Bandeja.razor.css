@@ -118,7 +118,6 @@
     border: var(--border-default);
     border-radius: var(--radius-lg);
     background-color: var(--color-surface);
-    box-shadow: var(--shadow-card);
     overflow: hidden;
 }
 
@@ -329,7 +328,6 @@
     border: var(--border-default);
     border-radius: var(--radius-lg);
     background-color: var(--color-surface);
-    box-shadow: var(--shadow-card);
     overflow: hidden;
 }
 
@@ -395,7 +393,6 @@
     border: var(--border-default);
     border-radius: var(--radius-lg);
     background-color: var(--color-surface);
-    box-shadow: var(--shadow-card);
     padding: var(--space-4);
     gap: var(--space-4);
     overflow-y: auto;

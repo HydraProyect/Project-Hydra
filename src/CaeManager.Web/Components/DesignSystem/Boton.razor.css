@@ -13,7 +13,7 @@
     /* Spring: overshoot ligero al elevarse en hover, luego se asienta —
        más "vivo" que un ease lineal sin llegar a rebotar de forma vistosa. */
     transition: background-color var(--transition-base), border-color var(--transition-base),
-        opacity var(--transition-base), box-shadow var(--transition-base),
+        opacity var(--transition-base),
         transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
     white-space: nowrap;
 }
@@ -56,7 +56,6 @@
 .boton-primario:not(:disabled):hover {
     background-color: var(--color-primary-600);
     border-color: var(--color-primary-600);
-    box-shadow: var(--shadow-card);
     transform: translateY(-1px);
 }
 
@@ -71,7 +70,6 @@
 
 .boton-secundario:not(:disabled):hover {
     background-color: var(--color-surface-hover);
-    box-shadow: var(--shadow-card);
     transform: translateY(-1px);
 }
 
@@ -93,7 +91,6 @@
 
 .boton-destructivo:not(:disabled):hover {
     opacity: 0.9;
-    box-shadow: var(--shadow-card);
     transform: translateY(-1px);
 }
 
@@ -118,7 +115,7 @@
 @media (prefers-reduced-motion: reduce) {
     .boton {
         transition: background-color var(--transition-base), border-color var(--transition-base),
-            opacity var(--transition-base), box-shadow var(--transition-base);
+            opacity var(--transition-base);
     }
 
     .boton:active:not(:disabled) {

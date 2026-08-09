@@ -4,7 +4,6 @@
     background-color: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-card);
     padding: var(--space-8);
 }
 
@@ -43,11 +42,10 @@
     font: var(--font-label-md);
     font-weight: 600;
     cursor: pointer;
-    transition: background-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-fast);
+    transition: background-color var(--transition-base), transform var(--transition-fast);
 }
 
 .boton-primario:hover {
     background-color: var(--color-primary-600);
-    box-shadow: var(--shadow-card);
     transform: translateY(-1px);
 }

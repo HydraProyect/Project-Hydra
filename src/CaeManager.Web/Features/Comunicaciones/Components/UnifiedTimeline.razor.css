@@ -65,7 +65,6 @@
     padding: var(--space-3) var(--space-4);
     border-radius: var(--radius-card-sm);
     border: var(--border-default);
-    box-shadow: var(--shadow-card);
 }
 
 .timeline-mensaje-entrante {
@@ -219,9 +218,11 @@ a.timeline-adjunto-chip:hover {
     color: var(--color-primary-700);
 }
 
+/* Cian, no cobre: el presupuesto de uso del cian cubre literalmente "IA
+   cuando actua" (02 § 3.3), y el cobre sale de la paleta (DDL-012). */
 .timeline-sugerencia-icono-ia {
     display: inline-flex;
-    color: var(--color-accent-500);
+    color: var(--color-system-text);
 }
 
 /* --- Evento del sistema (§ 16.7) — tratamiento neutro, distinto de un

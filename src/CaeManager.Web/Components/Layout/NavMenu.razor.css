@@ -89,7 +89,7 @@
     position: relative;
     cursor: pointer;
     transition: background-color var(--transition-fast), color var(--transition-fast),
-        border-color var(--transition-fast), box-shadow var(--transition-fast), transform 100ms ease;
+        border-color var(--transition-fast), transform 100ms ease;
 }
 
 .nav-principal ::deep .nav-item .icono {
@@ -101,7 +101,6 @@
     background-color: var(--color-surface-hover);
     border-color: var(--color-border);
     color: var(--color-text);
-    box-shadow: var(--shadow-card);
 }
 
 .nav-principal ::deep .nav-item:hover .icono {

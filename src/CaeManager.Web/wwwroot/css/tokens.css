@@ -26,12 +26,6 @@
   --color-secondary-500: #475569;
   --color-secondary-600: #35404f;
 
-  /* Color — acento (cobre): únicamente detalles puntuales (p. ej. un
-     subrayado, un ícono destacado). Nunca sustituye al semáforo de estado ni
-     se usa como color de acción — ver DESIGN_SYSTEM.md "color con intención". */
-  --color-accent-50: #fbf1e7;
-  --color-accent-500: #c97b2a;
-  --color-accent-600: #a9631e;
 
   /* Color — neutro, más cálido que un gris de librería genérica */
   --color-neutral-0: #ffffff;
@@ -157,7 +151,11 @@
   --border-control: 1px solid var(--color-border-control);
   --border-focus: 2px solid var(--color-primary-500);
 
-  --shadow-card: 0 4px 14px rgba(22, 30, 39, 0.07);
+  /* Unica sombra del sistema. La elevacion se expresa por fondo, borde y
+     contraste; la sombra queda reservada al nivel Overlay, donde existe una
+     relacion espacial real sobre el contenido (DDL-013). --shadow-card se
+     retiro: aplicar sombra a una tarjeta convierte la interfaz en una
+     coleccion de rectangulos flotantes, que es lo que DDL-014 prohibe. */
   --shadow-overlay: 0 20px 50px rgba(22, 30, 39, 0.16);
 
   /* Motion — contrato cerrado con 07 § 8: NO se declara ningún token que no
@@ -231,7 +229,6 @@
   --color-warning-50: #3a2405;
   --color-danger-50: #3a0a0a;
   --color-secondary-50: #1d2733;
-  --color-accent-50: #2a1f14;
 
   --color-primary-500: var(--color-primary-300);
   --color-primary-600: var(--color-primary-200);
@@ -241,7 +238,6 @@
   --color-warning-700: #fbbf24;
   --color-danger-700: #f87171;
 
-  --shadow-card: 0 4px 14px rgba(0, 0, 0, 0.35);
   --shadow-overlay: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
@@ -264,12 +260,10 @@
   --color-warning-50: #fff8eb;
   --color-danger-50: #fef2f2;
   --color-secondary-50: #f1f4f7;
-  --color-accent-50: #fbf1e7;
 
   --color-primary-500: #235bc2;
   --color-primary-600: #1e4a9e;
   --color-primary-700: #163a7d;
 
-  --shadow-card: 0 4px 14px rgba(22, 30, 39, 0.07);
   --shadow-overlay: 0 20px 50px rgba(22, 30, 39, 0.16);
 }
