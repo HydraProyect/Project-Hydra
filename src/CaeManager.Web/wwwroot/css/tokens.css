@@ -64,7 +64,12 @@
   --color-surface: var(--color-neutral-0);
   --color-surface-hover: var(--color-neutral-100);
   --color-text: var(--color-neutral-900);
-  --color-text-muted: var(--color-neutral-500);
+  /* Texto secundario. NO es --color-neutral-500 (#738196): ese escalón da
+     3.96:1 sobre blanco e incumple el 4.5:1 exigido al cuerpo de 14px que usa
+     toda la aplicación (DDL-029). #5F6E84 da 5.19:1 sobre Surface y 4.73:1
+     sobre Subtle. El escalón #738196 sigue vivo, pero solo como borde de
+     control, donde su criterio es el 3:1 (DDL-063). */
+  --color-text-muted: #5f6e84;
   --color-border: var(--color-neutral-200);
   /* Borde que identifica un control interactivo. Sujeto al 3:1 de 02 § 8
      (DDL-062); --color-border no lo alcanza (1.18:1) y es solo estructural.
@@ -185,7 +190,7 @@
   --color-surface: var(--color-neutral-0);
   --color-surface-hover: var(--color-neutral-100);
   --color-text: var(--color-neutral-900);
-  --color-text-muted: var(--color-neutral-500);
+  --color-text-muted: #5f6e84; /* DDL-029 — ver comentario en :root */
   --color-border: var(--color-neutral-200);
 
   --color-success-50: #eefdf3;
