@@ -5,14 +5,26 @@
 {
     <a href="@Enlace" class="tarjeta-metrica @claseTono tarjeta-metrica-clicable">
         <span class="tarjeta-metrica-etiqueta">@Etiqueta</span>
-        <span class="tarjeta-metrica-valor">@Valor</span>
+        <span class="tarjeta-metrica-fila-valor">
+            @if (NombreIcono is not null)
+            {
+                <Icono Nombre="@NombreIcono" Tamano="TamanoIcono.Pequeno" />
+            }
+            <span class="tarjeta-metrica-valor">@Valor</span>
+        </span>
     </a>
 }
 else
 {
     <div class="tarjeta-metrica @claseTono">
         <span class="tarjeta-metrica-etiqueta">@Etiqueta</span>
-        <span class="tarjeta-metrica-valor">@Valor</span>
+        <span class="tarjeta-metrica-fila-valor">
+            @if (NombreIcono is not null)
+            {
+                <Icono Nombre="@NombreIcono" Tamano="TamanoIcono.Pequeno" />
+            }
+            <span class="tarjeta-metrica-valor">@Valor</span>
+        </span>
     </div>
 }
 
@@ -20,6 +32,16 @@ else
     [Parameter] public string Etiqueta { get; set; } = string.Empty;
     [Parameter] public string Valor { get; set; } = string.Empty;
     [Parameter] public TonoBadge Tono { get; set; } = TonoBadge.Neutro;
+
+    /// <summary>
+    /// Nombre del icono del catálogo (Icono.razor), opcional. La iconografía
+    /// es obligatoria en superficies de resumen (02 § 7, DDL-036): sin ella,
+    /// un número de color sobre fondo blanco lee como una hoja de cálculo.
+    /// Ausente en usos donde el llamador no la ha decidido todavía (p. ej.
+    /// los KPI discretos de Empresa/Centro/Trabajador) — no se inventa aquí,
+    /// se deja sin icono en vez de forzar uno arbitrario.
+    /// </summary>
+    [Parameter] public string? NombreIcono { get; set; }
 
     /// <summary>
     /// Si se informa, la tarjeta se renderiza como enlace a esa ruta (p. ej.
