@@ -11,7 +11,7 @@
     margin: 0;
     padding: var(--space-1) 0;
     list-style: none;
-    background: var(--color-surface);
+    background: var(--color-overlay);
     border: var(--border-control);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-overlay);

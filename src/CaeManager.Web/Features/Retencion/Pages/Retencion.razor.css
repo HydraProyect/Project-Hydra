@@ -9,7 +9,7 @@
 .descripcion-retencion {
     max-width: 75ch;
     margin-bottom: var(--space-5);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font: var(--font-body-sm);
 }
 
@@ -26,6 +26,6 @@
 }
 
 .aviso-purga {
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font: var(--font-body-sm);
 }

@@ -1,11 +1,14 @@
-// Único listener global para el ripple de .boton — delegado en document en
-// vez de JS interop por instancia: Boton.razor se renderiza decenas de
-// veces por página (tablas, formularios), así que cargar un módulo JS por
-// cada botón habría ido en contra del propio objetivo de fluidez (ver
-// DESIGN_SYSTEM.md, "Micro-interacciones"). Todo lo demás (spring, glow,
-// gradient-mesh, stagger, toast) es CSS puro.
+// Único listener global para el ripple — delegado en document en vez de JS
+// interop por instancia: Boton.razor se renderiza decenas de veces por
+// página (tablas, formularios), así que cargar un módulo JS por cada botón
+// habría ido en contra del propio objetivo de fluidez.
+//
+// El selector es .boton-primario, NO .boton: el ripple está acotado a las
+// acciones primarias (DDL-045, 07 § 5) y prohibido en botones de fila,
+// acciones secundarias y controles de filtro. Con una acción primaria por
+// zona, el feedback causal señala la acción, no todo lo que se puede pulsar.
 document.addEventListener('click', function (evento) {
-    const boton = evento.target.closest('.boton');
+    const boton = evento.target.closest('.boton-primario');
     if (!boton || boton.disabled) return;
 
     // Coherente con el @media (prefers-reduced-motion: reduce) de base.css

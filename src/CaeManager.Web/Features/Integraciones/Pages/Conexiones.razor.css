@@ -4,7 +4,7 @@
 }
 
 .texto-secundario {
-    color: var(--color-texto-secundario, #6b7280);
+    color: var(--color-text-muted);
     font-size: 0.85rem;
 }
 

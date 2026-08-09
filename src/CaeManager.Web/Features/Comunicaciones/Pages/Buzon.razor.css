@@ -68,7 +68,7 @@
     font: var(--font-body-md);
     text-align: left;
     cursor: pointer;
-    transition: background-color var(--transition-fast);
+    transition: background-color var(--motion-fast) var(--ease-standard);
 }
 
 .buzon-carpeta:hover {

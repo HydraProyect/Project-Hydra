@@ -13,13 +13,13 @@
     width: 100%;
     max-width: 560px;
     max-height: 60vh;
-    background-color: var(--color-surface);
+    background-color: var(--color-overlay);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-overlay);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    animation: entrar-buscador 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: entrar-buscador var(--motion-transition) var(--ease-fluid);
 }
 
 @keyframes entrar-buscador {
@@ -48,8 +48,11 @@
     background: transparent;
 }
 
-.buscador-input:focus {
-    outline: none;
+/* Sin esto el foco del buscador global era invisible: outline: none sin
+   sustituto incumple "el foco siempre visible" (02 § 8). */
+.buscador-input:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
 }
 
 .buscador-resultados {
@@ -82,7 +85,7 @@
     text-decoration: none;
     font: var(--font-body-md);
     border-left: 2px solid transparent;
-    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
 }
 
 .buscador-item:hover,
