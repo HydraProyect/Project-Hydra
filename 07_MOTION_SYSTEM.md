@@ -57,7 +57,9 @@ panel se sienta "colocado" y no "disparado". Tier C define la suya por caso.
 
 ## 4. Presupuesto y límites
 
-- **Máximo dos focos de movimiento simultáneos por pantalla.** Un tercero ya no comunica: compite.
+- **Presupuesto de Tier C: 1–2 usos excepcionales por pantalla** (DDL-016). Es el único límite de
+  cantidad que este sistema declara. Tier A es la base y **no se cuenta**: un resalte de fila, un
+  control cambiando de estado y un proceso en curso pueden coexistir sin que eso sea un exceso.
 - **El movimiento nunca retrasa la percepción de velocidad.** Si una animación de entrada hace
   que el contenido tarde en ser legible, la animación sobra.
 - **Ningún efecto es el único portador de significado.** Si al desactivar el movimiento la

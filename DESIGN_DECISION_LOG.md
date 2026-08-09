@@ -1403,11 +1403,54 @@ esa sección existe explícitamente *"para que ningún brief futuro los reintrod
 **son prohibiciones permanentes sin decisión permanente detrás**, lo que las hace imposibles de
 defender ante una propuesta que las cuestione.
 
-**Qué debe decidir**: si el presupuesto de movimiento se declara **una sola vez** —cubriendo el
-límite de Tier C de DDL-016 y la simultaneidad— y con qué formulación, dado que la actual choca
-con Tier A; y si los dos rechazos se ratifican como decisión propia o se retiran de § 7. **Un
-rechazo permanente sin decisión no puede quedarse como está**: o tiene autoridad, o no es
-permanente.
+#### Cierre parcial 1/2 — la regla de los dos focos se retira (2026-08-09)
+
+**No ratificada, y sin sustituto numérico.** Dos motivos independientes, no uno:
+
+1. **No tiene autoridad aguas arriba.** DDL-016 establece un presupuesto **para Tier C**; no
+   autoriza un límite global de elementos en movimiento. **La derivación se rechaza
+   explícitamente**: convertir un presupuesto de tier en un máximo absoluto no es aplicar la
+   decisión, es ampliarla.
+2. **Es incompatible con el modelo del propio `07`.** Tier A es comportamiento base y coexiste
+   legítimamente con varios estados dinámicos.
+
+**No se sustituye "dos" por otro número**: no hay evidencia para fijar ninguno. `07` § 4 conserva
+el presupuesto de Tier C de DDL-016 y declara explícitamente que **Tier A no se cuenta**.
+Cualquier restricción futura de simultaneidad **exige investigación y decisión propias** —no puede
+derivarse de DDL-016—, lo que ya impone `07` § 8 para todo lo que amplíe el sistema.
+
+**Sin DDL nuevo**: no se decidió nada, se retiró algo que nunca se decidió (mismo criterio que
+OD-22 con `#0F1720`). DDL-016 conserva su autoridad **exclusivamente** sobre el presupuesto de
+Tier C.
+
+#### Investigación 2/2 — los dos rechazos de `07` § 7
+
+Son **casos distintos**, y agruparlos habría sido el error:
+
+**a) "Paralaje y desplazamientos decorativos"** — sin antecedente en ninguna capa: cero
+apariciones en archivados, ninguna DDL, primera aparición en el commit del reset. **Pero no
+prohíbe nada nuevo**: `07` § 2 ya clasifica *Decoración* como *"Prohibida por defecto. No hay
+prueba que pueda pasar"*, y DDL-001 aporta el test que la filtra. La fila es **redundante**, no
+errónea: ratificarla no añade autoridad y retirarla no pierde ninguna regla — solo la memoria de
+que se consideró.
+
+**b) "Animaciones de entrada por elemento en listas largas"** — aquí sí hay antecedente, y el
+resultado es peor que "sin decisión": **contradice una decisión que sí tiene autoridad.**
+
+- El histórico archivado documenta el **revelado escalonado** (`.stagger-item`, `animation-delay`
+  creciente por `nth-child` sobre filas de tabla y tarjetas KPI): es exactamente "animación de
+  entrada por elemento en una lista".
+- **DDL-054 lo conservó**, acotado a la primera carga de una superficie, y `07` § 6 lo lista como
+  **permitido** en Tier B.
+- De modo que `07` **permite el efecto en § 6 y lo rechaza permanentemente en § 7**. Lo único que
+  separa ambas filas es el calificativo **"largas"**, que el documento no define en ninguna parte.
+
+**Qué debe decidir**: para (a), si se ratifica como memoria de rechazo o se retira por redundante
+con § 2 — ninguna de las dos opciones cambia lo que el sistema permite. Para (b), **cuál de las
+dos afirmaciones de `07` vale**: si DDL-054 y § 6 son correctas, la fila de § 7 debe retirarse o
+acotarse a lo que § 6 ya prohíbe (paginación y filtrado en vivo); si el rechazo es correcto, hay
+que reabrir DDL-054, que es una decisión vigente. **No se resuelve retirando la fila sin más**:
+eso dejaría sin explicar por qué el reset escribió un rechazo que su propio catálogo desmiente.
 
 ### OD-33 — DDL-052 declara un diccionario de estados que no existe (cerrada)
 
