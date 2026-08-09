@@ -1,8 +1,9 @@
 # 02 — Brand and Visual Identity
 
-**Estado**: Normativo · **Implementado hasta**: nada. Los valores de este documento **no están
-en `tokens.css`** todavía; el producto sigue con la paleta de 2026-07. La implementación es una
-fase posterior (ver § 11).
+**Estado**: Normativo · **Implementado hasta**: **solo el borde de control** `#738196` (DDL-063,
+2026-08-09), que sí está en `tokens.css`. El resto de valores de este documento **no lo están**
+todavía; el producto sigue con la paleta de 2026-07. La implementación es una fase posterior
+(ver § 11).
 
 **Autoridad**: este documento define **cómo debe sentirse y reconocerse** Hydra: personalidad,
 sistema cromático, superficies, tipografía e iconografía. `01` define qué debe conseguir la
@@ -115,9 +116,9 @@ nunca es color de acción, nunca es decoración.
 
 | Estado | Valor |
 |---|---|
-| Vigente / al día | `#22C55E` |
-| Próximo a vencer | `#F59E0B` |
-| Urgente, vencido, bloqueado | `#EF4444` |
+| `Vigente` | `#22C55E` |
+| `Proximo` | `#F59E0B` |
+| `Urgente` · `Vencido` · acceso bloqueado | `#EF4444` |
 
 Es la única parte de la paleta que **no se toca en ningún rediseño de identidad**, y **domina
 sobre la marca**: si en una pantalla el azul o el cian compiten en peso visual con un rojo o un
@@ -128,8 +129,9 @@ otro contexto, para que el usuario lo reconozca al instante en cualquier pantall
 
 Modificador admitido: **"Riesgo en visita"** (DDL-039) — ámbar, para un documento vigente hoy
 que caducaría antes de que termine la próxima visita al centro. **No es un cuarto estado**:
-sigue siendo `Vigente`, solo cambia la fecha de referencia del cálculo. Debe quedar registrado
-en `UBIQUITOUS_LANGUAGE.md` como modificador, no como valor de estado (OD-20).
+sigue siendo `Vigente`, solo cambia la fecha de referencia del cálculo. Está registrado como
+**modificador**, no como valor de estado, en `UBIQUITOUS_LANGUAGE.md`, que enlaza a la definición
+de `DOMAIN.md` § 68 (DDL-052, DDL-066).
 
 ### 3.5 Info — contexto neutral
 
@@ -143,9 +145,10 @@ Restricción: **debe distinguirse tonalmente del cian**, o el cian acabará filt
 - **El cobre `#C97B2A` deja de formar parte de la UI** (DDL-012). Con la dualidad azul/cian un
   tercer acento compite y diluye. Puede conservarse como recurso de marca fuera del producto.
 - **Ninguna escala de librería se adopta literalmente** como identidad (DDL-011).
-- **Ningún color de marca de terceros entra como relleno**: el verde de WhatsApp colisiona con
-  el semáforo y su variante verde-azulada con el cian. Los canales se identifican **por la forma
-  del icono**; el matiz de marca solo se admite desaturado en el trazo (DDL-037, valor en OD-15).
+- **Ningún color de marca de terceros entra en la UI**: el verde de WhatsApp colisiona con el
+  semáforo y su variante verde-azulada con el cian. Los canales se identifican **solo por la
+  forma del icono**, en **color neutro** — el matiz de marca queda descartado, ni siquiera
+  desaturado en el trazo (DDL-037 en su parte de forma; DDL-048 para la cromática).
 
 ## 4. Superficies y profundidad
 

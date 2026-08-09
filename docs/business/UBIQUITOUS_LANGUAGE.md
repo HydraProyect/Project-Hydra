@@ -25,6 +25,7 @@ Estas tres colisiones se detectaron al construir este documento y se resolvieron
 
 | Término | Definición normativa vive en |
 |---|---|
+| **Estado de Documento** (`Vigente`, `Proximo`, `Urgente`, `Vencido`, `NoAplica`) | `DOMAIN.md` § 68 — eje **documental**, calculado y nunca almacenado. **"Riesgo en visita" es un modificador contextual de `Vigente`**, no un estado (DDL-052, DDL-066). No confundir con el eje de **Acreditación**, más abajo, que es otro eje y no comparte semáforo. |
 | **Tenant** | `docs/MULTITENANCY.md` § 1 "Filosofía del Tenant" — la organización que compra y usa Hydra; frontera absoluta de aislamiento. |
 | **Cliente** (entidad de dominio CAE), **Centro**, **Empresa**, **Trabajador**, **Documento**, **Asignación** | `PROJECT.md` § "Glosario de dominio" — modelo de dominio CAE, validado contra el Excel real. |
 | **Ejecutivo CAE** (y el resto de roles de autorización: Administrador, Supervisor, Consulta) | `PROJECT.md` § "Glosario de dominio", fila "Usuario / Rol" — roles de autorización ya implementados en ASP.NET Core Identity. No se renombran aquí (eso es un cambio técnico, fuera de alcance de este documento); ver § "Cargos organizativos vs. roles de autorización" para el eje de negocio, distinto de este. |

@@ -160,8 +160,11 @@ identificador exacto**, nunca por texto libre: dos nombres parecidos harían el 
 ## 4. Recuentos, estados y procedencia
 
 ### 4.1 Badges de estado
-El estado se nombra con el **léxico cerrado** (DDL-052). No se inventan variantes locales: un
-término que significa dos cosas en dos pantallas es un error de datos esperando a ocurrir.
+El estado se nombra con el **léxico cerrado** de su eje, y los ejes **no se mezclan** (DDL-052).
+La definición del eje documental —`Vigente` · `Proximo` · `Urgente` · `Vencido` · `NoAplica`— vive
+en `DOMAIN.md` § 68, no en este documento ni en un diccionario paralelo (DDL-066); el eje de
+**acreditación** vive en `UBIQUITOUS_LANGUAGE.md`. No se inventan variantes locales: un término
+que significa dos cosas en dos pantallas es un error de datos esperando a ocurrir.
 
 Reglas de forma (DDL-036):
 - **El recuento se separa del estado**: el número es un recuento de elementos, no parte del
