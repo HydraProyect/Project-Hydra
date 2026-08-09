@@ -292,26 +292,25 @@ Alta guiada, importaciones, flujos del Action Center, **Retención de datos** y 
 
 ## 7. Reglas de composición
 
-Qué superficie puede invocar a cuál. Esta matriz es la que impide que la aplicación se convierta
-en capas apiladas sin salida:
+`05` § 7 presentaba una matriz completa de qué superficie puede invocar a cuál, con cuatro reglas
+derivadas. La investigación de **OD-28** comprobó cada afirmación contra la cadena documental: de
+quince celdas y cuatro reglas, **solo dos tenían autoridad identificable**. El resto nació al
+redactar este documento, sin decisión (DDL-058, forma 3). Lo que queda, con su fuente:
 
-| Desde ↓ / Abre → | Entity Workspace | Context Panel | Action Center | Flow Surface | Overlay |
-|---|---|---|---|---|---|
-| **Operational Home** | sí (navega) | sí | — | sí | sí |
-| **Entity Workspace** | sí (navega) | sí | sí (embebido) | sí | sí |
-| **Context Panel** | sí (navega y cierra) | **no** | — | sí | sí |
-| **Action Center** | — | — | — | sí | sí |
-| **Flow Surface** | — | — | — | **no** | sí |
+- **Un Context Panel nunca abre otro Context Panel.** Existe una única instancia en el árbol,
+  montada en el layout raíz (`03` § 1.3, § 3.2 de este documento).
+- **Un overlay se cierra solo y devuelve el foco a quien lo abrió** (`04` § 11).
 
-Reglas que se derivan:
+**Retirado por OD-28, sin sustituir por otra regla** (2026-08-09): el límite de "dos niveles de
+overlay"; la prohibición de anidar un Flow Surface; que el Action Center no pueda abrir un Entity
+Workspace o un Context Panel; la afirmación de que el Action Center "no es una pantalla" —ninguna
+DDL lo dice, y el patrón de invocación normal entre arquetipos no necesita autorización propia,
+solo sus restricciones—; y que navegar a un Entity Workspace cierre el Context Panel.
 
-1. **Nunca un panel dentro de un panel** ni un flujo dentro de un flujo. Dos niveles de
-   overlay es el máximo, y el segundo solo puede ser una confirmación.
-2. **Navegar a un Entity Workspace cierra el panel**: se ha dejado de consultar para pasar a
-   operar.
-3. **El Action Center vive embebido** en la superficie que lo necesita; no es una pantalla.
-4. **Un overlay siempre se cierra solo** y devuelve a quien lo abrió, sin alterar la pila de
-   navegación.
+Este último **no es la misma decisión** que el cierre al navegar por el menú principal (§ 3.6,
+deuda declarada desde 2026-07-25): son disparadores distintos —menú principal frente a navegar
+desde dentro del propio panel— y solo el del menú tiene decisión, todavía sin implementar. Queda
+como **comportamiento pendiente de decisión**, ni afirmado ni descartado.
 
 ## 8. Decisiones que respaldan este documento
 

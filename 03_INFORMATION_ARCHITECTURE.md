@@ -124,12 +124,14 @@ sobra.
 ## 4. Reglas de navegación
 
 ### 4.1 Objetivo
-La regla histórica de "≤3 clics desde el Dashboard hasta cualquier dato" se conserva, y se le
-añade la que de verdad importa en un producto operativo:
+La regla histórica de "≤3 clics desde el Dashboard hasta cualquier dato" se conserva (ver OD-29
+para su tratamiento de procedencia).
 
-> **Ninguna situación que requiera atención está a más de un clic de la acción que la resuelve.**
-
-Consultar puede costar tres clics; actuar sobre algo urgente, no.
+**Retirado por OD-28** (2026-08-09): la afirmación de que ninguna situación que requiere atención
+está a más de un clic de su resolución. Generalizaba dos veces algo más estrecho que sí está
+decidido —`03` § 1.1: cada elemento del Home lleva una acción primaria, es decir, la acción
+**existe en la fila**— sin que ninguna decisión extendiera eso a "cuesta un clic llegar" ni a
+"desde cualquier situación, en cualquier superficie". Sin mecanismo que la garantizara.
 
 ### 4.2 Caminos transversales
 Existen tres vías que atraviesan el mapa y **no** dependen del menú:
