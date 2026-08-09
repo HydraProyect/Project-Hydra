@@ -25,8 +25,15 @@
     transition: width var(--transition-slow) ease-out;
 }
 
+/*
+  Regla de agencia (02 § 3.1, DDL-009): "automáticas" es Hydra actuando (IA
+  verificando sin intervención humana) → cian, no el slate de "manuales" que
+  llevaba antes. --color-system-indicator porque es un indicador no textual
+  (segmento de barra + punto de leyenda), no texto de sistema.
+  "Manuales" es el usuario actuando → azul, correcto desde antes.
+*/
 .barra-comparativa-automatica {
-    background-color: var(--color-secondary-500);
+    background-color: var(--color-system-indicator);
 }
 
 .barra-comparativa-manual {

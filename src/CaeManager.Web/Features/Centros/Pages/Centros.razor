@@ -36,6 +36,16 @@
         <CampoTexto Placeholder="Buscar por nombre…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
         <FiltroEstado Etiqueta="Cumplimiento" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                       Opciones="EstadoCentroUi.Opciones" />
+        @*
+            Orden por cumplimiento (blueprint § 3.1, DDL-036). Existe para
+            atacar los peores centros SIN depender de que haya una visita
+            próxima, que es la única forma que había hasta ahora de priorizar.
+        *@
+        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+               OnClick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))"
+               aria-pressed="@(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? "true" : "false")">
+            Cumplimiento @(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? (_ordenDescendente ? "↓" : "↑") : "")
+        </Boton>
     </div>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -77,7 +87,8 @@
             @foreach (var centro in _elementosPagina)
             {
                 <div class="@("tarjeta-fila-acordeon" + (centro.Id == _idEnfocado ? " fila-enfocada" : ""))" @key="centro.Id">
-                    @{ var visita = _visitasPorCentro.GetValueOrDefault(centro.Id); }
+                    @{ var visitas = _visitasPorCentro.GetValueOrDefault(centro.Id) ?? []; }
+                    @{ var visita = visitas.FirstOrDefault(); }
                     @{ var expandido = _expandidos.Contains(centro.Id); }
                     <div class="tarjeta-fila-acordeon-cabecera">
                         @if (_seleccionMultiple)
@@ -90,20 +101,105 @@
                                 @onclick="() => AlternarExpansion(centro.Id)">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
-                        <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
-                            @centro.Nombre
-                        </button>
-                        <span class="tarjeta-fila-acordeon-meta">@centro.ClienteRazonSocial · @centro.EmpresaRazonSocial@(string.IsNullOrEmpty(centro.CodigoCentro) ? "" : $" · {centro.CodigoCentro}")</span>
-                        <Badge Tono="EstadoCentroUi.Tono(centro.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado)</Badge>
                         <AnilloCumplimiento Porcentaje="centro.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
                                              Etiqueta="@($"{centro.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />
-                        @if (visita is not null)
+                        @*
+                            Identidad del centro en dos líneas (lámina L3): nombre encima,
+                            cliente · empresa · código debajo. Antes iban en la misma línea
+                            y el meta empujaba los indicadores a una posición distinta en
+                            cada fila.
+                        *@
+                        <span class="tarjeta-fila-acordeon-identidad">
+                            <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
+                                @centro.Nombre
+                            </button>
+                            <span class="tarjeta-fila-acordeon-meta">@centro.ClienteRazonSocial · @centro.EmpresaRazonSocial@(string.IsNullOrEmpty(centro.CodigoCentro) ? "" : $" · {centro.CodigoCentro}")</span>
+                        </span>
+                        @*
+                            Zona de indicadores de ancho FIJO. Es lo que hace que los
+                            recuentos, el estado y la visita caigan en la misma vertical en
+                            todas las filas, independientemente de lo largo que sea el
+                            nombre del centro (lámina L3, blueprint § 3.2).
+                        *@
+                        <span class="tarjeta-fila-acordeon-indicadores">
+                        @*
+                            Ranuras FIJAS de recuento (blueprint § 3.2, lámina L3):
+                            vencidos y próximos caen siempre en la misma vertical,
+                            estén o no presentes en esa fila. Con un flex libre, una
+                            fila sin recuento corre la etiqueta de estado hacia la
+                            izquierda y deja de poderse leer la columna en vertical.
+                        *@
+                        <span class="ranuras-recuento">
+                            <span class="ranura-recuento">
+                                @if (centro.Recuentos.TotalVencidas > 0)
+                                {
+                                    <VentanaContexto Etiqueta="@DescribirRecuento(centro.Recuentos.Vencidas, "vencido")"
+                                                     Titulo="@($"{centro.Recuentos.TotalVencidas} {(centro.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
+                                        <Disparador>
+                                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                                @centro.Recuentos.TotalVencidas
+                                            </Badge>
+                                        </Disparador>
+                                        <Detalle>
+                                            @DesgloseIncidencias(centro.Recuentos.Vencidas)
+                                        </Detalle>
+                                    </VentanaContexto>
+                                }
+                            </span>
+                            <span class="ranura-recuento">
+                                @if (centro.Recuentos.TotalProximas > 0)
+                                {
+                                    <VentanaContexto Etiqueta="@DescribirRecuento(centro.Recuentos.Proximas, "próximo a vencer")"
+                                                     Titulo="@($"{centro.Recuentos.TotalProximas} {(centro.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
+                                        <Disparador>
+                                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                                @centro.Recuentos.TotalProximas
+                                            </Badge>
+                                        </Disparador>
+                                        <Detalle>
+                                            @DesgloseIncidencias(centro.Recuentos.Proximas)
+                                        </Detalle>
+                                    </VentanaContexto>
+                                }
+                            </span>
+                        </span>
+                        <Badge Tono="EstadoCentroUi.Tono(centro.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado)</Badge>
+                        @*
+                            Visitas SIN fusionar (DDL-035, OD-18). Con una sola visita
+                            se muestra su fecha; con varias, el recuento y el detalle
+                            por visita en la ventana de contexto.
+
+                            Dos visitas del 12 al 14 y del 20 al 22 no son "del 12 al
+                            22": un rango fusionado diría que el centro está visitado
+                            once días seguidos, que es falso, y borraría cuántas
+                            visitas hay y cuándo es cada una.
+                        *@
+                        @if (visitas.Count == 1)
                         {
                             <button type="button" class="badge-visita"
                                     @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
-                                Visita @visita.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
+                                Visita @visita!.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
                             </button>
                         }
+                        else if (visitas.Count > 1)
+                        {
+                            <VentanaContexto Etiqueta="@($"{visitas.Count} visitas programadas: {string.Join("; ", visitas.Select(v => $"del {v.FechaInicio:dd/MM} al {v.FechaFin:dd/MM}"))}")"
+                                             Titulo="@($"{visitas.Count} visitas programadas")">
+                                <Disparador>
+                                    <button type="button" class="badge-visita"
+                                            @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
+                                        @visitas.Count visitas
+                                    </button>
+                                </Disparador>
+                                <Detalle>
+                                    @foreach (var v in visitas)
+                                    {
+                                        <span class="ventana-linea">Del @v.FechaInicio.ToString("dd/MM") al @v.FechaFin.ToString("dd/MM")</span>
+                                    }
+                                </Detalle>
+                            </VentanaContexto>
+                        }
+                        </span>
                         <div class="tarjeta-fila-acordeon-acciones">
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
                                 Detalles
@@ -118,8 +214,10 @@
                         @* Igual que antes con SeccionColapsable: el contenido solo se
                            monta al expandir, no se paga el render de 34 acordeones. *@
                         <div class="tarjeta-fila-acordeon-contenido">
-                            <AcordeonAsignacionesCentro CentroId="centro.Id" CentroNombre="centro.Nombre"
-                                                          VisitaId="visita?.VisitaId" VisitaFechaFin="visita?.FechaFin" />
+                            <AcordeonAsignacionesCentro CentroId="centro.Id" CentroNombre="@centro.Nombre"
+                                                          VisitaId="visita?.VisitaId" VisitaFechaFin="visita?.FechaFin"
+                                                          EmpresaId="centro.EmpresaId" EmpresaNombre="@centro.EmpresaRazonSocial"
+                                                          IncidenciasEmpresa="IncidenciasDeEmpresa(centro)" />
                         </div>
                     }
                 </div>

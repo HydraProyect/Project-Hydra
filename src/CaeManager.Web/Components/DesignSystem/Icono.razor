@@ -106,6 +106,22 @@
             <path d="M10 20a2 2 0 0 0 4 0" />
         </g>,
 
+        // Triángulo de advertencia: distinto de "alertas" (campana de
+        // notificación, nav de /alertas). Este es el glifo de "algo vencido /
+        // requiere atención" en superficies de resumen (02 § 7, DDL-036).
+        "advertencia" => @<g>
+            <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+        </g>,
+
+        "reloj" => @<g>
+            <circle cx="12" cy="12" r="9" />
+            <polyline points="12 7 12 12 15 14" />
+        </g>,
+
+        "check" => @<polyline points="20 6 9 17 4 12" />,
+
         "calendario" => @<g>
             <rect x="3.5" y="5" width="17" height="16" rx="1.5" />
             <line x1="3.5" y1="10" x2="20.5" y2="10" />
