@@ -166,6 +166,12 @@
                                 @(_detalle.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")
                             </span>
                             <Badge Tono="TonoBadgeDeEstado(_detalle.Estado)">@_detalle.Estado</Badge>
+                            @if (_detalle.EsConversacionInformativaPreCae)
+                            {
+                                <Badge Tono="TonoBadge.Neutro" title="@(_detalle.ResumenRelevanciaCae ?? "Todavía no se ha pedido ni mencionado ninguna gestión CAE en esta conversación.")">
+                                    Contexto de negocio — sin gestión CAE todavía
+                                </Badge>
+                            }
                             <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin cliente asignado")</span>
                         </div>
                     </div>
@@ -207,7 +213,7 @@
                 </div>
 
                 <UnifiedTimeline Mensajes="_detalle.Mensajes" Participantes="_detalle.Participantes" Eventos="_detalle.Eventos"
-                                  OnActualizarDocumentoDesdeAdjunto="AbrirActualizarDocumentoAsync" />
+                                  OnActualizarDocumentoDesdeAdjunto="AbrirActualizarDocumentoAsync" OnConfirmarRuido="ConfirmarRuidoAsync" />
 
                 <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
                              Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"

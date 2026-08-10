@@ -129,4 +129,69 @@ public class UnifiedTimelineTests : BunitContext
 
         cut.FindAll(".timeline-marca-ia").Should().HaveCount(2);
     }
+
+    /// <summary>Ronda de reducción de ruido en Comunicaciones: un mensaje con Motivo distinto de Ninguno se pinta atenuado con badge y botón de reversibilidad.</summary>
+    [Fact]
+    public void Un_mensaje_de_ruido_sin_confirmar_muestra_badge_y_boton_esto_si_importa()
+    {
+        var mensaje = new MensajeDetalleDto(
+            Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "notificaciones@nalanda.com", "Hola", DateTime.UtcNow,
+            [], null, [], MotivoRuido: MotivoRuidoMensaje.ResumenSinCambios);
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [mensaje])
+            .Add(p => p.Participantes, []));
+
+        cut.Find(".timeline-mensaje-fila").ClassList.Should().Contain("timeline-mensaje-fila-ruido");
+        cut.Markup.Should().Contain("Resumen sin cambios");
+        cut.Find(".timeline-ruido-confirmar").Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Un_mensaje_de_ruido_ya_confirmado_no_muestra_badge_ni_se_atenua()
+    {
+        var mensaje = new MensajeDetalleDto(
+            Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "notificaciones@nalanda.com", "Hola", DateTime.UtcNow,
+            [], null, [], MotivoRuido: MotivoRuidoMensaje.ResumenSinCambios, RuidoConfirmadoManualmente: true);
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [mensaje])
+            .Add(p => p.Participantes, []));
+
+        cut.Find(".timeline-mensaje-fila").ClassList.Should().NotContain("timeline-mensaje-fila-ruido");
+        cut.FindAll(".timeline-ruido-confirmar").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Clicar_esto_si_importa_dispara_OnConfirmarRuido_con_el_id_del_mensaje()
+    {
+        var mensajeId = Guid.NewGuid();
+        Guid? confirmadoId = null;
+        var mensaje = new MensajeDetalleDto(
+            mensajeId, DireccionMensaje.Entrante, CanalConversacion.Correo, "notificaciones@nalanda.com", "Hola", DateTime.UtcNow,
+            [], null, [], MotivoRuido: MotivoRuidoMensaje.ResumenSinCambios);
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [mensaje])
+            .Add(p => p.Participantes, [])
+            .Add(p => p.OnConfirmarRuido, id => confirmadoId = id));
+
+        cut.Find(".timeline-ruido-confirmar").Click();
+
+        confirmadoId.Should().Be(mensajeId);
+    }
+
+    [Fact]
+    public void Un_mensaje_con_solo_repeticiones_pendientes_muestra_el_badge_de_repeticion()
+    {
+        var mensaje = new MensajeDetalleDto(
+            Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "notificaciones@nalanda.com", "Hola", DateTime.UtcNow,
+            [], null, [], TieneSoloRepeticionesPendientes: true);
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [mensaje])
+            .Add(p => p.Participantes, []));
+
+        cut.Markup.Should().Contain("Repetición — ya reclamado");
+    }
 }

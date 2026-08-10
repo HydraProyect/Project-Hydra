@@ -89,6 +89,27 @@
     color: var(--color-text);
 }
 
+/* Ronda de reducción de ruido en Comunicaciones: minimizar sin borrar — el mensaje sigue
+   completo y accesible, solo pierde peso visual hasta que el gestor lo confirme. */
+.timeline-mensaje-fila-ruido {
+    opacity: 0.6;
+}
+
+.timeline-mensaje-fila-ruido:hover,
+.timeline-mensaje-fila-ruido:focus-within {
+    opacity: 1;
+}
+
+.timeline-ruido-confirmar {
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--color-primary-500);
+    font: var(--font-label-sm);
+    cursor: pointer;
+    text-decoration: underline;
+}
+
 .timeline-badge-canal {
     display: inline-flex;
     align-items: center;
