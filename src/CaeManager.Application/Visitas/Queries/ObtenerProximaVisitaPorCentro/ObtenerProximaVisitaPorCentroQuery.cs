@@ -15,7 +15,8 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 public record ObtenerProximaVisitaPorCentroQuery(IReadOnlyList<Guid> CentroIds)
     : IRequest<IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>>;
 
-public record VisitaResumenDto(Guid VisitaId, DateOnly FechaInicio, DateOnly FechaFin);
+/// <param name="TrabajadoresCount">Cuántos VisitaTrabajador tiene la visita — alimenta la ventana de contexto del badge (§ 3.7 del blueprint de Centro 360), antes solo mostraba fechas.</param>
+public record VisitaResumenDto(Guid VisitaId, DateOnly FechaInicio, DateOnly FechaFin, int TrabajadoresCount);
 
 public class ObtenerProximaVisitaPorCentroQueryHandler(IVisitasQueryContext visitasContext)
     : IRequestHandler<ObtenerProximaVisitaPorCentroQuery, IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>>
@@ -33,6 +34,13 @@ public class ObtenerProximaVisitaPorCentroQueryHandler(IVisitasQueryContext visi
             .Select(v => new { v.Id, v.CentroId, v.FechaInicio, v.FechaFin })
             .ToListAsync(cancellationToken);
 
+        var visitaIds = visitasActivas.Select(v => v.Id).ToList();
+        var trabajadoresPorVisita = await visitasContext.VisitasTrabajadores
+            .Where(vt => visitaIds.Contains(vt.VisitaId))
+            .GroupBy(vt => vt.VisitaId)
+            .Select(g => new { VisitaId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.VisitaId, g => g.Count, cancellationToken);
+
         // Se devuelven TODAS las visitas activas, no solo la primera.
         //
         // Las visitas NO se fusionan en un rango (DDL-035, OD-18): dos visitas
@@ -49,7 +57,7 @@ public class ObtenerProximaVisitaPorCentroQueryHandler(IVisitasQueryContext visi
                 g => g.Key,
                 g => (IReadOnlyList<VisitaResumenDto>)g
                     .OrderBy(v => v.FechaFin).ThenBy(v => v.FechaInicio)
-                    .Select(v => new VisitaResumenDto(v.Id, v.FechaInicio, v.FechaFin))
+                    .Select(v => new VisitaResumenDto(v.Id, v.FechaInicio, v.FechaFin, trabajadoresPorVisita.GetValueOrDefault(v.Id)))
                     .ToList());
     }
 }
