@@ -128,6 +128,7 @@ builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>(
 // Scoped: cachea por circuito si la sesión es de soporte, para que registrar
 // una interacción no cueste una consulta (ver TrazaSoporteService).
 builder.Services.AddScoped<CaeManager.Web.Services.TrazaSoporteService>();
+builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<BusquedaGlobalService>();
 builder.Services.AddScoped<AsistenteIaService>();
