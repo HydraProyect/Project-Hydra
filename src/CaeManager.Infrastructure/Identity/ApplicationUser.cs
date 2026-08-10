@@ -62,4 +62,14 @@ public class ApplicationUser : IdentityUser<Guid>
     /// resolución de tenant sea por claim y no por subdominio.
     /// </summary>
     public Guid TenantId { get; set; }
+
+    /// <summary>
+    /// Última interacción autenticada con la plataforma, en cualquier
+    /// pantalla — no solo el Home (docs/blueprints/OPERATIONAL-HOME.md § 6,
+    /// DDL-068). La escribe <c>ActividadUsuarioService</c> desde MainLayout
+    /// en cada navegación, con un throttle de un minuto para no escribir en
+    /// cada clic. Alimenta el resumen de ausencia: null significa "nunca
+    /// tuvo actividad registrada todavía" (usuario recién creado).
+    /// </summary>
+    public DateTime? UltimaActividadUtc { get; set; }
 }
