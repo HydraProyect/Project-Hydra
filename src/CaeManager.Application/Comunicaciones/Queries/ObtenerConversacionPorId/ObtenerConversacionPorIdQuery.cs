@@ -41,10 +41,21 @@ public record SugerenciaGestionDetalleDto(
     Guid Id, Guid? TrabajadorId, string? TrabajadorNombre, Guid? TipoDocumentoId, string? TipoDocumentoNombre, string Resumen,
     int Confianza, int ConfianzaTrabajador, int ConfianzaTipoDocumento);
 
+/// <summary>
+/// <paramref name="MotivoRuido"/>/<paramref name="RuidoConfirmadoManualmente"/> vienen de
+/// <see cref="ClasificacionRuidoMensaje"/> (ronda de reducción de ruido en Comunicaciones).
+/// <paramref name="TieneSoloRepeticionesPendientes"/> es distinto: true cuando el mensaje tiene
+/// ítems de gestión pendientes (<see cref="SugerenciasGestion"/> no vacío) y TODOS están marcados
+/// como repetición de un pendiente ya reclamado (<c>ClasificacionRuidoDetalleGestion</c>) — un
+/// mensaje con un ítem repetido y uno genuinamente nuevo no cuenta como ruido, solo cuando no queda
+/// nada nuevo que atender.
+/// </summary>
 public record MensajeDetalleDto(
     Guid Id, DireccionMensaje Direccion, CanalConversacion Canal, string Remitente, string CuerpoHtml, DateTime FechaUtc,
     IReadOnlyList<AdjuntoDetalleDto> Adjuntos, SugerenciaVisitaDetalleDto? SugerenciaVisita,
-    IReadOnlyList<SugerenciaGestionDetalleDto> SugerenciasGestion, EstadoEntregaMensaje? EstadoEntrega = null, string? ErrorEntrega = null);
+    IReadOnlyList<SugerenciaGestionDetalleDto> SugerenciasGestion, EstadoEntregaMensaje? EstadoEntrega = null, string? ErrorEntrega = null,
+    MotivoRuidoMensaje MotivoRuido = MotivoRuidoMensaje.Ninguno, bool RuidoConfirmadoManualmente = false,
+    bool TieneSoloRepeticionesPendientes = false);
 
 public record ParticipanteDetalleDto(
     Guid Id, string Email, RolParticipante Rol, TipoParticipanteOrigen TipoOrigen, Guid? EntidadRelacionadaId);
@@ -80,7 +91,9 @@ public record ConversacionDetalleDto(
     CanalConversacion Canal = CanalConversacion.Correo,
     string? TelefonoContacto = null,
     DateTime? FechaUltimoMensajeEntranteUtc = null,
-    SugerenciaVinculacionDetalleDto? SugerenciaVinculacion = null);
+    SugerenciaVinculacionDetalleDto? SugerenciaVinculacion = null,
+    bool EsConversacionInformativaPreCae = false,
+    string? ResumenRelevanciaCae = null);
 
 public class ObtenerConversacionPorIdQueryHandler(
     IClientesQueryContext clientesContext, ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
@@ -198,12 +211,48 @@ public class ObtenerConversacionPorIdQueryHandler(
                         x.Sugerencia.Resumen, x.Sugerencia.Confianza, x.Detalle.ConfianzaTrabajador, x.Detalle.ConfianzaTipoDocumento))
                     .ToList());
 
+        var mensajeIds = mensajesCrudos.Select(m => m.Id).ToList();
+
+        var clasificacionesMensaje = await comunicacionesContext.ClasificacionesRuidoMensaje
+            .Where(c => mensajeIds.Contains(c.MensajeId))
+            .Select(c => new { c.MensajeId, c.Motivo, c.ConfirmadaManualmente })
+            .ToDictionaryAsync(c => c.MensajeId, cancellationToken);
+
+        // Ronda de reducción de ruido en Comunicaciones: un mensaje tiene "solo repeticiones
+        // pendientes" cuando ninguno de sus ítems de gestión pendientes es genuinamente nuevo — se
+        // reutiliza el mismo join sugerenciasGestionPendientes/detallesPendientes que ya construye
+        // sugerenciasGestionPorMensaje, no una consulta aparte.
+        var detalleIdsPendientes = detallesPendientes.Select(d => d.Id).ToList();
+        var detalleIdsRepeticion = (await comunicacionesContext.ClasificacionesRuidoDetalleGestion
+            .Where(c => detalleIdsPendientes.Contains(c.DetalleSugerenciaGestionCorreoId) && !c.ConfirmadaManualmente)
+            .Select(c => c.DetalleSugerenciaGestionCorreoId)
+            .ToListAsync(cancellationToken))
+            .ToHashSet();
+
+        var soloRepeticionesPorMensaje = sugerenciasGestionPendientes
+            .Join(detallesPendientes, s => s.Id, d => d.SugerenciaGestionCorreoId, (s, d) => new { s.MensajeId, DetalleId = d.Id })
+            .GroupBy(x => x.MensajeId)
+            .ToDictionary(g => g.Key, g => g.All(x => detalleIdsRepeticion.Contains(x.DetalleId)));
+
         var mensajes = mensajesCrudos
-            .Select(m => new MensajeDetalleDto(
-                m.Id, m.Direccion, m.Canal, m.Remitente, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
-                adjuntosPorMensaje.GetValueOrDefault(m.Id, []), sugerenciasPorMensaje.GetValueOrDefault(m.Id),
-                sugerenciasGestionPorMensaje.GetValueOrDefault(m.Id, []), m.EstadoEntrega, m.ErrorEntrega))
+            .Select(m =>
+            {
+                var clasificacion = clasificacionesMensaje.GetValueOrDefault(m.Id);
+                return new MensajeDetalleDto(
+                    m.Id, m.Direccion, m.Canal, m.Remitente, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
+                    adjuntosPorMensaje.GetValueOrDefault(m.Id, []), sugerenciasPorMensaje.GetValueOrDefault(m.Id),
+                    sugerenciasGestionPorMensaje.GetValueOrDefault(m.Id, []), m.EstadoEntrega, m.ErrorEntrega,
+                    clasificacion?.Motivo ?? MotivoRuidoMensaje.Ninguno,
+                    clasificacion?.ConfirmadaManualmente ?? false,
+                    soloRepeticionesPorMensaje.GetValueOrDefault(m.Id));
+            })
             .ToList();
+
+        var clasificacionRelevancia = await comunicacionesContext.ClasificacionesRelevanciaCae
+            .Where(c => c.ConversacionId == request.Id)
+            .Select(c => new { c.EsAccionableCae, c.Resumen })
+            .FirstOrDefaultAsync(cancellationToken);
+        var esConversacionInformativaPreCae = clasificacionRelevancia is { EsAccionableCae: false };
 
         var participantes = await comunicacionesContext.ParticipantesConversacion
             .Where(p => p.ConversacionId == request.Id)
@@ -218,7 +267,7 @@ public class ObtenerConversacionPorIdQueryHandler(
             conversacion.Id, conversacion.ClienteId, conversacion.ClienteRazonSocial, conversacion.Asunto,
             conversacion.Estado, conversacion.EjecutivoAsignadoId, conversacion.Etiquetas, conversacion.FechaUltimoMensajeUtc,
             mensajes, participantes, eventos, conversacion.Canal, conversacion.TelefonoContacto, conversacion.FechaUltimoMensajeEntranteUtc,
-            sugerenciaVinculacion);
+            sugerenciaVinculacion, esConversacionInformativaPreCae, esConversacionInformativaPreCae ? clasificacionRelevancia!.Resumen : null);
     }
 
     /// <summary>

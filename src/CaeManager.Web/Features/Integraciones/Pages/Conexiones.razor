@@ -15,11 +15,21 @@
 
     <div class="acciones-claves-api">
         <CampoSelect Etiqueta="Cliente (opcional)" Valor="@(_clienteSeleccionadoId?.ToString() ?? string.Empty)"
-                     ValorChanged="v => _clienteSeleccionadoId = Guid.TryParse(v, out var id) ? id : null">
+                     ValorChanged="v => SeleccionarCliente(v)">
             <option value="">Buzón del propio tenant</option>
             @foreach (var cliente in _clientes)
             {
                 <option value="@cliente.Id">@cliente.RazonSocial</option>
+            }
+        </CampoSelect>
+
+        <CampoSelect Etiqueta="Buzón personal de un gestor (opcional)"
+                     Valor="@(_gestorPropietarioSeleccionadoId?.ToString() ?? string.Empty)"
+                     ValorChanged="v => SeleccionarGestorPropietario(v)">
+            <option value="">—</option>
+            @foreach (var gestor in _gestores)
+            {
+                <option value="@gestor.Id">@gestor.NombreCompleto</option>
             }
         </CampoSelect>
 
@@ -51,7 +61,7 @@
                 {
                     <tr>
                         <td>@conexion.BuzonEmail</td>
-                        <td>@(conexion.ClienteNombre ?? "Tenant propio")</td>
+                        <td>@DescribirPropietario(conexion)</td>
                         <td><Badge Tono="@ObtenerTonoEstado(conexion.Estado)">@ObtenerEtiquetaEstado(conexion.Estado)</Badge></td>
                         <td>@conexion.FechaConectadaUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
                         <td>

@@ -22,10 +22,11 @@ public static class ConectarMicrosoft365Endpoints
     public static IEndpointRouteBuilder MapConectarMicrosoft365Endpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/integraciones/conectar-microsoft365", (
-            Guid? clienteId, HttpContext httpContext, IMicrosoft365GraphClient graphClient, IDataProtectionProvider dataProtectionProvider) =>
+            Guid? clienteId, Guid? gestorPropietarioId, HttpContext httpContext, IMicrosoft365GraphClient graphClient,
+            IDataProtectionProvider dataProtectionProvider) =>
         {
             var protector = dataProtectionProvider.CreateProtector(NombreProtector);
-            var state = protector.Protect($"{clienteId}|{Guid.NewGuid()}");
+            var state = protector.Protect($"{clienteId}|{gestorPropietarioId}|{Guid.NewGuid()}");
             var redirectUri = ConstruirRedirectUriCallback(httpContext);
 
             return Results.Redirect(graphClient.ConstruirUrlAutorizacion(redirectUri, state));
@@ -40,12 +41,14 @@ public static class ConectarMicrosoft365Endpoints
                 return Results.LocalRedirect("/integraciones?error=cancelado");
 
             Guid? clienteId;
+            Guid? gestorPropietarioId;
             try
             {
                 var protector = dataProtectionProvider.CreateProtector(NombreProtector);
                 var payload = protector.Unprotect(state);
-                var clienteIdTexto = payload.Split('|')[0];
-                clienteId = clienteIdTexto == string.Empty ? null : Guid.Parse(clienteIdTexto);
+                var partes = payload.Split('|');
+                clienteId = partes[0] == string.Empty ? null : Guid.Parse(partes[0]);
+                gestorPropietarioId = partes[1] == string.Empty ? null : Guid.Parse(partes[1]);
             }
             catch (CryptographicException)
             {
@@ -68,7 +71,7 @@ public static class ConectarMicrosoft365Endpoints
             var notificationUrlBase = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
             var comando = new ConectarBuzonMicrosoft365Command(
                 buzonResultado.Valor, buzonResultado.Valor, clienteId,
-                tokensResultado.Valor.AccessToken, tokensResultado.Valor.RefreshToken, notificationUrlBase);
+                tokensResultado.Valor.AccessToken, tokensResultado.Valor.RefreshToken, notificationUrlBase, gestorPropietarioId);
 
             var resultado = await mediator.Send(comando, cancellationToken);
             return resultado.EsExitoso
