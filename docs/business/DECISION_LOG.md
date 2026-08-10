@@ -110,6 +110,32 @@ Una entrada nunca se edita para cambiar lo que se decidió en su momento — si 
 
 **Estado**: Vigente
 
+## 2026-08-10 — Aprobación de ADR-005: nivel de servicio de Subcontrata y supervisión externa
+
+**Decisión**: El propietario del producto aprueba explícitamente y en su totalidad `ADR-005-subcontratas-supervisadas.md` (que pasa a Aceptado): (1) la entidad existente `Subcontrata` gana un **nivel de servicio** — `Gestionada` (semántica actual: se sube y valida su documentación) / `Supervisada` (solo se audita su cumplimiento en las plataformas Inbound del titular, sin cargar nada) — cambiable como operación de negocio sin migración ni cambio de entidad; (2) la supervisión se registra mediante **Verificaciones Externas** manuales (fecha, resultado, válido-hasta, evidencia, verificador) contra la lista de tipos exigidos por cada Centro (`TipoDocumentoCentro`), con estado calculado y nunca almacenado; (3) la Subcontrata vive en el tenant del Cliente Directo/Delegante que la contrata — si algún día contrata Hydra, tenant propio + `DelegacionTenant`, sin migrar historial.
+
+Además, el propietario deja posicionamiento (dirección, no diseño cerrado) sobre la futura bandeja unificada del gestor: la agregación multi-cliente se hará como proyección transversal de lectura sobre tenants delegados autorizados (patrón Visión de cartera, aislamiento ADR-004 intacto); el canal (Email/WhatsApp) evolucionará a atributo del mensaje, no de la conversación; y el selector "Responder como" se especificará solo tras validar `SendAs`/`SendOnBehalf`/buzones compartidos contra Microsoft Graph.
+
+**Motivo**: Dos escenarios de negocio reales (Cliente Directo con subcontratas auditadas; Consultora BPO que reporta cumplimiento de subcontratas de sus Clientes Delegantes) necesitan distinguir "gestiono sus documentos" de "solo vigilo su cumplimiento externo" — hoy una subcontrata no gestionada aparece indistinguible de una gestionada con todo caducado. El registro manual aporta valor desde el MVP sin esperar a los conectores de la Plataforma de Integraciones, que alimentarán el mismo agregado.
+
+**Alternativas descartadas**: entidad nueva separada para subcontratas supervisadas (rompería el paso Supervisada→Gestionada sin migración, decidido como cambio de servicio, no de entidad); nivel de servicio por relación Subcontrata–Cliente (YAGNI — se revisará si un caso real lo exige); vínculo N:M explícito Subcontrata–Centro (el despliegue ya se deriva de las Asignaciones de sus trabajadores; para supervisar basta el `CentroId` de cada verificación); segundo catálogo de requisitos documentales (se reutiliza `TipoDocumentoCentro`).
+
+**Impacto**: `ADR-005-subcontratas-supervisadas.md` pasa a **Aceptado**. Término **Nivel de servicio de Subcontrata** (Gestionada/Supervisada) pasa a `Approved` en `docs/business/UBIQUITOUS_LANGUAGE.md`. **Métricas BPO** permanece `Draft` (su fasado quedó registrado, pero los KPIs y el diseño no están aprobados). Arranca la implementación: migración de esquema, commands/queries, siembra de datos de prueba (requerimiento global nº 1) y capa de presentación.
+
+**Estado**: Vigente
+
+## 2026-08-10 — CIF/NIF obligatorio en Empresas y Subcontratas (ancla de identidad entre tenants)
+
+**Decisión**: El CIF/NIF pasa a ser **obligatorio** en las entidades `Empresa` y `Subcontrata`. Es el ancla de identidad que permitirá reconocer a la misma empresa/subcontrata a través de tenants independientes (sugerencias de reutilización en la vista transversal de cartera, indicadores agregados para dirección, y el futuro enlace de compartición cuando una subcontrata se convierta en Cliente de Hydra — dirección registrada en `ADR-005-subcontratas-supervisadas.md` § 2.4). Cada tenant conserva su propia fila (el aislamiento de ADR-004 no cambia); el CIF solo ancla el *matching*, nunca comparte datos por sí mismo.
+
+**Motivo**: Sin identificador fiscal fiable, el matching entre tenants es imposible o inventa coincidencias por razón social. El propietario del producto confirma que los dos escenarios reales que motivan ADR-005 (subcontrata que sirve a varios clientes de la consultora; subcontrata que acaba contratando Hydra) dependen de esta ancla.
+
+**Alternativas descartadas**: mantener el CIF opcional y hacer matching solo cuando esté informado (deja el efecto red a merced de la calidad de datos); usar razón social como ancla (ambigua y mutable); un identificador interno de plataforma (no existe hasta que ambas partes están en Hydra — el CIF ya existe antes).
+
+**Impacto**: Supersede la opcionalidad del CIF decidida en Issue #5 (`Subcontrata.Cif`/`Empresa.Cif` opcionales). Implementación como cambio propio, separado de la fase de Subcontratas Supervisadas: obligatorio en dominio para alta y edición (una fila antigua sin CIF exige informarlo al editarla), columna aún anulable para filas históricas hasta sanearlas, plantillas de importación actualizadas para exigir el campo, y siembra de datos de prueba con CIF siempre informado. La unicidad por `(TenantId, Cif)` se evalúa en esa implementación.
+
+**Estado**: Vigente
+
 ## Documentos relacionados
 
 - Todos los documentos de `docs/business/` — cualquiera puede generar una entrada aquí cuando su contenido pasa de `Draft`/`In Progress` a `Approved`.

@@ -327,6 +327,22 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     }
 
     [Fact]
+    public Task Aislamiento_VerificacionExternaSubcontrata()
+    {
+        Guid subcontrataId = default, centroId = default, tipoDocumentoId = default;
+        return VerificarAislamientoAsync(
+            () => new VerificacionExternaSubcontrata(
+                subcontrataId, centroId, tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow), ResultadoVerificacionExterna.Valido, Guid.NewGuid()),
+            async contexto =>
+            {
+                subcontrataId = await SembrarSubcontrataAsync(contexto);
+                centroId = await SembrarCentroAsync(contexto);
+                tipoDocumentoId = await SembrarTipoDocumentoAsync(contexto);
+            });
+    }
+
+    [Fact]
     public Task Aislamiento_SubcontrataEmpresa()
     {
         Guid subcontrataId = default, empresaId = default;
