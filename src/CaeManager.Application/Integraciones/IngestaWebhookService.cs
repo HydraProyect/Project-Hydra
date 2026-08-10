@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
@@ -25,6 +26,9 @@ public class IngestaWebhookService(
     IFileStorageService almacenamiento,
     ISugerenciaVisitaCorreoService sugerenciaVisita,
     ISugerenciaGestionCorreoService sugerenciaGestion,
+    IResolucionParticipanteConversacionService resolucionParticipante,
+    IResolucionProveedorPlataformaCaeService resolucionPlataforma,
+    IClasificacionRuidoMensajeRepository clasificacionRuidoRepositorio,
     ILogger<IngestaWebhookService> logger)
 {
     // Tope defensivo, no un límite real de Graph: un adjunto de correo
@@ -92,10 +96,24 @@ public class IngestaWebhookService(
             DireccionMensaje.Entrante, conversacion.Canal, mensaje.Remitente, mensaje.CuerpoHtml, mensaje.FechaUtc, mensaje.MensajeExternoId);
 
         foreach (var participante in mensaje.Participantes)
-            conversacion.AgregarParticipante(participante.Email, participante.Rol, TipoParticipanteOrigen.Desconocido);
+        {
+            var (tipoOrigen, entidadRelacionadaId) = await resolucionParticipante.ResolverAsync(
+                participante.Email, conversacion.ClienteId, cancellationToken);
+            conversacion.AgregarParticipante(participante.Email, participante.Rol, tipoOrigen, entidadRelacionadaId);
+        }
 
         foreach (var adjunto in mensaje.Adjuntos)
             await DescargarYGuardarAdjuntoAsync(mensajeCreado, accessTokenResultado.Valor, mensaje.MensajeExternoId, adjunto, cancellationToken);
+
+        // Gate compartido por todos los patrones de ruido de esta ronda — solo Correo tiene
+        // dominio en el remitente (WhatsApp es un teléfono). Se calcula una vez aquí y queda
+        // estable aunque el catálogo de plataformas cambie después, igual que las sugerencias de IA.
+        if (conversacion.Canal == CanalConversacion.Correo)
+        {
+            var candidatos = await resolucionPlataforma.ResolverPorDominioCorreoAsync(mensaje.Remitente, cancellationToken);
+            clasificacionRuidoRepositorio.Agregar(new ClasificacionRuidoMensaje(
+                mensajeCreado.Id, candidatos.Count > 0, candidatos.Count > 0 ? candidatos[0].Id : null));
+        }
 
         // Sin Cliente asignado no hay Centros candidatos a los que asociar
         // una sugerencia — la conversación sigue en la cola de triage.

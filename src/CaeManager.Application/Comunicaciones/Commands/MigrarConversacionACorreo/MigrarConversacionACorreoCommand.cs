@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
@@ -45,6 +46,7 @@ public class MigrarConversacionACorreoCommandHandler(
     IAlcanceDatosService alcanceDatos,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
+    IResolucionParticipanteConversacionService resolucionParticipante,
     IUnitOfWork unitOfWork)
     : IRequestHandler<MigrarConversacionACorreoCommand, Result>
 {
@@ -91,7 +93,9 @@ public class MigrarConversacionACorreoCommandHandler(
             return Result.Fallo(envioResultado.Error);
 
         conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, conexion.BuzonEmail, request.CuerpoHtml);
-        conversacion.AgregarParticipante(request.EmailDestino, RolParticipante.Para, TipoParticipanteOrigen.Desconocido);
+        var (tipoOrigen, entidadRelacionadaId) = await resolucionParticipante.ResolverAsync(
+            request.EmailDestino, conversacion.ClienteId, cancellationToken);
+        conversacion.AgregarParticipante(request.EmailDestino, RolParticipante.Para, tipoOrigen, entidadRelacionadaId);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
