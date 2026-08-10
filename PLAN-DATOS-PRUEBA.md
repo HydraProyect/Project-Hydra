@@ -115,6 +115,18 @@ Todo el pipeline que hoy solo existe como flags de catálogo.
   sin credenciales reales — solo para que `/integraciones` sea probable visualmente.
 - `FiltroGuardado` y `PreferenciaDashboardUsuario` para algún usuario `prueba.*`.
 
+## Auditorías incrementales (funcionalidades que entraron en paralelo al plan)
+
+- **ADR-005 Subcontratas Supervisadas (#186)**: llegó **con su propia siembra** (niveles de
+  servicio, verificaciones externas con todos los resultados y estados del semáforo, historial,
+  y test de integración del seeder) — cumple el requerimiento global nº 1 sin trabajo extra.
+- **Comunicaciones fases 6-8 (#183)**: llegó **sin siembra** — cubierta aquí (2026-08-10):
+  `ClasificacionRelevanciaCae` (conversación pre-CAE minimizada + accionable congelada) y
+  `ClasificacionRuidoMensaje` (resumen sin cambios minimizado, el mismo caso rescatado
+  manualmente, y notificación automática con cambios). Los motivos `CorreoInterno` y
+  `PosiblePhishing` no se siembran: solo aplican a mensajes de un **buzón personal de gestor**
+  (`ConexionIntegracion.GestorPropietarioId`), que cae dentro de la decisión abierta nº 2.
+
 ## Decisiones abiertas (confirmar con el propietario antes de la tanda que las toca)
 
 1. ~~Vencimiento en documentos de vehículo~~ **Resuelta (2026-08-10)**: el propietario decidió

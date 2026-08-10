@@ -166,11 +166,72 @@ public static class ComunicacionesDatosPruebaSeeder
 
         await SembrarWhatsAppAsync(dbContext, clientes, gestoresPrueba, ahora, cancellationToken);
         await SembrarInteligenciaBandejaAsync(dbContext, gestoresPrueba, ahora, cancellationToken);
+        await SembrarReduccionRuidoAsync(dbContext, cancellationToken);
 
         logger.LogInformation(
             "Comunicaciones sembradas: {Conversaciones} conversaciones de correo ({Triage} sin cliente asignado), " +
             "{Macros} macros, líneas y conversaciones WhatsApp, adjuntos, eventos y sugerencias de bandeja.",
             totalConversaciones, conversacionesTriage, macros.Count);
+    }
+
+    /// <summary>
+    /// Ronda de reducción de ruido (Fases 6-8): una conversación "pre-CAE"
+    /// (con Cliente pero sin gestión CAE accionable — se minimiza) y una ya
+    /// congelada como accionable; más clasificaciones de ruido por mensaje —
+    /// un resumen sin cambios de plataforma (minimizado), el mismo caso
+    /// rescatado manualmente por el gestor, y una notificación automática
+    /// que sí trae cambios (motivo Ninguno). Los motivos CorreoInterno y
+    /// PosiblePhishing no se siembran: solo se calculan sobre mensajes de un
+    /// buzón personal de gestor (ConexionIntegracion.GestorPropietarioId),
+    /// que depende de la decisión abierta nº 2 de PLAN-DATOS-PRUEBA.md.
+    /// </summary>
+    private static async Task SembrarReduccionRuidoAsync(
+        CaeManagerDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var conversacionesConCliente = await dbContext.Conversaciones
+            .Where(c => c.ClienteId != null && c.Canal == CanalConversacion.Correo)
+            .OrderBy(c => c.CreadoEnUtc).ThenBy(c => c.Id)
+            .Take(2)
+            .ToListAsync(cancellationToken);
+        if (conversacionesConCliente.Count < 2)
+            return;
+
+        dbContext.ClasificacionesRelevanciaCae.Add(new ClasificacionRelevanciaCae(
+            conversacionesConCliente[0].Id, esAccionableCae: false,
+            "El cliente copia al gestor en una negociación comercial — todavía no hay ninguna gestión CAE que hacer.", 84));
+        dbContext.ClasificacionesRelevanciaCae.Add(new ClasificacionRelevanciaCae(
+            conversacionesConCliente[1].Id, esAccionableCae: true,
+            "El último mensaje pide renovar la documentación de un trabajador.", 91));
+
+        var mensajesEntrantes = await dbContext.Mensajes
+            .Where(m => m.Direccion == DireccionMensaje.Entrante && m.Canal == CanalConversacion.Correo)
+            .OrderByDescending(m => m.FechaUtc).ThenBy(m => m.Id)
+            .Take(3)
+            .ToListAsync(cancellationToken);
+        if (mensajesEntrantes.Count < 3)
+            return;
+
+        var proveedorCae = await dbContext.ProveedoresPlataformaCae
+            .Where(p => p.Activo).OrderBy(p => p.Codigo)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // Resumen periódico de plataforma sin cambios — se minimiza.
+        dbContext.ClasificacionesRuidoMensaje.Add(new ClasificacionRuidoMensaje(
+            mensajesEntrantes[0].Id, esNotificacionAutomatica: true, proveedorCae?.Id,
+            MotivoRuidoMensaje.ResumenSinCambios));
+
+        // El mismo patrón, pero el gestor confirmó que sí importa.
+        var rescatada = new ClasificacionRuidoMensaje(
+            mensajesEntrantes[1].Id, esNotificacionAutomatica: true, proveedorCae?.Id,
+            MotivoRuidoMensaje.ResumenSinCambios);
+        rescatada.ConfirmarManualmente();
+        dbContext.ClasificacionesRuidoMensaje.Add(rescatada);
+
+        // Notificación automática con cambios reales — no se minimiza.
+        dbContext.ClasificacionesRuidoMensaje.Add(new ClasificacionRuidoMensaje(
+            mensajesEntrantes[2].Id, esNotificacionAutomatica: true, proveedorCae?.Id));
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
