@@ -1,7 +1,7 @@
 @page "/"
 @rendermode InteractiveServer
-@using CaeManager.Application.Dashboard.Queries
-@using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Bandeja.Components
+@using CaeManager.Web.Features.Visitas
 
 <PageTitle>Dashboard — CAE Manager</PageTitle>
 
@@ -29,166 +29,73 @@
     }
     else
     {
-        @* Iconografía obligatoria en superficies de resumen (02 § 7, DDL-036):
-           sin ella, un número de color sobre fondo blanco lee como una hoja
-           de cálculo. Los nombres de icono responden a qué representa el
-           KPI, no a su color — el tono semántico ya lo lleva Tono. *@
-        <div class="rejilla-kpis-criticos">
-            <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()"
-                            NombreIcono="advertencia" Tono="TonoBadge.Peligro" Enlace="/alertas?estado=Vencido" />
-            <TarjetaMetrica Etiqueta="Urgentes (≤15 días)" Valor="@_kpis.DocumentosUrgentes.ToString()"
-                            NombreIcono="reloj" Tono="TonoBadge.Peligro" Enlace="/alertas?estado=Urgente" />
-            <TarjetaMetrica Etiqueta="Próximos (≤30 días)" Valor="@_kpis.DocumentosProximos.ToString()"
-                            NombreIcono="calendario" Tono="TonoBadge.Advertencia" Enlace="/alertas?estado=Proximo" />
-            <TarjetaMetrica Etiqueta="SLA documental" Valor="@($"{_kpis.TasaCumplimientoDocumental}%")"
-                            NombreIcono="check" Tono="@SlaDocumentalTono(_kpis.TasaCumplimientoDocumental)" Enlace="/documentos" />
+        @* Cumplimiento global + KPIs secundarios (docs/blueprints/OPERATIONAL-HOME.md § 3):
+           sustituye los 4 tiles críticos (Vencidos/Urgentes/Próximos/SLA) — esos conteos ahora
+           se leen directamente en "Requiere atención", no como cifra suelta sin acción asociada. *@
+        <div class="dashboard-resumen">
+            <div class="dashboard-resumen-anillo">
+                <AnilloCumplimiento Porcentaje="_kpis.TasaCumplimientoDocumental" Tamano="TamanoAnillo.Medio"
+                                     Etiqueta="@($"{_kpis.TasaCumplimientoDocumental}% de cumplimiento documental")" />
+                <span class="dashboard-resumen-anillo-etiqueta">Cumplimiento documental</span>
+            </div>
+            <div class="rejilla-kpis-secundarios">
+                <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" Enlace="/trabajadores" />
+                <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" Enlace="/centros" />
+                <TarjetaMetrica Discreta="true" Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" NombreIcono="check" Enlace="/documentos?estado=Vigente" />
+                <TarjetaMetrica Discreta="true" Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" NombreIcono="visitas" Enlace="/visitas" />
+            </div>
         </div>
 
-        @if (_mostrarDocumentosAtencion && _desglose is not null)
+        @if (_mostrarRequiereAtencion)
         {
-            <Tarjeta Titulo="Documentos que requieren atención">
-                @if (_desglose.DocumentosAtencion.Count == 0)
-                {
-                    <p class="texto-vacio-seccion">No hay documentos urgentes ni vencidos ahora mismo.</p>
-                }
-                else
-                {
-                    <table class="tabla-datos">
-                        <thead>
-                            <tr>
-                                <th>Estado</th>
-                                <th>Trabajador</th>
-                                <th>Tipo de documento</th>
-                                <th>Vencimiento</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var documento in _desglose.DocumentosAtencion)
-                            {
-                                <tr class="fila-clicable" @onclick="() => IrADocumento(documento.DocumentoId)">
-                                    <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
-                                    <td>@documento.TrabajadorNombre</td>
-                                    <td>@documento.TipoDocumentoNombre</td>
-                                    <td>@(documento.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                    <a class="enlace-ver-todas" href="/alertas">Ver todas las alertas →</a>
-                }
-            </Tarjeta>
+            <h2 class="dashboard-subtitulo">Requiere atención</h2>
+            @if (_requiereAtencion.Count == 0)
+            {
+                <p class="texto-vacio-seccion">Nada pendiente ahora mismo.</p>
+            }
+            else
+            {
+                <div class="lista-bandeja">
+                    @foreach (var item in _requiereAtencion)
+                    {
+                        <PanelResolverItem Item="item" />
+                    }
+                </div>
+                <a class="enlace-ver-todas" href="/bandeja">Ver todo en Bandeja →</a>
+            }
         }
 
-        <h2 class="dashboard-subtitulo">Actividad general</h2>
-        <div class="rejilla-kpis-secundarios">
-            <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" Enlace="/trabajadores" />
-            <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" Enlace="/centros" />
-            <TarjetaMetrica Discreta="true" Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" NombreIcono="check" Enlace="/documentos?estado=Vigente" />
-            <TarjetaMetrica Discreta="true" Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" NombreIcono="visitas" Enlace="/visitas" />
-        </div>
-
-        @if (_mostrarDocumentosAtencion && _desglose is not null)
+        <h2 class="dashboard-subtitulo">Próximamente</h2>
+        @if (_proximamente.Count == 0)
         {
-            <div class="rejilla-desglose">
-                @if (_estadisticasAprobacion is not null)
-                {
-                    <Tarjeta Titulo="Gestiones automáticas vs manuales">
-                        @if (TotalAprobaciones == 0)
-                        {
-                            <p class="texto-vacio-seccion">Todavía no hay documentos verificados por IA.</p>
-                        }
-                        else
-                        {
-                            <div class="barra-comparativa" role="img" aria-label="@($"{PorcentajeAutomatica}% de las gestiones fueron automáticas, {PorcentajeManual}% manuales")">
-                                @if (PorcentajeAutomatica > 0)
-                                {
-                                    <div class="barra-comparativa-segmento barra-comparativa-automatica" style="width:@(PorcentajeAutomatica)%"></div>
-                                }
-                                @if (PorcentajeManual > 0)
-                                {
-                                    <div class="barra-comparativa-segmento barra-comparativa-manual" style="width:@(PorcentajeManual)%"></div>
-                                }
-                            </div>
-                            <ul class="barra-comparativa-leyenda">
-                                <li class="barra-comparativa-item">
-                                    <span class="barra-comparativa-punto barra-comparativa-automatica"></span>
-                                    Automáticas — @_estadisticasAprobacion.Automaticas (@PorcentajeAutomatica%)
-                                </li>
-                                <li class="barra-comparativa-item">
-                                    <span class="barra-comparativa-punto barra-comparativa-manual"></span>
-                                    Manuales — @_estadisticasAprobacion.Manuales (@PorcentajeManual%)
-                                </li>
-                            </ul>
-                        }
-                    </Tarjeta>
-                }
-
-                @if (_mostrarCentrosEnRiesgo)
-                {
-                    <Tarjeta Titulo="Centros con más riesgo">
-                        @if (_desglose.CentrosEnRiesgo.Count == 0)
-                        {
-                            <p class="texto-vacio-seccion">Ningún centro tiene documentación urgente o vencida.</p>
-                        }
-                        else
-                        {
-                            <table class="tabla-datos">
-                                <thead>
-                                    <tr>
-                                        <th>Centro</th>
-                                        <th>Cliente</th>
-                                        <th>Vencidos</th>
-                                        <th>Urgentes</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var centro in _desglose.CentrosEnRiesgo)
-                                    {
-                                        <tr class="fila-clicable" @onclick="() => IrACentro(centro.CentroNombre)">
-                                            <td>@centro.CentroNombre</td>
-                                            <td>@centro.ClienteNombre</td>
-                                            <td><Badge Tono="TonoBadge.Peligro">@centro.DocumentosVencidos</Badge></td>
-                                            <td><Badge Tono="TonoBadge.Advertencia">@centro.DocumentosUrgentes</Badge></td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        }
-                    </Tarjeta>
-                }
-
-                @if (_mostrarEmpresasEnRiesgo)
-                {
-                    <Tarjeta Titulo="Empresas con más riesgo">
-                        @if (_desglose.EmpresasEnRiesgo.Count == 0)
-                        {
-                            <p class="texto-vacio-seccion">Ninguna empresa tiene documentación urgente o vencida.</p>
-                        }
-                        else
-                        {
-                            <table class="tabla-datos">
-                                <thead>
-                                    <tr>
-                                        <th>Empresa</th>
-                                        <th>Vencidos</th>
-                                        <th>Urgentes</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var empresa in _desglose.EmpresasEnRiesgo)
-                                    {
-                                        <tr class="fila-clicable" @onclick="() => IrAEmpresa(empresa.EmpresaRazonSocial)">
-                                            <td>@empresa.EmpresaRazonSocial</td>
-                                            <td><Badge Tono="TonoBadge.Peligro">@empresa.DocumentosVencidos</Badge></td>
-                                            <td><Badge Tono="TonoBadge.Advertencia">@empresa.DocumentosUrgentes</Badge></td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        }
-                    </Tarjeta>
-                }
-            </div>
+            <p class="texto-vacio-seccion">No hay visitas programadas.</p>
+        }
+        else
+        {
+            <table class="tabla-datos">
+                <thead>
+                    <tr>
+                        <th>Centro</th>
+                        <th>Cliente</th>
+                        <th>Fechas</th>
+                        <th>Trabajadores</th>
+                        <th>Urgencia</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var visita in _proximamente)
+                    {
+                        <tr class="fila-clicable" @onclick="@(() => NavigationManager.NavigateTo("/visitas"))">
+                            <td>@visita.CentroNombre</td>
+                            <td>@visita.ClienteRazonSocial</td>
+                            <td>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy")</td>
+                            <td>@visita.TotalTrabajadores</td>
+                            <td><Badge Tono="NivelUrgenciaVisitaUi.Tono(visita.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(visita.NivelUrgencia)</Badge></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <a class="enlace-ver-todas" href="/visitas">Ver todas en Visitas →</a>
         }
     }
 </div>
