@@ -104,10 +104,11 @@ Todo el pipeline que hoy solo existe como flags de catálogo.
 
 ## Decisiones abiertas (confirmar con el propietario antes de la tanda que las toca)
 
-1. **Vencimiento en documentos de vehículo** (Tanda 2/3): hoy los 4 tipos de vehículo tienen
-   `AplicaVencimiento = false`, así que no puede existir un vehículo con documentación vencida.
-   Cubrir esa variante exige cambiar el catálogo (¿ITV con vencimiento?) — es decisión de
-   producto, no de siembra.
+1. ~~Vencimiento en documentos de vehículo~~ **Resuelta (2026-08-10)**: el propietario decidió
+   que toda la documentación de vehículo vence — los 4 tipos pasan a vigencia anual
+   (`VigenciaMeses = 12`, `AplicaVencimientoAutomatico = true`), migración
+   `VencimientoAnualDocumentosVehiculo`. Con esto la siembra existente ya produce vehículos
+   con documentación en los cuatro estados (el reparto de `CrearDocumento` aplica solo).
 2. **Integraciones simuladas** (Tanda 5): ¿se siembran conexiones falsas o se deja la pantalla
    fuera del requerimiento por depender de servicios externos?
 3. **Retención** (Tanda 4): sembrar solicitudes ejecutadas es historia sintética de un flujo

@@ -109,11 +109,13 @@ public static class TipoDocumentoSeedData
         (new Guid("40000010-0000-0000-0000-000000000010"), "Traducción jurada", null, false, 44, AmbitoAplicacion.Empresa, false, "Solo si el cliente la solicita explícitamente para documentación de una empresa extranjera."),
         (new Guid("40000011-0000-0000-0000-000000000011"), "Comunicación de desplazamiento", null, false, 45, AmbitoAplicacion.Empresa, false, "Solo aplica cuando hay un desplazamiento temporal de trabajadores desde otro país de la UE."),
 
-        // --- Documentos de Vehículo (2026-07, indicados directamente por el usuario) ---
-        (new Guid("30000000-0000-0000-0000-000000000001"), "ITC", null, false, 1, AmbitoAplicacion.Vehiculo, true, "Vigencia sin especificar — fecha de vencimiento manual."),
-        (new Guid("30000000-0000-0000-0000-000000000002"), "Ficha técnica", null, false, 2, AmbitoAplicacion.Vehiculo, true, "No caduca por sí sola, pero se pide como documento adjunto del vehículo."),
-        (new Guid("30000000-0000-0000-0000-000000000003"), "Seguro", null, false, 3, AmbitoAplicacion.Vehiculo, true, "Vigencia sin especificar — fecha de vencimiento manual."),
-        (new Guid("30000000-0000-0000-0000-000000000004"), "Autorización de circulación", null, false, 4, AmbitoAplicacion.Vehiculo, true, "Vigencia sin especificar — fecha de vencimiento manual."),
+        // --- Documentos de Vehículo (2026-07, indicados directamente por el
+        // usuario; vencimiento anual desde 2026-08-10 — decisión del
+        // propietario: toda la documentación de vehículo vence) ---
+        (new Guid("30000000-0000-0000-0000-000000000001"), "ITC", 12, true, 1, AmbitoAplicacion.Vehiculo, true, "Vigencia anual."),
+        (new Guid("30000000-0000-0000-0000-000000000002"), "Ficha técnica", 12, true, 2, AmbitoAplicacion.Vehiculo, true, "Vigencia anual."),
+        (new Guid("30000000-0000-0000-0000-000000000003"), "Seguro", 12, true, 3, AmbitoAplicacion.Vehiculo, true, "Vigencia anual."),
+        (new Guid("30000000-0000-0000-0000-000000000004"), "Autorización de circulación", 12, true, 4, AmbitoAplicacion.Vehiculo, true, "Vigencia anual."),
     ];
 
     /// <summary>
