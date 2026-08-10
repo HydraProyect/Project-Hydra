@@ -8,4 +8,5 @@ public interface ISubcontratasQueryContext
     IQueryable<SubcontrataCliente> SubcontratasClientes { get; }
     IQueryable<SubcontrataEmpresa> SubcontratasEmpresas { get; }
     IQueryable<CredencialAccesoSubcontrata> CredencialesAccesoSubcontrata { get; }
+    IQueryable<VerificacionExternaSubcontrata> VerificacionesExternaSubcontrata { get; }
 }
