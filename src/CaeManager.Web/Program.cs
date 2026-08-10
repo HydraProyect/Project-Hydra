@@ -366,7 +366,7 @@ using (var scope = app.Services.CreateScope())
     // #1 juega el papel de Consultora (sin datos operativos propios, § 5.1)
     // — DelegacionDemoSeeder los siembra en un tenant Cliente Delegante
     // nuevo y establece su propio AmbitoTenantExplicito internamente.
-    await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
+    await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, logger);
 
     // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
     // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
@@ -378,7 +378,7 @@ using (var scope = app.Services.CreateScope())
     // Idempotente, así que cubre también los tenants creados en arranques
     // anteriores. Aprovisionar no concede acceso: abrirlo exige motivo y
     // ventana (ver DelegacionesSoporteSeeder).
-    await DelegacionesSoporteSeeder.SeedAsync(dbContext, logger);
+    await DelegacionesSoporteSeeder.SeedAsync(dbContext, app.Configuration, logger);
 }
 
 // Registrado antes del manejo de excepciones para envolverlo por completo:
