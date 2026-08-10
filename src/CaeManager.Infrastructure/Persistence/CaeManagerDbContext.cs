@@ -178,6 +178,8 @@ public class CaeManagerDbContext(
     public DbSet<AceptacionTerminos> AceptacionesTerminos => Set<AceptacionTerminos>();
     public DbSet<ReclamacionDocumental> ReclamacionesDocumentales => Set<ReclamacionDocumental>();
     IQueryable<ReclamacionDocumental> IReclamacionesQueryContext.ReclamacionesDocumentales => ReclamacionesDocumentales;
+    public DbSet<ReclamacionDocumentalDocumento> ReclamacionesDocumentalesDocumento => Set<ReclamacionDocumentalDocumento>();
+    IQueryable<ReclamacionDocumentalDocumento> IReclamacionesQueryContext.ReclamacionesDocumentalesDocumento => ReclamacionesDocumentalesDocumento;
     public DbSet<ReclamacionDocumentalDocumento> ReclamacionesDocumentalesDocumentos => Set<ReclamacionDocumentalDocumento>();
     public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
     IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
@@ -199,10 +201,17 @@ public class CaeManagerDbContext(
     IQueryable<SugerenciaVisitaCorreo> IComunicacionesQueryContext.SugerenciasVisitaCorreo => SugerenciasVisitaCorreo;
     public DbSet<SugerenciaGestionCorreo> SugerenciasGestionCorreo => Set<SugerenciaGestionCorreo>();
     IQueryable<SugerenciaGestionCorreo> IComunicacionesQueryContext.SugerenciasGestionCorreo => SugerenciasGestionCorreo;
+    public DbSet<DetalleSugerenciaGestionCorreo> DetallesSugerenciaGestionCorreo => Set<DetalleSugerenciaGestionCorreo>();
+    IQueryable<DetalleSugerenciaGestionCorreo> IComunicacionesQueryContext.DetallesSugerenciaGestionCorreo => DetallesSugerenciaGestionCorreo;
+    public DbSet<ClasificacionRuidoDetalleGestion> ClasificacionesRuidoDetalleGestion => Set<ClasificacionRuidoDetalleGestion>();
+    IQueryable<ClasificacionRuidoDetalleGestion> IComunicacionesQueryContext.ClasificacionesRuidoDetalleGestion => ClasificacionesRuidoDetalleGestion;
+    public DbSet<UltimoResumenNotificacionPlataforma> UltimosResumenesNotificacionPlataforma => Set<UltimoResumenNotificacionPlataforma>();
     public DbSet<SolicitudPrioridadDocumento> SolicitudesPrioridadDocumento => Set<SolicitudPrioridadDocumento>();
     IQueryable<SolicitudPrioridadDocumento> IComunicacionesQueryContext.SolicitudesPrioridadDocumento => SolicitudesPrioridadDocumento;
     public DbSet<EventoConversacion> EventosConversacion => Set<EventoConversacion>();
     IQueryable<EventoConversacion> IComunicacionesQueryContext.EventosConversacion => EventosConversacion;
+    public DbSet<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje => Set<ClasificacionRuidoMensaje>();
+    IQueryable<ClasificacionRuidoMensaje> IComunicacionesQueryContext.ClasificacionesRuidoMensaje => ClasificacionesRuidoMensaje;
     public DbSet<Gestion> Gestiones => Set<Gestion>();
     IQueryable<Gestion> IGestionesQueryContext.Gestiones => Gestiones;
     public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();
