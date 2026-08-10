@@ -28,4 +28,5 @@ public record CentroCandidatoVisitaDto(Guid Id, string Nombre);
 /// esa lista (ver AnthropicDeteccionVisitaCorreoService).
 /// </summary>
 public record DeteccionVisitaCorreoDto(
-    bool EsSolicitudVisita, Guid? CentroId, DateOnly? FechaInicio, DateOnly? FechaFin, string? Resumen);
+    bool EsSolicitudVisita, Guid? CentroId, DateOnly? FechaInicio, DateOnly? FechaFin, string? Resumen,
+    int Confianza, int ConfianzaCentro, int ConfianzaFechas);
