@@ -26,6 +26,7 @@ public class IngestaWebhookServiceTests
             new ResolucionParticipanteConversacionServiceFalso(),
             resolucionPlataforma ?? new ResolucionProveedorPlataformaCaeServiceFalso(),
             clasificacionRuidoRepositorio ?? new ClasificacionRuidoMensajeRepositorioFalso(),
+            new ClasificacionRuidoMensajeServiceFalso(),
             NullLogger<IngestaWebhookService>.Instance);
 
     private static ConexionIntegracion ConexionHabilitada(Guid? clienteId = null)

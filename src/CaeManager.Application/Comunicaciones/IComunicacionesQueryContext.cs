@@ -12,6 +12,7 @@ public interface IComunicacionesQueryContext
     IQueryable<SugerenciaVisitaCorreo> SugerenciasVisitaCorreo { get; }
     IQueryable<SugerenciaGestionCorreo> SugerenciasGestionCorreo { get; }
     IQueryable<DetalleSugerenciaGestionCorreo> DetallesSugerenciaGestionCorreo { get; }
+    IQueryable<ClasificacionRuidoDetalleGestion> ClasificacionesRuidoDetalleGestion { get; }
     IQueryable<ContactoWhatsApp> ContactosWhatsApp { get; }
     IQueryable<SolicitudPrioridadDocumento> SolicitudesPrioridadDocumento { get; }
     IQueryable<EventoConversacion> EventosConversacion { get; }

@@ -29,6 +29,7 @@ public class IngestaWebhookService(
     IResolucionParticipanteConversacionService resolucionParticipante,
     IResolucionProveedorPlataformaCaeService resolucionPlataforma,
     IClasificacionRuidoMensajeRepository clasificacionRuidoRepositorio,
+    IClasificacionRuidoMensajeService clasificacionRuidoMensaje,
     ILogger<IngestaWebhookService> logger)
 {
     // Tope defensivo, no un límite real de Graph: un adjunto de correo
@@ -108,11 +109,13 @@ public class IngestaWebhookService(
         // Gate compartido por todos los patrones de ruido de esta ronda — solo Correo tiene
         // dominio en el remitente (WhatsApp es un teléfono). Se calcula una vez aquí y queda
         // estable aunque el catálogo de plataformas cambie después, igual que las sugerencias de IA.
+        var esNotificacionAutomatica = false;
         if (conversacion.Canal == CanalConversacion.Correo)
         {
             var candidatos = await resolucionPlataforma.ResolverPorDominioCorreoAsync(mensaje.Remitente, cancellationToken);
+            esNotificacionAutomatica = candidatos.Count > 0;
             clasificacionRuidoRepositorio.Agregar(new ClasificacionRuidoMensaje(
-                mensajeCreado.Id, candidatos.Count > 0, candidatos.Count > 0 ? candidatos[0].Id : null));
+                mensajeCreado.Id, esNotificacionAutomatica, esNotificacionAutomatica ? candidatos[0].Id : null));
         }
 
         // Sin Cliente asignado no hay Centros candidatos a los que asociar
@@ -120,7 +123,13 @@ public class IngestaWebhookService(
         if (conversacion.ClienteId is { } clienteId)
         {
             await sugerenciaVisita.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
-            await sugerenciaGestion.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
+            var sugerenciaGestionCreada = await sugerenciaGestion.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
+
+            if (sugerenciaGestionCreada is not null)
+            {
+                await clasificacionRuidoMensaje.ProcesarAsync(
+                    sugerenciaGestionCreada, clienteId, esNotificacionAutomatica, cancellationToken);
+            }
         }
     }
 
