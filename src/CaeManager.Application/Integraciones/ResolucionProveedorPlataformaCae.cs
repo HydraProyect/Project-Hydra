@@ -21,6 +21,13 @@ public record ProveedorPlataformaCaeCandidatoDto(Guid Id, string Nombre, bool Ac
 public interface IResolucionProveedorPlataformaCaeService
 {
     Task<IReadOnlyList<ProveedorPlataformaCaeCandidatoDto>> ResolverPorUrlAsync(string url, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Igual que <see cref="ResolverPorUrlAsync"/> pero a partir del dominio de un email — usado
+    /// para detectar si un Mensaje entrante viene de una plataforma de notificaciones conocida
+    /// (ronda de reducción de ruido en Comunicaciones), no de una URL de acceso.
+    /// </summary>
+    Task<IReadOnlyList<ProveedorPlataformaCaeCandidatoDto>> ResolverPorDominioCorreoAsync(string email, CancellationToken cancellationToken = default);
 }
 
 public class ResolucionProveedorPlataformaCaeService(IProveedoresPlataformaCaeQueryContext queryContext)
@@ -33,6 +40,22 @@ public class ResolucionProveedorPlataformaCaeService(IProveedoresPlataformaCaeQu
         if (host is null)
             return [];
 
+        return await ResolverPorHostAsync(host, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ProveedorPlataformaCaeCandidatoDto>> ResolverPorDominioCorreoAsync(
+        string email, CancellationToken cancellationToken = default)
+    {
+        var dominio = ExtraerDominioCorreo(email);
+        if (dominio is null)
+            return [];
+
+        return await ResolverPorHostAsync(dominio, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<ProveedorPlataformaCaeCandidatoDto>> ResolverPorHostAsync(
+        string host, CancellationToken cancellationToken)
+    {
         var dominios = await queryContext.DominiosProveedorPlataformaCae
             .Select(d => new ParDominioProveedor(d.ProveedorPlataformaCaeId, d.Dominio))
             .ToListAsync(cancellationToken);
@@ -92,5 +115,18 @@ public class ResolucionProveedorPlataformaCaeService(IProveedoresPlataformaCaeQu
             return uriConEsquema.Host;
 
         return null;
+    }
+
+    /// <summary>El dominio tras la última "@" de un email, o null si no tiene forma de email.</summary>
+    public static string? ExtraerDominioCorreo(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return null;
+
+        var arroba = email.LastIndexOf('@');
+        if (arroba < 0 || arroba == email.Length - 1)
+            return null;
+
+        return email[(arroba + 1)..].Trim();
     }
 }
