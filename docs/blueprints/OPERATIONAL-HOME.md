@@ -3,10 +3,10 @@
 **Superficie**: `/` (menú: **Home operativo**, grupo Dashboards — `03` § 3.2) · **Arquetipo**:
 Operational Home (`03` § 1.1)
 
-**Estado**: Blueprint de diseño, **no implementado**, con alcance ya cerrado (DDL-068, § 9). La
-superficie que hoy vive en `/` (KPIs en mosaico + tablas de riesgo) es el Dashboard heredado de las
-Fases 2/25/57/63 y **se sustituye directamente** por este blueprint — no convive en otra ruta.
-**Implementado hasta**: nada de lo descrito aquí existe todavía.
+**Estado**: **Implementado y en producción**, incluido "Qué llegó sin ver" (DDL-068). Sustituyó
+directamente al Dashboard heredado de las Fases 2/25/57/63 — no convivió en otra ruta.
+**Implementado hasta**: todo lo descrito en este documento existe, salvo "qué avanzó el sistema"
+(§ 6, mitad de DDL-050 explícitamente fuera de alcance).
 
 **Por qué existe este documento**: `03_INFORMATION_ARCHITECTURE.md` § 1.1 define el arquetipo
 Operational Home en abstracto (qué resuelve, qué no duplica) pero ningún blueprint lo aterriza
@@ -83,14 +83,13 @@ Dashboard actual — ambos pasan al futuro Dashboard de dirección y coordinaci�
 | Cumplimiento global + KPIs secundarios | `ObtenerKpisDashboardQuery` | ✅ (Dashboard actual) |
 | Requiere atención (5 ítems) | `ObtenerBandejaGestorQuery` | ✅ (Fase C, `/bandeja`) |
 | Próximamente (3 visitas) | `ObtenerVisitasQuery(SoloActivas: true)`, ordenada por `FechaInicio` | ✅ (`/visitas`) |
-| Qué llegó sin ver | `ObtenerBandejaGestorQuery` + `UltimaActividadUtc` del usuario | ⚠️ requiere el campo nuevo de § 6 |
+| Qué llegó sin ver | `ObtenerBandejaGestorQuery` + `UltimaActividadUtc` del usuario | ✅ `ActividadUsuarioService` |
 
-El único dato nuevo de todo el blueprint es `UltimaActividadUtc`, y es el más costoso de los tres
-prerrequisitos: a diferencia de un timestamp que se actualiza solo al cargar el Home, este requiere
-un punto de escritura en el pipeline de autenticación/circuito que hoy no existe. El resto es
-composición Blazor sobre queries ya existentes.
+El único dato nuevo de todo el blueprint fue `UltimaActividadUtc` — el más costoso de los tres
+prerrequisitos, con un punto de escritura en `MainLayout` (no en el Home) para cubrir toda la
+plataforma. El resto es composición Blazor sobre queries ya existentes.
 
-## 6. "Qué llegó sin ver" (DDL-050, alcance cerrado)
+## 6. "Qué llegó sin ver" (DDL-050, alcance cerrado, implementado)
 
 DDL-050 decidió construir un **resumen de ausencia** con dos partes: "qué llegó sin ver" y "qué
 avanzó el sistema". Al diseñar sus tres prerrequisitos se encontró que solo la primera parte tiene
@@ -126,6 +125,14 @@ Diseño de los tres prerrequisitos, dentro de ese alcance:
    Comunicaciones. El resumen es: de los tres orígenes con timestamp, los que tengan
    `CreadaEnUtc > UltimaActividadUtc` (el valor justo antes de la ausencia detectada).
 
+**Nota de implementación**: `@rendermode InteractiveServer` prerenderiza el árbol de componentes
+una vez dentro de la petición HTTP normal, en un DI scope desechable, antes de que exista el
+circuito interactivo real — y lo vuelve a ejecutar al conectar. Sin guardar la lectura y la
+escritura de `UltimaActividadUtc` a la pasada interactiva (`ComponentBase.RendererInfo.IsInteractive`,
+no `IHttpContextAccessor` — en este hosting model `HttpContext` no distingue las dos pasadas), el
+prerender consume la ausencia y escribe "ahora" antes de que el circuito real llegue a leerla, y el
+resumen nunca aparece.
+
 ## 7. Divergencias con el código actual
 
 El Dashboard que hoy vive en `/` (Fases 2/25/57/63) **no es una versión parcial de este blueprint
@@ -153,10 +160,9 @@ El Dashboard que hoy vive en `/` (Fases 2/25/57/63) **no es una versión parcial
 
 ## 9. Pendiente fuera de este blueprint
 
-- **`/dashboard-ejecutivo`**: recibe "Automático vs manual" y "Empresas con más riesgo" — piezas
-  que hoy no tiene y hay que migrar, no solo enlazar (§ 7). Ya existe, ya está en el menú, ya tiene
-  KPIs configurables y "Centros con menor cumplimiento" — no es una superficie nueva, solo le falta
-  este contenido. Sin blueprint propio todavía (es un Entity/Operational Home retroactivo, como
-  Centro 360 lo fue para su arquetipo).
 - **"Qué avanzó el sistema"** (mitad de DDL-050 no cubierta, § 6): necesita un log transversal de
   acciones automáticas que hoy no existe en el dominio. Sin blueprint ni decisión de diseño propia.
+- **`/dashboard-ejecutivo`**: ya recibió "Automático vs manual" y "Empresas con más riesgo" (§ 7),
+  pero sigue sin blueprint propio (es un Entity/Operational Home retroactivo, como Centro 360 lo
+  fue para su arquetipo) — pendiente si alguna vez hace falta gobernar su evolución con la misma
+  disciplina que este documento.

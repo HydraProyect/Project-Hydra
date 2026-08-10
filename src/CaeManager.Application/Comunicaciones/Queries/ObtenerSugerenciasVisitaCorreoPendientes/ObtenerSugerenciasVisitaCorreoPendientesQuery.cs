@@ -15,7 +15,8 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisita
 public record ObtenerSugerenciasVisitaCorreoPendientesQuery : IRequest<IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>>;
 
 public record SugerenciaVisitaCorreoPendienteDto(
-    Guid Id, Guid? CentroId, string? CentroNombre, DateOnly? FechaInicioSugerida, string Resumen, CanalConversacion Canal);
+    Guid Id, Guid? CentroId, string? CentroNombre, DateOnly? FechaInicioSugerida, string Resumen, CanalConversacion Canal,
+    DateTime CreadaEnUtc);
 
 public class ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(
     IComunicacionesQueryContext comunicacionesContext, ICentrosQueryContext centrosContext, IAlcanceDatosService alcanceDatos)
@@ -55,7 +56,8 @@ public class ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(
                 p.sugerencia.CentroId is { } centroId && nombresCentro.TryGetValue(centroId, out var nombre) ? nombre : null,
                 p.sugerencia.FechaInicioSugerida,
                 p.sugerencia.Resumen,
-                p.Canal))
+                p.Canal,
+                p.sugerencia.CreadaEnUtc))
             .ToList();
     }
 }

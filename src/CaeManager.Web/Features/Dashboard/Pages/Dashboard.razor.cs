@@ -3,6 +3,7 @@ using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -17,9 +18,11 @@ public partial class Dashboard : ComponentBase
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private ActividadUsuarioService ActividadUsuario { get; set; } = default!;
 
     private KpisDashboardDto? _kpis;
     private IReadOnlyList<ItemBandejaDto> _requiereAtencion = [];
+    private IReadOnlyList<ItemBandejaDto> _queLlegoSinVer = [];
     private IReadOnlyList<VisitaListaDto> _proximamente = [];
     private bool _error;
 
@@ -61,6 +64,12 @@ public partial class Dashboard : ComponentBase
                 {
                     var bandeja = await Mediator.Send(new ObtenerBandejaGestorQuery());
                     _requiereAtencion = [.. bandeja.Take(MaximoItemsAtencion)];
+
+                    // Resuelto una única vez por circuito en MainLayout — aquí solo se lee el
+                    // resultado ya cacheado (docs/blueprints/OPERATIONAL-HOME.md § 6, DDL-068).
+                    var (ausente, desde) = await ActividadUsuario.RegistrarYEvaluarAsync(RendererInfo.IsInteractive);
+                    if (ausente && desde is { } desdeValor)
+                        _queLlegoSinVer = [.. bandeja.Where(i => i.CreadaEnUtc > desdeValor)];
                 }
             }
         }
