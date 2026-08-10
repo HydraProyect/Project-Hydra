@@ -21,4 +21,13 @@ public interface IDirectorioUsuariosService
     /// cadena de resolución.
     /// </summary>
     Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Nombre visible de los usuarios indicados que sean alcanzables desde el tenant
+    /// activo. Los que no lo sean simplemente no aparecen en el diccionario — mismo
+    /// fallo cerrado que <see cref="EsVisibleEnTenantActualAsync"/>: un Id de otro
+    /// tenant no debe poder usarse para resolver el nombre de esa persona.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default);
 }

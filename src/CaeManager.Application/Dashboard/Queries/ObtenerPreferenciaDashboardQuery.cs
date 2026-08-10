@@ -9,8 +9,9 @@ public record ObtenerPreferenciaDashboardQuery : IRequest<IReadOnlyList<string>>
 
 /// <summary>
 /// Devuelve los códigos de KPI que el usuario actual ha elegido ver. Sin
-/// preferencia guardada, devuelve <see cref="CatalogoKpis.KpisPorDefecto"/>
-/// (paridad con el Dashboard actual). Filtra defensivamente los códigos
+/// preferencia guardada, devuelve el conjunto por defecto de su rol efectivo
+/// (<see cref="CatalogoKpis.KpisPorDefectoPorRol"/>) — el de dentro del Delegated
+/// Workspace, no el del claim de origen. Filtra defensivamente los códigos
 /// guardados contra el catálogo vigente: si un código ya no existe (el
 /// catálogo cambió), se descarta en vez de romper el render.
 /// </summary>
@@ -21,14 +22,16 @@ public class ObtenerPreferenciaDashboardQueryHandler(
     public async Task<IReadOnlyList<string>> Handle(ObtenerPreferenciaDashboardQuery request, CancellationToken cancellationToken)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
-        if (usuarioId is null) return CatalogoKpis.KpisPorDefecto;
+        var porDefecto = CatalogoKpis.KpisPorDefectoPorRol(await currentUserService.ObtenerRolActualAsync());
+
+        if (usuarioId is null) return porDefecto;
 
         var preferencia = await repositorio.ObtenerPorUsuarioIdAsync(usuarioId.Value, cancellationToken);
-        if (preferencia is null) return CatalogoKpis.KpisPorDefecto;
+        if (preferencia is null) return porDefecto;
 
         var codigosConocidos = CatalogoKpis.Todos.Select(k => k.Codigo).ToHashSet();
         var seleccionVigente = preferencia.CodigosKpiSeleccionados.Where(codigosConocidos.Contains).ToList();
 
-        return seleccionVigente.Count == 0 ? CatalogoKpis.KpisPorDefecto : seleccionVigente;
+        return seleccionVigente.Count == 0 ? porDefecto : seleccionVigente;
     }
 }

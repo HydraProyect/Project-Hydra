@@ -83,6 +83,12 @@ public class DetalleSugerenciaGestionCorreo : EntidadConTenant
 
     public bool Resuelta { get; private set; }
 
+    /// <summary>Qué hizo el Gestor con este ítem — ver <see cref="SugerenciaVisitaCorreo.Resolucion"/>.</summary>
+    public ResolucionSugerencia? Resolucion { get; private set; }
+
+    public DateTime? ResueltaEnUtc { get; private set; }
+    public Guid? ResueltaPorUsuarioId { get; private set; }
+
     private DetalleSugerenciaGestionCorreo()
     {
     }
@@ -104,6 +110,14 @@ public class DetalleSugerenciaGestionCorreo : EntidadConTenant
         ConfianzaTipoDocumento = confianzaTipoDocumento;
     }
 
-    /// <summary>Se llama tanto si el Gestor usó el ítem para generar gestiones como si lo descartó — mismo criterio que SugerenciaVisitaCorreo.Resolver.</summary>
-    public void Resolver() => Resuelta = true;
+    /// <summary>Cierra el ítem dejando constancia de qué se hizo con él — mismo criterio e idempotencia que <see cref="SugerenciaVisitaCorreo.Resolver"/>.</summary>
+    public void Resolver(ResolucionSugerencia resolucion, Guid? usuarioId = null)
+    {
+        if (Resuelta) return;
+
+        Resuelta = true;
+        Resolucion = resolucion;
+        ResueltaEnUtc = DateTime.UtcNow;
+        ResueltaPorUsuarioId = usuarioId;
+    }
 }

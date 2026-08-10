@@ -43,6 +43,7 @@ public class CrearGestionesParaTrabajadorCommandHandler(
     IGestionRepository gestionRepositorio,
     IDetalleSugerenciaGestionCorreoRepository detalleSugerenciaRepositorio,
     IAlcanceDatosService alcanceDatos,
+    ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearGestionesParaTrabajadorCommand, Result<ResultadoCrearGestionesDto>>
 {
@@ -77,7 +78,19 @@ public class CrearGestionesParaTrabajadorCommandHandler(
         if (request.DetalleSugerenciaGestionCorreoId is { } detalleId)
         {
             var detalle = await detalleSugerenciaRepositorio.ObtenerPorIdAsync(detalleId, cancellationToken);
-            detalle?.Resolver();
+
+            if (detalle is not null)
+            {
+                // Mismo criterio que en CrearVisitaCommand: si el Gestor cambió el
+                // trabajador o el tipo de documento propuestos, la sugerencia no se
+                // aceptó de un clic.
+                var huboEdicion = detalle.TrabajadorId != request.TrabajadorId
+                               || detalle.TipoDocumentoId != request.TipoDocumentoId;
+
+                detalle.Resolver(
+                    huboEdicion ? ResolucionSugerencia.ConfirmadaConEdicion : ResolucionSugerencia.Confirmada,
+                    await currentUserService.ObtenerUsuarioActualIdAsync());
+            }
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

@@ -101,8 +101,9 @@ public class SugerenciaVisitaCorreoTests
     {
         var sugerencia = new SugerenciaVisitaCorreo(Guid.NewGuid(), null, null, null, "Resumen", 90, 90, 90);
 
-        sugerencia.Resolver();
+        sugerencia.Resolver(ResolucionSugerencia.Confirmada);
 
         sugerencia.Resuelta.Should().BeTrue();
+        sugerencia.Resolucion.Should().Be(ResolucionSugerencia.Confirmada);
     }
 }

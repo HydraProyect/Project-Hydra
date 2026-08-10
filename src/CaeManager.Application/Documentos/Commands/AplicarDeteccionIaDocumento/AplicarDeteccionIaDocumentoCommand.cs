@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
@@ -35,7 +36,7 @@ public class AplicarDeteccionIaDocumentoCommandHandler(
     IAlcanceDatosService alcanceDatos,
     IProyectosQueryContext proyectosContext,
     ICurrentUserService currentUserService,
-    IUnitOfWork unitOfWork)
+    IPublisher publisher, IUnitOfWork unitOfWork)
     : IRequestHandler<AplicarDeteccionIaDocumentoCommand, Result>
 {
     public async Task<Result> Handle(AplicarDeteccionIaDocumentoCommand request, CancellationToken cancellationToken)
@@ -74,6 +75,8 @@ public class AplicarDeteccionIaDocumentoCommandHandler(
         aprobacionRepositorio.Agregar(AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, usuarioId.Value));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await publisher.Publish(new DocumentacionCambiadaEvent(revision.DocumentoId), cancellationToken);
 
         return Result.Exito();
     }

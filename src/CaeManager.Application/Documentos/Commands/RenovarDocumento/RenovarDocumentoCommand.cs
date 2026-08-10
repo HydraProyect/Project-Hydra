@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
@@ -36,7 +37,7 @@ public class RenovarDocumentoCommandHandler(
     IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext,
     ITrabajoAnalisisDocumentoRepository colaAnalisis, ICurrentUserService currentUserService,
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio,
-    IUnitOfWork unitOfWork)
+    IPublisher publisher, IUnitOfWork unitOfWork)
     : IRequestHandler<RenovarDocumentoCommand, Result>
 {
     public async Task<Result> Handle(RenovarDocumentoCommand request, CancellationToken cancellationToken)
@@ -90,6 +91,10 @@ public class RenovarDocumentoCommandHandler(
             acreditacion.ReiniciarPorRenovacionDocumento();
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Renovar puede sacar de "Vencido" el último documento que bloqueaba el
+        // expediente de una visita pendiente.
+        await publisher.Publish(new DocumentacionCambiadaEvent(documento.Id), cancellationToken);
 
         return Result.Exito();
     }
