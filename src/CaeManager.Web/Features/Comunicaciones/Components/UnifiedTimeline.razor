@@ -112,7 +112,7 @@
                         </div>
                     }
 
-                    @if (mensaje.SugerenciaGestion is { } sugerenciaGestion)
+                    @foreach (var sugerenciaGestion in mensaje.SugerenciasGestion)
                     {
                         <div class="timeline-marca-ia"><span class="timeline-marca-ia-linea"></span>
                             <MarcaProcedencia Titulo="Detectado por Hydra"
