@@ -14,7 +14,10 @@ Cada tanda termina con verificación end-to-end en navegador de las pantallas qu
 
 - [x] Tanda 1 — Módulos con pantalla vacía del núcleo operativo (2026-08-10, verificada vía suite E2E de CI con `DatosPrueba:Activo`)
 - [x] Tanda 2 — Ciclo documental avanzado (2026-08-10; acreditaciones CAE movidas a la Tanda 3, ver nota)
-- [ ] Tanda 3 — Centros bloqueantes y canal WhatsApp
+- [x] Tanda 3 — Centros bloqueantes y canal WhatsApp (2026-08-10; las líneas WhatsApp exigen
+  `ConexionIntegracion` — se siembran dos conexiones WhatsApp simuladas con token de demo, lo
+  que resuelve parcialmente la decisión abierta nº 2; la decisión sigue abierta solo para las
+  conexiones Microsoft 365 de la Tanda 5)
 - [ ] Tanda 4 — Plataforma: delegaciones, soporte, identidad, retención
 - [ ] Tanda 5 — Infraestructura y menores
 

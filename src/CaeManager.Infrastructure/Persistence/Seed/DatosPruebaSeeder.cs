@@ -7,6 +7,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Incidencias;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Reclamaciones;
@@ -489,7 +490,15 @@ public static class DatosPruebaSeeder
         {
             var centroId = ElementoAleatorio(aleatorio, centrosConGente);
             var inicio = hoy.AddDays(aleatorio.Next(-45, 46));
-            var visita = new Visita(centroId, inicio, inicio.AddDays(aleatorio.Next(0, 3)), notas: null);
+            // Índice, no Random: cubre los tres orígenes sin desplazar la
+            // secuencia aleatoria del resto de la siembra.
+            var origen = (i % 8) switch
+            {
+                0 => OrigenVisita.Correo,
+                4 => OrigenVisita.WhatsApp,
+                _ => OrigenVisita.Plataforma
+            };
+            var visita = new Visita(centroId, inicio, inicio.AddDays(aleatorio.Next(0, 3)), notas: null, origen);
             visitas.Add(visita);
 
             dbContext.VisitasTrabajadores.AddRange(
@@ -566,6 +575,49 @@ public static class DatosPruebaSeeder
             if (aleatorio.Next(2) == 0)
                 gestion.Completar();
             dbContext.Gestiones.Add(gestion);
+        }
+
+        // --- Canales de gestión documental: cómo exige cada centro su
+        // documentación — un portal del catálogo (principal) y, en la mitad,
+        // un canal de correo adicional ---
+        var proveedoresCae = await dbContext.ProveedoresPlataformaCae
+            .Where(p => p.Activo).OrderBy(p => p.Codigo).Take(4).ToListAsync(cancellationToken);
+        var centrosConCanal = ElementosAleatoriosUnicos(aleatorio, centros, Math.Min(8, centros.Count));
+        for (var i = 0; i < centrosConCanal.Count; i++)
+        {
+            var centro = centrosConCanal[i];
+            if (proveedoresCae.Count > 0)
+            {
+                var proveedor = proveedoresCae[i % proveedoresCae.Count];
+                var canalPlataforma = CanalGestionDocumental.DePlataforma(
+                    centro.Id, "Gestión general", proveedor.Id,
+                    $"https://portal-demo-{proveedor.Codigo}.local",
+                    $"gestion.demo{i + 1}", "Contrasena#Demo1");
+                canalPlataforma.MarcarComoPrincipal();
+                dbContext.CanalesGestionDocumental.Add(canalPlataforma);
+            }
+
+            if (i % 2 == 0)
+            {
+                dbContext.CanalesGestionDocumental.Add(CanalGestionDocumental.PorEmail(
+                    centro.Id, "Trabajadores extranjeros",
+                    $"cae.centro{i + 1}@correo-simulado.local", "Contacto de demo"));
+            }
+        }
+
+        // --- Requisitos documentales por centro. El bloqueante está
+        // garantizado: ningún trabajador sembrado tiene "DNI o NIE en vigor",
+        // así que ese centro queda en EstadoCentro.Bloqueado ---
+        if (centrosConCanal.Count >= 3)
+        {
+            var tipoDniNie = tiposDocumento.Single(t => t.Nombre == "DNI o NIE en vigor");
+            var tipoAptoMedico = tiposDocumento.Single(t => t.Nombre == "Apto médico laboral");
+            dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
+                tipoDniNie.Id, centrosConCanal[0].Id, bloqueaAcceso: true));
+            dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
+                tipoAptoMedico.Id, centrosConCanal[1].Id, periodicidadEspecialMeses: 6));
+            dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
+                tipoAptoMedico.Id, centrosConCanal[2].Id, incluido: false));
         }
 
         // --- Tarifas de facturación por cliente: los 7 conceptos con ejemplar ---

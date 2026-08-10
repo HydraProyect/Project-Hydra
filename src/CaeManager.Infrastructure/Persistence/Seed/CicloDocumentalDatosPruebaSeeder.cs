@@ -1,3 +1,4 @@
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Trabajadores;
@@ -58,6 +59,7 @@ public static class CicloDocumentalDatosPruebaSeeder
         SembrarAuditoriaExtraccion(dbContext);
         await SembrarValidacionOficialAsync(dbContext, cancellationToken);
         await SembrarDeteccionesTrabajadorAsync(dbContext, cancellationToken);
+        await SembrarAcreditacionesAsync(dbContext, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Ciclo documental de prueba sembrado: revisiones IA, aprobaciones, trabajos de análisis, auditoría, validación oficial y detecciones.");
@@ -260,5 +262,53 @@ public static class CicloDocumentalDatosPruebaSeeder
             trabajadoresEmpresa[1].Nombre, trabajadoresEmpresa[1].Apellidos, trabajadoresEmpresa[1].Dni);
         ausenteResuelto.Resolver("Mantenido");
         dbContext.DeteccionesTrabajador.Add(ausenteResuelto);
+    }
+
+    /// <summary>
+    /// Los 5 estados de acreditación de un documento frente al canal de
+    /// plataforma de un centro, con historial de rechazos append-only en la
+    /// rechazada — los documentos son de la empresa que opera ese centro.
+    /// </summary>
+    private static async Task SembrarAcreditacionesAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var canal = await dbContext.CanalesGestionDocumental
+            .Where(c => c.Tipo == TipoCanalGestion.Plataforma)
+            .OrderBy(c => c.CreadoEnUtc).ThenBy(c => c.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (canal is null)
+            return;
+
+        var centro = await dbContext.Centros.FirstAsync(c => c.Id == canal.CentroId, cancellationToken);
+        var documentosEmpresa = await dbContext.Documentos
+            .Where(d => d.EmpresaId == centro.EmpresaId)
+            .OrderBy(d => d.CreadoEnUtc).ThenBy(d => d.Id)
+            .Take(5)
+            .ToListAsync(cancellationToken);
+        if (documentosEmpresa.Count < 5)
+            return;
+
+        dbContext.AcreditacionesDocumentoPlataforma.Add(
+            new AcreditacionDocumentoPlataforma(documentosEmpresa[0].Id, canal.Id));
+
+        var subida = new AcreditacionDocumentoPlataforma(documentosEmpresa[1].Id, canal.Id);
+        subida.MarcarSubida();
+        dbContext.AcreditacionesDocumentoPlataforma.Add(subida);
+
+        var aceptada = new AcreditacionDocumentoPlataforma(documentosEmpresa[2].Id, canal.Id);
+        aceptada.MarcarSubida();
+        aceptada.MarcarAceptada();
+        dbContext.AcreditacionesDocumentoPlataforma.Add(aceptada);
+
+        var noRequerida = new AcreditacionDocumentoPlataforma(documentosEmpresa[3].Id, canal.Id);
+        noRequerida.MarcarNoRequerida();
+        dbContext.AcreditacionesDocumentoPlataforma.Add(noRequerida);
+
+        var rechazada = new AcreditacionDocumentoPlataforma(documentosEmpresa[4].Id, canal.Id);
+        rechazada.MarcarSubida();
+        rechazada.Rechazar(CausaRechazoAcreditacion.Ilegible,
+            "El PDF llega escaneado torcido y no se distingue el sello.", DateTime.UtcNow.AddDays(-10));
+        rechazada.Rechazar(CausaRechazoAcreditacion.CaducadoAlPresentar,
+            "El certificado presentado venció el mes pasado.", DateTime.UtcNow.AddDays(-2));
+        dbContext.AcreditacionesDocumentoPlataforma.Add(rechazada);
     }
 }
