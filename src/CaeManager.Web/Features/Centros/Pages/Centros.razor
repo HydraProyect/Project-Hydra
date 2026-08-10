@@ -191,17 +191,28 @@
                                 }
                             </span>
                             <span class="ranura-recuento ranura-recuento-final">
-                                @* Visitas SIN fusionar (DDL-035, OD-18). *@
+                                @* Visitas SIN fusionar (DDL-035, OD-18). Ventana de contexto en los
+                                   dos casos (antes solo la de varias visitas la tenía) — el badge
+                                   de una sola visita es un recuento igual que cualquier otro (08 § 6,
+                                   DDL-033), y sin ventana no dice cuántos trabajadores implica. *@
                                 @if (visitas.Count == 1)
                                 {
-                                    <button type="button" class="badge-visita"
-                                            @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
-                                        Visita @visita!.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
-                                    </button>
+                                    <VentanaContexto Etiqueta="@($"1 visita programada: del {visita!.FechaInicio:dd/MM} al {visita.FechaFin:dd/MM}, {visita.TrabajadoresCount} trabajador(es)")"
+                                                     Titulo="1 visita programada">
+                                        <Disparador>
+                                            <button type="button" class="badge-visita"
+                                                    @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
+                                                Visita @visita!.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
+                                            </button>
+                                        </Disparador>
+                                        <Detalle>
+                                            <span class="ventana-linea">@visita.FechaInicio.ToString("dd/MM") – @visita.FechaFin.ToString("dd/MM") · @visita.TrabajadoresCount trabajador(es)</span>
+                                        </Detalle>
+                                    </VentanaContexto>
                                 }
                                 else if (visitas.Count > 1)
                                 {
-                                    <VentanaContexto Etiqueta="@($"{visitas.Count} visitas programadas: {string.Join("; ", visitas.Select(v => $"del {v.FechaInicio:dd/MM} al {v.FechaFin:dd/MM}"))}")"
+                                    <VentanaContexto Etiqueta="@($"{visitas.Count} visitas programadas: {string.Join("; ", visitas.Select(v => $"del {v.FechaInicio:dd/MM} al {v.FechaFin:dd/MM}, {v.TrabajadoresCount} trabajador(es)"))}")"
                                                      Titulo="@($"{visitas.Count} visitas programadas")">
                                         <Disparador>
                                             <button type="button" class="badge-visita"
@@ -212,7 +223,7 @@
                                         <Detalle>
                                             @foreach (var v in visitas)
                                             {
-                                                <span class="ventana-linea">Del @v.FechaInicio.ToString("dd/MM") al @v.FechaFin.ToString("dd/MM")</span>
+                                                <span class="ventana-linea">@v.FechaInicio.ToString("dd/MM") – @v.FechaFin.ToString("dd/MM") · @v.TrabajadoresCount trabajador(es)</span>
                                             }
                                         </Detalle>
                                     </VentanaContexto>
