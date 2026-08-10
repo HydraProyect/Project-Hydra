@@ -136,8 +136,9 @@ El Dashboard que hoy vive en `/` (Fases 2/25/57/63) **no es una versión parcial
 | 4 tiles críticos (Vencidos/Urgentes/Próximos/SLA) | Se sustituyen por el anillo de cumplimiento + KPIs secundarios de § 3 — mismo dato (`ObtenerKpisDashboardQuery`), presentación distinta |
 | Tabla "Documentos que requieren atención" | Se sustituye por la sección "Requiere atención" (§ 3) — mismo concepto, ahora es la cola completa de `/bandeja`, no solo documentos |
 | 4 tiles secundarios (Trabajadores/Centros/Vigentes/Visitas) | Se quedan en el Home, como hoy, enlazando a sus listados |
-| "Gestiones automáticas vs manuales" (barra) | Pasa al futuro **Dashboard de dirección y coordinación** — es una métrica de calidad de IA para dirección, no "qué requiere atención" ni "qué viene" |
-| "Centros/Empresas con más riesgo" (tablas) | Pasa al mismo Dashboard de dirección y coordinación — comparativa de cartera, no vista operativa del día a día |
+| "Gestiones automáticas vs manuales" (barra) | Pasa a **`/dashboard-ejecutivo`** (`DashboardEjecutivo.razor`, ya existe y ya está en el menú) — es una métrica de calidad de IA para dirección, no "qué requiere atención" ni "qué viene". Hoy ese dashboard no la tiene: hay que migrarla, no solo enlazarla |
+| "Centros con más riesgo" (tabla) | Pasa al mismo `/dashboard-ejecutivo` — ya tiene un equivalente (`_centrosConMenorCumplimiento`, `ObtenerDashboardEjecutivoQuery`); verificar que cubre el mismo caso antes de dar la migración por completa |
+| "Empresas con más riesgo" (tabla) | Pasa al mismo `/dashboard-ejecutivo` — a diferencia de Centros, hoy **no tiene equivalente** ahí (`ObtenerDashboardEjecutivoQuery` no expone nada de Empresas); hay que migrarla, no solo enlazarla |
 
 ## 8. Decisiones que gobiernan esta superficie
 
@@ -152,7 +153,10 @@ El Dashboard que hoy vive en `/` (Fases 2/25/57/63) **no es una versión parcial
 
 ## 9. Pendiente fuera de este blueprint
 
-- **Dashboard de dirección y coordinación**: recibe "Automático vs manual" y "Centros/Empresas con
-  más riesgo" (§ 7). No tiene blueprint propio todavía — se hace después de este.
+- **`/dashboard-ejecutivo`**: recibe "Automático vs manual" y "Empresas con más riesgo" — piezas
+  que hoy no tiene y hay que migrar, no solo enlazar (§ 7). Ya existe, ya está en el menú, ya tiene
+  KPIs configurables y "Centros con menor cumplimiento" — no es una superficie nueva, solo le falta
+  este contenido. Sin blueprint propio todavía (es un Entity/Operational Home retroactivo, como
+  Centro 360 lo fue para su arquetipo).
 - **"Qué avanzó el sistema"** (mitad de DDL-050 no cubierta, § 6): necesita un log transversal de
   acciones automáticas que hoy no existe en el dominio. Sin blueprint ni decisión de diseño propia.
