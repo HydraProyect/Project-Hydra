@@ -1,0 +1,72 @@
+/* Action Center (docs/COMUNICACIONES.md § 12.6) — mismo lenguaje visual que
+   el resto del sistema de sugerencias: fondo/borde en tono cian de sistema
+   (02 § 3.1, DDL-009 — "quien actúa aquí es Hydra"), nunca azul, porque
+   confirmar sí es azul (los botones primarios). */
+
+.accion-center {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.accion-center-titulo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.accion-card {
+    border: 1px solid var(--color-system-indicator);
+    background-color: var(--color-system-tint);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+}
+
+.accion-card-cab {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+.accion-card-icono {
+    display: inline-flex;
+    color: var(--color-system-text);
+    flex-shrink: 0;
+}
+
+.accion-card-confianza {
+    margin-left: auto;
+    font: var(--font-label-md);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-system-text);
+}
+
+.accion-card-confianza-baja {
+    color: var(--color-warning-700);
+}
+
+.accion-card-campos {
+    margin: var(--space-2) 0 var(--space-3);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.accion-card-botones {
+    display: flex;
+    gap: var(--space-2);
+}
+
+/* Editor inline de fechas dentro de RevisionSugerenciaModal (paso 1) — dos
+   CampoTexto type=date lado a lado, mismo patrón de rejilla que el resto de
+   pares de fecha en la app. */
+.accion-editor-fechas {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+}

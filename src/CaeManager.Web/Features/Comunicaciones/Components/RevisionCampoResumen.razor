@@ -1,0 +1,20 @@
+@* Una fila de RevisionSugerenciaModal (pasos 2/3): etiqueta + valor final + estado. *@
+<div class="revision-campo-resumen @(Compacto ? "revision-campo-resumen-compacto" : null)">
+    <span class="revision-campo-resumen-etiqueta">@Campo.Etiqueta</span>
+    <span class="revision-campo-resumen-valor">@(string.IsNullOrWhiteSpace(Campo.ValorFinal) ? "Sin determinar" : Campo.ValorFinal)</span>
+    @if (Campo.RequiereRevision)
+    {
+        <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">✎ Editado por ti</Badge>
+        <span class="revision-campo-resumen-confianza">Confianza inicial @Campo.ConfianzaOriginal%</span>
+    }
+    else
+    {
+        <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">✓ Confirmado por IA</Badge>
+        <span class="revision-campo-resumen-confianza">Confianza @Campo.ConfianzaOriginal%</span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CampoRevision Campo { get; set; } = default!;
+    [Parameter] public bool Compacto { get; set; }
+}

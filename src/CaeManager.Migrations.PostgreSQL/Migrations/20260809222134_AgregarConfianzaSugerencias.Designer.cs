@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260809222134_AgregarConfianzaSugerencias")]
+    partial class AgregarConfianzaSugerencias
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -732,12 +735,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Confianza")
                         .HasColumnType("integer");
 
-                    b.Property<int>("ConfianzaTipoDocumento")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ConfianzaTrabajador")
-                        .HasColumnType("integer");
-
                     b.Property<DateTime>("CreadaEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -778,12 +775,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<int>("Confianza")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ConfianzaCentro")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ConfianzaFechas")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("CreadaEnUtc")

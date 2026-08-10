@@ -32,4 +32,5 @@ public record TipoDocumentoCandidatoGestionDto(Guid Id, string Nombre);
 /// AnthropicDeteccionGestionCorreoService).
 /// </summary>
 public record DeteccionGestionCorreoDto(
-    bool EsActualizacionDocumento, Guid? TrabajadorId, Guid? TipoDocumentoId, string? Resumen);
+    bool EsActualizacionDocumento, Guid? TrabajadorId, Guid? TipoDocumentoId, string? Resumen,
+    int Confianza, int ConfianzaTrabajador, int ConfianzaTipoDocumento);

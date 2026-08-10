@@ -109,7 +109,7 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         await _dbContext.SaveChangesAsync();
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Necesitamos entrar hoy mismo");
         await _dbContext.SaveChangesAsync();
-        _dbContext.SugerenciasVisitaCorreo.Add(new SugerenciaVisitaCorreo(mensaje.Id, centro.Id, null, null, "Pide entrar hoy mismo"));
+        _dbContext.SugerenciasVisitaCorreo.Add(new SugerenciaVisitaCorreo(mensaje.Id, centro.Id, null, null, "Pide entrar hoy mismo", 90, 90, 0));
 
         await _dbContext.SaveChangesAsync();
     }

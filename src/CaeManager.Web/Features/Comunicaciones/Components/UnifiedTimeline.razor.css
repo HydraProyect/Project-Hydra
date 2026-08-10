@@ -197,32 +197,30 @@ a.timeline-adjunto-chip:hover {
     border-color: var(--color-primary-500);
 }
 
-.timeline-sugerencia {
+/* Marcador pasivo de detección IA (sin botones — la decisión vive en
+   AccionCenter.razor, columna derecha de Bandeja.razor): solo dice "Hydra
+   detectó algo aquí, mira Acciones sugeridas". Centrado con separadores a
+   ambos lados, mismo tratamiento que el mockup de referencia para "eventos
+   de sistema" en el timeline. Cian, no cobre: el presupuesto de uso del cian
+   cubre literalmente "IA cuando actúa" (02 § 3.3), y el cobre sale de la
+   paleta (DDL-012). */
+.timeline-marca-ia {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-    margin-top: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-primary-200);
-    background-color: var(--color-primary-50);
-}
-
-.timeline-sugerencia-texto {
-    display: flex;
-    align-items: center;
+    justify-content: center;
+    align-self: center;
     gap: var(--space-2);
+    margin-top: var(--space-3);
     font: var(--font-body-sm);
-    color: var(--color-primary-500);
+    color: var(--color-system-text);
 }
 
-/* Cian, no cobre: el presupuesto de uso del cian cubre literalmente "IA
-   cuando actua" (02 § 3.3), y el cobre sale de la paleta (DDL-012). */
-.timeline-sugerencia-icono-ia {
-    display: inline-flex;
-    color: var(--color-system-text);
+.timeline-marca-ia-linea {
+    flex: 1;
+    max-width: 40px;
+    height: 1px;
+    background-color: var(--color-system-indicator);
+    opacity: 0.4;
 }
 
 /* --- Evento del sistema (§ 16.7) — tratamiento neutro, distinto de un
@@ -271,10 +269,4 @@ a.timeline-adjunto-chip:hover {
 
 .timeline-evento-enlace:hover {
     text-decoration: underline;
-}
-
-.timeline-sugerencia-acciones {
-    display: flex;
-    gap: var(--space-2);
-    flex-shrink: 0;
 }
