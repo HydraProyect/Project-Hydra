@@ -42,11 +42,17 @@ public partial class BuzonPersonal : ComponentBase
     private void AlternarExpandido(Guid mensajeId) =>
         _mensajeExpandidoId = _mensajeExpandidoId == mensajeId ? null : mensajeId;
 
+    /// <summary>
+    /// Ningún tono del semáforo de cumplimiento (Peligro/Advertencia/Éxito) se usa aquí — están
+    /// reservados en exclusiva para vigencia documental (02_BRAND_AND_VISUAL_IDENTITY.md § 3.4,
+    /// DDL-010) y nunca son decorativos en otro contexto. "Posible phishing" se distingue por el
+    /// texto de la etiqueta, no por el color.
+    /// </summary>
     private static (string Etiqueta, TonoBadge Tono)? DescribirBadge(MensajeBuzonPersonalDto mensaje) => mensaje switch
     {
         { ProveedorPlataformaCaeNombre: { } proveedor } => ($"Plataforma reconocida: {proveedor}", TonoBadge.Info),
         { Motivo: MotivoRuidoMensaje.CorreoInterno } => ("Correo interno", TonoBadge.Neutro),
-        { Motivo: MotivoRuidoMensaje.PosiblePhishing } => ("Posible phishing", TonoBadge.Peligro),
+        { Motivo: MotivoRuidoMensaje.PosiblePhishing } => ("Posible phishing", TonoBadge.Neutro),
         _ => null
     };
 }
