@@ -9,29 +9,6 @@
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
 @using CaeManager.Domain.Comunicaciones
 
-@if (SugerenciaVinculacion is { } sugerenciaVinculacion && !VinculacionDescartada)
-{
-    <div class="timeline-sugerencia timeline-sugerencia-vinculacion">
-        <div class="timeline-sugerencia-texto">
-            <span class="timeline-sugerencia-icono-ia" title="Sugerencia de la IA">
-                <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
-            </span>
-            <span>
-                La IA ha encontrado una conversación relacionada: <strong>@sugerenciaVinculacion.AsuntoDestino</strong>
-                (@sugerenciaVinculacion.Desglose.Total pts — @DescribirDesglose(sugerenciaVinculacion.Desglose)).
-            </span>
-        </div>
-        <div class="timeline-sugerencia-acciones">
-            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="DescartarVinculacionLocal">
-                Crear conversación nueva
-            </Boton>
-            <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => OnVincularConversacion.InvokeAsync(sugerenciaVinculacion.ConversacionDestinoId)">
-                Añadir a conversación existente
-            </Boton>
-        </div>
-    </div>
-}
-
 <div class="timeline-mensajes">
     @{ DateTime? fechaSeparadorAnterior = null; }
     @foreach (var item in ItemsOrdenados())
@@ -125,47 +102,25 @@
 
                     @if (mensaje.SugerenciaVisita is { } sugerencia)
                     {
-                        <div class="timeline-sugerencia">
-                            <div class="timeline-sugerencia-texto">
-                                <span class="timeline-sugerencia-icono-ia" title="Sugerencia de la IA">
-                                    <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
-                                </span>
-                                <Icono Nombre="calendario" Tamano="TamanoIcono.Pequeno" />
-                                <span>@sugerencia.Resumen</span>
-                            </div>
-                            <div class="timeline-sugerencia-acciones">
-                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => OnDescartarSugerenciaVisita.InvokeAsync(sugerencia.Id)">
-                                    Descartar
-                                </Boton>
-                                <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => OnCrearVisitaDesdeSugerencia.InvokeAsync(sugerencia.Id)">
-                                    Crear visita
-                                </Boton>
-                            </div>
+                        <div class="timeline-marca-ia"><span class="timeline-marca-ia-linea"></span>
+                            <MarcaProcedencia Titulo="Detectado por Hydra"
+                                               Etiqueta="@($"Detectado por Hydra — posible solicitud de visita, confianza {sugerencia.Confianza}%. {sugerencia.Resumen}")">
+                                <Detalle>Confianza @sugerencia.Confianza% — @sugerencia.Resumen</Detalle>
+                            </MarcaProcedencia>
+                            <span>Posible solicitud de visita — revisar en Acciones sugeridas</span>
+                            <span class="timeline-marca-ia-linea"></span>
                         </div>
                     }
 
                     @if (mensaje.SugerenciaGestion is { } sugerenciaGestion)
                     {
-                        <div class="timeline-sugerencia">
-                            <div class="timeline-sugerencia-texto">
-                                <span class="timeline-sugerencia-icono-ia" title="Sugerencia de la IA">
-                                    <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
-                                </span>
-                                <Icono Nombre="incidencias" Tamano="TamanoIcono.Pequeno" />
-                                <span>@sugerenciaGestion.Resumen</span>
-                            </div>
-                            <div class="timeline-sugerencia-acciones">
-                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => OnDescartarSugerenciaGestion.InvokeAsync(sugerenciaGestion.Id)">
-                                    Descartar
-                                </Boton>
-                                @if (sugerenciaGestion.TrabajadorId is not null && sugerenciaGestion.TipoDocumentoId is not null)
-                                {
-                                    <Boton Tamano="TamanoBoton.Pequeno"
-                                           OnClick="() => OnGenerarGestionesDesdeSugerencia.InvokeAsync((sugerenciaGestion.Id, sugerenciaGestion.TrabajadorId.Value, sugerenciaGestion.TipoDocumentoId.Value))">
-                                        Generar gestiones
-                                    </Boton>
-                                }
-                            </div>
+                        <div class="timeline-marca-ia"><span class="timeline-marca-ia-linea"></span>
+                            <MarcaProcedencia Titulo="Detectado por Hydra"
+                                               Etiqueta="@($"Detectado por Hydra — posible actualización documental, confianza {sugerenciaGestion.Confianza}%. {sugerenciaGestion.Resumen}")">
+                                <Detalle>Confianza @sugerenciaGestion.Confianza% — @sugerenciaGestion.Resumen</Detalle>
+                            </MarcaProcedencia>
+                            <span>Posible actualización de documentación — revisar en Acciones sugeridas</span>
+                            <span class="timeline-marca-ia-linea"></span>
                         </div>
                     }
                 </div>
@@ -178,37 +133,7 @@
     [Parameter, EditorRequired] public IReadOnlyList<MensajeDetalleDto> Mensajes { get; set; } = [];
     [Parameter, EditorRequired] public IReadOnlyList<ParticipanteDetalleDto> Participantes { get; set; } = [];
     [Parameter] public IReadOnlyList<EventoDetalleDto> Eventos { get; set; } = [];
-    [Parameter] public EventCallback<Guid> OnCrearVisitaDesdeSugerencia { get; set; }
-    [Parameter] public EventCallback<Guid> OnDescartarSugerenciaVisita { get; set; }
-    [Parameter] public EventCallback<(Guid SugerenciaId, Guid TrabajadorId, Guid TipoDocumentoId)> OnGenerarGestionesDesdeSugerencia { get; set; }
-    [Parameter] public EventCallback<Guid> OnDescartarSugerenciaGestion { get; set; }
     [Parameter] public EventCallback<Guid> OnActualizarDocumentoDesdeAdjunto { get; set; }
-    [Parameter] public SugerenciaVinculacionDetalleDto? SugerenciaVinculacion { get; set; }
-    [Parameter] public EventCallback<Guid> OnVincularConversacion { get; set; }
-
-    /// <summary>
-    /// Solo en memoria del componente, sin Command ni persistencia: "crear
-    /// conversación nueva" ya es el comportamiento por defecto mientras no se
-    /// confirme (§ 13.2) — no hay ninguna decisión que guardar. Se reinicia
-    /// si se recarga la página, y la sugerencia (recalculada en cada lectura)
-    /// puede volver a aparecer; aceptable para un v1 sin persistir "descartes".
-    /// </summary>
-    private bool VinculacionDescartada;
-
-    private void DescartarVinculacionLocal() => VinculacionDescartada = true;
-
-    private static string DescribirDesglose(CaeManager.Application.Comunicaciones.Matching.DesgloseCoincidenciaDto desglose)
-    {
-        var partes = new List<string>();
-        if (desglose.MismoCliente > 0) partes.Add("mismo cliente");
-        if (desglose.VentanaTemporal > 0) partes.Add("actividad reciente");
-        if (desglose.MismoTrabajador > 0) partes.Add("mismo trabajador");
-        if (desglose.MismoCentro > 0) partes.Add("mismo centro");
-        if (desglose.MismoDocumento > 0) partes.Add("mismo documento");
-        if (desglose.MismoProyecto > 0) partes.Add("mismo proyecto");
-        if (desglose.SimilaridadSemantica > 0) partes.Add("contenido similar");
-        return partes.Count > 0 ? string.Join(", ", partes) : "sin coincidencias adicionales";
-    }
 
     /// <summary>Mezcla Mensajes y Eventos en una sola cronología — ambos DTOs son inmutables y llegan ya ordenados por su fuente, pero mezclados hace falta un único OrderBy.</summary>
     private IEnumerable<object> ItemsOrdenados() =>

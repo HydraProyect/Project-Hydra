@@ -1,5 +1,4 @@
 using Bunit;
-using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Web.Features.Comunicaciones.Components;
@@ -96,41 +95,18 @@ public class UnifiedTimelineTests : BunitContext
     }
 
     [Fact]
-    public void Una_sugerencia_de_vinculacion_muestra_el_asunto_destino_y_dispara_el_callback_con_su_id()
+    public void Un_mensaje_con_sugerencia_de_visita_pendiente_muestra_el_marcador_pasivo()
     {
-        var conversacionDestinoId = Guid.NewGuid();
-        var desglose = new DesgloseCoincidenciaDto(40, 0, 0, 0, 0, 0, 10);
-        Guid? destinoRecibido = null;
+        var sugerencia = new SugerenciaVisitaDetalleDto(Guid.NewGuid(), null, null, null, null, "Pide una visita", 92, 92, 92);
+        var mensaje = new MensajeDetalleDto(
+            Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Hola", DateTime.UtcNow,
+            [], sugerencia, null);
 
         var cut = Render<UnifiedTimeline>(parametros => parametros
-            .Add(p => p.Mensajes, [])
-            .Add(p => p.Participantes, [])
-            .Add(p => p.SugerenciaVinculacion, new SugerenciaVinculacionDetalleDto(conversacionDestinoId, "Consulta sobre visita", desglose))
-            .Add(p => p.OnVincularConversacion, id => destinoRecibido = id));
+            .Add(p => p.Mensajes, [mensaje])
+            .Add(p => p.Participantes, []));
 
-        cut.Markup.Should().Contain("Consulta sobre visita");
-        cut.Find(".timeline-sugerencia-vinculacion").Should().NotBeNull();
-
-        cut.FindAll(".timeline-sugerencia-vinculacion button")[1].Click();
-
-        destinoRecibido.Should().Be(conversacionDestinoId);
-    }
-
-    [Fact]
-    public void Descartar_una_sugerencia_de_vinculacion_la_oculta_sin_llamar_al_callback()
-    {
-        var desglose = new DesgloseCoincidenciaDto(40, 0, 0, 0, 0, 0, 10);
-        var vinculado = false;
-
-        var cut = Render<UnifiedTimeline>(parametros => parametros
-            .Add(p => p.Mensajes, [])
-            .Add(p => p.Participantes, [])
-            .Add(p => p.SugerenciaVinculacion, new SugerenciaVinculacionDetalleDto(Guid.NewGuid(), "Consulta sobre visita", desglose))
-            .Add(p => p.OnVincularConversacion, _ => vinculado = true));
-
-        cut.FindAll(".timeline-sugerencia-vinculacion button")[0].Click();
-
-        cut.FindAll(".timeline-sugerencia-vinculacion").Should().BeEmpty();
-        vinculado.Should().BeFalse();
+        cut.Markup.Should().Contain("Posible solicitud de visita — revisar en Acciones sugeridas");
+        cut.FindAll(".accion-card").Should().BeEmpty();
     }
 }

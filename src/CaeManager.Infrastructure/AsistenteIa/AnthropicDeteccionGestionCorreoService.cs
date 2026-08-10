@@ -42,7 +42,7 @@ public class AnthropicDeteccionGestionCorreoService(
         Devuelve exclusivamente un objeto JSON, sin texto adicional, sin
         explicaciones, sin bloques de código markdown, con este formato
         exacto:
-        {"esActualizacionDocumento": bool, "trabajadorId": "guid-de-la-lista-o-null", "tipoDocumentoId": "guid-de-la-lista-o-null", "resumen": "una frase breve en español"}
+        {"esActualizacionDocumento": bool, "trabajadorId": "guid-de-la-lista-o-null", "tipoDocumentoId": "guid-de-la-lista-o-null", "resumen": "una frase breve en español", "confianza": 0-100, "confianzaTrabajador": 0-100, "confianzaTipoDocumento": 0-100}
 
         Reglas:
         - esActualizacionDocumento es true solo si el correo pide o informa
@@ -59,6 +59,12 @@ public class AnthropicDeteccionGestionCorreoService(
           documento si aparecen). Obligatorio incluso si
           esActualizacionDocumento es false, explicando brevemente por qué
           no lo es.
+        - confianza: entero 0-100, tu propia certeza global de que
+          esActualizacionDocumento es correcto.
+        - confianzaTrabajador: entero 0-100, tu certeza específica de que
+          trabajadorId es el trabajador correcto. 0 si trabajadorId es null.
+        - confianzaTipoDocumento: entero 0-100, tu certeza específica de que
+          tipoDocumentoId es el tipo correcto. 0 si tipoDocumentoId es null.
         - Si esActualizacionDocumento es false, trabajadorId y
           tipoDocumentoId deben ser null.
         """;
@@ -186,8 +192,13 @@ public class AnthropicDeteccionGestionCorreoService(
                     ? tipoDocumentoIdParseado
                     : (Guid?)null;
 
+            var confianza = Math.Clamp(detectado.Confianza, 0, 100);
+            var confianzaTrabajador = Math.Clamp(detectado.ConfianzaTrabajador, 0, 100);
+            var confianzaTipoDocumento = Math.Clamp(detectado.ConfianzaTipoDocumento, 0, 100);
+
             return Result.Exito(new DeteccionGestionCorreoDto(
-                detectado.EsActualizacionDocumento, trabajadorId, tipoDocumentoId, detectado.Resumen));
+                detectado.EsActualizacionDocumento, trabajadorId, tipoDocumentoId, detectado.Resumen,
+                confianza, confianzaTrabajador, confianzaTipoDocumento));
         }
         catch (JsonException ex)
         {
@@ -200,7 +211,8 @@ public class AnthropicDeteccionGestionCorreoService(
     private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
 
     private sealed record DeteccionGestionJson(
-        bool EsActualizacionDocumento, string? TrabajadorId, string? TipoDocumentoId, string? Resumen);
+        bool EsActualizacionDocumento, string? TrabajadorId, string? TipoDocumentoId, string? Resumen,
+        int Confianza, int ConfianzaTrabajador, int ConfianzaTipoDocumento);
 
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,

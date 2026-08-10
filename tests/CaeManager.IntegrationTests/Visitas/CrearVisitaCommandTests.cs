@@ -62,7 +62,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Necesitamos una visita mañana");
         await contexto.SaveChangesAsync();
 
-        var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), null, "Pide visita mañana");
+        var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), null, "Pide visita mañana", 90, 90, 90);
         contexto.SugerenciasVisitaCorreo.Add(sugerencia);
         await contexto.SaveChangesAsync();
 
