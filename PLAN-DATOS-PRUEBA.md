@@ -12,11 +12,16 @@ Cada tanda termina con verificación end-to-end en navegador de las pantallas qu
 
 ## Estado
 
-- [ ] Tanda 1 — Módulos con pantalla vacía del núcleo operativo
-- [ ] Tanda 2 — Ciclo documental avanzado
-- [ ] Tanda 3 — Centros bloqueantes y canal WhatsApp
-- [ ] Tanda 4 — Plataforma: delegaciones, soporte, identidad, retención
-- [ ] Tanda 5 — Infraestructura y menores
+- [x] Tanda 1 — Módulos con pantalla vacía del núcleo operativo (2026-08-10, verificada vía suite E2E de CI con `DatosPrueba:Activo`)
+- [x] Tanda 2 — Ciclo documental avanzado (2026-08-10; acreditaciones CAE movidas a la Tanda 3, ver nota)
+- [x] Tanda 3 — Centros bloqueantes y canal WhatsApp (2026-08-10; las líneas WhatsApp exigen
+  `ConexionIntegracion` — se siembran dos conexiones WhatsApp simuladas con token de demo, lo
+  que resuelve parcialmente la decisión abierta nº 2; la decisión sigue abierta solo para las
+  conexiones Microsoft 365 de la Tanda 5)
+- [x] Tanda 4 — Plataforma: delegaciones, soporte, identidad y retención (2026-08-10; la
+  retención se completó al resolverse la decisión nº 3)
+- [x] Tanda 5 — Infraestructura y menores (2026-08-10; las conexiones Microsoft 365 simuladas
+  se completaron al resolverse la decisión nº 2)
 
 ## Tanda 1 — Módulos con pantalla vacía del núcleo operativo
 
@@ -44,15 +49,24 @@ Todo el pipeline que hoy solo existe como flags de catálogo.
   combinaciones representativas (no exhaustivas): `AutoValidado`, `RevisionRequerida`,
   `SinFirmaValida`; cotejo `Coincide` y `Discrepancia`; al menos un documento por cada
   `PerfilDocumentoOficial` configurado.
-- **Acreditaciones CAE**: `AcreditacionDocumentoPlataforma` en los 5 `EstadoAcreditacion`,
-  con rechazos que cubran varias `CausaRechazoAcreditacion`, contra proveedores del catálogo.
 - **Detección de trabajadores**: `DeteccionTrabajador` de tipo `Nuevo` y `Ausente`, pendientes
   y resueltas, en 2-3 empresas.
+- ~~Acreditaciones CAE~~ **movida a la Tanda 3**: `AcreditacionDocumentoPlataforma` referencia
+  `CanalGestionDocumentalId`, y los canales se siembran en la Tanda 3 — sembrarla antes que
+  su dependencia no es posible.
+- Nota de ejecución (2026-08-10): los `TrabajoAnalisisDocumento` se siembran en `Completado`,
+  `Fallido` y `Procesando`; **no** se siembra ninguno `Pendiente` a propósito — el worker lo
+  consumiría al arrancar llamando al proveedor de IA real sobre un documento sin archivo.
+  Además se corrigió que la copia de `TipoDocumento` de los tenants de demo perdiera
+  `DeteccionTrabajadoresActiva` y `PerfilDocumentoOficial` (el constructor no los expone).
 
 ## Tanda 3 — Centros bloqueantes y canal WhatsApp
 
 - **Canales de gestión documental**: `CanalGestionDocumental` por centro (tipo `Plataforma`
   con proveedor del catálogo y tipo `Email`; uno marcado principal) en una muestra de centros.
+- **Acreditaciones CAE** (movida desde la Tanda 2 — depende de los canales):
+  `AcreditacionDocumentoPlataforma` en los 5 `EstadoAcreditacion`, con rechazos que cubran
+  varias `CausaRechazoAcreditacion`.
 - **Requisitos documentales por centro**: `TipoDocumentoCentro` en varios centros, con
   requisitos bloqueantes incumplidos en al menos uno → cubre `EstadoCentro.Bloqueado` y la
   documentación bloqueante pendiente.
@@ -69,8 +83,18 @@ Todo el pipeline que hoy solo existe como flags de catálogo.
   crear 2-3 usuarios en el tenant #1 (Consultora) con roles distintos de Administrador y sus
   `AsignacionOperadorDelegado` (incluida una revocada) para probar el Delegated Workspace y
   "retirar operador" desde ambos lados.
+  - Nota de ejecución (2026-08-10): la delegación revocada vive en un tercer tenant de demo sin
+    datos (`Hosteleria Krusty Krab S.L.`). Dos variantes del plan resultaron **no sembrables por
+    diseño del dominio**: una delegación "reactivada" es indistinguible en estado de una activa
+    (no hay historial en la entidad), y una `AsignacionOperadorDelegado` "revocada" no existe
+    como estado — retirar un operador es una baja física. Ambos flujos se ejercitan desde la UI
+    sobre los datos sembrados.
 - **Soporte**: una `DelegacionTenant` de soporte **vigente** (motivo + caducidad futura) y una
   **caducada**, más `RegistroActividadSoporte` de ejemplo de los 5 `TipoActividadSoporte`.
+  - Nota de ejecución (2026-08-10): la vigente y la traza viven en el **tenant demo 3** y la
+    caducada en el demo 2 — la delegación de soporte del demo 1 se deja sin activar a
+    propósito porque `FlujoSoporteTests` (E2E) ejercita el ciclo completo sobre ella y
+    necesita encontrarla virgen (fallo real de CI al sembrarla activada).
 - **Identidad y términos**: un usuario con aceptación de términos de versión antigua (ejercita
   el gate), un usuario sin rol (`/cuenta/pendiente-de-rol`), uno con
   `DebeCambiarContrasena = true`, y un `prueba.*` con 2FA activa.
@@ -90,14 +114,32 @@ Todo el pipeline que hoy solo existe como flags de catálogo.
   sin credenciales reales — solo para que `/integraciones` sea probable visualmente.
 - `FiltroGuardado` y `PreferenciaDashboardUsuario` para algún usuario `prueba.*`.
 
+## Auditorías incrementales (funcionalidades que entraron en paralelo al plan)
+
+- **ADR-005 Subcontratas Supervisadas (#186)**: llegó **con su propia siembra** (niveles de
+  servicio, verificaciones externas con todos los resultados y estados del semáforo, historial,
+  y test de integración del seeder) — cumple el requerimiento global nº 1 sin trabajo extra.
+- **Comunicaciones fases 6-8 (#183)**: llegó **sin siembra** — cubierta aquí (2026-08-10):
+  `ClasificacionRelevanciaCae` (conversación pre-CAE minimizada + accionable congelada) y
+  `ClasificacionRuidoMensaje` (resumen sin cambios minimizado, el mismo caso rescatado
+  manualmente, y notificación automática con cambios). Los motivos `CorreoInterno` y
+  `PosiblePhishing` se sembraron al resolverse la decisión nº 2: una conversación llegada por
+  el buzón personal del gestor con un correo de su mismo dominio y otro de un dominio ajeno.
+
 ## Decisiones abiertas (confirmar con el propietario antes de la tanda que las toca)
 
-1. **Vencimiento en documentos de vehículo** (Tanda 2/3): hoy los 4 tipos de vehículo tienen
-   `AplicaVencimiento = false`, así que no puede existir un vehículo con documentación vencida.
-   Cubrir esa variante exige cambiar el catálogo (¿ITV con vencimiento?) — es decisión de
-   producto, no de siembra.
-2. **Integraciones simuladas** (Tanda 5): ¿se siembran conexiones falsas o se deja la pantalla
-   fuera del requerimiento por depender de servicios externos?
-3. **Retención** (Tanda 4): sembrar solicitudes ejecutadas es historia sintética de un flujo
-   RGPD — confirmar que se acepta como dato de demo (CLAUDE.md exige confirmar lo que roce
-   cumplimiento normativo).
+1. ~~Vencimiento en documentos de vehículo~~ **Resuelta (2026-08-10)**: el propietario decidió
+   que toda la documentación de vehículo vence — los 4 tipos pasan a vigencia anual
+   (`VigenciaMeses = 12`, `AplicaVencimientoAutomatico = true`), migración
+   `VencimientoAnualDocumentosVehiculo`. Con esto la siembra existente ya produce vehículos
+   con documentación en los cuatro estados (el reparto de `CrearDocumento` aplica solo).
+2. ~~Integraciones simuladas~~ **Resuelta (2026-08-10)**: el propietario pidió generar los
+   datos sintéticos — se siembran 4 conexiones Microsoft 365 simuladas (habilitada,
+   deshabilitada, con error, y el buzón personal de un gestor con `GestorPropietarioId`),
+   sin `CredencialIntegracion` para que ningún worker pueda llamar a Graph con ellas. El
+   buzón personal desbloquea además los motivos de ruido `CorreoInterno`/`PosiblePhishing`.
+3. ~~Retención~~ **Resuelta (2026-08-10)**: el propietario pidió generar los datos sintéticos —
+   `SolicitudPurga` en los 5 estados en el **tenant demo 2** (el demo 1 queda para el ciclo
+   real de `FlujoRetencionTests`), con la Ejecutada recorriendo el camino real del dominio:
+   avisar → programar con usuario autorizante y fecha → ejecutar. La invariante de
+   autorización expresa se respeta también en la siembra.

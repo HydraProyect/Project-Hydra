@@ -2,6 +2,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Identity;
@@ -163,9 +164,306 @@ public static class ComunicacionesDatosPruebaSeeder
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await SembrarWhatsAppAsync(dbContext, clientes, gestoresPrueba, ahora, cancellationToken);
+        await SembrarInteligenciaBandejaAsync(dbContext, gestoresPrueba, ahora, cancellationToken);
+        await SembrarReduccionRuidoAsync(dbContext, cancellationToken);
+        await SembrarConexionesMicrosoft365Async(dbContext, gestoresPrueba, ahora, cancellationToken);
+
         logger.LogInformation(
-            "Comunicaciones sembradas: {Conversaciones} conversaciones ({Triage} sin cliente asignado), {Macros} macros de respuesta.",
+            "Comunicaciones sembradas: {Conversaciones} conversaciones de correo ({Triage} sin cliente asignado), " +
+            "{Macros} macros, líneas y conversaciones WhatsApp, adjuntos, eventos y sugerencias de bandeja.",
             totalConversaciones, conversacionesTriage, macros.Count);
+    }
+
+    /// <summary>
+    /// Ronda de reducción de ruido (Fases 6-8): una conversación "pre-CAE"
+    /// (con Cliente pero sin gestión CAE accionable — se minimiza) y una ya
+    /// congelada como accionable; más clasificaciones de ruido por mensaje —
+    /// un resumen sin cambios de plataforma (minimizado), el mismo caso
+    /// rescatado manualmente por el gestor, y una notificación automática
+    /// que sí trae cambios (motivo Ninguno). Los motivos CorreoInterno y
+    /// PosiblePhishing no se siembran: solo se calculan sobre mensajes de un
+    /// buzón personal de gestor (ConexionIntegracion.GestorPropietarioId),
+    /// que depende de la decisión abierta nº 2 de PLAN-DATOS-PRUEBA.md.
+    /// </summary>
+    private static async Task SembrarReduccionRuidoAsync(
+        CaeManagerDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var conversacionesConCliente = await dbContext.Conversaciones
+            .Where(c => c.ClienteId != null && c.Canal == CanalConversacion.Correo)
+            .OrderBy(c => c.CreadoEnUtc).ThenBy(c => c.Id)
+            .Take(2)
+            .ToListAsync(cancellationToken);
+        if (conversacionesConCliente.Count < 2)
+            return;
+
+        dbContext.ClasificacionesRelevanciaCae.Add(new ClasificacionRelevanciaCae(
+            conversacionesConCliente[0].Id, esAccionableCae: false,
+            "El cliente copia al gestor en una negociación comercial — todavía no hay ninguna gestión CAE que hacer.", 84));
+        dbContext.ClasificacionesRelevanciaCae.Add(new ClasificacionRelevanciaCae(
+            conversacionesConCliente[1].Id, esAccionableCae: true,
+            "El último mensaje pide renovar la documentación de un trabajador.", 91));
+
+        var mensajesEntrantes = await dbContext.Mensajes
+            .Where(m => m.Direccion == DireccionMensaje.Entrante && m.Canal == CanalConversacion.Correo)
+            .OrderByDescending(m => m.FechaUtc).ThenBy(m => m.Id)
+            .Take(3)
+            .ToListAsync(cancellationToken);
+        if (mensajesEntrantes.Count < 3)
+            return;
+
+        var proveedorCae = await dbContext.ProveedoresPlataformaCae
+            .Where(p => p.Activo).OrderBy(p => p.Codigo)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // Resumen periódico de plataforma sin cambios — se minimiza.
+        dbContext.ClasificacionesRuidoMensaje.Add(new ClasificacionRuidoMensaje(
+            mensajesEntrantes[0].Id, esNotificacionAutomatica: true, proveedorCae?.Id,
+            MotivoRuidoMensaje.ResumenSinCambios));
+
+        // El mismo patrón, pero el gestor confirmó que sí importa.
+        var rescatada = new ClasificacionRuidoMensaje(
+            mensajesEntrantes[1].Id, esNotificacionAutomatica: true, proveedorCae?.Id,
+            MotivoRuidoMensaje.ResumenSinCambios);
+        rescatada.ConfirmarManualmente();
+        dbContext.ClasificacionesRuidoMensaje.Add(rescatada);
+
+        // Notificación automática con cambios reales — no se minimiza.
+        dbContext.ClasificacionesRuidoMensaje.Add(new ClasificacionRuidoMensaje(
+            mensajesEntrantes[2].Id, esNotificacionAutomatica: true, proveedorCae?.Id));
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Conexiones Microsoft 365 simuladas — buzones ficticios sin credencial
+    /// real (no hay CredencialIntegracion, así que ningún worker puede
+    /// llamar a Graph con ellas): los 3 estados de conexión para
+    /// /integraciones, más el buzón personal de un gestor
+    /// (GestorPropietarioId) con una conversación cuyos dos mensajes cubren
+    /// los motivos de ruido exclusivos de ese patrón — CorreoInterno (mismo
+    /// dominio que el buzón propio) y PosiblePhishing (dominio ajeno).
+    /// </summary>
+    private static async Task SembrarConexionesMicrosoft365Async(
+        CaeManagerDbContext dbContext, IReadOnlyList<ApplicationUser> gestoresPrueba,
+        DateTime ahora, CancellationToken cancellationToken)
+    {
+        dbContext.ConexionesIntegracion.Add(new ConexionIntegracion(
+            "equipo-cae@buzon-simulado.local", "Buzón compartido CAE (demo)"));
+
+        var deshabilitada = new ConexionIntegracion("altas@buzon-simulado.local", "Buzón de altas (demo)");
+        deshabilitada.Deshabilitar();
+        dbContext.ConexionesIntegracion.Add(deshabilitada);
+
+        var conError = new ConexionIntegracion("avisos@buzon-simulado.local", "Buzón de avisos (demo)");
+        conError.MarcarConError("El token de Microsoft Graph caducó — hay que reconectar el buzón.");
+        dbContext.ConexionesIntegracion.Add(conError);
+
+        var gestorTitular = gestoresPrueba.OrderBy(g => g.Email).FirstOrDefault();
+        if (gestorTitular is null)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        dbContext.ConexionesIntegracion.Add(new ConexionIntegracion(
+            "gestor.uno@buzon-simulado.local", "Buzón personal de Prueba GestorCae 1",
+            clienteId: null, gestorPropietarioId: gestorTitular.Id));
+
+        // Conversación llegada por el buzón personal: un correo de un
+        // compañero (mismo dominio → CorreoInterno) y uno de un dominio
+        // ajeno sospechoso (→ PosiblePhishing). Ninguno se oculta — son
+        // advertencias visuales, la decisión es del gestor.
+        var conversacionPersonal = new Conversacion("Consulta interna y aviso sospechoso — buzón personal");
+        conversacionPersonal.Asignar(gestorTitular.Id);
+
+        var interno = conversacionPersonal.AgregarMensaje(
+            DireccionMensaje.Entrante, CanalConversacion.Correo, "companero@buzon-simulado.local",
+            "<p>¿Me pasas el estado de la documentación de la contrata de climatización?</p>", ahora.AddHours(-8));
+        var sospechoso = conversacionPersonal.AgregarMensaje(
+            DireccionMensaje.Entrante, CanalConversacion.Correo, "premios@sorteo-sospechoso.example",
+            "<p>Ha sido seleccionado para un premio. Confirme sus credenciales en este enlace.</p>", ahora.AddHours(-5));
+
+        conversacionPersonal.AgregarParticipante("companero@buzon-simulado.local", RolParticipante.De, TipoParticipanteOrigen.Desconocido);
+        dbContext.Conversaciones.Add(conversacionPersonal);
+
+        dbContext.ClasificacionesRuidoMensaje.Add(new ClasificacionRuidoMensaje(
+            interno.Id, esNotificacionAutomatica: false, proveedorPlataformaCaeId: null,
+            MotivoRuidoMensaje.CorreoInterno));
+        dbContext.ClasificacionesRuidoMensaje.Add(new ClasificacionRuidoMensaje(
+            sospechoso.Id, esNotificacionAutomatica: false, proveedorPlataformaCaeId: null,
+            MotivoRuidoMensaje.PosiblePhishing));
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Canal WhatsApp completo: dos líneas simuladas (GestorFijo y
+    /// PoolInbound), contactos aprendidos y conversaciones con estados de
+    /// entrega variados. Los tokens son literales de demo, nunca credenciales
+    /// reales — ninguna llamada sale hacia Meta sin webhook real configurado.
+    /// </summary>
+    private static async Task SembrarWhatsAppAsync(
+        CaeManagerDbContext dbContext, IReadOnlyList<Cliente> clientes,
+        IReadOnlyList<ApplicationUser> gestoresPrueba, DateTime ahora, CancellationToken cancellationToken)
+    {
+        if (gestoresPrueba.Count == 0 || clientes.Count < 2)
+            return;
+
+        var gestorTitular = gestoresPrueba.OrderBy(g => g.Email).First();
+
+        var conexionFija = new ConexionIntegracion(
+            "+34600000001", "Línea WhatsApp de demo (gestor fijo)", proveedor: ProveedorIntegracion.WhatsApp);
+        dbContext.ConexionesIntegracion.Add(conexionFija);
+        dbContext.LineasWhatsApp.Add(new LineaWhatsApp(
+            conexionFija.Id, "PNID-DEMO-0001", "WABA-DEMO-0001", "+34600000001", "token-demo-no-valido",
+            ModoAsignacionLinea.GestorFijo, gestorTitular.Id,
+            "Hola, soy el buzón CAE de demo. Indícanos por favor de qué cliente y consulta se trata."));
+
+        var conexionPool = new ConexionIntegracion(
+            "+34600000002", "Línea WhatsApp de demo (pool)", proveedor: ProveedorIntegracion.WhatsApp);
+        dbContext.ConexionesIntegracion.Add(conexionPool);
+        var lineaPool = new LineaWhatsApp(
+            conexionPool.Id, "PNID-DEMO-0002", "WABA-DEMO-0002", "+34600000002", "token-demo-no-valido",
+            ModoAsignacionLinea.PoolInbound);
+        lineaPool.ReemplazarMiembrosPool(gestoresPrueba.Select(g => g.Id));
+        dbContext.LineasWhatsApp.Add(lineaPool);
+
+        // Contactos ya aprendidos por el enrutamiento híbrido.
+        dbContext.ContactosWhatsApp.Add(new ContactoWhatsApp("+34600111001", clientes[0].Id, "Vilma Picapiedra"));
+        dbContext.ContactosWhatsApp.Add(new ContactoWhatsApp("+34600111002", clientes[1].Id, "Betty Marmol"));
+
+        // Conversaciones: contacto conocido con ventana de servicio abierta,
+        // otra con la ventana ya cerrada, y una de triage sin cliente.
+        var abierta = Conversacion.CrearWhatsApp("+34600111001", conexionFija.Id, clientes[0].Id, gestorTitular.Id);
+        abierta.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34600111001",
+            "<p>Buenos días, ¿está ya validada la documentación del equipo que entra el lunes?</p>", ahora.AddHours(-3));
+        var respuesta = abierta.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.WhatsApp, "+34600000001",
+            "<p>Buenos días, lo estamos revisando y os confirmamos hoy mismo.</p>", ahora.AddHours(-2));
+        respuesta.ActualizarEstadoEntrega(EstadoEntregaMensaje.Entregado);
+        respuesta.ActualizarEstadoEntrega(EstadoEntregaMensaje.Leido);
+        var seguimiento = abierta.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.WhatsApp, "+34600000001",
+            "<p>Confirmado: todo en regla salvo un apto médico que vence esta semana.</p>", ahora.AddHours(-1));
+        seguimiento.ActualizarEstadoEntrega(EstadoEntregaMensaje.Enviado);
+        dbContext.Conversaciones.Add(abierta);
+
+        var ventanaCerrada = Conversacion.CrearWhatsApp("+34600111002", conexionFija.Id, clientes[1].Id, gestorTitular.Id);
+        ventanaCerrada.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34600111002",
+            "<p>Os pasamos el listado de trabajadores para la parada de planta.</p>", ahora.AddDays(-3));
+        var fallido = ventanaCerrada.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.WhatsApp, "+34600000001",
+            "<p>Recibido, gracias. Os confirmamos mañana.</p>", ahora.AddDays(-1));
+        fallido.ActualizarEstadoEntrega(EstadoEntregaMensaje.Fallido,
+            "Message failed to send because more than 24 hours have passed since the customer last replied.");
+        ventanaCerrada.CambiarEstado(EstadoConversacion.Pendiente);
+        dbContext.Conversaciones.Add(ventanaCerrada);
+
+        var triage = Conversacion.CrearWhatsApp("+34600111003", conexionPool.Id, clienteId: null,
+            gestoresPrueba.Count > 1 ? gestoresPrueba.OrderBy(g => g.Email).ElementAt(1).Id : gestorTitular.Id);
+        triage.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34600111003",
+            "<p>Hola, llamo de parte de la contrata de climatización, ¿me podéis ayudar con un acceso?</p>", ahora.AddHours(-6));
+        var autoTriage = triage.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.WhatsApp, "+34600000002",
+            "<p>Hola, soy el buzón CAE de demo. Indícanos por favor de qué cliente y consulta se trata.</p>", ahora.AddHours(-6));
+        autoTriage.ActualizarEstadoEntrega(EstadoEntregaMensaje.Entregado);
+        dbContext.Conversaciones.Add(triage);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Lo que la bandeja muestra alrededor de los mensajes: adjuntos, eventos
+    /// del timeline, sugerencias IA de visita y de gestión (pendientes y
+    /// resueltas) y solicitudes de prioridad ya enviadas.
+    /// </summary>
+    private static async Task SembrarInteligenciaBandejaAsync(
+        CaeManagerDbContext dbContext, IReadOnlyList<ApplicationUser> gestoresPrueba,
+        DateTime ahora, CancellationToken cancellationToken)
+    {
+        var mensajesConCliente = await (
+            from mensaje in dbContext.Mensajes
+            join conversacion in dbContext.Conversaciones on mensaje.ConversacionId equals conversacion.Id
+            where mensaje.Direccion == DireccionMensaje.Entrante
+                  && mensaje.Canal == CanalConversacion.Correo
+                  && conversacion.ClienteId != null
+            orderby mensaje.FechaUtc, mensaje.Id
+            select new { Mensaje = mensaje, ClienteId = conversacion.ClienteId!.Value })
+            .Take(6)
+            .ToListAsync(cancellationToken);
+
+        if (mensajesConCliente.Count < 6)
+            return;
+
+        // Adjuntos entrantes — el contenido no existe en el storage (la
+        // descarga fallará limpiamente), pero la bandeja los lista y el flujo
+        // "Actualizar documentación" se puede iniciar.
+        mensajesConCliente[0].Mensaje.AgregarAdjunto(
+            "apto-medico-bart-simpson.pdf", "application/pdf", 245_760, "adjuntos-demo/apto-medico-bart-simpson.pdf");
+        mensajesConCliente[0].Mensaje.AgregarAdjunto(
+            "epis-firmadas.jpg", "image/jpeg", 812_040, "adjuntos-demo/epis-firmadas.jpg");
+        mensajesConCliente[1].Mensaje.AgregarAdjunto(
+            "ita-julio.pdf", "application/pdf", 1_310_720, "adjuntos-demo/ita-julio.pdf");
+
+        // Eventos del timeline: los tres tipos, referenciando entidades reales.
+        var visitaReferencia = await dbContext.Visitas.OrderBy(v => v.CreadoEnUtc).ThenBy(v => v.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        var documentoReferencia = await dbContext.Documentos.OrderBy(d => d.CreadoEnUtc).ThenBy(d => d.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (visitaReferencia is not null)
+            dbContext.EventosConversacion.Add(new EventoConversacion(
+                mensajesConCliente[0].Mensaje.ConversacionId, TipoEventoConversacion.VisitaCreada,
+                visitaReferencia.Id, ahora.AddDays(-2)));
+        if (documentoReferencia is not null)
+            dbContext.EventosConversacion.Add(new EventoConversacion(
+                mensajesConCliente[1].Mensaje.ConversacionId, TipoEventoConversacion.DocumentoActualizado,
+                documentoReferencia.Id, ahora.AddDays(-1)));
+        dbContext.EventosConversacion.Add(new EventoConversacion(
+            mensajesConCliente[2].Mensaje.ConversacionId, TipoEventoConversacion.ConversacionVinculada,
+            mensajesConCliente[3].Mensaje.ConversacionId, ahora.AddHours(-20)));
+
+        // Sugerencias de visita: con centro resuelto, sin centro, y resuelta.
+        var hoy = DateOnly.FromDateTime(ahora);
+        var centroDelCliente = await dbContext.Centros
+            .Where(c => c.ClienteId == mensajesConCliente[2].ClienteId)
+            .OrderBy(c => c.CreadoEnUtc).ThenBy(c => c.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        dbContext.SugerenciasVisitaCorreo.Add(new SugerenciaVisitaCorreo(
+            mensajesConCliente[2].Mensaje.Id, centroDelCliente?.Id, hoy.AddDays(7), hoy.AddDays(8),
+            "El correo pide agendar la entrada de dos operarios la semana que viene.", 92, 88, 90));
+        dbContext.SugerenciasVisitaCorreo.Add(new SugerenciaVisitaCorreo(
+            mensajesConCliente[3].Mensaje.Id, centroId: null, hoy.AddDays(10), null,
+            "Se detecta intención de visita pero el correo no concreta a qué centro se refiere.", 74, 40, 70));
+        var sugerenciaResuelta = new SugerenciaVisitaCorreo(
+            mensajesConCliente[4].Mensaje.Id, centroDelCliente?.Id, hoy.AddDays(-3), hoy.AddDays(-3),
+            "Solicitud de visita ya gestionada desde la bandeja.", 95, 93, 94);
+        sugerenciaResuelta.Resolver();
+        dbContext.SugerenciasVisitaCorreo.Add(sugerenciaResuelta);
+
+        // Sugerencia de gestión con dos ítems: uno pendiente y uno resuelto.
+        var trabajadorSugerido = await dbContext.Trabajadores.OrderBy(t => t.CreadoEnUtc).ThenBy(t => t.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        var tipoEpis = await dbContext.TiposDocumento
+            .FirstOrDefaultAsync(t => t.Nombre == "EPIS (firma)", cancellationToken);
+        if (trabajadorSugerido is not null && tipoEpis is not null)
+        {
+            var sugerenciaGestion = new SugerenciaGestionCorreo(
+                mensajesConCliente[5].Mensaje.Id,
+                "El correo notifica en bloque la renovación de EPIs de varios trabajadores.", 86);
+            sugerenciaGestion.AgregarDetalle(trabajadorSugerido.Id, tipoEpis.Id, 91, 88);
+            var detalleResuelto = sugerenciaGestion.AgregarDetalle(trabajadorSugerido.Id, tipoEpis.Id, 79, 84);
+            detalleResuelto.Resolver();
+            dbContext.SugerenciasGestionCorreo.Add(sugerenciaGestion);
+        }
+
+        // Solicitudes de prioridad ya enviadas (rastro anti-duplicados).
+        if (gestoresPrueba.Count > 0 && centroDelCliente is not null)
+        {
+            var gestor = gestoresPrueba.OrderBy(g => g.Email).First();
+            dbContext.SolicitudesPrioridadDocumento.Add(new SolicitudPrioridadDocumento(
+                centroDelCliente.Id, gestor.Id, ahora.AddHours(-30)));
+            dbContext.SolicitudesPrioridadDocumento.Add(new SolicitudPrioridadDocumento(
+                centroDelCliente.Id, gestor.Id, ahora.AddHours(-2)));
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private static void AgregarParticipanteRelacionadoAleatorio(
