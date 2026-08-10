@@ -1,7 +1,7 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
-using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Web.Components;
@@ -9,34 +9,23 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Subcontratas.Pages;
 
 public partial class Subcontratas : ComponentBase
 {
-    private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
-
-    // H2 (docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
-
-    private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
-
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
-    private async Task CambiarTamanoPaginaAsync(int tamano)
-    {
-        _paginacion.ItemsPerPage = tamano;
-        await _paginacion.SetCurrentPageIndexAsync(0);
-        if (_grid is not null)
-            await _grid.RefreshDataAsync();
-    }
-
-    private QuickGrid<SubcontrataListaDto>? _grid;
+    // Igual que Centros.razor.cs (Centro 360): QuickGrid no soporta filas
+    // expandibles, así que la paginación se gestiona a mano — la Query sigue
+    // paginando en servidor, solo cambia el control visual.
+    private int _tamanoPagina = 20;
 
     private string _busqueda = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
+    private int _pagina = 1;
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
@@ -56,20 +45,7 @@ public partial class Subcontratas : ComponentBase
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
 
-    private bool _confirmarEliminarVisible;
-    private Guid _idAEliminar;
-    private string _razonSocialAEliminar = string.Empty;
-    private bool _eliminando;
-
     private readonly HashSet<Guid> _seleccionados = [];
-
-    /// <summary>
-    /// Los checkboxes de fila solo se pintan con esto activo (Centro 360,
-    /// PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
-    /// ocasional. Apagarlo limpia la selección: dejar filas marcadas que ya
-    /// no se ven dejaría la barra de acciones en lote apuntando a algo
-    /// invisible.
-    /// </summary>
     private bool _seleccionMultiple;
 
     private void AlternarSeleccionMultiple(bool activa)
@@ -78,6 +54,9 @@ public partial class Subcontratas : ComponentBase
         if (!activa)
             _seleccionados.Clear();
     }
+
+    /// <summary>Qué filas tienen el acordeón abierto — mismo criterio que Centros.razor.cs.</summary>
+    private readonly HashSet<Guid> _expandidos = [];
     private List<SubcontrataListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
     private bool _eliminandoLote;
@@ -88,58 +67,48 @@ public partial class Subcontratas : ComponentBase
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
-    private GridItemsProvider<SubcontrataListaDto>? _proveedorElementos;
-
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
-        _proveedorElementos = ProveerElementosAsync;
+        _busqueda = TerminoBusquedaInicial ?? string.Empty;
+        await CargarAsync();
     }
 
-    /// <summary>
-    /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
-    /// compartir la URL, volver atrás) — no solo en el primer render — para
-    /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
-    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
-    /// </summary>
-    protected override void OnParametersSet()
+    /// <summary>Se re-ejecuta en cada navegación dentro de la propia página — mismo criterio que Centros.razor.cs.</summary>
+    protected override async Task OnParametersSetAsync()
     {
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
-        if (deLaUrl != _busqueda)
-            _busqueda = deLaUrl;
+        if (deLaUrl == _busqueda)
+            return;
+
+        _busqueda = deLaUrl;
+        await CargarAsync(resetPagina: true);
     }
 
-    private async ValueTask<GridItemsProviderResult<SubcontrataListaDto>> ProveerElementosAsync(
-        GridItemsProviderRequest<SubcontrataListaDto> request)
+    private async Task CargarAsync(bool resetPagina = false)
     {
+        if (resetPagina)
+            _pagina = 1;
+
         _cargando = true;
         _errorCarga = false;
+        StateHasChanged();
 
         try
         {
-            var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
-            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
-
             var resultado = await Mediator.Send(new ObtenerSubcontratasQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage,
-                OrdenarPor: ordenarPor,
-                Descendente: descendente));
+                Pagina: _pagina,
+                TamanoPagina: _tamanoPagina));
 
             _totalElementos = resultado.TotalElementos;
-
-            var elementos = resultado.Elementos.ToList();
-            _elementosPagina = elementos;
+            _elementosPagina = resultado.Elementos.ToList();
             _seleccionados.Clear();
+            _expandidos.Clear();
             _idEnfocado = null;
-
-            return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
         catch (Exception)
         {
             _errorCarga = true;
-            return GridItemsProviderResult.From(new List<SubcontrataListaDto>(), 0);
         }
         finally
         {
@@ -148,21 +117,42 @@ public partial class Subcontratas : ComponentBase
         }
     }
 
+    private Task CambiarPaginaAsync(int pagina)
+    {
+        _pagina = pagina;
+        return CargarAsync();
+    }
+
+    private Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _tamanoPagina = tamano;
+        return CargarAsync(resetPagina: true);
+    }
+
+    /// <summary>
+    /// Tras gestionar un documento in situ desde el acordeón hace falta
+    /// refrescar el cumplimiento/recuentos de ESA fila — CargarAsync()
+    /// completo colapsaría el acordeón que el usuario acaba de usar (mismo
+    /// motivo que RefrescarCentroAsync en Centros.razor.cs).
+    /// </summary>
+    private async Task RefrescarSubcontrataAsync(Guid subcontrataId)
+    {
+        var resultado = await Mediator.Send(new ObtenerSubcontratasQuery(Busqueda: null, SubcontrataId: subcontrataId));
+        var actualizada = resultado.Elementos.FirstOrDefault();
+        if (actualizada is null) return;
+
+        var indice = _elementosPagina.FindIndex(s => s.Id == subcontrataId);
+        if (indice >= 0)
+            _elementosPagina[indice] = actualizada;
+
+        StateHasChanged();
+    }
+
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
         NavigationManager.ActualizarFiltroEnUrl("q", valor);
-        await RecargarAsync();
-    }
-
-    private async Task RecargarAsync()
-    {
-        await _paginacion.SetCurrentPageIndexAsync(0);
-
-        if (_grid is not null)
-            await _grid.RefreshDataAsync();
-
-        StateHasChanged();
+        await CargarAsync(resetPagina: true);
     }
 
     private async Task AbrirCrear()
@@ -222,7 +212,7 @@ public partial class Subcontratas : ComponentBase
 
             ToastService.Mostrar("Subcontrata creada correctamente.", TonoToast.Exito);
             _drawerVisible = false;
-            await RecargarAsync();
+            await CargarAsync();
         }
         catch (ValidationException ex)
         {
@@ -242,45 +232,25 @@ public partial class Subcontratas : ComponentBase
 
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
 
-    private void AbrirEliminar(Guid id, string razonSocial)
-    {
-        _idAEliminar = id;
-        _razonSocialAEliminar = razonSocial;
-        _confirmarEliminarVisible = true;
-    }
-
-    private async Task ConfirmarEliminarAsync()
-    {
-        _eliminando = true;
-
-        try
-        {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarSubcontrataCommand(_idAEliminar, usuarioId ?? Guid.Empty));
-
-            if (resultado.EsFallido)
-            {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-            }
-            else
-            {
-                ToastService.Mostrar("Subcontrata eliminada correctamente.", TonoToast.Exito);
-                _confirmarEliminarVisible = false;
-                await RecargarAsync();
-            }
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar("No pudimos eliminar la subcontrata. Intenta nuevamente en unos segundos.", TonoToast.Error);
-        }
-        finally
-        {
-            _eliminando = false;
-        }
-    }
-
     private bool TodosSeleccionados =>
         _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+
+    private bool TodosExpandidos =>
+        _elementosPagina.Count > 0 && _elementosPagina.All(e => _expandidos.Contains(e.Id));
+
+    private void AlternarExpansion(Guid id)
+    {
+        if (!_expandidos.Add(id))
+            _expandidos.Remove(id);
+    }
+
+    private void AlternarTodosExpandidos(bool expandir)
+    {
+        if (expandir)
+            foreach (var elemento in _elementosPagina) _expandidos.Add(elemento.Id);
+        else
+            _expandidos.Clear();
+    }
 
     private void AlternarSeleccionTodos(bool marcar)
     {
@@ -314,7 +284,7 @@ public partial class Subcontratas : ComponentBase
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
-            await RecargarAsync();
+            await CargarAsync();
         }
         catch (Exception)
         {
@@ -325,8 +295,6 @@ public partial class Subcontratas : ComponentBase
             _eliminandoLote = false;
         }
     }
-
-    private string ObtenerClaseFila(SubcontrataListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
 
     private async Task ManejarAtajoAsync(string tecla)
     {
@@ -362,4 +330,10 @@ public partial class Subcontratas : ComponentBase
 
         StateHasChanged();
     }
+
+    /// <summary>Nombre accesible de un badge de solo recuento — mismo criterio que Centros.razor.cs.DescribirRecuento.</summary>
+    private static string DescribirRecuento(IReadOnlyList<IncidenciaSubcontrataDto> incidencias, string calificativo) =>
+        incidencias.Count == 1
+            ? $"1 documento {calificativo}"
+            : $"{incidencias.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
 }

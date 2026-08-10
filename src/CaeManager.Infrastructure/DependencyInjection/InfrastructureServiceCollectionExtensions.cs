@@ -264,6 +264,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IEmpresaClienteRepository, EmpresaClienteRepository>();
         services.AddScoped<ICredencialAccesoEmpresaRepository, CredencialAccesoEmpresaRepository>();
         services.AddScoped<ISubcontrataRepository, SubcontrataRepository>();
+        services.AddScoped<IVerificacionExternaSubcontrataRepository, VerificacionExternaSubcontrataRepository>();
         services.AddScoped<ISubcontrataClienteRepository, SubcontrataClienteRepository>();
         services.AddScoped<ISubcontrataEmpresaRepository, SubcontrataEmpresaRepository>();
         services.AddScoped<ICredencialAccesoSubcontrataRepository, CredencialAccesoSubcontrataRepository>();
