@@ -20,7 +20,9 @@ Cada tanda termina con verificación end-to-end en navegador de las pantallas qu
   conexiones Microsoft 365 de la Tanda 5)
 - [x] Tanda 4 — Plataforma: delegaciones, soporte, identidad (2026-08-10) — **parcial**: la
   retención (`SolicitudPurga`) sigue fuera a la espera de la decisión abierta nº 3
-- [ ] Tanda 5 — Infraestructura y menores
+- [x] Tanda 5 — Infraestructura y menores (2026-08-10) — **parcial**: las conexiones
+  Microsoft 365 simuladas siguen fuera a la espera de la decisión abierta nº 2 (las WhatsApp
+  ya se sembraron en la Tanda 3 por ser dependencia del canal)
 
 ## Tanda 1 — Módulos con pantalla vacía del núcleo operativo
 

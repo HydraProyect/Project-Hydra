@@ -1,7 +1,13 @@
+using System.Security.Cryptography;
+using System.Text;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
+using CaeManager.Application.Dashboard.Catalogo;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
@@ -54,6 +60,17 @@ public static class DatosPruebaSeeder
     private const string PrefijoEmailPrueba = "prueba.";
     private const string DominioEmailPrueba = "@caemanager.local";
     public const string ContrasenaUsuariosPrueba = "Prueba#2026";
+
+    /// <summary>
+    /// Claves API de demo en claro — sintéticas y públicas a propósito
+    /// (mismo criterio que <see cref="ContrasenaUsuariosPrueba"/>): permiten
+    /// llamar a la API pública V1 contra la siembra sin pasar por
+    /// /configuracion/claves-api. Solo el hash SHA256 se persiste.
+    /// </summary>
+    public const string ClaveApiDemoActiva =
+        "hydra_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+    public const string ClaveApiDemoRevocada =
+        "hydra_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
     /// <summary>
     /// Resumen para componer el log y para que el invocador (DelegacionDemoSeeder)
@@ -620,6 +637,28 @@ public static class DatosPruebaSeeder
                 tipoAptoMedico.Id, centrosConCanal[2].Id, incluido: false));
         }
 
+        // --- Credenciales de acceso a portales, de empresa y de subcontrata ---
+        var empresasConCredencial = ElementosAleatoriosUnicos(aleatorio, empresas, Math.Min(3, empresas.Count));
+        for (var i = 0; i < empresasConCredencial.Count; i++)
+        {
+            dbContext.CredencialesAccesoEmpresa.Add(new CredencialAccesoEmpresa(
+                empresasConCredencial[i].Id,
+                $"https://portal-demo-clientes.local/acceso{i + 1}",
+                empresasConCredencial[i].RazonSocial,
+                $"empresa.demo{i + 1}", "Contrasena#Demo1",
+                i == 0 ? "Credencial compartida con el responsable de PRL." : null));
+        }
+
+        var subcontratasConCredencial = ElementosAleatoriosUnicos(aleatorio, subcontratas, Math.Min(2, subcontratas.Count));
+        for (var i = 0; i < subcontratasConCredencial.Count; i++)
+        {
+            dbContext.CredencialesAccesoSubcontrata.Add(new CredencialAccesoSubcontrata(
+                subcontratasConCredencial[i].Id,
+                $"https://portal-demo-clientes.local/subacceso{i + 1}",
+                subcontratasConCredencial[i].RazonSocial,
+                $"subcontrata.demo{i + 1}", "Contrasena#Demo1"));
+        }
+
         // --- Tarifas de facturación por cliente: los 7 conceptos con ejemplar ---
         foreach (var cliente in clientes)
         {
@@ -780,8 +819,43 @@ public static class DatosPruebaSeeder
 
         await SembrarReclamacionesAsync(dbContext, clientes, cancellationToken);
 
+        // --- Claves API (activa y revocada), filtros guardados y preferencia
+        // de dashboard: /configuracion/claves-api y los selectores de filtro
+        // no arrancan vacíos, y la API pública V1 es llamable con la clave de
+        // demo en claro (ver ClaveApiDemoActiva) ---
+        var creadorClaves = coordinadorPrincipal ?? gestoresPrueba.FirstOrDefault();
+        if (creadorClaves is not null)
+        {
+            dbContext.ClavesApi.Add(new ClaveApi(
+                "Integración de demo (activa)", ClaveApiDemoActiva[..12],
+                HashSha256(ClaveApiDemoActiva), creadorClaves.Id));
+
+            var claveRevocada = new ClaveApi(
+                "Integración antigua (revocada)", ClaveApiDemoRevocada[..12],
+                HashSha256(ClaveApiDemoRevocada), creadorClaves.Id);
+            claveRevocada.Revocar();
+            dbContext.ClavesApi.Add(claveRevocada);
+        }
+
+        var gestorConPreferencias = gestoresPrueba.FirstOrDefault();
+        if (gestorConPreferencias is not null)
+        {
+            dbContext.FiltrosGuardados.Add(new FiltroGuardado(
+                gestorConPreferencias.Id, PantallasConFiltrosGuardados.Clientes, "Solo críticos",
+                """{"soloCriticos":true}"""));
+            dbContext.FiltrosGuardados.Add(new FiltroGuardado(
+                gestorConPreferencias.Id, PantallasConFiltrosGuardados.Documentos, "Vencidos",
+                """{"estado":"Vencido"}"""));
+            dbContext.PreferenciasDashboardUsuario.Add(new PreferenciaDashboardUsuario(
+                gestorConPreferencias.Id,
+                [CatalogoKpis.TrabajadoresActivos, CatalogoKpis.SemaforoDocumental, CatalogoKpis.IncidenciasAbiertas]));
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    private static string HashSha256(string valor) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(valor))).ToLowerInvariant();
 
     /// <summary>
     /// Historial de lotes de reclamación ya enviados para los primeros
