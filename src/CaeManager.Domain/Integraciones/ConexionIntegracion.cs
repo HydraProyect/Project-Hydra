@@ -12,6 +12,15 @@ namespace CaeManager.Domain.Integraciones;
 /// pipeline de triage de § 12.4 (pensado para un buzón compartido entre
 /// varios clientes, escenario que este slice no cubre).
 ///
+/// <see cref="GestorPropietarioId"/> (ronda de reducción de ruido en
+/// Comunicaciones, patrón "buzón personal del gestor") es un tercer caso,
+/// mutuamente excluyente con <see cref="ClienteId"/>: el buzón personal/
+/// profesional de un gestor concreto — la cuenta de la plataforma externa
+/// (p. ej. DocuSign) es suya, no de ningún Cliente, así que todo lo que
+/// llegue por esta conexión cae ahí. Antes de este campo, "ClienteId null"
+/// solo distinguía "buzón compartido del Tenant" — no había forma de
+/// representar un buzón que pertenece a una persona concreta.
+///
 /// Simplificación deliberada frente al diseño completo de § 3: no hay
 /// ProveedorIntegracion/VersionApiProveedor como catálogo — un único
 /// proveedor (Microsoft 365) no lo justifica todavía (YAGNI, ver el propio
@@ -24,6 +33,7 @@ public class ConexionIntegracion : EntidadBase
     public const int LongitudMaximaUltimoError = 1000;
 
     public Guid? ClienteId { get; private set; }
+    public Guid? GestorPropietarioId { get; private set; }
 
     /// <summary>Identificador de display de la conexión: el buzón en Microsoft 365, el número E.164 en WhatsApp (deuda nominal documentada — la clave operativa WhatsApp es LineaWhatsApp.PhoneNumberId).</summary>
     public string BuzonEmail { get; private set; } = string.Empty;
@@ -42,11 +52,18 @@ public class ConexionIntegracion : EntidadBase
 
     public ConexionIntegracion(
         string buzonEmail, string nombre, Guid? clienteId = null,
-        ProveedorIntegracion proveedor = ProveedorIntegracion.Microsoft365)
+        ProveedorIntegracion proveedor = ProveedorIntegracion.Microsoft365, Guid? gestorPropietarioId = null)
     {
+        if (clienteId is not null && gestorPropietarioId is not null)
+        {
+            throw new ArgumentException(
+                "Un buzón personal de un gestor no puede pertenecer a la vez a un Cliente.", nameof(gestorPropietarioId));
+        }
+
         EstablecerBuzonEmail(buzonEmail);
         EstablecerNombre(nombre);
         ClienteId = clienteId;
+        GestorPropietarioId = gestorPropietarioId;
         Estado = EstadoConexionIntegracion.Habilitada;
         Proveedor = proveedor;
         FechaConectadaUtc = DateTime.UtcNow;

@@ -10,7 +10,7 @@ public record ObtenerConexionesIntegracionQuery : IRequest<IReadOnlyList<Conexio
 
 public record ConexionIntegracionListaDto(
     Guid Id, string BuzonEmail, string Nombre, Guid? ClienteId, string? ClienteNombre, EstadoConexionIntegracion Estado,
-    DateTime FechaConectadaUtc);
+    DateTime FechaConectadaUtc, Guid? GestorPropietarioId);
 
 public class ObtenerConexionesIntegracionQueryHandler(
     IIntegracionesQueryContext integracionesContext, IClientesQueryContext clientesContext, IAlcanceDatosService alcanceDatos)
@@ -33,7 +33,7 @@ public class ObtenerConexionesIntegracionQueryHandler(
             orderby conexion.FechaConectadaUtc descending
             select new ConexionIntegracionListaDto(
                 conexion.Id, conexion.BuzonEmail, conexion.Nombre, conexion.ClienteId, cliente!.RazonSocial, conexion.Estado,
-                conexion.FechaConectadaUtc);
+                conexion.FechaConectadaUtc, conexion.GestorPropietarioId);
 
         return await query.ToListAsync(cancellationToken);
     }

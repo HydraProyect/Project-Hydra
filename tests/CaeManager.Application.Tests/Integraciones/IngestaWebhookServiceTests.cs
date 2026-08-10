@@ -219,4 +219,32 @@ public class IngestaWebhookServiceTests
         evento.Intentos.Should().Be(1);
         evento.ErrorProcesado.Should().NotBeNullOrEmpty();
     }
+
+    [Fact]
+    public void ClasificarCorreoBuzonPersonal_marca_correo_interno_cuando_comparte_dominio_con_el_buzon()
+    {
+        IngestaWebhookService.ClasificarCorreoBuzonPersonal("rrhh@arcosspa.com", "gestor@arcosspa.com")
+            .Should().Be(MotivoRuidoMensaje.CorreoInterno);
+    }
+
+    [Fact]
+    public void ClasificarCorreoBuzonPersonal_marca_correo_interno_para_un_subdominio_propio()
+    {
+        IngestaWebhookService.ClasificarCorreoBuzonPersonal("notificaciones@mail.arcosspa.com", "gestor@arcosspa.com")
+            .Should().Be(MotivoRuidoMensaje.CorreoInterno);
+    }
+
+    [Fact]
+    public void ClasificarCorreoBuzonPersonal_marca_posible_phishing_para_un_dominio_ajeno()
+    {
+        IngestaWebhookService.ClasificarCorreoBuzonPersonal("alguien@dominio-desconocido.com", "gestor@arcosspa.com")
+            .Should().Be(MotivoRuidoMensaje.PosiblePhishing);
+    }
+
+    [Fact]
+    public void ClasificarCorreoBuzonPersonal_marca_posible_phishing_si_el_remitente_no_tiene_forma_de_email()
+    {
+        IngestaWebhookService.ClasificarCorreoBuzonPersonal("no-es-un-email", "gestor@arcosspa.com")
+            .Should().Be(MotivoRuidoMensaje.PosiblePhishing);
+    }
 }

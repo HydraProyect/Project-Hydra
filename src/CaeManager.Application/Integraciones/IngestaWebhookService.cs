@@ -120,6 +120,13 @@ public class IngestaWebhookService(
             proveedorPlataformaCaeId = esNotificacionAutomatica ? candidatos[0].Id : null;
             clasificacionMensaje = new ClasificacionRuidoMensaje(mensajeCreado.Id, esNotificacionAutomatica, proveedorPlataformaCaeId);
             clasificacionRuidoRepositorio.Agregar(clasificacionMensaje);
+
+            // Buzón personal del gestor (ronda de reducción de ruido): un correo que no resolvió a
+            // ninguna plataforma conocida (esNotificacionAutomatica) se clasifica como interno o
+            // posible phishing — nunca sobre un buzón de Cliente, donde todo correo humano es
+            // simplemente correo del cliente, no ruido.
+            if (conexion.GestorPropietarioId is not null && !esNotificacionAutomatica)
+                clasificacionMensaje.CambiarMotivo(ClasificarCorreoBuzonPersonal(mensaje.Remitente, conexion.BuzonEmail));
         }
 
         // Sin Cliente asignado no hay Centros candidatos a los que asociar
@@ -144,6 +151,25 @@ public class IngestaWebhookService(
                     clasificacionMensaje?.CambiarMotivo(MotivoRuidoMensaje.ResumenSinCambios);
             }
         }
+    }
+
+    /// <summary>
+    /// Correo interno cuando el remitente comparte dominio (o subdominio) con el propio buzón
+    /// personal conectado — determinista, sin IA, mismo mecanismo de comparación de host que
+    /// <see cref="ResolucionProveedorPlataformaCaeService.CoincideHost"/>. Cualquier otra cosa se
+    /// marca como posible phishing: heurística deliberadamente simple (§ "Preguntas de menor
+    /// impacto" del plan) — nunca se oculta ni se bloquea el correo, solo es una advertencia visual,
+    /// la decisión de qué hacer siempre es del gestor.
+    /// </summary>
+    public static MotivoRuidoMensaje ClasificarCorreoBuzonPersonal(string? remitente, string? buzonPropio)
+    {
+        var dominioRemitente = ResolucionProveedorPlataformaCaeService.ExtraerDominioCorreo(remitente);
+        var dominioPropio = ResolucionProveedorPlataformaCaeService.ExtraerDominioCorreo(buzonPropio);
+
+        return dominioRemitente is not null && dominioPropio is not null
+            && ResolucionProveedorPlataformaCaeService.CoincideHost(dominioRemitente, dominioPropio)
+                ? MotivoRuidoMensaje.CorreoInterno
+                : MotivoRuidoMensaje.PosiblePhishing;
     }
 
     /// <summary>
