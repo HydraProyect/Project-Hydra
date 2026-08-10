@@ -793,7 +793,7 @@ public static class DatosPruebaSeeder
         lista.Add(trabajador);
     }
 
-    private static string GenerarDniValido(int numero)
+    internal static string GenerarDniValido(int numero)
     {
         const string letrasControl = "TRWAGMYFPDXBNJZSQVHLCKE";
         return $"{numero:D8}{letrasControl[numero % 23]}";

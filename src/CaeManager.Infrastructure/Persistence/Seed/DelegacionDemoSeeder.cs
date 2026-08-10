@@ -74,6 +74,7 @@ public static class DelegacionDemoSeeder
         {
             await DatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
             await ComunicacionesDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
+            await CicloDocumentalDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
         }
 
         await CrearDelegacionConAdministradorAsync(
@@ -133,8 +134,18 @@ public static class DelegacionDemoSeeder
             // cuenta filas (ese conteo no necesita el join a TiposDocumento).
             // Ids nuevos a propósito — el Id de TipoDocumentoSeedData es
             // fijo para las filas del tenant #1, no reutilizable aquí.
-            dbContext.TiposDocumento.AddRange(TipoDocumentoSeedData.Datos.Select(t => new TipoDocumento(
-                t.Nombre, t.VigenciaMeses, t.AplicaVencimiento, t.Orden, t.Ambito, t.EsObligatorio, t.Notas)));
+            dbContext.TiposDocumento.AddRange(TipoDocumentoSeedData.Datos.Select(t =>
+            {
+                var copia = new TipoDocumento(
+                    t.Nombre, t.VigenciaMeses, t.AplicaVencimiento, t.Orden, t.Ambito, t.EsObligatorio, t.Notas);
+                // El constructor no expone los flags de IA que el HasData sí
+                // fija para el tenant #1 — sin esto la copia nace sin
+                // detección de trabajadores ni perfil oficial, y esos flujos
+                // no se pueden ejercitar en los tenants de demo.
+                copia.EstablecerDeteccionTrabajadoresActiva(TipoDocumentoSeedData.TieneDeteccionTrabajadores(t.Nombre));
+                copia.EstablecerPerfilDocumentoOficial(TipoDocumentoSeedData.PerfilOficialDe(t.Nombre));
+                return copia;
+            }));
 
             await dbContext.SaveChangesAsync(cancellationToken);
         }

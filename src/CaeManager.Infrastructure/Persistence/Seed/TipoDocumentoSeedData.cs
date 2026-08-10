@@ -148,6 +148,21 @@ public static class TipoDocumentoSeedData
         [new Guid("20000000-0000-0000-0000-000000000007")] = PerfilDocumentoOficial.Rnt,
     };
 
+    /// <summary>
+    /// Flags de IA por nombre, para las copias por tenant (ver
+    /// DelegacionDemoSeeder): el constructor de TipoDocumento no los expone
+    /// y el HasData que sí los fija solo cubre el tenant #1 — sin esto, las
+    /// copias de los tenants de demo nacen sin detección de trabajadores ni
+    /// perfil oficial y esos flujos no se pueden ejercitar allí.
+    /// </summary>
+    public static bool TieneDeteccionTrabajadores(string nombre) =>
+        Datos.Any(d => d.Nombre == nombre && IdsConDeteccionTrabajadores.Contains(d.Id));
+
+    public static PerfilDocumentoOficial PerfilOficialDe(string nombre) =>
+        Datos.Where(d => d.Nombre == nombre)
+            .Select(d => PerfilesOficiales.GetValueOrDefault(d.Id, PerfilDocumentoOficial.Ninguno))
+            .FirstOrDefault();
+
     /// <summary>Proyección plana usada por HasData (necesita anonymous/objeto con las propiedades de la entidad).</summary>
     public static IEnumerable<object> ComoFilasParaMigracion() =>
         Datos.Select(d => new
