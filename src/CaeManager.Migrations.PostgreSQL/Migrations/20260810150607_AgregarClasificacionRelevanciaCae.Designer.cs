@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810150607_AgregarClasificacionRelevanciaCae")]
+    partial class AgregarClasificacionRelevanciaCae
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1154,7 +1157,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AprobacionesDocumento", (string)null);
+                    b.ToTable("AprobacionesDocumento");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.ConfiguracionIaDocumentoCliente", b =>
@@ -2522,65 +2525,61 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000001"),
                             AmbitoAplicacion = "Vehiculo",
-                            AplicaVencimientoAutomatico = true,
+                            AplicaVencimientoAutomatico = false,
                             DeteccionTrabajadoresActiva = false,
                             EsObligatorio = true,
                             LecturaIaActiva = true,
                             Nombre = "ITC",
-                            Notas = "Vigencia anual.",
+                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
                             Orden = 1,
                             PerfilDocumentoOficial = "Ninguno",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            VerificacionIaActiva = false,
-                            VigenciaMeses = 12
+                            VerificacionIaActiva = false
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000002"),
                             AmbitoAplicacion = "Vehiculo",
-                            AplicaVencimientoAutomatico = true,
+                            AplicaVencimientoAutomatico = false,
                             DeteccionTrabajadoresActiva = false,
                             EsObligatorio = true,
                             LecturaIaActiva = true,
                             Nombre = "Ficha técnica",
-                            Notas = "Vigencia anual.",
+                            Notas = "No caduca por sí sola, pero se pide como documento adjunto del vehículo.",
                             Orden = 2,
                             PerfilDocumentoOficial = "Ninguno",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            VerificacionIaActiva = false,
-                            VigenciaMeses = 12
+                            VerificacionIaActiva = false
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000003"),
                             AmbitoAplicacion = "Vehiculo",
-                            AplicaVencimientoAutomatico = true,
+                            AplicaVencimientoAutomatico = false,
                             DeteccionTrabajadoresActiva = false,
                             EsObligatorio = true,
                             LecturaIaActiva = true,
                             Nombre = "Seguro",
-                            Notas = "Vigencia anual.",
+                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
                             Orden = 3,
                             PerfilDocumentoOficial = "Ninguno",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            VerificacionIaActiva = false,
-                            VigenciaMeses = 12
+                            VerificacionIaActiva = false
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000004"),
                             AmbitoAplicacion = "Vehiculo",
-                            AplicaVencimientoAutomatico = true,
+                            AplicaVencimientoAutomatico = false,
                             DeteccionTrabajadoresActiva = false,
                             EsObligatorio = true,
                             LecturaIaActiva = true,
                             Nombre = "Autorización de circulación",
-                            Notas = "Vigencia anual.",
+                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
                             Orden = 4,
                             PerfilDocumentoOficial = "Ninguno",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            VerificacionIaActiva = false,
-                            VigenciaMeses = 12
+                            VerificacionIaActiva = false
                         });
                 });
 
@@ -3143,9 +3142,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("FechaConectadaUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid?>("GestorPropietarioId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -3168,10 +3164,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "ClienteId");
-
-                    b.HasIndex("TenantId", "GestorPropietarioId")
-                        .IsUnique()
-                        .HasFilter("\"GestorPropietarioId\" IS NOT NULL AND NOT \"EstaEliminado\"");
 
                     b.HasIndex("TenantId", "Nombre")
                         .IsUnique();
