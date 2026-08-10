@@ -30,6 +30,7 @@ public class IngestaWebhookService(
     IResolucionProveedorPlataformaCaeService resolucionPlataforma,
     IClasificacionRuidoMensajeRepository clasificacionRuidoRepositorio,
     IClasificacionRuidoMensajeService clasificacionRuidoMensaje,
+    IRelevanciaCaeService relevanciaCae,
     ILogger<IngestaWebhookService> logger)
 {
     // Tope defensivo, no un límite real de Graph: un adjunto de correo
@@ -125,6 +126,7 @@ public class IngestaWebhookService(
         // una sugerencia — la conversación sigue en la cola de triage.
         if (conversacion.ClienteId is { } clienteId)
         {
+            await relevanciaCae.ProcesarAsync(conversacion, cancellationToken);
             await sugerenciaVisita.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
             var resultadoGestion = await sugerenciaGestion.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
 
