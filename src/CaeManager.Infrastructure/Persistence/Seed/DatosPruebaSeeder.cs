@@ -1,11 +1,22 @@
+using System.Security.Cryptography;
+using System.Text;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
+using CaeManager.Application.Dashboard.Catalogo;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Incidencias;
+using CaeManager.Domain.Integraciones;
+using CaeManager.Domain.Notificaciones;
+using CaeManager.Domain.Proyectos;
+using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
@@ -26,8 +37,9 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// en una mezcla realista de estados (vigente/próximo/urgente/vencido), más
 /// los datos que ejercitan el resto de flujos — asignaciones coherentes (un
 /// trabajador solo trabaja en centros de su propia empresa), visitas,
-/// evaluaciones, incidencias, vehículos con su documentación y tarifas de
-/// facturación — y un grupo de "veteranos" dados de baja hace más de cinco
+/// evaluaciones, incidencias, vehículos con su documentación, proyectos con
+/// sus técnicos, gestiones documentales y tarifas de facturación de los 7
+/// conceptos — y un grupo de "veteranos" dados de baja hace más de cinco
 /// años cuyos datos son exactamente lo que el barrido de retención
 /// (`DeteccionPurgaService`) debe proponer purgar.
 ///
@@ -48,6 +60,17 @@ public static class DatosPruebaSeeder
     private const string PrefijoEmailPrueba = "prueba.";
     private const string DominioEmailPrueba = "@caemanager.local";
     public const string ContrasenaUsuariosPrueba = "Prueba#2026";
+
+    /// <summary>
+    /// Claves API de demo en claro — sintéticas y públicas a propósito
+    /// (mismo criterio que <see cref="ContrasenaUsuariosPrueba"/>): permiten
+    /// llamar a la API pública V1 contra la siembra sin pasar por
+    /// /configuracion/claves-api. Solo el hash SHA256 se persiste.
+    /// </summary>
+    public const string ClaveApiDemoActiva =
+        "hydra_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+    public const string ClaveApiDemoRevocada =
+        "hydra_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
     /// <summary>
     /// Resumen para componer el log y para que el invocador (DelegacionDemoSeeder)
@@ -499,7 +522,15 @@ public static class DatosPruebaSeeder
         {
             var centroId = ElementoAleatorio(aleatorio, centrosConGente);
             var inicio = hoy.AddDays(aleatorio.Next(-45, 46));
-            var visita = new Visita(centroId, inicio, inicio.AddDays(aleatorio.Next(0, 3)), notas: null);
+            // Índice, no Random: cubre los tres orígenes sin desplazar la
+            // secuencia aleatoria del resto de la siembra.
+            var origen = (i % 8) switch
+            {
+                0 => OrigenVisita.Correo,
+                4 => OrigenVisita.WhatsApp,
+                _ => OrigenVisita.Plataforma
+            };
+            var visita = new Visita(centroId, inicio, inicio.AddDays(aleatorio.Next(0, 3)), notas: null, origen);
             visitas.Add(visita);
 
             dbContext.VisitasTrabajadores.AddRange(
@@ -526,6 +557,121 @@ public static class DatosPruebaSeeder
                 ElementoAleatorio(aleatorio, descripcionesIncidencia));
             if (aleatorio.Next(2) == 0) incidencia.MarcarResuelta();
             dbContext.Incidencias.Add(incidencia);
+        }
+
+        // --- Proyectos (obras) con sus técnicos: abiertos y cerrados, con
+        // algún técnico dado de baja para cubrir las dos ramas de la relación ---
+        string[] nombresProyecto =
+        [
+            "Ampliación Planta", "Reforma Nave", "Instalación Fotovoltaica",
+            "Nueva Línea de Montaje", "Modernización Climatización", "Obra Muelle de Carga"
+        ];
+        var clientesConProyecto = new HashSet<Guid>();
+        var centrosParaProyecto = ElementosAleatoriosUnicos(
+            aleatorio, centros.Where(c => trabajadoresPorCentro.ContainsKey(c.Id)).ToList(),
+            Math.Min(6, centrosConGente.Count));
+        for (var i = 0; i < centrosParaProyecto.Count; i++)
+        {
+            var centro = centrosParaProyecto[i];
+            var inicio = hoy.AddDays(-aleatorio.Next(60, 400));
+            var proyecto = Proyecto.Crear(
+                centro.ClienteId, centro.Id,
+                $"{nombresProyecto[i % nombresProyecto.Length]} {i + 1:D2}",
+                inicio,
+                fechaFinPrevista: aleatorio.Next(2) == 0 ? inicio.AddMonths(aleatorio.Next(6, 24)) : null,
+                notas: null);
+            if (i % 3 == 2)
+                proyecto.Cerrar(inicio.AddDays(aleatorio.Next(30, 60)));
+            dbContext.Proyectos.Add(proyecto);
+            clientesConProyecto.Add(centro.ClienteId);
+
+            var tecnicos = ElementosAleatoriosUnicos(aleatorio, trabajadoresPorCentro[centro.Id], aleatorio.Next(1, 4));
+            for (var j = 0; j < tecnicos.Count; j++)
+            {
+                var alta = inicio.AddDays(aleatorio.Next(0, 30));
+                var tecnico = new ProyectoTecnico(proyecto.Id, tecnicos[j].Id, alta);
+                if (j == 1)
+                    tecnico.DarDeBaja(alta.AddDays(aleatorio.Next(10, 30)));
+                dbContext.ProyectosTecnicos.Add(tecnico);
+            }
+        }
+
+        // --- Gestiones documentales: pendientes y completadas ---
+        foreach (var centroId in ElementosAleatoriosUnicos(aleatorio, centrosConGente, Math.Min(10, centrosConGente.Count)))
+        {
+            var gestion = new Gestion(
+                ElementoAleatorio(aleatorio, trabajadoresPorCentro[centroId]).Id,
+                centroId,
+                ElementoAleatorio(aleatorio, tiposTrabajadorEstandar).Id,
+                notas: aleatorio.Next(2) == 0 ? "Pendiente de recibir el justificante firmado." : null);
+            if (aleatorio.Next(2) == 0)
+                gestion.Completar();
+            dbContext.Gestiones.Add(gestion);
+        }
+
+        // --- Canales de gestión documental: cómo exige cada centro su
+        // documentación — un portal del catálogo (principal) y, en la mitad,
+        // un canal de correo adicional ---
+        var proveedoresCae = await dbContext.ProveedoresPlataformaCae
+            .Where(p => p.Activo).OrderBy(p => p.Codigo).Take(4).ToListAsync(cancellationToken);
+        var centrosConCanal = ElementosAleatoriosUnicos(aleatorio, centros, Math.Min(8, centros.Count));
+        for (var i = 0; i < centrosConCanal.Count; i++)
+        {
+            var centro = centrosConCanal[i];
+            if (proveedoresCae.Count > 0)
+            {
+                var proveedor = proveedoresCae[i % proveedoresCae.Count];
+                var canalPlataforma = CanalGestionDocumental.DePlataforma(
+                    centro.Id, "Gestión general", proveedor.Id,
+                    $"https://portal-demo-{proveedor.Codigo}.local",
+                    $"gestion.demo{i + 1}", "Contrasena#Demo1");
+                canalPlataforma.MarcarComoPrincipal();
+                dbContext.CanalesGestionDocumental.Add(canalPlataforma);
+            }
+
+            if (i % 2 == 0)
+            {
+                dbContext.CanalesGestionDocumental.Add(CanalGestionDocumental.PorEmail(
+                    centro.Id, "Trabajadores extranjeros",
+                    $"cae.centro{i + 1}@correo-simulado.local", "Contacto de demo"));
+            }
+        }
+
+        // --- Requisitos documentales por centro. El bloqueante está
+        // garantizado: ningún trabajador sembrado tiene "DNI o NIE en vigor",
+        // así que ese centro queda en EstadoCentro.Bloqueado ---
+        if (centrosConCanal.Count >= 3)
+        {
+            var tipoDniNie = tiposDocumento.Single(t => t.Nombre == "DNI o NIE en vigor");
+            var tipoAptoMedico = tiposDocumento.Single(t => t.Nombre == "Apto médico laboral");
+            dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
+                tipoDniNie.Id, centrosConCanal[0].Id, bloqueaAcceso: true));
+            dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
+                tipoAptoMedico.Id, centrosConCanal[1].Id, periodicidadEspecialMeses: 6));
+            dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
+                tipoAptoMedico.Id, centrosConCanal[2].Id, incluido: false));
+        }
+
+        // --- Credenciales de acceso a portales, de empresa y de subcontrata ---
+        var empresasConCredencial = ElementosAleatoriosUnicos(aleatorio, empresas, Math.Min(3, empresas.Count));
+        for (var i = 0; i < empresasConCredencial.Count; i++)
+        {
+            dbContext.CredencialesAccesoEmpresa.Add(new CredencialAccesoEmpresa(
+                empresasConCredencial[i].Id,
+                $"https://portal-demo-clientes.local/acceso{i + 1}",
+                empresasConCredencial[i].RazonSocial,
+                $"empresa.demo{i + 1}", "Contrasena#Demo1",
+                i == 0 ? "Credencial compartida con el responsable de PRL." : null));
+        }
+
+        var subcontratasConCredencial = ElementosAleatoriosUnicos(aleatorio, subcontratas, Math.Min(2, subcontratas.Count));
+        for (var i = 0; i < subcontratasConCredencial.Count; i++)
+        {
+            dbContext.CredencialesAccesoSubcontrata.Add(new CredencialAccesoSubcontrata(
+                subcontratasConCredencial[i].Id,
+                $"https://portal-demo-clientes.local/subacceso{i + 1}",
+                subcontratasConCredencial[i].RazonSocial,
+                $"subcontrata.demo{i + 1}", "Contrasena#Demo1"));
         }
 
         // --- Supervisión de subcontratas (ADR-005): niveles de servicio y verificaciones externas ---
@@ -595,13 +741,21 @@ public static class DatosPruebaSeeder
                 "Renovado en el portal — sustituye a la verificación anterior."));
         }
 
-        // --- Tarifas de facturación por cliente ---
+        // --- Tarifas de facturación por cliente: los 7 conceptos con ejemplar ---
         foreach (var cliente in clientes)
         {
             dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.TrabajadorActivo, 8m + aleatorio.Next(0, 8) + 0.50m, "EUR"));
             dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.DocumentoGestionado, 4m + aleatorio.Next(0, 5) + 0.75m, "EUR"));
             if (aleatorio.Next(2) == 0)
                 dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.AltaCentro, 25m + aleatorio.Next(0, 16), "EUR"));
+            if (aleatorio.Next(2) == 0)
+                dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.VisitaTrabajadorExtranjero, 30m + aleatorio.Next(0, 21), "EUR"));
+            if (clientesConProyecto.Contains(cliente.Id))
+            {
+                dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.TecnicoAsignadoProyecto, 12m + aleatorio.Next(0, 6), "EUR"));
+                dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.GestionProyectoRealizada, 18m + aleatorio.Next(0, 10), "EUR"));
+                dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.DiaProyectoAbierto, 3m + aleatorio.Next(0, 4) * 0.5m, "EUR"));
+            }
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -726,7 +880,107 @@ public static class DatosPruebaSeeder
             await userManager.UpdateAsync(clientesPrueba[i]);
         }
 
+        // --- Notificaciones persistentes: la campana de los gestores no debe
+        // arrancar vacía — una sin leer y una ya leída (con acción) por gestor ---
+        foreach (var gestor in gestoresPrueba)
+        {
+            dbContext.NotificacionesUsuario.Add(new NotificacionUsuario(
+                gestor.Id,
+                "Cambio de cartera",
+                "Se te han asignado clientes nuevos en el reparto de cartera de demo."));
+
+            var leida = new NotificacionUsuario(
+                gestor.Id,
+                "Lectura IA desactivada",
+                "Un cliente de tu cartera tiene tipos de documento con la lectura IA desactivada.",
+                urlAccion: "/tipos-documento",
+                textoAccion: "Gestionar");
+            leida.MarcarComoLeida();
+            dbContext.NotificacionesUsuario.Add(leida);
+        }
+
+        await SembrarReclamacionesAsync(dbContext, clientes, cancellationToken);
+
+        // --- Claves API (activa y revocada), filtros guardados y preferencia
+        // de dashboard: /configuracion/claves-api y los selectores de filtro
+        // no arrancan vacíos, y la API pública V1 es llamable con la clave de
+        // demo en claro (ver ClaveApiDemoActiva) ---
+        var creadorClaves = coordinadorPrincipal ?? gestoresPrueba.FirstOrDefault();
+        if (creadorClaves is not null)
+        {
+            dbContext.ClavesApi.Add(new ClaveApi(
+                "Integración de demo (activa)", ClaveApiDemoActiva[..12],
+                HashSha256(ClaveApiDemoActiva), creadorClaves.Id));
+
+            var claveRevocada = new ClaveApi(
+                "Integración antigua (revocada)", ClaveApiDemoRevocada[..12],
+                HashSha256(ClaveApiDemoRevocada), creadorClaves.Id);
+            claveRevocada.Revocar();
+            dbContext.ClavesApi.Add(claveRevocada);
+        }
+
+        var gestorConPreferencias = gestoresPrueba.FirstOrDefault();
+        if (gestorConPreferencias is not null)
+        {
+            dbContext.FiltrosGuardados.Add(new FiltroGuardado(
+                gestorConPreferencias.Id, PantallasConFiltrosGuardados.Clientes, "Solo críticos",
+                """{"soloCriticos":true}"""));
+            dbContext.FiltrosGuardados.Add(new FiltroGuardado(
+                gestorConPreferencias.Id, PantallasConFiltrosGuardados.Documentos, "Vencidos",
+                """{"estado":"Vencido"}"""));
+            dbContext.PreferenciasDashboardUsuario.Add(new PreferenciaDashboardUsuario(
+                gestorConPreferencias.Id,
+                [CatalogoKpis.TrabajadoresActivos, CatalogoKpis.SemaforoDocumental, CatalogoKpis.IncidenciasAbiertas]));
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string HashSha256(string valor) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(valor))).ToLowerInvariant();
+
+    /// <summary>
+    /// Historial de lotes de reclamación ya enviados para los primeros
+    /// clientes con documentación próxima a vencer — ejercita la vista previa
+    /// del lote (que descarta lo reclamado hace poco) y el historial.
+    /// </summary>
+    private static async Task SembrarReclamacionesAsync(
+        CaeManagerDbContext dbContext, List<Cliente> clientes, CancellationToken cancellationToken)
+    {
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var limiteVentana = hoy.AddDays(90);
+        var enviadas = 0;
+
+        foreach (var cliente in clientes)
+        {
+            if (enviadas == 2)
+                break;
+            if (cliente.EjecutivoUsuarioId is null)
+                continue;
+
+            var documentosProximos = await (
+                from documento in dbContext.Documentos
+                join trabajador in dbContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
+                join empresaCliente in dbContext.EmpresasClientes on trabajador.EmpresaId equals (Guid?)empresaCliente.EmpresaId
+                where empresaCliente.ClienteId == cliente.Id
+                      && documento.FechaVencimiento != null
+                      && documento.FechaVencimiento > hoy
+                      && documento.FechaVencimiento <= limiteVentana
+                select documento.Id)
+                .Take(5)
+                .ToListAsync(cancellationToken);
+
+            if (documentosProximos.Count == 0)
+                continue;
+
+            dbContext.ReclamacionesDocumentales.Add(new ReclamacionDocumental(
+                cliente.Id,
+                cliente.EjecutivoUsuarioId.Value,
+                $"portal.cliente{enviadas + 1}@caemanager.local",
+                DateTime.UtcNow.AddDays(-7 * (enviadas + 1)),
+                documentosProximos));
+            enviadas++;
+        }
     }
 
     private static (string Nombre, string Apellidos) SiguienteNombre(ref int indice)
@@ -747,7 +1001,7 @@ public static class DatosPruebaSeeder
         lista.Add(trabajador);
     }
 
-    private static string GenerarDniValido(int numero)
+    internal static string GenerarDniValido(int numero)
     {
         const string letrasControl = "TRWAGMYFPDXBNJZSQVHLCKE";
         return $"{numero:D8}{letrasControl[numero % 23]}";

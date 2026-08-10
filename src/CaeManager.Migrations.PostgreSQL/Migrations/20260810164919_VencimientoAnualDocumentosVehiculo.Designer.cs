@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810164919_VencimientoAnualDocumentosVehiculo")]
+    partial class VencimientoAnualDocumentosVehiculo
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -428,39 +431,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("MensajeId");
 
                     b.ToTable("AdjuntosMensaje", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ClasificacionRelevanciaCae", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("ActualizadaEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Confianza")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("ConversacionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("EsAccionableCae")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Resumen")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ConversacionId")
-                        .IsUnique();
-
-                    b.ToTable("ClasificacionesRelevanciaCae", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ClasificacionRuidoDetalleGestion", b =>
@@ -3143,9 +3113,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("FechaConectadaUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid?>("GestorPropietarioId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -3168,10 +3135,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "ClienteId");
-
-                    b.HasIndex("TenantId", "GestorPropietarioId")
-                        .IsUnique()
-                        .HasFilter("\"GestorPropietarioId\" IS NOT NULL AND NOT \"EstaEliminado\"");
 
                     b.HasIndex("TenantId", "Nombre")
                         .IsUnique();
@@ -4093,9 +4056,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("NivelServicio")
-                        .HasColumnType("integer");
-
                     b.Property<string>("RazonSocial")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -4174,74 +4134,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsUnique();
 
                     b.ToTable("SubcontratasEmpresas", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Subcontratas.VerificacionExternaSubcontrata", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CentroId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreadoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("EliminadoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("EliminadoPorUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("EstaEliminado")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("EvidenciaArchivoRuta")
-                        .HasColumnType("text");
-
-                    b.Property<string>("EvidenciaNombreArchivo")
-                        .HasMaxLength(260)
-                        .HasColumnType("character varying(260)");
-
-                    b.Property<DateOnly>("FechaVerificacion")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Observaciones")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<int>("Resultado")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("SubcontrataId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TipoDocumentoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("UsuarioVerificadorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateOnly?>("ValidoHasta")
-                        .HasColumnType("date");
-
-                    b.Property<Guid>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "CentroId");
-
-                    b.HasIndex("TenantId", "TipoDocumentoId");
-
-                    b.HasIndex("TenantId", "SubcontrataId", "CentroId", "TipoDocumentoId");
-
-                    b.ToTable("VerificacionesExternaSubcontrata", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Tenants.AsignacionOperadorDelegado", b =>
@@ -5257,30 +5149,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("TenantId", "SubcontrataId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Subcontratas.VerificacionExternaSubcontrata", b =>
-                {
-                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "CentroId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CaeManager.Domain.Subcontratas.Subcontrata", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "SubcontrataId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CaeManager.Domain.Documentos.TipoDocumento", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "TipoDocumentoId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
