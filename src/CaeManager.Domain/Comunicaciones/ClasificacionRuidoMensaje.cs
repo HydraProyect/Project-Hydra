@@ -4,15 +4,20 @@ namespace CaeManager.Domain.Comunicaciones;
 
 /// <summary>
 /// Motivo por el que un Mensaje se trata como ruido y se minimiza en la UI — nunca se borra
-/// (ronda de reducción de ruido en Comunicaciones). Se amplía en fases sucesivas: RepeticionPendiente
-/// y ResumenSinCambios llegan con el patrón de plataformas que reclaman lo mismo una y otra vez;
-/// TrabajadorFueraVentana con el patrón de temporeros sin asignación activa; CorreoInterno y
-/// PosiblePhishing con el buzón personal del gestor.
+/// (ronda de reducción de ruido en Comunicaciones). ResumenSinCambios llega con el patrón de
+/// plataformas de solo resumen que repiten los mismos contadores (la repetición de un pendiente ya
+/// reclamado y el trabajador fuera de ventana se clasifican por ítem, no por mensaje — ver
+/// <c>ClasificacionRuidoDetalleGestion</c> y
+/// <c>SugerenciaGestionCorreoService.FiltrarTrabajadoresFueraDeVentana</c>). CorreoInterno y
+/// PosiblePhishing solo se calculan sobre mensajes ingeridos por un buzón personal de un gestor
+/// (<c>ConexionIntegracion.GestorPropietarioId</c>) — nunca sobre un buzón de Cliente.
 /// </summary>
 public enum MotivoRuidoMensaje
 {
     Ninguno = 0,
-    ResumenSinCambios = 1
+    ResumenSinCambios = 1,
+    CorreoInterno = 2,
+    PosiblePhishing = 3
 }
 
 /// <summary>

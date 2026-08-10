@@ -15,8 +15,10 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         ClienteRepositorioFalso clienteRepositorio,
         AlcanceDatosServiceFalso alcanceDatos,
         Microsoft365GraphClientFalso graphClient,
-        UnitOfWorkFalso unitOfWork) =>
-        new(conexionRepositorio, credencialRepositorio, suscripcionRepositorio, clienteRepositorio, alcanceDatos, graphClient, unitOfWork);
+        UnitOfWorkFalso unitOfWork,
+        DirectorioUsuariosServiceFalso? directorioUsuarios = null) =>
+        new(conexionRepositorio, credencialRepositorio, suscripcionRepositorio, clienteRepositorio, alcanceDatos,
+            directorioUsuarios ?? new DirectorioUsuariosServiceFalso(), graphClient, unitOfWork);
 
     [Fact]
     public async Task Conecta_un_buzon_del_propio_tenant_y_persiste_conexion_credencial_y_suscripcion()
@@ -61,6 +63,48 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Cliente.NoEncontrado");
+        conexionRepositorio.Conexiones.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Conecta_un_buzon_personal_de_un_gestor()
+    {
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var gestorId = Guid.NewGuid();
+        var handler = CrearHandler(
+            conexionRepositorio, new CredencialIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(),
+            new ClienteRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(
+            new ConectarBuzonMicrosoft365Command(
+                "gestor@arcosspa.com", "Buzón personal", ClienteId: null, "access-token", "refresh-token", "https://hydra.local",
+                GestorPropietarioId: gestorId),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexionRepositorio.Conexiones.Should().ContainSingle(c => c.GestorPropietarioId == gestorId);
+    }
+
+    [Fact]
+    public async Task Rechaza_un_gestorPropietarioId_no_visible_en_el_tenant()
+    {
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(
+            conexionRepositorio, new CredencialIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(),
+            new ClienteRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(), unitOfWork,
+            new DirectorioUsuariosServiceFalso(esVisible: false));
+
+        var resultado = await handler.Handle(
+            new ConectarBuzonMicrosoft365Command(
+                "gestor@arcosspa.com", "Buzón personal", ClienteId: null, "access-token", "refresh-token", "https://hydra.local",
+                GestorPropietarioId: Guid.NewGuid()),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.GestorNoVisible");
         conexionRepositorio.Conexiones.Should().BeEmpty();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
