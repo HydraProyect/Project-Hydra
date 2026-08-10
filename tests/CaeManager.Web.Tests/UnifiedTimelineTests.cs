@@ -17,7 +17,7 @@ public class UnifiedTimelineTests : BunitContext
     private static MensajeDetalleDto CrearMensaje(
         DateTime fechaUtc, string cuerpo = "Hola", IReadOnlyList<AdjuntoDetalleDto>? adjuntos = null) => new(
         Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", cuerpo, fechaUtc,
-        adjuntos ?? [], null, null);
+        adjuntos ?? [], null, []);
 
     private static EventoDetalleDto CrearEvento(
         DateTime fechaUtc, string descripcion = "Se ha creado una visita.", TipoEventoConversacion tipo = TipoEventoConversacion.VisitaCreada) =>
@@ -100,7 +100,7 @@ public class UnifiedTimelineTests : BunitContext
         var sugerencia = new SugerenciaVisitaDetalleDto(Guid.NewGuid(), null, null, null, null, "Pide una visita", 92, 92, 92);
         var mensaje = new MensajeDetalleDto(
             Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Hola", DateTime.UtcNow,
-            [], sugerencia, null);
+            [], sugerencia, []);
 
         var cut = Render<UnifiedTimeline>(parametros => parametros
             .Add(p => p.Mensajes, [mensaje])
@@ -108,5 +108,25 @@ public class UnifiedTimelineTests : BunitContext
 
         cut.Markup.Should().Contain("Posible solicitud de visita — revisar en Acciones sugeridas");
         cut.FindAll(".accion-card").Should().BeEmpty();
+    }
+
+    /// <summary>Una notificación en bloque puede detectar varios ítems de gestión a la vez (ronda de reducción de ruido en Comunicaciones) — cada uno lleva su propio marcador pasivo.</summary>
+    [Fact]
+    public void Un_mensaje_con_varios_items_de_gestion_muestra_un_marcador_por_cada_uno()
+    {
+        var items = new[]
+        {
+            new SugerenciaGestionDetalleDto(Guid.NewGuid(), Guid.NewGuid(), "Ana García", Guid.NewGuid(), "EPI", "Dos pendientes", 88, 90, 90),
+            new SugerenciaGestionDetalleDto(Guid.NewGuid(), Guid.NewGuid(), "Luis Pérez", Guid.NewGuid(), "Apto médico", "Dos pendientes", 88, 85, 85),
+        };
+        var mensaje = new MensajeDetalleDto(
+            Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "plataforma@ejemplo.com", "Hola", DateTime.UtcNow,
+            [], null, items);
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [mensaje])
+            .Add(p => p.Participantes, []));
+
+        cut.FindAll(".timeline-marca-ia").Should().HaveCount(2);
     }
 }

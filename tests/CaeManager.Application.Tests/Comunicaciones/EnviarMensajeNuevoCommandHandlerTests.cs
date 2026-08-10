@@ -26,7 +26,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
 
         var handler = new EnviarMensajeNuevoCommandHandler(
             conexionRepositorio, conversaciones, new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
-            new FileStorageServiceFalso(), unitOfWork);
+            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), unitOfWork);
 
         return (handler, conversaciones, graphClient);
     }

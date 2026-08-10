@@ -138,7 +138,7 @@ public partial class Bandeja : ComponentBase, IDisposable
         _detalle?.Mensajes.Where(m => m.SugerenciaVisita is not null).Select(m => m.SugerenciaVisita!).ToList() ?? [];
 
     private IReadOnlyList<SugerenciaGestionDetalleDto> SugerenciasGestionPendientes =>
-        _detalle?.Mensajes.Where(m => m.SugerenciaGestion is not null).Select(m => m.SugerenciaGestion!).ToList() ?? [];
+        _detalle?.Mensajes.SelectMany(m => m.SugerenciasGestion).ToList() ?? [];
 
     private bool HayAccionesPendientes =>
         SugerenciasVisitaPendientes.Count > 0 || SugerenciasGestionPendientes.Count > 0 || _detalle?.SugerenciaVinculacion is not null;
