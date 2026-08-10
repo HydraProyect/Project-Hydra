@@ -110,6 +110,23 @@ Una entrada nunca se edita para cambiar lo que se decidió en su momento — si 
 
 **Estado**: Vigente
 
+## 2026-08-10 — Cierre de las dos cuestiones abiertas de `ADR-004`: autoservicio de delegación y no-hibridación de tenants
+
+**Decisión**:
+1. **Autoservicio de delegación** (cierra `ADR-004` § 12, punto 2). La **vinculación** entre un Cliente Delegante y una Consultora que ya existen como tenants es un proceso de autoservicio descentralizado entre ambas partes, **sin intervención del Administrador de plataforma**. Dos flujos simétricos: el Cliente Delegante emite una invitación de delegación (con alcance y vigencia) que la Consultora acepta; o la Consultora envía una solicitud de vinculación que el Cliente Delegante aprueba. **Autoridad única**: solo un usuario con rol `Administrador` en el tenant del **Cliente Delegante** aprueba, modifica o revoca la `DelegacionTenant`; la revocación es unilateral e inmediata y no toca los datos de origen. El alta de un Cliente Delegante que **todavía no existe** en Hydra sigue siendo de la plataforma (`CrearClienteDeleganteCommand` crea el tenant, no solo el vínculo).
+2. **No existen tenants híbridos** (cierra `ADR-004` § 12, punto 6, y su reserva sobre un futuro tenant #1 con datos reales). Un tenant es Cliente Directo/Delegante **o** Consultora, nunca ambos. Una organización con los dos papeles se modela como dos tenants unidos por una `DelegacionTenant`; un tenant que hoy acumulase ambos se escinde mediante migración de datos puntual. **No se admiten excepciones por tenant en el código** (`if (tenantId == 1)`, banderas de "híbrido legacy") en dominio, filtros ni autorización.
+
+**Motivo**: (1) El Administrador de plataforma es un rol de infraestructura SaaS, no un actor del negocio CAE — exigir su intervención en cada vinculación crea un cuello de botella comercial y contradice el principio ya cerrado de que Hydra aplica autorizaciones pero no las arbitra (`ADR-004` § 11.3). La autoridad exclusiva del Cliente Delegante refleja que el dueño de los datos es el único con potestad para delegar su gestión. (2) Las excepciones por tenant en el motor ensucian la capa de dominio, debilitan la frontera de aislamiento (filtro global de `TenantId` + interceptor de sellado) y son deuda técnica permanente; formalizan como invariante lo que `ADR-004` § 5.1 ya elegía (la Consultora es un tenant sin datos operativos propios).
+
+**Alternativas descartadas**:
+- Mantener el alta solo-plataforma como modelo definitivo (era la v1 mínima del hallazgo P0-7, aceptada como provisional) — descartada por el cuello de botella operativo.
+- Permitir que la Consultora se autovincule a un cliente sin aprobación de éste — descartada: rompe la soberanía del dueño de los datos.
+- Soportar tenants híbridos en el motor con banderas o excepciones por Id — descartada por deuda técnica y riesgo sobre el aislamiento.
+
+**Impacto**: `ADR-004-delegacion-consultoras-cae.md` — puntos 2 y 6 de § 12 marcados como cerrados; nueva regla cerrada de producto § 11.5 ("No existen tenants híbridos"). **Nada de esto está implementado**: el flujo de invitación/solicitud, su notificación y la pantalla de aprobación son trabajo nuevo sobre `/delegaciones`, y hasta entonces el alta sigue siendo solo-plataforma. Las implicaciones comerciales del autoservicio (¿venta autoservicio o gestionada?) se coordinan con `docs/business/BUSINESS_ARCHITECTURE.md` al implementarlo. No afecta a `ADR-004` § 13/§ 14 (hipótesis pendientes de revisión legal, con quién se firma el DPA), que siguen abiertas.
+
+**Estado**: Vigente
+
 ## Documentos relacionados
 
 - Todos los documentos de `docs/business/` — cualquiera puede generar una entrada aquí cuando su contenido pasa de `Draft`/`In Progress` a `Approved`.
