@@ -1,0 +1,257 @@
+@*
+    AI Action Review — revisión previa a ejecutar una acción propuesta por
+    Hydra (docs/COMUNICACIONES.md § 12.6). Composición nueva, no reutiliza
+    CRUD/SeccionColapsable/BarraHerramientasLista como base: solo primitives
+    del Design System (Boton, Badge, CampoSelect, CampoTexto, Icono).
+
+    Regla central: el usuario solo edita los campos que Hydra no pudo
+    confirmar con suficiente confianza (§ 33 — la política de confianza es de
+    dominio/aplicación, aquí solo se representa el estado que llega en
+    Campos). Antes de ejecutar, se muestra siempre el payload completo que se
+    va a usar — el mismo Campos en los tres pasos, nunca un objeto "visual"
+    aparte (§ 34).
+
+    Hoy solo lo consume AccionCenter (Visita y Gestión) — pensado para poder
+    reutilizarse el día que haya un tercer tipo de sugerencia, sin generalizar
+    de más mientras solo hay dos consumidores reales (YAGNI, PROJECT.md).
+*@
+@using System.Text.Json
+
+<Modal Visible="Visible" VisibleChanged="ManejarCierreAsync" Titulo="Revisar recomendación de IA"
+       Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="false">
+    <ChildContent>
+        <div class="revision-sugerencia">
+            <p class="revision-sugerencia-subtitulo">@SubtituloPaso</p>
+
+            <ol class="revision-stepper">
+                <li class="revision-stepper-paso @ClaseStepper(1)">
+                    <span class="revision-stepper-circulo">@(_paso > 1 ? "✓" : "1")</span>
+                    <span class="revision-stepper-texto">
+                        <b>Revisar datos</b>
+                        <span>Campos que requieren tu atención</span>
+                    </span>
+                </li>
+                <li class="revision-stepper-linea @(_paso > 1 ? "revision-stepper-linea-completa" : null)"></li>
+                <li class="revision-stepper-paso @ClaseStepper(2)">
+                    <span class="revision-stepper-circulo">@(_paso > 2 ? "✓" : "2")</span>
+                    <span class="revision-stepper-texto">
+                        <b>Vista previa</b>
+                        <span>Resumen de todos los datos</span>
+                    </span>
+                </li>
+                <li class="revision-stepper-linea @(_paso > 2 ? "revision-stepper-linea-completa" : null)"></li>
+                <li class="revision-stepper-paso @ClaseStepper(3)">
+                    <span class="revision-stepper-circulo">3</span>
+                    <span class="revision-stepper-texto">
+                        <b>Confirmación</b>
+                        <span>Ejecutar la acción</span>
+                    </span>
+                </li>
+            </ol>
+
+            @if (!string.IsNullOrWhiteSpace(ErrorConfirmar))
+            {
+                <div class="revision-banner revision-banner-error">
+                    <Icono Nombre="advertencia" Tamano="TamanoIcono.Pequeno" />
+                    <span>@ErrorConfirmar Tus datos no se han perdido — puedes volver a intentarlo.</span>
+                </div>
+            }
+
+            @if (_paso == 1)
+            {
+                var porRevisar = Campos.Where(c => c.RequiereRevision).ToList();
+                var confirmados = Campos.Where(c => !c.RequiereRevision).ToList();
+
+                <div class="revision-banner">
+                    <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
+                    <span>
+                        Hay @porRevisar.Count @(porRevisar.Count == 1 ? "dato que necesita" : "datos que necesitan") tu atención.
+                        Hydra no pudo confirmarlos con suficiente confianza — revisa únicamente estos antes de continuar.
+                    </span>
+                </div>
+
+                <h3 class="revision-seccion-titulo">Requiere tu atención</h3>
+                @foreach (var campo in porRevisar)
+                {
+                    <div class="revision-campo-editable">
+                        <div class="revision-campo-editable-cab">
+                            <span>@campo.Etiqueta</span>
+                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">⚠ Revisar</Badge>
+                        </div>
+                        <p class="revision-campo-editable-detectado">
+                            La IA encontró: <strong>@(campo.ValorOriginalIa ?? "nada — no pudo resolverlo")</strong>
+                            @if (campo.ValorOriginalIa is not null)
+                            {
+                                <span class="revision-campo-editable-confianza">Confianza inicial @campo.ConfianzaOriginal%</span>
+                            }
+                        </p>
+                        @campo.Editor
+                    </div>
+                }
+
+                <button type="button" class="revision-confirmados-toggle" @onclick="() => _confirmadosExpandido = !_confirmadosExpandido">
+                    <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
+                    @confirmados.Count @(confirmados.Count == 1 ? "dato confirmado" : "datos confirmados") por Hydra
+                    <span class="revision-confirmados-toggle-flecha">@(_confirmadosExpandido ? "▲" : "▼")</span>
+                </button>
+                @if (_confirmadosExpandido)
+                {
+                    <dl class="revision-confirmados-lista">
+                        @foreach (var campo in confirmados)
+                        {
+                            <dt>@campo.Etiqueta</dt>
+                            <dd>@campo.ValorFinal <span class="revision-campo-editable-confianza">Confianza @campo.ConfianzaOriginal%</span></dd>
+                        }
+                    </dl>
+                }
+            }
+            else if (_paso == 2)
+            {
+                <div class="revision-banner">
+                    <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
+                    <span>Este es el resumen final. Verifica que todos los datos sean correctos antes de confirmar.</span>
+                </div>
+
+                <h3 class="revision-seccion-titulo">Datos que se utilizarán</h3>
+                <div class="revision-grid-campos">
+                    @foreach (var campo in Campos)
+                    {
+                        <RevisionCampoResumen Campo="campo" />
+                    }
+                </div>
+
+                <div class="revision-leyenda">
+                    <span><Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">✓ Confirmado por IA</Badge></span>
+                    <span><Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">✎ Editado por ti</Badge></span>
+                </div>
+
+                <details class="revision-json">
+                    <summary>&lt;/&gt; Ver datos técnicos</summary>
+                    <pre>@JsonPayload()</pre>
+                </details>
+            }
+            else
+            {
+                var cambios = Campos.Where(c => c.RequiereRevision && c.ValorOriginalIa != c.ValorFinal).ToList();
+
+                <div class="revision-banner">
+                    <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
+                    <span>Todo listo. Al confirmar, se ejecutará la acción con estos datos.</span>
+                </div>
+
+                <div class="revision-confirmacion-columnas">
+                    <div>
+                        <h3 class="revision-seccion-titulo">Resumen final</h3>
+                        @foreach (var campo in Campos)
+                        {
+                            <RevisionCampoResumen Campo="campo" Compacto="true" />
+                        }
+                    </div>
+                    <div>
+                        <h3 class="revision-seccion-titulo">Qué ocurrirá al confirmar</h3>
+                        <ul class="revision-consecuencias">
+                            @foreach (var consecuencia in Consecuencias)
+                            {
+                                <li><Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />@consecuencia</li>
+                            }
+                        </ul>
+
+                        <h3 class="revision-seccion-titulo">Detalle de cambios realizados</h3>
+                        @if (cambios.Count == 0)
+                        {
+                            <p class="revision-sin-cambios">No se realizaron cambios manuales.</p>
+                        }
+                        else
+                        {
+                            @foreach (var campo in cambios)
+                            {
+                                <div class="revision-cambio">
+                                    <span class="revision-cambio-etiqueta">@campo.Etiqueta</span>
+                                    <span class="revision-cambio-antes">@(campo.ValorOriginalIa ?? "sin determinar")</span>
+                                    <span aria-hidden="true">→</span>
+                                    <span class="revision-cambio-despues">@campo.ValorFinal</span>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </ChildContent>
+    <Pie>
+        <div class="revision-pie">
+            @if (_paso > 1)
+            {
+                <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="Confirmando" OnClick="() => _paso--">
+                    ← Volver
+                </Boton>
+            }
+            <span class="revision-pie-paso">Paso @_paso de 3</span>
+            <div class="revision-pie-acciones">
+                <Boton Variante="VarianteBoton.Secundario" Deshabilitado="Confirmando" OnClick="() => ManejarCierreAsync(false)">
+                    Cancelar
+                </Boton>
+                @if (_paso < 3)
+                {
+                    <Boton Deshabilitado="!TodoLoObligatorioResuelto()" OnClick="() => _paso++">
+                        Continuar
+                    </Boton>
+                }
+                else
+                {
+                    <Boton Deshabilitado="!TodoLoObligatorioResuelto()" Cargando="Confirmando" OnClick="() => OnConfirmar.InvokeAsync()">
+                        @TextoAccionFinal
+                    </Boton>
+                }
+            </div>
+        </div>
+    </Pie>
+</Modal>
+
+@code {
+    private int _paso = 1;
+    private bool _confirmadosExpandido;
+    private bool _abiertoAnteriormente;
+
+    [Parameter, EditorRequired] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<CampoRevision> Campos { get; set; } = [];
+    [Parameter, EditorRequired] public string TextoAccionFinal { get; set; } = string.Empty;
+    [Parameter] public IReadOnlyList<string> Consecuencias { get; set; } = [];
+    [Parameter] public bool Confirmando { get; set; }
+    [Parameter] public string? ErrorConfirmar { get; set; }
+    [Parameter, EditorRequired] public EventCallback OnConfirmar { get; set; }
+
+    private string SubtituloPaso => _paso switch
+    {
+        1 => "Revisa y corrige únicamente los datos que Hydra no pudo confirmar.",
+        2 => "Así se usarán estos datos si confirmas.",
+        _ => "Confirma que los datos son correctos antes de ejecutar la acción."
+    };
+
+    /// <summary>Al abrirse, salta el paso 1 si no hay nada que revisar — la propia vista previa ya es la primera pantalla útil.</summary>
+    protected override void OnParametersSet()
+    {
+        if (Visible && !_abiertoAnteriormente)
+        {
+            _paso = Campos.Any(c => c.RequiereRevision) ? 1 : 2;
+            _confirmadosExpandido = false;
+        }
+        _abiertoAnteriormente = Visible;
+    }
+
+    private string ClaseStepper(int paso) => paso == _paso
+        ? "revision-stepper-actual"
+        : paso < _paso
+            ? "revision-stepper-completado"
+            : "revision-stepper-pendiente";
+
+    private bool TodoLoObligatorioResuelto() =>
+        Campos.Where(c => c.Obligatorio).All(c => !string.IsNullOrWhiteSpace(c.ValorFinal));
+
+    private Task ManejarCierreAsync(bool valor) => VisibleChanged.InvokeAsync(valor);
+
+    private string JsonPayload() => JsonSerializer.Serialize(
+        Campos.ToDictionary(c => c.Etiqueta, object? (c) => c.ValorFinal),
+        new JsonSerializerOptions { WriteIndented = true });
+}

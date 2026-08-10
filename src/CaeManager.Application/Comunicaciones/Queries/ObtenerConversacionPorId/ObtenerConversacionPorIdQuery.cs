@@ -27,11 +27,13 @@ public record AdjuntoDetalleDto(Guid Id, string NombreArchivo, string TipoConten
 
 /// <summary>Solo se expone mientras está pendiente (Resuelta = false) — ver ObtenerConversacionPorIdQueryHandler.</summary>
 public record SugerenciaVisitaDetalleDto(
-    Guid Id, Guid? CentroId, string? CentroNombre, DateOnly? FechaInicioSugerida, DateOnly? FechaFinSugerida, string Resumen);
+    Guid Id, Guid? CentroId, string? CentroNombre, DateOnly? FechaInicioSugerida, DateOnly? FechaFinSugerida, string Resumen,
+    int Confianza, int ConfianzaCentro, int ConfianzaFechas);
 
 /// <summary>Solo se expone mientras está pendiente (Resuelta = false) — mismo criterio que SugerenciaVisitaDetalleDto.</summary>
 public record SugerenciaGestionDetalleDto(
-    Guid Id, Guid? TrabajadorId, string? TrabajadorNombre, Guid? TipoDocumentoId, string? TipoDocumentoNombre, string Resumen);
+    Guid Id, Guid? TrabajadorId, string? TrabajadorNombre, Guid? TipoDocumentoId, string? TipoDocumentoNombre, string Resumen,
+    int Confianza, int ConfianzaTrabajador, int ConfianzaTipoDocumento);
 
 public record MensajeDetalleDto(
     Guid Id, DireccionMensaje Direccion, CanalConversacion Canal, string Remitente, string CuerpoHtml, DateTime FechaUtc,
@@ -153,7 +155,7 @@ public class ObtenerConversacionPorIdQueryHandler(
             s => s.MensajeId,
             s => new SugerenciaVisitaDetalleDto(
                 s.Id, s.CentroId, s.CentroId is not null ? nombresCentro.GetValueOrDefault(s.CentroId.Value) : null,
-                s.FechaInicioSugerida, s.FechaFinSugerida, s.Resumen));
+                s.FechaInicioSugerida, s.FechaFinSugerida, s.Resumen, s.Confianza, s.ConfianzaCentro, s.ConfianzaFechas));
 
         var sugerenciasGestionPendientes = await comunicacionesContext.SugerenciasGestionCorreo
             .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeId) && !s.Resuelta)
@@ -176,7 +178,7 @@ public class ObtenerConversacionPorIdQueryHandler(
             s => new SugerenciaGestionDetalleDto(
                 s.Id, s.TrabajadorId, s.TrabajadorId is not null ? nombresTrabajador.GetValueOrDefault(s.TrabajadorId.Value) : null,
                 s.TipoDocumentoId, s.TipoDocumentoId is not null ? nombresTipoDocumento.GetValueOrDefault(s.TipoDocumentoId.Value) : null,
-                s.Resumen));
+                s.Resumen, s.Confianza, s.ConfianzaTrabajador, s.ConfianzaTipoDocumento));
 
         var mensajes = mensajesCrudos
             .Select(m => new MensajeDetalleDto(

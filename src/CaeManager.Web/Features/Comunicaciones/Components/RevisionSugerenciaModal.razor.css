@@ -1,0 +1,325 @@
+/* AI Action Review (docs/COMUNICACIONES.md § 12.6) — composición nueva,
+   pero el ancho más generoso de este modal en concreto (dos columnas de
+   datos) es la única razón para ampliar Modal más allá de "Grande": se hace
+   con ::deep sobre el propio contenedor de Modal, sin tocar su CSS
+   compartido ni afectar a ningún otro modal de la app. */
+::deep .modal-contenido-grande {
+    max-width: 1200px;
+}
+
+::deep .modal-cuerpo {
+    padding-top: var(--space-4);
+}
+
+.revision-sugerencia-subtitulo {
+    margin: 0 0 var(--space-4);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+/* --- Stepper --- */
+.revision-stepper {
+    display: flex;
+    align-items: flex-start;
+    list-style: none;
+    margin: 0 0 var(--space-5);
+    padding: 0;
+}
+
+.revision-stepper-paso {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.revision-stepper-circulo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    font: var(--font-label-md);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+}
+
+.revision-stepper-texto {
+    display: flex;
+    flex-direction: column;
+    font: var(--font-body-sm);
+    white-space: nowrap;
+}
+
+.revision-stepper-texto span {
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+}
+
+.revision-stepper-linea {
+    flex: 1;
+    height: 1px;
+    background-color: var(--color-border);
+    margin: 14px var(--space-2) 0;
+}
+
+.revision-stepper-linea-completa {
+    background-color: var(--color-primary-500);
+}
+
+.revision-stepper-actual .revision-stepper-circulo {
+    border-color: var(--color-primary-500);
+    background-color: var(--color-primary-500);
+    color: #fff;
+}
+
+.revision-stepper-completado .revision-stepper-circulo {
+    border-color: var(--color-success-700);
+    background-color: var(--color-success-700);
+    color: #fff;
+}
+
+/* --- Banners --- */
+.revision-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+    font: var(--font-body-sm);
+    margin-bottom: var(--space-4);
+}
+
+.revision-banner-error {
+    background-color: var(--color-danger-50);
+    color: var(--color-danger-700);
+}
+
+/* --- Paso 1: campos editables --- */
+.revision-seccion-titulo {
+    margin: 0 0 var(--space-3);
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.revision-campo-editable {
+    border: 1px solid var(--color-warning-500);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-3);
+    background-color: var(--color-warning-50);
+}
+
+.revision-campo-editable-cab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font: var(--font-label-md);
+    margin-bottom: var(--space-2);
+}
+
+.revision-campo-editable-detectado {
+    margin: 0 0 var(--space-3);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.revision-campo-editable-confianza {
+    margin-left: var(--space-2);
+    font-variant-numeric: tabular-nums;
+}
+
+.revision-confirmados-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    margin-top: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface-subtle);
+    color: var(--color-success-700);
+    font: var(--font-body-sm);
+    cursor: pointer;
+}
+
+.revision-confirmados-toggle-flecha {
+    margin-left: auto;
+    color: var(--color-text-muted);
+}
+
+.revision-confirmados-lista {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-2) var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    margin: 0;
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.revision-confirmados-lista dt {
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+}
+
+.revision-confirmados-lista dd {
+    margin: 0;
+    font: var(--font-body-sm);
+}
+
+/* --- Paso 2: grid de campos --- */
+.revision-grid-campos {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+@media (max-width: 767px) {
+    .revision-grid-campos {
+        grid-template-columns: 1fr;
+    }
+}
+
+.revision-leyenda {
+    display: flex;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.revision-json {
+    margin-bottom: var(--space-2);
+}
+
+.revision-json summary {
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.revision-json pre {
+    margin-top: var(--space-2);
+    padding: var(--space-3);
+    background-color: var(--color-surface-subtle);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    overflow-x: auto;
+}
+
+/* --- Paso 3: confirmación --- */
+.revision-confirmacion-columnas {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-5);
+}
+
+@media (max-width: 767px) {
+    .revision-confirmacion-columnas {
+        grid-template-columns: 1fr;
+    }
+}
+
+.revision-consecuencias {
+    list-style: none;
+    margin: 0 0 var(--space-4);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.revision-consecuencias li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    font: var(--font-body-sm);
+    color: var(--color-text);
+}
+
+.revision-consecuencias li .icono {
+    color: var(--color-success-700);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.revision-sin-cambios {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.revision-cambio {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface-subtle);
+    font: var(--font-body-sm);
+    margin-bottom: var(--space-2);
+}
+
+.revision-cambio-etiqueta {
+    font: var(--font-label-md);
+    flex-basis: 100%;
+}
+
+.revision-cambio-antes {
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+}
+
+.revision-cambio-despues {
+    color: var(--color-primary-700);
+    font-weight: 600;
+}
+
+/* --- Pie --- */
+.revision-pie {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+}
+
+.revision-pie-paso {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+.revision-pie-acciones {
+    display: flex;
+    gap: var(--space-2);
+    margin-left: auto;
+}
+
+@media (max-width: 640px) {
+    .revision-pie {
+        flex-wrap: wrap;
+    }
+
+    .revision-pie-paso {
+        order: 1;
+        width: 100%;
+        text-align: center;
+    }
+
+    .revision-pie-acciones {
+        order: 2;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .revision-pie-acciones .boton {
+        flex: 1;
+    }
+}

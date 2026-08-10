@@ -11,7 +11,7 @@ public class DescartarSugerenciaVisitaCorreoCommandHandlerTests
     [Fact]
     public async Task Marca_la_sugerencia_como_resuelta()
     {
-        var sugerencia = new SugerenciaVisitaCorreo(Guid.NewGuid(), null, null, null, "Resumen");
+        var sugerencia = new SugerenciaVisitaCorreo(Guid.NewGuid(), null, null, null, "Resumen", 90, 0, 0);
         var repositorio = new SugerenciaVisitaCorreoRepositorioFalso();
         repositorio.Agregar(sugerencia);
         var handler = new DescartarSugerenciaVisitaCorreoCommandHandler(repositorio, new UnitOfWorkFalso());

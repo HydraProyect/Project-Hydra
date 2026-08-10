@@ -83,6 +83,7 @@ public class SugerenciaGestionCorreoService(
 
         sugerenciaRepositorio.Agregar(new SugerenciaGestionCorreo(
             mensaje.Id, deteccionDto.TrabajadorId, deteccionDto.TipoDocumentoId,
-            deteccionDto.Resumen ?? "El correo parece pedir la actualización de un documento."));
+            deteccionDto.Resumen ?? "El correo parece pedir la actualización de un documento.",
+            deteccionDto.Confianza, deteccionDto.ConfianzaTrabajador, deteccionDto.ConfianzaTipoDocumento));
     }
 }

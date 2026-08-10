@@ -78,6 +78,20 @@ public partial class Visitas : ComponentBase
     [SupplyParameterFromQuery(Name = "sugerenciaId")]
     public string? SugerenciaVisitaIdInicial { get; set; }
 
+    // Overrides opcionales del Action Center de Comunicaciones
+    // (docs/COMUNICACIONES.md § 12.6): cuando el gestor corrigió Centro o
+    // fechas en la revisión previa a confirmar, viajan aquí y prevalecen
+    // sobre lo que trae la propia SugerenciaVisitaCorreo almacenada — la
+    // corrección "se manda junto con la confirmación", sin persistirse antes.
+    [SupplyParameterFromQuery(Name = "centroId")]
+    public string? CentroIdOverride { get; set; }
+
+    [SupplyParameterFromQuery(Name = "fechaInicio")]
+    public string? FechaInicioOverride { get; set; }
+
+    [SupplyParameterFromQuery(Name = "fechaFin")]
+    public string? FechaFinOverride { get; set; }
+
     private bool _confirmarEliminarVisible;
     private Guid _idAEliminar;
     private string _centroAEliminar = string.Empty;
@@ -249,9 +263,20 @@ public partial class Visitas : ComponentBase
 
         _sugerenciaVisitaCorreoId = sugerencia.Id;
         _sugerenciaVisitaResumen = sugerencia.Resumen;
-        _centroId = sugerencia.CentroId?.ToString() ?? string.Empty;
-        if (sugerencia.FechaInicio is not null) _fechaInicio = sugerencia.FechaInicio.Value.ToString("yyyy-MM-dd");
-        if (sugerencia.FechaFin is not null) _fechaFin = sugerencia.FechaFin.Value.ToString("yyyy-MM-dd");
+
+        _centroId = Guid.TryParse(CentroIdOverride, out var centroIdCorregido)
+            ? centroIdCorregido.ToString()
+            : sugerencia.CentroId?.ToString() ?? string.Empty;
+
+        if (DateOnly.TryParse(FechaInicioOverride, out var fechaInicioCorregida))
+            _fechaInicio = fechaInicioCorregida.ToString("yyyy-MM-dd");
+        else if (sugerencia.FechaInicio is not null)
+            _fechaInicio = sugerencia.FechaInicio.Value.ToString("yyyy-MM-dd");
+
+        if (DateOnly.TryParse(FechaFinOverride, out var fechaFinCorregida))
+            _fechaFin = fechaFinCorregida.ToString("yyyy-MM-dd");
+        else if (sugerencia.FechaFin is not null)
+            _fechaFin = sugerencia.FechaFin.Value.ToString("yyyy-MM-dd");
     }
 
     private async Task AbrirEditarAsync(Guid id)
