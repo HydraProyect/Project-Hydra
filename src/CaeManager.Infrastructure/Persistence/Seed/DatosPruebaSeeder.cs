@@ -322,6 +322,7 @@ public static class DatosPruebaSeeder
         // --- Subcontratas, vinculadas a clientes y empresas reales ---
         var subcontratas = new List<Subcontrata>();
         var empresasPorSubcontrata = new Dictionary<Guid, List<Empresa>>();
+        var clientesPorSubcontrata = new Dictionary<Guid, List<Cliente>>();
         for (var i = 0; i < numeroSubcontratas; i++)
         {
             var subcontrata = new Subcontrata($"Subcontrata {ElementoAleatorio(aleatorio, MarcasCaricatura)} {ElementoAleatorio(aleatorio, SectoresEmpresa)} {i + 1:D2} {ElementoAleatorio(aleatorio, SufijosSociedad)}");
@@ -331,9 +332,10 @@ public static class DatosPruebaSeeder
             empresasPorSubcontrata[subcontrata.Id] = empresasVinculadas;
             dbContext.SubcontratasEmpresas.AddRange(
                 empresasVinculadas.Select(e => new SubcontrataEmpresa(subcontrata.Id, e.Id)));
+            var clientesVinculados = ElementosAleatoriosUnicos(aleatorio, clientes, aleatorio.Next(1, 3));
+            clientesPorSubcontrata[subcontrata.Id] = clientesVinculados;
             dbContext.SubcontratasClientes.AddRange(
-                ElementosAleatoriosUnicos(aleatorio, clientes, aleatorio.Next(1, 3))
-                    .Select(c => new SubcontrataCliente(subcontrata.Id, c.Id)));
+                clientesVinculados.Select(c => new SubcontrataCliente(subcontrata.Id, c.Id)));
         }
         dbContext.Subcontratas.AddRange(subcontratas);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -397,11 +399,24 @@ public static class DatosPruebaSeeder
                 .ToList();
             if (centrosAlcanzables.Count == 0) continue;
 
-            foreach (var trabajador in trabajadoresPorSubcontrata[subcontrata.Id])
+            var plantillaSubcontrata = trabajadoresPorSubcontrata[subcontrata.Id];
+            for (var i = 0; i < plantillaSubcontrata.Count; i++)
             {
-                var centro = ElementoAleatorio(aleatorio, centrosAlcanzables);
-                asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy.AddDays(-aleatorio.Next(30, 600))));
-                Agrupar(trabajadoresPorCentro, centro.Id, trabajador);
+                var trabajador = plantillaSubcontrata[i];
+
+                // Requerimiento global nº 1 — Subcontrata 360 (ADR-005): el
+                // primer trabajador de cada subcontrata con >1 centro
+                // alcanzable queda activo en dos centros a la vez, para que
+                // la unión de documentación exigida (el rasgo que distingue
+                // Subcontrata 360 de una lista plana de trabajadores) sea
+                // visible con datos reales, no solo en los tests de
+                // integración.
+                var numeroCentros = i == 0 ? Math.Min(2, centrosAlcanzables.Count) : 1;
+                foreach (var centro in ElementosAleatoriosUnicos(aleatorio, centrosAlcanzables, numeroCentros))
+                {
+                    asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy.AddDays(-aleatorio.Next(30, 600))));
+                    Agrupar(trabajadoresPorCentro, centro.Id, trabajador);
+                }
             }
         }
         dbContext.Asignaciones.AddRange(asignaciones);
@@ -511,6 +526,73 @@ public static class DatosPruebaSeeder
                 ElementoAleatorio(aleatorio, descripcionesIncidencia));
             if (aleatorio.Next(2) == 0) incidencia.MarcarResuelta();
             dbContext.Incidencias.Add(incidencia);
+        }
+
+        // --- Supervisión de subcontratas (ADR-005): niveles de servicio y verificaciones externas ---
+        // La mitad pasa a Supervisada; las verificaciones cubren todos los
+        // resultados y todos los estados del semáforo (vigente, próximo,
+        // urgente, vencido, válido sin caducidad, no válido, no encontrado),
+        // más un caso con historial (dos verificaciones del mismo tipo — la
+        // última manda) y tipos exigidos sin verificar, que quedan solos.
+        // La primera subcontrata queda Gestionada CON verificaciones: son
+        // hechos registrables en ambos niveles, no exclusivos de Supervisada.
+        var centrosPorCliente = centros.GroupBy(c => c.ClienteId).ToDictionary(g => g.Key, g => g.ToList());
+        var tiposSupervisables = tiposDocumento
+            .Where(t => t.AmbitoAplicacion is AmbitoAplicacion.Trabajador or AmbitoAplicacion.Empresa)
+            .OrderBy(t => t.Orden)
+            .ToList();
+        // Sin FK a usuarios (los usuarios de prueba se siembran después):
+        // basta un verificador ficticio estable dentro de la tanda.
+        var verificadorSiembraId = Guid.NewGuid();
+        var variante = 0;
+        for (var indice = 0; indice < subcontratas.Count; indice++)
+        {
+            var subcontrata = subcontratas[indice];
+            if (indice % 2 == 1)
+                subcontrata.CambiarNivelServicio(NivelServicioSubcontrata.Supervisada);
+
+            if (subcontrata.NivelServicio != NivelServicioSubcontrata.Supervisada && indice != 0)
+                continue;
+
+            var centrosDeSusClientes = clientesPorSubcontrata[subcontrata.Id]
+                .Where(c => centrosPorCliente.ContainsKey(c.Id))
+                .SelectMany(c => centrosPorCliente[c.Id])
+                .ToList();
+            if (centrosDeSusClientes.Count == 0 || tiposSupervisables.Count == 0)
+                continue;
+
+            var centroSupervisado = centrosDeSusClientes[0];
+            foreach (var tipo in tiposSupervisables.Take(7))
+            {
+                DateOnly? validoHasta = (variante % 7) switch
+                {
+                    0 => hoy.AddDays(120),
+                    1 => hoy.AddDays(20),
+                    2 => hoy.AddDays(5),
+                    3 => hoy.AddDays(-10),
+                    _ => null
+                };
+                var resultadoVerificacion = (variante % 7) switch
+                {
+                    5 => ResultadoVerificacionExterna.NoValido,
+                    6 => ResultadoVerificacionExterna.NoEncontrado,
+                    _ => ResultadoVerificacionExterna.Valido
+                };
+                dbContext.VerificacionesExternaSubcontrata.Add(new VerificacionExternaSubcontrata(
+                    subcontrata.Id, centroSupervisado.Id, tipo.Id,
+                    hoy.AddDays(-aleatorio.Next(1, 15)), resultadoVerificacion, verificadorSiembraId, validoHasta,
+                    resultadoVerificacion == ResultadoVerificacionExterna.Valido
+                        ? null
+                        : "Detectado en revisión del portal del titular."));
+                variante++;
+            }
+
+            // Historial: una verificación posterior del primer tipo — el
+            // semáforo debe calcularse con esta, no con la de arriba.
+            dbContext.VerificacionesExternaSubcontrata.Add(new VerificacionExternaSubcontrata(
+                subcontrata.Id, centroSupervisado.Id, tiposSupervisables[0].Id,
+                hoy, ResultadoVerificacionExterna.Valido, verificadorSiembraId, hoy.AddDays(180),
+                "Renovado en el portal — sustituye a la verificación anterior."));
         }
 
         // --- Tarifas de facturación por cliente ---
