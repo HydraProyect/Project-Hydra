@@ -750,6 +750,26 @@ como implementado o presente algo que no está construido.
 
 ## Decisiones posteriores al reset (Fase 4)
 
+### DDL-068 — Alcance de DDL-050 se cierra: solo "qué llegó sin ver", no "qué avanzó el sistema"
+- **Decisión**: el blueprint de Operational Home (`docs/blueprints/OPERATIONAL-HOME.md`) construye
+  únicamente la mitad de DDL-050 que tiene datos reales — **"qué llegó sin ver"**. "Qué avanzó el
+  sistema" queda **fuera de esta ronda**, sin blueprint ni fecha.
+- **Estado**: Vigente · **Fecha**: 2026-08-10
+- **Motivo**: al diseñar los tres prerrequisitos de DDL-050 se encontró que "qué llegó sin ver"
+  tiene timestamp real en las tres fuentes que lo componen (`SugerenciaVisitaCorreo.CreadaEnUtc`,
+  `SugerenciaGestionCorreo.CreadaEnUtc`, `RevisionIaDocumentoDto.CreadaEnUtc`), pero "qué avanzó el
+  sistema" no tiene ninguna fuente — no existe en el dominio un log transversal de "acciones
+  automáticas que Hydra ejecutó" (`TipoEventoConversacion` solo cubre eventos dentro de una
+  conversación). Construir ese log es dominio nuevo, no composición de queries existentes como el
+  resto del blueprint — se decide no bloquear la v1 del Home a esa pieza mayor.
+- **Prerrequisitos de DDL-050 resueltos dentro de este alcance**: modelo de "visto" =
+  `UltimaActividadUtc` por usuario, actualizado en cualquier interacción autenticada con la
+  plataforma (no solo al abrir el Home); "ausencia" = sin sesión activa **o** más de 10 minutos sin
+  actividad — un único chequeo (`ahora − UltimaActividadUtc > 10 min`), porque una sesión cerrada
+  ya deja de generar actividad y por tanto supera ese umbral por definición; la cola consumida
+  sigue siendo la de la Bandeja (DDL-046), filtrada a los tres orígenes con timestamp real.
+- **Documentos afectados**: `docs/blueprints/OPERATIONAL-HOME.md` § 6.
+
 ### DDL-057 — Texto principal en tema claro (cierra OD-23)
 - **Decisión**: se declara **`#161E27`** como valor normativo del texto principal en tema claro,
   y su sitio es `02` § 4.1 — la capa de identidad —, no `06`.
