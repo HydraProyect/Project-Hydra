@@ -50,6 +50,12 @@ public enum TipoItemBandeja
     DeteccionPendiente
 }
 
+/// <param name="CreadaEnUtc">
+/// Cuándo apareció este ítem — solo lo tienen SugerenciaVisitaUrgente/DeteccionPendiente/RevisionIa
+/// (docs/blueprints/OPERATIONAL-HOME.md § 6): un documento Vencido/Faltante/Urgente no "aparece",
+/// su estado cambia, así que no tiene un momento de creación que registrar. Alimenta el resumen
+/// de ausencia — null en el resto de tipos.
+/// </param>
 public record ItemBandejaDto(
     string Id,
     TipoItemBandeja Tipo,
@@ -62,7 +68,8 @@ public record ItemBandejaDto(
     Guid? TipoDocumentoId,
     Guid? RequisitoId,
     Guid? SugerenciaVisitaId = null,
-    Guid? EmpresaId = null);
+    Guid? EmpresaId = null,
+    DateTime? CreadaEnUtc = null);
 
 public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracionQueryContext configuracionContext)
     : IRequestHandler<ObtenerBandejaGestorQuery, IReadOnlyList<ItemBandejaDto>>
@@ -131,7 +138,8 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             CentroId: null,
             DocumentoId: r.DocumentoId,
             TipoDocumentoId: null,
-            RequisitoId: null)));
+            RequisitoId: null,
+            CreadaEnUtc: r.CreadaEnUtc)));
 
         items.AddRange(requisitos.Select(rq => new ItemBandejaDto(
             Id: $"requisito-{rq.CentroId}-{rq.TrabajadorId}-{rq.TipoDocumentoId}",
@@ -178,7 +186,8 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 DocumentoId: null,
                 TipoDocumentoId: null,
                 RequisitoId: null,
-                SugerenciaVisitaId: s.Id)));
+                SugerenciaVisitaId: s.Id,
+                CreadaEnUtc: s.CreadaEnUtc)));
 
         items.AddRange(detecciones.Select(d => new ItemBandejaDto(
             Id: $"deteccion-{d.Id}",
@@ -191,7 +200,8 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             DocumentoId: null,
             TipoDocumentoId: null,
             RequisitoId: null,
-            EmpresaId: d.EmpresaId)));
+            EmpresaId: d.EmpresaId,
+            CreadaEnUtc: d.CreadaEnUtc)));
 
         // Una sugerencia sin confirmar pesa más que cualquier otra cosa: sin
         // confirmarla no hay ni Visita ni documentación que verificar. Entre

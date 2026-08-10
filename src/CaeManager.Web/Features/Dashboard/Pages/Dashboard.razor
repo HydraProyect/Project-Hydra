@@ -29,6 +29,19 @@
     }
     else
     {
+        @* Resumen de ausencia (docs/blueprints/OPERATIONAL-HOME.md § 6, DDL-068): solo aparece
+           al volver tras una ausencia real, nunca en navegación normal dentro de la sesión. *@
+        @if (_queLlegoSinVer.Count > 0)
+        {
+            <h2 class="dashboard-subtitulo">Qué llegó sin ver</h2>
+            <div class="lista-bandeja">
+                @foreach (var item in _queLlegoSinVer)
+                {
+                    <PanelResolverItem Item="item" />
+                }
+            </div>
+        }
+
         @* Cumplimiento global + KPIs secundarios (docs/blueprints/OPERATIONAL-HOME.md § 3):
            sustituye los 4 tiles críticos (Vencidos/Urgentes/Próximos/SLA) — esos conteos ahora
            se leen directamente en "Requiere atención", no como cifra suelta sin acción asociada. *@

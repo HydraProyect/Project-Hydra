@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -13,6 +14,7 @@ public partial class MainLayout
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private ActividadUsuarioService ActividadUsuario { get; set; } = default!;
 
     /// <summary>
     /// Forzar el cambio de contraseña en el primer login (ver
@@ -37,6 +39,10 @@ public partial class MainLayout
 
         var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (!Guid.TryParse(idClaim, out var id)) return;
+
+        // Se resuelve una única vez por circuito (ActividadUsuarioService) — el resultado
+        // no se usa aquí, solo se dispara para que ya esté cacheado cuando el Home lo pida.
+        _ = await ActividadUsuario.RegistrarYEvaluarAsync(RendererInfo.IsInteractive);
 
         // Por la puerta: este guard corre en paralelo con la inicialización
         // de los demás componentes del layout y de la página, todos sobre el
