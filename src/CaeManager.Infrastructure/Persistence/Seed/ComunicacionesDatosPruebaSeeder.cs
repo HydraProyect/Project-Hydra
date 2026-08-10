@@ -167,6 +167,7 @@ public static class ComunicacionesDatosPruebaSeeder
         await SembrarWhatsAppAsync(dbContext, clientes, gestoresPrueba, ahora, cancellationToken);
         await SembrarInteligenciaBandejaAsync(dbContext, gestoresPrueba, ahora, cancellationToken);
         await SembrarReduccionRuidoAsync(dbContext, cancellationToken);
+        await SembrarConexionesMicrosoft365Async(dbContext, gestoresPrueba, ahora, cancellationToken);
 
         logger.LogInformation(
             "Comunicaciones sembradas: {Conversaciones} conversaciones de correo ({Triage} sin cliente asignado), " +
@@ -230,6 +231,68 @@ public static class ComunicacionesDatosPruebaSeeder
         // Notificación automática con cambios reales — no se minimiza.
         dbContext.ClasificacionesRuidoMensaje.Add(new ClasificacionRuidoMensaje(
             mensajesEntrantes[2].Id, esNotificacionAutomatica: true, proveedorCae?.Id));
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Conexiones Microsoft 365 simuladas — buzones ficticios sin credencial
+    /// real (no hay CredencialIntegracion, así que ningún worker puede
+    /// llamar a Graph con ellas): los 3 estados de conexión para
+    /// /integraciones, más el buzón personal de un gestor
+    /// (GestorPropietarioId) con una conversación cuyos dos mensajes cubren
+    /// los motivos de ruido exclusivos de ese patrón — CorreoInterno (mismo
+    /// dominio que el buzón propio) y PosiblePhishing (dominio ajeno).
+    /// </summary>
+    private static async Task SembrarConexionesMicrosoft365Async(
+        CaeManagerDbContext dbContext, IReadOnlyList<ApplicationUser> gestoresPrueba,
+        DateTime ahora, CancellationToken cancellationToken)
+    {
+        dbContext.ConexionesIntegracion.Add(new ConexionIntegracion(
+            "equipo-cae@buzon-simulado.local", "Buzón compartido CAE (demo)"));
+
+        var deshabilitada = new ConexionIntegracion("altas@buzon-simulado.local", "Buzón de altas (demo)");
+        deshabilitada.Deshabilitar();
+        dbContext.ConexionesIntegracion.Add(deshabilitada);
+
+        var conError = new ConexionIntegracion("avisos@buzon-simulado.local", "Buzón de avisos (demo)");
+        conError.MarcarConError("El token de Microsoft Graph caducó — hay que reconectar el buzón.");
+        dbContext.ConexionesIntegracion.Add(conError);
+
+        var gestorTitular = gestoresPrueba.OrderBy(g => g.Email).FirstOrDefault();
+        if (gestorTitular is null)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        dbContext.ConexionesIntegracion.Add(new ConexionIntegracion(
+            "gestor.uno@buzon-simulado.local", "Buzón personal de Prueba GestorCae 1",
+            clienteId: null, gestorPropietarioId: gestorTitular.Id));
+
+        // Conversación llegada por el buzón personal: un correo de un
+        // compañero (mismo dominio → CorreoInterno) y uno de un dominio
+        // ajeno sospechoso (→ PosiblePhishing). Ninguno se oculta — son
+        // advertencias visuales, la decisión es del gestor.
+        var conversacionPersonal = new Conversacion("Consulta interna y aviso sospechoso — buzón personal");
+        conversacionPersonal.Asignar(gestorTitular.Id);
+
+        var interno = conversacionPersonal.AgregarMensaje(
+            DireccionMensaje.Entrante, CanalConversacion.Correo, "companero@buzon-simulado.local",
+            "<p>¿Me pasas el estado de la documentación de la contrata de climatización?</p>", ahora.AddHours(-8));
+        var sospechoso = conversacionPersonal.AgregarMensaje(
+            DireccionMensaje.Entrante, CanalConversacion.Correo, "premios@sorteo-sospechoso.example",
+            "<p>Ha sido seleccionado para un premio. Confirme sus credenciales en este enlace.</p>", ahora.AddHours(-5));
+
+        conversacionPersonal.AgregarParticipante("companero@buzon-simulado.local", RolParticipante.De, TipoParticipanteOrigen.Desconocido);
+        dbContext.Conversaciones.Add(conversacionPersonal);
+
+        dbContext.ClasificacionesRuidoMensaje.Add(new ClasificacionRuidoMensaje(
+            interno.Id, esNotificacionAutomatica: false, proveedorPlataformaCaeId: null,
+            MotivoRuidoMensaje.CorreoInterno));
+        dbContext.ClasificacionesRuidoMensaje.Add(new ClasificacionRuidoMensaje(
+            sospechoso.Id, esNotificacionAutomatica: false, proveedorPlataformaCaeId: null,
+            MotivoRuidoMensaje.PosiblePhishing));
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }

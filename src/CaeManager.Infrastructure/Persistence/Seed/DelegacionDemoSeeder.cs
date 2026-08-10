@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Retencion;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -328,6 +329,8 @@ public static class DelegacionDemoSeeder
             }
             await userManager.SetTwoFactorEnabledAsync(administrador, true);
             await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, administrador.Id, cancellationToken);
+
+            await SembrarHistorialRetencionAsync(dbContext, administrador.Id, cancellationToken);
         }
         else
         {
@@ -362,6 +365,51 @@ public static class DelegacionDemoSeeder
             logger.LogWarning("No se pudo crear el gestor del tenant demo 2: {Errores}",
                 string.Join(", ", resultado.Errors.Select(e => e.Description)));
         }
+    }
+
+    /// <summary>
+    /// Historial sintético del ciclo de retención en los 5 estados —
+    /// SOLO en el tenant demo 2 a propósito: FlujoRetencionTests (E2E)
+    /// ejecuta el ciclo real sobre el demo 1 y espera que el barrido
+    /// proponga exactamente dos solicitudes nuevas allí. La Ejecutada
+    /// recorre el camino real del dominio (avisar → programar con usuario
+    /// autorizante y fecha → ejecutar) — la invariante "no hay 'ejecutada'
+    /// sin autorización expresa con fecha" se respeta también en la siembra.
+    /// Los veteranos del demo 2 quedan intactos como candidatos vivos del
+    /// barrido.
+    /// </summary>
+    private static async Task SembrarHistorialRetencionAsync(
+        CaeManagerDbContext dbContext, Guid autorizadaPorUsuarioId, CancellationToken cancellationToken)
+    {
+        if (await dbContext.SolicitudesPurga.AnyAsync(cancellationToken))
+            return;
+
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var fechaCorte = hoy.AddYears(-5);
+
+        dbContext.SolicitudesPurga.Add(new SolicitudPurga(TipoDatoPurgable.Documentos, 18, fechaCorte));
+
+        var avisada = new SolicitudPurga(TipoDatoPurgable.TrabajadoresDadosDeBaja, 6, fechaCorte);
+        avisada.MarcarTenantAvisado();
+        dbContext.SolicitudesPurga.Add(avisada);
+
+        var programada = new SolicitudPurga(TipoDatoPurgable.Documentos, 12, fechaCorte.AddMonths(-2));
+        programada.MarcarTenantAvisado();
+        programada.Programar(hoy.AddDays(14), autorizadaPorUsuarioId, hoy);
+        dbContext.SolicitudesPurga.Add(programada);
+
+        var ejecutada = new SolicitudPurga(TipoDatoPurgable.TrabajadoresDadosDeBaja, 4, fechaCorte.AddMonths(-6));
+        ejecutada.MarcarTenantAvisado();
+        ejecutada.Programar(hoy, autorizadaPorUsuarioId, hoy);
+        ejecutada.Ejecutar(hoy);
+        dbContext.SolicitudesPurga.Add(ejecutada);
+
+        var cancelada = new SolicitudPurga(TipoDatoPurgable.Documentos, 9, fechaCorte.AddMonths(-4));
+        cancelada.MarcarTenantAvisado();
+        cancelada.Cancelar("El tenant pidió más plazo para revisar los expedientes afectados.");
+        dbContext.SolicitudesPurga.Add(cancelada);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>

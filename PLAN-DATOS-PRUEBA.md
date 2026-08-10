@@ -18,11 +18,10 @@ Cada tanda termina con verificación end-to-end en navegador de las pantallas qu
   `ConexionIntegracion` — se siembran dos conexiones WhatsApp simuladas con token de demo, lo
   que resuelve parcialmente la decisión abierta nº 2; la decisión sigue abierta solo para las
   conexiones Microsoft 365 de la Tanda 5)
-- [x] Tanda 4 — Plataforma: delegaciones, soporte, identidad (2026-08-10) — **parcial**: la
-  retención (`SolicitudPurga`) sigue fuera a la espera de la decisión abierta nº 3
-- [x] Tanda 5 — Infraestructura y menores (2026-08-10) — **parcial**: las conexiones
-  Microsoft 365 simuladas siguen fuera a la espera de la decisión abierta nº 2 (las WhatsApp
-  ya se sembraron en la Tanda 3 por ser dependencia del canal)
+- [x] Tanda 4 — Plataforma: delegaciones, soporte, identidad y retención (2026-08-10; la
+  retención se completó al resolverse la decisión nº 3)
+- [x] Tanda 5 — Infraestructura y menores (2026-08-10; las conexiones Microsoft 365 simuladas
+  se completaron al resolverse la decisión nº 2)
 
 ## Tanda 1 — Módulos con pantalla vacía del núcleo operativo
 
@@ -124,8 +123,8 @@ Todo el pipeline que hoy solo existe como flags de catálogo.
   `ClasificacionRelevanciaCae` (conversación pre-CAE minimizada + accionable congelada) y
   `ClasificacionRuidoMensaje` (resumen sin cambios minimizado, el mismo caso rescatado
   manualmente, y notificación automática con cambios). Los motivos `CorreoInterno` y
-  `PosiblePhishing` no se siembran: solo aplican a mensajes de un **buzón personal de gestor**
-  (`ConexionIntegracion.GestorPropietarioId`), que cae dentro de la decisión abierta nº 2.
+  `PosiblePhishing` se sembraron al resolverse la decisión nº 2: una conversación llegada por
+  el buzón personal del gestor con un correo de su mismo dominio y otro de un dominio ajeno.
 
 ## Decisiones abiertas (confirmar con el propietario antes de la tanda que las toca)
 
@@ -134,8 +133,13 @@ Todo el pipeline que hoy solo existe como flags de catálogo.
    (`VigenciaMeses = 12`, `AplicaVencimientoAutomatico = true`), migración
    `VencimientoAnualDocumentosVehiculo`. Con esto la siembra existente ya produce vehículos
    con documentación en los cuatro estados (el reparto de `CrearDocumento` aplica solo).
-2. **Integraciones simuladas** (Tanda 5): ¿se siembran conexiones falsas o se deja la pantalla
-   fuera del requerimiento por depender de servicios externos?
-3. **Retención** (Tanda 4): sembrar solicitudes ejecutadas es historia sintética de un flujo
-   RGPD — confirmar que se acepta como dato de demo (CLAUDE.md exige confirmar lo que roce
-   cumplimiento normativo).
+2. ~~Integraciones simuladas~~ **Resuelta (2026-08-10)**: el propietario pidió generar los
+   datos sintéticos — se siembran 4 conexiones Microsoft 365 simuladas (habilitada,
+   deshabilitada, con error, y el buzón personal de un gestor con `GestorPropietarioId`),
+   sin `CredencialIntegracion` para que ningún worker pueda llamar a Graph con ellas. El
+   buzón personal desbloquea además los motivos de ruido `CorreoInterno`/`PosiblePhishing`.
+3. ~~Retención~~ **Resuelta (2026-08-10)**: el propietario pidió generar los datos sintéticos —
+   `SolicitudPurga` en los 5 estados en el **tenant demo 2** (el demo 1 queda para el ciclo
+   real de `FlujoRetencionTests`), con la Ejecutada recorriendo el camino real del dominio:
+   avisar → programar con usuario autorizante y fecha → ejecutar. La invariante de
+   autorización expresa se respeta también en la siembra.
