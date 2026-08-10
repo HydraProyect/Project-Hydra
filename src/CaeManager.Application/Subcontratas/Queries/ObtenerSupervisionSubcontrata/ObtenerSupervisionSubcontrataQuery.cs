@@ -96,8 +96,16 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
             .Where(v => v.SubcontrataId == request.SubcontrataId)
             .Select(v => new
             {
-                v.Id, v.CentroId, v.TipoDocumentoId, v.FechaVerificacion, v.Resultado, v.ValidoHasta,
-                v.Observaciones, v.EvidenciaArchivoRuta, v.EvidenciaNombreArchivo, v.CreadoEnUtc
+                v.Id,
+                v.CentroId,
+                v.TipoDocumentoId,
+                v.FechaVerificacion,
+                v.Resultado,
+                v.ValidoHasta,
+                v.Observaciones,
+                v.EvidenciaArchivoRuta,
+                v.EvidenciaNombreArchivo,
+                v.CreadoEnUtc
             })
             .ToListAsync(cancellationToken);
 
