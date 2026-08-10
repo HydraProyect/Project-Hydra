@@ -28,6 +28,12 @@
         </div>
         <div class="bandeja-fila-linea3">
             <Badge Tono="TonoBadgeDeEstado(Conversacion.Estado)" Tamano="TamanoBadge.Pequeno">@Conversacion.Estado</Badge>
+            @if (Conversacion.MensajesRuido > 0)
+            {
+                <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno" title="Mensajes ya clasificados como ruido (repetición o sin cambios) — sin novedad que atender">
+                    @Conversacion.MensajesRuido mensaje@(Conversacion.MensajesRuido == 1 ? "" : "s") de ruido
+                </Badge>
+            }
             <span class="bandeja-fila-preview">@Conversacion.PreviewUltimoMensaje</span>
         </div>
     </div>

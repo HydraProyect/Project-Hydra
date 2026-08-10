@@ -16,7 +16,8 @@ namespace CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft36
 /// recibe los tokens ya obtenidos.
 /// </summary>
 public record ConectarBuzonMicrosoft365Command(
-    string BuzonEmail, string Nombre, Guid? ClienteId, string AccessToken, string RefreshToken, string NotificationUrlBase)
+    string BuzonEmail, string Nombre, Guid? ClienteId, string AccessToken, string RefreshToken, string NotificationUrlBase,
+    Guid? GestorPropietarioId = null)
     : ICommand<Guid>;
 
 public class ConectarBuzonMicrosoft365CommandValidator : AbstractValidator<ConectarBuzonMicrosoft365Command>
@@ -28,6 +29,8 @@ public class ConectarBuzonMicrosoft365CommandValidator : AbstractValidator<Conec
         RuleFor(c => c.AccessToken).NotEmpty();
         RuleFor(c => c.RefreshToken).NotEmpty();
         RuleFor(c => c.NotificationUrlBase).NotEmpty();
+        RuleFor(c => c).Must(c => c.ClienteId is null || c.GestorPropietarioId is null)
+            .WithMessage("Un buzón no puede ser a la vez de un Cliente y personal de un gestor.");
     }
 }
 
@@ -37,6 +40,7 @@ public class ConectarBuzonMicrosoft365CommandHandler(
     ISuscripcionWebhookRepository suscripcionRepositorio,
     IClienteRepository clienteRepositorio,
     IAlcanceDatosService alcanceDatos,
+    IDirectorioUsuariosService directorioUsuarios,
     IMicrosoft365GraphClient graphClient,
     IUnitOfWork unitOfWork)
     : IRequestHandler<ConectarBuzonMicrosoft365Command, Result<Guid>>
@@ -51,7 +55,11 @@ public class ConectarBuzonMicrosoft365CommandHandler(
                 return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
         }
 
-        var conexion = new ConexionIntegracion(request.BuzonEmail, request.Nombre, request.ClienteId);
+        if (request.GestorPropietarioId is { } gestorId && !await directorioUsuarios.EsVisibleEnTenantActualAsync(gestorId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Integraciones.Microsoft365.GestorNoVisible", "El gestor elegido no pertenece a esta organización."));
+
+        var conexion = new ConexionIntegracion(
+            request.BuzonEmail, request.Nombre, request.ClienteId, gestorPropietarioId: request.GestorPropietarioId);
         conexionRepositorio.Agregar(conexion);
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, request.RefreshToken));
 

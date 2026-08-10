@@ -18,6 +18,11 @@ public class ConexionIntegracionConfiguration : IEntityTypeConfiguration<Conexio
         builder.HasIndex(c => new { c.TenantId, c.Nombre }).IsUnique();
         builder.HasIndex(c => new { c.TenantId, c.ClienteId });
 
+        // Un gestor solo puede tener un buzón personal conectado a la vez.
+        builder.HasIndex(c => new { c.TenantId, c.GestorPropietarioId })
+            .IsUnique()
+            .HasFilter($"\"{nameof(ConexionIntegracion.GestorPropietarioId)}\" IS NOT NULL AND NOT \"{nameof(ConexionIntegracion.EstaEliminado)}\"");
+
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }

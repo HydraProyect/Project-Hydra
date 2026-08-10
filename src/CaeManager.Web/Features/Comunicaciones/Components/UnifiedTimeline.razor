@@ -45,7 +45,8 @@
         }
         else if (item is MensajeDetalleDto mensaje)
         {
-            <div class="timeline-mensaje-fila timeline-mensaje-fila-@mensaje.Direccion.ToString().ToLowerInvariant()">
+            var esRuidoSinConfirmar = EsRuidoSinConfirmar(mensaje);
+            <div class="timeline-mensaje-fila timeline-mensaje-fila-@mensaje.Direccion.ToString().ToLowerInvariant() @(esRuidoSinConfirmar ? "timeline-mensaje-fila-ruido" : null)">
                 <span class="timeline-avatar" title="@mensaje.Remitente" aria-hidden="true">@ObtenerIniciales(mensaje.Remitente)</span>
                 <div class="timeline-mensaje timeline-mensaje-@mensaje.Direccion.ToString().ToLowerInvariant()">
                     <div class="timeline-mensaje-cabecera">
@@ -59,6 +60,14 @@
                         @if (participante is not null && Participantes.Select(p => p.TipoOrigen).Distinct().Count() > 1)
                         {
                             <Badge Tono="TonoBadge.Neutro">@participante.TipoOrigen</Badge>
+                        }
+                        @if (esRuidoSinConfirmar)
+                        {
+                            <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">@DescribirMotivoRuido(mensaje)</Badge>
+                            <button type="button" class="timeline-ruido-confirmar" title="Este mensaje sí importa — deja de tratarse como ruido"
+                                    @onclick="() => OnConfirmarRuido.InvokeAsync(mensaje.Id)">
+                                Esto sí importa
+                            </button>
                         }
                         <span class="timeline-mensaje-fecha">@FormatearFechaRelativa(mensaje.FechaUtc)</span>
                     </div>
@@ -134,6 +143,20 @@
     [Parameter, EditorRequired] public IReadOnlyList<ParticipanteDetalleDto> Participantes { get; set; } = [];
     [Parameter] public IReadOnlyList<EventoDetalleDto> Eventos { get; set; } = [];
     [Parameter] public EventCallback<Guid> OnActualizarDocumentoDesdeAdjunto { get; set; }
+    [Parameter] public EventCallback<Guid> OnConfirmarRuido { get; set; }
+
+    /// <summary>Ronda de reducción de ruido en Comunicaciones — mismo criterio en las dos formas en que un mensaje llega marcado como ruido, ver MensajeDetalleDto.</summary>
+    private static bool EsRuidoSinConfirmar(MensajeDetalleDto mensaje) =>
+        (mensaje.MotivoRuido != MotivoRuidoMensaje.Ninguno || mensaje.TieneSoloRepeticionesPendientes) && !mensaje.RuidoConfirmadoManualmente;
+
+    private static string DescribirMotivoRuido(MensajeDetalleDto mensaje) => mensaje.MotivoRuido switch
+    {
+        MotivoRuidoMensaje.ResumenSinCambios => "Resumen sin cambios",
+        MotivoRuidoMensaje.CorreoInterno => "Correo interno",
+        MotivoRuidoMensaje.PosiblePhishing => "Posible phishing",
+        _ when mensaje.TieneSoloRepeticionesPendientes => "Repetición — ya reclamado",
+        _ => "Ruido"
+    };
 
     /// <summary>Mezcla Mensajes y Eventos en una sola cronología — ambos DTOs son inmutables y llegan ya ordenados por su fuente, pero mezclados hace falta un único OrderBy.</summary>
     private IEnumerable<object> ItemsOrdenados() =>

@@ -320,6 +320,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRuidoMensajeRepository, ClasificacionRuidoMensajeRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRuidoDetalleGestionRepository, ClasificacionRuidoDetalleGestionRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IUltimoResumenNotificacionPlataformaRepository, UltimoResumenNotificacionPlataformaRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRelevanciaCaeRepository, ClasificacionRelevanciaCaeRepository>();
         services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
@@ -471,6 +472,9 @@ public static class InfrastructureServiceCollectionExtensions
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(60));
         services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionGestionCorreoService, AnthropicDeteccionGestionCorreoService>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(60));
+        services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionRelevanciaCaeService, AnthropicDeteccionRelevanciaCaeService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(60));
         // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
