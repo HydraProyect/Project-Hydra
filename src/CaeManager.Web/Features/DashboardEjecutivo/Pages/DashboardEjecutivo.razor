@@ -1,6 +1,6 @@
 @page "/dashboard-ejecutivo"
 @rendermode InteractiveServer
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}")]
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using ApexCharts
 @using CaeManager.Application.Dashboard.Catalogo
 
@@ -52,7 +52,8 @@
             .Select(codigo => CatalogoKpis.Todos.First(k => k.Codigo == codigo))
             .ToList();
         var tiles = seleccionados.Where(k => k.TipoRender is TipoRenderKpi.TileNumerico or TipoRenderKpi.TilePorcentajeConTono).ToList();
-        var graficos = seleccionados.Where(k => k.TipoRender is TipoRenderKpi.GraficoDonut or TipoRenderKpi.GraficoBarras).ToList();
+        var graficos = seleccionados.Where(k => k.TipoRender is TipoRenderKpi.GraficoDonut or TipoRenderKpi.GraficoBarras
+            or TipoRenderKpi.TablaRiesgo or TipoRenderKpi.BarraComparativa).ToList();
 
         @if (seleccionados.Count == 0)
         {
@@ -112,6 +113,65 @@
                                                  XValue="@(s => s.Etiqueta)"
                                                  YValue="@(s => s.Valor)" />
                             </ApexChart>
+                        }
+                    }
+                    else if (kpi.Codigo == CatalogoKpis.EmpresasConMasRiesgo)
+                    {
+                        @if (_empresasEnRiesgo.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">Ninguna empresa tiene documentación urgente o vencida.</p>
+                        }
+                        else
+                        {
+                            <table class="tabla-datos">
+                                <thead>
+                                    <tr>
+                                        <th>Empresa</th>
+                                        <th>Vencidos</th>
+                                        <th>Urgentes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var empresa in _empresasEnRiesgo)
+                                    {
+                                        <tr class="fila-clicable" @onclick="() => IrAEmpresa(empresa.EmpresaRazonSocial)">
+                                            <td>@empresa.EmpresaRazonSocial</td>
+                                            <td><Badge Tono="TonoBadge.Peligro">@empresa.DocumentosVencidos</Badge></td>
+                                            <td><Badge Tono="TonoBadge.Advertencia">@empresa.DocumentosUrgentes</Badge></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    }
+                    else if (kpi.Codigo == CatalogoKpis.AutomaticoVsManual)
+                    {
+                        @if (TotalAprobaciones == 0)
+                        {
+                            <p class="texto-vacio-seccion">Todavía no hay documentos verificados por IA.</p>
+                        }
+                        else
+                        {
+                            <div class="barra-comparativa" role="img" aria-label="@($"{PorcentajeAutomatica}% de las gestiones fueron automáticas, {PorcentajeManual}% manuales")">
+                                @if (PorcentajeAutomatica > 0)
+                                {
+                                    <div class="barra-comparativa-segmento barra-comparativa-automatica" style="width:@(PorcentajeAutomatica)%"></div>
+                                }
+                                @if (PorcentajeManual > 0)
+                                {
+                                    <div class="barra-comparativa-segmento barra-comparativa-manual" style="width:@(PorcentajeManual)%"></div>
+                                }
+                            </div>
+                            <ul class="barra-comparativa-leyenda">
+                                <li class="barra-comparativa-item">
+                                    <span class="barra-comparativa-punto barra-comparativa-automatica"></span>
+                                    Automáticas — @_estadisticasAprobacion!.Automaticas (@PorcentajeAutomatica%)
+                                </li>
+                                <li class="barra-comparativa-item">
+                                    <span class="barra-comparativa-punto barra-comparativa-manual"></span>
+                                    Manuales — @_estadisticasAprobacion.Manuales (@PorcentajeManual%)
+                                </li>
+                            </ul>
                         }
                     }
                 </Tarjeta>

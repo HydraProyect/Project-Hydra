@@ -20,6 +20,7 @@ public partial class DashboardEjecutivo : ComponentBase
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<DashboardEjecutivo> Logger { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     private DashboardEjecutivoDto? _valores;
     private IReadOnlyList<string>? _seleccionGuardada;
@@ -30,8 +31,12 @@ public partial class DashboardEjecutivo : ComponentBase
     private List<SegmentoGraficoDto> _semaforoDocumental = [];
     private List<SegmentoGraficoDto> _incidenciasPorGravedad = [];
     private List<SegmentoGraficoDto> _centrosConMenorCumplimiento = [];
+    private EstadisticasAprobacionDocumentoDto? _estadisticasAprobacion;
+    private IReadOnlyList<RiesgoEmpresaDto> _empresasEnRiesgo = [];
 
     protected override Task OnInitializedAsync() => CargarAsync();
+
+    private void IrAEmpresa(string empresaRazonSocial) => NavigationManager.NavigateTo($"/empresas?q={Uri.EscapeDataString(empresaRazonSocial)}");
 
     private async Task CargarAsync()
     {
@@ -42,13 +47,17 @@ public partial class DashboardEjecutivo : ComponentBase
 
         try
         {
-            var (seleccion, valores) = (
+            var (seleccion, valores, estadisticasAprobacion, desglose) = (
                 await Mediator.Send(new ObtenerPreferenciaDashboardQuery()),
-                await Mediator.Send(new ObtenerDashboardEjecutivoQuery()));
+                await Mediator.Send(new ObtenerDashboardEjecutivoQuery()),
+                await Mediator.Send(new ObtenerEstadisticasAprobacionDocumentoQuery()),
+                await Mediator.Send(new ObtenerDesgloseDashboardQuery()));
 
             _seleccionGuardada = seleccion;
             _seleccionEnEdicion = [.. seleccion];
             _valores = valores;
+            _estadisticasAprobacion = estadisticasAprobacion;
+            _empresasEnRiesgo = desglose.EmpresasEnRiesgo;
             RecalcularSeriesDeGraficos();
         }
         catch (Exception ex)
@@ -57,6 +66,13 @@ public partial class DashboardEjecutivo : ComponentBase
             _error = true;
         }
     }
+
+    /// <summary>Total de decisiones de verificación IA ya resueltas (automáticas + manuales) — 0 si todavía no se ha verificado ningún Documento.</summary>
+    private int TotalAprobaciones => (_estadisticasAprobacion?.Automaticas ?? 0) + (_estadisticasAprobacion?.Manuales ?? 0);
+
+    private int PorcentajeAutomatica => TotalAprobaciones == 0 ? 0 : _estadisticasAprobacion!.Automaticas * 100 / TotalAprobaciones;
+
+    private int PorcentajeManual => TotalAprobaciones == 0 ? 0 : 100 - PorcentajeAutomatica;
 
     private void RecalcularSeriesDeGraficos()
     {
