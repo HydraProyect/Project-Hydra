@@ -18,6 +18,7 @@ erDiagram
     TRABAJADOR }o--o{ CENTRO : "Asignacion (FechaAlta/FechaBaja)"
     CENTRO ||--o{ VISITA : "recibe"
     VISITA }o--o{ TRABAJADOR : "VisitaTrabajador (N:N)"
+    SUBCONTRATA ||--o{ VERIFICACION_EXTERNA : "supervisión (CentroId, TipoDocumentoId)"
     CENTRO ||--o| PLATAFORMA_ACCESO : "1:1"
     EMPRESA ||--o| CREDENCIAL_ACCESO_EMPRESA : "1:1"
     SUBCONTRATA ||--o| CREDENCIAL_ACCESO_SUBCONTRATA : "1:1"
@@ -45,7 +46,7 @@ erDiagram
 
 - **Cliente**: empresa propietaria de los Centros donde se realizan los trabajos (Retail Iberia S.A., Bebidas del Norte S.A., ...). No opera el sistema. Tiene `EjecutivoUsuarioId` (Gestor CAE dueño de la cartera — base del alcance por rol).
 - **Empresa**: la contratista cuyos trabajadores realizan los trabajos (Ibertec S.A., EcoPlant Reciclaje S.L., ...). **No pertenece a un Cliente** — trabaja para muchos (`EmpresaCliente`, N:N), y un Cliente contrata a muchas. Esta relación N:N es intocable: es el corazón del modelo CAE.
-- **Subcontrata**: empresa subcontratada que aporta personal/flota. N:N tanto con Cliente como con Empresa.
+- **Subcontrata**: empresa subcontratada que aporta personal/flota. N:N tanto con Cliente como con Empresa. Desde ADR-005 lleva `NivelServicio` (`Gestionada` — se gestiona su documentación, semántica anterior y valor por defecto — / `Supervisada` — solo se audita su cumplimiento externo); el cambio de nivel es operación de negocio (`CambiarNivelServicio`), nunca cambio de entidad. **VerificacionExternaSubcontrata** registra cada comprobación manual en la plataforma del titular de un Centro (fecha, resultado `Valido`/`NoValido`/`NoEncontrado`, `ValidoHasta?`, evidencia opcional en storage, verificador); el checklist de qué verificar es `TipoDocumentoCentro` (no hay segundo catálogo) y el estado de supervisión **se calcula, nunca se almacena** (`CalculadoraEstadoSupervision`, mismos umbrales de `ParametroSistema`).
 - **Centro**: ubicación física. Pertenece a un único Cliente (`ClienteId`) y es operado por una Empresa (`EmpresaId`) — dos padres simultáneos, no es hijo único de nadie. Satélites: `CanalGestionDocumental` (N por Centro — cada acceso con su etiqueta de propósito en texto libre y sus credenciales cifradas, uno marcado principal; era 1:1 y se llamaba `PlataformaAcceso`), `TipoDocumentoCentro` (tipos exigidos — pestaña "Requisitos del Centro"; sustituyó a `RequisitoDocumental`, retirado).
 - **Trabajador / Vehículo**: pertenecen a una Empresa **o** una Subcontrata (`EmpresaId?`/`SubcontrataId?` mutuamente excluyentes — `EsDeSubcontrata`). **Sin `ClienteId`**: su relación con Clientes es derivada (Trabajador vía `Asignacion`+Centro; Vehículo transitiva) y puede ser múltiple simultáneamente — un `ClienteId` singular sería estructuralmente falso (decisión debatida y cerrada; ver `docs/MULTITENANCY.md` § 3).
 - **Asignacion**: N:N Trabajador↔Centro con historial (`FechaAlta`/`FechaBaja?`; activa = sin baja). Índice único `(TrabajadorId, CentroId, FechaAlta)`.
@@ -61,7 +62,7 @@ erDiagram
 
 ## Agregados raíz
 
-Con repositorio propio (nunca `IRepository<T>` genérico): `Cliente`, `Empresa`, `Subcontrata`, `Centro`, `Trabajador`, `Vehiculo`, `Documento`, `TipoDocumento`, `Asignacion`, `Visita`, `Alerta`, `NotificacionUsuario`, `ParametroSistema`, `RegistroAuditoria`, `Evaluacion`, `Incidencia`, `ConversacionCorreo`, `ContactoWhatsApp`, `MacroRespuesta`, `SolicitudPrioridadDocumento`, `SugerenciaGestionCorreo`, `SugerenciaVisitaCorreo`, `Gestion` — y `Tenant` (ver ADR-003). `DelegacionTenant`/`AsignacionOperadorDelegado` (ADR-004, Capa 0) son catálogo global sin `TenantId`, mismo tratamiento que `Tenant` — no son agregados de dominio CAE. Las tablas de unión y satélites 1:1 se gestionan a través de su raíz.
+Con repositorio propio (nunca `IRepository<T>` genérico): `Cliente`, `Empresa`, `Subcontrata`, `VerificacionExternaSubcontrata`, `Centro`, `Trabajador`, `Vehiculo`, `Documento`, `TipoDocumento`, `Asignacion`, `Visita`, `Alerta`, `NotificacionUsuario`, `ParametroSistema`, `RegistroAuditoria`, `Evaluacion`, `Incidencia`, `ConversacionCorreo`, `ContactoWhatsApp`, `MacroRespuesta`, `SolicitudPrioridadDocumento`, `SugerenciaGestionCorreo`, `SugerenciaVisitaCorreo`, `Gestion` — y `Tenant` (ver ADR-003). `DelegacionTenant`/`AsignacionOperadorDelegado` (ADR-004, Capa 0) son catálogo global sin `TenantId`, mismo tratamiento que `Tenant` — no son agregados de dominio CAE. Las tablas de unión y satélites 1:1 se gestionan a través de su raíz.
 
 ## Regla de negocio central
 

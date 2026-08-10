@@ -1,0 +1,276 @@
+@*
+    Segundo y tercer nivel de "Subcontrata 360" (mismo patrón que
+    AcordeonAsignacionesCentro para Centro 360): trabajadores de la
+    subcontrata con su fracción de documentación al día, expandibles a la
+    tabla de documentos exigidos. Solo se instancia al expandir la fila
+    (mismo criterio de carga perezosa) — sin acciones de alta/baja: los
+    trabajadores se dan de alta/baja desde su propia ficha, no desde aquí
+    (a diferencia de Centro, la Subcontrata no "asigna" trabajadores a sí
+    misma).
+*@
+@using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro
+@using CaeManager.Application.Subcontratas.Queries.ObtenerTrabajadoresDocumentacionPorSubcontrata
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
+@using MediatR
+@inject IMediator Mediator
+@inject ContextWorkspaceService WorkspaceService
+
+@if (_errorCarga)
+{
+    <EstadoVacio Titulo="No pudimos cargar los trabajadores" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_trabajadores.Count == 0)
+{
+    <EstadoVacio Titulo="Sin trabajadores" Descripcion="Esta subcontrata todavía no tiene ningún trabajador dado de alta." />
+}
+else
+{
+    <div class="lista-trabajadores-acordeon">
+        @foreach (var trabajador in _trabajadores)
+        {
+            var expandido = _expandidosTrabajador.Contains(trabajador.TrabajadorId);
+            var vencidos = DocumentosVencidos(trabajador);
+            var proximos = DocumentosProximos(trabajador);
+            var urgentes = DocumentosUrgentes(trabajador);
+            <div class="fila-trabajador-acordeon" @key="trabajador.TrabajadorId">
+                <div class="fila-trabajador-acordeon-cuerpo">
+                    <div class="fila-trabajador-rejilla">
+                        <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
+                                aria-expanded="@(expandido ? "true" : "false")"
+                                aria-label="@($"Documentos exigidos a {trabajador.TrabajadorNombre}")"
+                                @onclick="() => AlternarExpansionTrabajador(trabajador.TrabajadorId)">
+                            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                        </button>
+                        <button type="button" class="enlace-nombre-fila fila-trabajador-nombre" @onclick="() => AbrirDetalleTrabajador(trabajador)">
+                            @trabajador.TrabajadorNombre
+                        </button>
+                        <span class="fila-trabajador-fraccion">
+                            @(trabajador.Documentos.Count > 0 ? $"{DocumentosAlDia(trabajador)}/{trabajador.Documentos.Count}" : "—")
+                        </span>
+                        <span class="tarjeta-fila-acordeon-indicadores">
+                            <span class="ranura-recuento">
+                                @if (vencidos.Count > 0)
+                                {
+                                    <VentanaContexto Etiqueta="@DescribirRecuento(vencidos, "vencido")"
+                                                     Titulo="@($"{vencidos.Count} {(vencidos.Count == 1 ? "documento vencido" : "documentos vencidos")}")">
+                                        <Disparador>
+                                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                                @vencidos.Count
+                                            </Badge>
+                                        </Disparador>
+                                        <Detalle>
+                                            @foreach (var documento in vencidos)
+                                            {
+                                                <span class="ventana-linea">@DescribirDocumentoIncidencia(documento)</span>
+                                            }
+                                        </Detalle>
+                                    </VentanaContexto>
+                                }
+                            </span>
+                            <span class="ranura-recuento">
+                                @if (proximos.Count > 0)
+                                {
+                                    <VentanaContexto Etiqueta="@DescribirRecuento(proximos, "próximo a vencer")"
+                                                     Titulo="@($"{proximos.Count} {(proximos.Count == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
+                                        <Disparador>
+                                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                                @proximos.Count
+                                            </Badge>
+                                        </Disparador>
+                                        <Detalle>
+                                            @foreach (var documento in proximos)
+                                            {
+                                                <span class="ventana-linea">@DescribirDocumentoIncidencia(documento)</span>
+                                            }
+                                        </Detalle>
+                                    </VentanaContexto>
+                                }
+                            </span>
+                            <span class="ranura-recuento ranura-recuento-final">
+                                @if (urgentes.Count > 0)
+                                {
+                                    <VentanaContexto Etiqueta="@DescribirRecuento(urgentes, "urgente")"
+                                                     Titulo="@($"{urgentes.Count} {(urgentes.Count == 1 ? "documento urgente" : "documentos urgentes")}")">
+                                        <Disparador>
+                                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                                @urgentes.Count
+                                            </Badge>
+                                        </Disparador>
+                                        <Detalle>
+                                            @foreach (var documento in urgentes)
+                                            {
+                                                <span class="ventana-linea">@DescribirDocumentoIncidencia(documento)</span>
+                                            }
+                                        </Detalle>
+                                    </VentanaContexto>
+                                }
+                            </span>
+                        </span>
+                        <span class="fila-trabajador-accion">
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                   class="@("accion-fila-enlace" + (trabajador.PeorEstado == EstadoDocumento.Vigente ? " accion-atenuada" : null))"
+                                   OnClick="() => AbrirDetalleTrabajador(trabajador)">
+                                Detalles
+                            </Boton>
+                        </span>
+                    </div>
+                    @if (expandido)
+                    {
+                        @if (trabajador.Documentos.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">Este trabajador no está asignado a ningún centro con documentación exigida.</p>
+                        }
+                        else
+                        {
+                            <div class="tabla-documentos-requeridos" role="table"
+                                 aria-label="@($"Documentación exigida a {trabajador.TrabajadorNombre}")">
+                                <div class="documentos-requeridos-cabecera" role="row">
+                                    <span role="columnheader">Documento</span>
+                                    <span role="columnheader">Estado</span>
+                                    <span role="columnheader">Vigencia</span>
+                                    <span role="columnheader" class="columna-accion">Acción</span>
+                                </div>
+                                @foreach (var documento in trabajador.Documentos)
+                                {
+                                    <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
+                                        <span class="celda-documento-nombre" role="cell">
+                                            <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                @documento.TipoDocumentoNombre
+                                            </button>
+                                        </span>
+                                        <span role="cell">
+                                            @if (documento.DocumentoId is null)
+                                            {
+                                                <VentanaContexto Etiqueta="Pendiente de subir: la subcontrata no ha aportado este documento todavía"
+                                                                 Titulo="Pendiente de subir">
+                                                    <Disparador>
+                                                        <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">Pendiente de Subir</Badge>
+                                                    </Disparador>
+                                                    <Detalle>
+                                                        Al menos uno de los centros donde trabaja exige este documento y todavía no hay ninguno subido.
+                                                    </Detalle>
+                                                </VentanaContexto>
+                                            }
+                                            else
+                                            {
+                                                <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">
+                                                    @EstadoDocumentoUi.Texto(documento.Estado)
+                                                </Badge>
+                                            }
+                                        </span>
+                                        <span role="cell">
+                                            <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="celda-documento-vigencia">
+                                                @TextoVigencia(documento)
+                                            </TextoFechaCopiable>
+                                        </span>
+                                        <span class="columna-accion" role="cell">
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                   class="@("accion-fila-enlace" + (RequiereIntervencion(documento) ? null : " accion-atenuada"))"
+                                                   OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                Gestionar
+                                            </Boton>
+                                        </span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
+
+@code {
+    [Parameter, EditorRequired] public Guid SubcontrataId { get; set; }
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private IReadOnlyList<TrabajadorDocumentacionSubcontrataDto> _trabajadores = [];
+    private bool _cargando = true;
+    private bool _errorCarga;
+    private readonly HashSet<Guid> _expandidosTrabajador = [];
+    private DrawerGestionDocumento _drawerGestion = default!;
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _errorCarga = false;
+
+        try
+        {
+            _trabajadores = await Mediator.Send(new ObtenerTrabajadoresDocumentacionPorSubcontrataQuery(SubcontrataId));
+        }
+        catch (Exception)
+        {
+            _errorCarga = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void AlternarExpansionTrabajador(Guid trabajadorId)
+    {
+        if (!_expandidosTrabajador.Add(trabajadorId))
+            _expandidosTrabajador.Remove(trabajadorId);
+    }
+
+    private Task AbrirDetalleTrabajador(TrabajadorDocumentacionSubcontrataDto trabajador) =>
+        WorkspaceService.NavegarAAsync(EntidadWorkspace.Trabajador, trabajador.TrabajadorId, trabajador.TrabajadorNombre, "informacion");
+
+    /// <summary>Mismo patrón que AcordeonAsignacionesCentro.GestionarAsync: con DocumentoId edita, sin él abre creación para el faltante.</summary>
+    private Task GestionarAsync(Guid trabajadorId, DocumentoRequeridoDto documento) =>
+        documento.DocumentoId is { } documentoId
+            ? _drawerGestion.AbrirEditarAsync(documentoId)
+            : _drawerGestion.AbrirCrearParaFaltanteAsync(trabajadorId, documento.TipoDocumentoId);
+
+    private async Task ManejarDocumentoGuardadoAsync()
+    {
+        await CargarAsync();
+        await OnCambio.InvokeAsync();
+    }
+
+    private static List<DocumentoRequeridoDto> DocumentosVencidos(TrabajadorDocumentacionSubcontrataDto trabajador) =>
+        trabajador.Documentos.Where(d => d.Estado is EstadoDocumento.Vencido or EstadoDocumento.Faltante).ToList();
+
+    private static List<DocumentoRequeridoDto> DocumentosProximos(TrabajadorDocumentacionSubcontrataDto trabajador) =>
+        trabajador.Documentos.Where(d => d.Estado == EstadoDocumento.Proximo).ToList();
+
+    private static List<DocumentoRequeridoDto> DocumentosUrgentes(TrabajadorDocumentacionSubcontrataDto trabajador) =>
+        trabajador.Documentos.Where(d => d.Estado == EstadoDocumento.Urgente).ToList();
+
+    private static int DocumentosAlDia(TrabajadorDocumentacionSubcontrataDto trabajador) =>
+        trabajador.Documentos.Count(d => d.Estado is EstadoDocumento.Vigente or EstadoDocumento.NoAplica);
+
+    private static bool RequiereIntervencion(DocumentoRequeridoDto documento) =>
+        documento.Estado is not EstadoDocumento.Vigente;
+
+    private static string DescribirDocumentoIncidencia(DocumentoRequeridoDto documento) =>
+        documento.DocumentoId is null
+            ? $"{documento.TipoDocumentoNombre} — pendiente de subir"
+            : $"{documento.TipoDocumentoNombre} — {EstadoDocumentoUi.Texto(documento.Estado)}";
+
+    private static string DescribirRecuento(IReadOnlyList<DocumentoRequeridoDto> documentos, string calificativo) =>
+        documentos.Count == 1
+            ? $"1 documento {calificativo}"
+            : $"{documentos.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
+
+    private static string TextoVigencia(DocumentoRequeridoDto documento) =>
+        documento.FechaVencimiento is { } fecha ? fecha.ToString("dd/MM/yyyy") : "—";
+}
