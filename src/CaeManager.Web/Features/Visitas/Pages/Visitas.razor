@@ -200,6 +200,8 @@
 
         <CampoTexto Etiqueta="Fecha de inicio" Type="date" Valor="@_fechaInicio" ValorChanged="v => _fechaInicio = v" />
         <CampoTexto Etiqueta="Fecha de fin" Type="date" Valor="@_fechaFin" ValorChanged="v => _fechaFin = v" />
+        <CampoTexto Etiqueta="Hora de entrada (opcional — si se deja vacía se asume la apertura de la jornada)" Type="time"
+                    Valor="@_horaEstimadaAcceso" ValorChanged="v => _horaEstimadaAcceso = v" />
 
         <SelectorMultiple Etiqueta="Trabajadores que entran"
                            Elementos="@_trabajadoresDisponiblesSelector"
@@ -237,8 +239,29 @@
             </div>
             <div class="campo">
                 <label>Fechas</label>
-                <p class="texto-vacio-seccion">@_detalle.FechaInicio.ToString("dd/MM/yyyy") – @_detalle.FechaFin.ToString("dd/MM/yyyy")</p>
+                <p class="texto-vacio-seccion">
+                    @_detalle.FechaInicio.ToString("dd/MM/yyyy") – @_detalle.FechaFin.ToString("dd/MM/yyyy")
+                    @if (_detalle.HoraEstimadaAcceso is { } horaAcceso)
+                    {
+                        <text> · entrada a las @horaAcceso.ToString("HH:mm")</text>
+                    }
+                </p>
             </div>
+
+            @if (_detalle.Tramo is { } tramo)
+            {
+                <div class="campo">
+                    <label>Antelación</label>
+                    <p class="texto-vacio-seccion">
+                        <Badge Tono="@AntelacionVisitaUi.Tono(tramo)">@AntelacionVisitaUi.Texto(tramo)</Badge>
+                        @AntelacionVisitaUi.TextoAtribucion(_detalle.Atribucion)
+                    </p>
+                    <p class="texto-vacio-seccion">
+                        El cliente avisó con @AntelacionVisitaUi.Horas(_detalle.AntelacionNominalHoras) de margen;
+                        el expediente quedó completo @AntelacionVisitaUi.Horas(_detalle.AntelacionEfectivaHoras) antes de la entrada.
+                    </p>
+                </div>
+            }
             <div class="campo">
                 <label>Notificado al cliente</label>
                 <p class="texto-vacio-seccion">@(_detalle.NotificadoCliente ? "Sí" : "No")</p>

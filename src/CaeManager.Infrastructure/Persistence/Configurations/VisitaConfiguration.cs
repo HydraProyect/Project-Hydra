@@ -20,6 +20,22 @@ public class VisitaConfiguration : IEntityTypeConfiguration<Visita>
         builder.HasIndex(v => v.CentroId);
         builder.HasIndex(v => v.FechaFin);
 
+        // Horas de antelación: 2 decimales bastan para tramos y recargos, y fijar la
+        // precisión evita que Postgres elija numeric sin escala.
+        builder.Property(v => v.AntelacionNominalHoras).HasPrecision(10, 2);
+        builder.Property(v => v.AntelacionEfectivaHoras).HasPrecision(10, 2);
+
+        // Índice del barrido del evaluador: "visitas con solicitud, sin sellar y
+        // todavía vigentes" es exactamente lo que filtra EvaluarPorDocumentoAsync.
+        builder.HasIndex(v => new { v.TenantId, v.FechaFin })
+            .HasFilter("\"FechaHoraSolicitudUtc\" IS NOT NULL AND \"FechaHoraExpedienteCompletoUtc\" IS NULL AND NOT \"EstaEliminado\"")
+            .HasDatabaseName("IX_Visitas_ExpedientePendiente");
+
+        // Sin FK hacia Conversacion a propósito: ConversacionOrigenId es una referencia
+        // débil a otro agregado (mismo criterio que EventoConversacion.ReferenciaId), y
+        // el módulo de Comunicaciones puede estar apagado por configuración.
+        builder.HasIndex(v => new { v.TenantId, v.ConversacionOrigenId });
+
         builder.HasOne<Centro>().WithMany()
             .HasForeignKey(v => new { v.TenantId, v.CentroId })
             .HasPrincipalKey(c => new { c.TenantId, c.Id })

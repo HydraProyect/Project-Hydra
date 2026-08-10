@@ -15,6 +15,7 @@ using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Trabajadores.Deteccion;
+using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Visitas.PaqueteDocumental;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -62,6 +63,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IMotorCoincidenciaConversacionesService, MotorCoincidenciaConversacionesService>();
         services.AddScoped<IDerivarCanalesAplicablesDocumentoService, DerivarCanalesAplicablesDocumentoService>();
         services.AddScoped<IPaqueteDocumentalVisitaService, PaqueteDocumentalVisitaService>();
+        services.AddScoped<IEvaluadorExpedienteVisitaService, EvaluadorExpedienteVisitaService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
         services.AddScoped<IValidacionDocumentoOficialService, ValidacionDocumentoOficialService>();
 

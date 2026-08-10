@@ -1,6 +1,7 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
@@ -62,7 +63,8 @@ public class CrearDocumentoCommandHandler(
     ITrabajoAnalisisDocumentoRepository colaAnalisis,
     ICurrentUserService currentUserService,
     IDerivarCanalesAplicablesDocumentoService derivarCanalesAplicables,
-    IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio)
+    IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio,
+    IPublisher publisher)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDocumentoCommand request, CancellationToken cancellationToken)
@@ -185,6 +187,10 @@ public class CrearDocumentoCommandHandler(
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Después del commit: este documento puede ser el último que le faltaba al
+        // expediente de una visita pendiente (ARQUITECTURA-INTEGRACIONES.md § 6.5).
+        await publisher.Publish(new DocumentacionCambiadaEvent(documento.Id), cancellationToken);
 
         return Result.Exito(documento.Id);
     }
