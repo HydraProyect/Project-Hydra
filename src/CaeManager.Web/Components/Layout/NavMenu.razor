@@ -39,7 +39,7 @@
                 <Icono Nombre="cartera" /> Visión de cartera
             </NavLink>
         </AuthorizeView>
-        <AuthorizeView Roles="@RolesDeAdministracionAmpliada" Context="authDashboardEjecutivo">
+        <AuthorizeView Roles="@RolesDeDashboardEjecutivo" Context="authDashboardEjecutivo">
             <NavLink class="nav-item" href="dashboard-ejecutivo">
                 <Icono Nombre="dashboard" /> Dashboard Ejecutivo
             </NavLink>
@@ -215,6 +215,17 @@
 
     private const string RolesDeAdministracionAmpliada =
         $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}";
+
+    /// <summary>
+    /// Distinto de <see cref="RolesDeAdministracionAmpliada"/> a propósito: Consulta ve todo el
+    /// negocio en solo lectura (Roles.cs) y el Dashboard actual ya le mostraba "Empresas en
+    /// riesgo" — al migrar esa pieza a Dashboard Ejecutivo (docs/blueprints/OPERATIONAL-HOME.md
+    /// § 7) no debía perder esa visibilidad. No se añade Consulta al rol de administración
+    /// ampliada porque ese también gatea Facturación y Administración, que Consulta no debe ver.
+    /// </summary>
+    private const string RolesDeDashboardEjecutivo =
+        $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
+        $"{CaeManager.Infrastructure.Identity.Roles.Consulta}";
 
     private const string RolesDeCartera =
         $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
