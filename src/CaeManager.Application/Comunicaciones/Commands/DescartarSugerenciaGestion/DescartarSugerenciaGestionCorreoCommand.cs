@@ -13,7 +13,8 @@ namespace CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaGest
 /// </summary>
 public record DescartarSugerenciaGestionCorreoCommand(Guid Id) : ICommand;
 
-public class DescartarSugerenciaGestionCorreoCommandHandler(IDetalleSugerenciaGestionCorreoRepository repositorio, IUnitOfWork unitOfWork)
+public class DescartarSugerenciaGestionCorreoCommandHandler(
+    IDetalleSugerenciaGestionCorreoRepository repositorio, ICurrentUserService currentUserService, IUnitOfWork unitOfWork)
     : IRequestHandler<DescartarSugerenciaGestionCorreoCommand, Result>
 {
     public async Task<Result> Handle(DescartarSugerenciaGestionCorreoCommand request, CancellationToken cancellationToken)
@@ -22,7 +23,7 @@ public class DescartarSugerenciaGestionCorreoCommandHandler(IDetalleSugerenciaGe
         if (detalle is null)
             return Result.Fallo(Error.Crear("SugerenciaGestionCorreo.NoEncontrada", "No encontramos esta sugerencia."));
 
-        detalle.Resolver();
+        detalle.Resolver(ResolucionSugerencia.Descartada, await currentUserService.ObtenerUsuarioActualIdAsync());
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

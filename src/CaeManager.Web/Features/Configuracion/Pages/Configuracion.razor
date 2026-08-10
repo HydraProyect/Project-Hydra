@@ -41,5 +41,46 @@
                 <Boton OnClick="GuardarAsync" Cargando="_guardando">Guardar cambios</Boton>
             </div>
         </Tarjeta>
+
+        <Tarjeta Titulo="Jornada y medición de tiempo" Class="tarjeta-configuracion">
+            <p class="descripcion-configuracion">
+                La franja de jornada se usa para dos cosas: es la hora de entrada que se asume cuando una visita
+                no indica hora, y marca fuera de qué horas una entrada se considera exprés.
+            </p>
+
+            @if (_mensajeErrorOperativa is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorOperativa</div>
+            }
+
+            <CampoTexto Etiqueta="Inicio de jornada" Type="time" Valor="@_horaInicioJornada" ValorChanged="v => _horaInicioJornada = v"
+                        MensajeError="@ObtenerErrorOperativa(nameof(CaeManager.Application.Configuracion.Commands.ActualizarConfiguracionOperativa.ActualizarConfiguracionOperativaCommand.HoraInicioJornada))" />
+            <CampoTexto Etiqueta="Fin de jornada" Type="time" Valor="@_horaFinJornada" ValorChanged="v => _horaFinJornada = v"
+                        MensajeError="@ObtenerErrorOperativa(nameof(CaeManager.Application.Configuracion.Commands.ActualizarConfiguracionOperativa.ActualizarConfiguracionOperativaCommand.HoraFinJornada))" />
+            <CampoTexto Etiqueta="Horas de jornada al mes por gestor" Type="number" Valor="@_horasJornadaMensualGestor" ValorChanged="v => _horasJornadaMensualGestor = v"
+                        MensajeError="@ObtenerErrorOperativa(nameof(CaeManager.Application.Configuracion.Commands.ActualizarConfiguracionOperativa.ActualizarConfiguracionOperativaCommand.HorasJornadaMensualGestor))" />
+
+            <p class="descripcion-configuracion">
+                La medición de tiempo registra cuánto tiempo permanece abierta y con el foco puesto cada gestión.
+                No se recogen pulsaciones de teclado, movimientos de ratón ni actividad fuera de esta aplicación.
+                Antes de activarla hay que informar a la plantilla y a su representación legal
+                (art. 87 LOPDGDD y art. 20.3 del Estatuto de los Trabajadores).
+            </p>
+
+            <label class="campo-checkbox">
+                <input type="checkbox" @bind="_medicionTiempoActiva" /> Activar la medición de tiempo de enfoque
+            </label>
+
+            <CampoTexto Etiqueta="Segundos sin foco antes de pausar" Type="number" Valor="@_segundosInactividadPausa" ValorChanged="v => _segundosInactividadPausa = v"
+                        MensajeError="@ObtenerErrorOperativa(nameof(CaeManager.Application.Configuracion.Commands.ActualizarConfiguracionOperativa.ActualizarConfiguracionOperativaCommand.SegundosInactividadPausa))" />
+
+            <label class="campo-checkbox">
+                <input type="checkbox" @bind="_excluirFueraDeJornadaEnMetricas" /> Excluir de las métricas el tiempo registrado fuera de la jornada
+            </label>
+
+            <div class="acciones-formulario">
+                <Boton OnClick="GuardarOperativaAsync" Cargando="_guardandoOperativa">Guardar cambios</Boton>
+            </div>
+        </Tarjeta>
     }
 </div>

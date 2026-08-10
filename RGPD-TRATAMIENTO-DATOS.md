@@ -14,8 +14,9 @@ Registro factual de qué datos personales trata la aplicación, dónde viven, qu
 | Documentos de vigilancia de la salud ("Apto médico laboral", ver `TipoDocumentoSeedData`) | Archivo PDF adjunto en `Documento`, más el resultado si se registra | **Categoría especial (Art. 9 RGPD — salud)** |
 | Credenciales de acceso a plataformas externas (usuario/contraseña de portales tipo CTAIMA) | `CredencialAccesoEmpresa`/`CredencialAccesoSubcontrata` | Dato de acceso — cifrado en reposo, ver punto 3 |
 | Email/nombre de los propios usuarios de la plataforma (Administrador, Gestor CAE, etc.) | `ApplicationUser` (ASP.NET Identity) | Dato identificativo de empleados del propio Project Hydra o del cliente, no de los Trabajadores gestionados |
+| Tiempo de enfoque por gestión (intervalos y segundos agregados de trabajo sobre una conversación) | `RegistroTiempoGestion` (`UsuarioId`, `ConversacionId`, `ClienteId`, `InicioUtc`, `FinUtc`, `SegundosActivos`, `Motivo`) | Dato de rendimiento de una persona trabajadora — ver punto 8 |
 
-**No se trata**: datos bancarios, datos biométricos, geolocalización, ni ninguna categoría especial del Art. 9 más allá de la vigilancia de la salud ya mencionada.
+**No se trata**: datos bancarios, datos biométricos, geolocalización, ni ninguna categoría especial del Art. 9 más allá de la vigilancia de la salud ya mencionada. **Tampoco se registran** pulsaciones de teclado, coordenadas o movimientos de ratón, patrones de scroll, capturas de pantalla ni actividad fuera de la aplicación — ver punto 8.
 
 ## 2. Base legal
 
@@ -65,3 +66,30 @@ Un DPA formal con cada uno de estos subencargados es el [Issue #13](https://gith
 ## 7. Cifrado en tránsito
 
 Confirmado: la app fuerza `UseHsts()` y procesa `ForwardedHeaders` (`XForwardedFor`/`XForwardedProto`) desde Fase 21 — Railway termina TLS en su proxy de entrada y reenvía la petición internamente como HTTP, que es el patrón estándar detrás de un balanceador gestionado (ver el comentario en `Program.cs` junto a `UseForwardedHeaders`). No hay ningún tramo de la ruta pública en claro. No se ha hecho una auditoría externa de esto (p. ej. con `testssl.sh` contra el dominio público) — es una confirmación de configuración, no una auditoría de terceros.
+
+## 8. Medición de tiempo de enfoque de gestiones (art. 87 LOPDGDD / art. 20.3 ET)
+
+Tratamiento de datos de **personas trabajadoras de la organización que usa Hydra**, no de los Trabajadores gestionados. Se documenta aparte porque no comparte ni base legal ni régimen con el resto del punto 1.
+
+**Qué se trata.** Una fila de `RegistroTiempoGestion` por tramo de trabajo cerrado: identificador del usuario, conversación sobre la que trabajaba, cliente al que se imputa, instante de inicio y fin, segundos activos agregados y motivo de cierre. Nada más.
+
+**Qué NO se trata, por diseño y no por configuración.** Pulsaciones de teclado, coordenadas o movimientos de ratón, patrones de scroll, capturas de pantalla, contenido de lo escrito, ni actividad fuera de la aplicación. La única señal que consume el medidor del navegador es el ciclo de vida de la página — `visibilitychange` del documento y `focus`/`blur` de la ventana (`src/CaeManager.Web/wwwroot/js/medidor-tiempo.js`). Esta minimización es lo que sostiene el principio de proporcionalidad (art. 5.1.c RGPD): se mide el ciclo de vida de una gestión de negocio, no a una persona.
+
+**Finalidades, y solo estas.**
+1. Equilibrar el reparto de cartera entre gestores antes de saturar a nadie.
+2. Servir de base, junto con métricas cualitativas, a un programa de reconocimiento.
+3. Acreditar ante el cliente la dedicación real y los recargos por solicitudes fuera de plazo.
+
+**Base legal.** Art. 6.1.f RGPD (interés legítimo en organizar y acreditar la prestación del servicio) en relación con el art. 20.3 del Estatuto de los Trabajadores. No es consentimiento: en una relación laboral el consentimiento no se considera libremente prestado.
+
+**Garantías incorporadas al producto.**
+- **Apagado de fábrica.** `ParametroSistema.MedicionTiempoActiva` nace en `false` por tenant. Con el interruptor apagado no se carga el módulo JavaScript ni se escribe una sola fila. Encenderlo es una decisión consciente de cada organización, no un efecto colateral de actualizar.
+- **Contador visible.** La persona medida ve en pantalla, en tiempo real, el mismo tiempo que registra el sistema para esa gestión. No hay medición oculta.
+- **Pausa manual.** Botón "Pausar / Tarea externa" siempre disponible, sin justificación previa, para llamadas, reuniones o descansos.
+- **Pausa automática.** Al perder el foco la ventana o superarse el umbral de inactividad configurado (`SegundosInactividadPausa`, 120 s por defecto), el tramo se cierra solo.
+- **Tope por tramo.** Ningún tramo puede acumular más de 30 minutos continuos, para que una pestaña olvidada no genere tiempo que nadie trabajó.
+- **Aislamiento por tenant.** Tabla con `TenantId`, filtro global de EF y política RLS propia (`HabilitarRlsRegistroTiempoGestion`), igual que el resto del modelo.
+
+**Obligaciones que quedan del lado de la organización que activa el módulo, no del producto.** Información previa a la plantilla (art. 87.1 LOPDGDD) — hay plantilla de circular en `docs/business/legal/CIRCULAR_MEDICION_TIEMPOS.md`; consulta previa a la representación legal de las personas trabajadoras (art. 64.5 ET); y valorar si procede una Evaluación de Impacto. **Hydra no puede cumplir estas tres por el cliente, y activar el interruptor sin ellas expone a la organización, no a la plataforma.**
+
+**Pendiente de revisión legal**, como el resto de este documento.

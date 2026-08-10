@@ -60,7 +60,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     private AplicarDeteccionIaDocumentoCommandHandler CrearHandler(IReadOnlyList<Guid>? trabajadorIds = null) =>
         new(new RevisionIaDocumentoRepository(_dbContext), new DocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
             _dbContext, new AlcanceDatosServiceFalso(trabajadorIds: trabajadorIds ?? [_trabajador.Id]), _dbContext,
-            new CurrentUserServiceFalso(usuarioId: _usuarioId), _dbContext);
+            new CurrentUserServiceFalso(usuarioId: _usuarioId), new PublisherFalso(), _dbContext);
 
     [Fact]
     public async Task Renueva_el_documento_con_la_fecha_detectada_y_recalcula_el_vencimiento_automatico()
