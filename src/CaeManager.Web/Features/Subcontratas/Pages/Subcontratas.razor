@@ -1,19 +1,17 @@
 @page "/subcontratas"
 @rendermode InteractiveServer
 @using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata
-@using CaeManager.Application.Subcontratas.Commands.EditarSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas
-@using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcontrata
-@using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata
-@using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
 @using CaeManager.Application.Common
+@using CaeManager.Domain.Subcontratas
+@using CaeManager.Web.Features.Subcontratas
+@using CaeManager.Web.Features.Subcontratas.Components
 @using FluentValidation
 @using MediatR
-@using Microsoft.AspNetCore.Components.QuickGrid
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
@@ -24,11 +22,26 @@
 <div class="contenedor-pagina">
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">Subcontratas</h1>
-        <Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton>
     </div>
 
-    <div class="barra-filtros">
-        <CampoTexto Placeholder="Buscar por razón social…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+    @*
+        "Subcontrata 360" (mismo lenguaje que Centro 360): una barra de
+        trabajo con buscar/selección-múltiple/expandir-todos/nuevo, filas en
+        acordeón con anillo de cumplimiento — sin QuickGrid, que no soporta
+        filas expandibles.
+    *@
+    <div class="barra-trabajo-centros">
+        <CampoTexto Placeholder="Buscar por razón social o CIF…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+               OnClick="() => AlternarSeleccionMultiple(!_seleccionMultiple)"
+               aria-pressed="@(_seleccionMultiple ? "true" : "false")">
+            Selección múltiple
+        </Boton>
+        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+               OnClick="() => AlternarTodosExpandidos(!TodosExpandidos)">
+            @(TodosExpandidos ? "Colapsar todos" : "Expandir todos")
+        </Boton>
+        <Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton>
     </div>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -37,60 +50,122 @@
     {
         <EstadoVacio Titulo="No pudimos cargar las subcontratas" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+                <Boton OnClick="() => CargarAsync()">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando && _elementosPagina.Count == 0)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_elementosPagina.Count == 0)
+    {
+        <EstadoVacio Titulo="Aún no hay subcontratas" Descripcion="Crea la primera para poder dar de alta a sus trabajadores.">
+            <Accion>
+                <Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton>
             </Accion>
         </EstadoVacio>
     }
     else
     {
-        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" />
+        @if (_seleccionMultiple)
+        {
+            <label class="campo-checkbox">
+                <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                Seleccionar todos
+            </label>
+        }
 
-        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="SubcontrataListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                @if (_seleccionMultiple)
-                {
-                    <TemplateColumn Title="" Align="Align.Center">
-                        <HeaderTemplate Context="columna">
-                            <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
-                        </HeaderTemplate>
-                        <ChildContent>
-                            <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
-                        </ChildContent>
-                    </TemplateColumn>
-                }
-                <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<SubcontrataListaDto>.ByAscending(s => s.RazonSocial))">
-                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, context.Id, context.RazonSocial, "informacion")'>
-                        @context.RazonSocial
-                    </button>
-                </TemplateColumn>
-                <TemplateColumn Title="CIF" Sortable="true" SortBy="@(GridSort<SubcontrataListaDto>.ByAscending(s => s.Cif))">
-                    @(context.Cif ?? "—")
-                </TemplateColumn>
-                <TemplateColumn Title="Acciones" Align="Align.End">
-                    <MenuAcciones>
-                        <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, context.Id, context.RazonSocial, "informacion")'>
-                            Detalles
-                        </ItemMenuAccion>
-                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
-                            Eliminar
-                        </ItemMenuAccion>
-                    </MenuAcciones>
-                </TemplateColumn>
-            </QuickGrid>
-
-            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="subcontrata(s)" PaginaActualChanged="CambiarPaginaAsync"
-                              TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+        <div class="lista-filas-acordeon">
+            @foreach (var subcontrata in _elementosPagina)
+            {
+                var expandido = _expandidos.Contains(subcontrata.Id);
+                <div class="@("tarjeta-fila-acordeon" + (subcontrata.Id == _idEnfocado ? " fila-enfocada" : ""))" @key="subcontrata.Id">
+                    <div class="tarjeta-fila-acordeon-cabecera">
+                        @if (_seleccionMultiple)
+                        {
+                            <input type="checkbox" checked="@_seleccionados.Contains(subcontrata.Id)" @onchange="e => AlternarSeleccion(subcontrata.Id, (bool)e.Value!)" />
+                        }
+                        <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
+                                aria-expanded="@(expandido ? "true" : "false")"
+                                aria-label="@($"Trabajadores de {subcontrata.RazonSocial}")"
+                                @onclick="() => AlternarExpansion(subcontrata.Id)">
+                            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                        </button>
+                        <AnilloCumplimiento Porcentaje="subcontrata.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
+                                             Etiqueta="@($"{subcontrata.CumplimientoPorcentaje}% de cumplimiento — documentos al día / exigidos entre sus trabajadores")" />
+                        <span class="tarjeta-fila-acordeon-identidad">
+                            <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, subcontrata.Id, subcontrata.RazonSocial, "informacion")'>
+                                @subcontrata.RazonSocial
+                            </button>
+                            <span class="tarjeta-fila-acordeon-meta">
+                                @(string.IsNullOrEmpty(subcontrata.Cif) ? "Sin CIF" : subcontrata.Cif)
+                                · <Badge Tono="EstadoSupervisionUi.TonoNivel(subcontrata.NivelServicio)" Tamano="TamanoBadge.Pequeno">@EstadoSupervisionUi.TextoNivel(subcontrata.NivelServicio)</Badge>
+                            </span>
+                        </span>
+                        <span class="tarjeta-fila-acordeon-indicadores">
+                            <span class="ranura-recuento">
+                                @if (subcontrata.Recuentos.TotalVencidas > 0)
+                                {
+                                    <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Vencidas, "vencido")"
+                                                     Titulo="@($"{subcontrata.Recuentos.TotalVencidas} {(subcontrata.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
+                                        <Disparador>
+                                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                                @subcontrata.Recuentos.TotalVencidas
+                                            </Badge>
+                                        </Disparador>
+                                        <Detalle>
+                                            @foreach (var incidencia in subcontrata.Recuentos.Vencidas)
+                                            {
+                                                <span class="ventana-linea">@incidencia.Descripcion</span>
+                                            }
+                                        </Detalle>
+                                    </VentanaContexto>
+                                }
+                            </span>
+                            <span class="ranura-recuento ranura-recuento-final">
+                                @if (subcontrata.Recuentos.TotalProximas > 0)
+                                {
+                                    <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Proximas, "próximo a vencer")"
+                                                     Titulo="@($"{subcontrata.Recuentos.TotalProximas} {(subcontrata.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
+                                        <Disparador>
+                                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                                @subcontrata.Recuentos.TotalProximas
+                                            </Badge>
+                                        </Disparador>
+                                        <Detalle>
+                                            @foreach (var incidencia in subcontrata.Recuentos.Proximas)
+                                            {
+                                                <span class="ventana-linea">@incidencia.Descripcion</span>
+                                            }
+                                        </Detalle>
+                                    </VentanaContexto>
+                                }
+                                else if (subcontrata.Recuentos.TotalVencidas == 0)
+                                {
+                                    <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">Al día</Badge>
+                                }
+                            </span>
+                        </span>
+                        <div class="tarjeta-fila-acordeon-acciones">
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, subcontrata.Id, subcontrata.RazonSocial, "informacion")'>
+                                Detalles
+                            </Boton>
+                        </div>
+                    </div>
+                    @if (expandido)
+                    {
+                        <div class="tarjeta-fila-acordeon-contenido">
+                            <AcordeonTrabajadoresSubcontrata SubcontrataId="subcontrata.Id" OnCambio="() => RefrescarSubcontrataAsync(subcontrata.Id)" />
+                        </div>
+                    }
+                </div>
+            }
         </div>
 
-        @if (_totalElementos == 0 && !_cargando)
-        {
-            <EstadoVacio Titulo="Aún no hay subcontratas" Descripcion="Crea la primera para poder dar de alta a sus trabajadores.">
-                <Accion>
-                    <Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton>
-                </Accion>
-            </EstadoVacio>
-        }
+        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                          Etiqueta="subcontrata(s)" PaginaActualChanged="CambiarPaginaAsync"
+                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
     }
 </div>
 
@@ -125,14 +200,6 @@
         </Boton>
     </Pie>
 </Drawer>
-
-<DialogoConfirmacion
-    Visible="_confirmarEliminarVisible"
-    VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@($"¿Eliminar a {_razonSocialAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas."
-    EnProgreso="_eliminando"
-    OnConfirmar="ConfirmarEliminarAsync" />
 
 <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
                     OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />

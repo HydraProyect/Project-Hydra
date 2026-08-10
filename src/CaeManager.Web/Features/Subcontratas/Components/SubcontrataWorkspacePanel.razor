@@ -7,18 +7,28 @@
 *@
 @using CaeManager.Application.Centros
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
+@using CaeManager.Application.Common
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
+@using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.EditarSubcontrata
+@using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna
 @using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcontrata
+@using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna
 @using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata
 @using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId
+@using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores
+@using CaeManager.Domain.Documentos
+@using CaeManager.Domain.Subcontratas
+@using Microsoft.AspNetCore.Components.Forms
 @using FluentValidation
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
+@inject ICurrentUserService CurrentUserService
 
 @if (_cargando)
 {
@@ -106,9 +116,20 @@ else
                     <div class="workspace-grupo-campos">
                         <CampoInfo Etiqueta="Razón social" Valor="@_detalle.RazonSocial" />
                         <CampoInfo Etiqueta="CIF" Valor="@_detalle.Cif" />
+                        <CampoInfo Etiqueta="Nivel de servicio" Valor="@EstadoSupervisionUi.TextoNivel(_detalle.NivelServicio)" />
                         <CampoInfo Etiqueta="Clientes con los que trabaja" Valor="@_detalle.ClienteIds.Count.ToString()" />
                         <CampoInfo Etiqueta="Empresas a las que presta servicio" Valor="@_detalle.EmpresaIds.Count.ToString()" />
                         <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
+                    </div>
+                    <p class="workspace-nota-contextual">
+                        @(_detalle.NivelServicio == NivelServicioSubcontrata.Gestionada
+                            ? "Gestionada: su documentación se sube y valida dentro de Hydra."
+                            : "Supervisada: no se gestionan sus documentos — solo se audita su cumplimiento en las plataformas del titular (pestaña Supervisión).")
+                    </p>
+                    <div class="workspace-acciones-edicion">
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_cambiandoNivel" OnClick="ConfirmarCambioNivelAsync">
+                            Cambiar a @EstadoSupervisionUi.TextoNivel(NivelOpuesto)
+                        </Boton>
                     </div>
                 }
                 break;
@@ -149,6 +170,80 @@ else
                 <EstadoVacio Titulo="Documentación no modelada a nivel de Subcontrata" Descripcion="El modelo de datos actual solo asocia Documentos a Trabajador, Cliente, Empresa o Vehículo — consulta la pestaña Documentación de cada Trabajador de esta subcontrata." />
                 break;
 
+            case "supervision":
+                @if (_cargandoSupervision)
+                {
+                    <EstadoCargando Filas="4" />
+                }
+                else if (_errorSupervision)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar la supervisión" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarSupervisionAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (_supervision is not null)
+                {
+                    <p class="workspace-nota-contextual">
+                        Cumplimiento de la subcontrata en las plataformas del titular de cada centro, verificado a mano por el gestor
+                        — el semáforo se calcula con la última verificación y los umbrales del sistema.
+                    </p>
+                    <div class="workspace-acciones-edicion">
+                        <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRegistrarVerificacionAsync" Deshabilitado="@(_supervision.CentrosSeleccionables.Count == 0)">
+                            + Registrar verificación
+                        </Boton>
+                    </div>
+
+                    @if (_supervision.Centros.Count == 0)
+                    {
+                        <EstadoVacio Titulo="Sin supervisión registrada"
+                                     Descripcion="@(_supervision.CentrosSeleccionables.Count == 0
+                                         ? "Vincula la subcontrata a un Cliente con Centros para poder verificar su cumplimiento."
+                                         : "Registra la primera verificación para empezar a seguir su cumplimiento externo.")" />
+                    }
+                    else
+                    {
+                        @foreach (var centro in _supervision.Centros)
+                        {
+                            <div class="workspace-grupo-campos">
+                                <h3 class="workspace-subtitulo-seccion">@centro.CentroNombre <span class="texto-secundario">· @centro.ClienteRazonSocial</span></h3>
+                                <ul class="workspace-lista-entidades">
+                                    @foreach (var tipo in centro.Tipos)
+                                    {
+                                        <li class="fila-supervision">
+                                            <div class="fila-supervision-principal">
+                                                <span>@tipo.TipoDocumentoNombre</span>
+                                                @if (!tipo.Exigido)
+                                                {
+                                                    <Badge Tono="TonoBadge.Neutro">No exigido</Badge>
+                                                }
+                                                <Badge Tono="EstadoSupervisionUi.Tono(tipo.Estado)">@EstadoSupervisionUi.Texto(tipo.Estado)</Badge>
+                                            </div>
+                                            @if (tipo.UltimaVerificacion is { } ultima)
+                                            {
+                                                <div class="fila-supervision-detalle texto-secundario">
+                                                    @EstadoSupervisionUi.TextoResultado(ultima.Resultado) el @ultima.FechaVerificacion.ToString("dd/MM/yyyy")@(ultima.ValidoHasta is { } vh ? $" · válido hasta {vh:dd/MM/yyyy}" : string.Empty)
+                                                    @if (ultima.TieneEvidencia)
+                                                    {
+                                                        <a href="@($"/subcontratas/verificaciones/{ultima.Id}/evidencia")" target="_blank" rel="noopener">Ver evidencia</a>
+                                                    }
+                                                    <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirEliminarVerificacion(ultima.Id)">Eliminar</button>
+                                                </div>
+                                                @if (!string.IsNullOrWhiteSpace(ultima.Observaciones))
+                                                {
+                                                    <div class="fila-supervision-detalle texto-secundario">@ultima.Observaciones</div>
+                                                }
+                                            }
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                    }
+                }
+                break;
+
             case "centros":
                 @if (_cargandoCentros)
                 {
@@ -187,6 +282,72 @@ else
                 break;
         }
     </Pestanas>
+
+    <DialogoConfirmacion
+        Visible="_confirmarEliminarVerificacionVisible"
+        VisibleChanged="v => _confirmarEliminarVerificacionVisible = v"
+        Titulo="¿Eliminar esta verificación?"
+        Mensaje="El semáforo volverá a calcularse con la verificación anterior, si la hay."
+        EnProgreso="_eliminandoVerificacion"
+        OnConfirmar="ConfirmarEliminarVerificacionAsync" />
+
+    <Drawer Visible="_drawerVerificacionVisible" VisibleChanged="CerrarDrawerVerificacion" Titulo="Registrar verificación externa"
+            CerrarAlHacerClicFuera="@(_mensajeErrorVerificacion is null && !_guardandoVerificacion)">
+        <ChildContent>
+            @if (_mensajeErrorVerificacion is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorVerificacion</div>
+            }
+
+            <CampoSelect Etiqueta="Centro" Valor="@_verificacionCentroId" ValorChanged="v => _verificacionCentroId = v">
+                <option value="">Selecciona un centro…</option>
+                @foreach (var centro in _supervision?.CentrosSeleccionables ?? [])
+                {
+                    <option value="@centro.CentroId">@centro.CentroNombre (@centro.ClienteRazonSocial)</option>
+                }
+            </CampoSelect>
+
+            <CampoSelect Etiqueta="Tipo de documento" Valor="@_verificacionTipoId" ValorChanged="v => _verificacionTipoId = v">
+                <option value="">Selecciona un tipo…</option>
+                @foreach (var tipo in _tiposVerificables)
+                {
+                    <option value="@tipo.Id">@tipo.Nombre</option>
+                }
+            </CampoSelect>
+
+            <CampoSelect Etiqueta="Resultado" Valor="@_verificacionResultado" ValorChanged="v => _verificacionResultado = v">
+                <option value="@nameof(ResultadoVerificacionExterna.Valido)">Válido</option>
+                <option value="@nameof(ResultadoVerificacionExterna.NoValido)">No válido</option>
+                <option value="@nameof(ResultadoVerificacionExterna.NoEncontrado)">No encontrado</option>
+            </CampoSelect>
+
+            <CampoTexto Etiqueta="Fecha de verificación" Type="date" Valor="@_verificacionFecha" ValorChanged="v => _verificacionFecha = v" />
+            <CampoTexto Etiqueta="Válido hasta (según la plataforma, opcional)" Type="date" Valor="@_verificacionValidoHasta" ValorChanged="v => _verificacionValidoHasta = v" />
+            <CampoTextarea Etiqueta="Observaciones" Valor="@_verificacionObservaciones" ValorChanged="v => _verificacionObservaciones = v" Filas="3" />
+
+            <div class="campo">
+                <label>Evidencia (captura o justificante — PDF, PNG o JPG, máx. 10 MB, opcional)</label>
+                <ZonaSoltarArchivo
+                    OnChange="ManejarEvidenciaSeleccionadaAsync"
+                    Multiple="false"
+                    Accept=".pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png"
+                    FormatosTexto="PDF · JPG · PNG"
+                    Cargando="false" />
+                @if (_evidenciaNombre is not null)
+                {
+                    <p class="texto-secundario">Adjunto: @_evidenciaNombre</p>
+                }
+            </div>
+        </ChildContent>
+        <Pie>
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoVerificacion" OnClick="() => CerrarDrawerVerificacion(false)">
+                Cancelar
+            </Boton>
+            <Boton Cargando="_guardandoVerificacion" OnClick="GuardarVerificacionAsync">
+                Registrar
+            </Boton>
+        </Pie>
+    </Drawer>
 }
 
 @code {
@@ -195,6 +356,7 @@ else
         new("informacion", "Información"),
         new("trabajadores", "Trabajadores"),
         new("documentacion", "Documentación"),
+        new("supervision", "Supervisión"),
         new("centros", "Centros"),
         new("historial", "Historial")
     ];
@@ -214,6 +376,32 @@ else
     private IReadOnlyList<CentroConActividadDto>? _centros;
     private bool _cargandoCentros;
     private bool _errorCentros;
+
+    // Supervisión externa (ADR-005 § 2.3).
+    private SupervisionSubcontrataDto? _supervision;
+    private bool _cargandoSupervision;
+    private bool _errorSupervision;
+    private bool _cambiandoNivel;
+    private bool _drawerVerificacionVisible;
+    private bool _guardandoVerificacion;
+    private string? _mensajeErrorVerificacion;
+    private IReadOnlyList<TipoDocumentoListaDto> _tiposVerificables = [];
+    private string _verificacionCentroId = string.Empty;
+    private string _verificacionTipoId = string.Empty;
+    private string _verificacionResultado = nameof(ResultadoVerificacionExterna.Valido);
+    private string _verificacionFecha = string.Empty;
+    private string _verificacionValidoHasta = string.Empty;
+    private string _verificacionObservaciones = string.Empty;
+    private byte[]? _evidenciaContenido;
+    private string? _evidenciaNombre;
+    private Guid _verificacionAEliminarId;
+    private bool _confirmarEliminarVerificacionVisible;
+    private bool _eliminandoVerificacion;
+
+    private NivelServicioSubcontrata NivelOpuesto =>
+        _detalle?.NivelServicio == NivelServicioSubcontrata.Supervisada
+            ? NivelServicioSubcontrata.Gestionada
+            : NivelServicioSubcontrata.Supervisada;
 
     /// <summary>
     /// Edición in situ de "Información" (Centro 360, PLAN-EJECUCION-UX.md
@@ -253,6 +441,8 @@ else
             _errorTrabajadores = false;
             _centros = null;
             _errorCentros = false;
+            _supervision = null;
+            _errorSupervision = false;
             _editandoInformacion = false;
             await CargarCabeceraAsync();
         }
@@ -262,6 +452,9 @@ else
 
         if (PestanaActiva == "centros" && _centros is null && !_errorCentros && !_cargandoCentros)
             await CargarCentrosAsync();
+
+        if (PestanaActiva == "supervision" && _supervision is null && !_errorSupervision && !_cargandoSupervision)
+            await CargarSupervisionAsync();
     }
 
     private async Task CargarCabeceraAsync()
@@ -419,6 +612,215 @@ else
         finally
         {
             _guardandoInformacion = false;
+        }
+    }
+
+    private async Task CargarSupervisionAsync()
+    {
+        var idSolicitado = EntidadId;
+        _cargandoSupervision = true;
+        _errorSupervision = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerSupervisionSubcontrataQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _supervision = resultado ?? new SupervisionSubcontrataDto([], []);
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorSupervision = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoSupervision = false;
+        }
+    }
+
+    /// <summary>
+    /// Sin diálogo de confirmación a propósito: el cambio de nivel es
+    /// reversible en ambos sentidos y conserva todo el historial (ADR-005 §
+    /// 2.1) — no cumple el criterio de "destructivo o irreversible en la
+    /// práctica" que exige una confirmación (04_UX_PATTERNS.md § 7.2). Mismo
+    /// tratamiento que "Reactivar" en Delegaciones.razor: acción directa con
+    /// estado de carga, aviso del resultado en el toast.
+    /// </summary>
+    private async Task ConfirmarCambioNivelAsync()
+    {
+        if (_detalle is null) return;
+
+        var nivelDestino = NivelOpuesto;
+        _cambiandoNivel = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new CambiarNivelServicioSubcontrataCommand(
+                _detalle.Id, nivelDestino, _detalle.Version));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar($"Nivel de servicio cambiado a {EstadoSupervisionUi.TextoNivel(nivelDestino)}.", TonoToast.Exito);
+            await CargarCabeceraAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos cambiar el nivel de servicio. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            _cambiandoNivel = false;
+        }
+    }
+
+    private async Task AbrirRegistrarVerificacionAsync()
+    {
+        if (_tiposVerificables.Count == 0)
+        {
+            // Los ámbitos que un portal puede exigir a una subcontrata — misma
+            // regla que ObtenerSupervisionSubcontrataQuery.
+            var trabajador = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador));
+            var empresa = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Empresa));
+            _tiposVerificables = trabajador.Concat(empresa).OrderBy(t => t.Orden).ToList();
+        }
+
+        _verificacionCentroId = _supervision?.CentrosSeleccionables.Count == 1
+            ? _supervision.CentrosSeleccionables[0].CentroId.ToString()
+            : string.Empty;
+        _verificacionTipoId = string.Empty;
+        _verificacionResultado = nameof(ResultadoVerificacionExterna.Valido);
+        _verificacionFecha = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        _verificacionValidoHasta = string.Empty;
+        _verificacionObservaciones = string.Empty;
+        _evidenciaContenido = null;
+        _evidenciaNombre = null;
+        _mensajeErrorVerificacion = null;
+        _drawerVerificacionVisible = true;
+    }
+
+    private Task CerrarDrawerVerificacion(bool visible)
+    {
+        _drawerVerificacionVisible = visible;
+        return Task.CompletedTask;
+    }
+
+    private async Task ManejarEvidenciaSeleccionadaAsync(InputFileChangeEventArgs args)
+    {
+        const long tamanoMaximo = 10 * 1024 * 1024;
+        var archivo = args.File;
+
+        if (archivo.Size > tamanoMaximo)
+        {
+            _mensajeErrorVerificacion = "La evidencia no puede superar los 10 MB.";
+            return;
+        }
+
+        using var memoria = new MemoryStream();
+        await archivo.OpenReadStream(tamanoMaximo).CopyToAsync(memoria);
+        _evidenciaContenido = memoria.ToArray();
+        _evidenciaNombre = archivo.Name;
+        _mensajeErrorVerificacion = null;
+    }
+
+    private async Task GuardarVerificacionAsync()
+    {
+        if (_detalle is null) return;
+
+        if (!Guid.TryParse(_verificacionCentroId, out var centroId))
+        {
+            _mensajeErrorVerificacion = "Selecciona un centro.";
+            return;
+        }
+
+        if (!Guid.TryParse(_verificacionTipoId, out var tipoId))
+        {
+            _mensajeErrorVerificacion = "Selecciona un tipo de documento.";
+            return;
+        }
+
+        if (!DateOnly.TryParse(_verificacionFecha, out var fecha))
+        {
+            _mensajeErrorVerificacion = "Indica la fecha de verificación.";
+            return;
+        }
+
+        DateOnly? validoHasta = DateOnly.TryParse(_verificacionValidoHasta, out var vh) ? vh : null;
+        var resultadoVerificacion = Enum.Parse<ResultadoVerificacionExterna>(_verificacionResultado);
+
+        _guardandoVerificacion = true;
+        _mensajeErrorVerificacion = null;
+
+        try
+        {
+            var observaciones = string.IsNullOrWhiteSpace(_verificacionObservaciones) ? null : _verificacionObservaciones;
+            var resultado = await Mediator.Send(new RegistrarVerificacionExternaSubcontrataCommand(
+                _detalle.Id, centroId, tipoId, fecha, resultadoVerificacion, validoHasta, observaciones,
+                _evidenciaContenido, _evidenciaNombre));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorVerificacion = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Verificación registrada.", TonoToast.Exito);
+            _drawerVerificacionVisible = false;
+            await CargarSupervisionAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _mensajeErrorVerificacion = ex.Errors.FirstOrDefault()?.ErrorMessage ?? "Revisa los datos del formulario.";
+        }
+        catch (Exception)
+        {
+            _mensajeErrorVerificacion = "No pudimos registrar la verificación. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _guardandoVerificacion = false;
+        }
+    }
+
+    private void AbrirEliminarVerificacion(Guid verificacionId)
+    {
+        _verificacionAEliminarId = verificacionId;
+        _confirmarEliminarVerificacionVisible = true;
+    }
+
+    private async Task ConfirmarEliminarVerificacionAsync()
+    {
+        _eliminandoVerificacion = true;
+
+        try
+        {
+            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
+            if (usuarioId is null) return;
+
+            var resultado = await Mediator.Send(new EliminarVerificacionExternaSubcontrataCommand(
+                _verificacionAEliminarId, usuarioId.Value));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar("Verificación eliminada.", TonoToast.Exito);
+            _confirmarEliminarVerificacionVisible = false;
+            await CargarSupervisionAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos eliminar la verificación. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            _eliminandoVerificacion = false;
         }
     }
 
