@@ -111,6 +111,30 @@ public class DirectorioUsuariosTenant(
             return (await ObtenerRolesDeOperadoresDelegadosAsync(tenantId, cancellationToken)).ContainsKey(usuarioId);
         }, cancellationToken);
 
+    /// <summary>
+    /// Nombres de los usuarios pedidos, acotados igual que el resto del directorio:
+    /// del tenant activo o con asignación delegada viva sobre él. Un Id que no pase
+    /// ese filtro no aparece en el resultado en vez de resolverse igualmente.
+    /// </summary>
+    public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyDictionary<Guid, string>>(async () =>
+        {
+            if (usuarioIds.Count == 0 || tenantActual.TenantId is not { } tenantId)
+                return new Dictionary<Guid, string>();
+
+            var rolesDelegados = await ObtenerRolesDeOperadoresDelegadosAsync(tenantId, cancellationToken);
+
+            var usuarios = await userManager.Users
+                .Where(u => usuarioIds.Contains(u.Id) && (u.TenantId == tenantId || rolesDelegados.Keys.Contains(u.Id)))
+                .Select(u => new { u.Id, u.NombreCompleto, u.Email })
+                .ToListAsync(cancellationToken);
+
+            return usuarios.ToDictionary(
+                u => u.Id,
+                u => string.IsNullOrWhiteSpace(u.NombreCompleto) ? u.Email ?? "—" : u.NombreCompleto);
+        }, cancellationToken);
+
     private async Task<Dictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(Guid tenantId, CancellationToken cancellationToken) =>
         await (
             from asignacion in dbContext.AsignacionesOperadorDelegado

@@ -1,3 +1,4 @@
+using CaeManager.Application.Configuracion.Commands.ActualizarConfiguracionOperativa;
 using CaeManager.Application.Configuracion.Commands.ActualizarParametroSistema;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Web.Components.DesignSystem;
@@ -21,6 +22,16 @@ public partial class Configuracion : ComponentBase
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
 
+    private bool _guardandoOperativa;
+    private string _horaInicioJornada = string.Empty;
+    private string _horaFinJornada = string.Empty;
+    private string _horasJornadaMensualGestor = string.Empty;
+    private bool _medicionTiempoActiva;
+    private string _segundosInactividadPausa = string.Empty;
+    private bool _excluirFueraDeJornadaEnMetricas;
+    private string? _mensajeErrorOperativa;
+    private Dictionary<string, string> _erroresCampoOperativa = new();
+
     protected override Task OnInitializedAsync() => CargarAsync();
 
     private async Task CargarAsync()
@@ -34,6 +45,12 @@ public partial class Configuracion : ComponentBase
             var parametros = await Mediator.Send(new ObtenerParametroSistemaQuery());
             _umbralAmbarDias = parametros.UmbralAmbarDias.ToString();
             _umbralRojoDias = parametros.UmbralRojoDias.ToString();
+            _horaInicioJornada = parametros.HoraInicioJornada.ToString("HH:mm");
+            _horaFinJornada = parametros.HoraFinJornada.ToString("HH:mm");
+            _horasJornadaMensualGestor = parametros.HorasJornadaMensualGestor.ToString();
+            _medicionTiempoActiva = parametros.MedicionTiempoActiva;
+            _segundosInactividadPausa = parametros.SegundosInactividadPausa.ToString();
+            _excluirFueraDeJornadaEnMetricas = parametros.ExcluirFueraDeJornadaEnMetricas;
         }
         catch (Exception)
         {
@@ -83,5 +100,54 @@ public partial class Configuracion : ComponentBase
         }
     }
 
+    private async Task GuardarOperativaAsync()
+    {
+        _guardandoOperativa = true;
+        _mensajeErrorOperativa = null;
+        _erroresCampoOperativa = new Dictionary<string, string>();
+        StateHasChanged();
+
+        try
+        {
+            if (!TimeOnly.TryParse(_horaInicioJornada, out var horaInicio) || !TimeOnly.TryParse(_horaFinJornada, out var horaFin))
+            {
+                _mensajeErrorOperativa = "Las horas de jornada deben tener formato HH:mm.";
+                return;
+            }
+
+            var resultado = await Mediator.Send(new ActualizarConfiguracionOperativaCommand(
+                horaInicio,
+                horaFin,
+                int.TryParse(_horasJornadaMensualGestor, out var horasMes) ? horasMes : 0,
+                _medicionTiempoActiva,
+                int.TryParse(_segundosInactividadPausa, out var segundos) ? segundos : 0,
+                _excluirFueraDeJornadaEnMetricas));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorOperativa = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Configuración operativa actualizada correctamente.", TonoToast.Exito);
+        }
+        catch (ValidationException ex)
+        {
+            _erroresCampoOperativa = ex.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+        }
+        catch (Exception)
+        {
+            _mensajeErrorOperativa = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _guardandoOperativa = false;
+        }
+    }
+
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
+
+    private string? ObtenerErrorOperativa(string campo) => _erroresCampoOperativa.GetValueOrDefault(campo);
 }

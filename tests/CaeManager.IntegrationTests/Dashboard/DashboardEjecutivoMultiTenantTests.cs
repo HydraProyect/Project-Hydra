@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.DependencyInjection;
 using CaeManager.Domain.Centros;
@@ -35,6 +36,17 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
     private readonly Guid _usuario = Guid.NewGuid();
     private CaeManagerDbContext _dbContext = null!;
     private ServiceProvider _servicios = null!;
+
+    /// <summary>Sin usuarios que resolver: este test verifica la fusión multi-tenant de conteos, no la ocupación por gestor.</summary>
+    private sealed class DirectorioUsuariosServiceVacio : IDirectorioUsuariosService
+    {
+        public Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(
+            IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+    }
     private Guid _tenantConsultora;
     private Guid _tenantCliente;
 
@@ -80,7 +92,11 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
         servicios.AddSingleton<CaeManager.Application.Retencion.IRetencionQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Incidencias.IIncidenciasQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(_dbContext);
+        servicios.AddSingleton<CaeManager.Application.Telemetria.ITelemetriaQueryContext>(_dbContext);
         servicios.AddSingleton<IAlcanceDatosService>(new AlcanceDatosServiceFalso());
+        // El KPI de ocupación resuelve nombres de gestor por el directorio; este test no
+        // monta Identity, y los tramos de tiempo que mediría no existen aquí.
+        servicios.AddSingleton<IDirectorioUsuariosService>(new DirectorioUsuariosServiceVacio());
         servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso(_usuario, () => _tenantConsultora));
         _servicios = servicios.BuildServiceProvider();
 
@@ -112,7 +128,7 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
     {
         var mediator = _servicios.GetRequiredService<IMediator>();
 
-        var resultado = await mediator.Send(new ObtenerDashboardEjecutivoQuery());
+        var resultado = await mediator.Send(new ObtenerDashboardEjecutivoQuery(PeriodoKpi.MesActual(DateTime.UtcNow)));
 
         resultado.TotalTenants.Should().Be(2);
         resultado.TrabajadoresActivos.Should().Be(7, "2 de la Consultora + 5 de Ibertec");

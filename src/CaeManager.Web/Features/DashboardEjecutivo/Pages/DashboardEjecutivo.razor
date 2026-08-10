@@ -10,6 +10,23 @@
     <div class="dashboard-cabecera">
         <span class="dashboard-kicker">Dashboard Ejecutivo</span>
         <h1 class="titulo-pagina">Tu cartera, con los KPI que elijas</h1>
+
+        <div class="dashboard-periodo">
+            <CampoSelect Etiqueta="Periodo" Valor="@_preset.ToString()" ValorChanged="CambiarPresetAsync">
+                @foreach (var preset in Enum.GetValues<PresetPeriodoKpi>())
+                {
+                    <option value="@preset">@EtiquetaPreset(preset)</option>
+                }
+            </CampoSelect>
+
+            @if (_preset == PresetPeriodoKpi.Personalizado)
+            {
+                <CampoTexto Etiqueta="Desde" Type="date" Valor="@_desdePersonalizado"
+                            ValorChanged="v => _desdePersonalizado = v" OnBlur="AplicarRangoPersonalizadoAsync" />
+                <CampoTexto Etiqueta="Hasta" Type="date" Valor="@_hastaPersonalizado"
+                            ValorChanged="v => _hastaPersonalizado = v" OnBlur="AplicarRangoPersonalizadoAsync" />
+            }
+        </div>
     </div>
 
     @if (_error)
@@ -172,6 +189,81 @@
                                     Manuales — @_estadisticasAprobacion.Manuales (@PorcentajeManual%)
                                 </li>
                             </ul>
+                        }
+                    }
+                    else if (kpi.Codigo == CatalogoKpis.DistribucionAntelacion)
+                    {
+                        @if (_distribucionAntelacion.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">Todavía no hay visitas con la antelación medida.</p>
+                        }
+                        else
+                        {
+                            <ApexChart TItem="SegmentoGraficoDto" Height="280">
+                                <ApexPointSeries TItem="SegmentoGraficoDto" Items="_distribucionAntelacion"
+                                                 SeriesType="SeriesType.Donut"
+                                                 XValue="@(s => s.Etiqueta)"
+                                                 YValue="@(s => s.Valor)" />
+                            </ApexChart>
+                        }
+                    }
+                    else if (kpi.Codigo == CatalogoKpis.AtribucionUrgencia)
+                    {
+                        @if (_atribucionUrgencia.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">Todavía no hay visitas con la antelación medida.</p>
+                        }
+                        else
+                        {
+                            <ApexChart TItem="SegmentoGraficoDto" Height="280" Options="OpcionesBarraHorizontal">
+                                <ApexPointSeries TItem="SegmentoGraficoDto" Items="_atribucionUrgencia"
+                                                 SeriesType="SeriesType.Bar"
+                                                 XValue="@(s => s.Etiqueta)"
+                                                 YValue="@(s => s.Valor)" />
+                            </ApexChart>
+                        }
+                    }
+                    else if (kpi.Codigo == CatalogoKpis.OcupacionGestores)
+                    {
+                        @if (_ocupacionGestores.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.</p>
+                        }
+                        else
+                        {
+                            <ApexChart TItem="SegmentoGraficoDto" Height="280" Options="OpcionesBarraHorizontal">
+                                <ApexPointSeries TItem="SegmentoGraficoDto" Items="_ocupacionGestores"
+                                                 SeriesType="SeriesType.Bar"
+                                                 XValue="@(s => s.Etiqueta)"
+                                                 YValue="@(s => s.Valor)" />
+                            </ApexChart>
+                        }
+                    }
+                    else if (kpi.Codigo == CatalogoKpis.HorasPorCliente)
+                    {
+                        @if (_valores!.Bpo.HorasPorCliente.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.</p>
+                        }
+                        else
+                        {
+                            <table class="tabla-datos">
+                                <thead>
+                                    <tr>
+                                        <th>Cliente</th>
+                                        <th>Horas de gestión</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var fila in _valores.Bpo.HorasPorCliente)
+                                    {
+                                        <tr>
+                                            <td>@fila.ClienteNombre</td>
+                                            <td>@Horas(fila.SegundosActivos)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
                         }
                     }
                 </Tarjeta>
