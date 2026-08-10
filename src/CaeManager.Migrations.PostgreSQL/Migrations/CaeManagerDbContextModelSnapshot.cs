@@ -430,6 +430,70 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("AdjuntosMensaje", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ClasificacionRuidoDetalleGestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("ConfirmadaManualmente")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DetalleSugerenciaGestionCorreoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ReclamacionDocumentalDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DetalleSugerenciaGestionCorreoId")
+                        .IsUnique();
+
+                    b.ToTable("ClasificacionesRuidoDetalleGestion", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ClasificacionRuidoMensaje", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("ConfirmadaManualmente")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("EsNotificacionAutomatica")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MensajeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Motivo")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ProveedorPlataformaCaeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MensajeId")
+                        .IsUnique();
+
+                    b.ToTable("ClasificacionesRuidoMensaje", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.ContactoWhatsApp", b =>
                 {
                     b.Property<Guid>("Id")
@@ -538,6 +602,40 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "ConexionIntegracionId", "TelefonoContacto");
 
                     b.ToTable("Conversaciones", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.DetalleSugerenciaGestionCorreo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConfianzaTipoDocumento")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ConfianzaTrabajador")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Resuelta")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("SugerenciaGestionCorreoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TipoDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SugerenciaGestionCorreoId");
+
+                    b.ToTable("DetallesSugerenciaGestionCorreo", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.EventoConversacion", b =>
@@ -732,20 +830,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Confianza")
                         .HasColumnType("integer");
 
-                    b.Property<int>("ConfianzaTipoDocumento")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ConfianzaTrabajador")
-                        .HasColumnType("integer");
-
                     b.Property<DateTime>("CreadaEnUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("MensajeId")
                         .HasColumnType("uuid");
-
-                    b.Property<bool>("Resuelta")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("Resumen")
                         .IsRequired()
@@ -753,12 +842,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("TipoDocumentoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("TrabajadorId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
@@ -814,6 +897,41 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("MensajeId");
 
                     b.ToTable("SugerenciasVisitaCorreo", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.UltimoResumenNotificacionPlataforma", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ActualizadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Pendientes")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ProveedorPlataformaCaeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Rechazados")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Vencidos")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ClienteId", "ProveedorPlataformaCaeId")
+                        .IsUnique();
+
+                    b.ToTable("UltimosResumenesNotificacionPlataforma", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Configuracion.FiltroGuardado", b =>
@@ -4737,6 +4855,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.DetalleSugerenciaGestionCorreo", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Comunicaciones.SugerenciaGestionCorreo", null)
+                        .WithMany("Detalles")
+                        .HasForeignKey("SugerenciaGestionCorreoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.Mensaje", b =>
                 {
                     b.HasOne("CaeManager.Domain.Comunicaciones.Conversacion", null)
@@ -5136,6 +5263,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.Mensaje", b =>
                 {
                     b.Navigation("Adjuntos");
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.SugerenciaGestionCorreo", b =>
+                {
+                    b.Navigation("Detalles");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>

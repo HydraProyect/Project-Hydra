@@ -15,6 +15,14 @@ public class SugerenciaGestionCorreoConfiguration : IEntityTypeConfiguration<Sug
 
         builder.HasIndex(s => s.MensajeId);
 
+        // Detalles es una colección de solo lectura respaldada por un campo privado (ver
+        // SugerenciaGestionCorreo) — mismo patrón que Conversacion.Mensajes/Participantes.
+        builder.HasMany(s => s.Detalles)
+            .WithOne()
+            .HasForeignKey(d => d.SugerenciaGestionCorreoId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(s => s.Detalles).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }

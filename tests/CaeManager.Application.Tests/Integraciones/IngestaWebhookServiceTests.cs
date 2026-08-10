@@ -15,12 +15,18 @@ public class IngestaWebhookServiceTests
         ConexionIntegracionRepositorioFalso conexionRepositorio,
         ConversacionRepositorioFalso conversacionRepositorio,
         Microsoft365GraphClientFalso graphClient,
-        CredencialIntegracionRepositorioFalso? credencialRepositorio = null) =>
+        CredencialIntegracionRepositorioFalso? credencialRepositorio = null,
+        ResolucionProveedorPlataformaCaeServiceFalso? resolucionPlataforma = null,
+        ClasificacionRuidoMensajeRepositorioFalso? clasificacionRuidoRepositorio = null) =>
         new(conexionRepositorio, conversacionRepositorio, graphClient,
             new AccesoGraphService(credencialRepositorio ?? new CredencialIntegracionRepositorioFalso(), graphClient),
             new FileStorageServiceFalso(),
             new SugerenciaVisitaCorreoServiceFalso(),
             new SugerenciaGestionCorreoServiceFalso(),
+            new ResolucionParticipanteConversacionServiceFalso(),
+            resolucionPlataforma ?? new ResolucionProveedorPlataformaCaeServiceFalso(),
+            clasificacionRuidoRepositorio ?? new ClasificacionRuidoMensajeRepositorioFalso(),
+            new ClasificacionRuidoMensajeServiceFalso(),
             NullLogger<IngestaWebhookService>.Instance);
 
     private static ConexionIntegracion ConexionHabilitada(Guid? clienteId = null)
@@ -132,6 +138,65 @@ public class IngestaWebhookServiceTests
 
         evento.Procesado.Should().BeTrue();
         conversacionRepositorio.Conversaciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_correo_de_una_plataforma_conocida_queda_marcado_como_notificacion_automatica()
+    {
+        var conexion = ConexionHabilitada();
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
+        var graphClient = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["graph-msg-1"],
+            MensajeADevolver = new MensajeGraphDto(
+                "graph-msg-1", "graph-thread-1", "Aviso pendiente", "notificaciones@dokify.net", "<p>Aviso</p>", DateTime.UtcNow, [], []),
+        };
+        var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
+        credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
+        var proveedorId = Guid.NewGuid();
+        var resolucionPlataforma = new ResolucionProveedorPlataformaCaeServiceFalso();
+        resolucionPlataforma.RegistrarPlataformaPorDominioCorreo(new ProveedorPlataformaCaeCandidatoDto(proveedorId, "Dokify", true));
+        var clasificacionRepositorio = new ClasificacionRuidoMensajeRepositorioFalso();
+        var servicio = CrearServicio(
+            conexionRepositorio, conversacionRepositorio, graphClient, credencialRepositorio,
+            resolucionPlataforma, clasificacionRepositorio);
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        var clasificacion = clasificacionRepositorio.Clasificaciones.Should().ContainSingle().Subject;
+        clasificacion.EsNotificacionAutomatica.Should().BeTrue();
+        clasificacion.ProveedorPlataformaCaeId.Should().Be(proveedorId);
+    }
+
+    [Fact]
+    public async Task Un_correo_de_remitente_desconocido_no_se_marca_como_notificacion_automatica()
+    {
+        var conexion = ConexionHabilitada();
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
+        var graphClient = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["graph-msg-1"],
+            MensajeADevolver = new MensajeGraphDto(
+                "graph-msg-1", "graph-thread-1", "Duda sobre CAE", "cliente@ejemplo.com", "<p>hola</p>", DateTime.UtcNow, [], []),
+        };
+        var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
+        credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
+        var clasificacionRepositorio = new ClasificacionRuidoMensajeRepositorioFalso();
+        var servicio = CrearServicio(
+            conexionRepositorio, conversacionRepositorio, graphClient, credencialRepositorio,
+            clasificacionRuidoRepositorio: clasificacionRepositorio);
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        var clasificacion = clasificacionRepositorio.Clasificaciones.Should().ContainSingle().Subject;
+        clasificacion.EsNotificacionAutomatica.Should().BeFalse();
+        clasificacion.ProveedorPlataformaCaeId.Should().BeNull();
     }
 
     [Fact]

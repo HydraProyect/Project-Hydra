@@ -111,4 +111,24 @@ public class ResolucionProveedorPlataformaCaeServiceTests : IAsyncLifetime
 
         resultado.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task Resuelve_una_plataforma_conocida_por_el_dominio_del_remitente_de_un_correo()
+    {
+        var servicio = _servicios.GetRequiredService<IResolucionProveedorPlataformaCaeService>();
+
+        var resultado = await servicio.ResolverPorDominioCorreoAsync("notificaciones@app.twind.io");
+
+        resultado.Should().ContainSingle().Which.Nombre.Should().Be("Twind");
+    }
+
+    [Fact]
+    public async Task Un_remitente_de_dominio_desconocido_no_resuelve_ninguna_plataforma()
+    {
+        var servicio = _servicios.GetRequiredService<IResolucionProveedorPlataformaCaeService>();
+
+        var resultado = await servicio.ResolverPorDominioCorreoAsync("gestor@cliente-real.com");
+
+        resultado.Should().BeEmpty();
+    }
 }

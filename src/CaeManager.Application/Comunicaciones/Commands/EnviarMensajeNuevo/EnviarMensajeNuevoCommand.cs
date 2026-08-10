@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
@@ -43,6 +44,7 @@ public class EnviarMensajeNuevoCommandHandler(
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
     IFileStorageService almacenamiento,
+    IResolucionParticipanteConversacionService resolucionParticipante,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EnviarMensajeNuevoCommand, Result<Guid>>
 {
@@ -76,7 +78,10 @@ public class EnviarMensajeNuevoCommandHandler(
 
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, request.CuerpoHtml);
         foreach (var destinatario in request.Destinatarios)
-            conversacion.AgregarParticipante(destinatario, RolParticipante.Para, TipoParticipanteOrigen.Desconocido);
+        {
+            var (tipoOrigen, entidadRelacionadaId) = await resolucionParticipante.ResolverAsync(destinatario, clienteId, cancellationToken);
+            conversacion.AgregarParticipante(destinatario, RolParticipante.Para, tipoOrigen, entidadRelacionadaId);
+        }
 
         if (request.Adjuntos is { Count: > 0 })
         {

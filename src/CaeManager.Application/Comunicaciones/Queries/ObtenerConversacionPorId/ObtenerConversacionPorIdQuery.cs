@@ -30,7 +30,13 @@ public record SugerenciaVisitaDetalleDto(
     Guid Id, Guid? CentroId, string? CentroNombre, DateOnly? FechaInicioSugerida, DateOnly? FechaFinSugerida, string Resumen,
     int Confianza, int ConfianzaCentro, int ConfianzaFechas);
 
-/// <summary>Solo se expone mientras está pendiente (Resuelta = false) — mismo criterio que SugerenciaVisitaDetalleDto.</summary>
+/// <summary>
+/// Un ítem (DetalleSugerenciaGestionCorreo) todavía sin resolver — mismo criterio de "solo pendiente"
+/// que SugerenciaVisitaDetalleDto. <paramref name="Id"/> es el ítem, no la sugerencia completa: un
+/// mensaje puede tener varios (notificación en bloque, ronda de reducción de ruido en
+/// Comunicaciones) — <paramref name="Resumen"/>/<paramref name="Confianza"/> son del mensaje
+/// completo y se repiten en cada ítem que le pertenece.
+/// </summary>
 public record SugerenciaGestionDetalleDto(
     Guid Id, Guid? TrabajadorId, string? TrabajadorNombre, Guid? TipoDocumentoId, string? TipoDocumentoNombre, string Resumen,
     int Confianza, int ConfianzaTrabajador, int ConfianzaTipoDocumento);
@@ -38,7 +44,7 @@ public record SugerenciaGestionDetalleDto(
 public record MensajeDetalleDto(
     Guid Id, DireccionMensaje Direccion, CanalConversacion Canal, string Remitente, string CuerpoHtml, DateTime FechaUtc,
     IReadOnlyList<AdjuntoDetalleDto> Adjuntos, SugerenciaVisitaDetalleDto? SugerenciaVisita,
-    SugerenciaGestionDetalleDto? SugerenciaGestion, EstadoEntregaMensaje? EstadoEntrega = null, string? ErrorEntrega = null);
+    IReadOnlyList<SugerenciaGestionDetalleDto> SugerenciasGestion, EstadoEntregaMensaje? EstadoEntrega = null, string? ErrorEntrega = null);
 
 public record ParticipanteDetalleDto(
     Guid Id, string Email, RolParticipante Rol, TipoParticipanteOrigen TipoOrigen, Guid? EntidadRelacionadaId);
@@ -158,33 +164,45 @@ public class ObtenerConversacionPorIdQueryHandler(
                 s.FechaInicioSugerida, s.FechaFinSugerida, s.Resumen, s.Confianza, s.ConfianzaCentro, s.ConfianzaFechas));
 
         var sugerenciasGestionPendientes = await comunicacionesContext.SugerenciasGestionCorreo
-            .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeId) && !s.Resuelta)
+            .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeId))
+            .Select(s => new { s.Id, s.MensajeId, s.Resumen, s.Confianza })
             .ToListAsync(cancellationToken);
 
-        var trabajadorIdsSugeridos = sugerenciasGestionPendientes.Where(s => s.TrabajadorId is not null).Select(s => s.TrabajadorId!.Value).ToList();
+        var sugerenciaGestionIds = sugerenciasGestionPendientes.Select(s => s.Id).ToList();
+        var detallesPendientes = await comunicacionesContext.DetallesSugerenciaGestionCorreo
+            .Where(d => sugerenciaGestionIds.Contains(d.SugerenciaGestionCorreoId) && !d.Resuelta)
+            .ToListAsync(cancellationToken);
+
+        var trabajadorIdsSugeridos = detallesPendientes.Where(d => d.TrabajadorId is not null).Select(d => d.TrabajadorId!.Value).ToList();
         var nombresTrabajador = await trabajadoresContext.Trabajadores
             .Where(t => trabajadorIdsSugeridos.Contains(t.Id))
             .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos })
             .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
 
-        var tipoDocumentoIdsSugeridos = sugerenciasGestionPendientes.Where(s => s.TipoDocumentoId is not null).Select(s => s.TipoDocumentoId!.Value).ToList();
+        var tipoDocumentoIdsSugeridos = detallesPendientes.Where(d => d.TipoDocumentoId is not null).Select(d => d.TipoDocumentoId!.Value).ToList();
         var nombresTipoDocumento = await tiposDocumentoContext.TiposDocumento
             .Where(t => tipoDocumentoIdsSugeridos.Contains(t.Id))
             .Select(t => new { t.Id, t.Nombre })
             .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
 
-        var sugerenciasGestionPorMensaje = sugerenciasGestionPendientes.ToDictionary(
-            s => s.MensajeId,
-            s => new SugerenciaGestionDetalleDto(
-                s.Id, s.TrabajadorId, s.TrabajadorId is not null ? nombresTrabajador.GetValueOrDefault(s.TrabajadorId.Value) : null,
-                s.TipoDocumentoId, s.TipoDocumentoId is not null ? nombresTipoDocumento.GetValueOrDefault(s.TipoDocumentoId.Value) : null,
-                s.Resumen, s.Confianza, s.ConfianzaTrabajador, s.ConfianzaTipoDocumento));
+        var sugerenciasGestionPorMensaje = sugerenciasGestionPendientes
+            .Join(detallesPendientes, s => s.Id, d => d.SugerenciaGestionCorreoId, (s, d) => new { Sugerencia = s, Detalle = d })
+            .GroupBy(x => x.Sugerencia.MensajeId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<SugerenciaGestionDetalleDto>)g
+                    .Select(x => new SugerenciaGestionDetalleDto(
+                        x.Detalle.Id,
+                        x.Detalle.TrabajadorId, x.Detalle.TrabajadorId is not null ? nombresTrabajador.GetValueOrDefault(x.Detalle.TrabajadorId.Value) : null,
+                        x.Detalle.TipoDocumentoId, x.Detalle.TipoDocumentoId is not null ? nombresTipoDocumento.GetValueOrDefault(x.Detalle.TipoDocumentoId.Value) : null,
+                        x.Sugerencia.Resumen, x.Sugerencia.Confianza, x.Detalle.ConfianzaTrabajador, x.Detalle.ConfianzaTipoDocumento))
+                    .ToList());
 
         var mensajes = mensajesCrudos
             .Select(m => new MensajeDetalleDto(
                 m.Id, m.Direccion, m.Canal, m.Remitente, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
                 adjuntosPorMensaje.GetValueOrDefault(m.Id, []), sugerenciasPorMensaje.GetValueOrDefault(m.Id),
-                sugerenciasGestionPorMensaje.GetValueOrDefault(m.Id), m.EstadoEntrega, m.ErrorEntrega))
+                sugerenciasGestionPorMensaje.GetValueOrDefault(m.Id, []), m.EstadoEntrega, m.ErrorEntrega))
             .ToList();
 
         var participantes = await comunicacionesContext.ParticipantesConversacion
