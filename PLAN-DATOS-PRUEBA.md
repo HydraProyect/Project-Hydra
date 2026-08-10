@@ -18,7 +18,8 @@ Cada tanda termina con verificación end-to-end en navegador de las pantallas qu
   `ConexionIntegracion` — se siembran dos conexiones WhatsApp simuladas con token de demo, lo
   que resuelve parcialmente la decisión abierta nº 2; la decisión sigue abierta solo para las
   conexiones Microsoft 365 de la Tanda 5)
-- [ ] Tanda 4 — Plataforma: delegaciones, soporte, identidad, retención
+- [x] Tanda 4 — Plataforma: delegaciones, soporte, identidad (2026-08-10) — **parcial**: la
+  retención (`SolicitudPurga`) sigue fuera a la espera de la decisión abierta nº 3
 - [ ] Tanda 5 — Infraestructura y menores
 
 ## Tanda 1 — Módulos con pantalla vacía del núcleo operativo
@@ -81,6 +82,12 @@ Todo el pipeline que hoy solo existe como flags de catálogo.
   crear 2-3 usuarios en el tenant #1 (Consultora) con roles distintos de Administrador y sus
   `AsignacionOperadorDelegado` (incluida una revocada) para probar el Delegated Workspace y
   "retirar operador" desde ambos lados.
+  - Nota de ejecución (2026-08-10): la delegación revocada vive en un tercer tenant de demo sin
+    datos (`Hosteleria Krusty Krab S.L.`). Dos variantes del plan resultaron **no sembrables por
+    diseño del dominio**: una delegación "reactivada" es indistinguible en estado de una activa
+    (no hay historial en la entidad), y una `AsignacionOperadorDelegado` "revocada" no existe
+    como estado — retirar un operador es una baja física. Ambos flujos se ejercitan desde la UI
+    sobre los datos sembrados.
 - **Soporte**: una `DelegacionTenant` de soporte **vigente** (motivo + caducidad futura) y una
   **caducada**, más `RegistroActividadSoporte` de ejemplo de los 5 `TipoActividadSoporte`.
 - **Identidad y términos**: un usuario con aceptación de términos de versión antigua (ejercita

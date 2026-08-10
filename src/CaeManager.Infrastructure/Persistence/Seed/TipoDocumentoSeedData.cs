@@ -165,6 +165,23 @@ public static class TipoDocumentoSeedData
             .Select(d => PerfilesOficiales.GetValueOrDefault(d.Id, PerfilDocumentoOficial.Ninguno))
             .FirstOrDefault();
 
+    /// <summary>
+    /// Copia editable del catálogo completo para un tenant nuevo
+    /// (docs/MULTITENANCY.md § 7) con los flags de IA aplicados — la usan
+    /// DelegacionDemoSeeder y SegundoTenantSeeder para no repetir la
+    /// construcción (y para que ningún aprovisionamiento vuelva a olvidarse
+    /// de los flags, como pasó con los tenants de demo).
+    /// </summary>
+    public static IEnumerable<TipoDocumento> CrearCopiasParaTenant() =>
+        Datos.Select(t =>
+        {
+            var copia = new TipoDocumento(
+                t.Nombre, t.VigenciaMeses, t.AplicaVencimiento, t.Orden, t.Ambito, t.EsObligatorio, t.Notas);
+            copia.EstablecerDeteccionTrabajadoresActiva(TieneDeteccionTrabajadores(t.Nombre));
+            copia.EstablecerPerfilDocumentoOficial(PerfilOficialDe(t.Nombre));
+            return copia;
+        });
+
     /// <summary>Proyección plana usada por HasData (necesita anonymous/objeto con las propiedades de la entidad).</summary>
     public static IEnumerable<object> ComoFilasParaMigracion() =>
         Datos.Select(d => new
