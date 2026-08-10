@@ -32,6 +32,7 @@ public partial class Conexiones : ComponentBase
     private IReadOnlyList<GestorSelectorDto> _gestores = [];
     private bool _cargando = true;
     private Guid? _clienteSeleccionadoId;
+    private Guid? _gestorPropietarioSeleccionadoId;
 
     // --- Modal de línea WhatsApp (alta/edición) ---
     private bool _modalLineaVisible;
@@ -52,9 +53,30 @@ public partial class Conexiones : ComponentBase
     private bool _desconectando;
     private Guid? _procesandoId;
 
-    private string UrlConectar => _clienteSeleccionadoId is { } id
-        ? $"/integraciones/conectar-microsoft365?clienteId={id}"
-        : "/integraciones/conectar-microsoft365";
+    private string UrlConectar
+    {
+        get
+        {
+            if (_gestorPropietarioSeleccionadoId is { } gestorId)
+                return $"/integraciones/conectar-microsoft365?gestorPropietarioId={gestorId}";
+            if (_clienteSeleccionadoId is { } clienteId)
+                return $"/integraciones/conectar-microsoft365?clienteId={clienteId}";
+            return "/integraciones/conectar-microsoft365";
+        }
+    }
+
+    /// <summary>Cliente y buzón personal son mutuamente excluyentes — elegir uno limpia el otro.</summary>
+    private void SeleccionarCliente(string valor)
+    {
+        _clienteSeleccionadoId = Guid.TryParse(valor, out var id) ? id : null;
+        if (_clienteSeleccionadoId is not null) _gestorPropietarioSeleccionadoId = null;
+    }
+
+    private void SeleccionarGestorPropietario(string valor)
+    {
+        _gestorPropietarioSeleccionadoId = Guid.TryParse(valor, out var id) ? id : null;
+        if (_gestorPropietarioSeleccionadoId is not null) _clienteSeleccionadoId = null;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -88,6 +110,13 @@ public partial class Conexiones : ComponentBase
         _conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery());
         _lineas = await Mediator.Send(new ObtenerLineasWhatsAppQuery());
     }
+
+    private string DescribirPropietario(ConexionIntegracionListaDto conexion) => conexion switch
+    {
+        { GestorPropietarioId: { } gestorId } => $"Personal de {_gestores.FirstOrDefault(g => g.Id == gestorId)?.NombreCompleto ?? "—"}",
+        { ClienteNombre: { } clienteNombre } => clienteNombre,
+        _ => "Tenant propio"
+    };
 
     private string DescribirAsignacion(LineaWhatsAppListaDto linea) => linea.Modo switch
     {

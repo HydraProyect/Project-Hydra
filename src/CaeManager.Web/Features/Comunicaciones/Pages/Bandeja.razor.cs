@@ -5,6 +5,7 @@ using CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
 using CaeManager.Application.Comunicaciones.Commands.AsignarEjecutivoConversacion;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
+using CaeManager.Application.Comunicaciones.Commands.ConfirmarClasificacionRuidoMensaje;
 using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaGestion;
 using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaVisita;
 using CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorreo;
@@ -695,6 +696,28 @@ public partial class Bandeja : ComponentBase, IDisposable
         {
             Logger.LogError(ex, "Error al vincular la conversación {Origen} con {Destino}.", conversacionOrigenId, conversacionDestinoId);
             ToastService.Mostrar("No pudimos vincular la conversación. Intenta nuevamente.", TonoToast.Error);
+        }
+    }
+
+    /// <summary>El gestor confirma que un mensaje marcado como ruido (ronda de reducción de ruido en Comunicaciones) sí importa — deja de tratarse como tal.</summary>
+    private async Task ConfirmarRuidoAsync(Guid mensajeId)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new ConfirmarClasificacionRuidoMensajeCommand(mensajeId));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            await CargarDetalleAsync();
+            await CargarListaAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al confirmar la clasificación de ruido del mensaje {MensajeId}.", mensajeId);
+            ToastService.Mostrar("No pudimos confirmar el mensaje. Intenta nuevamente.", TonoToast.Error);
         }
     }
 

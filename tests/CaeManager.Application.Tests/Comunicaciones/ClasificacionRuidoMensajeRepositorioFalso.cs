@@ -7,4 +7,7 @@ public class ClasificacionRuidoMensajeRepositorioFalso : IClasificacionRuidoMens
     public List<ClasificacionRuidoMensaje> Clasificaciones { get; } = [];
 
     public void Agregar(ClasificacionRuidoMensaje clasificacion) => Clasificaciones.Add(clasificacion);
+
+    public Task<ClasificacionRuidoMensaje?> ObtenerPorMensajeIdAsync(Guid mensajeId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Clasificaciones.FirstOrDefault(c => c.MensajeId == mensajeId));
 }
