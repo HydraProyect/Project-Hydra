@@ -8,9 +8,9 @@ public class SugerenciaGestionCorreoServiceFalso : ISugerenciaGestionCorreoServi
 {
     public List<(Guid MensajeId, Guid ClienteId)> Llamadas { get; } = [];
 
-    public Task ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default)
+    public Task<SugerenciaGestionCorreo?> ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default)
     {
         Llamadas.Add((mensaje.Id, clienteId));
-        return Task.CompletedTask;
+        return Task.FromResult<SugerenciaGestionCorreo?>(null);
     }
 }

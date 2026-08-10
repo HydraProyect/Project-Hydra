@@ -31,6 +31,13 @@ public record TipoDocumentoCandidatoGestionDto(Guid Id, string Nombre);
 /// cualquier Id que el modelo alucine fuera de esas listas (ver
 /// AnthropicDeteccionGestionCorreoService).
 /// </summary>
+public record ItemDeteccionGestionDto(Guid? TrabajadorId, Guid? TipoDocumentoId, int ConfianzaTrabajador, int ConfianzaTipoDocumento);
+
+/// <summary>
+/// Un correo no siempre trata un único Trabajador/TipoDocumento — una notificación en bloque
+/// puede listar varios a la vez (ronda de reducción de ruido en Comunicaciones), de ahí
+/// <paramref name="Items"/>. <paramref name="Resumen"/>/<paramref name="Confianza"/> son del
+/// mensaje completo; la certeza de cada ítem vive en su propio <see cref="ItemDeteccionGestionDto"/>.
+/// </summary>
 public record DeteccionGestionCorreoDto(
-    bool EsActualizacionDocumento, Guid? TrabajadorId, Guid? TipoDocumentoId, string? Resumen,
-    int Confianza, int ConfianzaTrabajador, int ConfianzaTipoDocumento);
+    bool EsActualizacionDocumento, string? Resumen, int Confianza, IReadOnlyList<ItemDeteccionGestionDto> Items);

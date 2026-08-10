@@ -15,13 +15,18 @@ namespace CaeManager.Application.Comunicaciones.Deteccion;
 /// Entrante, carga los Trabajadores con asignación activa en algún Centro
 /// del Cliente de la conversación y los TipoDocumento de Ámbito Trabajador,
 /// pide a <see cref="IDeteccionGestionCorreoService"/> que clasifique el
-/// correo, y si parece pedir la actualización de un documento registra una
-/// <see cref="SugerenciaGestionCorreo"/> pendiente. No guarda cambios — el
-/// llamador ya persiste todo el mensaje ingerido en una sola operación.
+/// correo, y si parece pedir la actualización de uno o varios documentos
+/// registra una <see cref="SugerenciaGestionCorreo"/> pendiente con un
+/// <see cref="DetalleSugerenciaGestionCorreo"/> por ítem detectado. No
+/// guarda cambios — el llamador ya persiste todo el mensaje ingerido en una
+/// sola operación. Devuelve la sugerencia creada (o null si no aplica) para
+/// que otros pasos de la ingesta (ronda de reducción de ruido en
+/// Comunicaciones) puedan reutilizar la misma extracción sin pagar una
+/// segunda llamada a IA.
 /// </summary>
 public interface ISugerenciaGestionCorreoService
 {
-    Task ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default);
+    Task<SugerenciaGestionCorreo?> ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default);
 }
 
 public class SugerenciaGestionCorreoService(
@@ -33,7 +38,7 @@ public class SugerenciaGestionCorreoService(
     ISugerenciaGestionCorreoRepository sugerenciaRepositorio,
     ILogger<SugerenciaGestionCorreoService> logger) : ISugerenciaGestionCorreoService
 {
-    public async Task ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default)
+    public async Task<SugerenciaGestionCorreo?> ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default)
     {
         var centroIds = await centrosContext.Centros
             .Where(c => c.ClienteId == clienteId)
@@ -41,7 +46,7 @@ public class SugerenciaGestionCorreoService(
             .ToListAsync(cancellationToken);
 
         if (centroIds.Count == 0)
-            return;
+            return null;
 
         var trabajadorIds = await asignacionesContext.Asignaciones
             .Where(a => centroIds.Contains(a.CentroId) && a.FechaBaja == null)
@@ -53,7 +58,7 @@ public class SugerenciaGestionCorreoService(
         // a quién asociar la sugerencia — v1 no cubre "sugerir un Trabajador
         // nuevo" (YAGNI, mismo criterio que SugerenciaVisitaCorreoService).
         if (trabajadorIds.Count == 0)
-            return;
+            return null;
 
         var trabajadores = await trabajadoresContext.Trabajadores
             .Where(t => trabajadorIds.Contains(t.Id))
@@ -66,7 +71,7 @@ public class SugerenciaGestionCorreoService(
             .ToListAsync(cancellationToken);
 
         if (tiposDocumento.Count == 0)
-            return;
+            return null;
 
         var resultado = await deteccion.DetectarAsync(mensaje.CuerpoHtml, trabajadores, tiposDocumento, cancellationToken);
 
@@ -74,16 +79,20 @@ public class SugerenciaGestionCorreoService(
         {
             logger.LogInformation(
                 "Detección de gestión por correo no disponible para el mensaje {MensajeId}: {Codigo}", mensaje.Id, resultado.Error.Codigo);
-            return;
+            return null;
         }
 
         var deteccionDto = resultado.Valor;
-        if (!deteccionDto.EsActualizacionDocumento)
-            return;
+        if (!deteccionDto.EsActualizacionDocumento || deteccionDto.Items.Count == 0)
+            return null;
 
-        sugerenciaRepositorio.Agregar(new SugerenciaGestionCorreo(
-            mensaje.Id, deteccionDto.TrabajadorId, deteccionDto.TipoDocumentoId,
-            deteccionDto.Resumen ?? "El correo parece pedir la actualización de un documento.",
-            deteccionDto.Confianza, deteccionDto.ConfianzaTrabajador, deteccionDto.ConfianzaTipoDocumento));
+        var sugerencia = new SugerenciaGestionCorreo(
+            mensaje.Id, deteccionDto.Resumen ?? "El correo parece pedir la actualización de un documento.", deteccionDto.Confianza);
+
+        foreach (var item in deteccionDto.Items)
+            sugerencia.AgregarDetalle(item.TrabajadorId, item.TipoDocumentoId, item.ConfianzaTrabajador, item.ConfianzaTipoDocumento);
+
+        sugerenciaRepositorio.Agregar(sugerencia);
+        return sugerencia;
     }
 }
