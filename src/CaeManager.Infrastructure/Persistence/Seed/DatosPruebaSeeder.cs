@@ -5,7 +5,11 @@ using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Incidencias;
+using CaeManager.Domain.Notificaciones;
+using CaeManager.Domain.Proyectos;
+using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
@@ -26,8 +30,9 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// en una mezcla realista de estados (vigente/próximo/urgente/vencido), más
 /// los datos que ejercitan el resto de flujos — asignaciones coherentes (un
 /// trabajador solo trabaja en centros de su propia empresa), visitas,
-/// evaluaciones, incidencias, vehículos con su documentación y tarifas de
-/// facturación — y un grupo de "veteranos" dados de baja hace más de cinco
+/// evaluaciones, incidencias, vehículos con su documentación, proyectos con
+/// sus técnicos, gestiones documentales y tarifas de facturación de los 7
+/// conceptos — y un grupo de "veteranos" dados de baja hace más de cinco
 /// años cuyos datos son exactamente lo que el barrido de retención
 /// (`DeteccionPurgaService`) debe proponer purgar.
 ///
@@ -513,13 +518,71 @@ public static class DatosPruebaSeeder
             dbContext.Incidencias.Add(incidencia);
         }
 
-        // --- Tarifas de facturación por cliente ---
+        // --- Proyectos (obras) con sus técnicos: abiertos y cerrados, con
+        // algún técnico dado de baja para cubrir las dos ramas de la relación ---
+        string[] nombresProyecto =
+        [
+            "Ampliación Planta", "Reforma Nave", "Instalación Fotovoltaica",
+            "Nueva Línea de Montaje", "Modernización Climatización", "Obra Muelle de Carga"
+        ];
+        var clientesConProyecto = new HashSet<Guid>();
+        var centrosParaProyecto = ElementosAleatoriosUnicos(
+            aleatorio, centros.Where(c => trabajadoresPorCentro.ContainsKey(c.Id)).ToList(),
+            Math.Min(6, centrosConGente.Count));
+        for (var i = 0; i < centrosParaProyecto.Count; i++)
+        {
+            var centro = centrosParaProyecto[i];
+            var inicio = hoy.AddDays(-aleatorio.Next(60, 400));
+            var proyecto = Proyecto.Crear(
+                centro.ClienteId, centro.Id,
+                $"{nombresProyecto[i % nombresProyecto.Length]} {i + 1:D2}",
+                inicio,
+                fechaFinPrevista: aleatorio.Next(2) == 0 ? inicio.AddMonths(aleatorio.Next(6, 24)) : null,
+                notas: null);
+            if (i % 3 == 2)
+                proyecto.Cerrar(inicio.AddDays(aleatorio.Next(30, 60)));
+            dbContext.Proyectos.Add(proyecto);
+            clientesConProyecto.Add(centro.ClienteId);
+
+            var tecnicos = ElementosAleatoriosUnicos(aleatorio, trabajadoresPorCentro[centro.Id], aleatorio.Next(1, 4));
+            for (var j = 0; j < tecnicos.Count; j++)
+            {
+                var alta = inicio.AddDays(aleatorio.Next(0, 30));
+                var tecnico = new ProyectoTecnico(proyecto.Id, tecnicos[j].Id, alta);
+                if (j == 1)
+                    tecnico.DarDeBaja(alta.AddDays(aleatorio.Next(10, 30)));
+                dbContext.ProyectosTecnicos.Add(tecnico);
+            }
+        }
+
+        // --- Gestiones documentales: pendientes y completadas ---
+        foreach (var centroId in ElementosAleatoriosUnicos(aleatorio, centrosConGente, Math.Min(10, centrosConGente.Count)))
+        {
+            var gestion = new Gestion(
+                ElementoAleatorio(aleatorio, trabajadoresPorCentro[centroId]).Id,
+                centroId,
+                ElementoAleatorio(aleatorio, tiposTrabajadorEstandar).Id,
+                notas: aleatorio.Next(2) == 0 ? "Pendiente de recibir el justificante firmado." : null);
+            if (aleatorio.Next(2) == 0)
+                gestion.Completar();
+            dbContext.Gestiones.Add(gestion);
+        }
+
+        // --- Tarifas de facturación por cliente: los 7 conceptos con ejemplar ---
         foreach (var cliente in clientes)
         {
             dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.TrabajadorActivo, 8m + aleatorio.Next(0, 8) + 0.50m, "EUR"));
             dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.DocumentoGestionado, 4m + aleatorio.Next(0, 5) + 0.75m, "EUR"));
             if (aleatorio.Next(2) == 0)
                 dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.AltaCentro, 25m + aleatorio.Next(0, 16), "EUR"));
+            if (aleatorio.Next(2) == 0)
+                dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.VisitaTrabajadorExtranjero, 30m + aleatorio.Next(0, 21), "EUR"));
+            if (clientesConProyecto.Contains(cliente.Id))
+            {
+                dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.TecnicoAsignadoProyecto, 12m + aleatorio.Next(0, 6), "EUR"));
+                dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.GestionProyectoRealizada, 18m + aleatorio.Next(0, 10), "EUR"));
+                dbContext.TarifasCliente.Add(TarifaCliente.Crear(cliente.Id, ConceptoFacturable.DiaProyectoAbierto, 3m + aleatorio.Next(0, 4) * 0.5m, "EUR"));
+            }
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -644,7 +707,72 @@ public static class DatosPruebaSeeder
             await userManager.UpdateAsync(clientesPrueba[i]);
         }
 
+        // --- Notificaciones persistentes: la campana de los gestores no debe
+        // arrancar vacía — una sin leer y una ya leída (con acción) por gestor ---
+        foreach (var gestor in gestoresPrueba)
+        {
+            dbContext.NotificacionesUsuario.Add(new NotificacionUsuario(
+                gestor.Id,
+                "Cambio de cartera",
+                "Se te han asignado clientes nuevos en el reparto de cartera de demo."));
+
+            var leida = new NotificacionUsuario(
+                gestor.Id,
+                "Lectura IA desactivada",
+                "Un cliente de tu cartera tiene tipos de documento con la lectura IA desactivada.",
+                urlAccion: "/tipos-documento",
+                textoAccion: "Gestionar");
+            leida.MarcarComoLeida();
+            dbContext.NotificacionesUsuario.Add(leida);
+        }
+
+        await SembrarReclamacionesAsync(dbContext, clientes, cancellationToken);
+
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Historial de lotes de reclamación ya enviados para los primeros
+    /// clientes con documentación próxima a vencer — ejercita la vista previa
+    /// del lote (que descarta lo reclamado hace poco) y el historial.
+    /// </summary>
+    private static async Task SembrarReclamacionesAsync(
+        CaeManagerDbContext dbContext, List<Cliente> clientes, CancellationToken cancellationToken)
+    {
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var limiteVentana = hoy.AddDays(90);
+        var enviadas = 0;
+
+        foreach (var cliente in clientes)
+        {
+            if (enviadas == 2)
+                break;
+            if (cliente.EjecutivoUsuarioId is null)
+                continue;
+
+            var documentosProximos = await (
+                from documento in dbContext.Documentos
+                join trabajador in dbContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
+                join empresaCliente in dbContext.EmpresasClientes on trabajador.EmpresaId equals (Guid?)empresaCliente.EmpresaId
+                where empresaCliente.ClienteId == cliente.Id
+                      && documento.FechaVencimiento != null
+                      && documento.FechaVencimiento > hoy
+                      && documento.FechaVencimiento <= limiteVentana
+                select documento.Id)
+                .Take(5)
+                .ToListAsync(cancellationToken);
+
+            if (documentosProximos.Count == 0)
+                continue;
+
+            dbContext.ReclamacionesDocumentales.Add(new ReclamacionDocumental(
+                cliente.Id,
+                cliente.EjecutivoUsuarioId.Value,
+                $"portal.cliente{enviadas + 1}@caemanager.local",
+                DateTime.UtcNow.AddDays(-7 * (enviadas + 1)),
+                documentosProximos));
+            enviadas++;
+        }
     }
 
     private static (string Nombre, string Apellidos) SiguienteNombre(ref int indice)

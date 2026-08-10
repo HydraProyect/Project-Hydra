@@ -12,7 +12,7 @@ Cada tanda termina con verificación end-to-end en navegador de las pantallas qu
 
 ## Estado
 
-- [ ] Tanda 1 — Módulos con pantalla vacía del núcleo operativo
+- [x] Tanda 1 — Módulos con pantalla vacía del núcleo operativo (2026-08-10, verificada vía suite E2E de CI con `DatosPrueba:Activo`)
 - [ ] Tanda 2 — Ciclo documental avanzado
 - [ ] Tanda 3 — Centros bloqueantes y canal WhatsApp
 - [ ] Tanda 4 — Plataforma: delegaciones, soporte, identidad, retención
