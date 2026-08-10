@@ -62,6 +62,7 @@ public partial class Visitas : ComponentBase
     private string _centroNombreEnEdicion = string.Empty;
     private string _fechaInicio = string.Empty;
     private string _fechaFin = string.Empty;
+    private string _horaEstimadaAcceso = string.Empty;
     private HashSet<Guid> _trabajadorIdsSeleccionados = [];
     private bool _notificadoCliente;
     private string _notas = string.Empty;
@@ -239,6 +240,7 @@ public partial class Visitas : ComponentBase
         _centroNombreEnEdicion = string.Empty;
         _fechaInicio = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
         _fechaFin = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        _horaEstimadaAcceso = string.Empty;
         _trabajadorIdsSeleccionados = [];
         _notificadoCliente = false;
         _notas = string.Empty;
@@ -299,6 +301,7 @@ public partial class Visitas : ComponentBase
         _centroNombreEnEdicion = $"{visita.CentroNombre} ({visita.ClienteRazonSocial} — {visita.EmpresaRazonSocial})";
         _fechaInicio = visita.FechaInicio.ToString("yyyy-MM-dd");
         _fechaFin = visita.FechaFin.ToString("yyyy-MM-dd");
+        _horaEstimadaAcceso = visita.HoraEstimadaAcceso?.ToString("HH:mm") ?? string.Empty;
         _trabajadorIdsSeleccionados = visita.TrabajadorIds.ToHashSet();
         _notificadoCliente = visita.NotificadoCliente;
         _notas = visita.Notas ?? string.Empty;
@@ -423,6 +426,7 @@ public partial class Visitas : ComponentBase
             }
 
             var notas = string.IsNullOrWhiteSpace(_notas) ? null : _notas;
+            TimeOnly? horaEstimada = TimeOnly.TryParse(_horaEstimadaAcceso, out var hora) ? hora : null;
             var trabajadorIds = _trabajadorIdsSeleccionados.ToList();
             string? mensajeError;
 
@@ -434,12 +438,12 @@ public partial class Visitas : ComponentBase
                     return;
                 }
 
-                var resultado = await Mediator.Send(new CrearVisitaCommand(centroId, fechaInicio, fechaFin, trabajadorIds, notas, _sugerenciaVisitaCorreoId));
+                var resultado = await Mediator.Send(new CrearVisitaCommand(centroId, fechaInicio, fechaFin, trabajadorIds, notas, _sugerenciaVisitaCorreoId, horaEstimada));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarVisitaCommand(_editandoId.Value, fechaInicio, fechaFin, trabajadorIds, notas, _versionEditando));
+                var resultado = await Mediator.Send(new EditarVisitaCommand(_editandoId.Value, fechaInicio, fechaFin, trabajadorIds, notas, _versionEditando, horaEstimada));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 

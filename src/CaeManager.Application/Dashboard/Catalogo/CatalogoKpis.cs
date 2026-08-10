@@ -5,7 +5,13 @@ public enum CategoriaKpi
     Documental,
     Incidencias,
     Ia,
-    Facturacion
+    Facturacion,
+
+    /// <summary>Rendimiento del equipo: cuánto multiplica la IA y cómo está repartida la carga.</summary>
+    Operativa,
+
+    /// <summary>De quién es la prisa: antelación real frente a la que el cliente cree haber dado.</summary>
+    Friccion
 }
 
 public enum TipoRenderKpi
@@ -46,6 +52,13 @@ public static class CatalogoKpis
     public const string CosteMesActualIa = "ia.coste-mes-actual";
     public const string TiempoMedioProcesamientoIa = "ia.tiempo-medio-procesamiento-ms";
     public const string FacturacionEstimadaMesActual = "fact.estimado-mes-actual";
+    public const string PalancaIa = "ope.palanca-ia";
+    public const string OcupacionGestores = "ope.ocupacion-gestores";
+    public const string HorasPorCliente = "ope.horas-por-cliente";
+    public const string DistribucionAntelacion = "fric.distribucion-antelacion";
+    public const string FalsosAvisos = "fric.falsos-avisos";
+    public const string TiempoBloqueadoCliente = "fric.tiempo-bloqueado-cliente";
+    public const string AtribucionUrgencia = "fric.atribucion-urgencia";
 
     public static readonly IReadOnlyList<DefinicionKpi> Todos =
     [
@@ -66,6 +79,13 @@ public static class CatalogoKpis
         new(CosteMesActualIa, "Coste IA del mes", "Coste estimado (OCR + extracción) de la IA documental este mes.", CategoriaKpi.Ia, TipoRenderKpi.TileNumerico),
         new(TiempoMedioProcesamientoIa, "Tiempo medio de procesamiento IA", "Milisegundos de media por documento procesado este mes.", CategoriaKpi.Ia, TipoRenderKpi.TileNumerico),
         new(FacturacionEstimadaMesActual, "Facturación estimada del mes", "Suma de los resúmenes de facturación estimada de los clientes con tarifas configuradas.", CategoriaKpi.Facturacion, TipoRenderKpi.TileNumerico),
+        new(PalancaIa, "Índice de palanca IA", "Sugerencias de la IA confirmadas sin tocar ningún campo, sobre todas las resueltas este mes.", CategoriaKpi.Operativa, TipoRenderKpi.TilePorcentajeConTono),
+        new(OcupacionGestores, "Ocupación por gestor", "Horas de gestión medidas este mes frente a la jornada mensual configurada. Requiere la medición de tiempo activada.", CategoriaKpi.Operativa, TipoRenderKpi.GraficoBarras),
+        new(HorasPorCliente, "Horas de gestión por cliente", "Dónde se va el tiempo del equipo: horas medidas este mes por cliente (top 5).", CategoriaKpi.Operativa, TipoRenderKpi.TablaRiesgo),
+        new(DistribucionAntelacion, "Distribución por tramo de antelación", "Reparto de las visitas del mes entre Estándar, Urgente y Exprés según el margen real del gestor.", CategoriaKpi.Friccion, TipoRenderKpi.GraficoDonut),
+        new(FalsosAvisos, "Falsos avisos con tiempo", "Visitas avisadas con margen de sobra cuya documentación no llegó completa hasta dentro de la ventana de urgencia.", CategoriaKpi.Friccion, TipoRenderKpi.TilePorcentajeConTono),
+        new(TiempoBloqueadoCliente, "Tiempo bloqueado por el cliente", "Horas de media entre que el cliente pide la visita y completa la documentación.", CategoriaKpi.Friccion, TipoRenderKpi.TileNumerico),
+        new(AtribucionUrgencia, "Urgencias por atribución", "A qué se debió la prisa en cada visita: aviso tardío, documentación tardía o ninguna urgencia.", CategoriaKpi.Friccion, TipoRenderKpi.GraficoBarras),
     ];
 
     /// <summary>
@@ -80,4 +100,27 @@ public static class CatalogoKpis
         TrabajadoresActivos, Centros, VisitasProgramadas, SemaforoDocumental, TasaCumplimiento,
         EmpresasConMasRiesgo, AutomaticoVsManual
     ];
+
+    /// <summary>
+    /// Qué ve cada perfil antes de personalizar nada. No es autorización — el catálogo
+    /// completo sigue disponible en "Personalizar" para quien llega a esta pantalla —,
+    /// solo un punto de partida sensato: Dirección mira dinero y fricción, Coordinación
+    /// mira reparto de carga y urgencias, y el Gestor mira lo suyo.
+    /// </summary>
+    public static IReadOnlyList<string> KpisPorDefectoPorRol(string? rol) => rol switch
+    {
+        "DireccionCae" =>
+        [
+            .. KpisPorDefecto, FacturacionEstimadaMesActual, DistribucionAntelacion, FalsosAvisos, OcupacionGestores
+        ],
+        "CoordinadorCae" =>
+        [
+            .. KpisPorDefecto, OcupacionGestores, HorasPorCliente, DistribucionAntelacion, PalancaIa
+        ],
+        "GestorCae" =>
+        [
+            .. KpisPorDefecto, PalancaIa, OcupacionGestores
+        ],
+        _ => KpisPorDefecto
+    };
 }

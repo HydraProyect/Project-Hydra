@@ -38,6 +38,12 @@ public class SugerenciaVisitaCorreo : EntidadConTenant
     public bool Resuelta { get; private set; }
     public DateTime CreadaEnUtc { get; private set; } = DateTime.UtcNow;
 
+    /// <summary>Qué hizo el Gestor con ella. Null en las sugerencias anteriores a que se midiera la palanca IA — no se rellena a posteriori porque el dato no existe, y contarlas como confirmadas inflaría la métrica.</summary>
+    public ResolucionSugerencia? Resolucion { get; private set; }
+
+    public DateTime? ResueltaEnUtc { get; private set; }
+    public Guid? ResueltaPorUsuarioId { get; private set; }
+
     private SugerenciaVisitaCorreo()
     {
     }
@@ -71,6 +77,18 @@ public class SugerenciaVisitaCorreo : EntidadConTenant
         Resumen = normalizado.Length > LongitudMaximaResumen ? normalizado[..LongitudMaximaResumen] : normalizado;
     }
 
-    /// <summary>Se llama tanto si el Gestor usó la sugerencia para crear la Visita como si la descartó — no distinguimos la acción tomada, a diferencia de DeteccionTrabajador, porque aquí no hay un roster que auditar.</summary>
-    public void Resolver() => Resuelta = true;
+    /// <summary>
+    /// Cierra la sugerencia dejando constancia de qué se hizo con ella. Idempotente:
+    /// la primera resolución es la que cuenta, para que un reintento no convierta una
+    /// confirmación en un descarte ni al revés.
+    /// </summary>
+    public void Resolver(ResolucionSugerencia resolucion, Guid? usuarioId = null)
+    {
+        if (Resuelta) return;
+
+        Resuelta = true;
+        Resolucion = resolucion;
+        ResueltaEnUtc = DateTime.UtcNow;
+        ResueltaPorUsuarioId = usuarioId;
+    }
 }

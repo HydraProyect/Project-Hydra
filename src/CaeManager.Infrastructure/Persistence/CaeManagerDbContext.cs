@@ -19,6 +19,7 @@ using CaeManager.Application.Proyectos;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Retencion;
 using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Telemetria;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -45,6 +46,7 @@ using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.Subcontratas;
+using CaeManager.Domain.Telemetria;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
@@ -70,7 +72,8 @@ public class CaeManagerDbContext(
         IConfiguracionQueryContext, IAuditoriaQueryContext, ITenantsQueryContext,
         IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext,
         IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
-        IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext
+        IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext,
+        ITelemetriaQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -218,6 +221,8 @@ public class CaeManagerDbContext(
     IQueryable<ClasificacionRelevanciaCae> IComunicacionesQueryContext.ClasificacionesRelevanciaCae => ClasificacionesRelevanciaCae;
     public DbSet<Gestion> Gestiones => Set<Gestion>();
     IQueryable<Gestion> IGestionesQueryContext.Gestiones => Gestiones;
+    public DbSet<RegistroTiempoGestion> RegistrosTiempoGestion => Set<RegistroTiempoGestion>();
+    IQueryable<RegistroTiempoGestion> ITelemetriaQueryContext.RegistrosTiempoGestion => RegistrosTiempoGestion;
     public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();
     IQueryable<ClaveApi> IApiKeysQueryContext.ClavesApi => ClavesApi;
     public DbSet<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario => Set<PreferenciaDashboardUsuario>();
