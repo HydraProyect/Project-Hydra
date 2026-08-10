@@ -110,12 +110,15 @@ public class IngestaWebhookService(
         // dominio en el remitente (WhatsApp es un teléfono). Se calcula una vez aquí y queda
         // estable aunque el catálogo de plataformas cambie después, igual que las sugerencias de IA.
         var esNotificacionAutomatica = false;
+        ClasificacionRuidoMensaje? clasificacionMensaje = null;
+        Guid? proveedorPlataformaCaeId = null;
         if (conversacion.Canal == CanalConversacion.Correo)
         {
             var candidatos = await resolucionPlataforma.ResolverPorDominioCorreoAsync(mensaje.Remitente, cancellationToken);
             esNotificacionAutomatica = candidatos.Count > 0;
-            clasificacionRuidoRepositorio.Agregar(new ClasificacionRuidoMensaje(
-                mensajeCreado.Id, esNotificacionAutomatica, esNotificacionAutomatica ? candidatos[0].Id : null));
+            proveedorPlataformaCaeId = esNotificacionAutomatica ? candidatos[0].Id : null;
+            clasificacionMensaje = new ClasificacionRuidoMensaje(mensajeCreado.Id, esNotificacionAutomatica, proveedorPlataformaCaeId);
+            clasificacionRuidoRepositorio.Agregar(clasificacionMensaje);
         }
 
         // Sin Cliente asignado no hay Centros candidatos a los que asociar
@@ -123,12 +126,20 @@ public class IngestaWebhookService(
         if (conversacion.ClienteId is { } clienteId)
         {
             await sugerenciaVisita.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
-            var sugerenciaGestionCreada = await sugerenciaGestion.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
+            var resultadoGestion = await sugerenciaGestion.ProcesarAsync(mensajeCreado, clienteId, cancellationToken);
 
-            if (sugerenciaGestionCreada is not null)
+            if (resultadoGestion.Sugerencia is { } sugerenciaGestionCreada)
             {
                 await clasificacionRuidoMensaje.ProcesarAsync(
                     sugerenciaGestionCreada, clienteId, esNotificacionAutomatica, cancellationToken);
+            }
+            else if (esNotificacionAutomatica && proveedorPlataformaCaeId is { } plataformaId
+                && resultadoGestion.ResumenAgregado is { } resumenAgregado)
+            {
+                var sinCambios = await clasificacionRuidoMensaje.ProcesarResumenAsync(
+                    clienteId, plataformaId, resumenAgregado, cancellationToken);
+                if (sinCambios)
+                    clasificacionMensaje?.CambiarMotivo(MotivoRuidoMensaje.ResumenSinCambios);
             }
         }
     }

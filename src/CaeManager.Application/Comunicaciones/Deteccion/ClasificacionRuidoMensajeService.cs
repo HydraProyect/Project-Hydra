@@ -16,13 +16,43 @@ public interface IClasificacionRuidoMensajeService
 {
     Task ProcesarAsync(
         SugerenciaGestionCorreo sugerencia, Guid clienteId, bool esNotificacionAutomatica, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Compara un resumen agregado de plataforma ("3 pendientes, 1 vencido, 0 rechazados") contra
+    /// el último conocido para el mismo (Cliente, Plataforma) y actualiza el registro. Devuelve
+    /// true si los tres contadores son idénticos a la última vez — el mensaje no aporta ninguna
+    /// novedad y debe demotarse (<see cref="MotivoRuidoMensaje.ResumenSinCambios"/>); false si algo
+    /// cambió (o es la primera vez que se ve esta plataforma para este Cliente), en cuyo caso el
+    /// mensaje se deja visible aunque no se sepa el qué exactamente cambió.
+    /// </summary>
+    Task<bool> ProcesarResumenAsync(
+        Guid clienteId, Guid proveedorPlataformaCaeId, ResumenAgregadoGestionDto resumen, CancellationToken cancellationToken = default);
 }
 
 public class ClasificacionRuidoMensajeService(
     IReclamacionesQueryContext reclamacionesContext,
     IDocumentosQueryContext documentosContext,
-    IClasificacionRuidoDetalleGestionRepository repositorio) : IClasificacionRuidoMensajeService
+    IClasificacionRuidoDetalleGestionRepository repositorio,
+    IUltimoResumenNotificacionPlataformaRepository resumenRepositorio) : IClasificacionRuidoMensajeService
 {
+    public async Task<bool> ProcesarResumenAsync(
+        Guid clienteId, Guid proveedorPlataformaCaeId, ResumenAgregadoGestionDto resumen, CancellationToken cancellationToken = default)
+    {
+        var ultimo = await resumenRepositorio.ObtenerAsync(clienteId, proveedorPlataformaCaeId, cancellationToken);
+        var ahora = DateTime.UtcNow;
+
+        if (ultimo is null)
+        {
+            resumenRepositorio.Agregar(new UltimoResumenNotificacionPlataforma(
+                clienteId, proveedorPlataformaCaeId, resumen.Pendientes, resumen.Vencidos, resumen.Rechazados, ahora));
+            return false;
+        }
+
+        var sinCambios = ultimo.CoincideCon(resumen.Pendientes, resumen.Vencidos, resumen.Rechazados);
+        ultimo.Actualizar(resumen.Pendientes, resumen.Vencidos, resumen.Rechazados, ahora);
+        return sinCambios;
+    }
+
     public async Task ProcesarAsync(
         SugerenciaGestionCorreo sugerencia, Guid clienteId, bool esNotificacionAutomatica, CancellationToken cancellationToken = default)
     {

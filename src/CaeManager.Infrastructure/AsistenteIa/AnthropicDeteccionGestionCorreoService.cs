@@ -44,21 +44,36 @@ public class AnthropicDeteccionGestionCorreoService(
         El cuerpo puede contener etiquetas HTML — ignóralas, interpreta solo
         el contenido visible del mensaje.
 
+        Algunas plataformas externas no dan detalle por trabajador/documento:
+        solo informan un resumen agregado ("3 pendientes, 1 vencido, 0
+        rechazados"). Cuando el correo es de ese tipo (un resumen numérico
+        sin decir de quién ni de qué documento concreto), no intentes
+        inventar items — devuelve items como lista vacía y rellena
+        resumenAgregado con esas tres cifras en su lugar.
+
         Devuelve exclusivamente un objeto JSON, sin texto adicional, sin
         explicaciones, sin bloques de código markdown, con este formato
         exacto:
-        {"esActualizacionDocumento": bool, "resumen": "una frase breve en español", "confianza": 0-100, "items": [{"trabajadorId": "guid-de-la-lista-o-null", "tipoDocumentoId": "guid-de-la-lista-o-null", "confianzaTrabajador": 0-100, "confianzaTipoDocumento": 0-100}]}
+        {"esActualizacionDocumento": bool, "resumen": "una frase breve en español", "confianza": 0-100, "items": [{"trabajadorId": "guid-de-la-lista-o-null", "tipoDocumentoId": "guid-de-la-lista-o-null", "confianzaTrabajador": 0-100, "confianzaTipoDocumento": 0-100}], "resumenAgregado": {"pendientes": 0, "vencidos": 0, "rechazados": 0} | null}
 
         Reglas:
         - esActualizacionDocumento es true solo si el correo pide o informa
           explícita o implícitamente sobre la actualización/renovación/
-          entrega de un documento de uno o varios Trabajadores concretos.
+          entrega de un documento de uno o varios Trabajadores concretos, O
+          es un resumen agregado de una plataforma sin detalle por persona.
         - items es la lista de ítems detectados, uno por cada combinación
           Trabajador/tipo de documento distinta que menciona el correo. Si
           esActualizacionDocumento es true pero no puedes distinguir varios
           ítems (un único trabajador/documento, o no puedes separarlos),
-          devuelve un único ítem. Si esActualizacionDocumento es false,
-          items debe ser una lista vacía.
+          devuelve un único ítem. Si esActualizacionDocumento es false, o el
+          correo es un resumen agregado sin detalle, items debe ser una
+          lista vacía.
+        - resumenAgregado: null salvo que el correo sea justo ese caso — un
+          resumen numérico de una plataforma sin trabajador ni documento
+          identificable. Nunca se rellena a la vez que items tiene
+          elementos — es uno u otro, no ambos. pendientes/vencidos/rechazados
+          son los tres contadores tal como los da el correo (0 si el correo
+          no menciona esa categoría explícitamente pero sí las otras dos).
         - trabajadorId y tipoDocumentoId de cada ítem deben ser exactamente
           uno de los Id de las listas proporcionadas, o null si el correo no
           deja claro a cuál se refiere ese ítem concreto. Si no puedes
@@ -67,9 +82,9 @@ public class AnthropicDeteccionGestionCorreoService(
           humano decide qué hacer con un ítem incompleto.
         - resumen: una frase corta y útil para que un gestor humano decida
           rápido si merece revisarlo (menciona cuántos trabajadores/
-          documentos aparecen si son varios). Obligatorio incluso si
-          esActualizacionDocumento es false, explicando brevemente por qué
-          no lo es.
+          documentos aparecen si son varios, o las cifras del resumen
+          agregado). Obligatorio incluso si esActualizacionDocumento es
+          false, explicando brevemente por qué no lo es.
         - confianza: entero 0-100, tu propia certeza global de que
           esActualizacionDocumento es correcto — sobre el mensaje completo,
           no sobre un ítem en particular.
@@ -215,7 +230,12 @@ public class AnthropicDeteccionGestionCorreoService(
 
             var confianza = Math.Clamp(detectado.Confianza, 0, 100);
 
-            return Result.Exito(new DeteccionGestionCorreoDto(detectado.EsActualizacionDocumento, detectado.Resumen, confianza, items));
+            // Nunca a la vez que items: un resumen agregado real no trae desglose por persona.
+            var resumenAgregado = items.Count == 0 && detectado.ResumenAgregado is { } r
+                ? new ResumenAgregadoGestionDto(Math.Max(r.Pendientes, 0), Math.Max(r.Vencidos, 0), Math.Max(r.Rechazados, 0))
+                : null;
+
+            return Result.Exito(new DeteccionGestionCorreoDto(detectado.EsActualizacionDocumento, detectado.Resumen, confianza, items, resumenAgregado));
         }
         catch (JsonException ex)
         {
@@ -228,10 +248,13 @@ public class AnthropicDeteccionGestionCorreoService(
     private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
 
     private sealed record DeteccionGestionJson(
-        bool EsActualizacionDocumento, string? Resumen, int Confianza, IReadOnlyList<ItemDeteccionGestionJson>? Items);
+        bool EsActualizacionDocumento, string? Resumen, int Confianza, IReadOnlyList<ItemDeteccionGestionJson>? Items,
+        ResumenAgregadoGestionJson? ResumenAgregado);
 
     private sealed record ItemDeteccionGestionJson(
         string? TrabajadorId, string? TipoDocumentoId, int ConfianzaTrabajador, int ConfianzaTipoDocumento);
+
+    private sealed record ResumenAgregadoGestionJson(int Pendientes, int Vencidos, int Rechazados);
 
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,

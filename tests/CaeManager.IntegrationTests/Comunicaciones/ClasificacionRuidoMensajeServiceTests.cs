@@ -95,8 +95,7 @@ public class ClasificacionRuidoMensajeServiceTests : IAsyncLifetime
         var detalleSinReclamar = sugerencia.Detalles.Single(d => d.TrabajadorId == _trabajadorSinReclamarId);
 
         await using var contexto = CrearContexto();
-        var repositorio = new ClasificacionRuidoDetalleGestionRepository(contexto);
-        var servicio = new ClasificacionRuidoMensajeService(contexto, contexto, repositorio);
+        var servicio = CrearServicio(contexto);
 
         await servicio.ProcesarAsync(sugerencia, _clienteId, esNotificacionAutomatica: true);
         await contexto.SaveChangesAsync();
@@ -112,14 +111,78 @@ public class ClasificacionRuidoMensajeServiceTests : IAsyncLifetime
         var sugerencia = await SembrarSugerenciaConDosItemsAsync();
 
         await using var contexto = CrearContexto();
-        var repositorio = new ClasificacionRuidoDetalleGestionRepository(contexto);
-        var servicio = new ClasificacionRuidoMensajeService(contexto, contexto, repositorio);
+        var servicio = CrearServicio(contexto);
 
         await servicio.ProcesarAsync(sugerencia, _clienteId, esNotificacionAutomatica: false);
         await contexto.SaveChangesAsync();
 
         (await contexto.ClasificacionesRuidoDetalleGestion.CountAsync()).Should().Be(0);
     }
+
+    [Fact]
+    public async Task Primer_resumen_de_un_par_Cliente_Plataforma_se_registra_y_no_es_repeticion()
+    {
+        var proveedorPlataformaCaeId = Guid.NewGuid();
+
+        await using var contexto = CrearContexto();
+        var servicio = CrearServicio(contexto);
+
+        var sinCambios = await servicio.ProcesarResumenAsync(
+            _clienteId, proveedorPlataformaCaeId, new ResumenAgregadoGestionDto(Pendientes: 3, Vencidos: 1, Rechazados: 0));
+        await contexto.SaveChangesAsync();
+
+        sinCambios.Should().BeFalse();
+        var registrado = await contexto.UltimosResumenesNotificacionPlataforma
+            .SingleAsync(u => u.ClienteId == _clienteId && u.ProveedorPlataformaCaeId == proveedorPlataformaCaeId);
+        registrado.Pendientes.Should().Be(3);
+        registrado.Vencidos.Should().Be(1);
+        registrado.Rechazados.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_resumen_identico_al_anterior_se_marca_sin_cambios()
+    {
+        var proveedorPlataformaCaeId = Guid.NewGuid();
+        var resumen = new ResumenAgregadoGestionDto(Pendientes: 5, Vencidos: 2, Rechazados: 1);
+
+        await using (var contexto = CrearContexto())
+        {
+            await CrearServicio(contexto).ProcesarResumenAsync(_clienteId, proveedorPlataformaCaeId, resumen);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var contextoSegundaVez = CrearContexto();
+        var sinCambios = await CrearServicio(contextoSegundaVez).ProcesarResumenAsync(_clienteId, proveedorPlataformaCaeId, resumen);
+        await contextoSegundaVez.SaveChangesAsync();
+
+        sinCambios.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Un_resumen_con_contadores_distintos_al_anterior_no_es_repeticion_y_actualiza_el_registro()
+    {
+        var proveedorPlataformaCaeId = Guid.NewGuid();
+
+        await using (var contexto = CrearContexto())
+        {
+            await CrearServicio(contexto).ProcesarResumenAsync(
+                _clienteId, proveedorPlataformaCaeId, new ResumenAgregadoGestionDto(Pendientes: 5, Vencidos: 2, Rechazados: 1));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var contextoSegundaVez = CrearContexto();
+        var sinCambios = await CrearServicio(contextoSegundaVez).ProcesarResumenAsync(
+            _clienteId, proveedorPlataformaCaeId, new ResumenAgregadoGestionDto(Pendientes: 6, Vencidos: 2, Rechazados: 1));
+        await contextoSegundaVez.SaveChangesAsync();
+
+        sinCambios.Should().BeFalse();
+        var registrado = await contextoSegundaVez.UltimosResumenesNotificacionPlataforma
+            .SingleAsync(u => u.ClienteId == _clienteId && u.ProveedorPlataformaCaeId == proveedorPlataformaCaeId);
+        registrado.Pendientes.Should().Be(6);
+    }
+
+    private static ClasificacionRuidoMensajeService CrearServicio(CaeManagerDbContext contexto) =>
+        new(contexto, contexto, new ClasificacionRuidoDetalleGestionRepository(contexto), new UltimoResumenNotificacionPlataformaRepository(contexto));
 
     private CaeManagerDbContext CrearContexto()
     {
