@@ -78,38 +78,41 @@ public static class DelegacionesSoporteSeeder
 
     /// <summary>
     /// Una ventana de soporte vigente (motivo + caducidad futura) sobre el
-    /// tenant demo 1, una ya caducada sobre el demo 2 (activa pero no
+    /// tenant demo 3, una ya caducada sobre el demo 2 (activa pero no
     /// vigente — <c>EstaVigente</c> false), y la traza completa de una visita
-    /// de soporte (los 5 tipos de actividad) en el tenant demo 1, que es el
-    /// dueño del registro. Guards propios: solo actúa sobre delegaciones de
+    /// de soporte (los 5 tipos de actividad) en el tenant demo 3, que es el
+    /// dueño del registro. La delegación de soporte del tenant demo 1 se
+    /// deja <b>sin activar a propósito</b>: FlujoSoporteTests (E2E) ejercita
+    /// el ciclo completo sobre ella —abrir, trazar, cerrar— y necesita
+    /// encontrarla virgen. Guards propios: solo actúa sobre delegaciones de
     /// soporte aún nunca activadas y si no hay actividad registrada.
     /// </summary>
     private static async Task SembrarVariantesDemoAsync(
         CaeManagerDbContext dbContext, IConfiguration configuration, Guid tenantPlataformaId,
         ILogger logger, CancellationToken cancellationToken)
     {
-        var demo1 = await dbContext.Tenants.FirstOrDefaultAsync(
-            t => t.Nombre == DelegacionDemoSeeder.NombreTenantClienteDemo, cancellationToken);
         var demo2 = await dbContext.Tenants.FirstOrDefaultAsync(
             t => t.Nombre == DelegacionDemoSeeder.NombreTenantClienteDemo2, cancellationToken);
-        if (demo1 is null || demo2 is null)
+        var demo3 = await dbContext.Tenants.FirstOrDefaultAsync(
+            t => t.Nombre == DelegacionDemoSeeder.NombreTenantClienteDemo3, cancellationToken);
+        if (demo2 is null || demo3 is null)
             return;
 
-        var soporteDemo1 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
-            d => d.TenantConsultoraId == tenantPlataformaId && d.TenantClienteId == demo1.Id
-                 && d.Proposito == PropositoDelegacion.Soporte, cancellationToken);
         var soporteDemo2 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
             d => d.TenantConsultoraId == tenantPlataformaId && d.TenantClienteId == demo2.Id
                  && d.Proposito == PropositoDelegacion.Soporte, cancellationToken);
-        if (soporteDemo1 is null || soporteDemo2 is null)
+        var soporteDemo3 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
+            d => d.TenantConsultoraId == tenantPlataformaId && d.TenantClienteId == demo3.Id
+                 && d.Proposito == PropositoDelegacion.Soporte, cancellationToken);
+        if (soporteDemo2 is null || soporteDemo3 is null)
             return;
 
         var ahora = DateTime.UtcNow;
         var huboCambios = false;
 
-        if (!soporteDemo1.Activa && soporteDemo1.MotivoActivacion is null)
+        if (!soporteDemo3.Activa && soporteDemo3.MotivoActivacion is null)
         {
-            soporteDemo1.ActivarParaSoporte(
+            soporteDemo3.ActivarParaSoporte(
                 "Incidencia DEMO-1234: documentos que no cargan en el listado.", ahora.AddHours(48), ahora);
             huboCambios = true;
         }
@@ -139,26 +142,26 @@ public static class DelegacionesSoporteSeeder
         if (usuarioSoporte is null)
             return;
 
-        using (AmbitoTenantExplicito.Establecer(demo1.Id))
+        using (AmbitoTenantExplicito.Establecer(demo3.Id))
         {
             if (await dbContext.RegistrosActividadSoporte.AnyAsync(cancellationToken))
                 return;
 
             dbContext.RegistrosActividadSoporte.Add(new RegistroActividadSoporte(
-                usuarioSoporte.Id, soporteDemo1.Id, TipoActividadSoporte.AccesoConcedido,
+                usuarioSoporte.Id, soporteDemo3.Id, TipoActividadSoporte.AccesoConcedido,
                 "Incidencia DEMO-1234: documentos que no cargan en el listado."));
             dbContext.RegistrosActividadSoporte.Add(new RegistroActividadSoporte(
-                usuarioSoporte.Id, soporteDemo1.Id, TipoActividadSoporte.WorkspaceActivado));
+                usuarioSoporte.Id, soporteDemo3.Id, TipoActividadSoporte.WorkspaceActivado));
             dbContext.RegistrosActividadSoporte.Add(new RegistroActividadSoporte(
-                usuarioSoporte.Id, soporteDemo1.Id, TipoActividadSoporte.Navegacion, "/documentos"));
+                usuarioSoporte.Id, soporteDemo3.Id, TipoActividadSoporte.Navegacion, "/documentos"));
             dbContext.RegistrosActividadSoporte.Add(new RegistroActividadSoporte(
-                usuarioSoporte.Id, soporteDemo1.Id, TipoActividadSoporte.Interaccion, "Exportar listado de documentos"));
+                usuarioSoporte.Id, soporteDemo3.Id, TipoActividadSoporte.Interaccion, "Exportar listado de documentos"));
             dbContext.RegistrosActividadSoporte.Add(new RegistroActividadSoporte(
-                usuarioSoporte.Id, soporteDemo1.Id, TipoActividadSoporte.AccesoRevocado,
+                usuarioSoporte.Id, soporteDemo3.Id, TipoActividadSoporte.AccesoRevocado,
                 "Fin de la revisión — incidencia reproducida y documentada."));
 
             await dbContext.SaveChangesAsync(cancellationToken);
-            logger.LogInformation("Traza de visita de soporte de demo sembrada en el tenant demo 1.");
+            logger.LogInformation("Traza de visita de soporte de demo sembrada en el tenant demo 3.");
         }
     }
 }

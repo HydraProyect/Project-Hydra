@@ -90,6 +90,10 @@ Todo el pipeline que hoy solo existe como flags de catálogo.
     sobre los datos sembrados.
 - **Soporte**: una `DelegacionTenant` de soporte **vigente** (motivo + caducidad futura) y una
   **caducada**, más `RegistroActividadSoporte` de ejemplo de los 5 `TipoActividadSoporte`.
+  - Nota de ejecución (2026-08-10): la vigente y la traza viven en el **tenant demo 3** y la
+    caducada en el demo 2 — la delegación de soporte del demo 1 se deja sin activar a
+    propósito porque `FlujoSoporteTests` (E2E) ejercita el ciclo completo sobre ella y
+    necesita encontrarla virgen (fallo real de CI al sembrarla activada).
 - **Identidad y términos**: un usuario con aceptación de términos de versión antigua (ejercita
   el gate), un usuario sin rol (`/cuenta/pendiente-de-rol`), uno con
   `DebeCambiarContrasena = true`, y un `prueba.*` con 2FA activa.
