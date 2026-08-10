@@ -1,0 +1,14 @@
+@using CaeManager.Domain.Telemetria
+@implements IAsyncDisposable
+
+@if (_medicionActiva)
+{
+    <div class="medidor-tiempo" role="status" aria-live="polite">
+        <Icono Nombre="reloj" Tamano="TamanoIcono.Pequeno" />
+        <span class="medidor-tiempo-valor">@TextoTiempo</span>
+        <Badge Tono="@(EnPausa ? TonoBadge.Neutro : TonoBadge.Info)">@TextoEstado</Badge>
+        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="AlternarPausaManualAsync">
+            @(_pausaManual ? "Reanudar" : "Pausar / Tarea externa")
+        </Boton>
+    </div>
+}

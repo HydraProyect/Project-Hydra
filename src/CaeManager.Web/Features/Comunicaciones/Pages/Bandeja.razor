@@ -176,6 +176,8 @@
                         </div>
                     </div>
                     <div class="bandeja-centro-acciones">
+                        <MedidorTiempoGestion @ref="_medidorTiempo" ConversacionId="_detalle.Id" />
+
                         @if (_detalle.ClienteId is null)
                         {
                             <CampoSelect Valor="@_clienteTriageSeleccionado" ValorChanged="v => _clienteTriageSeleccionado = v">

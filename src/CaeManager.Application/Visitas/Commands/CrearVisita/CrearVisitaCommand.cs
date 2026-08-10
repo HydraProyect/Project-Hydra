@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Visitas.Eventos;
 using CaeManager.Application.Visitas.PaqueteDocumental;
 using CaeManager.Domain.Comunicaciones;
@@ -23,7 +24,7 @@ namespace CaeManager.Application.Visitas.Commands.CrearVisita;
 /// </summary>
 public record CrearVisitaCommand(
     Guid CentroId, DateOnly FechaInicio, DateOnly FechaFin, IReadOnlyList<Guid> TrabajadorIds, string? Notas,
-    Guid? SugerenciaVisitaCorreoId = null)
+    Guid? SugerenciaVisitaCorreoId = null, TimeOnly? HoraEstimadaAcceso = null)
     : ICommand<Guid>;
 
 public class CrearVisitaCommandValidator : AbstractValidator<CrearVisitaCommand>
@@ -49,7 +50,8 @@ public class CrearVisitaCommandHandler(
     IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
     ICentrosQueryContext centrosContext, ITrabajadoresQueryContext trabajadoresContext,
     ISugerenciaVisitaCorreoRepository sugerenciaRepositorio, IComunicacionesQueryContext comunicacionesContext,
-    IPaqueteDocumentalVisitaService paqueteDocumental, IPublisher publisher, IUnitOfWork unitOfWork,
+    IPaqueteDocumentalVisitaService paqueteDocumental, IEvaluadorExpedienteVisitaService evaluadorExpediente,
+    ICurrentUserService currentUserService, IPublisher publisher, IUnitOfWork unitOfWork,
     ILogger<CrearVisitaCommandHandler> logger)
     : IRequestHandler<CrearVisitaCommand, Result<Guid>>
 {
@@ -69,7 +71,7 @@ public class CrearVisitaCommandHandler(
             return Result.Fallo<Guid>(Error.Crear("Visita.TrabajadorNoEncontrado", "Alguno de los trabajadores seleccionados no existe."));
 
         var origen = request.SugerenciaVisitaCorreoId is not null ? OrigenVisita.Correo : OrigenVisita.Plataforma;
-        var visita = new Visita(request.CentroId, request.FechaInicio, request.FechaFin, request.Notas, origen);
+        var visita = new Visita(request.CentroId, request.FechaInicio, request.FechaFin, request.Notas, origen, request.HoraEstimadaAcceso);
         repositorio.Agregar(visita);
 
         foreach (var trabajadorId in trabajadorIds)
@@ -81,15 +83,52 @@ public class CrearVisitaCommandHandler(
             var sugerencia = await sugerenciaRepositorio.ObtenerPorIdAsync(sugerenciaId, cancellationToken);
             if (sugerencia is not null)
             {
-                sugerencia.Resolver();
+                // Si el Gestor tuvo que corregir centro o fechas antes de confirmar, la
+                // sugerencia ahorró menos trabajo que una aceptada de un clic. No hace
+                // falta que la UI lo declare: los propios datos lo dicen.
+                var huboEdicion =
+                    sugerencia.CentroId != request.CentroId
+                    || (sugerencia.FechaInicioSugerida is { } inicio && inicio != request.FechaInicio)
+                    || (sugerencia.FechaFinSugerida is { } fin && fin != request.FechaFin);
+
+                sugerencia.Resolver(
+                    huboEdicion ? ResolucionSugerencia.ConfirmadaConEdicion : ResolucionSugerencia.Confirmada,
+                    await currentUserService.ObtenerUsuarioActualIdAsync());
                 conversacionParaPaquete = await comunicacionesContext.Mensajes
                     .Where(m => m.Id == sugerencia.MensajeId)
                     .Select(m => (Guid?)m.ConversacionId)
                     .FirstOrDefaultAsync(cancellationToken);
+
+                // Instante que el cliente considera "yo avisé": el primer mensaje entrante
+                // del hilo, no el mensaje del que la IA sacó la sugerencia — si el hilo
+                // arrancó pidiendo la visita y luego hubo idas y venidas, el margen se
+                // cuenta desde el principio, a favor del cliente.
+                if (conversacionParaPaquete is { } conversacionOrigenId)
+                {
+                    var solicitudUtc = await comunicacionesContext.Mensajes
+                        .Where(m => m.ConversacionId == conversacionOrigenId && m.Direccion == DireccionMensaje.Entrante)
+                        .OrderBy(m => m.FechaUtc)
+                        .Select(m => (DateTime?)m.FechaUtc)
+                        .FirstOrDefaultAsync(cancellationToken);
+
+                    if (solicitudUtc is not null)
+                        visita.RegistrarOrigenSolicitud(conversacionOrigenId, solicitudUtc.Value);
+                }
             }
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Una visita puede nacer ya con todo el papeleo en regla — si es así, el
+        // expediente se sella aquí mismo y la antelación efectiva coincide con la nominal.
+        try
+        {
+            await evaluadorExpediente.EvaluarAsync(visita.Id, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "No se pudo evaluar el expediente documental de la visita {VisitaId}.", visita.Id);
+        }
 
         // Mejor esfuerzo, en una segunda operación separada: un fallo
         // generando el paquete documental (storage inconsistente, hilo

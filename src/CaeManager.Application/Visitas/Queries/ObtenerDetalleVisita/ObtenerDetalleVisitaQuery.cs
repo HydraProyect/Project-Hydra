@@ -3,6 +3,7 @@ using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Visitas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,7 +31,14 @@ public record DetalleVisitaDto(
     DateOnly FechaFin,
     string? Notas,
     bool NotificadoCliente,
-    IReadOnlyList<TrabajadorVisitaDto> Trabajadores);
+    IReadOnlyList<TrabajadorVisitaDto> Trabajadores,
+    TimeOnly? HoraEstimadaAcceso,
+    DateTime? FechaHoraSolicitudUtc,
+    DateTime? FechaHoraExpedienteCompletoUtc,
+    decimal? AntelacionNominalHoras,
+    decimal? AntelacionEfectivaHoras,
+    TramoAntelacion? Tramo,
+    AtribucionUrgencia Atribucion);
 
 public class ObtenerDetalleVisitaQueryHandler(
     ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext,
@@ -56,7 +64,14 @@ public class ObtenerDetalleVisitaQueryHandler(
                 v.FechaInicio,
                 v.FechaFin,
                 v.Notas,
-                v.NotificadoCliente
+                v.NotificadoCliente,
+                v.HoraEstimadaAcceso,
+                v.FechaHoraSolicitudUtc,
+                v.FechaHoraExpedienteCompletoUtc,
+                v.AntelacionNominalHoras,
+                v.AntelacionEfectivaHoras,
+                v.Tramo,
+                v.Atribucion
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -76,6 +91,8 @@ public class ObtenerDetalleVisitaQueryHandler(
 
         return new DetalleVisitaDto(
             visita.Id, visita.CentroNombre, visita.ClienteRazonSocial, visita.EmpresaId, visita.EmpresaRazonSocial,
-            visita.FechaInicio, visita.FechaFin, visita.Notas, visita.NotificadoCliente, trabajadores);
+            visita.FechaInicio, visita.FechaFin, visita.Notas, visita.NotificadoCliente, trabajadores,
+            visita.HoraEstimadaAcceso, visita.FechaHoraSolicitudUtc, visita.FechaHoraExpedienteCompletoUtc,
+            visita.AntelacionNominalHoras, visita.AntelacionEfectivaHoras, visita.Tramo, visita.Atribucion);
     }
 }

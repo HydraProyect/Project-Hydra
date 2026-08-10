@@ -18,6 +18,29 @@ public class ParametroSistema : EntidadConTenant
     /// <summary>Horas hasta el inicio a partir de las cuales la urgencia pasa a "crítica" — por debajo de este margen, es probable que la plataforma del cliente ya no llegue a validar a tiempo.</summary>
     public int HorasCriticasVisita { get; private set; } = 24;
 
+    /// <summary>Hora de apertura de la jornada. Doble uso: es la hora de entrada que se asume cuando una Visita no trae <c>HoraEstimadaAcceso</c> (una visita "del jueves" sin hora se atiende desde la apertura del centro), y el inicio de la franja fuera de la cual una entrada se clasifica como Exprés.</summary>
+    public TimeOnly HoraInicioJornada { get; private set; } = new(8, 0);
+
+    /// <summary>Hora de cierre de la jornada — ver <see cref="HoraInicioJornada"/>.</summary>
+    public TimeOnly HoraFinJornada { get; private set; } = new(18, 0);
+
+    /// <summary>Horas de jornada disponibles al mes por Gestor CAE — denominador del KPI de ocupación. No es un dato contractual: es el divisor que la consultora considera representativo de una jornada completa.</summary>
+    public int HorasJornadaMensualGestor { get; private set; } = 160;
+
+    /// <summary>
+    /// Feature toggle de empresa para la medición de tiempo de enfoque (art. 87 LOPDGDD).
+    /// Nace apagado a propósito: la consultora debe informar previamente a su plantilla y
+    /// a la representación legal antes de encenderlo. Con esto en <c>false</c> no se
+    /// captura ni se persiste absolutamente nada.
+    /// </summary>
+    public bool MedicionTiempoActiva { get; private set; }
+
+    /// <summary>Segundos sin foco de ventana tras los cuales el tramo de medición se cierra por inactividad.</summary>
+    public int SegundosInactividadPausa { get; private set; } = 120;
+
+    /// <summary>Si el tiempo registrado fuera de la franja de jornada se descarta al agregar métricas. No afecta a la captura — el tramo se guarda igual, solo se excluye del cálculo.</summary>
+    public bool ExcluirFueraDeJornadaEnMetricas { get; private set; } = true;
+
     private ParametroSistema()
     {
     }
@@ -48,5 +71,28 @@ public class ParametroSistema : EntidadConTenant
 
         HorasAvisoVisita = horasAvisoVisita;
         HorasCriticasVisita = horasCriticasVisita;
+    }
+
+    public void ActualizarConfiguracionOperativa(
+        TimeOnly horaInicioJornada,
+        TimeOnly horaFinJornada,
+        int horasJornadaMensualGestor,
+        bool medicionTiempoActiva,
+        int segundosInactividadPausa,
+        bool excluirFueraDeJornadaEnMetricas)
+    {
+        if (horaFinJornada <= horaInicioJornada)
+            throw new ArgumentException("La hora de fin de jornada debe ser posterior a la de inicio.", nameof(horaFinJornada));
+        if (horasJornadaMensualGestor <= 0)
+            throw new ArgumentException("Las horas de jornada mensual deben ser mayores que cero.", nameof(horasJornadaMensualGestor));
+        if (segundosInactividadPausa is < 30 or > 600)
+            throw new ArgumentException("Los segundos de inactividad deben estar entre 30 y 600.", nameof(segundosInactividadPausa));
+
+        HoraInicioJornada = horaInicioJornada;
+        HoraFinJornada = horaFinJornada;
+        HorasJornadaMensualGestor = horasJornadaMensualGestor;
+        MedicionTiempoActiva = medicionTiempoActiva;
+        SegundosInactividadPausa = segundosInactividadPausa;
+        ExcluirFueraDeJornadaEnMetricas = excluirFueraDeJornadaEnMetricas;
     }
 }

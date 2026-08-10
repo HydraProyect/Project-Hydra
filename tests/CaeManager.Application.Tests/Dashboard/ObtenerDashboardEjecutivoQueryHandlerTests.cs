@@ -18,7 +18,7 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
         int incidenciasAbiertas = 0, IReadOnlyList<GravedadIncidenciaConteoDto>? incidenciasPorGravedad = null,
         double? tiempoMedioResolucionDias = null, int totalIncidenciasResueltas = 0,
         double? confianzaMediaIa = null, decimal costeIaMes = 0m, double? tiempoMedioMsIa = null, int totalAuditoriasIaMes = 0,
-        decimal facturacionEstimada = 0m) =>
+        decimal facturacionEstimada = 0m, KpisBpoDto? bpo = null) =>
         new(
             Documental: new KpisDashboardDto(trabajadoresActivos, centros, vencidos, urgentes, proximos, vigentes, visitas, 0),
             TotalDocumentosConVigencia: vigentes + proximos + urgentes + vencidos,
@@ -33,7 +33,8 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
             CosteIaMesActual: costeIaMes,
             TiempoMedioProcesamientoIaMs: tiempoMedioMsIa,
             TotalAuditoriasIaMes: totalAuditoriasIaMes,
-            FacturacionEstimadaMesActual: facturacionEstimada);
+            FacturacionEstimadaMesActual: facturacionEstimada,
+            Bpo: bpo ?? KpisBpoDto.Vacio);
 
     [Fact]
     public void Suma_los_conteos_de_todos_los_tenants()
@@ -152,6 +153,59 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
             new GravedadIncidenciaConteoDto(GravedadIncidencia.Grave, 1),
             new GravedadIncidenciaConteoDto(GravedadIncidencia.MuyGrave, 1),
         ]);
+    }
+
+    /// <summary>
+    /// El mismo Operador Delegado puede trabajar para varios Clientes Delegantes: si su
+    /// ocupación se concatenara sin agrupar, aparecería dos veces en el ranking y la
+    /// Coordinación repartiría carga sobre una lista con la misma persona duplicada.
+    /// </summary>
+    [Fact]
+    public void Agrupa_por_persona_la_ocupacion_de_un_gestor_que_trabaja_en_varios_tenants()
+    {
+        var gestor = Guid.NewGuid();
+
+        var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>
+        {
+            (Cliente("Ibertec"), Valores(bpo: KpisBpoDto.Vacio with
+            {
+                OcupacionPorGestor = [new OcupacionGestorDto(gestor, "Pedro Picapiedra", 3600, 10)]
+            })),
+            (Cliente("EcoPlant"), Valores(bpo: KpisBpoDto.Vacio with
+            {
+                OcupacionPorGestor = [new OcupacionGestorDto(gestor, "Pedro Picapiedra", 7200, 20)]
+            })),
+        };
+
+        var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant);
+
+        resultado.Bpo.OcupacionPorGestor.Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(new OcupacionGestorDto(gestor, "Pedro Picapiedra", 10800, 30));
+    }
+
+    /// <summary>
+    /// Los porcentajes BPO se derivan del numerador y el denominador ya sumados, nunca
+    /// promediando los porcentajes de cada tenant.
+    /// </summary>
+    [Fact]
+    public void Suma_numerador_y_denominador_de_la_palanca_IA_en_vez_de_promediar_porcentajes()
+    {
+        var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>
+        {
+            (Cliente("Ibertec"), Valores(bpo: KpisBpoDto.Vacio with
+            {
+                SugerenciasConfirmadasSinEdicion = 90, TotalSugerenciasResueltas = 100
+            })),
+            (Cliente("EcoPlant"), Valores(bpo: KpisBpoDto.Vacio with
+            {
+                SugerenciasConfirmadasSinEdicion = 0, TotalSugerenciasResueltas = 1
+            })),
+        };
+
+        var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant);
+
+        resultado.Bpo.SugerenciasConfirmadasSinEdicion.Should().Be(90);
+        resultado.Bpo.TotalSugerenciasResueltas.Should().Be(101);
     }
 
     [Fact]
