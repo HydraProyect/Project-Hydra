@@ -9,3 +9,11 @@ appsettings.Development.json
 node_modules/
 App_Data/
 .claude/
+
+# Documentación con valores reales que no puede viajar a un repositorio público:
+# identificadores de tenants, cuentas de administración, buzones. El documento
+# versionado equivalente usa placeholders (ver RUNBOOK-GRAPH-M365.md).
+*.local.md
+
+# Carpeta temporal que crea el cliente de Google Drive mientras sincroniza.
+.tmp.driveupload/

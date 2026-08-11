@@ -2,19 +2,21 @@
 
 Este documento cubre la configuración ya hecha en un tenant Microsoft 365 Developer, preparada para retomar P2 #26 de `docs/business/MATURITY_REVIEW.md`: "Ingesta Graph real de Comunicaciones **o congelar el módulo y no venderlo**" — hoy el módulo está congelado (`ffc145d`, ya en `main`); este tenant existe para poder revertir esa decisión con una integración real, no para usarlo todavía.
 
-**Nada de lo que hay abajo es secreto** salvo donde se indica explícitamente — Tenant ID y Application (client) ID no son credenciales, son identificadores públicos dentro del propio token/request. El secreto de cliente en sí **no vive en este documento ni en el repo**; ver "Dónde vive el secreto" más abajo.
+**Los identificadores concretos no viven en este documento.** Tenant ID, Application (client) ID, dominio, cuenta de administración y buzón aparecen aquí como placeholders (`<TENANT_ID>`, `<CLIENT_ID>`, `<DOMINIO_DEV>`, `<ADMIN_UPN>`, `<BUZON_MONITOREADO>`); sus valores reales están en `RUNBOOK-GRAPH-M365.local.md`, que **no está versionado** (ver `.gitignore`).
+
+Técnicamente ninguno de esos identificadores es una credencial —viajan en claro dentro del propio token/request—, pero este repositorio es **público**: un Tenant ID y un UPN de Global Admin publicados son material de reconocimiento y un objetivo de phishing servido con nombre y apellidos. El secreto de cliente en sí nunca ha estado ni en el documento ni en el repo; ver "Dónde vive el secreto" más abajo.
 
 ## Tenant
 
-- Dominio: `hydragraphdev.onmicrosoft.com`
-- Tenant (Directory) ID: `fcf5acdc-0fd7-45f1-95cb-8120b9961a30`
-- Cuenta de Global Admin: `Christopher.Castro@hydragraphdev.onmicrosoft.com`
+- Dominio: `<DOMINIO_DEV>`
+- Tenant (Directory) ID: `<TENANT_ID>`
+- Cuenta de Global Admin: `<ADMIN_UPN>`
 - Programa: Microsoft 365 Developer (hasta 25 usuarios con licencia)
 
 ## App registration
 
 - Nombre: `hydra` (Entra ID → App registrations)
-- Application (client) ID: `52faf1f6-1d2c-47e6-924e-54d475e89cf3`
+- Application (client) ID: `<CLIENT_ID>`
 - Tipo de cuenta: solo este tenant ("Solo mi organización")
 - Credencial: un secreto de cliente (no un certificado) — ver expiración en el propio portal antes de que caduque, Entra ID no avisa por email por defecto en el plan Developer.
 
@@ -31,10 +33,10 @@ Con consentimiento de administrador ya otorgado (columna "Status" en verde en AP
 
 Sin esto, `Mail.Read`/`Mail.Send` de Application da acceso a **todos** los buzones del tenant. Se acotó vía Exchange Online PowerShell:
 
-- Grupo de seguridad habilitado para correo: `GrupoAccesoBuzonCae`, con un único miembro: `buzon.cae@hydragraphdev.onmicrosoft.com`
+- Grupo de seguridad habilitado para correo: `GrupoAccesoBuzonCae`, con un único miembro: `<BUZON_MONITOREADO>`
 - Política aplicada:
   ```powershell
-  New-ApplicationAccessPolicy -AppId "52faf1f6-1d2c-47e6-924e-54d475e89cf3" `
+  New-ApplicationAccessPolicy -AppId "<CLIENT_ID>" `
     -PolicyScopeGroupId "GrupoAccesoBuzonCae" `
     -AccessRight RestrictAccess `
     -Description "hydra: solo buzon.cae"
@@ -47,7 +49,7 @@ Si el buzón monitoreado cambia alguna vez, hay que actualizar la membresía de 
 
 | Usuario | Rol en las pruebas |
 |---|---|
-| `Christopher.Castro@...` | Global Admin del tenant (no participa en los escenarios de prueba en sí) |
+| `<ADMIN_UPN>` | Global Admin del tenant (no participa en los escenarios de prueba en sí) |
 | `buzon.cae@...` | El buzón que la integración va a monitorear — target real de `Mail.Read`/`Mail.Send` |
 | `cliente.prueba1@...` / `cliente.prueba2@...` | Simulan remitentes externos escribiendo al buzón — para probar creación de `ConversacionCorreo`, threading, adjuntos |
 | `gestor.prueba@...` | Simula al Gestor CAE respondiendo desde Hydra — para probar el envío saliente vía Graph |
@@ -64,10 +66,10 @@ Nombres de variable propuestos para cuando se implemente (siguiendo la convenci�
 
 | Variable | Valor |
 |---|---|
-| `Comunicaciones__Graph__TenantId` | `fcf5acdc-0fd7-45f1-95cb-8120b9961a30` |
-| `Comunicaciones__Graph__ClientId` | `52faf1f6-1d2c-47e6-924e-54d475e89cf3` |
+| `Comunicaciones__Graph__TenantId` | `<TENANT_ID>` |
+| `Comunicaciones__Graph__ClientId` | `<CLIENT_ID>` |
 | `Comunicaciones__Graph__ClientSecret` | (el secreto — nunca en claro en el repo) |
-| `Comunicaciones__Graph__BuzonMonitoreado` | `buzon.cae@hydragraphdev.onmicrosoft.com` |
+| `Comunicaciones__Graph__BuzonMonitoreado` | `<BUZON_MONITOREADO>` |
 
 ## Qué falta para que P2 #26 deje de estar congelado
 
