@@ -2,7 +2,9 @@
 
 Este documento cubre la configuración ya hecha en un tenant Microsoft 365 Developer, preparada para retomar P2 #26 de `docs/business/MATURITY_REVIEW.md`: "Ingesta Graph real de Comunicaciones **o congelar el módulo y no venderlo**" — hoy el módulo está congelado (`ffc145d`, ya en `main`); este tenant existe para poder revertir esa decisión con una integración real, no para usarlo todavía.
 
-**Nada de lo que hay abajo es secreto** salvo donde se indica explícitamente — Tenant ID y Application (client) ID no son credenciales, son identificadores públicos dentro del propio token/request. El secreto de cliente en sí **no vive en este documento ni en el repo**; ver "Dónde vive el secreto" más abajo.
+**Los identificadores concretos no viven en este documento.** Tenant ID, Application (client) ID, dominio, cuenta de administración y buzón aparecen aquí como placeholders (`<TENANT_ID>`, `<CLIENT_ID>`, `<DOMINIO_DEV>`, `<ADMIN_UPN>`, `<BUZON_MONITOREADO>`); sus valores reales están en `RUNBOOK-GRAPH-M365.local.md`, que **no está versionado** (ver `.gitignore`).
+
+Técnicamente ninguno de esos identificadores es una credencial —viajan en claro dentro del propio token/request—, pero este repositorio es **público**: un Tenant ID y un UPN de Global Admin publicados son material de reconocimiento y un objetivo de phishing servido con nombre y apellidos. El secreto de cliente en sí nunca ha estado ni en el documento ni en el repo; ver "Dónde vive el secreto" más abajo.
 
 ## Tenant
 
@@ -47,7 +49,7 @@ Si el buzón monitoreado cambia alguna vez, hay que actualizar la membresía de 
 
 | Usuario | Rol en las pruebas |
 |---|---|
-| `<ADMIN_UPN>@...` | Global Admin del tenant (no participa en los escenarios de prueba en sí) |
+| `<ADMIN_UPN>` | Global Admin del tenant (no participa en los escenarios de prueba en sí) |
 | `buzon.cae@...` | El buzón que la integración va a monitorear — target real de `Mail.Read`/`Mail.Send` |
 | `cliente.prueba1@...` / `cliente.prueba2@...` | Simulan remitentes externos escribiendo al buzón — para probar creación de `ConversacionCorreo`, threading, adjuntos |
 | `gestor.prueba@...` | Simula al Gestor CAE respondiendo desde Hydra — para probar el envío saliente vía Graph |

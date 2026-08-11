@@ -1,8 +1,12 @@
 name: CI
 
 on:
+  # Las ramas de trabajo (`claude/**`) quedan fuera a propósito: cuando tienen un PR
+  # abierto, el disparador `pull_request` de abajo ya verifica exactamente el mismo
+  # commit. Tenerlas aquí duplicaba cada verificación — dos runs completos (~27 min
+  # facturables cada uno) para el mismo código, y el doble de espera por PR.
   push:
-    branches: [main, "claude/**"]
+    branches: [main]
   pull_request:
     branches: [main]
 
