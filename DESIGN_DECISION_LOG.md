@@ -855,6 +855,48 @@ como implementado o presente algo que no está construido.
   que hizo falta esta decisión en primer lugar, no su fundamento.
 - **Documentos afectados**: `08` § 4.4.
 
+### DDL-071 — Gamificación: se adopta "progreso y cierre + pulso del equipo"; se rechazan puntos, badges, leaderboards entre personas y rachas con pérdida
+- **Decisión**: Hydra incorpora una capa de motivación para el gestor/coordinador basada en
+  **progreso visible y cierre factual**, no en mecánicas de juego. Tres piezas:
+
+  | Pieza | Qué es | Con qué normativa se sostiene |
+  |---|---|---|
+  | **Estado de cierre verificado** | Cuando hay cartera y la cola de "Requiere atención" está vacía, el Home enuncia el hecho ("Nada pendiente ahora mismo") y el siguiente vencimiento por delante | Tono factual de `01` § 7; distingue "cero verificado" de "sin cartera" (`04` § 6) |
+  | **Trazado de confirmación en el toast de Éxito** | El toast `Exito` pasa a portar el trazado de confirmación ya catalogado (Tier C, `07` § 6): una marca que se dibuja al entrar el toast | El patrón ya existe en el catálogo; el toast nace **una vez por evento** (cumple `07` § 6.1) y `prefers-reduced-motion` lo desactiva (DDL-020). No se añade patrón nuevo |
+  | **Pulso del equipo** | Agregado semanal por tenant de documentos resueltos (`AprobacionDocumento`), comparado con la semana anterior y con la mejor semana histórica — competición contra el propio histórico, nunca entre personas | Enuncia hechos con cifras (`01` § 7); agregado, sin desglose por usuario |
+
+- **Estado**: Vigente · **Fecha**: 2026-08-09
+- **Motivo**: el objetivo del propietario del producto es que el gestor sienta satisfacción y
+  baje su estrés (reducir burnout). La evidencia revisada sostiene que esa sensación viene de
+  **competencia visible + autonomía** (progreso, cierre, control), y que la gamificación
+  extrínseca sobre trabajo obligatorio la erosiona: la competición fabricada entre compañeros
+  motiva al tercio superior y estresa al resto — crítico en tenants pequeños (consultoras PRL de
+  3–10 gestores) — y una métrica de volumen o velocidad de validación incentiva validar mal, que
+  en un producto de cumplimiento PRL es riesgo legal, no cosmético.
+- **Rechazos permanentes** (mismo carácter que el registro de `07` § 7 — ningún brief futuro los
+  reintroduce como novedad): **puntos y niveles · badges · leaderboards entre usuarios o entre
+  tenants · rachas/streaks con pérdida · métricas de velocidad de validación**. La **racha diaria**
+  propuesta en el prototipo del Issue #3 (`ROADMAP.md`, backlog 2026-07-16 § 14) queda **rechazada
+  por esta entrada**; el resto de ese widget (qué notifica, dónde vive) sigue pendiente de definir.
+- **Lo que esta decisión explícitamente NO construye**: el medidor de completitud por
+  contrata/centro **ya existe** (`AnilloCumplimiento` por centro con % de cumplimiento, y el
+  detalle de documentos faltantes en el acordeón de asignaciones y el preflight de la Fase 87).
+  Se registra aquí para que no se duplique bajo el nombre "goal gradient".
+- **Fuera de alcance, al backlog**: ranking de cumplimiento de contratas visible para las propias
+  contratas (la presión competitiva recae en quien debe aportar la documentación, no en el
+  equipo) — ver `ROADMAP.md`, backlog "Gamificación dirigida".
+- **Nota de reconciliación (2026-08-11)**: esta decisión se tomó y se implementó contra el
+  Dashboard heredado (Fases 2/25/57/63), antes de fusionar la Fase BPO (#188) que lo sustituyó por
+  el Operational Home de `docs/blueprints/OPERATIONAL-HOME.md`. Al fusionar se adaptaron las dos
+  piezas de código a la anatomía nueva sin cambiar la decisión: el cierre verificado ahora cuelga
+  del vacío de "Requiere atención" (antes, de la tabla "Documentos que requieren atención") y el
+  Pulso del equipo se añadió como fila propia del Home — ver `docs/blueprints/OPERATIONAL-HOME.md`
+  § 1, § 3, § 5, § 7 y § 8, que documentan por qué el Pulso se queda ahí y no migra a
+  `/dashboard-ejecutivo` junto con las demás tarjetas agregadas de esa Fase.
+- **Documentos afectados**: `ROADMAP.md` (nota en backlog § 14 y entrada nueva de backlog);
+  `docs/blueprints/OPERATIONAL-HOME.md` (§ 1, § 3, § 5, § 7, § 8, tras la reconciliación anterior).
+  `07` no cambia: el trazado ya estaba catalogado y esta entrada solo le da su primer portador.
+
 ### DDL-066 — `DOMAIN.md` es la autoridad del estado de Documento; DDL-052 se corrige (cierra OD-33)
 - **Decisión**: **no se crea ninguna capa normativa nueva.** La autoridad conceptual del estado de
   Documento **ya existe** y es `DOMAIN.md` § 68. La anomalía se corrige devolviendo cada pieza a
