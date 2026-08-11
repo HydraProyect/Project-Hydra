@@ -31,3 +31,20 @@
     flex: 1;
     min-width: 320px;
 }
+
+/*
+  Pulso del equipo (DDL-071): la cifra semanal lleva jerarquía propia y el
+  detalle usa el mismo tono atenuado que la leyenda de la barra comparativa —
+  es contexto, no dato principal.
+*/
+.pulso-equipo-cifra {
+    margin: 0;
+    font: var(--font-heading-sm);
+    color: var(--color-text);
+}
+
+.pulso-equipo-detalle {
+    margin: var(--space-2) 0 0;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
