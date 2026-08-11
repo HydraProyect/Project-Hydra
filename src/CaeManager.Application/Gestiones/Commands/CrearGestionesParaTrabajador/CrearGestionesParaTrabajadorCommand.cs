@@ -14,12 +14,16 @@ namespace CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador
 /// Genera una Gestion por cada Centro donde el Trabajador tenga una
 /// Asignación activa — "para que el gestor pueda irlo gestionando uno a
 /// uno" (petición original). Es la confirmación explícita del Gestor tras
-/// una <see cref="SugerenciaGestionCorreo"/> (o un alta manual sin correo de
-/// por medio, <paramref name="SugerenciaGestionCorreoId"/> es opcional):
-/// nunca se llama automáticamente desde la detección IA.
+/// un ítem de <see cref="SugerenciaGestionCorreo"/> (o un alta manual sin
+/// correo de por medio, <paramref name="DetalleSugerenciaGestionCorreoId"/>
+/// es opcional): nunca se llama automáticamente desde la detección IA. Un
+/// correo puede sugerir varios ítems a la vez (ronda de reducción de ruido
+/// en Comunicaciones) — este Command resuelve uno solo, el que el Gestor
+/// confirmó desde la Bandeja; el resto de ítems del mismo correo siguen
+/// pendientes hasta que se confirmen o descarten por separado.
 /// </summary>
 public record CrearGestionesParaTrabajadorCommand(
-    Guid TrabajadorId, Guid TipoDocumentoId, Guid? SugerenciaGestionCorreoId = null, Guid? MensajeOrigenId = null)
+    Guid TrabajadorId, Guid TipoDocumentoId, Guid? DetalleSugerenciaGestionCorreoId = null, Guid? MensajeOrigenId = null)
     : ICommand<ResultadoCrearGestionesDto>;
 
 public record ResultadoCrearGestionesDto(int Creadas);
@@ -37,8 +41,9 @@ public class CrearGestionesParaTrabajadorCommandHandler(
     IAsignacionesQueryContext asignacionesContext,
     ITipoDocumentoRepository tipoDocumentoRepositorio,
     IGestionRepository gestionRepositorio,
-    ISugerenciaGestionCorreoRepository sugerenciaRepositorio,
+    IDetalleSugerenciaGestionCorreoRepository detalleSugerenciaRepositorio,
     IAlcanceDatosService alcanceDatos,
+    ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearGestionesParaTrabajadorCommand, Result<ResultadoCrearGestionesDto>>
 {
@@ -70,10 +75,22 @@ public class CrearGestionesParaTrabajadorCommandHandler(
                 request.TrabajadorId, centroId, request.TipoDocumentoId, request.MensajeOrigenId));
         }
 
-        if (request.SugerenciaGestionCorreoId is { } sugerenciaId)
+        if (request.DetalleSugerenciaGestionCorreoId is { } detalleId)
         {
-            var sugerencia = await sugerenciaRepositorio.ObtenerPorIdAsync(sugerenciaId, cancellationToken);
-            sugerencia?.Resolver();
+            var detalle = await detalleSugerenciaRepositorio.ObtenerPorIdAsync(detalleId, cancellationToken);
+
+            if (detalle is not null)
+            {
+                // Mismo criterio que en CrearVisitaCommand: si el Gestor cambió el
+                // trabajador o el tipo de documento propuestos, la sugerencia no se
+                // aceptó de un clic.
+                var huboEdicion = detalle.TrabajadorId != request.TrabajadorId
+                               || detalle.TipoDocumentoId != request.TipoDocumentoId;
+
+                detalle.Resolver(
+                    huboEdicion ? ResolucionSugerencia.ConfirmadaConEdicion : ResolucionSugerencia.Confirmada,
+                    await currentUserService.ObtenerUsuarioActualIdAsync());
+            }
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

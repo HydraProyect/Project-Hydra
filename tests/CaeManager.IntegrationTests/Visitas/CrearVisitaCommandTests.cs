@@ -1,3 +1,4 @@
+using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.Eventos;
 using CaeManager.Application.Visitas.PaqueteDocumental;
@@ -62,7 +63,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Necesitamos una visita mañana");
         await contexto.SaveChangesAsync();
 
-        var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), null, "Pide visita mañana");
+        var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), null, "Pide visita mañana", 90, 90, 90);
         contexto.SugerenciasVisitaCorreo.Add(sugerencia);
         await contexto.SaveChangesAsync();
 
@@ -71,7 +72,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
             new VisitaRepository(contexto), new VisitaTrabajadorRepository(contexto),
             contexto, contexto,
             new SugerenciaVisitaCorreoRepository(contexto), contexto,
-            new PaqueteDocumentalDeMentira(), publicador, contexto,
+            new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), publicador, contexto,
             NullLogger<CrearVisitaCommandHandler>.Instance);
 
         var comando = new CrearVisitaCommand(
@@ -108,7 +109,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
             new VisitaRepository(contexto), new VisitaTrabajadorRepository(contexto),
             contexto, contexto,
             new SugerenciaVisitaCorreoRepository(contexto), contexto,
-            new PaqueteDocumentalDeMentira(), publicador, contexto,
+            new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), publicador, contexto,
             NullLogger<CrearVisitaCommandHandler>.Instance);
 
         var comando = new CrearVisitaCommand(
@@ -135,6 +136,15 @@ public class CrearVisitaCommandTests : IAsyncLifetime
     private class PaqueteDocumentalDeMentira : IPaqueteDocumentalVisitaService
     {
         public Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
+    private class EvaluadorExpedienteDeMentira : IEvaluadorExpedienteVisitaService
+    {
+        public Task<bool> EvaluarAsync(Guid visitaId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task EvaluarPorDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
     }
 

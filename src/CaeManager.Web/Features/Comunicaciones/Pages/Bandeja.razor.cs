@@ -1,3 +1,4 @@
+using CaeManager.Web.Features.Comunicaciones.Components;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
@@ -5,6 +6,7 @@ using CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
 using CaeManager.Application.Comunicaciones.Commands.AsignarEjecutivoConversacion;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
+using CaeManager.Application.Comunicaciones.Commands.ConfirmarClasificacionRuidoMensaje;
 using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaGestion;
 using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaVisita;
 using CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorreo;
@@ -129,6 +131,19 @@ public partial class Bandeja : ComponentBase, IDisposable
         _detalle?.FechaUltimoMensajeEntranteUtc is { } ultimo
             ? ultimo.Add(Conversacion.DuracionVentanaServicio).ToLocalTime().ToString("dd/MM 'a las' HH:mm")
             : string.Empty;
+
+    // --- Action Center (docs/COMUNICACIONES.md § 12.6): agrega las sugerencias
+    // de todos los mensajes de la conversación — antes cada una se pintaba
+    // junto a su propio mensaje en UnifiedTimeline, ahora viven todas juntas
+    // en AccionCenter, en la columna derecha. ---
+    private IReadOnlyList<SugerenciaVisitaDetalleDto> SugerenciasVisitaPendientes =>
+        _detalle?.Mensajes.Where(m => m.SugerenciaVisita is not null).Select(m => m.SugerenciaVisita!).ToList() ?? [];
+
+    private IReadOnlyList<SugerenciaGestionDetalleDto> SugerenciasGestionPendientes =>
+        _detalle?.Mensajes.SelectMany(m => m.SugerenciasGestion).ToList() ?? [];
+
+    private bool HayAccionesPendientes =>
+        SugerenciasVisitaPendientes.Count > 0 || SugerenciasGestionPendientes.Count > 0 || _detalle?.SugerenciaVinculacion is not null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -351,6 +366,15 @@ public partial class Bandeja : ComponentBase, IDisposable
                 _macrosDisponibles = [];
                 _centrosClienteActivo = [];
             }
+
+            // Selectores del Action Center (docs/COMUNICACIONES.md § 12.6): se
+            // cargan aquí en vez de solo al abrir el modal de "Actualizar
+            // documento" (más abajo) porque la revisión de una sugerencia de
+            // gestión puede necesitarlos antes de que el gestor toque ese
+            // otro flujo. Sin filtro de Cliente — mismo catálogo general que
+            // ya usa ese modal.
+            _tiposDocumentoSelector = await Mediator.Send(new ObtenerTiposDocumentoQuery());
+            _trabajadoresSelector = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
         }
         catch (Exception ex)
         {
@@ -459,6 +483,7 @@ public partial class Bandeja : ComponentBase, IDisposable
             _adjuntosPendientes.Clear();
             ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
 
+            await RegistrarAccionMedidaAsync();
             await CargarDetalleAsync();
             await CargarListaAsync();
         }
@@ -508,6 +533,20 @@ public partial class Bandeja : ComponentBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// Medidor de tiempo de enfoque de la conversación abierta. Null mientras no hay
+    /// hilo seleccionado, y sin efecto si la medición está apagada para el tenant.
+    /// </summary>
+    private MedidorTiempoGestion? _medidorTiempo;
+
+    /// <summary>
+    /// Cierra el tramo de medición con motivo "acción completada". Se llama tras cada
+    /// acción real del Gestor sobre el hilo — enviar, cambiar estado, confirmar una
+    /// sugerencia —, que es justo el evento que la propuesta define como fin de bloque.
+    /// </summary>
+    private Task RegistrarAccionMedidaAsync() =>
+        _medidorTiempo?.RegistrarAccionCompletadaAsync() ?? Task.CompletedTask;
+
     private async Task CambiarEstadoAsync(EstadoConversacion nuevoEstado)
     {
         if (_conversacionSeleccionadaId is null) return;
@@ -522,6 +561,7 @@ public partial class Bandeja : ComponentBase, IDisposable
                 return;
             }
 
+            await RegistrarAccionMedidaAsync();
             await CargarDetalleAsync();
             await CargarListaAsync();
         }
@@ -579,8 +619,21 @@ public partial class Bandeja : ComponentBase, IDisposable
         }
     }
 
-    private void IrACrearVisitaDesdeSugerencia(Guid sugerenciaId) =>
-        NavigationManager.NavigateTo($"/visitas?sugerenciaId={sugerenciaId}");
+    /// <summary>
+    /// Navega a /visitas con la sugerencia y, si el gestor corrigió Centro o
+    /// fechas en la revisión del Action Center, los overrides correspondientes
+    /// — ver comentario de CentroIdOverride en Visitas.razor.cs.
+    /// </summary>
+    private void IrACrearVisitaDesdeSugerencia(
+        Guid sugerenciaId, Guid? centroIdCorregido = null, DateOnly? fechaInicioCorregida = null, DateOnly? fechaFinCorregida = null)
+    {
+        var query = $"sugerenciaId={sugerenciaId}";
+        if (centroIdCorregido is not null) query += $"&centroId={centroIdCorregido}";
+        if (fechaInicioCorregida is not null) query += $"&fechaInicio={fechaInicioCorregida:yyyy-MM-dd}";
+        if (fechaFinCorregida is not null) query += $"&fechaFin={fechaFinCorregida:yyyy-MM-dd}";
+
+        NavigationManager.NavigateTo($"/visitas?{query}");
+    }
 
     private async Task DescartarSugerenciaVisitaAsync(Guid sugerenciaId)
     {
@@ -660,6 +713,28 @@ public partial class Bandeja : ComponentBase, IDisposable
         {
             Logger.LogError(ex, "Error al vincular la conversación {Origen} con {Destino}.", conversacionOrigenId, conversacionDestinoId);
             ToastService.Mostrar("No pudimos vincular la conversación. Intenta nuevamente.", TonoToast.Error);
+        }
+    }
+
+    /// <summary>El gestor confirma que un mensaje marcado como ruido (ronda de reducción de ruido en Comunicaciones) sí importa — deja de tratarse como tal.</summary>
+    private async Task ConfirmarRuidoAsync(Guid mensajeId)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new ConfirmarClasificacionRuidoMensajeCommand(mensajeId));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            await CargarDetalleAsync();
+            await CargarListaAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al confirmar la clasificación de ruido del mensaje {MensajeId}.", mensajeId);
+            ToastService.Mostrar("No pudimos confirmar el mensaje. Intenta nuevamente.", TonoToast.Error);
         }
     }
 

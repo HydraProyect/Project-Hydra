@@ -44,6 +44,32 @@
     flex: 1;
 }
 
+/*
+  Toolbar de Centros (lámina L3 ".toolbar", contrato de fidelidad
+  2026-08-09 § 1.4): una sola fila con buscar/estado/orden/selección
+  múltiple/expandir todos/exportar/nuevo centro, en vez de las 3 regiones
+  fragmentadas (cabecera de página, barra de filtros, BarraHerramientasLista)
+  que había antes. Es composición nueva y no una adaptación de
+  BarraHerramientasLista (prohibida como región propia, § 1.2) ni de
+  .barra-filtros — esta fila agrupa además la selección múltiple, expandir
+  todos, exportar y el alta, que .barra-filtros no lleva en ninguna otra lista.
+*/
+.barra-trabajo-centros {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-4);
+}
+
+/* CampoTexto renderiza su propio ".campo" como contenedor — se apunta por
+   posición porque el "class" splatteado llega al <input> interno, no a este
+   wrapper (mismo motivo que documenta CampoTexto.razor). */
+.barra-trabajo-centros > .campo {
+    flex: 1 1 220px;
+    min-width: 160px;
+}
+
 .filtro-critico {
     display: flex;
     align-items: center;
@@ -149,7 +175,7 @@
 
 .alerta-info {
     background-color: var(--color-primary-50);
-    color: var(--color-primary-700);
+    color: var(--color-primary-500);
     border-radius: var(--radius-sm);
     padding: var(--space-3);
     font: var(--font-body-sm);
@@ -304,11 +330,18 @@
     gap: var(--space-3);
 }
 
+/*
+  overflow:hidden RETIRADO (era lo que recortaba VentanaContexto — nivel
+  Overlay, tiene que flotar sobre el contenido — cuando su panel necesitaba
+  salir de los límites de la tarjeta: bug real reportado, "el cuadro de
+  contexto aparece detrás del fondo"). El redondeo de esquinas lo llevan
+  ahora los hijos que sí necesitan recortarse (cabecera/contenido), no toda
+  la tarjeta.
+*/
 .tarjeta-fila-acordeon {
     background-color: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-lg);
-    overflow: hidden;
 }
 
 /*
@@ -324,6 +357,8 @@
     gap: var(--space-2);
     padding: var(--space-2) var(--space-4);
     border-bottom: var(--border-default);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    transition: background-color var(--motion-fast) var(--ease-standard);
 }
 
 /*
@@ -346,27 +381,74 @@
     text-align: left;
 }
 
+/*
+  Nombre del centro en negrita (lámina L3 ".rname", font-weight 600) — no se
+  toca `.enlace-nombre-fila` en general (patrón compartido por 9+ pantallas,
+  contrato § 1.3): solo se refuerza aquí, donde es la primera línea de la
+  identidad de la fila.
+*/
+.tarjeta-fila-acordeon-identidad > .enlace-nombre-fila {
+    font-weight: 600;
+    font-size: 0.8125rem; /* 13px, ESPECIFICACION-VISUAL-HYDRA.md § 3.7 ".rnombre" */
+    line-height: 1.3;
+}
+
 .tarjeta-fila-acordeon-meta {
     color: var(--color-text-muted);
     font: var(--font-body-sm);
 }
 
 /*
-  Zona de indicadores de ANCHO FIJO (lámina L3, blueprint § 3.2).
+  Zona de indicadores de ANCHO FIJO (lámina L3, blueprint § 3.2, contrato de
+  fidelidad 2026-08-09 § 1.6, bug C-2).
 
-  Es lo que hace que recuentos, estado y visita caigan en la misma vertical en
-  todas las filas. Con el reparto libre anterior, un centro de nombre largo
-  desplazaba sus indicadores respecto al de arriba y la columna dejaba de
-  poderse leer de un vistazo — que es justo lo que la lámina resuelve
-  reservando la ranura.
+  Grid de 3 ranuras fijas — vencidos · próximos · estado-o-visita — igual que
+  ".rbadges"/".wbadges" de la lámina: 200px de ancho total, 26px + 26px +
+  el resto para la 3ª ranura. Antes eran solo 2 columnas (recuento + un "resto"
+  que cargaba a la vez el Badge de Estado y la visita), y ese resto no
+  alcanzaba para los dos — el badge de visita caía a una segunda línea. Con 3
+  ranuras fijas y la 3ª mutuamente excluyente (ver Centros.razor), cada
+  indicador tiene su propio hueco reservado.
 */
 .tarjeta-fila-acordeon-indicadores {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--space-2);
+    grid-template-columns: 26px 26px minmax(0, 1fr);
+    gap: var(--space-1);
     align-items: center;
-    width: 15rem;
+    width: 200px;
     flex-shrink: 0;
+}
+
+/*
+  3ª ranura (estado o visita, mutuamente excluyentes): overflow visible para
+  que el panel de VentanaContexto de la visita no quede recortado por el
+  ancho fijo de la ranura, igual que ".bs3" en la lámina.
+*/
+.ranura-recuento-final {
+    overflow: visible;
+}
+
+/*
+  Las VentanaContexto de la fila de Centro se abren hacia ABAJO, no hacia
+  arriba (por defecto en VentanaContexto.razor.css): es la fila más alta de
+  cada tarjeta, y hacia arriba puede quedar recortada por el borde superior
+  del viewport o de un contenedor con scroll — mismo motivo que
+  ".c360 .rowhead .tip" en el lámina.
+*/
+/*
+  !important en "bottom" necesario: VentanaContexto.razor.css es CSS con
+  ámbito de Blazor, que añade un selector de atributo
+  (".ventana-contexto-panel[b-xxxxxxxx]") con la MISMA especificidad que
+  este selector de dos clases — sin !important, "bottom" se quedaba en el
+  valor del componente base y "top" en el de aquí, los dos a la vez
+  (ninguno "auto"). Con ambos bordes fijados, el navegador calcula la altura
+  como la distancia entre ellos en vez de ajustarla al contenido — así se
+  producía el panel de 18px de alto que recortaba el desglose entero
+  (bug real reportado, "mini lista que no se ve").
+*/
+.tarjeta-fila-acordeon-indicadores .ventana-contexto-panel {
+    bottom: auto !important;
+    top: calc(100% + var(--space-1));
 }
 
 .tarjeta-fila-acordeon-acciones {
@@ -376,8 +458,33 @@
     flex-shrink: 0;
 }
 
+/*
+  Fondo distinto del contenido expandido (lámina L3 ".expand", --c-subtle):
+  el segundo/tercer nivel se lee como una superficie "hundida" respecto a la
+  cabecera del centro, no como una continuación del mismo plano — es lo que
+  distingue visualmente "estás dentro del desplegable" sin depender del
+  borde superior.
+*/
 .tarjeta-fila-acordeon-contenido {
     padding: var(--space-3) var(--space-4) var(--space-4);
+    background-color: var(--color-surface-subtle);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/*
+  Guía de lectura (Tier A, 07 § 3 / ESPECIFICACION-VISUAL-HYDRA.md § 3.7):
+  la fila entera se resalta al apuntarla o enfocarla — sin ella, en una fila
+  ancha hay que recorrer el renglón dos veces para confirmar que se está en
+  la fila correcta.
+*/
+.tarjeta-fila-acordeon-cabecera:hover {
+    background-color: var(--color-surface-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tarjeta-fila-acordeon-cabecera {
+        transition: none;
+    }
 }
 
 /*
@@ -399,7 +506,11 @@
     color: var(--color-text-muted);
     cursor: pointer;
     border-radius: var(--radius-sm);
-    transition: transform var(--motion-fast) var(--ease-standard);
+    /* Tier B (ESPECIFICACION-VISUAL-HYDRA.md § 3.8): el chevron controla un
+       bloque que se expande/revela, no un simple color/estado de control —
+       eso es lo que separa Tier A de Tier B (07 § 8), y antes usaba el
+       primero. */
+    transition: transform var(--motion-transition) var(--ease-fluid);
     transform: rotate(-90deg);
 }
 
@@ -503,9 +614,10 @@
 }
 
 /*
-  Mismo motivo que .tarjeta-fila-acordeon-cabecera: el checkbox de selección
-  no puede vivir dentro del <button> de SeccionColapsable, así que va como
-  hermano de ancho fijo a su izquierda y SeccionColapsable ocupa el resto.
+  El checkbox de selección va como hermano de ancho fijo a la izquierda del
+  cuerpo de la fila (mismo motivo que .tarjeta-fila-acordeon-cabecera con su
+  propio checkbox): anidarlo dentro del <button> del chevron sería HTML
+  inválido.
 */
 .fila-trabajador-acordeon {
     display: flex;
@@ -519,9 +631,100 @@
     border-top: none;
 }
 
-.fila-trabajador-acordeon > .seccion-colapsable-envoltorio {
+.fila-trabajador-acordeon > .fila-trabajador-acordeon-cuerpo {
     flex: 1;
     min-width: 0;
+}
+
+/*
+  Fila de Trabajador (contrato de fidelidad 2026-08-09 § 1.4, lámina L3
+  ".wrow"): mismo grid de 5 columnas fijas que la fila de Centro, sin anillo
+  de cumplimiento — el lámina solo lo pone a nivel de Centro, aquí va la
+  fracción "7/9" en su lugar.
+*/
+.fila-trabajador-rejilla {
+    display: grid;
+    grid-template-columns: 14px minmax(0, 1fr) 46px 200px 76px;
+    gap: var(--space-2);
+    align-items: center;
+    padding: var(--space-1) 0;
+    border-radius: var(--radius-sm);
+    transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+/* Guía de lectura (Tier A) — mismo motivo que la fila de Centro. */
+.fila-trabajador-rejilla:hover,
+.fila-trabajador-rejilla:focus-within {
+    background-color: var(--color-surface);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fila-trabajador-rejilla {
+        transition: none;
+    }
+}
+
+/*
+  Selector compuesto (no ".fila-trabajador-nombre" sola): ".enlace-nombre-fila"
+  define "font: inherit" más abajo en esta misma hoja, y con la misma
+  especificidad (una sola clase) gana por orden de cascada — el peso 600 se
+  perdía en runtime aunque estuviera declarado aquí. Mismo motivo por el que
+  el nombre del Centro usa ".tarjeta-fila-acordeon-identidad > .enlace-nombre-fila".
+*/
+.enlace-nombre-fila.fila-trabajador-nombre {
+    font: var(--font-body-md);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fila-trabajador-fraccion {
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    text-align: right;
+}
+
+.fila-trabajador-accion {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/*
+  Enlace de acción de fila ("Detalles", "Eliminar", "Gestionar" en Centro
+  360) — ESPECIFICACION-VISUAL-HYDRA.md § 3.1/§ 3.7: en el lámina estas
+  acciones son un <a> plano (color enlace, sin relleno ni borde), no un
+  botón Fantasma con borde (ese es el estilo de la barra de herramientas).
+  Se aplica como clase adicional sobre <Boton Variante="Fantasma"> —
+  conserva el padding/min-height del botón base (objetivo táctil WCAG
+  2.5.5 ya documentado en Boton.razor.css) y solo cambia el aspecto.
+  !important necesario: Boton.razor.css es CSS con ámbito de Blazor, que
+  añade un selector de atributo (".boton-fantasma[b-xxxxxxxx]") con más
+  especificidad que una clase sola en esta hoja global.
+*/
+.accion-fila-enlace {
+    background-color: transparent !important;
+    border-color: transparent !important;
+    color: var(--color-primary-500) !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+.accion-fila-enlace:not(:disabled):hover {
+    background-color: transparent !important;
+    transform: none !important;
+    text-decoration: underline;
+}
+
+/* Acción disponible pero sin nada que gestionar — atenuada, nunca disabled real (04 § 2.5). */
+.accion-fila-enlace.accion-atenuada {
+    color: var(--color-text-muted) !important;
+}
+
+.accion-fila-enlace.accion-atenuada:hover,
+.accion-fila-enlace.accion-atenuada:focus-visible {
+    color: var(--color-primary-500) !important;
 }
 
 /*
@@ -539,7 +742,16 @@
 .tabla-documentos-requeridos {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 168px minmax(0, 150px) 76px;
-    align-items: center;
+    /*
+      stretch, no center: con "center" cada celda se recorta a la altura de
+      su propio contenido y se centra dentro de la fila — la celda de
+      "Gestionar" (con el padding vertical del botón) queda más alta que las
+      demás, y el resaltado de fila al pasar el ratón (abajo) pintaba
+      rectángulos de altura distinta por celda en vez de una fila continua.
+      Con "stretch" las 4 celdas ocupan la altura completa de la fila y cada
+      una centra su propio contenido por dentro (ver ".fila-documento-requerido > *").
+    */
+    align-items: stretch;
     column-gap: var(--space-3);
     border-left: 2px solid var(--color-border);
     padding-left: var(--space-3);
@@ -564,14 +776,41 @@
 }
 
 .fila-documento-requerido > * {
-    padding: var(--space-1) 0;
+    display: flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    margin: 0 calc(var(--space-2) * -1);
     min-width: 0;
+    border-radius: var(--radius-sm);
+    transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.fila-documento-requerido > .columna-accion {
+    justify-content: flex-end;
+}
+
+/*
+  Guía de lectura (Tier A) — "display: contents" en la fila (arriba) no
+  genera caja propia, así que no hay un único elemento al que ponerle fondo:
+  se resalta cada celda por separado con el mismo color, y el margen
+  negativo compensa el padding para que seguan alineadas con la cabecera.
+*/
+.fila-documento-requerido:hover > *,
+.fila-documento-requerido:focus-within > * {
+    background-color: var(--color-surface);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fila-documento-requerido > * {
+        transition: none;
+    }
 }
 
 .celda-documento-nombre {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-weight: 600;
 }
 
 .celda-documento-vigencia {
@@ -791,20 +1030,12 @@
 
 
 /*
-  Ranuras fijas de recuento en la fila de Centro (blueprint § 3.2, lámina L3).
-  Dos casillas de ancho fijo: vencidos y próximos. Existen aunque la fila no
-  tenga ese recuento — es lo que permite leer la columna en vertical y lo que
-  impide que la etiqueta de estado se corra a la izquierda cuando falta un
-  número.
+  Ranura individual del grid de indicadores (Centro y Trabajador — ver
+  ".tarjeta-fila-acordeon-indicadores" / ".wbadges-fila-trabajador"). Existe
+  aunque la fila no tenga ese recuento: es lo que permite leer la columna en
+  vertical y lo que impide que el contenido de una ranura se corra hacia la
+  ranura vecina cuando falta un número.
 */
-.ranuras-recuento {
-    display: grid;
-    grid-template-columns: 26px 26px;
-    gap: var(--space-1);
-    align-items: center;
-    flex-shrink: 0;
-}
-
 .ranura-recuento {
     display: flex;
     justify-content: flex-start;
@@ -874,6 +1105,25 @@
 }
 
 /*
+  Distintivo junto al nombre de la fila Empresa (ESPECIFICACION-VISUAL-HYDRA.md
+  § 3.7, ".etiqueta-ambito") — el separador "Empresa" de arriba da contexto a
+  todo el bloque, pero al leer solo esta fila (fuera de contexto, p. ej. al
+  volver de un scroll) el nombre por sí solo no dice si es una empresa o un
+  trabajador más.
+*/
+.etiqueta-ambito {
+    font: var(--font-caption);
+    font-size: 0.5625rem; /* 9px */
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: 1px 5px;
+}
+
+/*
   La nota que exige el blueprint: sin ella, una lista corta se leería como
   "la empresa casi no tiene documentación" en vez de "esto es lo que falla".
 */
@@ -883,14 +1133,15 @@
 }
 
 /*
-  Misma anchura que la zona de indicadores de la fila de Centro, para que el
-  recuento de la empresa caiga en la vertical de los recuentos de arriba.
+  Misma anchura que la zona de indicadores de la fila de Centro (200px,
+  contrato de fidelidad 2026-08-09 § 1.6), para que el recuento de la empresa
+  caiga en la vertical de los recuentos de arriba.
 */
 .sujeto-ambito-indicadores {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    width: 15rem;
+    width: 200px;
     flex-shrink: 0;
 }
 

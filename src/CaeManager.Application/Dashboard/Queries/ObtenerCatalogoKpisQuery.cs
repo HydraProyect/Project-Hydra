@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Dashboard.Queries;
 
-public record ObtenerCatalogoKpisQuery : IRequest<CatalogoKpisValoresDto>;
+public record ObtenerCatalogoKpisQuery(PeriodoKpi Periodo) : IRequest<CatalogoKpisValoresDto>;
 
 public record CentroCumplimientoDto(Guid CentroId, string CentroNombre, int Porcentaje);
 
@@ -38,7 +38,8 @@ public record CatalogoKpisValoresDto(
     decimal CosteIaMesActual,
     double? TiempoMedioProcesamientoIaMs,
     int TotalAuditoriasIaMes,
-    decimal FacturacionEstimadaMesActual);
+    decimal FacturacionEstimadaMesActual,
+    KpisBpoDto Bpo);
 
 /// <summary>
 /// Calcula, para el tenant activo (fijado por <see cref="AmbitoTenantExplicito"/>
@@ -70,9 +71,11 @@ public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext
         var (incidenciasAbiertas, incidenciasPorGravedad, tiempoMedioResolucionDias, totalIncidenciasResueltas) =
             await CalcularIncidenciasAsync(centroIdsVisibles, cancellationToken);
 
-        var (confianzaMedia, costeMes, tiempoMedioMs, totalAuditoriasMes) = await CalcularIaAsync(cancellationToken);
+        var (confianzaMedia, costeMes, tiempoMedioMs, totalAuditoriasMes) = await CalcularIaAsync(request.Periodo, cancellationToken);
 
-        var facturacionEstimada = await CalcularFacturacionEstimadaAsync(cancellationToken);
+        var facturacionEstimada = await CalcularFacturacionEstimadaAsync(request.Periodo, cancellationToken);
+
+        var bpo = await mediator.Send(new ObtenerKpisBpoQuery(request.Periodo), cancellationToken);
 
         return new CatalogoKpisValoresDto(
             Documental: documental,
@@ -88,7 +91,8 @@ public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext
             CosteIaMesActual: costeMes,
             TiempoMedioProcesamientoIaMs: tiempoMedioMs,
             TotalAuditoriasIaMes: totalAuditoriasMes,
-            FacturacionEstimadaMesActual: facturacionEstimada);
+            FacturacionEstimadaMesActual: facturacionEstimada,
+            Bpo: bpo);
     }
 
     /// <summary>
@@ -154,12 +158,10 @@ public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext
     }
 
     private async Task<(double? ConfianzaMedia, decimal CosteMes, double? TiempoMedioMs, int TotalAuditoriasMes)>
-        CalcularIaAsync(CancellationToken cancellationToken)
+        CalcularIaAsync(PeriodoKpi periodo, CancellationToken cancellationToken)
     {
-        var ahora = DateTime.UtcNow;
-        var inicioMes = new DateTime(ahora.Year, ahora.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-
-        var auditoriasQuery = documentosIaContext.AuditoriasExtraccionIa.Where(a => a.CreadaEnUtc >= inicioMes);
+        var auditoriasQuery = documentosIaContext.AuditoriasExtraccionIa
+            .Where(a => a.CreadaEnUtc >= periodo.InicioUtc && a.CreadaEnUtc < periodo.FinUtc);
 
         var totalAuditoriasMes = await auditoriasQuery.CountAsync(cancellationToken);
         var costeMes = await auditoriasQuery.SumAsync(a => (a.CosteEstimado ?? 0) + (a.CosteEstimadoOcr ?? 0), cancellationToken);
@@ -179,7 +181,7 @@ public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext
     /// cada Cliente del tenant cuando la inmensa mayoría no tiene facturación
     /// configurada.
     /// </summary>
-    private async Task<decimal> CalcularFacturacionEstimadaAsync(CancellationToken cancellationToken)
+    private async Task<decimal> CalcularFacturacionEstimadaAsync(PeriodoKpi periodo, CancellationToken cancellationToken)
     {
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
@@ -190,13 +192,20 @@ public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext
         var clientesConTarifa = await clientesConTarifaQuery.ToListAsync(cancellationToken);
         if (clientesConTarifa.Count == 0) return 0m;
 
-        var hoy = DateTime.UtcNow;
+        // ObtenerResumenFacturacionQuery solo sabe calcular por mes natural, así que un
+        // periodo arbitrario se resuelve sumando los meses que toca. Un rango de mes y
+        // medio suma dos meses completos: se prefiere sumar de más y decirlo (está en la
+        // descripción del KPI) antes que inventar un prorrateo que nadie ha decidido.
+        var meses = periodo.MesesQueAbarca().ToList();
         var total = 0m;
 
         foreach (var clienteId in clientesConTarifa)
         {
-            var resumen = await mediator.Send(new ObtenerResumenFacturacionQuery(clienteId, hoy.Year, hoy.Month), cancellationToken);
-            if (resumen is not null) total += resumen.TotalEstimado;
+            foreach (var (anyo, mes) in meses)
+            {
+                var resumen = await mediator.Send(new ObtenerResumenFacturacionQuery(clienteId, anyo, mes), cancellationToken);
+                if (resumen is not null) total += resumen.TotalEstimado;
+            }
         }
 
         return total;

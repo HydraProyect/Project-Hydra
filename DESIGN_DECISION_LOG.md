@@ -750,6 +750,73 @@ como implementado o presente algo que no está construido.
 
 ## Decisiones posteriores al reset (Fase 4)
 
+### DDL-069 — La antelación de una Visita se mide con hora sin convertir `FechaInicio`/`FechaFin` en `DateTime`
+- **Decisión**: `Visita.FechaInicio` y `Visita.FechaFin` **siguen siendo `DateOnly`** y
+  `CalculadoraUrgenciaVisita` **no se toca**. La resolución horaria que la matriz de antelación
+  necesita se obtiene de un campo nuevo y opcional, `Visita.HoraEstimadaAcceso` (`TimeOnly?`), con
+  respaldo en `ParametroSistema.HoraInicioJornada` (08:00 por defecto) cuando el cliente no indica
+  hora.
+- **Estado**: Vigente · **Fecha**: 2026-08-10
+- **Motivo**: hay un conflicto real entre dos documentos y se registra en vez de resolverse en
+  silencio (DDL-024). `CalculadoraUrgenciaVisita` declara por escrito que la ausencia de hora es
+  **deliberada** ("añadirla sería un cambio de modelo mayor, fuera de alcance… la ventana de 24/48h
+  ya es aproximada en el propio Excel/plataformas de origen"). La matriz de antelación nominal vs.
+  efectiva, en cambio, necesita horas exactas: es el dato con el que se atribuye la
+  responsabilidad de una gestión urgente y, en una fase posterior, se factura un recargo. Ambas
+  cosas son ciertas y no se contradicen si se separan: **planificar** sigue siendo un asunto de
+  días naturales; **atribuir responsabilidad** es un asunto de horas.
+- **Lo que esta decisión explícitamente NO afirma**: que la aproximación por días de
+  `CalculadoraUrgenciaVisita` esté mal, ni que haya que migrarla. Sigue vigente para lo suyo, que
+  es clasificar el riesgo de una visita futura en una lista.
+- **Coste aceptado**: cuando el cliente no indica hora, la antelación efectiva se calcula contra
+  la apertura de la jornada. Es una aproximación **conservadora en la dirección correcta**: nunca
+  sobreestima el margen que tuvo el gestor.
+- **Documentos afectados**: `RGPD-TRATAMIENTO-DATOS.md` § 8 (no por la hora, sino por el módulo del
+  que forma parte); dominio: `Domain/Visitas/CalculadoraAntelacionVisita.cs`.
+
+### DDL-070 — La medición de tiempo de gestión se hace por ciclo de vida de la página, nunca por periféricos
+- **Decisión**: el medidor de tiempo de enfoque escucha **exclusivamente** `visibilitychange` del
+  documento y `focus`/`blur` de la ventana. Queda prohibido añadir listeners de `mousemove`,
+  `keydown`, `scroll` o equivalentes, y persistir cualquier evento de interacción individual. Solo
+  se guarda el intervalo agregado por gestión (`RegistroTiempoGestion`).
+- **Estado**: Vigente · **Fecha**: 2026-08-10
+- **Motivo**: la propuesta original describía un contador con detección de inactividad por ratón y
+  teclado. Eso es software de monitorización de rendimiento en el sentido de los arts. 87 y 90
+  LOPDGDD y del art. 20.3 ET, y choca con el principio de minimización (art. 5.1.c RGPD). La
+  medición por ciclo de vida obtiene el mismo dato de negocio —cuánto dura una gestión— sin
+  observar a la persona. **No es una preferencia de implementación: es lo que sostiene la
+  circular del art. 87 que el producto entrega a sus clientes**
+  (`docs/business/legal/CIRCULAR_MEDICION_TIEMPOS.md`), y esa circular deja de ser válida si esta
+  decisión se revierte.
+- **Garantías que forman parte de la decisión, no del acabado**: contador visible para la persona
+  medida, botón de pausa manual sin justificación, pausa automática al perder el foco, tope duro
+  de 30 minutos por tramo, e interruptor por tenant apagado de fábrica.
+- **Hueco conocido y aceptado**: con el foco de ventana como única señal, una pestaña enfocada y
+  abandonada seguiría contando. Lo acota el tope de 30 minutos por tramo; no se elimina, porque
+  eliminarlo exigiría justo la telemetría que esta decisión descarta.
+- **Documentos afectados**: `RGPD-TRATAMIENTO-DATOS.md` § 8;
+  `docs/business/legal/CIRCULAR_MEDICION_TIEMPOS.md`.
+
+### DDL-068 — Alcance de DDL-050 se cierra: solo "qué llegó sin ver", no "qué avanzó el sistema"
+- **Decisión**: el blueprint de Operational Home (`docs/blueprints/OPERATIONAL-HOME.md`) construye
+  únicamente la mitad de DDL-050 que tiene datos reales — **"qué llegó sin ver"**. "Qué avanzó el
+  sistema" queda **fuera de esta ronda**, sin blueprint ni fecha.
+- **Estado**: Vigente · **Fecha**: 2026-08-10
+- **Motivo**: al diseñar los tres prerrequisitos de DDL-050 se encontró que "qué llegó sin ver"
+  tiene timestamp real en las tres fuentes que lo componen (`SugerenciaVisitaCorreo.CreadaEnUtc`,
+  `SugerenciaGestionCorreo.CreadaEnUtc`, `RevisionIaDocumentoDto.CreadaEnUtc`), pero "qué avanzó el
+  sistema" no tiene ninguna fuente — no existe en el dominio un log transversal de "acciones
+  automáticas que Hydra ejecutó" (`TipoEventoConversacion` solo cubre eventos dentro de una
+  conversación). Construir ese log es dominio nuevo, no composición de queries existentes como el
+  resto del blueprint — se decide no bloquear la v1 del Home a esa pieza mayor.
+- **Prerrequisitos de DDL-050 resueltos dentro de este alcance**: modelo de "visto" =
+  `UltimaActividadUtc` por usuario, actualizado en cualquier interacción autenticada con la
+  plataforma (no solo al abrir el Home); "ausencia" = sin sesión activa **o** más de 10 minutos sin
+  actividad — un único chequeo (`ahora − UltimaActividadUtc > 10 min`), porque una sesión cerrada
+  ya deja de generar actividad y por tanto supera ese umbral por definición; la cola consumida
+  sigue siendo la de la Bandeja (DDL-046), filtrada a los tres orígenes con timestamp real.
+- **Documentos afectados**: `docs/blueprints/OPERATIONAL-HOME.md` § 6.
+
 ### DDL-057 — Texto principal en tema claro (cierra OD-23)
 - **Decisión**: se declara **`#161E27`** como valor normativo del texto principal en tema claro,
   y su sitio es `02` § 4.1 — la capa de identidad —, no `06`.

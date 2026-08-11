@@ -32,6 +32,14 @@
 | 15 | `CANAL_DENUNCIAS.md` | Según obligación legal | **Bloqueado** | Cuestión abierta § 5.4 (¿aplica la Ley 2/2023 a Hydra?) — deliberadamente sin redactar hasta resolverla |
 | 16 | `POLITICA_SOLICITUDES_GUBERNAMENTALES.md` | Madurez | Diferido a propósito | Fase de madurez — publicar antes sería una promesa sin estructura operativa real detrás |
 
+## Fuera del inventario de `LEGAL_FRAMEWORK.md`
+
+Piezas que no están entre las 16 del paquete público porque no van dirigidas al cliente final, sino a la organización que usa Hydra.
+
+| Documento | Para qué | Estado | Cuestiones abiertas |
+|---|---|---|---|
+| `CIRCULAR_MEDICION_TIEMPOS.md` | Plantilla de información previa a la plantilla (art. 87 LOPDGDD / art. 20.3 ET) que la organización debe entregar **antes** de activar `ParametroSistema.MedicionTiempoActiva` | Listo para consulta legal | 4 cuestiones señaladas dentro del propio documento: base legal, consulta a la RLT sin comité, procedencia de EIPD y uso en decisiones sobre la persona |
+
 ## Qué se puede cerrar ya con este avance
 
 "Cerrar" aquí no puede significar pasar ningún documento a `Approved` — eso exige la revisión legal explícita que `CLAUDE.md` requiere para todo lo normativo, y ninguna sesión de este repositorio puede saltársela. Lo que sí queda cerrado con este avance:

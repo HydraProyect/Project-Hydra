@@ -13,7 +13,17 @@ public class AsignacionConfiguration : IEntityTypeConfiguration<Asignacion>
         builder.ToTable("Asignaciones");
         builder.HasKey(a => a.Id);
 
-        builder.HasIndex(a => new { a.TenantId, a.TrabajadorId, a.CentroId, a.FechaAlta }).IsUnique();
+        // Único por (tenant, trabajador, centro) ENTRE LAS ACTIVAS — la invariante real
+        // (ExisteActivaAsync ya la comprueba a nivel de aplicación: FechaBaja == null) es
+        // "a lo sumo una asignación activa", no "a lo sumo una por fecha de alta". Incluir
+        // FechaAlta en la clave bloqueaba dar de baja y reasignar el mismo trabajador al
+        // mismo centro el mismo día: la fila inactiva con esa fecha seguía colisionando
+        // contra el índice aunque ExisteActivaAsync ya la descartara (bug real, reproducido
+        // con datos: Shin Nohara, Terminal Ciudad Gotica 016 — 23505 de Postgres).
+        builder.HasIndex(a => new { a.TenantId, a.TrabajadorId, a.CentroId })
+               .IsUnique()
+               .HasFilter($"\"{nameof(Asignacion.FechaBaja)}\" IS NULL")
+               .HasDatabaseName("IX_Asignaciones_TenantId_TrabajadorId_CentroId_Activa");
         builder.HasIndex(a => a.CentroId);
 
         // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md.

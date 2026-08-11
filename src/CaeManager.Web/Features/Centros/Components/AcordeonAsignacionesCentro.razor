@@ -20,11 +20,11 @@
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
 @using FluentValidation
 @using MediatR
 @inject IMediator Mediator
 @inject ToastService ToastService
-@inject NavigationManager NavigationManager
 
 @if (_errorCarga)
 {
@@ -41,7 +41,7 @@ else if (_cargando)
 else
 {
     <div class="acordeon-asignaciones-cabecera">
-        <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirDrawerAltaAsync">+ Asignar trabajador</Boton>
+        <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_seleccionados.Count == 0" OnClick="AbrirConfirmarBajaLoteAsync">
             Dar de baja seleccionados
         </Boton>
@@ -61,7 +61,7 @@ else
         <div class="separador-ambito">Empresa</div>
         <div class="fila-sujeto-ambito">
             <span class="sujeto-ambito-identidad">
-                <span class="sujeto-ambito-nombre">@EmpresaNombre</span>
+                <span class="sujeto-ambito-nombre">@EmpresaNombre <span class="etiqueta-ambito">Empresa</span></span>
                 <span class="sujeto-ambito-nota">Solo se listan las incidencias; el resto de su documentación está en Detalles.</span>
             </span>
             <span class="sujeto-ambito-indicadores">
@@ -81,10 +81,54 @@ else
                 </VentanaContexto>
             </span>
             <span class="sujeto-ambito-accion">
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirDetalleEmpresa">
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick="AbrirDetalleEmpresa">
                     Detalles
                 </Boton>
             </span>
+        </div>
+        @*
+            Tabla de documentos del bloque Empresa (contrato de fidelidad
+            2026-08-09 § 1.5): mismas columnas fijas Documento · Estado ·
+            Vigencia · Acción que la tabla de Trabajador, misma rejilla
+            (tabla-documentos-requeridos). Sin toggle de expandir: a
+            diferencia de Trabajador (muchas filas, una tabla por fila), aquí
+            solo hay un sujeto y el bloque entero ya solo aparece cuando hay
+            incidencias que resolver.
+        *@
+        <div class="tabla-documentos-requeridos" role="table" aria-label="@($"Documentación con incidencia de {EmpresaNombre}")">
+            <div class="documentos-requeridos-cabecera" role="row">
+                <span role="columnheader">Documento</span>
+                <span role="columnheader">Estado</span>
+                <span role="columnheader">Vigencia</span>
+                <span role="columnheader" class="columna-accion">Acción</span>
+            </div>
+            @foreach (var incidencia in IncidenciasEmpresa)
+            {
+                <div class="fila-documento-requerido" role="row" @key="incidencia.TipoDocumentoId">
+                    <span class="celda-documento-nombre" role="cell">
+                        <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarEmpresaAsync(incidencia)">
+                            @incidencia.Descripcion
+                        </button>
+                    </span>
+                    @* Estado siempre presente: IncidenciasEmpresa solo contiene causas ya calculadas con un valor real. *@
+                    <span role="cell">
+                        <Badge Tono="EstadoDocumentoUi.Tono(incidencia.Estado!.Value)" Tamano="TamanoBadge.Pequeno">
+                            @EstadoDocumentoUi.Texto(incidencia.Estado!.Value)
+                        </Badge>
+                    </span>
+                    <span role="cell">
+                        <TextoFechaCopiable Fecha="incidencia.FechaVencimiento" Class="celda-documento-vigencia">
+                            @TextoVigenciaEmpresa(incidencia)
+                        </TextoFechaCopiable>
+                    </span>
+                    <span class="columna-accion" role="cell">
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                               OnClick="() => GestionarEmpresaAsync(incidencia)">
+                            Gestionar
+                        </Boton>
+                    </span>
+                </div>
+            }
         </div>
         <div class="separador-ambito">Trabajadores</div>
     }
@@ -115,220 +159,216 @@ else
         <div class="lista-trabajadores-acordeon">
             @foreach (var trabajador in _trabajadores)
             {
+                var expandido = _expandidosTrabajador.Contains(trabajador.AsignacionId);
+                var vencidos = DocumentosVencidos(trabajador);
+                var proximos = DocumentosProximos(trabajador);
+                var urgentes = DocumentosUrgentes(trabajador);
                 <div class="fila-trabajador-acordeon" @key="trabajador.AsignacionId">
-                    <input type="checkbox" checked="@_seleccionados.Contains(trabajador.AsignacionId)"
-                           @onchange="e => AlternarSeleccion(trabajador.AsignacionId, (bool)e.Value!)" />
-                    <div class="seccion-colapsable-envoltorio">
-                        <SeccionColapsable Titulo="@trabajador.TrabajadorNombre">
-                            <Encabezado>
-                                <span class="tarjeta-fila-acordeon-meta">desde @trabajador.FechaAlta.ToString("dd/MM/yyyy")</span>
-                                @if (trabajador.Documentos.Count > 0)
-                                {
-                                    <AnilloCumplimiento Porcentaje="PorcentajeCumplimiento(trabajador)" Tamano="TamanoAnillo.Pequeno"
-                                                         Etiqueta="@($"{DocumentosAlDia(trabajador)}/{trabajador.Documentos.Count} documentos al día en este centro")" />
-                                }
-                                <Badge Tono="EstadoDocumentoUi.Tono(trabajador.PeorEstado)">@EstadoDocumentoUi.Texto(trabajador.PeorEstado)</Badge>
-                            </Encabezado>
-                            <ChildContent>
-                                @if (trabajador.Documentos.Count == 0)
-                                {
-                                    <p class="texto-vacio-seccion">Este centro no exige documentación específica a este trabajador.</p>
-                                }
-                                else
-                                {
-                                    @*
-                                        Tercer nivel, variante A (OD-12 cerrada en el banco visual,
-                                        blueprint § 3.4, DDL-034): columnas FIJAS
-                                        Documento · Estado · Vigencia · Acción.
+                    @if (SeleccionMultiple)
+                    {
+                        <input type="checkbox" checked="@_seleccionados.Contains(trabajador.AsignacionId)"
+                               @onchange="e => AlternarSeleccion(trabajador.AsignacionId, (bool)e.Value!)" />
+                    }
+                    <div class="fila-trabajador-acordeon-cuerpo">
+                        @*
+                            Fila de Trabajador (contrato de fidelidad 2026-08-09 § 1.4):
+                            mismo lenguaje que la fila de Centro — grid de 5 columnas
+                            fijas, sin anillo de cumplimiento (el lámina solo lo pone a
+                            nivel de Centro) y con el mismo grid de 3 ranuras de badges
+                            que usa el Centro. Composición nueva, NO adaptada de
+                            SeccionColapsable (prohibida como base visual, § 1.2) — el
+                            expand/collapse reutiliza solo el mecanismo, con el chevron
+                            propio ya usado en la fila de Centro.
+                        *@
+                        <div class="fila-trabajador-rejilla">
+                            <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
+                                    aria-expanded="@(expandido ? "true" : "false")"
+                                    aria-label="@($"Documentos exigidos a {trabajador.TrabajadorNombre}")"
+                                    @onclick="() => AlternarExpansionTrabajador(trabajador.AsignacionId)">
+                                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                            </button>
+                            <button type="button" class="enlace-nombre-fila fila-trabajador-nombre" @onclick="() => AbrirDetalleTrabajador(trabajador)">
+                                @trabajador.TrabajadorNombre
+                            </button>
+                            <span class="fila-trabajador-fraccion">
+                                @(trabajador.Documentos.Count > 0 ? $"{DocumentosAlDia(trabajador)}/{trabajador.Documentos.Count}" : "—")
+                            </span>
+                            <span class="tarjeta-fila-acordeon-indicadores">
+                                <span class="ranura-recuento">
+                                    @if (vencidos.Count > 0)
+                                    {
+                                        <VentanaContexto Etiqueta="@DescribirRecuentoTrabajador(vencidos, "vencido")"
+                                                         Titulo="@($"{vencidos.Count} {(vencidos.Count == 1 ? "documento vencido" : "documentos vencidos")}")">
+                                            <Disparador>
+                                                <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                                    @vencidos.Count
+                                                </Badge>
+                                            </Disparador>
+                                            <Detalle>
+                                                @foreach (var documento in vencidos)
+                                                {
+                                                    <span class="ventana-linea">@DescribirDocumentoIncidencia(documento)</span>
+                                                }
+                                            </Detalle>
+                                        </VentanaContexto>
+                                    }
+                                </span>
+                                <span class="ranura-recuento">
+                                    @if (proximos.Count > 0)
+                                    {
+                                        <VentanaContexto Etiqueta="@DescribirRecuentoTrabajador(proximos, "próximo a vencer")"
+                                                         Titulo="@($"{proximos.Count} {(proximos.Count == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
+                                            <Disparador>
+                                                <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                                    @proximos.Count
+                                                </Badge>
+                                            </Disparador>
+                                            <Detalle>
+                                                @foreach (var documento in proximos)
+                                                {
+                                                    <span class="ventana-linea">@DescribirDocumentoIncidencia(documento)</span>
+                                                }
+                                            </Detalle>
+                                        </VentanaContexto>
+                                    }
+                                </span>
+                                <span class="ranura-recuento ranura-recuento-final">
+                                    @if (urgentes.Count > 0)
+                                    {
+                                        <VentanaContexto Etiqueta="@DescribirRecuentoTrabajador(urgentes, "urgente")"
+                                                         Titulo="@($"{urgentes.Count} {(urgentes.Count == 1 ? "documento urgente" : "documentos urgentes")}")">
+                                            <Disparador>
+                                                <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                                    @urgentes.Count
+                                                </Badge>
+                                            </Disparador>
+                                            <Detalle>
+                                                @foreach (var documento in urgentes)
+                                                {
+                                                    <span class="ventana-linea">@DescribirDocumentoIncidencia(documento)</span>
+                                                }
+                                            </Detalle>
+                                        </VentanaContexto>
+                                    }
+                                </span>
+                            </span>
+                            <span class="fila-trabajador-accion">
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       class="@("accion-fila-enlace" + (trabajador.PeorEstado == EstadoDocumento.Vigente ? " accion-atenuada" : null))"
+                                       OnClick="() => AbrirDetalleTrabajador(trabajador)">
+                                    Detalles
+                                </Boton>
+                            </span>
+                        </div>
+                        @if (expandido)
+                        {
+                            @if (trabajador.Documentos.Count == 0)
+                            {
+                                <p class="texto-vacio-seccion">Este centro no exige documentación específica a este trabajador.</p>
+                            }
+                            else
+                            {
+                                @*
+                                    Tercer nivel, variante A (OD-12 cerrada, contrato § 1.5,
+                                    blueprint § 3.4, DDL-034): columnas FIJAS
+                                    Documento · Estado · Vigencia · Acción.
 
-                                        La rejilla vive en el contenedor y no en cada fila: es lo
-                                        que hace que las cuatro columnas caigan en la misma
-                                        vertical aunque una fila no tenga fecha de vigencia.
-                                    *@
-                                    <div class="tabla-documentos-requeridos" role="table"
-                                         aria-label="@($"Documentación exigida a {trabajador.TrabajadorNombre}")">
-                                        <div class="documentos-requeridos-cabecera" role="row">
-                                            <span role="columnheader">Documento</span>
-                                            <span role="columnheader">Estado</span>
-                                            <span role="columnheader">Vigencia</span>
-                                            <span role="columnheader" class="columna-accion">Acción</span>
-                                        </div>
-                                        @foreach (var documento in trabajador.Documentos)
-                                        {
-                                            <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
-                                                <span class="celda-documento-nombre" role="cell">@documento.TipoDocumentoNombre</span>
-                                                <span role="cell">
-                                                    @if (documento.DocumentoId is null)
-                                                    {
-                                                        <VentanaContexto Etiqueta="Pendiente de subir: el centro lo exige y no hay ningún documento todavía"
-                                                                         Titulo="Pendiente de subir">
-                                                            <Disparador>
-                                                                <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">Pendiente de Subir</Badge>
-                                                            </Disparador>
-                                                            <Detalle>
-                                                                Este centro exige el documento y todavía no hay ninguno subido.
-                                                            </Detalle>
-                                                        </VentanaContexto>
-                                                    }
-                                                    else if (documento.CaducaEnVentanaVisita)
-                                                    {
-                                                        @*
-                                                            "Riesgo en visita" es MODIFICADOR sobre Vigente, no un
-                                                            cuarto estado (DDL-039, DDL-052): el badge conserva su
-                                                            tono y la ventana explica la fecha de referencia.
-                                                        *@
-                                                        <VentanaContexto Etiqueta="Riesgo en visita: vigente hoy, caduca antes de que termine la próxima visita"
-                                                                         Titulo="Vigente hoy, caduca en la visita">
-                                                            <Disparador>
-                                                                <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)"
-                                                                       Tamano="TamanoBadge.Pequeno"
-                                                                       class="badge-riesgo-ventana-visita">
-                                                                    @EstadoDocumentoUi.Texto(documento.Estado)
-                                                                </Badge>
-                                                            </Disparador>
-                                                            <Detalle>
-                                                                @if (documento.FechaVencimiento is { } vence)
-                                                                {
-                                                                    <span class="ventana-linea">Válido hasta el @vence.ToString("dd/MM/yyyy").</span>
-                                                                }
-                                                                <span class="ventana-linea">
-                                                                    La próxima visita termina después de esa fecha, así que
-                                                                    dejaría de estar al día durante ella.
-                                                                </span>
-                                                            </Detalle>
-                                                        </VentanaContexto>
-                                                    }
-                                                    else
-                                                    {
-                                                        <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">
-                                                            @EstadoDocumentoUi.Texto(documento.Estado)
-                                                        </Badge>
-                                                    }
-                                                </span>
-                                                <span class="celda-documento-vigencia" role="cell">@TextoVigencia(documento)</span>
-                                                <span class="columna-accion" role="cell">
-                                                    @*
-                                                        La acción existe SIEMPRE y se atenúa cuando el documento no
-                                                        la necesita (blueprint § 3.4, 04 § 2.5) — no desaparece: un
-                                                        documento al día también puede querer sustituirse.
-                                                    *@
-                                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                                           class="@(RequiereIntervencion(documento) ? null : "accion-atenuada")"
-                                                           OnClick="() => Gestionar(trabajador.TrabajadorId, documento)">
-                                                        Gestionar
-                                                    </Boton>
-                                                </span>
-                                            </div>
-                                        }
+                                    La rejilla vive en el contenedor y no en cada fila: es lo
+                                    que hace que las cuatro columnas caigan en la misma
+                                    vertical aunque una fila no tenga fecha de vigencia.
+                                *@
+                                <div class="tabla-documentos-requeridos" role="table"
+                                     aria-label="@($"Documentación exigida a {trabajador.TrabajadorNombre}")">
+                                    <div class="documentos-requeridos-cabecera" role="row">
+                                        <span role="columnheader">Documento</span>
+                                        <span role="columnheader">Estado</span>
+                                        <span role="columnheader">Vigencia</span>
+                                        <span role="columnheader" class="columna-accion">Acción</span>
                                     </div>
-                                }
-                            </ChildContent>
-                        </SeccionColapsable>
+                                    @foreach (var documento in trabajador.Documentos)
+                                    {
+                                        <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
+                                            <span class="celda-documento-nombre" role="cell">
+                                                <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                    @documento.TipoDocumentoNombre
+                                                </button>
+                                            </span>
+                                            <span role="cell">
+                                                @if (documento.DocumentoId is null)
+                                                {
+                                                    <VentanaContexto Etiqueta="Pendiente de subir: el centro lo exige y no hay ningún documento todavía"
+                                                                     Titulo="Pendiente de subir">
+                                                        <Disparador>
+                                                            <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">Pendiente de Subir</Badge>
+                                                        </Disparador>
+                                                        <Detalle>
+                                                            Este centro exige el documento y todavía no hay ninguno subido.
+                                                        </Detalle>
+                                                    </VentanaContexto>
+                                                }
+                                                else if (documento.CaducaEnVentanaVisita)
+                                                {
+                                                    @*
+                                                        "Riesgo en visita" es MODIFICADOR sobre Vigente, no un
+                                                        cuarto estado (DDL-039, DDL-052): el badge conserva su
+                                                        tono y la ventana explica la fecha de referencia.
+                                                    *@
+                                                    <VentanaContexto Etiqueta="Riesgo en visita: vigente hoy, caduca antes de que termine la próxima visita"
+                                                                     Titulo="Vigente hoy, caduca en la visita">
+                                                        <Disparador>
+                                                            <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)"
+                                                                   Tamano="TamanoBadge.Pequeno"
+                                                                   class="badge-riesgo-ventana-visita">
+                                                                @EstadoDocumentoUi.Texto(documento.Estado)
+                                                            </Badge>
+                                                        </Disparador>
+                                                        <Detalle>
+                                                            @if (documento.FechaVencimiento is { } vence)
+                                                            {
+                                                                <span class="ventana-linea">Válido hasta el @vence.ToString("dd/MM/yyyy").</span>
+                                                            }
+                                                            <span class="ventana-linea">
+                                                                La próxima visita termina después de esa fecha, así que
+                                                                dejaría de estar al día durante ella.
+                                                            </span>
+                                                        </Detalle>
+                                                    </VentanaContexto>
+                                                }
+                                                else
+                                                {
+                                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">
+                                                        @EstadoDocumentoUi.Texto(documento.Estado)
+                                                    </Badge>
+                                                }
+                                            </span>
+                                            <span role="cell">
+                                                <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="celda-documento-vigencia">
+                                                    @TextoVigencia(documento)
+                                                </TextoFechaCopiable>
+                                            </span>
+                                            <span class="columna-accion" role="cell">
+                                                @*
+                                                    La acción existe SIEMPRE y se atenúa cuando el documento no
+                                                    la necesita (blueprint § 3.4, 04 § 2.5) — no desaparece: un
+                                                    documento al día también puede querer sustituirse.
+                                                *@
+                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                       class="@("accion-fila-enlace" + (RequiereIntervencion(documento) ? null : " accion-atenuada"))"
+                                                       OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                    Gestionar
+                                                </Boton>
+                                            </span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        }
                     </div>
                 </div>
             }
         </div>
     }
 }
-
-<Drawer Visible="_drawerAltaVisible" VisibleChanged="v => _drawerAltaVisible = v" Titulo="Asignar trabajador"
-        CerrarAlHacerClicFuera="@(_mensajeErrorAlta is null && !_guardandoAlta)">
-    <ChildContent>
-        @if (_mensajeErrorAlta is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorAlta</div>
-        }
-
-        <CampoTexto Etiqueta="Fecha de alta" Type="date" Valor="@_fechaAlta" ValorChanged="v => _fechaAlta = v" />
-
-        <Pestanas Definiciones="_pestanasAlta" PestanaActiva="@_vistaAlta" PestanaActivaChanged="v => _vistaAlta = v" EtiquetaGrupo="Vista de alta">
-            @if (_vistaAlta == "Lista")
-            {
-                <SelectorMultiple Etiqueta="Trabajadores"
-                                   Elementos="@_trabajadoresComoOpciones"
-                                   Seleccionados="@_trabajadorIdsSeleccionados"
-                                   OnAlternar="args => AlternarTrabajadorAsync(args.Id, args.Marcado)"
-                                   TextoVacio="No hay trabajadores dados de alta." />
-
-                <SelectorMultiple Etiqueta="Centros"
-                                   Elementos="@_centrosComoOpciones"
-                                   Seleccionados="@_centroIdsSeleccionados"
-                                   OnAlternar="args => AlternarCentroAsync(args.Id, args.Marcado)"
-                                   TextoVacio="No hay centros dados de alta." />
-            }
-            else
-            {
-                @if (_trabajadorIdsSeleccionados.Count == 0 || _centroIdsSeleccionados.Count == 0)
-                {
-                    <EstadoVacio Titulo="Selecciona trabajadores y centros"
-                                  Descripcion="Marca al menos un trabajador y un centro en la pestaña Lista para ver la matriz." />
-                }
-                else
-                {
-                    <p class="texto-ayuda-matriz">Desmarca una celda para excluir esa combinación del alta.</p>
-                    <div class="matriz-asignaciones-contenedor">
-                        <table class="matriz-asignaciones">
-                            <thead>
-                                <tr>
-                                    <th></th>
-                                    @foreach (var centro in _centrosSeleccionadosOrdenados)
-                                    {
-                                        <th>@centro.Nombre</th>
-                                    }
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var trabajador in _trabajadoresSeleccionadosOrdenados)
-                                {
-                                    <tr>
-                                        <th scope="row">@trabajador.NombreCompleto</th>
-                                        @foreach (var centro in _centrosSeleccionadosOrdenados)
-                                        {
-                                            var t = trabajador.Id;
-                                            var c = centro.Id;
-                                            <td>
-                                                <input type="checkbox"
-                                                       checked="@(!_celdasExcluidas.Contains((t, c)))"
-                                                       @onchange="e => AlternarCeldaMatriz(t, c, e.Value is bool marcado && marcado)" />
-                                            </td>
-                                        }
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            }
-        </Pestanas>
-
-        @if (_documentosFaltantes.Count > 0)
-        {
-            <div class="alerta-preflight-asignacion" role="status">
-                <p>
-                    <strong>@_documentosFaltantes.Count combinación(es)</strong> quedarán sin este documento obligatorio al confirmar:
-                </p>
-                <ul>
-                    @foreach (var faltante in _documentosFaltantes.Take(5))
-                    {
-                        <li>@faltante.TrabajadorNombre — @faltante.TipoDocumentoNombre (@faltante.CentroNombre)</li>
-                    }
-                </ul>
-                @if (_documentosFaltantes.Count > 5)
-                {
-                    <p>y @(_documentosFaltantes.Count - 5) más…</p>
-                }
-            </div>
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoAlta" OnClick="() => _drawerAltaVisible = false">
-            Cancelar
-        </Boton>
-        <Boton Cargando="_guardandoAlta" OnClick="GuardarAltaAsync">
-            @(_documentosFaltantes.Count > 0 ? "Asignar igualmente" : "Guardar")
-        </Boton>
-    </Pie>
-</Drawer>
 
 <Modal Visible="_confirmarBajaLoteVisible" VisibleChanged="v => _confirmarBajaLoteVisible = v" Titulo="@($"Dar de baja a {_seleccionados.Count} trabajador(es)")">
     <ChildContent>
@@ -344,3 +384,6 @@ else
         </Boton>
     </Pie>
 </Modal>
+
+<DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
+<DrawerAsignacionMasiva @ref="_drawerAsignacion" OnGuardado="ManejarAsignacionGuardadaAsync" />

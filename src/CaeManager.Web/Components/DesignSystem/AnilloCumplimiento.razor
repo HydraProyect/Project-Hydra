@@ -1,19 +1,36 @@
 @*
     Badge circular de % de cumplimiento documental (Centro 360, PLAN-EJECUCION-UX.md
-    § 0.8) — SVG inline, sin dependencias externas (Design System, ver
-    "Progress" en DESIGN_SYSTEM.md). Oculto cuando Porcentaje es null: "sin
-    requisitos" no es un 0%, mismo criterio que el resto de Centro 360.
+    § 0.8; ESPECIFICACION-VISUAL-HYDRA.md § 3.5) — SVG inline, sin dependencias
+    externas (Design System, ver "Progress" en DESIGN_SYSTEM.md). Sin universo
+    (Porcentaje null) se muestra "—", nunca 0%/100% ni el hueco vacío de antes
+    — "sin requisitos" es un estado que hay que decir, no un silencio.
+
+    El número va en un <span> HTML superpuesto (position:absolute), no en un
+    <text> SVG (lámina L3, ".ring .pct"): un <text> dentro del <svg> hereda su
+    propio motor de layout de texto — kerning y antialiasing distintos del
+    resto de la interfaz — y por eso se veía "de otra tipografía" comparado
+    con el lámina aunque el token de fuente fuera el mismo. Lleva el símbolo
+    "%" (el lámina lo pinta siempre: "41%", no "41").
 *@
 @if (Porcentaje is { } porcentaje)
 {
-    <svg class="anillo-cumplimiento anillo-cumplimiento-@Tamano.ToString().ToLowerInvariant() anillo-cumplimiento-@ObtenerTono(porcentaje).ToString().ToLowerInvariant()"
-         viewBox="0 0 36 36" role="img" aria-label="@(Etiqueta ?? $"{porcentaje}% de cumplimiento")">
-        <title>@(Etiqueta ?? $"{porcentaje}% de cumplimiento")</title>
-        <circle class="anillo-cumplimiento-pista" cx="18" cy="18" r="@RadioSvg" />
-        <circle class="anillo-cumplimiento-progreso" cx="18" cy="18" r="@RadioSvg"
-                stroke-dasharray="@FormatearTrazo(porcentaje)" />
-        <text x="18" y="18" class="anillo-cumplimiento-texto">@porcentaje</text>
-    </svg>
+    <span class="anillo-cumplimiento-envoltorio anillo-cumplimiento-@Tamano.ToString().ToLowerInvariant() anillo-cumplimiento-@ObtenerTono(porcentaje).ToString().ToLowerInvariant()"
+          role="img" aria-label="@(Etiqueta ?? $"{porcentaje}% de cumplimiento")">
+        <svg class="anillo-cumplimiento" viewBox="0 0 36 36" aria-hidden="true">
+            <title>@(Etiqueta ?? $"{porcentaje}% de cumplimiento")</title>
+            <circle class="anillo-cumplimiento-pista" cx="18" cy="18" r="@RadioSvg" />
+            <circle class="anillo-cumplimiento-progreso" cx="18" cy="18" r="@RadioSvg"
+                    stroke-dasharray="@FormatearTrazo(porcentaje)" />
+        </svg>
+        <span class="anillo-cumplimiento-texto" aria-hidden="true">@porcentaje%</span>
+    </span>
+}
+else
+{
+    <span class="anillo-cumplimiento-envoltorio anillo-cumplimiento-@Tamano.ToString().ToLowerInvariant() anillo-cumplimiento-sin-universo"
+          role="img" aria-label="@(Etiqueta ?? "Sin requisitos")">
+        <span class="anillo-cumplimiento-texto" aria-hidden="true">—</span>
+    </span>
 }
 
 @code {

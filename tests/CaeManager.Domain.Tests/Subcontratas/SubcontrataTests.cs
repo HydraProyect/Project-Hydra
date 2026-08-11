@@ -80,4 +80,24 @@ public class SubcontrataTests
 
         subcontrata.Cif.Should().Be(CifValido);
     }
+
+    [Fact]
+    public void Nace_gestionada_por_defecto()
+    {
+        var subcontrata = new Subcontrata("Limpiezas Ejemplo S.L.");
+
+        subcontrata.NivelServicio.Should().Be(NivelServicioSubcontrata.Gestionada);
+    }
+
+    [Fact]
+    public void Cambiar_nivel_de_servicio_es_reversible()
+    {
+        var subcontrata = new Subcontrata("Limpiezas Ejemplo S.L.");
+
+        subcontrata.CambiarNivelServicio(NivelServicioSubcontrata.Supervisada);
+        subcontrata.NivelServicio.Should().Be(NivelServicioSubcontrata.Supervisada);
+
+        subcontrata.CambiarNivelServicio(NivelServicioSubcontrata.Gestionada);
+        subcontrata.NivelServicio.Should().Be(NivelServicioSubcontrata.Gestionada);
+    }
 }

@@ -1,0 +1,65 @@
+@*
+    Envuelve un texto de vigencia ("Vencio 01/08/2026", "Caduca 01/08/2026")
+    para que un clic lo copie al portapapeles — solo donde el texto NO es
+    editable (celdas de tabla, no los <input type="date"> de los drawers de
+    documento, que conservan el icono "copiar" ya implementado). Sin Fecha
+    ("—", "Sin caducidad") no hay nada que copiar: se pinta como texto plano,
+    sin cursor de clic ni interacción.
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JsRuntime
+@inject ToastService ToastService
+
+@if (Fecha is null)
+{
+    <span class="@Class">@ChildContent</span>
+}
+else
+{
+    <button type="button" class="@($"texto-fecha-copiable {Class}")" @onclick="CopiarAsync" title="Copiar fecha">
+        @ChildContent
+    </button>
+}
+
+@code {
+    [Parameter] public DateOnly? Fecha { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? Class { get; set; }
+
+    private IJSObjectReference? _modulo;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            _modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/clipboard.js");
+    }
+
+    private async Task CopiarAsync()
+    {
+        if (Fecha is not { } fecha || _modulo is null) return;
+
+        try
+        {
+            await _modulo.InvokeVoidAsync("copiarAlPortapapeles", fecha.ToString("dd/MM/yyyy"));
+            ToastService.Mostrar("Fecha copiada", TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos copiar la fecha.", TonoToast.Error);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_modulo is not null)
+        {
+            try
+            {
+                await _modulo.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+}

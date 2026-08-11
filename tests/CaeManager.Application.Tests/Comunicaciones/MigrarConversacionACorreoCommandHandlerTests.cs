@@ -28,7 +28,8 @@ public class MigrarConversacionACorreoCommandHandlerTests
 
         var accesoGraph = new AccesoGraphService(credencialRepositorio, _graphClient);
         return new MigrarConversacionACorreoCommandHandler(
-            _conversaciones, _integraciones, _conexiones, new AlcanceDatosServiceFalso(), _graphClient, accesoGraph, _unitOfWork);
+            _conversaciones, _integraciones, _conexiones, new AlcanceDatosServiceFalso(), _graphClient, accesoGraph,
+            new ResolucionParticipanteConversacionServiceFalso(), _unitOfWork);
     }
 
     private ConexionIntegracion AgregarBuzonHabilitado(Guid? clienteId = null)

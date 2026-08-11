@@ -111,3 +111,27 @@ button {
     display: none;
   }
 }
+
+/*
+  Oculta visualmente el <input type="file"> nativo de ZonaSoltarArchivo.razor,
+  accesible por foco/teclado/lectores de pantalla — el <label for> de la zona
+  ya cubre "clic en cualquier parte abre el selector", así que el input no
+  necesita ser el elemento clicado directamente. Va aquí, global y sin
+  aislar: <InputFile> es un componente integrado de Blazor y no propaga el
+  atributo de scope de CSS isolation a su <input> renderizado, así que una
+  regla dentro de ZonaSoltarArchivo.razor.css nunca lo alcanzaría (bug real:
+  el selector nativo "Elegir archivos / Ningún archivo seleccionado" quedaba
+  visible debajo de la zona de arrastrar en todos los formularios de subida
+  de documento — mismo motivo que el ripple de arriba).
+*/
+.zona-soltar-archivo-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -27,16 +27,35 @@ public record AdjuntoDetalleDto(Guid Id, string NombreArchivo, string TipoConten
 
 /// <summary>Solo se expone mientras está pendiente (Resuelta = false) — ver ObtenerConversacionPorIdQueryHandler.</summary>
 public record SugerenciaVisitaDetalleDto(
-    Guid Id, Guid? CentroId, string? CentroNombre, DateOnly? FechaInicioSugerida, DateOnly? FechaFinSugerida, string Resumen);
+    Guid Id, Guid? CentroId, string? CentroNombre, DateOnly? FechaInicioSugerida, DateOnly? FechaFinSugerida, string Resumen,
+    int Confianza, int ConfianzaCentro, int ConfianzaFechas);
 
-/// <summary>Solo se expone mientras está pendiente (Resuelta = false) — mismo criterio que SugerenciaVisitaDetalleDto.</summary>
+/// <summary>
+/// Un ítem (DetalleSugerenciaGestionCorreo) todavía sin resolver — mismo criterio de "solo pendiente"
+/// que SugerenciaVisitaDetalleDto. <paramref name="Id"/> es el ítem, no la sugerencia completa: un
+/// mensaje puede tener varios (notificación en bloque, ronda de reducción de ruido en
+/// Comunicaciones) — <paramref name="Resumen"/>/<paramref name="Confianza"/> son del mensaje
+/// completo y se repiten en cada ítem que le pertenece.
+/// </summary>
 public record SugerenciaGestionDetalleDto(
-    Guid Id, Guid? TrabajadorId, string? TrabajadorNombre, Guid? TipoDocumentoId, string? TipoDocumentoNombre, string Resumen);
+    Guid Id, Guid? TrabajadorId, string? TrabajadorNombre, Guid? TipoDocumentoId, string? TipoDocumentoNombre, string Resumen,
+    int Confianza, int ConfianzaTrabajador, int ConfianzaTipoDocumento);
 
+/// <summary>
+/// <paramref name="MotivoRuido"/>/<paramref name="RuidoConfirmadoManualmente"/> vienen de
+/// <see cref="ClasificacionRuidoMensaje"/> (ronda de reducción de ruido en Comunicaciones).
+/// <paramref name="TieneSoloRepeticionesPendientes"/> es distinto: true cuando el mensaje tiene
+/// ítems de gestión pendientes (<see cref="SugerenciasGestion"/> no vacío) y TODOS están marcados
+/// como repetición de un pendiente ya reclamado (<c>ClasificacionRuidoDetalleGestion</c>) — un
+/// mensaje con un ítem repetido y uno genuinamente nuevo no cuenta como ruido, solo cuando no queda
+/// nada nuevo que atender.
+/// </summary>
 public record MensajeDetalleDto(
     Guid Id, DireccionMensaje Direccion, CanalConversacion Canal, string Remitente, string CuerpoHtml, DateTime FechaUtc,
     IReadOnlyList<AdjuntoDetalleDto> Adjuntos, SugerenciaVisitaDetalleDto? SugerenciaVisita,
-    SugerenciaGestionDetalleDto? SugerenciaGestion, EstadoEntregaMensaje? EstadoEntrega = null, string? ErrorEntrega = null);
+    IReadOnlyList<SugerenciaGestionDetalleDto> SugerenciasGestion, EstadoEntregaMensaje? EstadoEntrega = null, string? ErrorEntrega = null,
+    MotivoRuidoMensaje MotivoRuido = MotivoRuidoMensaje.Ninguno, bool RuidoConfirmadoManualmente = false,
+    bool TieneSoloRepeticionesPendientes = false);
 
 public record ParticipanteDetalleDto(
     Guid Id, string Email, RolParticipante Rol, TipoParticipanteOrigen TipoOrigen, Guid? EntidadRelacionadaId);
@@ -72,7 +91,9 @@ public record ConversacionDetalleDto(
     CanalConversacion Canal = CanalConversacion.Correo,
     string? TelefonoContacto = null,
     DateTime? FechaUltimoMensajeEntranteUtc = null,
-    SugerenciaVinculacionDetalleDto? SugerenciaVinculacion = null);
+    SugerenciaVinculacionDetalleDto? SugerenciaVinculacion = null,
+    bool EsConversacionInformativaPreCae = false,
+    string? ResumenRelevanciaCae = null);
 
 public class ObtenerConversacionPorIdQueryHandler(
     IClientesQueryContext clientesContext, ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
@@ -153,37 +174,85 @@ public class ObtenerConversacionPorIdQueryHandler(
             s => s.MensajeId,
             s => new SugerenciaVisitaDetalleDto(
                 s.Id, s.CentroId, s.CentroId is not null ? nombresCentro.GetValueOrDefault(s.CentroId.Value) : null,
-                s.FechaInicioSugerida, s.FechaFinSugerida, s.Resumen));
+                s.FechaInicioSugerida, s.FechaFinSugerida, s.Resumen, s.Confianza, s.ConfianzaCentro, s.ConfianzaFechas));
 
         var sugerenciasGestionPendientes = await comunicacionesContext.SugerenciasGestionCorreo
-            .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeId) && !s.Resuelta)
+            .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeId))
+            .Select(s => new { s.Id, s.MensajeId, s.Resumen, s.Confianza })
             .ToListAsync(cancellationToken);
 
-        var trabajadorIdsSugeridos = sugerenciasGestionPendientes.Where(s => s.TrabajadorId is not null).Select(s => s.TrabajadorId!.Value).ToList();
+        var sugerenciaGestionIds = sugerenciasGestionPendientes.Select(s => s.Id).ToList();
+        var detallesPendientes = await comunicacionesContext.DetallesSugerenciaGestionCorreo
+            .Where(d => sugerenciaGestionIds.Contains(d.SugerenciaGestionCorreoId) && !d.Resuelta)
+            .ToListAsync(cancellationToken);
+
+        var trabajadorIdsSugeridos = detallesPendientes.Where(d => d.TrabajadorId is not null).Select(d => d.TrabajadorId!.Value).ToList();
         var nombresTrabajador = await trabajadoresContext.Trabajadores
             .Where(t => trabajadorIdsSugeridos.Contains(t.Id))
             .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos })
             .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
 
-        var tipoDocumentoIdsSugeridos = sugerenciasGestionPendientes.Where(s => s.TipoDocumentoId is not null).Select(s => s.TipoDocumentoId!.Value).ToList();
+        var tipoDocumentoIdsSugeridos = detallesPendientes.Where(d => d.TipoDocumentoId is not null).Select(d => d.TipoDocumentoId!.Value).ToList();
         var nombresTipoDocumento = await tiposDocumentoContext.TiposDocumento
             .Where(t => tipoDocumentoIdsSugeridos.Contains(t.Id))
             .Select(t => new { t.Id, t.Nombre })
             .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
 
-        var sugerenciasGestionPorMensaje = sugerenciasGestionPendientes.ToDictionary(
-            s => s.MensajeId,
-            s => new SugerenciaGestionDetalleDto(
-                s.Id, s.TrabajadorId, s.TrabajadorId is not null ? nombresTrabajador.GetValueOrDefault(s.TrabajadorId.Value) : null,
-                s.TipoDocumentoId, s.TipoDocumentoId is not null ? nombresTipoDocumento.GetValueOrDefault(s.TipoDocumentoId.Value) : null,
-                s.Resumen));
+        var sugerenciasGestionPorMensaje = sugerenciasGestionPendientes
+            .Join(detallesPendientes, s => s.Id, d => d.SugerenciaGestionCorreoId, (s, d) => new { Sugerencia = s, Detalle = d })
+            .GroupBy(x => x.Sugerencia.MensajeId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<SugerenciaGestionDetalleDto>)g
+                    .Select(x => new SugerenciaGestionDetalleDto(
+                        x.Detalle.Id,
+                        x.Detalle.TrabajadorId, x.Detalle.TrabajadorId is not null ? nombresTrabajador.GetValueOrDefault(x.Detalle.TrabajadorId.Value) : null,
+                        x.Detalle.TipoDocumentoId, x.Detalle.TipoDocumentoId is not null ? nombresTipoDocumento.GetValueOrDefault(x.Detalle.TipoDocumentoId.Value) : null,
+                        x.Sugerencia.Resumen, x.Sugerencia.Confianza, x.Detalle.ConfianzaTrabajador, x.Detalle.ConfianzaTipoDocumento))
+                    .ToList());
+
+        var mensajeIds = mensajesCrudos.Select(m => m.Id).ToList();
+
+        var clasificacionesMensaje = await comunicacionesContext.ClasificacionesRuidoMensaje
+            .Where(c => mensajeIds.Contains(c.MensajeId))
+            .Select(c => new { c.MensajeId, c.Motivo, c.ConfirmadaManualmente })
+            .ToDictionaryAsync(c => c.MensajeId, cancellationToken);
+
+        // Ronda de reducción de ruido en Comunicaciones: un mensaje tiene "solo repeticiones
+        // pendientes" cuando ninguno de sus ítems de gestión pendientes es genuinamente nuevo — se
+        // reutiliza el mismo join sugerenciasGestionPendientes/detallesPendientes que ya construye
+        // sugerenciasGestionPorMensaje, no una consulta aparte.
+        var detalleIdsPendientes = detallesPendientes.Select(d => d.Id).ToList();
+        var detalleIdsRepeticion = (await comunicacionesContext.ClasificacionesRuidoDetalleGestion
+            .Where(c => detalleIdsPendientes.Contains(c.DetalleSugerenciaGestionCorreoId) && !c.ConfirmadaManualmente)
+            .Select(c => c.DetalleSugerenciaGestionCorreoId)
+            .ToListAsync(cancellationToken))
+            .ToHashSet();
+
+        var soloRepeticionesPorMensaje = sugerenciasGestionPendientes
+            .Join(detallesPendientes, s => s.Id, d => d.SugerenciaGestionCorreoId, (s, d) => new { s.MensajeId, DetalleId = d.Id })
+            .GroupBy(x => x.MensajeId)
+            .ToDictionary(g => g.Key, g => g.All(x => detalleIdsRepeticion.Contains(x.DetalleId)));
 
         var mensajes = mensajesCrudos
-            .Select(m => new MensajeDetalleDto(
-                m.Id, m.Direccion, m.Canal, m.Remitente, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
-                adjuntosPorMensaje.GetValueOrDefault(m.Id, []), sugerenciasPorMensaje.GetValueOrDefault(m.Id),
-                sugerenciasGestionPorMensaje.GetValueOrDefault(m.Id), m.EstadoEntrega, m.ErrorEntrega))
+            .Select(m =>
+            {
+                var clasificacion = clasificacionesMensaje.GetValueOrDefault(m.Id);
+                return new MensajeDetalleDto(
+                    m.Id, m.Direccion, m.Canal, m.Remitente, sanitizadorHtml.Sanear(m.CuerpoHtml), m.FechaUtc,
+                    adjuntosPorMensaje.GetValueOrDefault(m.Id, []), sugerenciasPorMensaje.GetValueOrDefault(m.Id),
+                    sugerenciasGestionPorMensaje.GetValueOrDefault(m.Id, []), m.EstadoEntrega, m.ErrorEntrega,
+                    clasificacion?.Motivo ?? MotivoRuidoMensaje.Ninguno,
+                    clasificacion?.ConfirmadaManualmente ?? false,
+                    soloRepeticionesPorMensaje.GetValueOrDefault(m.Id));
+            })
             .ToList();
+
+        var clasificacionRelevancia = await comunicacionesContext.ClasificacionesRelevanciaCae
+            .Where(c => c.ConversacionId == request.Id)
+            .Select(c => new { c.EsAccionableCae, c.Resumen })
+            .FirstOrDefaultAsync(cancellationToken);
+        var esConversacionInformativaPreCae = clasificacionRelevancia is { EsAccionableCae: false };
 
         var participantes = await comunicacionesContext.ParticipantesConversacion
             .Where(p => p.ConversacionId == request.Id)
@@ -198,7 +267,7 @@ public class ObtenerConversacionPorIdQueryHandler(
             conversacion.Id, conversacion.ClienteId, conversacion.ClienteRazonSocial, conversacion.Asunto,
             conversacion.Estado, conversacion.EjecutivoAsignadoId, conversacion.Etiquetas, conversacion.FechaUltimoMensajeUtc,
             mensajes, participantes, eventos, conversacion.Canal, conversacion.TelefonoContacto, conversacion.FechaUltimoMensajeEntranteUtc,
-            sugerenciaVinculacion);
+            sugerenciaVinculacion, esConversacionInformativaPreCae, esConversacionInformativaPreCae ? clasificacionRelevancia!.Resumen : null);
     }
 
     /// <summary>

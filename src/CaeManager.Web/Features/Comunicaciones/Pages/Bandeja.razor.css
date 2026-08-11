@@ -163,7 +163,7 @@
 
 .bandeja-filtros-avanzados summary {
     font: var(--font-label-md);
-    color: var(--color-primary-600);
+    color: var(--color-primary-500);
     cursor: pointer;
     list-style: none;
 }
@@ -275,7 +275,7 @@
 
 .bandeja-lista ::deep .bandeja-fila-canal-correo {
     background-color: var(--color-primary-50);
-    color: var(--color-primary-600);
+    color: var(--color-primary-500);
 }
 
 .bandeja-lista ::deep .bandeja-fila-contenido {
@@ -405,12 +405,14 @@
 
 .bandeja-badge-canal-correo {
     background-color: var(--color-primary-50);
-    color: var(--color-primary-600);
+    color: var(--color-primary-500);
 }
 
-/* --- Columna de contexto del cliente (06_CONTEXT_WORKSPACE, versión acotada
-   a los datos reales de ClienteDetalleDto — sin cumplimiento/centros/
-   trabajadores hasta que el Action Center (paso 3) los alimente de verdad). --- */
+/* --- Columna de contexto del cliente + Action Center (docs/COMUNICACIONES.md
+   § 12.5/12.6). El Action Center (AccionCenter.razor) vive primero en esta
+   misma columna — es panel de decisiones, tiene prioridad sobre la ficha de
+   solo lectura. La ficha de cliente sigue acotada a los datos reales de
+   ClienteDetalleDto — sin cumplimiento/centros/trabajadores todavía. --- */
 
 .bandeja-cliente {
     border: var(--border-default);
@@ -446,7 +448,7 @@
     height: 44px;
     border-radius: var(--radius-full);
     background-color: var(--color-primary-50);
-    color: var(--color-primary-600);
+    color: var(--color-primary-500);
     font: var(--font-heading-sm);
 }
 

@@ -1,5 +1,4 @@
 using Bunit;
-using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Web.Features.Comunicaciones.Components;
@@ -18,7 +17,7 @@ public class UnifiedTimelineTests : BunitContext
     private static MensajeDetalleDto CrearMensaje(
         DateTime fechaUtc, string cuerpo = "Hola", IReadOnlyList<AdjuntoDetalleDto>? adjuntos = null) => new(
         Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", cuerpo, fechaUtc,
-        adjuntos ?? [], null, null);
+        adjuntos ?? [], null, []);
 
     private static EventoDetalleDto CrearEvento(
         DateTime fechaUtc, string descripcion = "Se ha creado una visita.", TipoEventoConversacion tipo = TipoEventoConversacion.VisitaCreada) =>
@@ -96,41 +95,103 @@ public class UnifiedTimelineTests : BunitContext
     }
 
     [Fact]
-    public void Una_sugerencia_de_vinculacion_muestra_el_asunto_destino_y_dispara_el_callback_con_su_id()
+    public void Un_mensaje_con_sugerencia_de_visita_pendiente_muestra_el_marcador_pasivo()
     {
-        var conversacionDestinoId = Guid.NewGuid();
-        var desglose = new DesgloseCoincidenciaDto(40, 0, 0, 0, 0, 0, 10);
-        Guid? destinoRecibido = null;
+        var sugerencia = new SugerenciaVisitaDetalleDto(Guid.NewGuid(), null, null, null, null, "Pide una visita", 92, 92, 92);
+        var mensaje = new MensajeDetalleDto(
+            Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Hola", DateTime.UtcNow,
+            [], sugerencia, []);
 
         var cut = Render<UnifiedTimeline>(parametros => parametros
-            .Add(p => p.Mensajes, [])
-            .Add(p => p.Participantes, [])
-            .Add(p => p.SugerenciaVinculacion, new SugerenciaVinculacionDetalleDto(conversacionDestinoId, "Consulta sobre visita", desglose))
-            .Add(p => p.OnVincularConversacion, id => destinoRecibido = id));
+            .Add(p => p.Mensajes, [mensaje])
+            .Add(p => p.Participantes, []));
 
-        cut.Markup.Should().Contain("Consulta sobre visita");
-        cut.Find(".timeline-sugerencia-vinculacion").Should().NotBeNull();
+        cut.Markup.Should().Contain("Posible solicitud de visita — revisar en Acciones sugeridas");
+        cut.FindAll(".accion-card").Should().BeEmpty();
+    }
 
-        cut.FindAll(".timeline-sugerencia-vinculacion button")[1].Click();
+    /// <summary>Una notificación en bloque puede detectar varios ítems de gestión a la vez (ronda de reducción de ruido en Comunicaciones) — cada uno lleva su propio marcador pasivo.</summary>
+    [Fact]
+    public void Un_mensaje_con_varios_items_de_gestion_muestra_un_marcador_por_cada_uno()
+    {
+        var items = new[]
+        {
+            new SugerenciaGestionDetalleDto(Guid.NewGuid(), Guid.NewGuid(), "Ana García", Guid.NewGuid(), "EPI", "Dos pendientes", 88, 90, 90),
+            new SugerenciaGestionDetalleDto(Guid.NewGuid(), Guid.NewGuid(), "Luis Pérez", Guid.NewGuid(), "Apto médico", "Dos pendientes", 88, 85, 85),
+        };
+        var mensaje = new MensajeDetalleDto(
+            Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "plataforma@ejemplo.com", "Hola", DateTime.UtcNow,
+            [], null, items);
 
-        destinoRecibido.Should().Be(conversacionDestinoId);
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [mensaje])
+            .Add(p => p.Participantes, []));
+
+        cut.FindAll(".timeline-marca-ia").Should().HaveCount(2);
+    }
+
+    /// <summary>Ronda de reducción de ruido en Comunicaciones: un mensaje con Motivo distinto de Ninguno se pinta atenuado con badge y botón de reversibilidad.</summary>
+    [Fact]
+    public void Un_mensaje_de_ruido_sin_confirmar_muestra_badge_y_boton_esto_si_importa()
+    {
+        var mensaje = new MensajeDetalleDto(
+            Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "notificaciones@nalanda.com", "Hola", DateTime.UtcNow,
+            [], null, [], MotivoRuido: MotivoRuidoMensaje.ResumenSinCambios);
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [mensaje])
+            .Add(p => p.Participantes, []));
+
+        cut.Find(".timeline-mensaje-fila").ClassList.Should().Contain("timeline-mensaje-fila-ruido");
+        cut.Markup.Should().Contain("Resumen sin cambios");
+        cut.Find(".timeline-ruido-confirmar").Should().NotBeNull();
     }
 
     [Fact]
-    public void Descartar_una_sugerencia_de_vinculacion_la_oculta_sin_llamar_al_callback()
+    public void Un_mensaje_de_ruido_ya_confirmado_no_muestra_badge_ni_se_atenua()
     {
-        var desglose = new DesgloseCoincidenciaDto(40, 0, 0, 0, 0, 0, 10);
-        var vinculado = false;
+        var mensaje = new MensajeDetalleDto(
+            Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "notificaciones@nalanda.com", "Hola", DateTime.UtcNow,
+            [], null, [], MotivoRuido: MotivoRuidoMensaje.ResumenSinCambios, RuidoConfirmadoManualmente: true);
 
         var cut = Render<UnifiedTimeline>(parametros => parametros
-            .Add(p => p.Mensajes, [])
+            .Add(p => p.Mensajes, [mensaje])
+            .Add(p => p.Participantes, []));
+
+        cut.Find(".timeline-mensaje-fila").ClassList.Should().NotContain("timeline-mensaje-fila-ruido");
+        cut.FindAll(".timeline-ruido-confirmar").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Clicar_esto_si_importa_dispara_OnConfirmarRuido_con_el_id_del_mensaje()
+    {
+        var mensajeId = Guid.NewGuid();
+        Guid? confirmadoId = null;
+        var mensaje = new MensajeDetalleDto(
+            mensajeId, DireccionMensaje.Entrante, CanalConversacion.Correo, "notificaciones@nalanda.com", "Hola", DateTime.UtcNow,
+            [], null, [], MotivoRuido: MotivoRuidoMensaje.ResumenSinCambios);
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [mensaje])
             .Add(p => p.Participantes, [])
-            .Add(p => p.SugerenciaVinculacion, new SugerenciaVinculacionDetalleDto(Guid.NewGuid(), "Consulta sobre visita", desglose))
-            .Add(p => p.OnVincularConversacion, _ => vinculado = true));
+            .Add(p => p.OnConfirmarRuido, id => confirmadoId = id));
 
-        cut.FindAll(".timeline-sugerencia-vinculacion button")[0].Click();
+        cut.Find(".timeline-ruido-confirmar").Click();
 
-        cut.FindAll(".timeline-sugerencia-vinculacion").Should().BeEmpty();
-        vinculado.Should().BeFalse();
+        confirmadoId.Should().Be(mensajeId);
+    }
+
+    [Fact]
+    public void Un_mensaje_con_solo_repeticiones_pendientes_muestra_el_badge_de_repeticion()
+    {
+        var mensaje = new MensajeDetalleDto(
+            Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "notificaciones@nalanda.com", "Hola", DateTime.UtcNow,
+            [], null, [], TieneSoloRepeticionesPendientes: true);
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [mensaje])
+            .Add(p => p.Participantes, []));
+
+        cut.Markup.Should().Contain("Repetición — ya reclamado");
     }
 }

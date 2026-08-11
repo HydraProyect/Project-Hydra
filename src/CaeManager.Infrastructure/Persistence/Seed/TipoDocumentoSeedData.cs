@@ -21,6 +21,11 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// "Requisitos del Centro" (<c>TipoDocumentoCentro</c> manda sobre este
 /// criterio global, ver <c>ResolucionTipoDocumentoCentro</c>): no hace
 /// falta ninguna decisión de UI nueva, el mecanismo ya existía.
+///
+/// "Modalidad Preventiva" (Empresa) pasa a obligatoria por defecto el
+/// mismo día (2026-08-09, indicado directamente por el usuario): un único
+/// tipo de documento cubre la modalidad preventiva de la empresa, sea SPA,
+/// Propia o Mancomunada — no se modela como grupo de alternativas.
 /// </summary>
 public static class TipoDocumentoSeedData
 {
@@ -91,7 +96,7 @@ public static class TipoDocumentoSeedData
         (new Guid("40000000-0000-0000-0000-000000000003"), "Procedimiento de Coordinación de Actividades Empresariales", null, false, 31, AmbitoAplicacion.Empresa, true, "Vigente hasta revisión — vencimiento manual."),
         (new Guid("40000000-0000-0000-0000-000000000004"), "Política Preventiva", null, false, 32, AmbitoAplicacion.Empresa, false, "Vigente hasta revisión — vencimiento manual."),
         (new Guid("40000000-0000-0000-0000-000000000005"), "Organigrama Preventivo", null, false, 33, AmbitoAplicacion.Empresa, false, "Vigente hasta cambios — vencimiento manual."),
-        (new Guid("40000000-0000-0000-0000-000000000006"), "Modalidad Preventiva", null, false, 34, AmbitoAplicacion.Empresa, false, "Vigente hasta cambios — vencimiento manual."),
+        (new Guid("40000000-0000-0000-0000-000000000006"), "Modalidad Preventiva", null, false, 34, AmbitoAplicacion.Empresa, true, "Vigente hasta cambios — vencimiento manual. Obligatorio por defecto (2026-08-09): un único tipo cubre la modalidad preventiva de la empresa, sea SPA, Propia o Mancomunada — no se modela como alternativas separadas (ver ROADMAP.md)."),
         (new Guid("40000000-0000-0000-0000-000000000007"), "Escritura de Constitución", null, false, 35, AmbitoAplicacion.Empresa, false, "Documento permanente — algunos clientes lo piden, no todos."),
         (new Guid("40000000-0000-0000-0000-000000000008"), "Poder del Representante Legal", null, false, 36, AmbitoAplicacion.Empresa, false, "Vigente hasta modificación — vencimiento manual."),
         (new Guid("40000000-0000-0000-0000-000000000009"), "ISO 45001", null, false, 37, AmbitoAplicacion.Empresa, false, "Certificación opcional — vigencia según auditoría del organismo certificador."),
@@ -104,11 +109,13 @@ public static class TipoDocumentoSeedData
         (new Guid("40000010-0000-0000-0000-000000000010"), "Traducción jurada", null, false, 44, AmbitoAplicacion.Empresa, false, "Solo si el cliente la solicita explícitamente para documentación de una empresa extranjera."),
         (new Guid("40000011-0000-0000-0000-000000000011"), "Comunicación de desplazamiento", null, false, 45, AmbitoAplicacion.Empresa, false, "Solo aplica cuando hay un desplazamiento temporal de trabajadores desde otro país de la UE."),
 
-        // --- Documentos de Vehículo (2026-07, indicados directamente por el usuario) ---
-        (new Guid("30000000-0000-0000-0000-000000000001"), "ITC", null, false, 1, AmbitoAplicacion.Vehiculo, true, "Vigencia sin especificar — fecha de vencimiento manual."),
-        (new Guid("30000000-0000-0000-0000-000000000002"), "Ficha técnica", null, false, 2, AmbitoAplicacion.Vehiculo, true, "No caduca por sí sola, pero se pide como documento adjunto del vehículo."),
-        (new Guid("30000000-0000-0000-0000-000000000003"), "Seguro", null, false, 3, AmbitoAplicacion.Vehiculo, true, "Vigencia sin especificar — fecha de vencimiento manual."),
-        (new Guid("30000000-0000-0000-0000-000000000004"), "Autorización de circulación", null, false, 4, AmbitoAplicacion.Vehiculo, true, "Vigencia sin especificar — fecha de vencimiento manual."),
+        // --- Documentos de Vehículo (2026-07, indicados directamente por el
+        // usuario; vencimiento anual desde 2026-08-10 — decisión del
+        // propietario: toda la documentación de vehículo vence) ---
+        (new Guid("30000000-0000-0000-0000-000000000001"), "ITC", 12, true, 1, AmbitoAplicacion.Vehiculo, true, "Vigencia anual."),
+        (new Guid("30000000-0000-0000-0000-000000000002"), "Ficha técnica", 12, true, 2, AmbitoAplicacion.Vehiculo, true, "Vigencia anual."),
+        (new Guid("30000000-0000-0000-0000-000000000003"), "Seguro", 12, true, 3, AmbitoAplicacion.Vehiculo, true, "Vigencia anual."),
+        (new Guid("30000000-0000-0000-0000-000000000004"), "Autorización de circulación", 12, true, 4, AmbitoAplicacion.Vehiculo, true, "Vigencia anual."),
     ];
 
     /// <summary>
@@ -142,6 +149,38 @@ public static class TipoDocumentoSeedData
         [new Guid("20000000-0000-0000-0000-000000000006")] = PerfilDocumentoOficial.Rlc,
         [new Guid("20000000-0000-0000-0000-000000000007")] = PerfilDocumentoOficial.Rnt,
     };
+
+    /// <summary>
+    /// Flags de IA por nombre, para las copias por tenant (ver
+    /// DelegacionDemoSeeder): el constructor de TipoDocumento no los expone
+    /// y el HasData que sí los fija solo cubre el tenant #1 — sin esto, las
+    /// copias de los tenants de demo nacen sin detección de trabajadores ni
+    /// perfil oficial y esos flujos no se pueden ejercitar allí.
+    /// </summary>
+    public static bool TieneDeteccionTrabajadores(string nombre) =>
+        Datos.Any(d => d.Nombre == nombre && IdsConDeteccionTrabajadores.Contains(d.Id));
+
+    public static PerfilDocumentoOficial PerfilOficialDe(string nombre) =>
+        Datos.Where(d => d.Nombre == nombre)
+            .Select(d => PerfilesOficiales.GetValueOrDefault(d.Id, PerfilDocumentoOficial.Ninguno))
+            .FirstOrDefault();
+
+    /// <summary>
+    /// Copia editable del catálogo completo para un tenant nuevo
+    /// (docs/MULTITENANCY.md § 7) con los flags de IA aplicados — la usan
+    /// DelegacionDemoSeeder y SegundoTenantSeeder para no repetir la
+    /// construcción (y para que ningún aprovisionamiento vuelva a olvidarse
+    /// de los flags, como pasó con los tenants de demo).
+    /// </summary>
+    public static IEnumerable<TipoDocumento> CrearCopiasParaTenant() =>
+        Datos.Select(t =>
+        {
+            var copia = new TipoDocumento(
+                t.Nombre, t.VigenciaMeses, t.AplicaVencimiento, t.Orden, t.Ambito, t.EsObligatorio, t.Notas);
+            copia.EstablecerDeteccionTrabajadoresActiva(TieneDeteccionTrabajadores(t.Nombre));
+            copia.EstablecerPerfilDocumentoOficial(PerfilOficialDe(t.Nombre));
+            return copia;
+        });
 
     /// <summary>Proyección plana usada por HasData (necesita anonymous/objeto con las propiedades de la entidad).</summary>
     public static IEnumerable<object> ComoFilasParaMigracion() =>
