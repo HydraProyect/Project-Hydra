@@ -47,7 +47,7 @@ public class AnthropicDeteccionVisitaCorreoService(
         Devuelve exclusivamente un objeto JSON, sin texto adicional, sin
         explicaciones, sin bloques de código markdown, con este formato
         exacto:
-        {"esSolicitudVisita": bool, "centroId": "guid-de-la-lista-o-null", "fechaInicio": "YYYY-MM-DD-o-null", "fechaFin": "YYYY-MM-DD-o-null", "resumen": "una frase breve en español"}
+        {"esSolicitudVisita": bool, "centroId": "guid-de-la-lista-o-null", "fechaInicio": "YYYY-MM-DD-o-null", "fechaFin": "YYYY-MM-DD-o-null", "resumen": "una frase breve en español", "confianza": 0-100, "confianzaCentro": 0-100, "confianzaFechas": 0-100}
 
         Reglas:
         - esSolicitudVisita es true solo si el correo pide explícita o
@@ -62,6 +62,13 @@ public class AnthropicDeteccionVisitaCorreoService(
           rápido si merece revisarlo (menciona trabajadores o subcontrata si
           aparecen). Obligatorio incluso si esSolicitudVisita es false,
           explicando brevemente por qué no lo es.
+        - confianza: entero 0-100, tu propia certeza global de que
+          esSolicitudVisita y los datos extraídos son correctos.
+        - confianzaCentro: entero 0-100, tu certeza específica de que
+          centroId es el centro correcto. 0 si centroId es null.
+        - confianzaFechas: entero 0-100, tu certeza específica de que
+          fechaInicio/fechaFin son correctas (baja si tuviste que interpretar
+          una fecha relativa sin precisión). 0 si ambas son null.
         - Si esSolicitudVisita es false, centroId, fechaInicio y fechaFin
           deben ser null.
         """;
@@ -180,7 +187,13 @@ public class AnthropicDeteccionVisitaCorreoService(
             if (fechaInicio is not null && fechaFin is not null && fechaFin < fechaInicio)
                 fechaFin = null; // rango inconsistente del modelo — mejor no sugerir fecha de fin que una incoherente.
 
-            return Result.Exito(new DeteccionVisitaCorreoDto(detectado.EsSolicitudVisita, centroId, fechaInicio, fechaFin, detectado.Resumen));
+            var confianza = Math.Clamp(detectado.Confianza, 0, 100);
+            var confianzaCentro = Math.Clamp(detectado.ConfianzaCentro, 0, 100);
+            var confianzaFechas = Math.Clamp(detectado.ConfianzaFechas, 0, 100);
+
+            return Result.Exito(new DeteccionVisitaCorreoDto(
+                detectado.EsSolicitudVisita, centroId, fechaInicio, fechaFin, detectado.Resumen,
+                confianza, confianzaCentro, confianzaFechas));
         }
         catch (JsonException ex)
         {
@@ -193,7 +206,8 @@ public class AnthropicDeteccionVisitaCorreoService(
     private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
 
     private sealed record DeteccionVisitaJson(
-        bool EsSolicitudVisita, string? CentroId, string? FechaInicio, string? FechaFin, string? Resumen);
+        bool EsSolicitudVisita, string? CentroId, string? FechaInicio, string? FechaFin, string? Resumen,
+        int Confianza, int ConfianzaCentro, int ConfianzaFechas);
 
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,

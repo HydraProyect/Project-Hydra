@@ -24,6 +24,7 @@ using CaeManager.Web.Features.Empresas;
 using CaeManager.Web.Features.Facturacion;
 using CaeManager.Web.Features.Incidencias;
 using CaeManager.Web.Features.Integraciones.Endpoints;
+using CaeManager.Web.Features.Subcontratas;
 using CaeManager.Web.Features.Tenants;
 using CaeManager.Web.Reportes;
 using CaeManager.Web.Services;
@@ -128,6 +129,7 @@ builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>(
 // Scoped: cachea por circuito si la sesión es de soporte, para que registrar
 // una interacción no cueste una consulta (ver TrazaSoporteService).
 builder.Services.AddScoped<CaeManager.Web.Services.TrazaSoporteService>();
+builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<BusquedaGlobalService>();
 builder.Services.AddScoped<AsistenteIaService>();
@@ -364,7 +366,7 @@ using (var scope = app.Services.CreateScope())
     // #1 juega el papel de Consultora (sin datos operativos propios, § 5.1)
     // — DelegacionDemoSeeder los siembra en un tenant Cliente Delegante
     // nuevo y establece su propio AmbitoTenantExplicito internamente.
-    await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, app.Configuration, logger);
+    await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, logger);
 
     // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
     // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
@@ -376,7 +378,7 @@ using (var scope = app.Services.CreateScope())
     // Idempotente, así que cubre también los tenants creados en arranques
     // anteriores. Aprovisionar no concede acceso: abrirlo exige motivo y
     // ventana (ver DelegacionesSoporteSeeder).
-    await DelegacionesSoporteSeeder.SeedAsync(dbContext, logger);
+    await DelegacionesSoporteSeeder.SeedAsync(dbContext, app.Configuration, logger);
 }
 
 // Registrado antes del manejo de excepciones para envolverlo por completo:
@@ -450,6 +452,7 @@ app.MapFacturacionEndpoints();
 app.MapDocumentosEndpoints();
 app.MapRequisitosDocumentalesEndpoints();
 app.MapComunicacionesEndpoints();
+app.MapSubcontratasEndpoints();
 app.MapReportesEndpoints();
 app.MapAuditoriaEndpoints();
 app.MapClienteActivoEndpoints();

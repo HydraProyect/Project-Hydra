@@ -31,7 +31,19 @@ public enum AmbitoCausa
     Trabajador
 }
 
-public record CausaEstadoCentro(string Descripcion, EstadoDocumento? Estado, bool Bloqueante, AmbitoCausa Ambito);
+/// <param name="DocumentoId">
+/// <c>null</c> salvo en causas de Empresa, donde siempre hay un Documento real
+/// detrás (§ AgregarCausasDeEmpresaAsync: sin detección de falta total ahí,
+/// solo vigencia) — junto con <paramref name="TipoDocumentoId"/> y
+/// <paramref name="FechaVencimiento"/> es lo que necesita la tabla de
+/// documentos del bloque Empresa del Centro 360 (Documento · Estado ·
+/// Vigencia · Acción, mismas columnas que la tabla de Trabajador) para
+/// enlazar "Gestionar" sin una consulta aparte — reutiliza las mismas causas
+/// que ya decidieron el EstadoCentro.
+/// </param>
+public record CausaEstadoCentro(
+    string Descripcion, EstadoDocumento? Estado, bool Bloqueante, AmbitoCausa Ambito,
+    Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento);
 
 public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEstadoCentro> Causas);
 
@@ -130,7 +142,14 @@ public class CalculoEstadoCentroService(
             where documento.EmpresaId != null && empresaIds.Contains(documento.EmpresaId!.Value)
             where documento.FechaVencimiento != null
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-            select new { EmpresaId = documento.EmpresaId!.Value, documento.FechaVencimiento, tipoDocumento.Nombre })
+            select new
+            {
+                documento.Id,
+                EmpresaId = documento.EmpresaId!.Value,
+                documento.TipoDocumentoId,
+                documento.FechaVencimiento,
+                tipoDocumento.Nombre
+            })
             .ToListAsync(cancellationToken);
 
         foreach (var documento in documentosEmpresa)
@@ -139,7 +158,9 @@ public class CalculoEstadoCentroService(
             if (estado is EstadoDocumento.NoAplica or EstadoDocumento.Vigente) continue;
             if (!centroIdsPorEmpresa.TryGetValue(documento.EmpresaId, out var centrosDeEmpresa)) continue;
 
-            var causa = new CausaEstadoCentro($"{documento.Nombre} — Empresa", estado, Bloqueante: false, AmbitoCausa.Empresa);
+            var causa = new CausaEstadoCentro(
+                $"{documento.Nombre} — Empresa", estado, Bloqueante: false, AmbitoCausa.Empresa,
+                documento.Id, documento.TipoDocumentoId, documento.FechaVencimiento);
             foreach (var centroId in centrosDeEmpresa)
                 causasPorCentro[centroId].Add(causa);
         }
@@ -185,7 +206,9 @@ public class CalculoEstadoCentroService(
                 if (estado is EstadoDocumento.NoAplica or EstadoDocumento.Vigente) continue;
 
                 causasPorCentro[asignacion.CentroId].Add(
-                    new CausaEstadoCentro($"{documento.Nombre} — {asignacion.TrabajadorNombre}", estado, Bloqueante: false, AmbitoCausa.Trabajador));
+                    new CausaEstadoCentro(
+                        $"{documento.Nombre} — {asignacion.TrabajadorNombre}", estado, Bloqueante: false, AmbitoCausa.Trabajador,
+                        DocumentoId: null, TipoDocumentoId: null, FechaVencimiento: null));
             }
         }
 
@@ -233,7 +256,8 @@ public class CalculoEstadoCentroService(
                 var bloquea = filasPorPar.TryGetValue((tipo.Id, asignacion.CentroId), out var fila) && fila.BloqueaAcceso;
 
                 causasPorCentro[asignacion.CentroId].Add(new CausaEstadoCentro(
-                    $"{tipo.Nombre} — {asignacion.TrabajadorNombre}", EstadoDocumento.Faltante, Bloqueante: bloquea, AmbitoCausa.Trabajador));
+                    $"{tipo.Nombre} — {asignacion.TrabajadorNombre}", EstadoDocumento.Faltante, Bloqueante: bloquea, AmbitoCausa.Trabajador,
+                    DocumentoId: null, TipoDocumentoId: null, FechaVencimiento: null));
             }
         }
     }

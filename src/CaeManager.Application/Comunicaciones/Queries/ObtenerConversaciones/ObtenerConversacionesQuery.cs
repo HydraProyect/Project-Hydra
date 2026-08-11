@@ -41,7 +41,8 @@ public record ConversacionListaDto(
     int TotalMensajes,
     CanalConversacion Canal,
     string? TelefonoContacto,
-    DireccionMensaje? UltimoMensajeDireccion)
+    DireccionMensaje? UltimoMensajeDireccion,
+    int MensajesRuido = 0)
 {
     /// <summary>
     /// "Esperando cliente" es un estado derivado, no persistido (decisión
@@ -141,7 +142,7 @@ public class ObtenerConversacionesQueryHandler(
 
         var mensajes = await comunicacionesContext.Mensajes
             .Where(m => conversacionIds.Contains(m.ConversacionId))
-            .Select(m => new { m.ConversacionId, m.CuerpoHtml, m.FechaUtc, m.Direccion })
+            .Select(m => new { m.Id, m.ConversacionId, m.CuerpoHtml, m.FechaUtc, m.Direccion })
             .ToListAsync(cancellationToken);
 
         var remitentes = await comunicacionesContext.ParticipantesConversacion
@@ -151,6 +152,8 @@ public class ObtenerConversacionesQueryHandler(
 
         var mensajesPorConversacion = mensajes.GroupBy(m => m.ConversacionId).ToDictionary(g => g.Key, g => g.ToList());
         var remitentesPorConversacion = remitentes.GroupBy(p => p.ConversacionId).ToDictionary(g => g.Key, g => g.First().Email);
+        var conversacionPorMensaje = mensajes.ToDictionary(m => m.Id, m => m.ConversacionId);
+        var mensajesRuidoPorConversacion = await ContarMensajesRuidoPorConversacionAsync(conversacionPorMensaje, cancellationToken);
 
         return conversaciones.Select(c =>
         {
@@ -163,8 +166,61 @@ public class ObtenerConversacionesQueryHandler(
                 remitentesPorConversacion.GetValueOrDefault(c.Id) ?? c.TelefonoContacto ?? "Remitente desconocido",
                 TruncarParaPreview(ultimoMensaje?.CuerpoHtml),
                 c.FechaUltimoMensajeUtc, mensajesDeConversacion.Count, c.Canal, c.TelefonoContacto,
-                ultimoMensaje?.Direccion);
+                ultimoMensaje?.Direccion, mensajesRuidoPorConversacion.GetValueOrDefault(c.Id));
         }).ToList();
+    }
+
+    /// <summary>
+    /// Ronda de reducción de ruido en Comunicaciones: cuenta, por conversación, los mensajes
+    /// clasificados como ruido — <see cref="ClasificacionRuidoMensaje"/> con un motivo distinto de
+    /// Ninguno, o un mensaje cuyos ítems de gestión pendientes son todos repetición de algo ya
+    /// reclamado. Ambas clasificaciones se descartan si el Gestor ya confirmó manualmente que
+    /// importan (ConfirmadaManualmente). Mismo criterio "cargar plano y agrupar en memoria" que el
+    /// resto de este handler — evita una subconsulta correlacionada compleja para un contador
+    /// secundario.
+    /// </summary>
+    private async Task<Dictionary<Guid, int>> ContarMensajesRuidoPorConversacionAsync(
+        IReadOnlyDictionary<Guid, Guid> conversacionPorMensaje, CancellationToken cancellationToken)
+    {
+        var mensajeIds = conversacionPorMensaje.Keys.ToList();
+        if (mensajeIds.Count == 0) return [];
+
+        var mensajesConMotivo = await comunicacionesContext.ClasificacionesRuidoMensaje
+            .Where(c => mensajeIds.Contains(c.MensajeId) && c.Motivo != MotivoRuidoMensaje.Ninguno && !c.ConfirmadaManualmente)
+            .Select(c => c.MensajeId)
+            .ToListAsync(cancellationToken);
+
+        var sugerenciasGestion = await comunicacionesContext.SugerenciasGestionCorreo
+            .Where(s => mensajeIds.Contains(s.MensajeId))
+            .Select(s => new { s.Id, s.MensajeId })
+            .ToListAsync(cancellationToken);
+
+        var sugerenciaIds = sugerenciasGestion.Select(s => s.Id).ToList();
+        var detallesPendientes = await comunicacionesContext.DetallesSugerenciaGestionCorreo
+            .Where(d => sugerenciaIds.Contains(d.SugerenciaGestionCorreoId) && !d.Resuelta)
+            .Select(d => new { d.Id, d.SugerenciaGestionCorreoId })
+            .ToListAsync(cancellationToken);
+
+        var detalleIdsPendientes = detallesPendientes.Select(d => d.Id).ToList();
+        var detalleIdsRepeticion = (await comunicacionesContext.ClasificacionesRuidoDetalleGestion
+            .Where(c => detalleIdsPendientes.Contains(c.DetalleSugerenciaGestionCorreoId) && !c.ConfirmadaManualmente)
+            .Select(c => c.DetalleSugerenciaGestionCorreoId)
+            .ToListAsync(cancellationToken))
+            .ToHashSet();
+
+        var mensajesSoloRepeticiones = sugerenciasGestion
+            .Join(detallesPendientes, s => s.Id, d => d.SugerenciaGestionCorreoId, (s, d) => new { s.MensajeId, DetalleId = d.Id })
+            .GroupBy(x => x.MensajeId)
+            .Where(g => g.All(x => detalleIdsRepeticion.Contains(x.DetalleId)))
+            .Select(g => g.Key);
+
+        var mensajesRuidoIds = mensajesConMotivo.ToHashSet();
+        mensajesRuidoIds.UnionWith(mensajesSoloRepeticiones);
+
+        return mensajeIds
+            .Where(mensajesRuidoIds.Contains)
+            .GroupBy(mensajeId => conversacionPorMensaje[mensajeId])
+            .ToDictionary(g => g.Key, g => g.Count());
     }
 
     private static string TruncarParaPreview(string? cuerpoHtml)

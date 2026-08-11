@@ -1,0 +1,316 @@
+@*
+    Action Center (docs/COMUNICACIONES.md § 12.6, "el diferenciador"): panel de
+    decisiones, no información. La tarjeta compacta es el resumen; al pulsar
+    la acción principal se abre el AI Action Review (RevisionSugerenciaModal)
+    — el usuario solo edita lo que Hydra no pudo confirmar con confianza ≥90%
+    (mismo umbral de "alta" que § 12.6), y antes de ejecutar siempre ve el
+    payload completo que se va a usar.
+
+    Antes esta información vivía como tarjetas ad-hoc dentro de UnifiedTimeline
+    (docs/COMUNICACIONES.md § 16 lo dejaba explícitamente pendiente); mover
+    aquí es lo que permite que futuras automatizaciones (más tipos de
+    sugerencia) se sumen sin tocar el timeline — mismo patrón reutilizable
+    fuera de Comunicaciones que pide § 12.6.
+*@
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
+@using CaeManager.Application.Comunicaciones.Matching
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
+
+@if (TieneAlgo)
+{
+    <div class="accion-center">
+        <div class="accion-center-titulo">
+            <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" /> Acciones sugeridas
+        </div>
+
+        @foreach (var sugerencia in SugerenciasVisita)
+        {
+            <div class="accion-card">
+                <div class="accion-card-cab">
+                    <span class="accion-card-icono" aria-hidden="true"><Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" /></span>
+                    Crear visita
+                    <span class="accion-card-confianza @(sugerencia.Confianza < 70 ? "accion-card-confianza-baja" : null)">@sugerencia.Confianza%</span>
+                </div>
+                <p class="accion-card-campos">@sugerencia.Resumen</p>
+                <div class="accion-card-botones">
+                    <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => OnDescartarSugerenciaVisita.InvokeAsync(sugerencia.Id)">
+                        Descartar
+                    </Boton>
+                    <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRevisionVisita(sugerencia)">
+                        Crear visita
+                    </Boton>
+                </div>
+            </div>
+        }
+
+        @foreach (var sugerencia in SugerenciasGestion)
+        {
+            <div class="accion-card">
+                <div class="accion-card-cab">
+                    <span class="accion-card-icono" aria-hidden="true"><Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" /></span>
+                    Actualizar documentación
+                    <span class="accion-card-confianza @(sugerencia.Confianza < 70 ? "accion-card-confianza-baja" : null)">@sugerencia.Confianza%</span>
+                </div>
+                <p class="accion-card-campos">@sugerencia.Resumen</p>
+                <div class="accion-card-botones">
+                    <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => OnDescartarSugerenciaGestion.InvokeAsync(sugerencia.Id)">
+                        Descartar
+                    </Boton>
+                    <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRevisionGestion(sugerencia)">
+                        Generar gestiones
+                    </Boton>
+                </div>
+            </div>
+        }
+
+        @if (SugerenciaVinculacion is { } vinculacion && !_vinculacionDescartada)
+        {
+            <div class="accion-card">
+                <div class="accion-card-cab">
+                    <span class="accion-card-icono" aria-hidden="true"><Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" /></span>
+                    Relacionar conversación
+                    @{ var confianzaVinculacion = ConfianzaVinculacion(vinculacion.Desglose); }
+                    <span class="accion-card-confianza @(confianzaVinculacion < 70 ? "accion-card-confianza-baja" : null)">@confianzaVinculacion%</span>
+                </div>
+                <p class="accion-card-campos">
+                    Conversación relacionada: <strong>@vinculacion.AsuntoDestino</strong> (@DescribirDesglose(vinculacion.Desglose)).
+                </p>
+                <div class="accion-card-botones">
+                    <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => _vinculacionDescartada = true">
+                        Crear conversación nueva
+                    </Boton>
+                    <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => OnVincularConversacion.InvokeAsync(vinculacion.ConversacionDestinoId)">
+                        Añadir a conversación existente
+                    </Boton>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (_visitaEnRevision is { } visitaEnRevision)
+    {
+        <RevisionSugerenciaModal Visible="true" VisibleChanged="v => { if (!v) _visitaEnRevision = null; }"
+                                  Campos="CamposRevisionVisita(visitaEnRevision)"
+                                  TextoAccionFinal="Ir al formulario de visita"
+                                  Consecuencias="@_consecuenciasVisita"
+                                  Confirmando="_confirmandoVisita"
+                                  OnConfirmar="() => ConfirmarVisitaAsync(visitaEnRevision)" />
+    }
+
+    @if (_gestionEnRevision is { } gestionEnRevision)
+    {
+        <RevisionSugerenciaModal Visible="true" VisibleChanged="v => { if (!v) _gestionEnRevision = null; }"
+                                  Campos="CamposRevisionGestion(gestionEnRevision)"
+                                  TextoAccionFinal="Generar gestiones"
+                                  Consecuencias="@_consecuenciasGestion"
+                                  Confirmando="_confirmandoGestion"
+                                  OnConfirmar="() => ConfirmarGestionAsync(gestionEnRevision)" />
+    }
+}
+
+@code {
+    private const int UmbralConfianzaAlta = 90;
+
+    [Parameter] public IReadOnlyList<SugerenciaVisitaDetalleDto> SugerenciasVisita { get; set; } = [];
+    [Parameter] public IReadOnlyList<SugerenciaGestionDetalleDto> SugerenciasGestion { get; set; } = [];
+    [Parameter] public SugerenciaVinculacionDetalleDto? SugerenciaVinculacion { get; set; }
+    [Parameter] public IReadOnlyList<CentroSelectorDto> CentrosDisponibles { get; set; } = [];
+    [Parameter] public IReadOnlyList<TrabajadorSelectorDto> TrabajadoresDisponibles { get; set; } = [];
+    [Parameter] public IReadOnlyList<TipoDocumentoListaDto> TiposDocumentoDisponibles { get; set; } = [];
+
+    [Parameter] public EventCallback<(Guid SugerenciaId, Guid? CentroId, DateOnly? FechaInicio, DateOnly? FechaFin)> OnCrearVisitaDesdeSugerencia { get; set; }
+    [Parameter] public EventCallback<Guid> OnDescartarSugerenciaVisita { get; set; }
+    [Parameter] public EventCallback<(Guid SugerenciaId, Guid TrabajadorId, Guid TipoDocumentoId)> OnGenerarGestionesDesdeSugerencia { get; set; }
+    [Parameter] public EventCallback<Guid> OnDescartarSugerenciaGestion { get; set; }
+    [Parameter] public EventCallback<Guid> OnVincularConversacion { get; set; }
+
+    /// <summary>Solo en memoria, sin Command ni persistencia — mismo criterio que tenía antes en UnifiedTimeline (ver comentario original: "crear conversación nueva" ya es el comportamiento por defecto mientras no se confirme).</summary>
+    private bool _vinculacionDescartada;
+
+    private bool TieneAlgo =>
+        SugerenciasVisita.Count > 0 || SugerenciasGestion.Count > 0 || (SugerenciaVinculacion is not null && !_vinculacionDescartada);
+
+    private static readonly string[] _consecuenciasVisita =
+    [
+        "Se abrirá el formulario de creación de visita con estos datos prellenados.",
+        "Podrás completar trabajadores y notas antes de guardar — la visita no se crea hasta que la confirmes ahí.",
+    ];
+
+    private static readonly string[] _consecuenciasGestion =
+    [
+        "Se creará una gestión pendiente por cada centro donde el trabajador tenga una asignación activa.",
+        "Quedará pendiente de adjuntar el documento — podrás completarla después desde Gestiones.",
+        "Esta sugerencia se marcará como resuelta.",
+    ];
+
+    // --- Revisión de Visita ---
+    private SugerenciaVisitaDetalleDto? _visitaEnRevision;
+    private string _centroEditado = string.Empty;
+    private string _fechaInicioEditada = string.Empty;
+    private string _fechaFinEditada = string.Empty;
+    private bool _confirmandoVisita;
+
+    private void AbrirRevisionVisita(SugerenciaVisitaDetalleDto sugerencia)
+    {
+        _visitaEnRevision = sugerencia;
+        _centroEditado = sugerencia.CentroId?.ToString() ?? string.Empty;
+        _fechaInicioEditada = sugerencia.FechaInicioSugerida?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _fechaFinEditada = sugerencia.FechaFinSugerida?.ToString("yyyy-MM-dd") ?? string.Empty;
+    }
+
+    private IReadOnlyList<CampoRevision> CamposRevisionVisita(SugerenciaVisitaDetalleDto s)
+    {
+        var centroRequiere = s.CentroId is null || s.ConfianzaCentro < UmbralConfianzaAlta;
+        var fechasRequieren = (s.FechaInicioSugerida is null && s.FechaFinSugerida is null) || s.ConfianzaFechas < UmbralConfianzaAlta;
+        var centroNombreEditado = CentrosDisponibles.FirstOrDefault(c => c.Id.ToString() == _centroEditado)?.Nombre ?? string.Empty;
+
+        return
+        [
+            new CampoRevision(
+                "Centro", centroNombreEditado, s.CentroNombre, s.ConfianzaCentro, centroRequiere,
+                centroRequiere ? EditorCentro() : null),
+            new CampoRevision(
+                "Fechas", FormatearFechas(_fechaInicioEditada, _fechaFinEditada), FormatearFechas(s.FechaInicioSugerida, s.FechaFinSugerida),
+                s.ConfianzaFechas, fechasRequieren, fechasRequieren ? EditorFechas() : null),
+        ];
+    }
+
+    private RenderFragment EditorCentro() => @<CampoSelect Valor="@_centroEditado" ValorChanged="v => _centroEditado = v">
+        <option value="">Sin determinar — se elige después en el formulario…</option>
+        @foreach (var centro in CentrosDisponibles)
+        {
+            <option value="@centro.Id">@centro.Nombre</option>
+        }
+    </CampoSelect>;
+
+    private RenderFragment EditorFechas() => @<div class="accion-editor-fechas">
+        <CampoTexto Etiqueta="Desde" Type="date" Valor="@_fechaInicioEditada" ValorChanged="v => _fechaInicioEditada = v" />
+        <CampoTexto Etiqueta="Hasta" Type="date" Valor="@_fechaFinEditada" ValorChanged="v => _fechaFinEditada = v" />
+    </div>;
+
+    private async Task ConfirmarVisitaAsync(SugerenciaVisitaDetalleDto sugerencia)
+    {
+        _confirmandoVisita = true;
+        try
+        {
+            Guid? centroFinal = Guid.TryParse(_centroEditado, out var centroId) ? centroId : null;
+            DateOnly? fechaInicioFinal = DateOnly.TryParse(_fechaInicioEditada, out var fechaInicio) ? fechaInicio : null;
+            DateOnly? fechaFinFinal = DateOnly.TryParse(_fechaFinEditada, out var fechaFin) ? fechaFin : null;
+
+            await OnCrearVisitaDesdeSugerencia.InvokeAsync((sugerencia.Id, centroFinal, fechaInicioFinal, fechaFinFinal));
+        }
+        finally
+        {
+            _confirmandoVisita = false;
+            _visitaEnRevision = null;
+        }
+    }
+
+    // --- Revisión de Gestión ---
+    private SugerenciaGestionDetalleDto? _gestionEnRevision;
+    private string _trabajadorEditado = string.Empty;
+    private string _tipoDocumentoEditado = string.Empty;
+    private bool _confirmandoGestion;
+
+    private void AbrirRevisionGestion(SugerenciaGestionDetalleDto sugerencia)
+    {
+        _gestionEnRevision = sugerencia;
+        _trabajadorEditado = sugerencia.TrabajadorId?.ToString() ?? string.Empty;
+        _tipoDocumentoEditado = sugerencia.TipoDocumentoId?.ToString() ?? string.Empty;
+    }
+
+    private IReadOnlyList<CampoRevision> CamposRevisionGestion(SugerenciaGestionDetalleDto s)
+    {
+        var trabajadorRequiere = s.TrabajadorId is null || s.ConfianzaTrabajador < UmbralConfianzaAlta;
+        var tipoDocumentoRequiere = s.TipoDocumentoId is null || s.ConfianzaTipoDocumento < UmbralConfianzaAlta;
+        var trabajadorNombreEditado = TrabajadoresDisponibles.FirstOrDefault(t => t.Id.ToString() == _trabajadorEditado)?.NombreCompleto ?? string.Empty;
+        var tipoDocumentoNombreEditado = TiposDocumentoDisponibles.FirstOrDefault(t => t.Id.ToString() == _tipoDocumentoEditado)?.Nombre ?? string.Empty;
+
+        return
+        [
+            new CampoRevision(
+                "Trabajador", trabajadorNombreEditado, s.TrabajadorNombre, s.ConfianzaTrabajador, trabajadorRequiere,
+                trabajadorRequiere ? EditorTrabajador() : null, Obligatorio: true),
+            new CampoRevision(
+                "Tipo de documento", tipoDocumentoNombreEditado, s.TipoDocumentoNombre, s.ConfianzaTipoDocumento, tipoDocumentoRequiere,
+                tipoDocumentoRequiere ? EditorTipoDocumento() : null, Obligatorio: true),
+        ];
+    }
+
+    private RenderFragment EditorTrabajador() => @<CampoSelect Valor="@_trabajadorEditado" ValorChanged="v => _trabajadorEditado = v">
+        <option value="">Selecciona un trabajador…</option>
+        @foreach (var trabajador in TrabajadoresDisponibles)
+        {
+            <option value="@trabajador.Id">@trabajador.NombreCompleto</option>
+        }
+    </CampoSelect>;
+
+    private RenderFragment EditorTipoDocumento() => @<CampoSelect Valor="@_tipoDocumentoEditado" ValorChanged="v => _tipoDocumentoEditado = v">
+        <option value="">Selecciona un tipo de documento…</option>
+        @foreach (var tipo in TiposDocumentoDisponibles)
+        {
+            <option value="@tipo.Id">@tipo.Nombre</option>
+        }
+    </CampoSelect>;
+
+    private async Task ConfirmarGestionAsync(SugerenciaGestionDetalleDto sugerencia)
+    {
+        if (!Guid.TryParse(_trabajadorEditado, out var trabajadorId) || !Guid.TryParse(_tipoDocumentoEditado, out var tipoDocumentoId))
+            return;
+
+        _confirmandoGestion = true;
+        try
+        {
+            await OnGenerarGestionesDesdeSugerencia.InvokeAsync((sugerencia.Id, trabajadorId, tipoDocumentoId));
+        }
+        finally
+        {
+            _confirmandoGestion = false;
+            _gestionEnRevision = null;
+        }
+    }
+
+    /// <summary>
+    /// La vinculación no trae una confianza de IA propia (es un score de
+    /// coincidencia, § 13.2) — se expresa como porcentaje del máximo posible
+    /// de la tabla de pesos (165) para que la tarjeta hable el mismo idioma
+    /// que el resto del Action Center, coherente con los ejemplos de § 12.6.
+    /// </summary>
+    private static int ConfianzaVinculacion(DesgloseCoincidenciaDto desglose) =>
+        (int)Math.Round(desglose.Total / 165.0 * 100);
+
+    private static string DescribirDesglose(DesgloseCoincidenciaDto desglose)
+    {
+        var partes = new List<string>();
+        if (desglose.MismoCliente > 0) partes.Add("mismo cliente");
+        if (desglose.VentanaTemporal > 0) partes.Add("actividad reciente");
+        if (desglose.MismoTrabajador > 0) partes.Add("mismo trabajador");
+        if (desglose.MismoCentro > 0) partes.Add("mismo centro");
+        if (desglose.MismoDocumento > 0) partes.Add("mismo documento");
+        if (desglose.MismoProyecto > 0) partes.Add("mismo proyecto");
+        if (desglose.SimilaridadSemantica > 0) partes.Add("contenido similar");
+        return partes.Count > 0 ? string.Join(", ", partes) : "sin coincidencias adicionales";
+    }
+
+    private static string FormatearFechas(string inicio, string fin)
+    {
+        var tieneInicio = DateOnly.TryParse(inicio, out var fechaInicio);
+        var tieneFin = DateOnly.TryParse(fin, out var fechaFin);
+        if (!tieneInicio && !tieneFin) return string.Empty;
+
+        var textoInicio = tieneInicio ? fechaInicio.ToString("dd/MM/yyyy") : "?";
+        var textoFin = tieneFin ? fechaFin.ToString("dd/MM/yyyy") : "?";
+        return textoInicio == textoFin ? textoInicio : $"{textoInicio} - {textoFin}";
+    }
+
+    private static string FormatearFechas(DateOnly? inicio, DateOnly? fin)
+    {
+        if (inicio is null && fin is null) return string.Empty;
+
+        var textoInicio = inicio?.ToString("dd/MM/yyyy") ?? "?";
+        var textoFin = fin?.ToString("dd/MM/yyyy") ?? "?";
+        return textoInicio == textoFin ? textoInicio : $"{textoInicio} - {textoFin}";
+    }
+}

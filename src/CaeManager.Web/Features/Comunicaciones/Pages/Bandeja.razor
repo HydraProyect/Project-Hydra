@@ -33,6 +33,9 @@
             <a class="bandeja-toolbar-enlace" href="/comunicaciones/macros">
                 <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" /> Macros
             </a>
+            <a class="bandeja-toolbar-enlace" href="/comunicaciones/buzon-personal">
+                <Icono Nombre="usuarios" Tamano="TamanoIcono.Pequeno" /> Buzón personal
+            </a>
         </div>
     </div>
 
@@ -163,10 +166,18 @@
                                 @(_detalle.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")
                             </span>
                             <Badge Tono="TonoBadgeDeEstado(_detalle.Estado)">@_detalle.Estado</Badge>
+                            @if (_detalle.EsConversacionInformativaPreCae)
+                            {
+                                <Badge Tono="TonoBadge.Neutro" title="@(_detalle.ResumenRelevanciaCae ?? "Todavía no se ha pedido ni mencionado ninguna gestión CAE en esta conversación.")">
+                                    Contexto de negocio — sin gestión CAE todavía
+                                </Badge>
+                            }
                             <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin cliente asignado")</span>
                         </div>
                     </div>
                     <div class="bandeja-centro-acciones">
+                        <MedidorTiempoGestion @ref="_medidorTiempo" ConversacionId="_detalle.Id" />
+
                         @if (_detalle.ClienteId is null)
                         {
                             <CampoSelect Valor="@_clienteTriageSeleccionado" ValorChanged="v => _clienteTriageSeleccionado = v">
@@ -204,13 +215,7 @@
                 </div>
 
                 <UnifiedTimeline Mensajes="_detalle.Mensajes" Participantes="_detalle.Participantes" Eventos="_detalle.Eventos"
-                                  OnCrearVisitaDesdeSugerencia="IrACrearVisitaDesdeSugerencia"
-                                  OnDescartarSugerenciaVisita="DescartarSugerenciaVisitaAsync"
-                                  OnGenerarGestionesDesdeSugerencia="args => GenerarGestionesDesdeSugerenciaAsync(args.SugerenciaId, args.TrabajadorId, args.TipoDocumentoId)"
-                                  OnDescartarSugerenciaGestion="DescartarSugerenciaGestionAsync"
-                                  OnActualizarDocumentoDesdeAdjunto="AbrirActualizarDocumentoAsync"
-                                  SugerenciaVinculacion="_detalle.SugerenciaVinculacion"
-                                  OnVincularConversacion="VincularConversacionAsync" />
+                                  OnActualizarDocumentoDesdeAdjunto="AbrirActualizarDocumentoAsync" OnConfirmarRuido="ConfirmarRuidoAsync" />
 
                 <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
                              Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"
@@ -222,33 +227,45 @@
             }
         </section>
 
-        @if (_detalle?.ClienteId is not null && _clienteActivo is not null)
+        @if (_clienteActivo is not null || HayAccionesPendientes)
         {
             <aside class="bandeja-columna bandeja-cliente">
-                <div class="bandeja-cliente-titulo">
-                    <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del cliente
-                </div>
-                <div class="bandeja-cliente-cabecera">
-                    <span class="bandeja-cliente-avatar" aria-hidden="true">@ObtenerInicialesCliente(_clienteActivo.RazonSocial)</span>
-                    <div class="bandeja-cliente-identidad">
-                        <h3>@_clienteActivo.RazonSocial</h3>
-                        <span class="bandeja-cliente-cif">CIF @_clienteActivo.Cif</span>
-                    </div>
-                    @if (_clienteActivo.EsCritico)
-                    {
-                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">Crítico</Badge>
-                    }
-                </div>
-                <dl class="bandeja-cliente-datos">
-                    <dt>Ejecutivo asignado</dt>
-                    <dd>@(_ejecutivosDisponibles.FirstOrDefault(e => e.Id == _clienteActivo.EjecutivoUsuarioId)?.NombreCompleto ?? "Sin asignar")</dd>
-                </dl>
-                @if (!string.IsNullOrWhiteSpace(_clienteActivo.Notas))
+                <AccionCenter SugerenciasVisita="SugerenciasVisitaPendientes" SugerenciasGestion="SugerenciasGestionPendientes"
+                              SugerenciaVinculacion="_detalle?.SugerenciaVinculacion"
+                              CentrosDisponibles="_centrosClienteActivo" TrabajadoresDisponibles="_trabajadoresSelector" TiposDocumentoDisponibles="_tiposDocumentoSelector"
+                              OnCrearVisitaDesdeSugerencia="args => IrACrearVisitaDesdeSugerencia(args.SugerenciaId, args.CentroId, args.FechaInicio, args.FechaFin)"
+                              OnDescartarSugerenciaVisita="DescartarSugerenciaVisitaAsync"
+                              OnGenerarGestionesDesdeSugerencia="args => GenerarGestionesDesdeSugerenciaAsync(args.SugerenciaId, args.TrabajadorId, args.TipoDocumentoId)"
+                              OnDescartarSugerenciaGestion="DescartarSugerenciaGestionAsync"
+                              OnVincularConversacion="VincularConversacionAsync" />
+
+                @if (_clienteActivo is not null)
                 {
-                    <div class="bandeja-cliente-notas">
-                        <span class="bandeja-cliente-notas-titulo">Notas del cliente</span>
-                        <p>@_clienteActivo.Notas</p>
+                    <div class="bandeja-cliente-titulo">
+                        <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del cliente
                     </div>
+                    <div class="bandeja-cliente-cabecera">
+                        <span class="bandeja-cliente-avatar" aria-hidden="true">@ObtenerInicialesCliente(_clienteActivo.RazonSocial)</span>
+                        <div class="bandeja-cliente-identidad">
+                            <h3>@_clienteActivo.RazonSocial</h3>
+                            <span class="bandeja-cliente-cif">CIF @_clienteActivo.Cif</span>
+                        </div>
+                        @if (_clienteActivo.EsCritico)
+                        {
+                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">Crítico</Badge>
+                        }
+                    </div>
+                    <dl class="bandeja-cliente-datos">
+                        <dt>Ejecutivo asignado</dt>
+                        <dd>@(_ejecutivosDisponibles.FirstOrDefault(e => e.Id == _clienteActivo.EjecutivoUsuarioId)?.NombreCompleto ?? "Sin asignar")</dd>
+                    </dl>
+                    @if (!string.IsNullOrWhiteSpace(_clienteActivo.Notas))
+                    {
+                        <div class="bandeja-cliente-notas">
+                            <span class="bandeja-cliente-notas-titulo">Notas del cliente</span>
+                            <p>@_clienteActivo.Notas</p>
+                        </div>
+                    }
                 }
             </aside>
         }

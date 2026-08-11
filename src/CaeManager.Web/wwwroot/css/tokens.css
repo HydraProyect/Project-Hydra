@@ -124,6 +124,7 @@
   --font-body: var(--font-body-lg);
   --font-small: var(--font-body-md);
   --font-caption: var(--font-body-sm);
+  --font-label: var(--font-label-md); /* 06 § 7 — etiquetas de formulario y badges */
 
   /* Espaciado (escala de 8px con medios pasos donde hacen falta) */
   --space-1: 0.25rem;   /* 4px */

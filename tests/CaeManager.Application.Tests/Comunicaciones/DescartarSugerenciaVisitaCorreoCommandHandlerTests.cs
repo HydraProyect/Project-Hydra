@@ -11,21 +11,22 @@ public class DescartarSugerenciaVisitaCorreoCommandHandlerTests
     [Fact]
     public async Task Marca_la_sugerencia_como_resuelta()
     {
-        var sugerencia = new SugerenciaVisitaCorreo(Guid.NewGuid(), null, null, null, "Resumen");
+        var sugerencia = new SugerenciaVisitaCorreo(Guid.NewGuid(), null, null, null, "Resumen", 90, 0, 0);
         var repositorio = new SugerenciaVisitaCorreoRepositorioFalso();
         repositorio.Agregar(sugerencia);
-        var handler = new DescartarSugerenciaVisitaCorreoCommandHandler(repositorio, new UnitOfWorkFalso());
+        var handler = new DescartarSugerenciaVisitaCorreoCommandHandler(repositorio, new CurrentUserServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(new DescartarSugerenciaVisitaCorreoCommand(sugerencia.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         sugerencia.Resuelta.Should().BeTrue();
+        sugerencia.Resolucion.Should().Be(ResolucionSugerencia.Descartada);
     }
 
     [Fact]
     public async Task Falla_si_la_sugerencia_no_existe()
     {
-        var handler = new DescartarSugerenciaVisitaCorreoCommandHandler(new SugerenciaVisitaCorreoRepositorioFalso(), new UnitOfWorkFalso());
+        var handler = new DescartarSugerenciaVisitaCorreoCommandHandler(new SugerenciaVisitaCorreoRepositorioFalso(), new CurrentUserServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(new DescartarSugerenciaVisitaCorreoCommand(Guid.NewGuid()), CancellationToken.None);
 

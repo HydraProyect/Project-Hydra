@@ -157,13 +157,12 @@ la normativa recién cerrada:
 | 3 | El ámbito **Empresa no está separado** dentro del centro | `05` § 2.3 (DDL-031) | Medio: el recuento agrega sin declarar de quién | **Cerrada** (PR #161, OD-13): bloque `fila-sujeto-ambito` separa Empresa de Trabajadores dentro del acordeón del centro. |
 | 4 | Las visitas múltiples **no se representan** con recuento y detalle | `05` § 2.5 (DDL-035) | Bajo hasta que aparezca el caso real | **Cerrada** (PR #161): `ObtenerProximaVisitaPorCentroQuery` deja de colapsar a una sola visita por centro; la fila muestra recuento + `VentanaContexto` cuando hay más de una. |
 | 5 | El **orden por cumplimiento** no existe | `04` § 3.3 (DDL-036) | Medio | **Cerrada** (PR #161): ordenación por `CumplimientoPorcentaje` añadida (DB-side e in-memory), "sin requisitos" siempre al final en ambos sentidos. |
-| 6 | Las tarjetas y filas **usan sombra** | `06` § 5 (DDL-013) | Alto en superficie de código; bajo en riesgo | Sin cambios en esta ronda — no auditada de nuevo. |
-| 7 | El **ripple** se aplica a todos los botones, incluidos los de fila | `07` § 5 (DDL-045) | Bajo | Sin cambios en esta ronda — no auditada de nuevo. |
-| 8 | El texto secundario usa el valor que **incumple contraste** | `06` § 2.5 (DDL-029) | Alto: es un incumplimiento objetivo | Sin cambios en esta ronda — no auditada de nuevo. |
+| 6 | Las tarjetas y filas **usan sombra** | `06` § 5 (DDL-013) | Alto en superficie de código; bajo en riesgo | **Cerrada** (verificado en navegador, 2026-08-09): en `/centros`, la única `box-shadow` real es la de `VentanaContexto.razor.css` (nivel Overlay, `--shadow-overlay`); ninguna fila ni tarjeta tiene sombra. Se cerró como parte del fix global de tokens de la normativa 2026-08-08, nunca reauditado aquí hasta ahora. |
+| 7 | El **ripple** se aplica a todos los botones, incluidos los de fila | `07` § 5 (DDL-045) | Bajo | **Cerrada** (verificado en navegador, 2026-08-09): el botón "Detalles" de fila usa `boton-fantasma`, no `boton-primario`; `microinteracciones.js` delega el ripple solo a `.boton-primario` (comentario explícito en el archivo citando DDL-045). Mismo fix global, nunca reauditado aquí. |
+| 8 | El texto secundario usa el valor que **incumple contraste** | `06` § 2.5 (DDL-029) | Alto: es un incumplimiento objetivo | **Cerrada** (verificado en navegador, 2026-08-09): `--color-text-muted` computado en `/centros` es el valor corregido de DDL-029 (5.18:1), no el escalón `--color-neutral-500` (3.96:1) que incumplía. Mismo fix global, nunca reauditado aquí. |
 | 9 | El Context Panel **no tiene deep-link ni cierre automático** | `05` § 3.6 | Medio: impide enlazar directamente a una sección | Sigue abierta — `05` § 3.6 la declara explícitamente como hueco real, no dar por hecha. |
 
-**Orden recomendado de corrección**: 8 (incumplimiento objetivo, acotado) → completar 2 y 1 en el
-resto de superficies → 6 caso por caso → 7 → 9 cuando toque.
+**Orden recomendado de corrección**: 9 es la única divergencia que queda abierta en esta lista.
 
 ## 9. Decisiones que gobiernan esta superficie
 

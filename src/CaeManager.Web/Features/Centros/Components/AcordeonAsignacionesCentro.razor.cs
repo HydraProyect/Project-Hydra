@@ -12,6 +12,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelecto
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Documentos.Components;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 
@@ -39,51 +40,56 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     /// </summary>
     [Parameter] public IReadOnlyList<IncidenciaCentroDto> IncidenciasEmpresa { get; set; } = [];
 
+    /// <summary>
+    /// Se dispara tras guardar un documento o una asignación in situ —
+    /// Centros.razor vuelve a pedir esta fila (ver RefrescarCentroAsync).
+    /// Un nombre solo, no uno por tipo de guardado: al padre le basta con
+    /// saber "algo de este centro cambió", no distinguir la causa.
+    /// </summary>
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    /// <summary>
+    /// "Selección múltiple" de la página (Centros.razor) — los checkboxes de
+    /// fila de Trabajador solo se pintan con esto activo, mismo criterio que
+    /// ya aplica la fila de Centro (§ 0.9): son ruido permanente para una
+    /// acción ocasional, no algo "de serie".
+    /// </summary>
+    [Parameter] public bool SeleccionMultiple { get; set; }
+
     private bool _cargando = true;
     private bool _errorCarga;
     private IReadOnlyList<TrabajadorAsignacionDocumentacionDto> _trabajadores = [];
     private readonly HashSet<Guid> _seleccionados = [];
+    private bool _seleccionMultipleAnterior;
+
+    /// <summary>
+    /// Qué filas de Trabajador tienen su tabla de documentos abierta (variante
+    /// A, OD-12 cerrada). Estado propio del componente, no de
+    /// <c>SeccionColapsable</c> (contrato de fidelidad 2026-08-09 § 1.2/1.4):
+    /// esa composición queda prohibida como base visual de esta fila, aunque
+    /// el mecanismo de expandir/colapsar en sí — el mismo bool toggle — sí se
+    /// reutiliza, igual que ya hace la fila de Centro con su propio HashSet.
+    /// </summary>
+    private readonly HashSet<Guid> _expandidosTrabajador = [];
 
     private IReadOnlyList<TrabajadorSinAsignacionDto> _trabajadoresVisitaSinAsignacion = [];
     private readonly HashSet<Guid> _asignandoDesdeVisita = [];
-
-    private static readonly IReadOnlyList<PestanaDefinicion> _pestanasAlta =
-    [
-        new("Lista", "Lista"),
-        new("Matriz", "Matriz")
-    ];
-
-    private bool _drawerAltaVisible;
-    private string _vistaAlta = "Lista";
-    private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
-    private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
-    private readonly HashSet<Guid> _trabajadorIdsSeleccionados = [];
-    private readonly HashSet<Guid> _centroIdsSeleccionados = [];
-    private readonly HashSet<(Guid TrabajadorId, Guid CentroId)> _celdasExcluidas = [];
-    private string _fechaAlta = string.Empty;
-    private bool _guardandoAlta;
-    private string? _mensajeErrorAlta;
-    private IReadOnlyList<DocumentoFaltanteDto> _documentosFaltantes = [];
 
     private bool _confirmarBajaLoteVisible;
     private string _fechaBajaLote = string.Empty;
     private bool _procesandoBajaLote;
 
-    private IReadOnlyList<ElementoSeleccionable> _trabajadoresComoOpciones =>
-        _trabajadoresDisponibles.Select(t => new ElementoSeleccionable(t.Id, $"{t.NombreCompleto} ({t.Dni})")).ToList();
-
-    private IReadOnlyList<ElementoSeleccionable> _centrosComoOpciones =>
-        _centrosDisponibles.Select(c => new ElementoSeleccionable(c.Id, $"{c.Nombre} ({c.ClienteRazonSocial})")).ToList();
-
-    private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresSeleccionadosOrdenados =>
-        _trabajadoresDisponibles.Where(t => _trabajadorIdsSeleccionados.Contains(t.Id))
-            .OrderBy(t => t.NombreCompleto).ToList();
-
-    private IReadOnlyList<CentroSelectorDto> _centrosSeleccionadosOrdenados =>
-        _centrosDisponibles.Where(c => _centroIdsSeleccionados.Contains(c.Id))
-            .OrderBy(c => c.Nombre).ToList();
+    private DrawerAsignacionMasiva _drawerAsignacion = default!;
 
     protected override Task OnInitializedAsync() => CargarAsync();
+
+    /// <summary>Apagar "Selección múltiple" limpia la selección de trabajadores — mismo criterio que Centros.razor.cs.AlternarSeleccionMultiple.</summary>
+    protected override void OnParametersSet()
+    {
+        if (_seleccionMultipleAnterior && !SeleccionMultiple)
+            _seleccionados.Clear();
+        _seleccionMultipleAnterior = SeleccionMultiple;
+    }
 
     private async Task CargarAsync()
     {
@@ -156,9 +162,57 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     private static int DocumentosAlDia(TrabajadorAsignacionDocumentacionDto trabajador) =>
         trabajador.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
 
-    /// <summary>Badge circular junto al "7/9" (PLAN-EJECUCION-UX.md § 0.8) — misma fracción, solo cambia la representación.</summary>
-    private static int PorcentajeCumplimiento(TrabajadorAsignacionDocumentacionDto trabajador) =>
-        (int)Math.Round(DocumentosAlDia(trabajador) * 100.0 / trabajador.Documentos.Count);
+    private void AlternarExpansionTrabajador(Guid asignacionId)
+    {
+        if (!_expandidosTrabajador.Add(asignacionId))
+            _expandidosTrabajador.Remove(asignacionId);
+    }
+
+    /// <summary>
+    /// Documentos vencidos del trabajador para la 1ª ranura de recuento
+    /// (contrato de fidelidad 2026-08-09 § 1.1/1.4). "Faltante cuenta como
+    /// vencido" — mismo criterio que <c>ObtenerCentrosQuery.Desglosar</c> a
+    /// nivel de Centro, para que el léxico cerrado no necesite una tercera
+    /// casilla también aquí.
+    /// </summary>
+    private static IReadOnlyList<DocumentoRequeridoDto> DocumentosVencidos(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        trabajador.Documentos.Where(d => d.Estado is EstadoDocumento.Vencido or EstadoDocumento.Faltante).ToList();
+
+    /// <summary>Documentos próximos a vencer del trabajador, para la 2ª ranura de recuento.</summary>
+    private static IReadOnlyList<DocumentoRequeridoDto> DocumentosProximos(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        trabajador.Documentos.Where(d => d.Estado == EstadoDocumento.Proximo).ToList();
+
+    /// <summary>
+    /// Documentos en ventana urgente del trabajador, para la 3ª ranura.
+    /// "Urgente" es la única severidad que ni la 1ª ni la 2ª ranura recogen
+    /// (mismo criterio que <c>ObtenerCentrosQuery.Desglosar</c>, que tampoco
+    /// la cuenta en ninguno de los dos recuentos del Centro) — por eso es lo
+    /// único que le queda por decir a esta ranura sin repetir lo que ya dicen
+    /// las dos anteriores. Mostrar aquí <c>trabajador.PeorEstado</c> siempre
+    /// (como hacía la cabecera de <c>SeccionColapsable</c>) duplicaba el
+    /// recuento de vencidos/próximos con otro badge al lado — justo el efecto
+    /// que la lámina evita dejando esta ranura vacía en la mayoría de filas.
+    /// </summary>
+    private static IReadOnlyList<DocumentoRequeridoDto> DocumentosUrgentes(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        trabajador.Documentos.Where(d => d.Estado == EstadoDocumento.Urgente).ToList();
+
+    /// <summary>Nombre accesible del badge de solo recuento — mismo criterio que <c>Centros.razor.cs.DescribirRecuento</c>, sin el desglose por ámbito porque aquí el sujeto ya es un único trabajador.</summary>
+    private static string DescribirRecuentoTrabajador(IReadOnlyList<DocumentoRequeridoDto> documentos, string calificativo) =>
+        documentos.Count == 1
+            ? $"1 documento {calificativo}"
+            : $"{documentos.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
+
+    private static string DescribirDocumentoIncidencia(DocumentoRequeridoDto documento) => documento.Estado switch
+    {
+        EstadoDocumento.Faltante => $"{documento.TipoDocumentoNombre} — pendiente de subir",
+        EstadoDocumento.Vencido when documento.FechaVencimiento is { } vencio => $"{documento.TipoDocumentoNombre} — venció {vencio:dd/MM/yyyy}",
+        EstadoDocumento.Proximo when documento.FechaVencimiento is { } caduca => $"{documento.TipoDocumentoNombre} — caduca {caduca:dd/MM/yyyy}",
+        _ => documento.TipoDocumentoNombre
+    };
+
+    /// <summary>"Detalles" de la fila de Trabajador (blueprint § 3.3, contrato § 1.4) — mismo patrón que Trabajadores.razor/Incidencias.razor/Gestiones.razor, no una ruta nueva.</summary>
+    private Task AbrirDetalleTrabajador(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, trabajador.TrabajadorId, trabajador.TrabajadorNombre, "informacion");
 
     private void AlternarSeleccion(Guid asignacionId, bool marcado)
     {
@@ -166,169 +220,54 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
         else _seleccionados.Remove(asignacionId);
     }
 
+    private DrawerGestionDocumento _drawerGestion = default!;
+
     /// <summary>
-    /// Un documento faltante no tiene DocumentoId todavía — lleva al drawer
-    /// de creación con el propietario y el tipo ya elegidos, mismo patrón que
-    /// "Gestionar" en Alertas.razor.cs.
+    /// Gestionar in situ (contrato de fidelidad 2026-08-09, item 3 del
+    /// backlog): antes navegaba a /documentos, ahora abre el mismo drawer
+    /// compartido sin salir de Centro 360. Un documento faltante no tiene
+    /// DocumentoId todavía — abre el drawer de creación con el propietario y
+    /// el tipo ya elegidos, mismo patrón que "Gestionar" en Alertas.razor.cs.
     /// </summary>
-    private void Gestionar(Guid trabajadorId, DocumentoRequeridoDto documento) => NavigationManager.NavigateTo(
+    private Task GestionarAsync(Guid trabajadorId, DocumentoRequeridoDto documento) =>
         documento.DocumentoId is { } documentoId
-            ? $"/documentos?documentoId={documentoId}"
-            : $"/documentos?trabajadorId={trabajadorId}&tipoDocumentoId={documento.TipoDocumentoId}");
+            ? _drawerGestion.AbrirEditarAsync(documentoId)
+            : _drawerGestion.AbrirCrearParaFaltanteAsync(trabajadorId, documento.TipoDocumentoId);
 
-    private async Task AbrirDrawerAltaAsync()
+    /// <summary>
+    /// Mismo patrón que <see cref="GestionarAsync"/> — hoy siempre resuelve a
+    /// la rama con DocumentoId (AgregarCausasDeEmpresaAsync no detecta falta
+    /// total), la otra rama queda lista para cuando ese alcance se amplíe.
+    /// </summary>
+    private Task GestionarEmpresaAsync(IncidenciaCentroDto incidencia) =>
+        incidencia.DocumentoId is { } documentoId
+            ? _drawerGestion.AbrirEditarAsync(documentoId)
+            : _drawerGestion.AbrirCrearParaFaltanteEmpresaAsync(EmpresaId, incidencia.TipoDocumentoId!.Value);
+
+    /// <summary>
+    /// El bloque Empresa (IncidenciasEmpresa) y el badge/estado de la fila de
+    /// Centro llegan como Parameter desde Centros.razor — este componente no
+    /// los puede refrescar por sí solo, así que además de recargar su propia
+    /// lista de Trabajador avisa al padre (OnCambio) para que vuelva a pedir
+    /// la fila del Centro. Misma reacción tras guardar un documento o una
+    /// asignación: los dos cambian el estado calculado del Centro.
+    /// </summary>
+    private async Task ManejarDocumentoGuardadoAsync()
     {
-        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
-        _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
-
-        _vistaAlta = "Lista";
-        _trabajadorIdsSeleccionados.Clear();
-        _centroIdsSeleccionados.Clear();
-        // El Centro de esta fila queda pre-marcado — el gestor puede seguir
-        // añadiendo otros centros si quiere, la matriz no se recorta (PLAN-EJECUCION-UX.md § 0.1).
-        if (_centrosDisponibles.Any(c => c.Id == CentroId))
-            _centroIdsSeleccionados.Add(CentroId);
-        _celdasExcluidas.Clear();
-        _documentosFaltantes = [];
-        _fechaAlta = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
-        _mensajeErrorAlta = null;
-        _drawerAltaVisible = true;
+        await CargarAsync();
+        if (OnCambio.HasDelegate)
+            await OnCambio.InvokeAsync();
     }
 
-    private async Task AlternarTrabajadorAsync(Guid trabajadorId, bool marcado)
+    private Task ManejarAsignacionGuardadaAsync() => ManejarDocumentoGuardadoAsync();
+
+    private static string TextoVigenciaEmpresa(IncidenciaCentroDto incidencia)
     {
-        if (marcado)
-            _trabajadorIdsSeleccionados.Add(trabajadorId);
-        else
-        {
-            _trabajadorIdsSeleccionados.Remove(trabajadorId);
-            _celdasExcluidas.RemoveWhere(c => c.TrabajadorId == trabajadorId);
-        }
+        if (incidencia.FechaVencimiento is not { } fecha)
+            return "Sin caducidad";
 
-        await ActualizarPreflightAsync();
-    }
-
-    private async Task AlternarCentroAsync(Guid centroId, bool marcado)
-    {
-        if (marcado)
-            _centroIdsSeleccionados.Add(centroId);
-        else
-        {
-            _centroIdsSeleccionados.Remove(centroId);
-            _celdasExcluidas.RemoveWhere(c => c.CentroId == centroId);
-        }
-
-        await ActualizarPreflightAsync();
-    }
-
-    private void AlternarCeldaMatriz(Guid trabajadorId, Guid centroId, bool incluida)
-    {
-        if (incluida)
-            _celdasExcluidas.Remove((trabajadorId, centroId));
-        else
-            _celdasExcluidas.Add((trabajadorId, centroId));
-    }
-
-    private async Task ActualizarPreflightAsync()
-    {
-        if (_trabajadorIdsSeleccionados.Count == 0 || _centroIdsSeleccionados.Count == 0)
-        {
-            _documentosFaltantes = [];
-            return;
-        }
-
-        _documentosFaltantes = await Mediator.Send(new ObtenerDocumentosFaltantesParaAsignacionQuery(
-            _trabajadorIdsSeleccionados.ToList(), _centroIdsSeleccionados.ToList()));
-    }
-
-    private async Task GuardarAltaAsync()
-    {
-        _guardandoAlta = true;
-        _mensajeErrorAlta = null;
-
-        try
-        {
-            if (_trabajadorIdsSeleccionados.Count == 0)
-            {
-                _mensajeErrorAlta = "Selecciona al menos un trabajador.";
-                return;
-            }
-
-            if (_centroIdsSeleccionados.Count == 0)
-            {
-                _mensajeErrorAlta = "Selecciona al menos un centro.";
-                return;
-            }
-
-            if (!DateOnly.TryParse(_fechaAlta, out var fechaAlta))
-            {
-                _mensajeErrorAlta = "Introduce una fecha de alta válida.";
-                return;
-            }
-
-            var creadas = 0;
-            var yaActivas = 0;
-            var errores = new List<string>();
-
-            if (_celdasExcluidas.Count == 0)
-            {
-                var resultado = await Mediator.Send(new CrearAsignacionesCommand(
-                    _trabajadorIdsSeleccionados.ToList(), _centroIdsSeleccionados.ToList(), fechaAlta));
-
-                if (resultado.EsFallido)
-                {
-                    _mensajeErrorAlta = resultado.Error.Mensaje;
-                    return;
-                }
-
-                creadas = resultado.Valor.Creadas;
-                yaActivas = resultado.Valor.YaActivas;
-                errores.AddRange(resultado.Valor.Errores);
-            }
-            else
-            {
-                foreach (var centroId in _centroIdsSeleccionados)
-                {
-                    var trabajadorIdsParaCentro = _trabajadorIdsSeleccionados
-                        .Where(t => !_celdasExcluidas.Contains((t, centroId)))
-                        .ToList();
-
-                    if (trabajadorIdsParaCentro.Count == 0) continue;
-
-                    var resultado = await Mediator.Send(new CrearAsignacionesCommand(trabajadorIdsParaCentro, [centroId], fechaAlta));
-
-                    if (resultado.EsFallido)
-                    {
-                        _mensajeErrorAlta = resultado.Error.Mensaje;
-                        return;
-                    }
-
-                    creadas += resultado.Valor.Creadas;
-                    yaActivas += resultado.Valor.YaActivas;
-                    errores.AddRange(resultado.Valor.Errores);
-                }
-            }
-
-            var resumen = $"{creadas} asignación(es) creada(s)" + (yaActivas > 0 ? $", {yaActivas} ya estaban activas." : ".");
-            ToastService.Mostrar(resumen, errores.Count > 0 ? TonoToast.Advertencia : TonoToast.Exito);
-            foreach (var error in errores)
-                ToastService.Mostrar(error, TonoToast.Advertencia);
-
-            _drawerAltaVisible = false;
-            await CargarAsync();
-        }
-        catch (ValidationException)
-        {
-            _mensajeErrorAlta = "Revisa los datos introducidos.";
-        }
-        catch (Exception)
-        {
-            _mensajeErrorAlta = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
-        }
-        finally
-        {
-            _guardandoAlta = false;
-        }
+        var texto = fecha.ToString("dd/MM/yyyy");
+        return incidencia.Estado == EstadoDocumento.Vencido ? $"Vencio {texto}" : $"Caduca {texto}";
     }
 
     private void AbrirConfirmarBajaLoteAsync()

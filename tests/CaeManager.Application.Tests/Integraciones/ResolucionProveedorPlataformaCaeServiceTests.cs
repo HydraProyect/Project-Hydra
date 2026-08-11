@@ -81,6 +81,25 @@ public class ResolucionProveedorPlataformaCaeServiceTests
         resultado.Should().ContainSingle().Which.Nombre.Should().Be("Dokify");
     }
 
+    [Theory]
+    [InlineData("notificaciones@dokify.net", "dokify.net")]
+    [InlineData("Notificaciones@Dokify.NET", "Dokify.NET")]
+    [InlineData("  contacto@ctaima.com  ", "ctaima.com")]
+    public void ExtraerDominioCorreo_devuelve_lo_que_sigue_a_la_arroba(string entrada, string dominioEsperado)
+    {
+        ResolucionProveedorPlataformaCaeService.ExtraerDominioCorreo(entrada).Should().Be(dominioEsperado);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("sin-arroba")]
+    [InlineData("termina-en-arroba@")]
+    public void ExtraerDominioCorreo_devuelve_null_sin_forma_de_email(string? entrada)
+    {
+        ResolucionProveedorPlataformaCaeService.ExtraerDominioCorreo(entrada).Should().BeNull();
+    }
+
     [Fact]
     public void Resolver_devuelve_varios_candidatos_cuando_dos_proveedores_comparten_dominio()
     {

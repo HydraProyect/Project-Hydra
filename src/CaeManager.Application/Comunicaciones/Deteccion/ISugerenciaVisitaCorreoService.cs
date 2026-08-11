@@ -54,6 +54,7 @@ public class SugerenciaVisitaCorreoService(
 
         sugerenciaRepositorio.Agregar(new SugerenciaVisitaCorreo(
             mensaje.Id, deteccionDto.CentroId, deteccionDto.FechaInicio, deteccionDto.FechaFin,
-            deteccionDto.Resumen ?? "El correo parece solicitar una visita."));
+            deteccionDto.Resumen ?? "El correo parece solicitar una visita.",
+            deteccionDto.Confianza, deteccionDto.ConfianzaCentro, deteccionDto.ConfianzaFechas));
     }
 }

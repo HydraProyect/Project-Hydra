@@ -25,16 +25,21 @@
 <div class="contenedor-pagina">
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">Centros</h1>
-        <div class="acciones-cabecera">
-            <a class="enlace-exportar" href="/centros/exportar.xlsx">Exportar a Excel</a>
-            <a class="enlace-exportar" href="/asignaciones/exportar.xlsx">Exportar asignaciones</a>
-            <Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton>
-        </div>
     </div>
 
-    <div class="barra-filtros">
-        <CampoTexto Placeholder="Buscar por nombre…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <FiltroEstado Etiqueta="Cumplimiento" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+    @*
+        Toolbar de Centros (contrato de fidelidad 2026-08-09 § 1.4): una sola
+        fila con buscar/estado/orden/selección-múltiple/expandir-todos/
+        exportar/nuevo, en vez de las 3 regiones fragmentadas que había antes
+        (cabecera de página, barra de filtros, BarraHerramientasLista). Los
+        controles de selección múltiple y expandir/colapsar todos llaman
+        directamente a los métodos que ya usaba BarraHerramientasLista — se
+        reutiliza el comportamiento, no su composición en región propia
+        (prohibida, contrato § 1.2).
+    *@
+    <div class="barra-trabajo-centros">
+        <CampoTexto Placeholder="Buscar centro, cliente o empresa…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <FiltroEstado Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                       Opciones="EstadoCentroUi.Opciones" />
         @*
             Orden por cumplimiento (blueprint § 3.1, DDL-036). Existe para
@@ -46,6 +51,26 @@
                aria-pressed="@(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? "true" : "false")">
             Cumplimiento @(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? (_ordenDescendente ? "↓" : "↑") : "")
         </Boton>
+        @*
+            Selección múltiple / Expandir todos van en Secundario, no
+            Fantasma: son controles de la barra de herramientas (lámina L3
+            ".btn.ghost", con borde), no acciones de fila — Fantasma pasó a
+            ser el link plano de fila (".splink") al corregir el botón
+            "Detalles"/"Eliminar", y usarlo aquí los dejaría sin el borde que
+            los distingue como controles de la toolbar.
+        *@
+        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+               OnClick="() => AlternarSeleccionMultiple(!_seleccionMultiple)"
+               aria-pressed="@(_seleccionMultiple ? "true" : "false")">
+            Selección múltiple
+        </Boton>
+        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+               OnClick="() => AlternarTodosExpandidos(!TodosExpandidos)">
+            @(TodosExpandidos ? "Colapsar todos" : "Expandir todos")
+        </Boton>
+        <a class="enlace-exportar" href="/centros/exportar.xlsx">Exportar a Excel</a>
+        <a class="enlace-exportar" href="/asignaciones/exportar.xlsx">Exportar asignaciones</a>
+        <Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton>
     </div>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -72,9 +97,6 @@
     }
     else
     {
-        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
-                                TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
-
         @if (_seleccionMultiple)
         {
             <label class="campo-checkbox">
@@ -121,15 +143,21 @@
                             todas las filas, independientemente de lo largo que sea el
                             nombre del centro (lámina L3, blueprint § 3.2).
                         *@
-                        <span class="tarjeta-fila-acordeon-indicadores">
                         @*
-                            Ranuras FIJAS de recuento (blueprint § 3.2, lámina L3):
-                            vencidos y próximos caen siempre en la misma vertical,
-                            estén o no presentes en esa fila. Con un flex libre, una
-                            fila sin recuento corre la etiqueta de estado hacia la
-                            izquierda y deja de poderse leer la columna en vertical.
+                            Ranuras FIJAS de recuento (blueprint § 3.2, lámina L3,
+                            contrato de fidelidad 2026-08-09 § 1.6, bug C-2):
+                            vencidos · próximos · estado-o-visita caen siempre en
+                            la misma vertical, estén o no presentes en esa fila.
+
+                            La 3ª ranura es mutuamente excluyente entre el Badge
+                            de Estado y la visita — antes se mostraban los dos a
+                            la vez y el ancho fijo de la columna no les alcanzaba
+                            (C-2: "Visita 15/08–16/08" caía a una segunda línea
+                            bajo "Bloqueado"). Cuando hay visita, la visita gana
+                            el espacio porque es la información con fecha límite;
+                            si no hay visita, se ve el estado.
                         *@
-                        <span class="ranuras-recuento">
+                        <span class="tarjeta-fila-acordeon-indicadores">
                             <span class="ranura-recuento">
                                 @if (centro.Recuentos.TotalVencidas > 0)
                                 {
@@ -162,50 +190,56 @@
                                     </VentanaContexto>
                                 }
                             </span>
+                            <span class="ranura-recuento ranura-recuento-final">
+                                @* Visitas SIN fusionar (DDL-035, OD-18). Ventana de contexto en los
+                                   dos casos (antes solo la de varias visitas la tenía) — el badge
+                                   de una sola visita es un recuento igual que cualquier otro (08 § 6,
+                                   DDL-033), y sin ventana no dice cuántos trabajadores implica. *@
+                                @if (visitas.Count == 1)
+                                {
+                                    <VentanaContexto Etiqueta="@($"1 visita programada: del {visita!.FechaInicio:dd/MM} al {visita.FechaFin:dd/MM}, {visita.TrabajadoresCount} trabajador(es)")"
+                                                     Titulo="1 visita programada">
+                                        <Disparador>
+                                            <button type="button" class="badge-visita"
+                                                    @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
+                                                Visita @visita!.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
+                                            </button>
+                                        </Disparador>
+                                        <Detalle>
+                                            <span class="ventana-linea">@visita.FechaInicio.ToString("dd/MM") – @visita.FechaFin.ToString("dd/MM") · @visita.TrabajadoresCount trabajador(es)</span>
+                                        </Detalle>
+                                    </VentanaContexto>
+                                }
+                                else if (visitas.Count > 1)
+                                {
+                                    <VentanaContexto Etiqueta="@($"{visitas.Count} visitas programadas: {string.Join("; ", visitas.Select(v => $"del {v.FechaInicio:dd/MM} al {v.FechaFin:dd/MM}, {v.TrabajadoresCount} trabajador(es)"))}")"
+                                                     Titulo="@($"{visitas.Count} visitas programadas")">
+                                        <Disparador>
+                                            <button type="button" class="badge-visita"
+                                                    @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
+                                                @visitas.Count visitas
+                                            </button>
+                                        </Disparador>
+                                        <Detalle>
+                                            @foreach (var v in visitas)
+                                            {
+                                                <span class="ventana-linea">@v.FechaInicio.ToString("dd/MM") – @v.FechaFin.ToString("dd/MM") · @v.TrabajadoresCount trabajador(es)</span>
+                                            }
+                                        </Detalle>
+                                    </VentanaContexto>
+                                }
+                                else if (MostrarEstadoEnIndicadores(centro))
+                                {
+                                    <Badge Tono="EstadoCentroUi.Tono(centro.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado)</Badge>
+                                }
+                            </span>
                         </span>
-                        <Badge Tono="EstadoCentroUi.Tono(centro.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado)</Badge>
-                        @*
-                            Visitas SIN fusionar (DDL-035, OD-18). Con una sola visita
-                            se muestra su fecha; con varias, el recuento y el detalle
-                            por visita en la ventana de contexto.
-
-                            Dos visitas del 12 al 14 y del 20 al 22 no son "del 12 al
-                            22": un rango fusionado diría que el centro está visitado
-                            once días seguidos, que es falso, y borraría cuántas
-                            visitas hay y cuándo es cada una.
-                        *@
-                        @if (visitas.Count == 1)
-                        {
-                            <button type="button" class="badge-visita"
-                                    @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
-                                Visita @visita!.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
-                            </button>
-                        }
-                        else if (visitas.Count > 1)
-                        {
-                            <VentanaContexto Etiqueta="@($"{visitas.Count} visitas programadas: {string.Join("; ", visitas.Select(v => $"del {v.FechaInicio:dd/MM} al {v.FechaFin:dd/MM}"))}")"
-                                             Titulo="@($"{visitas.Count} visitas programadas")">
-                                <Disparador>
-                                    <button type="button" class="badge-visita"
-                                            @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
-                                        @visitas.Count visitas
-                                    </button>
-                                </Disparador>
-                                <Detalle>
-                                    @foreach (var v in visitas)
-                                    {
-                                        <span class="ventana-linea">Del @v.FechaInicio.ToString("dd/MM") al @v.FechaFin.ToString("dd/MM")</span>
-                                    }
-                                </Detalle>
-                            </VentanaContexto>
-                        }
-                        </span>
+                        @* Acción por fila de Centro: una sola, "Detalles" (contrato de
+                           fidelidad 2026-08-09 § 1.1). Eliminar sigue disponible en
+                           lote, activando "Selección múltiple". *@
                         <div class="tarjeta-fila-acordeon-acciones">
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
                                 Detalles
-                            </Boton>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(centro.Id, centro.Nombre)">
-                                Eliminar
                             </Boton>
                         </div>
                     </div>
@@ -217,7 +251,9 @@
                             <AcordeonAsignacionesCentro CentroId="centro.Id" CentroNombre="@centro.Nombre"
                                                           VisitaId="visita?.VisitaId" VisitaFechaFin="visita?.FechaFin"
                                                           EmpresaId="centro.EmpresaId" EmpresaNombre="@centro.EmpresaRazonSocial"
-                                                          IncidenciasEmpresa="IncidenciasDeEmpresa(centro)" />
+                                                          IncidenciasEmpresa="IncidenciasDeEmpresa(centro)"
+                                                          SeleccionMultiple="_seleccionMultiple"
+                                                          OnCambio="() => RefrescarCentroAsync(centro.Id)" />
                         </div>
                     }
                 </div>
@@ -290,16 +326,18 @@
                           NombreInicial="@_nombreParaCrearEmpresa" ClienteIdParaVincular="@ClienteIdParaFormularioRapido"
                           OnCreado="ManejarEmpresaCreadaAsync" />
 
-<DialogoConfirmacion
-    Visible="_confirmarEliminarVisible"
-    VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@($"¿Eliminar {_nombreAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
-    EnProgreso="_eliminando"
-    OnConfirmar="ConfirmarEliminarAsync" />
-
 <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true">
+    <AccionesExtra>
+        @* Item 4 del backlog Centro 360 — funcionalidad nueva sin contrato previo,
+           mismo patrón que "Asignar a centro…" de /trabajadores (Fase B). *@
+        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(_seleccionados)">
+            Asignar a centros seleccionados…
+        </Boton>
+    </AccionesExtra>
+</BarraAccionesLote>
+
+<DrawerAsignacionMasiva @ref="_drawerAsignacion" OnGuardado="ManejarAsignacionMasivaGuardadaAsync" />
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"

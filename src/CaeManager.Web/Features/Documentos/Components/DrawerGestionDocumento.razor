@@ -1,0 +1,224 @@
+@*
+    Drawer de creación/renovación de Documento, extraído de Documentos.razor
+    (item 3 del backlog Centro 360: "Gestionar" pasa de navegar a /documentos
+    a gestionar in situ). Mismo formulario, mismo código — Documentos.razor y
+    AcordeonAsignacionesCentro.razor lo hospedan cada uno con su propia
+    referencia (@ref), sin duplicar los ~500 líneas de subida de archivo,
+    detección IA y validación que ya llevaba este flujo en producción.
+*@
+@using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
+@using CaeManager.Application.Common
+@using CaeManager.Application.Documentos.Commands.CrearDocumento
+@using CaeManager.Application.Documentos.Commands.RenovarDocumento
+@using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
+@using CaeManager.Application.Proyectos.Queries.ObtenerProyectosParaSelector
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
+@using CaeManager.Application.Trabajadores.Commands.AsignarAliasTrabajador
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Documentos
+@using FluentValidation
+@using MediatR
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Logging
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IFileStorageService AlmacenamientoArchivos
+@inject IConversorWordPdfService ConversorWordPdf
+@inject ILogger<DrawerGestionDocumento> Logger
+
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo documento" : "Renovar documento")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+    <ChildContent>
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        @if (_editandoId is null)
+        {
+            <CampoSelect Etiqueta="¿A quién pertenece?" Valor="@_ambitoAplicacion" ValorChanged="CambiarAmbitoAsync">
+                <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
+                <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
+                <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
+                <option value="@nameof(AmbitoAplicacion.Vehiculo)">Vehículo</option>
+                <option value="@nameof(AmbitoAplicacion.Proyecto)">Proyecto</option>
+            </CampoSelect>
+
+            @if (_ambitoAplicacion == nameof(AmbitoAplicacion.Trabajador))
+            {
+                <CampoBuscarSelect
+                    Etiqueta="Trabajador"
+                    Marcador="Escribe un nombre o DNI para buscar…"
+                    Valor="@_trabajadorId"
+                    ValorChanged="CambiarTrabajadorSeleccionado"
+                    Opciones="@OpcionesTrabajadores" />
+                @if (_detectandoCampos)
+                {
+                    <span class="detalle-tecnico">Leyendo el archivo para sugerir trabajador y tipo de documento…</span>
+                }
+                @if (_aliasSugerido is not null)
+                {
+                    <div class="workspace-nota-contextual">
+                        El documento identifica a este trabajador como "@_aliasSugerido", que no coincide con su nombre registrado.
+                        <div class="workspace-tarjeta-requisito-acciones">
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _aliasSugerido = null" Deshabilitado="_asignandoAliasSugerido">
+                                Descartar
+                            </Boton>
+                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="AceptarAliasSugeridoAsync" Cargando="_asignandoAliasSugerido">
+                                Añadir como alias
+                            </Boton>
+                        </div>
+                    </div>
+                }
+            }
+            else if (_ambitoAplicacion == nameof(AmbitoAplicacion.Cliente))
+            {
+                <CampoSelect Etiqueta="Cliente" Valor="@_clienteId" ValorChanged="v => _clienteId = v">
+                    <option value="">Selecciona un cliente…</option>
+                    @foreach (var cliente in _clientesDisponibles)
+                    {
+                        <option value="@cliente.Id">@cliente.RazonSocial</option>
+                    }
+                </CampoSelect>
+            }
+            else if (_ambitoAplicacion == nameof(AmbitoAplicacion.Empresa))
+            {
+                <CampoSelect Etiqueta="Empresa" Valor="@_empresaId" ValorChanged="v => _empresaId = v">
+                    <option value="">Selecciona una empresa…</option>
+                    @foreach (var empresa in _empresasDisponibles)
+                    {
+                        <option value="@empresa.Id">@empresa.RazonSocial</option>
+                    }
+                </CampoSelect>
+            }
+            else if (_ambitoAplicacion == nameof(AmbitoAplicacion.Vehiculo))
+            {
+                <CampoSelect Etiqueta="Vehículo" Valor="@_vehiculoId" ValorChanged="v => _vehiculoId = v">
+                    <option value="">Selecciona un vehículo…</option>
+                    @foreach (var vehiculo in _vehiculosDisponibles)
+                    {
+                        <option value="@vehiculo.Id">@vehiculo.Nombre (@vehiculo.NumeroPlaca)</option>
+                    }
+                </CampoSelect>
+            }
+            else
+            {
+                <CampoSelect Etiqueta="Proyecto" Valor="@_proyectoId" ValorChanged="v => _proyectoId = v">
+                    <option value="">Selecciona un proyecto…</option>
+                    @foreach (var proyecto in _proyectosDisponibles)
+                    {
+                        <option value="@proyecto.Id">@proyecto.Nombre (@proyecto.ClienteRazonSocial — @proyecto.CentroNombre)</option>
+                    }
+                </CampoSelect>
+            }
+
+            @if (_tiposDisponibles.Count == 0)
+            {
+                <p class="texto-vacio-seccion">Todavía no hay ningún tipo de documento de este ámbito — créalo primero desde Tipos de Documento.</p>
+            }
+            else
+            {
+                <CampoSelect Etiqueta="Tipo de documento" Valor="@_tipoDocumentoId" ValorChanged="CambiarTipoDocumento">
+                    <option value="">Selecciona un tipo de documento…</option>
+                    @foreach (var tipo in _tiposDisponibles)
+                    {
+                        <option value="@tipo.Id">@tipo.Nombre</option>
+                    }
+                </CampoSelect>
+            }
+        }
+        else
+        {
+            <div class="campo">
+                <label>Ámbito</label>
+                <span>@_ambitoAplicacion</span>
+            </div>
+            <div class="campo">
+                <label>Propietario</label>
+                <span>@_propietarioNombreSoloLectura</span>
+            </div>
+            <div class="campo">
+                <label>Tipo de documento</label>
+                <span>@_tipoDocumentoNombreSoloLectura</span>
+            </div>
+        }
+
+        @if (TieneGlosario)
+        {
+            <div class="glosario-tipo-documento">
+                @if (!string.IsNullOrWhiteSpace(_glosarioDescripcion))
+                {
+                    <p><strong>Descripción:</strong> @_glosarioDescripcion</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(_glosarioCriteriosValidacion))
+                {
+                    <p><strong>Criterios de validación:</strong> @_glosarioCriteriosValidacion</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(_glosarioSeSolicitaA))
+                {
+                    <p><strong>Se solicita a:</strong> @_glosarioSeSolicitaA</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(_glosarioObservaciones))
+                {
+                    <p><strong>Observaciones:</strong> @_glosarioObservaciones</p>
+                }
+            </div>
+        }
+
+        <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmision" ValorChanged="v => _fechaEmision = v" />
+
+        @if (RequiereVencimientoManual)
+        {
+            <div class="campo-con-boton">
+                <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoManual" ValorChanged="v => _fechaVencimientoManual = v" />
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="CopiarFechaEmisionAVencimiento"
+                       title="Copiar fecha de emisión a vencimiento" aria-label="Copiar fecha de emisión a vencimiento">
+                    <Icono Nombre="copiar" Tamano="TamanoIcono.Pequeno" />
+                </Boton>
+            </div>
+            <p class="texto-vacio-seccion">Este tipo de documento no calcula el vencimiento automáticamente — indícalo a mano.</p>
+        }
+
+        <div class="campo">
+            <label>Archivo (PDF, JPG, PNG o Word, máx. 10 MB por archivo)</label>
+            <ZonaSoltarArchivo
+                OnChange="ManejarArchivoSeleccionadoAsync"
+                Multiple="true"
+                Accept=".pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                FormatosTexto="PDF · JPG · PNG · DOCX"
+                Cargando="_subiendoArchivo"
+                NombreArchivoActual="@(_archivoUrl is not null ? "Archivo adjuntado correctamente." : null)" />
+            <p class="texto-vacio-seccion">Puedes seleccionar varios archivos a la vez (p. ej. varias fotos) — se combinan automáticamente en un solo PDF.</p>
+        </div>
+
+        <CampoTextarea Etiqueta="Comentarios" Valor="@_comentarios" ValorChanged="v => _comentarios = v" Filas="3" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+            Cancelar
+        </Boton>
+        <Boton Deshabilitado="_subiendoArchivo" Cargando="_guardando" OnClick="GuardarAsync">
+            Guardar
+        </Boton>
+    </Pie>
+</Drawer>
+
+<DialogoConfirmacion
+    Visible="_confirmarVigenciaAnteriorVisible"
+    VisibleChanged="v => _confirmarVigenciaAnteriorVisible = v"
+    Titulo="La nueva fecha de emisión es anterior a la actual"
+    Mensaje="El documento que estás subiendo tiene una vigencia anterior a la del que ya estaba registrado — comprueba que sea el archivo correcto antes de continuar."
+    TextoBotonConfirmar="Continuar de todas formas"
+    EnProgreso="_procesandoConfirmacionVigencia"
+    OnConfirmar="ConfirmarGuardarConVigenciaAnteriorAsync" />
+
+<DialogoConfirmacion
+    Visible="_confirmarTipoSospechosoVisible"
+    VisibleChanged="v => _confirmarTipoSospechosoVisible = v"
+    Titulo="Este documento no parece coincidir"
+    Mensaje="@($"Detectamos que este archivo es un \"{_tipoSospechosoDetectadoNombre}\", pero estás subiéndolo como \"{_tipoSospechosoSeleccionadoNombre}\". ¿Seguro que quieres continuar?")"
+    TextoBotonConfirmar="Sí, continuar"
+    OnConfirmar="() => _confirmarTipoSospechosoVisible = false" />

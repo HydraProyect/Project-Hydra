@@ -1,16 +1,18 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Visitas.Commands.EditarVisita;
 
 public record EditarVisitaCommand(
     Guid Id, DateOnly FechaInicio, DateOnly FechaFin, IReadOnlyList<Guid> TrabajadorIds, string? Notas,
-    Guid Version = default)
+    Guid Version = default, TimeOnly? HoraEstimadaAcceso = null)
     : ICommand;
 
 public class EditarVisitaCommandValidator : AbstractValidator<EditarVisitaCommand>
@@ -34,7 +36,8 @@ public class EditarVisitaCommandValidator : AbstractValidator<EditarVisitaComman
 
 public class EditarVisitaCommandHandler(
     IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
-    ITrabajadoresQueryContext trabajadoresContext, IUnitOfWork unitOfWork)
+    ITrabajadoresQueryContext trabajadoresContext, IEvaluadorExpedienteVisitaService evaluadorExpediente,
+    IUnitOfWork unitOfWork, ILogger<EditarVisitaCommandHandler> logger)
     : IRequestHandler<EditarVisitaCommand, Result>
 {
     public async Task<Result> Handle(EditarVisitaCommand request, CancellationToken cancellationToken)
@@ -46,7 +49,7 @@ public class EditarVisitaCommandHandler(
         if (ConcurrenciaOptimista.Verificar(visita, request.Version, "esta visita") is { } conflicto)
             return Result.Fallo(conflicto);
 
-        visita.Actualizar(request.FechaInicio, request.FechaFin, request.Notas);
+        visita.Actualizar(request.FechaInicio, request.FechaFin, request.Notas, request.HoraEstimadaAcceso);
 
         var trabajadoresActuales = await visitaTrabajadorRepositorio.ObtenerPorVisitaAsync(visita.Id, cancellationToken);
         var trabajadorIdsDeseados = request.TrabajadorIds.Distinct().ToHashSet();
@@ -64,6 +67,17 @@ public class EditarVisitaCommandHandler(
             visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadorId));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Cambiar la lista de trabajadores o la hora de acceso puede dejar el expediente
+        // completo (o cambiar el momento de entrada contra el que se mide).
+        try
+        {
+            await evaluadorExpediente.EvaluarAsync(visita.Id, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "No se pudo evaluar el expediente documental de la visita {VisitaId}.", visita.Id);
+        }
 
         return Result.Exito();
     }

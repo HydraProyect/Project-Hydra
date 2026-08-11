@@ -49,3 +49,77 @@
 ::deep .apexcharts-datalabel-value {
     fill: var(--color-text) !important;
 }
+
+/*
+  Barra comparativa "gestiones automáticas vs manuales" — dos segmentos
+  proporcionales al %, sin librería de gráficos. Migrada desde el Dashboard
+  actual (docs/blueprints/OPERATIONAL-HOME.md § 7): el aislamiento de CSS de
+  Blazor no cruza entre componentes, así que el estilo viaja con el markup.
+*/
+.barra-comparativa {
+    display: flex;
+    width: 100%;
+    height: 12px;
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    background-color: var(--color-surface-subtle);
+}
+
+.barra-comparativa-segmento {
+    height: 100%;
+    transition: width var(--transition-slow) ease-out;
+}
+
+/*
+  Regla de agencia (02 § 3.1, DDL-009): "automáticas" es Hydra actuando (IA
+  verificando sin intervención humana) → cian, no el slate de "manuales" que
+  llevaba antes. --color-system-indicator porque es un indicador no textual
+  (segmento de barra + punto de leyenda), no texto de sistema.
+  "Manuales" es el usuario actuando → azul, correcto desde antes.
+*/
+.barra-comparativa-automatica {
+    background-color: var(--color-system-indicator);
+}
+
+.barra-comparativa-manual {
+    background-color: var(--color-primary-500);
+}
+
+.barra-comparativa-leyenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.barra-comparativa-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.barra-comparativa-punto {
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+}
+
+/* Selector de periodo: en línea con la cabecera en escritorio, apilado en móvil.
+   Los campos no crecen — un selector de fechas ancho no gana nada. */
+.dashboard-periodo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.dashboard-periodo > * {
+    min-width: 10rem;
+    flex: 0 1 auto;
+}

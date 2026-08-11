@@ -19,6 +19,7 @@ using CaeManager.Application.Proyectos;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Retencion;
 using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Telemetria;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -45,6 +46,7 @@ using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.Subcontratas;
+using CaeManager.Domain.Telemetria;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
@@ -70,7 +72,8 @@ public class CaeManagerDbContext(
         IConfiguracionQueryContext, IAuditoriaQueryContext, ITenantsQueryContext,
         IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext,
         IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
-        IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext
+        IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext,
+        ITelemetriaQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -119,6 +122,8 @@ public class CaeManagerDbContext(
     IQueryable<SubcontrataEmpresa> ISubcontratasQueryContext.SubcontratasEmpresas => SubcontratasEmpresas;
     public DbSet<CredencialAccesoSubcontrata> CredencialesAccesoSubcontrata => Set<CredencialAccesoSubcontrata>();
     IQueryable<CredencialAccesoSubcontrata> ISubcontratasQueryContext.CredencialesAccesoSubcontrata => CredencialesAccesoSubcontrata;
+    public DbSet<VerificacionExternaSubcontrata> VerificacionesExternaSubcontrata => Set<VerificacionExternaSubcontrata>();
+    IQueryable<VerificacionExternaSubcontrata> ISubcontratasQueryContext.VerificacionesExternaSubcontrata => VerificacionesExternaSubcontrata;
     public DbSet<Trabajador> Trabajadores => Set<Trabajador>();
     IQueryable<Trabajador> ITrabajadoresQueryContext.Trabajadores => Trabajadores;
     public DbSet<DeteccionTrabajador> DeteccionesTrabajador => Set<DeteccionTrabajador>();
@@ -178,6 +183,8 @@ public class CaeManagerDbContext(
     public DbSet<AceptacionTerminos> AceptacionesTerminos => Set<AceptacionTerminos>();
     public DbSet<ReclamacionDocumental> ReclamacionesDocumentales => Set<ReclamacionDocumental>();
     IQueryable<ReclamacionDocumental> IReclamacionesQueryContext.ReclamacionesDocumentales => ReclamacionesDocumentales;
+    public DbSet<ReclamacionDocumentalDocumento> ReclamacionesDocumentalesDocumento => Set<ReclamacionDocumentalDocumento>();
+    IQueryable<ReclamacionDocumentalDocumento> IReclamacionesQueryContext.ReclamacionesDocumentalesDocumento => ReclamacionesDocumentalesDocumento;
     public DbSet<ReclamacionDocumentalDocumento> ReclamacionesDocumentalesDocumentos => Set<ReclamacionDocumentalDocumento>();
     public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
     IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
@@ -199,12 +206,23 @@ public class CaeManagerDbContext(
     IQueryable<SugerenciaVisitaCorreo> IComunicacionesQueryContext.SugerenciasVisitaCorreo => SugerenciasVisitaCorreo;
     public DbSet<SugerenciaGestionCorreo> SugerenciasGestionCorreo => Set<SugerenciaGestionCorreo>();
     IQueryable<SugerenciaGestionCorreo> IComunicacionesQueryContext.SugerenciasGestionCorreo => SugerenciasGestionCorreo;
+    public DbSet<DetalleSugerenciaGestionCorreo> DetallesSugerenciaGestionCorreo => Set<DetalleSugerenciaGestionCorreo>();
+    IQueryable<DetalleSugerenciaGestionCorreo> IComunicacionesQueryContext.DetallesSugerenciaGestionCorreo => DetallesSugerenciaGestionCorreo;
+    public DbSet<ClasificacionRuidoDetalleGestion> ClasificacionesRuidoDetalleGestion => Set<ClasificacionRuidoDetalleGestion>();
+    IQueryable<ClasificacionRuidoDetalleGestion> IComunicacionesQueryContext.ClasificacionesRuidoDetalleGestion => ClasificacionesRuidoDetalleGestion;
+    public DbSet<UltimoResumenNotificacionPlataforma> UltimosResumenesNotificacionPlataforma => Set<UltimoResumenNotificacionPlataforma>();
     public DbSet<SolicitudPrioridadDocumento> SolicitudesPrioridadDocumento => Set<SolicitudPrioridadDocumento>();
     IQueryable<SolicitudPrioridadDocumento> IComunicacionesQueryContext.SolicitudesPrioridadDocumento => SolicitudesPrioridadDocumento;
     public DbSet<EventoConversacion> EventosConversacion => Set<EventoConversacion>();
     IQueryable<EventoConversacion> IComunicacionesQueryContext.EventosConversacion => EventosConversacion;
+    public DbSet<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje => Set<ClasificacionRuidoMensaje>();
+    IQueryable<ClasificacionRuidoMensaje> IComunicacionesQueryContext.ClasificacionesRuidoMensaje => ClasificacionesRuidoMensaje;
+    public DbSet<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae => Set<ClasificacionRelevanciaCae>();
+    IQueryable<ClasificacionRelevanciaCae> IComunicacionesQueryContext.ClasificacionesRelevanciaCae => ClasificacionesRelevanciaCae;
     public DbSet<Gestion> Gestiones => Set<Gestion>();
     IQueryable<Gestion> IGestionesQueryContext.Gestiones => Gestiones;
+    public DbSet<RegistroTiempoGestion> RegistrosTiempoGestion => Set<RegistroTiempoGestion>();
+    IQueryable<RegistroTiempoGestion> ITelemetriaQueryContext.RegistrosTiempoGestion => RegistrosTiempoGestion;
     public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();
     IQueryable<ClaveApi> IApiKeysQueryContext.ClavesApi => ClavesApi;
     public DbSet<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario => Set<PreferenciaDashboardUsuario>();

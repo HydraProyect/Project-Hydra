@@ -45,7 +45,7 @@ public class ObtenerBandejaGestorQueryHandlerTests
     private static SugerenciaVisitaCorreoPendienteDto Sugerencia(DateOnly? fechaInicioSugerida) => new(
         Id: Guid.NewGuid(), CentroId: Guid.NewGuid(), CentroNombre: "Centro Oeste",
         FechaInicioSugerida: fechaInicioSugerida, Resumen: "Pide entrar mañana con dos operarios",
-        Canal: CanalConversacion.Correo);
+        Canal: CanalConversacion.Correo, CreadaEnUtc: DateTime.UtcNow);
 
     private static DeteccionPendienteDto Deteccion(TipoDeteccion tipo = TipoDeteccion.Nuevo) => new(
         Id: Guid.NewGuid(), EmpresaId: Guid.NewGuid(), EmpresaRazonSocial: "Empresa Centro S.L.",
@@ -188,5 +188,39 @@ public class ObtenerBandejaGestorQueryHandlerTests
         var resultado = Fusionar(sugerenciasVisita: [Sugerencia(fechaInicioSugerida: Hoy.AddDays(1))]);
 
         resultado.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// docs/blueprints/OPERATIONAL-HOME.md § 6 (DDL-068): solo SugerenciaVisitaUrgente,
+    /// DeteccionPendiente y RevisionIa tienen un momento real de "creación" que alimente el
+    /// resumen de ausencia — el resto son estado derivado (Faltante/Vencido/Urgente/
+    /// RequisitoPendiente/VisitaUrgente), sin CreadaEnUtc que propagar.
+    /// </summary>
+    [Fact]
+    public void Solo_los_tres_tipos_con_fecha_real_de_aparicion_llevan_CreadaEnUtc()
+    {
+        var resultado = Fusionar(
+            alertas: [Alerta(EstadoDocumento.Vencido)],
+            revisiones: [Revision()],
+            requisitos: [Requisito()],
+            visitasUrgentes: [Visita(NivelUrgenciaVisita.Urgente)],
+            sugerenciasVisita: [Sugerencia(fechaInicioSugerida: null)],
+            detecciones: [Deteccion()]);
+
+        var conFecha = resultado.Where(i => i.CreadaEnUtc is not null).Select(i => i.Tipo);
+        conFecha.Should().BeEquivalentTo(
+        [
+            TipoItemBandeja.SugerenciaVisitaUrgente,
+            TipoItemBandeja.RevisionIa,
+            TipoItemBandeja.DeteccionPendiente
+        ]);
+
+        var sinFecha = resultado.Where(i => i.CreadaEnUtc is null).Select(i => i.Tipo);
+        sinFecha.Should().BeEquivalentTo(
+        [
+            TipoItemBandeja.Vencido,
+            TipoItemBandeja.RequisitoPendiente,
+            TipoItemBandeja.VisitaUrgente
+        ]);
     }
 }
