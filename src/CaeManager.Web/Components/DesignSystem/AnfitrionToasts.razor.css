@@ -100,7 +100,7 @@
 }
 
 /*
-  Trazado de confirmación (Tier C, 07 § 6 — portador decidido en DDL-068):
+  Trazado de confirmación (Tier C, 07 § 6 — portador decidido en DDL-071):
   la marca se dibuja una vez al entrar el toast de Éxito, vaciando el
   stroke-dashoffset a lo largo del trazo (longitud del path ≈ 14.9, se
   redondea a 15). Solo existe en .toast-exito — los demás tonos no llevan

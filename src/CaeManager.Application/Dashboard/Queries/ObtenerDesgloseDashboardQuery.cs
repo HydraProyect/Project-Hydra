@@ -47,7 +47,7 @@ public record RiesgoEmpresaDto(
 
 /// <summary>
 /// El vencimiento más cercano por delante entre los Documentos visibles.
-/// Alimenta el estado de cierre del Dashboard (DDL-068): "cero pendientes"
+/// Alimenta el estado de cierre del Dashboard (DDL-071): "cero pendientes"
 /// solo es tranquilizador si dice también qué viene después.
 /// </summary>
 public record ProximoVencimientoDto(

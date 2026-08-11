@@ -1,7 +1,7 @@
-# Plan — Gamificación v1: progreso y cierre + pulso del equipo (DDL-068)
+# Plan — Gamificación v1: progreso y cierre + pulso del equipo (DDL-071)
 
 > Rama de trabajo: `claude/hydra-gamification-discussion-feg5ob`. Decisión normativa:
-> `DESIGN_DECISION_LOG.md` § DDL-068. Este documento es el plan y alcance acordados con el
+> `DESIGN_DECISION_LOG.md` § DDL-071. Este documento es el plan y alcance acordados con el
 > propietario del producto el 2026-08-09, para que cualquier sesión pueda retomarlo.
 
 ## Contexto y objetivo
@@ -28,7 +28,7 @@ histórico del equipo, nunca entre compañeros — y hacer visible el progreso i
    Se dibuja una vez por evento (`@key` en el anfitrión evita redibujos) y `prefers-reduced-motion`
    lo muestra ya trazado (DDL-020).
 3. **Medidor de completitud por contrata/centro**: **ya existía** (`AnilloCumplimiento` por centro
-   + faltantes en acordeón/preflight de Fase 87) — no se duplica; queda registrado en DDL-068.
+   + faltantes en acordeón/preflight de Fase 87) — no se duplica; queda registrado en DDL-071.
 
 ### Capa 2 — Pulso del equipo (cooperativo)
 4. **`ObtenerPulsoEquipoQuery`**: agregado semanal de verificaciones resueltas
@@ -39,7 +39,7 @@ histórico del equipo, nunca entre compañeros — y hacer visible el progreso i
    semana en curso supera la mejor histórica, se enuncia ("Esta ya es la mejor semana del equipo
    hasta ahora."). Competición contra el propio histórico, no un ranking.
 
-### Rechazado de forma permanente (DDL-068, mismo carácter que `07` § 7)
+### Rechazado de forma permanente (DDL-071, mismo carácter que `07` § 7)
 Puntos y niveles · badges · leaderboards entre usuarios o entre tenants · rachas/streaks con
 pérdida · métricas de velocidad de validación. La racha diaria del Issue #3 queda rechazada
 (el resto del widget de notificaciones sigue pendiente de definir).

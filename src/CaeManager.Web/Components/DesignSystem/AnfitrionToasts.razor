@@ -7,7 +7,7 @@
         @* @key evita que Blazor recree el nodo cuando entra o sale otro toast
            de la pila: sin él, la animación de entrada y el trazado de
            confirmación se redibujarían en cada cambio de la lista, y el
-           trazado debe dibujarse una vez por evento (07 § 6.1, DDL-068). *@
+           trazado debe dibujarse una vez por evento (07 § 6.1, DDL-071). *@
         <div class="toast toast-@toast.Tono.ToString().ToLowerInvariant()" role="status" @key="toast.Id">
             @if (toast.Tono == TonoToast.Exito)
             {

@@ -85,7 +85,7 @@ public partial class Dashboard : ComponentBase
     private int PorcentajeManual => TotalAprobaciones == 0 ? 0 : 100 - PorcentajeAutomatica;
 
     /// <summary>
-    /// Estado de cierre verificado (DDL-068): con cartera y cero
+    /// Estado de cierre verificado (DDL-071): con cartera y cero
     /// vencidos/urgentes se enuncia el hecho y el siguiente vencimiento por
     /// delante — "cero" solo tranquiliza si dice también qué viene después.
     /// Es distinto del vacío por falta de cartera, que ya tiene su propia

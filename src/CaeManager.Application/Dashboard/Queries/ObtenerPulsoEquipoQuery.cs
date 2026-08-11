@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Dashboard.Queries;
 
 /// <summary>
-/// Pulso semanal del equipo (DDL-068): cuántas verificaciones de Documento
+/// Pulso semanal del equipo (DDL-071): cuántas verificaciones de Documento
 /// se resolvieron esta semana (automáticas + manuales, ver
 /// AprobacionDocumento), comparadas con la semana anterior y con la mejor
 /// semana histórica. Competición contra el propio histórico, nunca entre

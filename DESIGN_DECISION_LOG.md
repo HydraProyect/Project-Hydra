@@ -788,7 +788,7 @@ como implementado o presente algo que no está construido.
   que hizo falta esta decisión en primer lugar, no su fundamento.
 - **Documentos afectados**: `08` § 4.4.
 
-### DDL-068 — Gamificación: se adopta "progreso y cierre + pulso del equipo"; se rechazan puntos, badges, leaderboards entre personas y rachas con pérdida
+### DDL-071 — Gamificación: se adopta "progreso y cierre + pulso del equipo"; se rechazan puntos, badges, leaderboards entre personas y rachas con pérdida
 - **Decisión**: Hydra incorpora una capa de motivación para el gestor/coordinador basada en
   **progreso visible y cierre factual**, no en mecánicas de juego. Tres piezas:
 
