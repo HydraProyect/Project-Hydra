@@ -99,9 +99,46 @@
     }
 }
 
+/*
+  Trazado de confirmación (Tier C, 07 § 6 — portador decidido en DDL-071):
+  la marca se dibuja una vez al entrar el toast de Éxito, vaciando el
+  stroke-dashoffset a lo largo del trazo (longitud del path ≈ 14.9, se
+  redondea a 15). Solo existe en .toast-exito — los demás tonos no llevan
+  marca, y el nodo no se recrea al repintar gracias al @key del anfitrión.
+*/
+.toast-trazado {
+    flex: none;
+    width: 16px;
+    height: 16px;
+}
+
+.toast-trazado path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 15;
+    stroke-dashoffset: 15;
+    animation: trazar-confirmacion var(--motion-slow) var(--ease-standard) forwards;
+}
+
+@keyframes trazar-confirmacion {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .toast-progreso {
         animation: none;
         opacity: 0;
+    }
+
+    /* Tier C se desactiva siempre con reduced-motion (DDL-020): la marca
+       aparece ya trazada, sin animación. */
+    .toast-trazado path {
+        animation: none;
+        stroke-dashoffset: 0;
     }
 }

@@ -24,6 +24,8 @@ public partial class Dashboard : ComponentBase
     private IReadOnlyList<ItemBandejaDto> _requiereAtencion = [];
     private IReadOnlyList<ItemBandejaDto> _queLlegoSinVer = [];
     private IReadOnlyList<VisitaListaDto> _proximamente = [];
+    private ProximoVencimientoDto? _proximoVencimiento;
+    private PulsoEquipoDto? _pulso;
     private bool _error;
 
     // "Requiere atención" reutiliza la Bandeja del gestor (docs/blueprints/OPERATIONAL-HOME.md
@@ -70,6 +72,14 @@ public partial class Dashboard : ComponentBase
                     var (ausente, desde) = await ActividadUsuario.RegistrarYEvaluarAsync(RendererInfo.IsInteractive);
                     if (ausente && desde is { } desdeValor)
                         _queLlegoSinVer = [.. bandeja.Where(i => i.CreadaEnUtc > desdeValor)];
+
+                    // El próximo vencimiento solo aporta algo cuando la cola ya está vacía — con
+                    // ítems pendientes que mostrar no hace falta ir a buscar qué viene después
+                    // (DDL-071).
+                    if (_requiereAtencion.Count == 0)
+                        _proximoVencimiento = (await Mediator.Send(new ObtenerDesgloseDashboardQuery())).ProximoVencimiento;
+
+                    _pulso = await Mediator.Send(new ObtenerPulsoEquipoQuery());
                 }
             }
         }
@@ -78,6 +88,25 @@ public partial class Dashboard : ComponentBase
             _error = true;
         }
     }
+
+    /// <summary>
+    /// Estado de cierre verificado (DDL-071): con la cola de "Requiere atención" vacía se
+    /// enuncia el hecho y el siguiente vencimiento por delante — "nada pendiente" solo
+    /// tranquiliza si dice también qué viene después. Distinto del vacío por falta de
+    /// cartera, que ya tiene su propia rama (04 § 6: un vacío mostrado como éxito sin
+    /// verificar es engañoso).
+    /// </summary>
+    private string TextoCierreAtencion =>
+        _proximoVencimiento is { } proximo
+            ? $"Nada pendiente ahora mismo. Próximo vencimiento: {proximo.TipoDocumentoNombre} de {proximo.TrabajadorNombre}, el {proximo.FechaVencimiento:dd/MM/yyyy} ({TextoDias(proximo.DiasRestantes)})."
+            : "Nada pendiente ahora mismo.";
+
+    private static string TextoDias(int dias) => dias switch
+    {
+        0 => "hoy",
+        1 => "en 1 día",
+        _ => $"en {dias} días"
+    };
 
     private static TonoBadge SlaDocumentalTono(int tasa) => tasa switch
     {
