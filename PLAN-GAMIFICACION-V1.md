@@ -50,6 +50,21 @@ la presión competitiva recae en quien debe aportar la documentación y reduce l
 coordinador. Decidir antes de construir: ámbito (tenant/cliente), qué ven las contratas, opt-in.
 Métrica: % de cumplimiento ya calculado — nunca velocidad ni volumen.
 
+## Reconciliación con la Fase BPO — Operational Home (2026-08-11)
+
+`main` avanzó 24 commits durante esta fase, incluida la Fase BPO (#188) que reescribió el Dashboard
+entero como Operational Home (`docs/blueprints/OPERATIONAL-HOME.md`). Al fusionar:
+- **DDL-068 se renombró a DDL-071** — el número ya lo usaba `main` para otra decisión de esa misma
+  Fase BPO.
+- El **estado de cierre verificado** cuelga ahora del vacío de "Requiere atención" (cola de
+  `/bandeja`), en vez de la antigua tabla "Documentos que requieren atención" — mismo concepto,
+  cola más amplia.
+- **"Pulso del equipo"** se añadió como fila propia del Operational Home (decisión explícita del
+  usuario: no migra a `/dashboard-ejecutivo` junto con "Gestiones automáticas vs manuales", que sí
+  se trasladó ahí en la Fase BPO). Ver `docs/blueprints/OPERATIONAL-HOME.md` § 1, § 3, § 5, § 7, § 8.
+- Nada de esto cambia el alcance ni las restricciones de más abajo — es reconciliación de
+  estructura, no una decisión nueva.
+
 ## Restricciones que aplican
 - Sin tablas nuevas en v1 (todo se calcula de datos existentes); si algún día se persisten
   snapshots semanales, la tabla lleva `TenantId` + índice compuesto.

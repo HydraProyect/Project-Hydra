@@ -3,8 +3,9 @@
 **Superficie**: `/` (menú: **Home operativo**, grupo Dashboards — `03` § 3.2) · **Arquetipo**:
 Operational Home (`03` § 1.1)
 
-**Estado**: **Implementado y en producción**, incluido "Qué llegó sin ver" (DDL-068). Sustituyó
-directamente al Dashboard heredado de las Fases 2/25/57/63 — no convivió en otra ruta.
+**Estado**: **Implementado y en producción**, incluido "Qué llegó sin ver" (DDL-068) y "Pulso del
+equipo" (DDL-071). Sustituyó directamente al Dashboard heredado de las Fases 2/25/57/63 — no
+convivió en otra ruta.
 **Implementado hasta**: todo lo descrito en este documento existe, salvo "qué avanzó el sistema"
 (§ 6, mitad de DDL-050 explícitamente fuera de alcance).
 
@@ -31,6 +32,12 @@ Responde, en el orden de `03` § 1.1, el modelo mental completo de un vistazo:
 Es la única superficie donde mezclar entidades distintas (documentos, visitas, revisiones IA,
 detecciones de personal) está permitido — el resto de la app se organiza por entidad (`03` § 1.1).
 
+Además, específico de esta implementación de Hydra y no parte del arquetipo genérico de `03` § 1.1:
+
+5. **¿Cómo vamos como equipo esta semana?** — pulso agregado del tenant, sin desglose por persona
+   (DDL-071). No responde "qué requiere atención" ni "qué viene"; responde a la satisfacción y el
+   estrés del gestor, el objetivo que motivó DDL-071.
+
 ## 2. Contratos que hereda
 
 | Aspecto | Documento |
@@ -55,13 +62,20 @@ detecciones de personal) está permitido — el resto de la app se organiza por 
 │ Requiere atención — 5 ítems de /bandeja, PanelResolverItem │
 │   [Ver todo en Bandeja →]                                 │
 ├─────────────────────────────────────────────────────────┤
+│ Pulso del equipo — resueltos esta semana vs. mejor semana │
+├─────────────────────────────────────────────────────────┤
 │ Próximamente — 3 visitas más próximas                     │
 │   [Ver todas en Visitas →]                                 │
 └─────────────────────────────────────────────────────────┘
 ```
 
+"Pulso del equipo" solo se pinta junto a "Requiere atención" (mismo alcance de visibilidad,
+`_mostrarRequiereAtencion`) — un Cliente no ve el rendimiento interno del equipo gestor que lo
+atiende.
+
 No incluye la tabla "Centros/Empresas con más riesgo" ni el gráfico "Automático vs manual" del
-Dashboard actual — ambos pasan al futuro Dashboard de dirección y coordinación (§ 7).
+Dashboard actual — ambos pasan al futuro Dashboard de dirección y coordinación (§ 7). Tampoco
+incluye ningún desglose por persona: es la restricción central de DDL-071, no una omisión.
 
 ## 4. Comportamiento propio
 
@@ -84,10 +98,12 @@ Dashboard actual — ambos pasan al futuro Dashboard de dirección y coordinaci�
 | Requiere atención (5 ítems) | `ObtenerBandejaGestorQuery` | ✅ (Fase C, `/bandeja`) |
 | Próximamente (3 visitas) | `ObtenerVisitasQuery(SoloActivas: true)`, ordenada por `FechaInicio` | ✅ (`/visitas`) |
 | Qué llegó sin ver | `ObtenerBandejaGestorQuery` + `UltimaActividadUtc` del usuario | ✅ `ActividadUsuarioService` |
+| Pulso del equipo | `ObtenerPulsoEquipoQuery` — agrega `AprobacionDocumento` por semana (actual / anterior / mejor histórica cerrada), mismo alcance que `IAlcanceDatosService` | ✅ (nuevo, DDL-071) |
 
 El único dato nuevo de todo el blueprint fue `UltimaActividadUtc` — el más costoso de los tres
 prerrequisitos, con un punto de escritura en `MainLayout` (no en el Home) para cubrir toda la
-plataforma. El resto es composición Blazor sobre queries ya existentes.
+plataforma. El resto es composición Blazor sobre queries ya existentes o, en el caso del Pulso,
+una agregación nueva sobre una tabla que ya existía (`AprobacionDocumento`).
 
 ## 6. "Qué llegó sin ver" (DDL-050, alcance cerrado, implementado)
 
@@ -147,6 +163,13 @@ El Dashboard que hoy vive en `/` (Fases 2/25/57/63) **no es una versión parcial
 | "Centros con más riesgo" (tabla) | Pasa al mismo `/dashboard-ejecutivo` — ya tiene un equivalente (`_centrosConMenorCumplimiento`, `ObtenerDashboardEjecutivoQuery`); verificar que cubre el mismo caso antes de dar la migración por completa |
 | "Empresas con más riesgo" (tabla) | Pasa al mismo `/dashboard-ejecutivo` — a diferencia de Centros, hoy **no tiene equivalente** ahí (`ObtenerDashboardEjecutivoQuery` no expone nada de Empresas); hay que migrarla, no solo enlazarla |
 
+**"Pulso del equipo" no sigue este mismo camino.** Aunque es, como "Gestiones automáticas vs
+manuales", un agregado que no es "qué requiere atención" ni "qué viene", **se decidió que se queda
+en el Home** (DDL-071) en vez de ir a `/dashboard-ejecutivo`: las tarjetas de la tabla de arriba son
+métricas de calidad/riesgo para *dirección*; el Pulso es progreso visible para el propio *gestor*
+— el objetivo que motivó DDL-071 (satisfacción, bajar el estrés) solo se cumple si vive donde el
+gestor entra cada día, no en el dashboard que consulta dirección.
+
 ## 8. Decisiones que gobiernan esta superficie
 
 | Decisión | Aporta |
@@ -157,6 +180,7 @@ El Dashboard que hoy vive en `/` (Fases 2/25/57/63) **no es una versión parcial
 | DDL-009 | Regla de agencia — quién actúa vs quién es Hydra |
 | DDL-036 | Iconografía obligatoria en KPIs |
 | DDL-013 | Sombra solo en Overlay |
+| DDL-071 | Gamificación — progreso y cierre + pulso del equipo; fija que el Pulso vive en el Home, no en `/dashboard-ejecutivo`, y rechaza puntos/badges/leaderboards entre personas |
 
 ## 9. Pendiente fuera de este blueprint
 
