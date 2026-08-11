@@ -64,7 +64,9 @@
             <h2 class="dashboard-subtitulo">Requiere atención</h2>
             @if (_requiereAtencion.Count == 0)
             {
-                <p class="texto-vacio-seccion">Nada pendiente ahora mismo.</p>
+                @* Cierre verificado (DDL-071): "nada pendiente" solo tranquiliza si dice
+                   también qué viene después — el próximo vencimiento conocido. *@
+                <p class="texto-vacio-seccion">@TextoCierreAtencion</p>
             }
             else
             {
@@ -75,6 +77,35 @@
                     }
                 </div>
                 <a class="enlace-ver-todas" href="/bandeja">Ver todo en Bandeja →</a>
+            }
+
+            @if (_pulso is not null)
+            {
+                @* Pulso del equipo (DDL-071): agregado semanal contra el propio histórico,
+                   sin desglose por persona. El copy enuncia hechos con cifras (01 § 7) — la
+                   comparación es con la mejor semana del equipo, nunca un ranking. *@
+                <h2 class="dashboard-subtitulo">Pulso del equipo</h2>
+                <Tarjeta>
+                    @if (_pulso.ResueltosEstaSemana == 0 && _pulso.MejorSemanaInicio is null)
+                    {
+                        <p class="texto-vacio-seccion">Todavía no hay documentos resueltos — el pulso semanal aparecerá con la primera verificación.</p>
+                    }
+                    else
+                    {
+                        <p class="pulso-equipo-cifra">@_pulso.ResueltosEstaSemana @(_pulso.ResueltosEstaSemana == 1 ? "documento resuelto" : "documentos resueltos") esta semana</p>
+                        <p class="pulso-equipo-detalle">
+                            Semana anterior: @_pulso.ResueltosSemanaAnterior.
+                            @if (_pulso.MejorSemanaInicio is { } inicioMejor)
+                            {
+                                @($" Mejor semana del equipo: {_pulso.MejorSemanaHistorica} (semana del {inicioMejor:dd/MM}).")
+                            }
+                        </p>
+                        @if (_pulso.EsMejorSemana)
+                        {
+                            <p class="pulso-equipo-detalle">Esta ya es la mejor semana del equipo hasta ahora.</p>
+                        }
+                    }
+                </Tarjeta>
             }
         }
 

@@ -45,10 +45,22 @@ public record RiesgoEmpresaDto(
     int DocumentosVencidos,
     int DocumentosUrgentes);
 
+/// <summary>
+/// El vencimiento más cercano por delante entre los Documentos visibles.
+/// Alimenta el estado de cierre del Dashboard (DDL-071): "cero pendientes"
+/// solo es tranquilizador si dice también qué viene después.
+/// </summary>
+public record ProximoVencimientoDto(
+    string TrabajadorNombre,
+    string TipoDocumentoNombre,
+    DateOnly FechaVencimiento,
+    int DiasRestantes);
+
 public record DesgloseDashboardDto(
     IReadOnlyList<DocumentoAtencionDto> DocumentosAtencion,
     IReadOnlyList<RiesgoCentroDto> CentrosEnRiesgo,
-    IReadOnlyList<RiesgoEmpresaDto> EmpresasEnRiesgo);
+    IReadOnlyList<RiesgoEmpresaDto> EmpresasEnRiesgo,
+    ProximoVencimientoDto? ProximoVencimiento = null);
 
 public class ObtenerDesgloseDashboardQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDesgloseDashboardQuery, DesgloseDashboardDto>
@@ -144,6 +156,16 @@ public class ObtenerDesgloseDashboardQueryHandler(IAsignacionesQueryContext asig
             .Take(MaximoFilas)
             .ToList();
 
-        return new DesgloseDashboardDto(documentosAtencion, centrosEnRiesgo, empresasEnRiesgo);
+        var proximoVencimiento = filas
+            .Where(f => f.FechaVencimiento != null && f.FechaVencimiento.Value >= hoy)
+            .OrderBy(f => f.FechaVencimiento)
+            .Select(f => new ProximoVencimientoDto(
+                f.TrabajadorNombre,
+                f.TipoDocumentoNombre,
+                f.FechaVencimiento!.Value,
+                f.FechaVencimiento!.Value.DayNumber - hoy.DayNumber))
+            .FirstOrDefault();
+
+        return new DesgloseDashboardDto(documentosAtencion, centrosEnRiesgo, empresasEnRiesgo, proximoVencimiento);
     }
 }
