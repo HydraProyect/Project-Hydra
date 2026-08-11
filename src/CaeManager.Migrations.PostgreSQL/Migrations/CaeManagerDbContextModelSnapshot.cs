@@ -649,8 +649,17 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("ConfianzaTrabajador")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("Resolucion")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("Resuelta")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("ResueltaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResueltaPorUsuarioId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("SugerenciaGestionCorreoId")
                         .HasColumnType("uuid");
@@ -914,8 +923,17 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("MensajeId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("Resolucion")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("Resuelta")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("ResueltaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResueltaPorUsuarioId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Resumen")
                         .IsRequired()
@@ -1006,10 +1024,28 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("ExcluirFueraDeJornadaEnMetricas")
+                        .HasColumnType("boolean");
+
+                    b.Property<TimeOnly>("HoraFinJornada")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly>("HoraInicioJornada")
+                        .HasColumnType("time without time zone");
+
                     b.Property<int>("HorasAvisoVisita")
                         .HasColumnType("integer");
 
                     b.Property<int>("HorasCriticasVisita")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("HorasJornadaMensualGestor")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("MedicionTiempoActiva")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("SegundosInactividadPausa")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("TenantId")
@@ -1029,8 +1065,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000001"),
+                            ExcluirFueraDeJornadaEnMetricas = true,
+                            HoraFinJornada = new TimeOnly(18, 0, 0),
+                            HoraInicioJornada = new TimeOnly(8, 0, 0),
                             HorasAvisoVisita = 48,
                             HorasCriticasVisita = 24,
+                            HorasJornadaMensualGestor = 160,
+                            MedicionTiempoActiva = false,
+                            SegundosInactividadPausa = 120,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             UmbralAmbarDias = 30,
                             UmbralRojoDias = 15
@@ -1154,7 +1196,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AprobacionesDocumento", (string)null);
+                    b.ToTable("AprobacionesDocumento");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.ConfiguracionIaDocumentoCliente", b =>
@@ -2522,61 +2564,65 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000001"),
                             AmbitoAplicacion = "Vehiculo",
-                            AplicaVencimientoAutomatico = false,
+                            AplicaVencimientoAutomatico = true,
                             DeteccionTrabajadoresActiva = false,
                             EsObligatorio = true,
                             LecturaIaActiva = true,
                             Nombre = "ITC",
-                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
+                            Notas = "Vigencia anual.",
                             Orden = 1,
                             PerfilDocumentoOficial = "Ninguno",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            VerificacionIaActiva = false
+                            VerificacionIaActiva = false,
+                            VigenciaMeses = 12
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000002"),
                             AmbitoAplicacion = "Vehiculo",
-                            AplicaVencimientoAutomatico = false,
+                            AplicaVencimientoAutomatico = true,
                             DeteccionTrabajadoresActiva = false,
                             EsObligatorio = true,
                             LecturaIaActiva = true,
                             Nombre = "Ficha técnica",
-                            Notas = "No caduca por sí sola, pero se pide como documento adjunto del vehículo.",
+                            Notas = "Vigencia anual.",
                             Orden = 2,
                             PerfilDocumentoOficial = "Ninguno",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            VerificacionIaActiva = false
+                            VerificacionIaActiva = false,
+                            VigenciaMeses = 12
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000003"),
                             AmbitoAplicacion = "Vehiculo",
-                            AplicaVencimientoAutomatico = false,
+                            AplicaVencimientoAutomatico = true,
                             DeteccionTrabajadoresActiva = false,
                             EsObligatorio = true,
                             LecturaIaActiva = true,
                             Nombre = "Seguro",
-                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
+                            Notas = "Vigencia anual.",
                             Orden = 3,
                             PerfilDocumentoOficial = "Ninguno",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            VerificacionIaActiva = false
+                            VerificacionIaActiva = false,
+                            VigenciaMeses = 12
                         },
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000004"),
                             AmbitoAplicacion = "Vehiculo",
-                            AplicaVencimientoAutomatico = false,
+                            AplicaVencimientoAutomatico = true,
                             DeteccionTrabajadoresActiva = false,
                             EsObligatorio = true,
                             LecturaIaActiva = true,
                             Nombre = "Autorización de circulación",
-                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
+                            Notas = "Vigencia anual.",
                             Orden = 4,
                             PerfilDocumentoOficial = "Ninguno",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            VerificacionIaActiva = false
+                            VerificacionIaActiva = false,
+                            VigenciaMeses = 12
                         });
                 });
 
@@ -4089,6 +4135,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("NivelServicio")
+                        .HasColumnType("integer");
+
                     b.Property<string>("RazonSocial")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -4167,6 +4216,115 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsUnique();
 
                     b.ToTable("SubcontratasEmpresas", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Subcontratas.VerificacionExternaSubcontrata", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("EvidenciaArchivoRuta")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EvidenciaNombreArchivo")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<DateOnly>("FechaVerificacion")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("Resultado")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SubcontrataId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TipoDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioVerificadorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("ValidoHasta")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CentroId");
+
+                    b.HasIndex("TenantId", "TipoDocumentoId");
+
+                    b.HasIndex("TenantId", "SubcontrataId", "CentroId", "TipoDocumentoId");
+
+                    b.ToTable("VerificacionesExternaSubcontrata", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Telemetria.RegistroTiempoGestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ClienteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConversacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("FinUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("InicioUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Motivo")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SegundosActivos")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversacionId");
+
+                    b.HasIndex("TenantId", "ClienteId", "FinUtc");
+
+                    b.HasIndex("TenantId", "UsuarioId", "FinUtc");
+
+                    b.ToTable("RegistrosTiempoGestion", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Tenants.AsignacionOperadorDelegado", b =>
@@ -4480,7 +4638,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("AntelacionEfectivaHoras")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
+                    b.Property<decimal?>("AntelacionNominalHoras")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
+                    b.Property<int>("Atribucion")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ConversacionOrigenId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreadoEnUtc")
@@ -4498,8 +4670,17 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateOnly>("FechaFin")
                         .HasColumnType("date");
 
+                    b.Property<DateTime?>("FechaHoraExpedienteCompletoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FechaHoraSolicitudUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateOnly>("FechaInicio")
                         .HasColumnType("date");
+
+                    b.Property<TimeOnly?>("HoraEstimadaAcceso")
+                        .HasColumnType("time without time zone");
 
                     b.Property<string>("Notas")
                         .HasMaxLength(1000)
@@ -4514,6 +4695,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("Tramo")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("uuid");
@@ -4525,6 +4709,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("FechaFin");
 
                     b.HasIndex("TenantId", "CentroId");
+
+                    b.HasIndex("TenantId", "ConversacionOrigenId");
+
+                    b.HasIndex("TenantId", "FechaFin")
+                        .HasDatabaseName("IX_Visitas_ExpedientePendiente")
+                        .HasFilter("\"FechaHoraSolicitudUtc\" IS NOT NULL AND \"FechaHoraExpedienteCompletoUtc\" IS NULL AND NOT \"EstaEliminado\"");
 
                     b.HasIndex("TenantId", "Id")
                         .IsUnique();
@@ -5182,6 +5372,30 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("TenantId", "SubcontrataId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Subcontratas.VerificacionExternaSubcontrata", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Subcontratas.Subcontrata", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SubcontrataId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Documentos.TipoDocumento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TipoDocumentoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

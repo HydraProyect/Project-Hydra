@@ -200,7 +200,7 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
             var handlerRenovar = new RenovarDocumentoCommandHandler(
                 new DocumentoRepository(contexto), contexto, new AlcanceDatosServiceFalso(), contexto,
                 new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
-                new AcreditacionDocumentoPlataformaRepository(contexto), contexto);
+                new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso(), contexto);
 
             var resultado = await handlerRenovar.Handle(
                 new RenovarDocumentoCommand(documentoId, new DateOnly(2026, 2, 1), null, null, null),
@@ -223,7 +223,7 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
             new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto, contexto,
             contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
             new DerivarCanalesAplicablesDocumentoService(contexto, contexto, contexto),
-            new AcreditacionDocumentoPlataformaRepository(contexto));
+            new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso());
 
     private CaeManagerDbContext CrearContexto()
     {

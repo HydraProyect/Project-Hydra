@@ -108,3 +108,18 @@
     border-radius: var(--radius-full);
     flex-shrink: 0;
 }
+
+/* Selector de periodo: en línea con la cabecera en escritorio, apilado en móvil.
+   Los campos no crecen — un selector de fechas ancho no gana nada. */
+.dashboard-periodo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.dashboard-periodo > * {
+    min-width: 10rem;
+    flex: 0 1 auto;
+}

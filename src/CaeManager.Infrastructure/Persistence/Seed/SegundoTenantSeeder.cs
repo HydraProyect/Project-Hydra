@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -50,6 +51,16 @@ public static class SegundoTenantSeeder
             using (AmbitoTenantExplicito.Establecer(tenantId))
             {
                 dbContext.Tenants.Add(tenant);
+
+                // Todo tenant necesita su fila de ParametroSistema y su copia
+                // del catálogo de TipoDocumento — mismo motivo que en
+                // DelegacionDemoSeeder (queries con SingleAsync() y el filtro
+                // global de tenant). Este seeder no las creaba y cualquier
+                // query de parámetros reventaba al entrar con este tenant.
+                dbContext.ParametrosSistema.Add(new ParametroSistema(
+                    ParametroSistemaSeedData.UmbralAmbarDias, ParametroSistemaSeedData.UmbralRojoDias));
+                dbContext.TiposDocumento.AddRange(TipoDocumentoSeedData.CrearCopiasParaTenant());
+
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
 

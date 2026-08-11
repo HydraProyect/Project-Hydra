@@ -1,3 +1,4 @@
+using CaeManager.Web.Features.Comunicaciones.Components;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
@@ -482,6 +483,7 @@ public partial class Bandeja : ComponentBase, IDisposable
             _adjuntosPendientes.Clear();
             ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
 
+            await RegistrarAccionMedidaAsync();
             await CargarDetalleAsync();
             await CargarListaAsync();
         }
@@ -531,6 +533,20 @@ public partial class Bandeja : ComponentBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// Medidor de tiempo de enfoque de la conversación abierta. Null mientras no hay
+    /// hilo seleccionado, y sin efecto si la medición está apagada para el tenant.
+    /// </summary>
+    private MedidorTiempoGestion? _medidorTiempo;
+
+    /// <summary>
+    /// Cierra el tramo de medición con motivo "acción completada". Se llama tras cada
+    /// acción real del Gestor sobre el hilo — enviar, cambiar estado, confirmar una
+    /// sugerencia —, que es justo el evento que la propuesta define como fin de bloque.
+    /// </summary>
+    private Task RegistrarAccionMedidaAsync() =>
+        _medidorTiempo?.RegistrarAccionCompletadaAsync() ?? Task.CompletedTask;
+
     private async Task CambiarEstadoAsync(EstadoConversacion nuevoEstado)
     {
         if (_conversacionSeleccionadaId is null) return;
@@ -545,6 +561,7 @@ public partial class Bandeja : ComponentBase, IDisposable
                 return;
             }
 
+            await RegistrarAccionMedidaAsync();
             await CargarDetalleAsync();
             await CargarListaAsync();
         }
