@@ -1,4 +1,4 @@
-# Instrucciones para cualquier sesión de Claude en este repositorio
+# Instrucciones para cualquier sesión de Codex en este repositorio
 
 Lee esto antes de planificar cambios de arquitectura.
 
