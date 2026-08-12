@@ -79,6 +79,33 @@
                 <a class="enlace-ver-todas" href="/bandeja">Ver todo en Bandeja →</a>
             }
 
+            @* Reclamaciones enviadas que siguen sin contestar. Solo aparece si las
+               hay: una sección que dice "ninguna" cada día es ruido, y aquí el
+               silencio ya significa que no hay nada esperando. El estado es
+               derivado, no persistido (docs/COMUNICACIONES.md § 16.4) — si el
+               cliente contesta, la fila desaparece sola. *@
+            @if (_sinRespuesta.Count > 0)
+            {
+                <h2 class="dashboard-subtitulo">Reclamado y sin respuesta</h2>
+                <div class="lista-bandeja">
+                    @foreach (var reclamacion in _sinRespuesta)
+                    {
+                        <div class="dashboard-sin-respuesta-fila">
+                            <div>
+                                <span class="dashboard-sin-respuesta-cliente">@reclamacion.RazonSocialCliente</span>
+                                <span class="dashboard-sin-respuesta-detalle">
+                                    @reclamacion.TotalDocumentos documento@(reclamacion.TotalDocumentos == 1 ? "" : "s")
+                                    reclamado@(reclamacion.TotalDocumentos == 1 ? "" : "s") hace @reclamacion.DiasTranscurridos días, sin respuesta.
+                                </span>
+                            </div>
+                            @* Lleva al lote del cliente ya montado; reclamar de nuevo sigue
+                               siendo un clic del gestor, nunca automático (§ 16.3). *@
+                            <a class="enlace-ver-todas" href="/documentos?pestana=reclamaciones">Revisar y reclamar →</a>
+                        </div>
+                    }
+                </div>
+            }
+
             @if (_pulso is not null)
             {
                 @* Pulso del equipo (DDL-071): agregado semanal contra el propio histórico,
