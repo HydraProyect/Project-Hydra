@@ -900,7 +900,7 @@ public static class DatosPruebaSeeder
             dbContext.NotificacionesUsuario.Add(leida);
         }
 
-        await SembrarReclamacionesAsync(dbContext, clientes, cancellationToken);
+        await SembrarReclamacionesAsync(dbContext, clientes, gestoresPrueba.FirstOrDefault()?.Id, cancellationToken);
 
         // --- Claves API (activa y revocada), filtros guardados y preferencia
         // de dashboard: /configuracion/claves-api y los selectores de filtro
@@ -954,17 +954,33 @@ public static class DatosPruebaSeeder
     /// sin conversación, que es como salían todas antes y como siguen saliendo
     /// cuando no hay buzón conectado.
     ///
+    /// Las tres se anclan a la cartera del primer GestorCae de prueba
+    /// (<paramref name="ejecutivoPrincipalId"/>), no a "los tres primeros
+    /// clientes que cumplan" — con reparto round-robin de cartera (ver el
+    /// llamador), dejarlo al orden de <paramref name="clientes"/> repartía una
+    /// variante distinta a cada gestor de prueba, y quien iniciara sesión como
+    /// el primero de ellos nunca veía la variante "sin respuesta" que es la
+    /// que ejercita el requerimiento global nº 1 de esta fase.
+    ///
     /// Las conversaciones se crean sin <c>AsociarConexion</c>: sembradas a mano
     /// no tienen hilo de Graph que representar (ver <see cref="Conversacion"/>).
     /// </summary>
     private static async Task SembrarReclamacionesAsync(
-        CaeManagerDbContext dbContext, List<Cliente> clientes, CancellationToken cancellationToken)
+        CaeManagerDbContext dbContext, List<Cliente> clientes, Guid? ejecutivoPrincipalId, CancellationToken cancellationToken)
     {
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var limiteVentana = hoy.AddDays(90);
         var enviadas = 0;
 
-        foreach (var cliente in clientes)
+        // Prioriza la cartera del gestor principal; si no da para las 3
+        // variantes (pocos clientes con documentación en ventana), completa
+        // con cualquier otro cliente con ejecutivo asignado — mejor cubrir las
+        // tres variantes en algún sitio que dejar alguna sin sembrar.
+        var ordenReclamaciones = ejecutivoPrincipalId is null
+            ? clientes
+            : [.. clientes.Where(c => c.EjecutivoUsuarioId == ejecutivoPrincipalId), .. clientes.Where(c => c.EjecutivoUsuarioId != ejecutivoPrincipalId)];
+
+        foreach (var cliente in ordenReclamaciones)
         {
             if (enviadas == 3)
                 break;
