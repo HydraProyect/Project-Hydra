@@ -6,6 +6,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Reclamaciones.Eventos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
@@ -134,10 +135,18 @@ public class EnviarReclamacionCommandHandler(
         if (usuarioId is null)
             return Result.Fallo(Error.Crear("Reclamacion.SinUsuario", "No pudimos identificar tu usuario."));
 
-        repositorio.Agregar(new ReclamacionDocumental(
-            request.ClienteId, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, filas.Select(f => f.DocumentoId), conversacionId));
+        var reclamacion = new ReclamacionDocumental(
+            request.ClienteId, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, filas.Select(f => f.DocumentoId), conversacionId);
+        repositorio.Agregar(reclamacion);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Después del commit, no antes: el timeline es un reflejo del hecho, no
+        // parte de él. Sin conversación (rama sin buzón conectado) no hay hilo
+        // al que avisar.
+        if (conversacionId is not null)
+            await mediator.Publish(new ReclamacionEnviadaEvent(conversacionId.Value, reclamacion.Id), cancellationToken);
+
         return Result.Exito();
     }
 

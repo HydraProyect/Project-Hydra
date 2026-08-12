@@ -7,6 +7,7 @@ using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
+using CaeManager.Application.Reclamaciones.Eventos;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -149,6 +150,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
 
         emailServiceFalso.Enviados.Should().ContainSingle(e => e.Destinatario == "cliente@example.com");
         mediatorFalso.UltimoEnvio.Should().BeNull("sin buzón conectado no se pasa por Comunicaciones");
+        mediatorFalso.Publicados.Should().BeEmpty("sin conversación no hay timeline al que avisar");
 
         await using var lectura = CrearContexto();
         var reclamacion = (await lectura.ReclamacionesDocumentales.ToListAsync()).Should().ContainSingle().Which;
@@ -209,6 +211,11 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         var reclamacion = (await lectura.ReclamacionesDocumentales.ToListAsync()).Should().ContainSingle().Which;
         reclamacion.ConversacionId.Should().Be(conversacionEsperada);
         reclamacion.DestinatarioEmail.Should().Be("contacto@cliente.com; prl@cliente.com");
+
+        // El timeline se entera del envío, y con la reclamación ya persistida.
+        var publicado = mediatorFalso.Publicados.Should().ContainSingle().Which.Should().BeOfType<ReclamacionEnviadaEvent>().Subject;
+        publicado.ConversacionId.Should().Be(conversacionEsperada);
+        publicado.ReclamacionId.Should().Be(reclamacion.Id);
     }
 
     [Fact]
@@ -282,6 +289,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     {
         public EnviarMensajeNuevoCommand? UltimoEnvio { get; private set; }
         public int VecesLlamado { get; private set; }
+        public List<INotification> Publicados { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -309,7 +317,10 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
             throw new NotSupportedException();
 
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
-            where TNotification : INotification =>
-            throw new NotSupportedException();
+            where TNotification : INotification
+        {
+            Publicados.Add(notification);
+            return Task.CompletedTask;
+        }
     }
 }

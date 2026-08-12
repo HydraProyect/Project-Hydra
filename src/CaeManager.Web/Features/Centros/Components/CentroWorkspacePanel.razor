@@ -16,6 +16,7 @@
 @using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro
 @using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad
+@using CaeManager.Application.Reclamaciones.Queries.ObtenerUltimaReclamacionCliente
 @using CaeManager.Application.Integraciones
 @using CaeManager.Application.Integraciones.Queries.ObtenerProveedoresPlataformaCae
 @using CaeManager.Domain.Centros
@@ -70,6 +71,25 @@ else
             Pedir prioridad
         </Boton>
     </div>
+
+    // En un local, no leyendo el campo dentro del @if: la lambda que genera
+    // Razor para el bloque reinicia el análisis de nulabilidad de _detalle y
+    // haría saltar CS8602 en el resto de la plantilla.
+    var clienteIdDelCentro = _detalle.ClienteId;
+
+    @if (_ultimaReclamacion is { } reclamacion)
+    {
+        <p class="workspace-nota-contextual">
+            Última reclamación a este cliente: @reclamacion.FechaEnvioUtc.ToLocalTime().ToString("dd/MM/yyyy")
+            (@reclamacion.TotalDocumentos documento@(reclamacion.TotalDocumentos == 1 ? "" : "s")).
+            @* Al cliente, no al hilo: el deep-link a una conversación concreta
+               no existe todavía (05_WORKSPACE_PATTERNS.md § 3.6). *@
+            @if (reclamacion.ConversacionId is not null)
+            {
+                <a href="@($"/comunicaciones?cliente={clienteIdDelCentro}")">Ver en Comunicaciones</a>
+            }
+        </p>
+    }
 
     <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del centro">
         @switch (PestanaActiva)
@@ -557,6 +577,8 @@ else
     private EstadoCentroDto? _estadoCentro;
     private bool _cargandoEstado;
 
+    private UltimaReclamacionClienteDto? _ultimaReclamacion;
+
     /// <summary>
     /// Edición in situ de la pestaña "Información" (Centro 360,
     /// PLAN-EJECUCION-UX.md § 0.10) — sustituye al Drawer de "Editar", que
@@ -682,6 +704,13 @@ else
         try
         {
             _detalle = await Mediator.Send(new ObtenerCentroPorIdQuery(EntidadId));
+
+            // Rastro de la última reclamación al Cliente de este Centro: es el
+            // puente hacia Comunicaciones desde la superficie de operación. Su
+            // fallo no puede tumbar el panel — es contexto, no el Centro.
+            _ultimaReclamacion = _detalle is null
+                ? null
+                : await Mediator.Send(new ObtenerUltimaReclamacionClienteQuery(_detalle.ClienteId));
         }
         catch (Exception)
         {

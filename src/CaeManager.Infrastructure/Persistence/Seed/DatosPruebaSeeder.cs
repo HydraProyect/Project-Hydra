@@ -1017,13 +1017,23 @@ public static class DatosPruebaSeeder
                 conversacionId = conversacion.Id;
             }
 
-            dbContext.ReclamacionesDocumentales.Add(new ReclamacionDocumental(
+            var reclamacion = new ReclamacionDocumental(
                 cliente.Id,
                 cliente.EjecutivoUsuarioId.Value,
                 destinatario,
                 fechaEnvio,
                 documentosProximos,
-                conversacionId));
+                conversacionId);
+            dbContext.ReclamacionesDocumentales.Add(reclamacion);
+
+            // La entrada del Unified Timeline que en producción registra
+            // RegistrarEventoReclamacionEnviadaHandler tras el envío.
+            if (conversacionId is not null)
+            {
+                dbContext.EventosConversacion.Add(new EventoConversacion(
+                    conversacionId.Value, TipoEventoConversacion.ReclamacionEnviada, reclamacion.Id, fechaEnvio));
+            }
+
             enviadas++;
         }
     }

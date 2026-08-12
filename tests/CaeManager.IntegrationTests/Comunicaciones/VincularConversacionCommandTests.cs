@@ -62,7 +62,7 @@ public class VincularConversacionCommandTests : IAsyncLifetime
         await using (var lectura = CrearContexto())
         {
             var handlerQuery = new ObtenerConversacionPorIdQueryHandler(
-                lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+                lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
                 new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
 
             var detalle = await handlerQuery.Handle(new ObtenerConversacionPorIdQuery(conversacionWhatsAppId), CancellationToken.None);
