@@ -1,12 +1,13 @@
+using CaeManager.Application.Common;
 using System.Security.Cryptography;
 using System.Text;
-using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Dashboard.Catalogo;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -943,6 +944,18 @@ public static class DatosPruebaSeeder
     /// Historial de lotes de reclamación ya enviados para los primeros
     /// clientes con documentación próxima a vencer — ejercita la vista previa
     /// del lote (que descarta lo reclamado hace poco) y el historial.
+    ///
+    /// Siembra las tres variantes que existen desde que la reclamación puede
+    /// nacer como <see cref="Conversacion"/>, para poder recorrer el ciclo
+    /// entero sin buzón real: (1) con conversación y respuesta del cliente
+    /// dentro del mismo hilo — el caso que cierra el círculo; (2) con
+    /// conversación y **sin** respuesta desde hace más de una semana — el que
+    /// alimenta el seguimiento de reclamaciones sin contestar; (3) histórica
+    /// sin conversación, que es como salían todas antes y como siguen saliendo
+    /// cuando no hay buzón conectado.
+    ///
+    /// Las conversaciones se crean sin <c>AsociarConexion</c>: sembradas a mano
+    /// no tienen hilo de Graph que representar (ver <see cref="Conversacion"/>).
     /// </summary>
     private static async Task SembrarReclamacionesAsync(
         CaeManagerDbContext dbContext, List<Cliente> clientes, CancellationToken cancellationToken)
@@ -953,7 +966,7 @@ public static class DatosPruebaSeeder
 
         foreach (var cliente in clientes)
         {
-            if (enviadas == 2)
+            if (enviadas == 3)
                 break;
             if (cliente.EjecutivoUsuarioId is null)
                 continue;
@@ -973,12 +986,44 @@ public static class DatosPruebaSeeder
             if (documentosProximos.Count == 0)
                 continue;
 
+            var destinatario = $"portal.cliente{enviadas + 1}@buzon-simulado.local";
+            var fechaEnvio = DateTime.UtcNow.AddDays(-7 * (enviadas + 1));
+            Guid? conversacionId = null;
+
+            // Variante 3 (la última): histórica, sin conversación.
+            if (enviadas < 2)
+            {
+                var conversacion = new Conversacion(
+                    $"Documentación pendiente de {cliente.RazonSocial}", cliente.Id);
+                conversacion.AgregarMensaje(
+                    DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@buzon-simulado.local",
+                    "<p>Adjuntamos la documentación que vence próximamente. Por favor, gestiona su renovación.</p>",
+                    fechaEnvio);
+                conversacion.AgregarParticipante(
+                    destinatario, RolParticipante.Para, TipoParticipanteOrigen.UsuarioCliente);
+
+                // Variante 1: el cliente contesta en el MISMO hilo. Variante 2:
+                // no contesta, así que el hilo se queda esperando desde hace más
+                // de una semana.
+                if (enviadas == 0)
+                {
+                    conversacion.AgregarMensaje(
+                        DireccionMensaje.Entrante, CanalConversacion.Correo, destinatario,
+                        "<p>Recibido. Esta semana os subimos los certificados renovados.</p>",
+                        fechaEnvio.AddDays(1));
+                }
+
+                dbContext.Conversaciones.Add(conversacion);
+                conversacionId = conversacion.Id;
+            }
+
             dbContext.ReclamacionesDocumentales.Add(new ReclamacionDocumental(
                 cliente.Id,
                 cliente.EjecutivoUsuarioId.Value,
-                $"portal.cliente{enviadas + 1}@caemanager.local",
-                DateTime.UtcNow.AddDays(-7 * (enviadas + 1)),
-                documentosProximos));
+                destinatario,
+                fechaEnvio,
+                documentosProximos,
+                conversacionId));
             enviadas++;
         }
     }

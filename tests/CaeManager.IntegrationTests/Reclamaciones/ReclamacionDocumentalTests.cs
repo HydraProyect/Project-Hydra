@@ -2,6 +2,7 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Reclamaciones;
@@ -13,15 +14,18 @@ using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
+using MediatR;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -118,7 +122,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Enviar_la_reclamacion_persiste_el_lote_y_envia_el_email()
+    public async Task Sin_buzon_conectado_la_reclamacion_sale_por_email_y_no_deja_conversacion()
     {
         Guid documentoId;
         await using (var contexto = CrearContexto())
@@ -132,10 +136,11 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         }
 
         var emailServiceFalso = new EmailServiceFalso();
+        var mediatorFalso = new MediatorFalso(Guid.NewGuid());
         await using (var contexto = CrearContexto())
         {
             var handler = CrearCommandHandler(
-                contexto, new ContactosClienteServiceFalso(["cliente@example.com"]), emailServiceFalso);
+                contexto, new ContactosClienteServiceFalso(["cliente@example.com"]), emailServiceFalso, mediatorFalso);
 
             var resultado = await handler.Handle(new EnviarReclamacionCommand(_clienteId, [documentoId]), CancellationToken.None);
 
@@ -143,13 +148,67 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         }
 
         emailServiceFalso.Enviados.Should().ContainSingle(e => e.Destinatario == "cliente@example.com");
+        mediatorFalso.UltimoEnvio.Should().BeNull("sin buzón conectado no se pasa por Comunicaciones");
 
         await using var lectura = CrearContexto();
-        (await lectura.ReclamacionesDocumentales.CountAsync()).Should().Be(1);
+        var reclamacion = (await lectura.ReclamacionesDocumentales.ToListAsync()).Should().ContainSingle().Which;
+        reclamacion.ConversacionId.Should().BeNull();
 
         var handlerConsulta = CrearQueryHandler(lectura, new ContactosClienteServiceFalso(["cliente@example.com"]));
         var lotes = await handlerConsulta.Handle(new ObtenerLoteReclamacionQuery(), CancellationToken.None);
         lotes.Should().ContainSingle(l => l.ClienteId == _clienteId).Which.UltimaReclamacionFechaUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Con_buzon_conectado_la_reclamacion_nace_como_conversacion_en_un_unico_envio()
+    {
+        Guid documentoId;
+        Guid conversacionEsperada;
+        await using (var contexto = CrearContexto())
+        {
+            var documento = Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1));
+            contexto.Documentos.Add(documento);
+            contexto.ConexionesIntegracion.Add(new ConexionIntegracion("cae@consultora.com", "Buzón CAE"));
+
+            // La conversación que en producción crea EnviarMensajeNuevoCommand.
+            // Tiene que existir de verdad: la FK de ReclamacionDocumental no
+            // acepta un Id inventado, que es justo lo que debe garantizar.
+            var conversacion = new Conversacion("Documentación pendiente", _clienteId);
+            contexto.Conversaciones.Add(conversacion);
+
+            await contexto.SaveChangesAsync();
+            documentoId = documento.Id;
+            conversacionEsperada = conversacion.Id;
+        }
+
+        var emailServiceFalso = new EmailServiceFalso();
+        var mediatorFalso = new MediatorFalso(conversacionEsperada);
+
+        await using (var contexto = CrearContexto())
+        {
+            var handler = CrearCommandHandler(
+                contexto, new ContactosClienteServiceFalso(["contacto@cliente.com", "prl@cliente.com"]),
+                emailServiceFalso, mediatorFalso);
+
+            var resultado = await handler.Handle(new EnviarReclamacionCommand(_clienteId, [documentoId]), CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        // Un solo envío con los dos destinatarios, no uno por destinatario: el
+        // lote es una conversación, no dos hilos paralelos.
+        emailServiceFalso.Enviados.Should().BeEmpty("con buzón conectado la salida va por Comunicaciones");
+        var envio = mediatorFalso.UltimoEnvio.Should().NotBeNull().And.Subject.As<EnviarMensajeNuevoCommand>();
+        envio.Destinatarios.Should().BeEquivalentTo(["contacto@cliente.com", "prl@cliente.com"]);
+        envio.ClienteId.Should().Be(_clienteId);
+        mediatorFalso.VecesLlamado.Should().Be(1);
+
+        await using var lectura = CrearContexto();
+        var reclamacion = (await lectura.ReclamacionesDocumentales.ToListAsync()).Should().ContainSingle().Which;
+        reclamacion.ConversacionId.Should().Be(conversacionEsperada);
+        reclamacion.DestinatarioEmail.Should().Be("contacto@cliente.com; prl@cliente.com");
     }
 
     [Fact]
@@ -167,7 +226,8 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         }
 
         await using var contexto2 = CrearContexto();
-        var handler = CrearCommandHandler(contexto2, new ContactosClienteServiceFalso([]), new EmailServiceFalso());
+        var handler = CrearCommandHandler(
+            contexto2, new ContactosClienteServiceFalso([]), new EmailServiceFalso(), new MediatorFalso(Guid.NewGuid()));
 
         var resultado = await handler.Handle(new EnviarReclamacionCommand(_clienteId, [documentoId]), CancellationToken.None);
 
@@ -180,10 +240,10 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
             new AlcanceDatosServiceFalso(), contactos);
 
     private static EnviarReclamacionCommandHandler CrearCommandHandler(
-        CaeManagerDbContext contexto, IContactosClienteService contactos, IEmailService emailService) =>
-        new(contexto, contexto, contexto, contexto, contexto, contexto,
+        CaeManagerDbContext contexto, IContactosClienteService contactos, IEmailService emailService, IMediator mediator) =>
+        new(contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new AlcanceDatosServiceFalso(), contactos, emailService,
-            new ReclamacionDocumentalRepository(contexto), new CurrentUserServiceFalso(Guid.NewGuid()), contexto);
+            new ReclamacionDocumentalRepository(contexto), new CurrentUserServiceFalso(Guid.NewGuid()), mediator, contexto);
 
     private CaeManagerDbContext CrearContexto()
     {
@@ -211,5 +271,45 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
             Enviados.Add((destinatarioEmail, asunto));
             return Task.FromResult(Result.Exito());
         }
+    }
+
+    /// <summary>
+    /// Solo cubre <see cref="EnviarMensajeNuevoCommand"/>: cualquier otro
+    /// request revienta a propósito, para que el día que la reclamación empiece
+    /// a componer otro Command el test lo diga en vez de pasar en silencio.
+    /// </summary>
+    private class MediatorFalso(Guid conversacionIdADevolver) : IMediator
+    {
+        public EnviarMensajeNuevoCommand? UltimoEnvio { get; private set; }
+        public int VecesLlamado { get; private set; }
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            if (request is not EnviarMensajeNuevoCommand envio)
+                throw new NotSupportedException($"El doble no cubre {request.GetType().Name}.");
+
+            UltimoEnvio = envio;
+            VecesLlamado++;
+            return Task.FromResult((TResponse)(object)Result.Exito(conversacionIdADevolver));
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification =>
+            throw new NotSupportedException();
     }
 }

@@ -12,6 +12,7 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public string AccessTokenDevuelto { get; set; } = "access-token-falso";
     public string RefreshTokenDevuelto { get; set; } = "refresh-token-falso";
     public string? UltimoMensajeExternoIdRespondido { get; private set; }
+    public MensajeEnviadoGraphDto MensajeEnviadoADevolver { get; set; } = new("msg-ext-falso-123", "hilo-ext-falso-456");
     public MensajeGraphDto? MensajeADevolver { get; set; }
     public IReadOnlyList<string> MensajeIdsADevolver { get; set; } = [];
     public string? ClientStateADevolver { get; set; }
@@ -42,12 +43,12 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
             : Result.Exito());
     }
 
-    public Task<Result> EnviarNuevoMensajeAsync(
+    public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken) =>
         Task.FromResult(FallaEnvio
-            ? Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "fallo simulado"))
-            : Result.Exito());
+            ? Result.Fallo<MensajeEnviadoGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "fallo simulado"))
+            : Result.Exito(MensajeEnviadoADevolver));
 
     public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
         string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken) =>

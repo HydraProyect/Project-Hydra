@@ -3,10 +3,13 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Integraciones;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Reclamaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -32,11 +35,13 @@ public class EnviarReclamacionCommandHandler(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IAsignacionesQueryContext asignacionesContext,
     ICentrosQueryContext centrosContext,
+    IIntegracionesQueryContext integracionesContext,
     IAlcanceDatosService alcanceDatos,
     IContactosClienteService contactosClienteService,
     IEmailService emailService,
     IReclamacionDocumentalRepository repositorio,
     ICurrentUserService currentUserService,
+    IMediator mediator,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EnviarReclamacionCommand, Result>
 {
@@ -94,12 +99,35 @@ public class EnviarReclamacionCommandHandler(
         }
 
         var destinatarioUnico = string.Join("; ", destinatarios);
+        var asunto = $"{Marca.Nombre} — documentación pendiente de {cliente.RazonSocial}";
         var cuerpoHtml = ConstruirCuerpoHtml(cliente.RazonSocial, filas.Select(f => (f.TrabajadorNombre, f.TipoDocumentoNombre, f.FechaVencimiento!.Value)));
 
-        foreach (var destinatario in destinatarios)
+        var conexionId = await integracionesContext.ConexionesIntegracion
+            .Where(c => c.Proveedor == ProveedorIntegracion.Microsoft365 && c.Estado == EstadoConexionIntegracion.Habilitada)
+            .Where(c => c.ClienteId == null || c.ClienteId == request.ClienteId)
+            .OrderByDescending(c => c.ClienteId != null)
+            .Select(c => (Guid?)c.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        Guid? conversacionId = null;
+        if (conexionId is not null)
         {
-            await emailService.EnviarAsync(
-                destinatario, $"CAE Manager — documentación pendiente de {cliente.RazonSocial}", cuerpoHtml, cancellationToken);
+            var envioResultado = await mediator.Send(
+                new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, request.ClienteId),
+                cancellationToken);
+
+            if (envioResultado.EsFallido)
+                return Result.Fallo(envioResultado.Error);
+
+            conversacionId = envioResultado.Valor;
+        }
+        else
+        {
+            foreach (var destinatario in destinatarios)
+            {
+                await emailService.EnviarAsync(
+                    destinatario, asunto, cuerpoHtml, cancellationToken);
+            }
         }
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
@@ -107,7 +135,7 @@ public class EnviarReclamacionCommandHandler(
             return Result.Fallo(Error.Crear("Reclamacion.SinUsuario", "No pudimos identificar tu usuario."));
 
         repositorio.Agregar(new ReclamacionDocumental(
-            request.ClienteId, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, filas.Select(f => f.DocumentoId)));
+            request.ClienteId, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, filas.Select(f => f.DocumentoId), conversacionId));
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();

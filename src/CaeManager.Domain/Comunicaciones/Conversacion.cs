@@ -136,8 +136,8 @@ public class Conversacion : EntidadBase
         ahoraUtc - ultimoEntrante < DuracionVentanaServicio;
 
     /// <summary>
-    /// Ata el hilo a un buzón conectado (P3-33) — solo la llama el flujo de
-    /// ingesta de webhook, nunca el alta manual ni el seeder de demo.
+    /// Ata el hilo a un buzón conectado (P3-33) — se llama en el flujo de
+    /// ingesta de webhook y en el envío de un mensaje nuevo saliente.
     /// </summary>
     public void AsociarConexion(Guid conexionIntegracionId, string hiloExternoId)
     {
