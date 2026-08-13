@@ -57,8 +57,15 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: caemanager
+    # Desde la imagen oficial de postgres:18, el volumen se monta en el
+    # directorio PADRE, no en /var/lib/postgresql/data — el propio entrypoint
+    # ahora organiza los datos en subcarpetas por versión mayor (compatible
+    # con pg_ctlcluster) y rechaza arrancar si el volumen apunta al layout
+    # antiguo (docker-library/postgres#1259). Detectado en el primer
+    # despliegue real contra un volumen nuevo — no aparecía en Railway porque
+    # gestionaba el volumen a su manera.
     volumes:
-      - caemanager-postgres-data:/var/lib/postgresql/data
+      - caemanager-postgres-data:/var/lib/postgresql
     # Sin `ports` a propósito: la BD solo es alcanzable desde la red interna
     # del compose, nunca desde fuera de la máquina.
     healthcheck:
