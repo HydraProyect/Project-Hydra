@@ -117,6 +117,16 @@
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "informacion")'>
                         @context.RazonSocial
                     </button>
+                    @* Perfil incompleto: sin agenda no hay a quién reclamarle.
+                       Lleva directo a la pestaña que lo resuelve. *@
+                    @if (context.SinContactoEnAgenda)
+                    {
+                        <button type="button" class="aviso-sin-agenda"
+                                title="Sin contacto en la agenda: no se puede reclamar documentación a este cliente"
+                                @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "agenda")'>
+                            Sin contacto
+                        </button>
+                    }
                 </TemplateColumn>
                 <PropertyColumn Property="@(c => c.Cif)" Title="CIF" Sortable="true" />
                 <TemplateColumn Title="Crítico" Align="Align.Center" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EsCritico))">

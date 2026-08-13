@@ -13,6 +13,10 @@ public class Trabajador : EntidadBase
     public const int LongitudMaximaApellidos = 150;
     public const int LongitudMaximaAlias = 150;
     public const int LongitudMaximaEmail = 200;
+
+    /// <summary>Igual que <c>Conversacion.LongitudMaximaTelefonoContacto</c> — un E.164 nunca pasa de 15 dígitos más el "+".</summary>
+    public const int LongitudMaximaTelefono = 20;
+
     public const int LongitudMaximaObservaciones = 1000;
     public const int LongitudMinimaDni = 5;
     public const int LongitudMaximaDni = 20;
@@ -34,6 +38,20 @@ public class Trabajador : EntidadBase
     public string Dni { get; private set; } = string.Empty;
     public DateOnly? FechaNacimiento { get; private set; }
     public string? Email { get; private set; }
+
+    /// <summary>
+    /// Teléfono de contacto, normalizado a E.164 cuando se puede
+    /// (<see cref="NormalizarTelefono"/>). Es lo que permite resolver el
+    /// remitente de un WhatsApp entrante contra un Trabajador real —sin esto,
+    /// <c>ParticipanteConversacion</c> no se puebla en WhatsApp y el criterio
+    /// "Mismo Trabajador" del Conversation Matching Engine se queda en 0
+    /// (docs/COMUNICACIONES.md § 13.2).
+    ///
+    /// Dato personal a todos los efectos: se borra en <see cref="Anonimizar"/>
+    /// igual que el email.
+    /// </summary>
+    public string? Telefono { get; private set; }
+
     public string? Observaciones { get; private set; }
 
     public string NombreCompleto => $"{Nombre} {Apellidos}";
@@ -53,7 +71,8 @@ public class Trabajador : EntidadBase
         string dni,
         DateOnly? fechaNacimiento,
         string? email,
-        string? observaciones)
+        string? observaciones,
+        string? telefono)
     {
         EmpresaId = empresaId;
         SubcontrataId = subcontrataId;
@@ -64,6 +83,7 @@ public class Trabajador : EntidadBase
         FechaNacimiento = fechaNacimiento;
         Email = email;
         Observaciones = observaciones;
+        EstablecerTelefono(telefono);
     }
 
     public static Trabajador DeEmpresa(
@@ -74,12 +94,13 @@ public class Trabajador : EntidadBase
         DateOnly? fechaNacimiento = null,
         string? email = null,
         string? observaciones = null,
-        string? alias = null)
+        string? alias = null,
+        string? telefono = null)
     {
         if (empresaId == Guid.Empty)
             throw new ArgumentException("El trabajador debe pertenecer a una empresa.", nameof(empresaId));
 
-        return new Trabajador(empresaId, null, nombre, apellidos, alias, dni, fechaNacimiento, email, observaciones);
+        return new Trabajador(empresaId, null, nombre, apellidos, alias, dni, fechaNacimiento, email, observaciones, telefono);
     }
 
     public static Trabajador DeSubcontrata(
@@ -90,12 +111,13 @@ public class Trabajador : EntidadBase
         DateOnly? fechaNacimiento = null,
         string? email = null,
         string? observaciones = null,
-        string? alias = null)
+        string? alias = null,
+        string? telefono = null)
     {
         if (subcontrataId == Guid.Empty)
             throw new ArgumentException("El trabajador debe pertenecer a una subcontrata.", nameof(subcontrataId));
 
-        return new Trabajador(null, subcontrataId, nombre, apellidos, alias, dni, fechaNacimiento, email, observaciones);
+        return new Trabajador(null, subcontrataId, nombre, apellidos, alias, dni, fechaNacimiento, email, observaciones, telefono);
     }
 
     /// <summary>
@@ -139,6 +161,7 @@ public class Trabajador : EntidadBase
         Dni = string.Empty;
         FechaNacimiento = null;
         Email = null;
+        Telefono = null;
         Observaciones = null;
 
         AnonimizadoEnUtc = ahoraUtc;
@@ -150,7 +173,8 @@ public class Trabajador : EntidadBase
         DateOnly? fechaNacimiento,
         string? email,
         string? observaciones,
-        string? alias)
+        string? alias,
+        string? telefono = null)
     {
         // Editar un trabajador anonimizado reintroduciría datos personales de
         // alguien cuyo plazo de conservación ya venció, y dejaría la
@@ -165,6 +189,33 @@ public class Trabajador : EntidadBase
         FechaNacimiento = fechaNacimiento;
         Email = email;
         Observaciones = observaciones;
+        EstablecerTelefono(telefono);
+    }
+
+    /// <summary>
+    /// Normaliza a E.164 en la medida de lo posible: quita separadores de
+    /// escritura (espacios, guiones, paréntesis, puntos) y convierte el
+    /// prefijo internacional "00" en "+". No inventa prefijo de país: un
+    /// número local se guarda tal cual, porque adivinar el país a partir del
+    /// tenant sería una suposición que nadie ha decidido.
+    /// </summary>
+    private void EstablecerTelefono(string? telefono)
+    {
+        if (string.IsNullOrWhiteSpace(telefono))
+        {
+            Telefono = null;
+            return;
+        }
+
+        var normalizado = new string(telefono.Where(c => !char.IsWhiteSpace(c) && c is not ('-' or '(' or ')' or '.')).ToArray());
+
+        if (normalizado.StartsWith("00", StringComparison.Ordinal))
+            normalizado = "+" + normalizado[2..];
+
+        if (normalizado.Length > LongitudMaximaTelefono)
+            throw new ArgumentException($"El teléfono no puede superar {LongitudMaximaTelefono} caracteres.", nameof(telefono));
+
+        Telefono = normalizado;
     }
 
     private void EstablecerNombre(string nombre)

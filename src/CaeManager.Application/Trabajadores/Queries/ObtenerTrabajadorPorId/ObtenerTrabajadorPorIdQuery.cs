@@ -21,6 +21,7 @@ public record TrabajadorDetalleDto(
     string? Email,
     string? Observaciones,
     string? Alias,
+    string? Telefono,
     Guid Version);
 
 public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
@@ -44,6 +45,7 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
                 t.Email,
                 t.Observaciones,
                 t.Alias,
+                t.Telefono,
                 t.Version
             })
             .FirstOrDefaultAsync(cancellationToken);
@@ -57,6 +59,6 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
         return new TrabajadorDetalleDto(
             trabajador.Id, trabajador.EmpresaId, trabajador.SubcontrataId, empleadorNombre, trabajador.Nombre, trabajador.Apellidos,
             trabajador.Dni, trabajador.FechaNacimiento, trabajador.Email, trabajador.Observaciones, trabajador.Alias,
-            trabajador.Version);
+            trabajador.Telefono, trabajador.Version);
     }
 }

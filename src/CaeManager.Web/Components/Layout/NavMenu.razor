@@ -111,8 +111,14 @@
                 <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
             </summary>
             <div class="nav-grupo-items">
+                @* "Mi trabajo" y no "Bandeja" (H3 de docs/COMUNICACIONES.md § 9,
+                   decisión provisional del usuario 2026-08-13): "bandeja" en
+                   español significa inbox de correo, y la bandeja de correo real
+                   es /comunicaciones — quien buscaba su correo aterrizaba aquí,
+                   en la cola de trabajo documental. La ruta /bandeja no cambia:
+                   solo la etiqueta, hasta que se decida el nombre definitivo. *@
                 <NavLink class="nav-item" href="bandeja">
-                    <Icono Nombre="alertas" /> Bandeja
+                    <Icono Nombre="alertas" /> Mi trabajo
                 </NavLink>
                 <NavLink class="nav-item" href="alertas">
                     <Icono Nombre="alertas" /> Alertas

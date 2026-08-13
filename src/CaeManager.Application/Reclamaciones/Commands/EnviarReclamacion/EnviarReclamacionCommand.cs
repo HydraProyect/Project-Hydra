@@ -27,7 +27,21 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 /// que se abrió la vista previa y se pulsó Enviar) se descarta en silencio en
 /// vez de fallar todo el envío.
 /// </summary>
-public record EnviarReclamacionCommand(Guid ClienteId, IReadOnlyList<Guid> DocumentoIds) : ICommand;
+/// <param name="CentroId">
+/// Acota la resolución de destinatarios a la agenda de ese Centro antes de caer
+/// a la del Cliente — lo rellena el disparo desde Centro 360. Null desde
+/// /documentos, que reclama por Cliente completo.
+/// </param>
+/// <param name="ContactoIdsSeleccionados">
+/// Contactos marcados a mano en la pantalla. Null/vacío = "los que resuelva la
+/// agenda", que es el camino normal; con valor, manda lo que eligió el gestor —
+/// revalidado igualmente contra la agenda real, no se confía en la UI.
+/// </param>
+public record EnviarReclamacionCommand(
+    Guid ClienteId,
+    IReadOnlyList<Guid> DocumentoIds,
+    Guid? CentroId = null,
+    IReadOnlyList<Guid>? ContactoIdsSeleccionados = null) : ICommand;
 
 public class EnviarReclamacionCommandHandler(
     IClientesQueryContext clientesContext,
@@ -38,7 +52,7 @@ public class EnviarReclamacionCommandHandler(
     ICentrosQueryContext centrosContext,
     IIntegracionesQueryContext integracionesContext,
     IAlcanceDatosService alcanceDatos,
-    IContactosClienteService contactosClienteService,
+    Contactos.IResolucionDestinatariosAgendaService resolucionDestinatarios,
     IEmailService emailService,
     IReclamacionDocumentalRepository repositorio,
     ICurrentUserService currentUserService,
@@ -62,14 +76,6 @@ public class EnviarReclamacionCommandHandler(
         if (request.DocumentoIds.Count == 0)
             return Result.Fallo(Error.Crear("Reclamacion.SinDocumentos", "Selecciona al menos un documento a reclamar."));
 
-        var destinatarios = await contactosClienteService.ObtenerEmailsPortalAsync(request.ClienteId, cancellationToken);
-        if (destinatarios.Count == 0)
-        {
-            return Result.Fallo(Error.Crear(
-                "Reclamacion.SinDestinatario",
-                "Este cliente no tiene ningún usuario de portal con email al que reclamar."));
-        }
-
         var idsSolicitados = request.DocumentoIds.Distinct().ToList();
 
         var filas = await (
@@ -86,6 +92,7 @@ public class EnviarReclamacionCommandHandler(
             {
                 DocumentoId = documento.Id,
                 TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos,
+                TipoDocumentoId = tipoDocumento.Id,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaVencimiento
             })
@@ -99,6 +106,27 @@ public class EnviarReclamacionCommandHandler(
                 "Ninguno de los documentos seleccionados sigue siendo reclamable para este cliente — puede que ya se hayan renovado."));
         }
 
+        // La agenda decide a quién se le pide cada documento. Ya no se usan los
+        // usuarios de portal (decisión del usuario 2026-08-13): tener cuenta en
+        // el portal no significa estar en el flujo documental — puede ser el
+        // dueño de la empresa o un comercial.
+        var resueltos = await resolucionDestinatarios.ResolverAsync(
+            request.ClienteId, request.CentroId, filas.Select(f => f.TipoDocumentoId).Distinct().ToList(), cancellationToken);
+
+        // La selección manual se filtra CONTRA lo resuelto, no lo sustituye:
+        // así un Id de contacto de otro cliente colado a mano no se convierte
+        // en destinatario.
+        if (request.ContactoIdsSeleccionados is { Count: > 0 } seleccionados)
+            resueltos = [.. resueltos.Where(d => seleccionados.Contains(d.ContactoId))];
+
+        if (resueltos.Count == 0)
+        {
+            return Result.Fallo(Error.Crear(
+                "Reclamacion.SinDestinatario",
+                "No hay ningún contacto en la agenda al que reclamar esta documentación — añade uno en la ficha del cliente."));
+        }
+
+        var destinatarios = resueltos.Select(d => d.Email).Distinct().ToList();
         var destinatarioUnico = string.Join("; ", destinatarios);
         var asunto = $"{Marca.Nombre} — documentación pendiente de {cliente.RazonSocial}";
         var cuerpoHtml = ConstruirCuerpoHtml(cliente.RazonSocial, filas.Select(f => (f.TrabajadorNombre, f.TipoDocumentoNombre, f.FechaVencimiento!.Value)));

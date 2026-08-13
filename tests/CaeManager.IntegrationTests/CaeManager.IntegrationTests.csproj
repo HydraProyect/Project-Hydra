@@ -21,6 +21,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Sin copiarlo a la salida el runner nunca lo lee, y el paralelismo
+         sigue siendo el de por defecto (un hilo por núcleo) — que es lo que
+         agotaba las conexiones de PostgreSQL, ver BaseDatosPostgresDePruebas. -->
+    <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\CaeManager.Infrastructure\CaeManager.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\CaeManager.Migrations.PostgreSQL\CaeManager.Migrations.PostgreSQL.csproj" />
     <ProjectReference Include="..\..\src\CaeManager.Application\CaeManager.Application.csproj" />
