@@ -1,8 +1,8 @@
+using CaeManager.Application.Common;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
-using CaeManager.Application.Common;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication;

@@ -1,5 +1,5 @@
-using System.Security.Claims;
 using CaeManager.Application.Common;
+using System.Security.Claims;
 using CaeManager.Application.Tenants;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Components.Authorization;

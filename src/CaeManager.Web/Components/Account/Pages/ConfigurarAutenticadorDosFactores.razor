@@ -16,7 +16,7 @@
 @inject ILoggerFactory LoggerFactory
 @inject NavigationManager NavigationManager
 
-<PageTitle>Autenticación en dos pasos — CAE Manager</PageTitle>
+<PageTitle>Autenticación en dos pasos — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
     <div class="cabecera-pagina">
@@ -80,7 +80,7 @@
     private string? mensajeError;
     private ApplicationUser? _usuario;
 
-    private const string Emisor = "CAE Manager";
+    private const string Emisor = "@Marca.Nombre";
 
     [SupplyParameterFromForm]
     private DatosEntrada? Entrada { get; set; }

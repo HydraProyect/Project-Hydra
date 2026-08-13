@@ -312,16 +312,16 @@ public partial class Usuarios : ComponentBase
 
         var cuerpo = $"""
             <p>Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)},</p>
-            <p>Se ha creado tu acceso a CAE Manager:</p>
+            <p>Se ha creado tu acceso a {Marca.Nombre}:</p>
             <ul>
                 <li>Correo: {System.Net.WebUtility.HtmlEncode(email)}</li>
                 <li>Contraseña temporal: {System.Net.WebUtility.HtmlEncode(contrasenaTemporal)}</li>
             </ul>
             <p>Se te pedirá cambiarla en tu primer inicio de sesión.</p>
-            <p><a href="{System.Net.WebUtility.HtmlEncode(urlAcceso)}">Entrar a CAE Manager</a></p>
+            <p><a href="{System.Net.WebUtility.HtmlEncode(urlAcceso)}">Entrar a {Marca.Nombre}</a></p>
             """;
 
-        var resultado = await EmailService.EnviarAsync(email, "Tu acceso a CAE Manager", cuerpo);
+        var resultado = await EmailService.EnviarAsync(email, $"Tu acceso a {Marca.Nombre}", cuerpo);
         if (resultado.EsFallido)
             Logger.LogWarning("No se pudo enviar el correo de bienvenida a {Email}.", email);
     }

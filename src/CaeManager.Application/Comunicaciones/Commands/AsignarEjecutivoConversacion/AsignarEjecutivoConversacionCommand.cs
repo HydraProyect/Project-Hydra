@@ -42,7 +42,7 @@ public class AsignarEjecutivoConversacionCommandHandler(
         // El repositorio ya filtra por tenant; esto cierra el alcance dentro
         // del tenant (hallazgo N-3): un gestor con el Guid de una conversación
         // que ya no está en su cartera podía reasignarla.
-        if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
+        if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
 
         // null es legítimo: es "desasignar".

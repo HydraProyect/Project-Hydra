@@ -48,7 +48,7 @@ public class ResponderConversacionWhatsAppCommandHandler(
         var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(request.ConversacionId, cancellationToken);
         // Mismo guard N-3 que el resto de handlers de Comunicaciones: sin
         // esto se podía responder en el hilo de otro gestor.
-        if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
+        if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
 
         if (conversacion.Canal != CanalConversacion.WhatsApp || conversacion.TelefonoContacto is null ||

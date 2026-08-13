@@ -1,5 +1,6 @@
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Dashboard.Queries;
+using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRespuesta;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
@@ -26,6 +27,7 @@ public partial class Dashboard : ComponentBase
     private IReadOnlyList<VisitaListaDto> _proximamente = [];
     private ProximoVencimientoDto? _proximoVencimiento;
     private PulsoEquipoDto? _pulso;
+    private IReadOnlyList<ReclamacionSinRespuestaDto> _sinRespuesta = [];
     private bool _error;
 
     // "Requiere atención" reutiliza la Bandeja del gestor (docs/blueprints/OPERATIONAL-HOME.md
@@ -80,6 +82,14 @@ public partial class Dashboard : ComponentBase
                         _proximoVencimiento = (await Mediator.Send(new ObtenerDesgloseDashboardQuery())).ProximoVencimiento;
 
                     _pulso = await Mediator.Send(new ObtenerPulsoEquipoQuery());
+
+                    // Reclamaciones que salieron y siguen sin contestar. Aquí y
+                    // no en el Action Center de Comunicaciones: ese es por
+                    // conversación, y esto cruza hilos. DDL-007 mantiene sin
+                    // congelar el contrato genérico del Action Center, así que
+                    // esto es una sección propia, no un segundo consumidor de
+                    // aquel componente.
+                    _sinRespuesta = await Mediator.Send(new ObtenerReclamacionesSinRespuestaQuery());
                 }
             }
         }

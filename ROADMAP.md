@@ -1542,6 +1542,13 @@ Bloque de seguridad, observabilidad de producto y onboarding. **A diferencia del
 9. **Endurecer el request de login**: asegurar que el flujo de login (local y SSO) no sea vulnerable a ningún tipo de ataque — probablemente se solape con los puntos 2/3/8 de este mismo bloque, no tratar como algo aparte sin antes cruzarlo con esos hallazgos.
 10. **Informe de estado de la plataforma** (para mostrar avance la semana del 2026-07-20): punteo del estado actual, listado de funcionalidades/casos de uso implementados vs. pendientes, listado de APIs/servicios creados, funcionalidades bloqueantes vs. no bloqueantes, bugs/errores pendientes, y acciones bloqueadas o dependientes de otra cosa por funcionalidad. Ver el informe ya entregado el 2026-07-19 como primera versión — actualizarlo antes de mostrarlo si hay cambios entre ahora y esa fecha.
 
+## Backlog — Identidad de marca: envoltorio de correo, formatos propios y firma electrónica (2026-08-12)
+
+Diseño cerrado, implementación no empezada. El detalle vive en `ROADMAP-IDENTIDAD.local.md`,
+ignorado por git porque nombra la marca comercial y este repositorio es público (ver `.gitignore`
+y `CaeManager.Application.Common.Marca`, que mantiene el nombre por defecto en el código y toma
+el real de configuración).
+
 ## Fuera de alcance de v1 (explícito, no implica "nunca")
 
 - ~~Multi-tenant real~~ **Ya no está fuera de alcance.** **Historial de la decisión**: fuera de alcance en v1 → revertido el 2026-07-17 hacia SaaS multi-cliente (`ADR-001-multitenant.md`) → en pausa el 2026-07-18 (`ADR-002-single-tenant.md`, uso interno + cláusula de fork) → **reactivado el 2026-07-23 (`ADR-003-saas-multitenant.md`)**: la vía SaaS multi-tenant es el objetivo principal del producto, implementación in-place en este repositorio con la organización actual como tenant #1. Ver sección "Iniciativa de hardening" → punto 3, `docs/MULTITENANCY.md` e `docs/archive/INFORME-MULTITENANT.md`.

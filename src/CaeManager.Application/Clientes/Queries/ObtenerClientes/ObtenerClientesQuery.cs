@@ -1,5 +1,5 @@
-using CaeManager.Application.Common;
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 

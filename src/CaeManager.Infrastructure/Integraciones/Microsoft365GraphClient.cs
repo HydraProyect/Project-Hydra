@@ -162,34 +162,87 @@ public class Microsoft365GraphClient(
         }
     }
 
-    public async Task<Result> EnviarNuevoMensajeAsync(
+    public async Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
     {
-        using var peticion = NuevaPeticionGraph(HttpMethod.Post, "https://graph.microsoft.com/v1.0/me/sendMail", accessToken);
-        peticion.Content = JsonContent.Create(new SolicitudEnvioNuevoGraph(
+        using var peticionBorrador = NuevaPeticionGraph(HttpMethod.Post, "https://graph.microsoft.com/v1.0/me/messages", accessToken);
+
+        // Los Ids de mensaje de Graph NO son estables: al enviar el borrador,
+        // el mensaje se mueve de Borradores a Elementos enviados y cambia de
+        // Id, así que el que devuelve la creación dejaría de resolver. Esta
+        // preferencia pide el Id inmutable, que sobrevive al movimiento. Si el
+        // inquilino no la tiene habilitada, Graph la ignora en silencio y
+        // devuelve el Id normal — se degrada al comportamiento anterior, no
+        // falla. Pendiente de comprobar contra un buzón real (misma laguna que
+        // el resto de la integración, docs/COMUNICACIONES.md § 9).
+        peticionBorrador.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+
+        peticionBorrador.Content = JsonContent.Create(
             new MensajeNuevoGraph(
                 asunto,
                 new CuerpoMensajeGraphConTipo("HTML", cuerpoHtml),
                 destinatarios.Select(d => new EmailAddressGraph(new DireccionGraph(d))).ToList(),
-                ConstruirAdjuntosGraph(adjuntos))));
+                ConstruirAdjuntosGraph(adjuntos)));
 
         try
         {
-            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
-            if (respuesta.IsSuccessStatusCode)
-                return Result.Exito();
+            using var respuestaBorrador = await httpClient.SendAsync(peticionBorrador, cancellationToken);
+            if (!respuestaBorrador.IsSuccessStatusCode)
+            {
+                var cuerpoError = await respuestaBorrador.Content.ReadAsStringAsync(cancellationToken);
+                logger.LogError(
+                    "Microsoft Graph devolvió {StatusCode} al crear borrador desde el buzón {Buzon}: {Cuerpo}",
+                    (int)respuestaBorrador.StatusCode, buzonEmail, cuerpoError);
+                return Result.Fallo<MensajeEnviadoGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar el mensaje."));
+            }
 
-            var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
-            logger.LogError(
-                "Microsoft Graph devolvió {StatusCode} al enviar un mensaje nuevo desde el buzón {Buzon}: {Cuerpo}",
-                (int)respuesta.StatusCode, buzonEmail, cuerpoError);
-            return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar el mensaje."));
+            var borrador = await respuestaBorrador.Content.ReadFromJsonAsync<RespuestaCrearMensajeGraph>(cancellationToken);
+            if (string.IsNullOrWhiteSpace(borrador?.Id) || string.IsNullOrWhiteSpace(borrador.ConversationId))
+            {
+                logger.LogError("Microsoft Graph no devolvió un Id o ConversationId válido al crear borrador desde el buzón {Buzon}.", buzonEmail);
+                return Result.Fallo<MensajeEnviadoGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar el mensaje."));
+            }
+
+            var mensajeExternoId = borrador.Id!;
+            var hiloExternoId = borrador.ConversationId!;
+
+            using var peticionEnvio = NuevaPeticionGraph(
+                HttpMethod.Post, $"https://graph.microsoft.com/v1.0/me/messages/{Uri.EscapeDataString(mensajeExternoId)}/send", accessToken);
+            // La preferencia va también aquí: Graph solo interpreta un Id
+            // inmutable en la URL si la petición la declara. Sin esto, un Id
+            // inmutable se leería como Id normal y la llamada fallaría.
+            peticionEnvio.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+            using var respuestaEnvio = await httpClient.SendAsync(peticionEnvio, cancellationToken);
+
+            if (!respuestaEnvio.IsSuccessStatusCode)
+            {
+                var cuerpoError = await respuestaEnvio.Content.ReadAsStringAsync(cancellationToken);
+                logger.LogError(
+                    "Microsoft Graph devolvió {StatusCode} al enviar borrador {MensajeId} desde el buzón {Buzon}: {Cuerpo}",
+                    (int)respuestaEnvio.StatusCode, mensajeExternoId, buzonEmail, cuerpoError);
+
+                try
+                {
+                    using var peticionEliminar = NuevaPeticionGraph(
+                        HttpMethod.Delete, $"https://graph.microsoft.com/v1.0/me/messages/{Uri.EscapeDataString(mensajeExternoId)}", accessToken);
+                    peticionEliminar.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+                    await httpClient.SendAsync(peticionEliminar, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "No se pudo eliminar el borrador huérfano {MensajeId}.", mensajeExternoId);
+                }
+
+                return Result.Fallo<MensajeEnviadoGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar el mensaje."));
+            }
+
+            return Result.Exito(new MensajeEnviadoGraphDto(mensajeExternoId, hiloExternoId));
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al enviar un mensaje nuevo vía Microsoft Graph.");
-            return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+            return Result.Fallo<MensajeEnviadoGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
     }
 
@@ -500,6 +553,7 @@ public class Microsoft365GraphClient(
     {
         var peticion = new HttpRequestMessage(metodo, url);
         peticion.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        peticion.Headers.Add("Prefer", "IdType=\"ImmutableId\"");
         return peticion;
     }
 
@@ -527,7 +581,9 @@ public class Microsoft365GraphClient(
         public string ODataType => "#microsoft.graph.fileAttachment";
     }
 
-    private sealed record SolicitudEnvioNuevoGraph([property: JsonPropertyName("message")] MensajeNuevoGraph Message);
+    private sealed record RespuestaCrearMensajeGraph(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("conversationId")] string? ConversationId);
 
     private sealed record MensajeNuevoGraph(
         [property: JsonPropertyName("subject")] string Subject,
