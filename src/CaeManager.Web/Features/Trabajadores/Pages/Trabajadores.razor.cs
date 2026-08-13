@@ -64,6 +64,7 @@ public partial class Trabajadores : ComponentBase
     private string _apellidos = string.Empty;
     private string _fechaNacimiento = string.Empty;
     private string _email = string.Empty;
+    private string _telefono = string.Empty;
     private string _observaciones = string.Empty;
     private string _alias = string.Empty;
     private bool _guardando;
@@ -277,6 +278,7 @@ public partial class Trabajadores : ComponentBase
         _alias = string.Empty;
         _fechaNacimiento = string.Empty;
         _email = string.Empty;
+        _telefono = string.Empty;
         _observaciones = string.Empty;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
@@ -309,6 +311,7 @@ public partial class Trabajadores : ComponentBase
         try
         {
             var email = string.IsNullOrWhiteSpace(_email) ? null : _email;
+            var telefono = string.IsNullOrWhiteSpace(_telefono) ? null : _telefono;
             var observaciones = string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones;
             var alias = string.IsNullOrWhiteSpace(_alias) ? null : _alias;
             var fechaNacimiento = DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : (DateOnly?)null;
@@ -336,7 +339,7 @@ public partial class Trabajadores : ComponentBase
             }
 
             var resultado = await Mediator.Send(
-                new CrearTrabajadorCommand(empresaId, subcontrataId, _nombre, _apellidos, _dni, fechaNacimiento, email, observaciones, alias));
+                new CrearTrabajadorCommand(empresaId, subcontrataId, _nombre, _apellidos, _dni, fechaNacimiento, email, observaciones, alias, telefono));
 
             if (resultado.EsFallido)
             {

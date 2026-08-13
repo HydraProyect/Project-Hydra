@@ -4,6 +4,7 @@ using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Configuracion;
+using CaeManager.Application.Contactos;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
@@ -17,6 +18,7 @@ using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
+using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
@@ -92,14 +94,16 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
         }
 
+        await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
+
         await using var lectura = CrearContexto();
-        var handler = CrearQueryHandler(lectura, new ContactosClienteServiceFalso(["cliente@example.com"]));
+        var handler = CrearQueryHandler(lectura);
 
         var lotes = await handler.Handle(new ObtenerLoteReclamacionQuery(), CancellationToken.None);
 
         var lote = lotes.Should().ContainSingle(l => l.ClienteId == _clienteId).Subject;
         lote.Documentos.Should().ContainSingle();
-        lote.DestinatariosEmail.Should().ContainSingle("cliente@example.com");
+        lote.Destinatarios.Should().ContainSingle().Which.Email.Should().Be("agenda@cliente.test");
         lote.UltimaReclamacionFechaUtc.Should().BeNull();
     }
 
@@ -139,7 +143,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         }
 
         await using var lectura = CrearContexto();
-        var handler = CrearQueryHandler(lectura, new ContactosClienteServiceFalso(["cliente@example.com"]));
+        var handler = CrearQueryHandler(lectura);
 
         var lotes = await handler.Handle(new ObtenerLoteReclamacionQuery(CentroId: centroId), CancellationToken.None);
 
@@ -160,7 +164,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         }
 
         await using var lectura = CrearContexto();
-        var handler = CrearQueryHandler(lectura, new ContactosClienteServiceFalso(["cliente@example.com"]));
+        var handler = CrearQueryHandler(lectura);
 
         var lotes = await handler.Handle(new ObtenerLoteReclamacionQuery(), CancellationToken.None);
 
@@ -181,19 +185,20 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
             documentoId = documento.Id;
         }
 
+        await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
+
         var emailServiceFalso = new EmailServiceFalso();
         var mediatorFalso = new MediatorFalso(Guid.NewGuid());
         await using (var contexto = CrearContexto())
         {
-            var handler = CrearCommandHandler(
-                contexto, new ContactosClienteServiceFalso(["cliente@example.com"]), emailServiceFalso, mediatorFalso);
+            var handler = CrearCommandHandler(contexto, emailServiceFalso, mediatorFalso);
 
             var resultado = await handler.Handle(new EnviarReclamacionCommand(_clienteId, [documentoId]), CancellationToken.None);
 
             resultado.EsExitoso.Should().BeTrue();
         }
 
-        emailServiceFalso.Enviados.Should().ContainSingle(e => e.Destinatario == "cliente@example.com");
+        emailServiceFalso.Enviados.Should().ContainSingle(e => e.Destinatario == "agenda@cliente.test");
         mediatorFalso.UltimoEnvio.Should().BeNull("sin buzón conectado no se pasa por Comunicaciones");
         mediatorFalso.Publicados.Should().BeEmpty("sin conversación no hay timeline al que avisar");
 
@@ -201,7 +206,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         var reclamacion = (await lectura.ReclamacionesDocumentales.ToListAsync()).Should().ContainSingle().Which;
         reclamacion.ConversacionId.Should().BeNull();
 
-        var handlerConsulta = CrearQueryHandler(lectura, new ContactosClienteServiceFalso(["cliente@example.com"]));
+        var handlerConsulta = CrearQueryHandler(lectura);
         var lotes = await handlerConsulta.Handle(new ObtenerLoteReclamacionQuery(), CancellationToken.None);
         lotes.Should().ContainSingle(l => l.ClienteId == _clienteId).Which.UltimaReclamacionFechaUtc.Should().NotBeNull();
     }
@@ -227,13 +232,14 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
             documentoId = documento.Id;
         }
 
+        await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
+
         var emailServiceFalso = new EmailServiceFalso();
         var mediatorFalso = new MediatorFalso(Guid.NewGuid());
 
         await using (var contexto = CrearContexto())
         {
-            var handler = CrearCommandHandler(
-                contexto, new ContactosClienteServiceFalso(["cliente@example.com"]), emailServiceFalso, mediatorFalso);
+            var handler = CrearCommandHandler(contexto, emailServiceFalso, mediatorFalso);
 
             var resultado = await handler.Handle(new EnviarReclamacionCommand(_clienteId, [documentoId]), CancellationToken.None);
 
@@ -273,14 +279,14 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
             conversacionEsperada = conversacion.Id;
         }
 
+        await SembrarContactoPredeterminadoAsync("contacto@cliente.test", "prl@cliente.test");
+
         var emailServiceFalso = new EmailServiceFalso();
         var mediatorFalso = new MediatorFalso(conversacionEsperada);
 
         await using (var contexto = CrearContexto())
         {
-            var handler = CrearCommandHandler(
-                contexto, new ContactosClienteServiceFalso(["contacto@cliente.com", "prl@cliente.com"]),
-                emailServiceFalso, mediatorFalso);
+            var handler = CrearCommandHandler(contexto, emailServiceFalso, mediatorFalso);
 
             var resultado = await handler.Handle(new EnviarReclamacionCommand(_clienteId, [documentoId]), CancellationToken.None);
 
@@ -291,14 +297,14 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         // lote es una conversación, no dos hilos paralelos.
         emailServiceFalso.Enviados.Should().BeEmpty("con buzón conectado la salida va por Comunicaciones");
         var envio = mediatorFalso.UltimoEnvio.Should().NotBeNull().And.Subject.As<EnviarMensajeNuevoCommand>();
-        envio.Destinatarios.Should().BeEquivalentTo(["contacto@cliente.com", "prl@cliente.com"]);
+        envio.Destinatarios.Should().BeEquivalentTo(["contacto@cliente.test", "prl@cliente.test"]);
         envio.ClienteId.Should().Be(_clienteId);
         mediatorFalso.VecesLlamado.Should().Be(1);
 
         await using var lectura = CrearContexto();
         var reclamacion = (await lectura.ReclamacionesDocumentales.ToListAsync()).Should().ContainSingle().Which;
         reclamacion.ConversacionId.Should().Be(conversacionEsperada);
-        reclamacion.DestinatarioEmail.Should().Be("contacto@cliente.com; prl@cliente.com");
+        reclamacion.DestinatarioEmail.Should().Be("contacto@cliente.test; prl@cliente.test");
 
         // El timeline se entera del envío, y con la reclamación ya persistida.
         var publicado = mediatorFalso.Publicados.Should().ContainSingle().Which.Should().BeOfType<ReclamacionEnviadaEvent>().Subject;
@@ -307,7 +313,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Sin_usuario_de_portal_con_email_falla_al_enviar()
+    public async Task Sin_ningun_contacto_en_la_agenda_falla_al_enviar()
     {
         Guid documentoId;
         await using (var contexto = CrearContexto())
@@ -321,8 +327,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         }
 
         await using var contexto2 = CrearContexto();
-        var handler = CrearCommandHandler(
-            contexto2, new ContactosClienteServiceFalso([]), new EmailServiceFalso(), new MediatorFalso(Guid.NewGuid()));
+        var handler = CrearCommandHandler(contexto2, new EmailServiceFalso(), new MediatorFalso(Guid.NewGuid()));
 
         var resultado = await handler.Handle(new EnviarReclamacionCommand(_clienteId, [documentoId]), CancellationToken.None);
 
@@ -330,15 +335,30 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         resultado.Error.Codigo.Should().Be("Reclamacion.SinDestinatario");
     }
 
-    private static ObtenerLoteReclamacionQueryHandler CrearQueryHandler(CaeManagerDbContext contexto, IContactosClienteService contactos) =>
+    // Servicio de resolución REAL, no un doble: los destinatarios salen ahora
+    // de la agenda de contactos, y lo que estos tests tienen que comprobar es
+    // justamente esa resolución contra datos reales.
+    private static ObtenerLoteReclamacionQueryHandler CrearQueryHandler(CaeManagerDbContext contexto) =>
         new(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(), contactos);
+            new AlcanceDatosServiceFalso(), new ResolucionDestinatariosAgendaService(contexto, contexto));
 
     private static EnviarReclamacionCommandHandler CrearCommandHandler(
-        CaeManagerDbContext contexto, IContactosClienteService contactos, IEmailService emailService, IMediator mediator) =>
+        CaeManagerDbContext contexto, IEmailService emailService, IMediator mediator) =>
         new(contexto, contexto, contexto, contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(), contactos, emailService,
+            new AlcanceDatosServiceFalso(), new ResolucionDestinatariosAgendaService(contexto, contexto), emailService,
             new ReclamacionDocumentalRepository(contexto), new CurrentUserServiceFalso(Guid.NewGuid()), mediator, contexto);
+
+    /// <summary>Contacto predeterminado de la agenda del Cliente — el que recibe lo que no tiene dueño explícito.</summary>
+    private async Task SembrarContactoPredeterminadoAsync(params string[] emails)
+    {
+        await using var contexto = CrearContexto();
+        foreach (var email in emails)
+        {
+            contexto.ContactosAgenda.Add(ContactoAgenda.DeCliente(
+                _clienteId, email, email, esPredeterminado: true));
+        }
+        await contexto.SaveChangesAsync();
+    }
 
     private CaeManagerDbContext CrearContexto()
     {
@@ -351,11 +371,6 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
     }
 
-    private class ContactosClienteServiceFalso(IReadOnlyList<string> emails) : IContactosClienteService
-    {
-        public Task<IReadOnlyList<string>> ObtenerEmailsPortalAsync(Guid clienteId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(emails);
-    }
 
     private class EmailServiceFalso : IEmailService
     {

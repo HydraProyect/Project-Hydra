@@ -1,0 +1,68 @@
+.agenda-encabezado {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.agenda-resumen {
+    margin: 0;
+    color: var(--color-text-muted);
+    font: var(--font-small);
+}
+
+.agenda-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.agenda-contacto {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+}
+
+.agenda-contacto-datos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.agenda-contacto-nombre {
+    font: var(--font-label);
+}
+
+.agenda-contacto-email,
+.agenda-contacto-cargo,
+.agenda-contacto-telefono {
+    color: var(--color-text-muted);
+    font: var(--font-small);
+}
+
+.agenda-contacto-etiquetas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+
+.agenda-contacto-acciones {
+    display: flex;
+    gap: var(--space-2);
+}
+
+/* Aviso de configuración incompleta, no de error: por eso texto atenuado y
+   no el tono de peligro reservado al semáforo documental (06 § 4). */
+.agenda-aviso {
+    margin: var(--space-3) 0 0;
+    color: var(--color-text-muted);
+    font: var(--font-small);
+}

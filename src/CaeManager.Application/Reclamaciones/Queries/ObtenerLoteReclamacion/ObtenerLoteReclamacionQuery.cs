@@ -3,6 +3,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
+using CaeManager.Application.Contactos;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -33,13 +34,19 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 /// </summary>
 public record ObtenerLoteReclamacionQuery(Guid? CentroId = null) : IRequest<IReadOnlyList<LoteReclamacionClienteDto>>;
 
+/// <param name="Destinatarios">
+/// A quién le toca cada cosa según la agenda, con nombre, email y el motivo por
+/// el que entra ("RLC/TC1", "Contacto predeterminado") — la pantalla los pinta
+/// con casillas, así que necesita el ContactoId, no solo el email.
+/// Vacío = perfil incompleto: no hay a quién reclamar y el envío se bloquea.
+/// </param>
 public record LoteReclamacionClienteDto(
     Guid ClienteId,
     string RazonSocialCliente,
-    IReadOnlyList<string> DestinatariosEmail,
     DateTime? UltimaReclamacionFechaUtc,
     IReadOnlyList<DocumentoReclamableDto> Documentos,
-    Guid? UltimaReclamacionConversacionId = null);
+    Guid? UltimaReclamacionConversacionId = null,
+    IReadOnlyList<DestinatarioAgendaDto>? Destinatarios = null);
 
 public record DocumentoReclamableDto(
     Guid DocumentoId,
@@ -60,7 +67,7 @@ public class ObtenerLoteReclamacionQueryHandler(
     IClientesQueryContext clientesContext,
     IReclamacionesQueryContext reclamacionesContext,
     IAlcanceDatosService alcanceDatos,
-    IContactosClienteService contactosClienteService)
+    Contactos.IResolucionDestinatariosAgendaService resolucionDestinatarios)
     : IRequestHandler<ObtenerLoteReclamacionQuery, IReadOnlyList<LoteReclamacionClienteDto>>
 {
     public async Task<IReadOnlyList<LoteReclamacionClienteDto>> Handle(
@@ -141,17 +148,21 @@ public class ObtenerLoteReclamacionQueryHandler(
 
             if (documentos.Count == 0) continue;
 
-            var destinatarios = await contactosClienteService.ObtenerEmailsPortalAsync(grupoCliente.Key.Id, cancellationToken);
+            // Destinatarios desde la agenda, no desde los usuarios de portal
+            // (ver IResolucionDestinatariosAgendaService): la vista previa debe
+            // enseñar exactamente a quién va a salir el correo.
+            var resueltos = await resolucionDestinatarios.ResolverAsync(
+                grupoCliente.Key.Id, request.CentroId, documentos.Select(d => d.TipoDocumentoId).Distinct().ToList(), cancellationToken);
 
             var ultima = ultimasReclamaciones.GetValueOrDefault(grupoCliente.Key.Id);
 
             resultado.Add(new LoteReclamacionClienteDto(
                 grupoCliente.Key.Id,
                 grupoCliente.Key.RazonSocial,
-                destinatarios,
                 ultima?.Ultima,
                 documentos,
-                ultima?.ConversacionId));
+                ultima?.ConversacionId,
+                resueltos));
         }
 
         return resultado

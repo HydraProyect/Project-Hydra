@@ -7,6 +7,7 @@
 @using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
 @using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente
 @using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using CaeManager.Domain.Documentos
 @using MediatR
 @inject IMediator Mediator
@@ -106,6 +107,10 @@ else
                 <PestanaDocumentacion Ambito="AmbitoAplicacion.Cliente" PropietarioId="EntidadId" />
                 break;
 
+            case "agenda":
+                <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Cliente" PropietarioId="EntidadId" />
+                break;
+
             case "actividad":
                 <PestanaHistorial EntidadTipo="Cliente" EntidadId="EntidadId" />
                 break;
@@ -124,6 +129,7 @@ else
         new("empresas", "Empresas"),
         new("subcontratas", "Subcontratas"),
         new("documentacion", "Documentación"),
+        new("agenda", "Agenda"),
         new("actividad", "Actividad"),
         new("notas", "Notas")
     ];
