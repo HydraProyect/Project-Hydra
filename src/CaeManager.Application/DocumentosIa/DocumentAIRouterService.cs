@@ -1,7 +1,7 @@
+using CaeManager.Application.Common;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
-using CaeManager.Application.Common;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.DocumentosIa;

@@ -3,7 +3,8 @@ using CaeManager.Application.Common;
 namespace CaeManager.Application.Tests.Clientes;
 
 public class AlcanceDatosServiceFalso(
-    bool tieneAccesoTotal = true, IReadOnlyList<Guid>? clienteIdsVisibles = null, IReadOnlyList<Guid>? trabajadorIdsVisibles = null)
+    bool tieneAccesoTotal = true, IReadOnlyList<Guid>? clienteIdsVisibles = null, IReadOnlyList<Guid>? trabajadorIdsVisibles = null,
+    bool conexionIntegracionVisible = true)
     : IAlcanceDatosService
 {
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(tieneAccesoTotal);
@@ -22,4 +23,7 @@ public class AlcanceDatosServiceFalso(
         Task.FromResult(trabajadorIdsVisibles);
 
     public Task<IReadOnlyList<Guid>?> ObtenerVehiculoIdsVisiblesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Guid>?>(null);
+
+    public Task<bool> ConexionIntegracionVisibleAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(conexionIntegracionVisible);
 }

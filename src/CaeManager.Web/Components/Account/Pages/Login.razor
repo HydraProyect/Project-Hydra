@@ -13,10 +13,10 @@
 @inject IOptions<AzureAdOptions> OpcionesAzureAd
 @inject ILoggerFactory LoggerFactory
 
-<PageTitle>Iniciar sesión — CAE Manager</PageTitle>
+<PageTitle>Iniciar sesión — @Marca.Nombre</PageTitle>
 
 <div class="tarjeta-login">
-    <h1>CAE Manager</h1>
+    <h1>@Marca.Nombre</h1>
     <p class="subtitulo-login">Coordinación de Actividades Empresariales</p>
 
     @if (mensajeErrorSso is not null)
@@ -79,7 +79,7 @@
         Entrada ??= new DatosEntrada();
         mensajeErrorSso = ErrorSso switch
         {
-            "sin-cuenta" => "Tu cuenta de Microsoft no está dada de alta en CAE Manager. Contacta con tu administrador.",
+            "sin-cuenta" => "Tu cuenta de Microsoft no está dada de alta en @Marca.Nombre. Contacta con tu administrador.",
             "fallo" => "No pudimos completar el inicio de sesión con Microsoft. Intenta nuevamente.",
             _ => null,
         };

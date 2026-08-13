@@ -1,7 +1,8 @@
-using System.Text.RegularExpressions;
 using CaeManager.Application.Common;
+using System.Text.RegularExpressions;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,19 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 /// <see cref="ICurrentUserService"/> para resolver "a mí" — no recibe el
 /// usuario como parámetro para que el Command no pueda usarse para consultar
 /// la bandeja de otro usuario.
+///
+/// <see cref="SoloEsperandoCliente"/> es filtro de servidor, no de UI, aunque
+/// "esperando cliente" sea un estado derivado y no persistido (§ 16.4): con
+/// paginación en SQL, filtrar en memoria sobre la página ya cargada dejaría
+/// páginas que parecen vacías cuando en realidad hay coincidencias más
+/// adelante — el mismo motivo por el que <see cref="SoloAsignadasAMi"/> y
+/// <see cref="SoloSinAsignar"/> ya eran filtros de servidor.
+///
+/// <see cref="Busqueda"/> compara Asunto Y el cuerpo de los mensajes del hilo
+/// (H2, docs/COMUNICACIONES.md § 9 — "sin búsqueda de texto en
+/// conversaciones"). Es <c>Contains</c> sin índice de texto completo, mismo
+/// nivel que el resto de búsquedas de este repositorio — no se introduce
+/// tsvector/GIN de Postgres para esto (YAGNI).
 /// </summary>
 public record ObtenerConversacionesQuery(
     EstadoConversacion? Estado = null,
@@ -24,9 +38,12 @@ public record ObtenerConversacionesQuery(
     Guid? ClienteId = null,
     bool SoloAsignadasAMi = false,
     bool SoloSinAsignar = false,
+    bool SoloEsperandoCliente = false,
     string? Busqueda = null,
-    CanalConversacion? Canal = null)
-    : IRequest<IReadOnlyList<ConversacionListaDto>>;
+    CanalConversacion? Canal = null,
+    int Pagina = 1,
+    int TamanoPagina = 20)
+    : IRequest<ResultadoPaginado<ConversacionListaDto>>;
 
 public record ConversacionListaDto(
     Guid Id,
@@ -53,8 +70,10 @@ public record ConversacionListaDto(
 }
 
 public class ObtenerConversacionesQueryHandler(
-    IClientesQueryContext clientesContext, IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
-    : IRequestHandler<ObtenerConversacionesQuery, IReadOnlyList<ConversacionListaDto>>
+    IClientesQueryContext clientesContext, IComunicacionesQueryContext comunicacionesContext,
+    IIntegracionesQueryContext integracionesContext,
+    IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
+    : IRequestHandler<ObtenerConversacionesQuery, ResultadoPaginado<ConversacionListaDto>>
 {
     private const int LongitudPreview = 140;
 
@@ -63,7 +82,7 @@ public class ObtenerConversacionesQueryHandler(
     // sin invertir la dependencia entre capas.
     private const string RolCliente = "Cliente";
 
-    public async Task<IReadOnlyList<ConversacionListaDto>> Handle(
+    public async Task<ResultadoPaginado<ConversacionListaDto>> Handle(
         ObtenerConversacionesQuery request, CancellationToken cancellationToken)
     {
         var consulta = comunicacionesContext.Conversaciones.AsQueryable();
@@ -89,6 +108,23 @@ public class ObtenerConversacionesQueryHandler(
                 : consulta.Where(c => c.ClienteId == null || clienteIdsVisibles.Contains(c.ClienteId!.Value));
         }
 
+        // El buzón personal de OTRO gestor (ConexionIntegracion.GestorPropietarioId)
+        // también tiene ClienteId null, igual que la cola de triage genuina —
+        // sin esto, sus hilos se colaban en la bandeja de cualquier gestor con
+        // acceso a Comunicaciones (mismo hueco corregido en ObtenerConversacionPorIdQuery
+        // y en las cuatro consultas que resuelven "el buzón a usar para enviar").
+        var usuarioActualId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        var conexionesAjenasPersonales = await integracionesContext.ConexionesIntegracion
+            .Where(c => c.GestorPropietarioId != null && c.GestorPropietarioId != usuarioActualId)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
+        if (conexionesAjenasPersonales.Count > 0)
+        {
+            consulta = consulta.Where(c =>
+                c.ConexionIntegracionId == null || !conexionesAjenasPersonales.Contains(c.ConexionIntegracionId!.Value));
+        }
+
         if (request.Estado is not null)
             consulta = consulta.Where(c => c.Estado == request.Estado);
 
@@ -111,11 +147,31 @@ public class ObtenerConversacionesQueryHandler(
             consulta = consulta.Where(c => c.EjecutivoAsignadoId == usuarioId);
         }
 
+        if (request.SoloEsperandoCliente)
+        {
+            // "Último mensaje saliente" resuelto aquí mismo, en SQL, con la
+            // misma lógica que ConversacionListaDto.EsperandoCliente calcula
+            // después en memoria para el resto de filas — pero este filtro
+            // tiene que decidir ANTES de paginar, no después.
+            consulta = consulta.Where(c => c.Estado == EstadoConversacion.Abierta &&
+                comunicacionesContext.Mensajes
+                    .Where(m => m.ConversacionId == c.Id)
+                    .OrderByDescending(m => m.FechaUtc)
+                    .Select(m => m.Direccion)
+                    .FirstOrDefault() == DireccionMensaje.Saliente);
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
             var busqueda = request.Busqueda.ToUpper();
-            consulta = consulta.Where(c => c.Asunto.ToUpper().Contains(busqueda));
+            consulta = consulta.Where(c =>
+                c.Asunto.ToUpper().Contains(busqueda) ||
+                comunicacionesContext.Mensajes.Any(m => m.ConversacionId == c.Id && m.CuerpoHtml.ToUpper().Contains(busqueda)));
         }
+
+        var total = await consulta.CountAsync(cancellationToken);
+        if (total == 0)
+            return new ResultadoPaginado<ConversacionListaDto>([], 0, request.Pagina, request.TamanoPagina);
 
         var conversaciones = await (
             from c in consulta
@@ -134,9 +190,9 @@ public class ObtenerConversacionesQueryHandler(
                 c.Canal,
                 c.TelefonoContacto
             })
+            .Skip((request.Pagina - 1) * request.TamanoPagina)
+            .Take(request.TamanoPagina)
             .ToListAsync(cancellationToken);
-
-        if (conversaciones.Count == 0) return [];
 
         var conversacionIds = conversaciones.Select(c => c.Id).ToList();
 
@@ -155,7 +211,7 @@ public class ObtenerConversacionesQueryHandler(
         var conversacionPorMensaje = mensajes.ToDictionary(m => m.Id, m => m.ConversacionId);
         var mensajesRuidoPorConversacion = await ContarMensajesRuidoPorConversacionAsync(conversacionPorMensaje, cancellationToken);
 
-        return conversaciones.Select(c =>
+        var elementos = conversaciones.Select(c =>
         {
             var mensajesDeConversacion = mensajesPorConversacion.GetValueOrDefault(c.Id, []);
             var ultimoMensaje = mensajesDeConversacion.OrderByDescending(m => m.FechaUtc).FirstOrDefault();
@@ -168,6 +224,8 @@ public class ObtenerConversacionesQueryHandler(
                 c.FechaUltimoMensajeUtc, mensajesDeConversacion.Count, c.Canal, c.TelefonoContacto,
                 ultimoMensaje?.Direccion, mensajesRuidoPorConversacion.GetValueOrDefault(c.Id));
         }).ToList();
+
+        return new ResultadoPaginado<ConversacionListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
     }
 
     /// <summary>

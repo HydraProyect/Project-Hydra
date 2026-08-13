@@ -16,6 +16,9 @@
 @using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro
 @using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad
+@using CaeManager.Application.Reclamaciones.Queries.ObtenerUltimaReclamacionCliente
+@using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion
+@using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
 @using CaeManager.Application.Integraciones
 @using CaeManager.Application.Integraciones.Queries.ObtenerProveedoresPlataformaCae
 @using CaeManager.Domain.Centros
@@ -69,7 +72,32 @@ else
         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPedirPrioridadAsync">
             Pedir prioridad
         </Boton>
+        @if (_loteReclamacionCentro is { Documentos.Count: > 0 } lote)
+        {
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerReclamacionCentroVisible = true">
+                Reclamar documentación (@lote.Documentos.Count)
+            </Boton>
+        }
     </div>
+
+    // En un local, no leyendo el campo dentro del @if: la lambda que genera
+    // Razor para el bloque reinicia el análisis de nulabilidad de _detalle y
+    // haría saltar CS8602 en el resto de la plantilla.
+    var clienteIdDelCentro = _detalle.ClienteId;
+
+    @if (_ultimaReclamacion is { } reclamacion)
+    {
+        <p class="workspace-nota-contextual">
+            Última reclamación a este cliente: @reclamacion.FechaEnvioUtc.ToLocalTime().ToString("dd/MM/yyyy")
+            (@reclamacion.TotalDocumentos documento@(reclamacion.TotalDocumentos == 1 ? "" : "s")).
+            @* Al cliente, no al hilo: el deep-link a una conversación concreta
+               no existe todavía (05_WORKSPACE_PATTERNS.md § 3.6). *@
+            @if (reclamacion.ConversacionId is not null)
+            {
+                <a href="@($"/comunicaciones?cliente={clienteIdDelCentro}")">Ver en Comunicaciones</a>
+            }
+        </p>
+    }
 
     <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del centro">
         @switch (PestanaActiva)
@@ -532,6 +560,65 @@ else
             <Boton OnClick="EnviarPrioridadAsync" Cargando="_enviandoPrioridad" Deshabilitado="_cargandoBorradorPrioridad || _borradorPrioridad is null">Enviar</Boton>
         </Pie>
     </Drawer>
+
+    @* "Disparo desde Centro 360": el mismo EnviarReclamacionCommand que usa
+       /documentos, pero ya acotado a este Centro por ObtenerLoteReclamacionQuery
+       (CentroId). Confirmación explícita antes de enviar (docs/COMUNICACIONES.md
+       § 16.3, "Automatización: siempre confirmar") — el botón abre esto, no
+       manda nada solo. El cuerpo del correo lo compone el propio Command
+       (ConstruirCuerpoHtml), por eso aquí solo se revisa la lista, no se edita
+       texto libre (a diferencia de "Pedir prioridad", que sí es texto libre). *@
+    <Drawer Visible="_drawerReclamacionCentroVisible" VisibleChanged="v => _drawerReclamacionCentroVisible = v"
+            Titulo="Reclamar documentación del centro"
+            CerrarAlHacerClicFuera="!_enviandoReclamacionCentro">
+        <ChildContent>
+            @if (_loteReclamacionCentro is null)
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else
+            {
+                @if (_errorReclamacionCentro is not null)
+                {
+                    <div class="alerta-formulario" role="alert">@_errorReclamacionCentro</div>
+                }
+                @if (_loteReclamacionCentro.DestinatariosEmail.Count == 0)
+                {
+                    <div class="alerta-formulario" role="alert">Este cliente no tiene ningún usuario de portal con email — no se puede enviar la reclamación hasta que tenga uno.</div>
+                }
+                else
+                {
+                    <p class="workspace-nota-contextual">Destinatarios: @string.Join(", ", _loteReclamacionCentro.DestinatariosEmail)</p>
+                }
+                <table class="tabla-datos">
+                    <thead>
+                        <tr>
+                            <th>Trabajador</th>
+                            <th>Documento</th>
+                            <th>Vencimiento</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var documento in _loteReclamacionCentro.Documentos)
+                        {
+                            <tr @key="documento.DocumentoId">
+                                <td>@documento.TrabajadorNombre</td>
+                                <td>@documento.TipoDocumentoNombre</td>
+                                <td>@documento.FechaVencimiento.ToString("dd/MM/yyyy")</td>
+                                <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </ChildContent>
+        <Pie>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerReclamacionCentroVisible = false" Deshabilitado="_enviandoReclamacionCentro">Cancelar</Boton>
+            <Boton OnClick="EnviarReclamacionCentroAsync" Cargando="_enviandoReclamacionCentro"
+                   Deshabilitado="_loteReclamacionCentro is null || _loteReclamacionCentro.DestinatariosEmail.Count == 0">Enviar</Boton>
+        </Pie>
+    </Drawer>
 }
 
 @code {
@@ -556,6 +643,14 @@ else
 
     private EstadoCentroDto? _estadoCentro;
     private bool _cargandoEstado;
+
+    private UltimaReclamacionClienteDto? _ultimaReclamacion;
+
+    // --- Reclamar documentación del centro (disparo desde Centro 360) ---
+    private LoteReclamacionClienteDto? _loteReclamacionCentro;
+    private bool _drawerReclamacionCentroVisible;
+    private bool _enviandoReclamacionCentro;
+    private string? _errorReclamacionCentro;
 
     /// <summary>
     /// Edición in situ de la pestaña "Información" (Centro 360,
@@ -682,6 +777,20 @@ else
         try
         {
             _detalle = await Mediator.Send(new ObtenerCentroPorIdQuery(EntidadId));
+
+            // Rastro de la última reclamación al Cliente de este Centro: es el
+            // puente hacia Comunicaciones desde la superficie de operación. Su
+            // fallo no puede tumbar el panel — es contexto, no el Centro.
+            _ultimaReclamacion = _detalle is null
+                ? null
+                : await Mediator.Send(new ObtenerUltimaReclamacionClienteQuery(_detalle.ClienteId));
+
+            // Qué hay pendiente de reclamar en ESTE centro — a diferencia de
+            // _ultimaReclamacion (histórico), esto decide si el botón "Reclamar
+            // documentación" se pinta. Mismo criterio de "no tumbar el panel":
+            // si falla, simplemente no aparece el botón.
+            var lotes = await Mediator.Send(new ObtenerLoteReclamacionQuery(CentroId: EntidadId));
+            _loteReclamacionCentro = lotes.FirstOrDefault();
         }
         catch (Exception)
         {
@@ -1338,6 +1447,36 @@ else
         finally
         {
             _enviandoPrioridad = false;
+        }
+    }
+
+    private async Task EnviarReclamacionCentroAsync()
+    {
+        if (_loteReclamacionCentro is null) return;
+
+        _enviandoReclamacionCentro = true;
+        _errorReclamacionCentro = null;
+
+        try
+        {
+            var documentoIds = _loteReclamacionCentro.Documentos.Select(d => d.DocumentoId).ToList();
+            var resultado = await Mediator.Send(new EnviarReclamacionCommand(_loteReclamacionCentro.ClienteId, documentoIds));
+
+            if (resultado.EsFallido)
+            {
+                _errorReclamacionCentro = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar($"Reclamación enviada — {documentoIds.Count} documento(s).", TonoToast.Exito);
+            _drawerReclamacionCentroVisible = false;
+            // Refresca el rastro (Ver en Comunicaciones) y el propio botón —
+            // lo que se acaba de reclamar ya no debe seguir contando aquí.
+            await CargarCabeceraAsync();
+        }
+        finally
+        {
+            _enviandoReclamacionCentro = false;
         }
     }
 }
