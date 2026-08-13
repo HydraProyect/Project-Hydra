@@ -23,8 +23,15 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 /// varios Clientes (relación Empresa-Cliente N:N, ver DOMAIN.md) puede
 /// aparecer reclamado desde más de un Cliente — es el comportamiento
 /// correcto: cada titular necesita saberlo para su propio Centro.
+///
+/// <paramref name="CentroId"/> acota el lote a un único Centro — lo usa
+/// Centro 360 para "reclamar documentación de este centro" sin mandar de
+/// paso lo pendiente de otros centros del mismo Cliente. Un Centro pertenece
+/// a un único Cliente, así que con el filtro puesto el resultado tiene como
+/// mucho un elemento. Null (el caso de /documentos) mantiene el
+/// comportamiento de siempre: todos los clientes visibles.
 /// </summary>
-public record ObtenerLoteReclamacionQuery : IRequest<IReadOnlyList<LoteReclamacionClienteDto>>;
+public record ObtenerLoteReclamacionQuery(Guid? CentroId = null) : IRequest<IReadOnlyList<LoteReclamacionClienteDto>>;
 
 public record LoteReclamacionClienteDto(
     Guid ClienteId,
@@ -78,6 +85,7 @@ public class ObtenerLoteReclamacionQueryHandler(
             where asignacion.FechaBaja == null
             where centroIdsVisibles == null || centroIdsVisibles.Contains(asignacion.CentroId)
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
+            where request.CentroId == null || centro.Id == request.CentroId
             where clienteIdsVisibles == null || clienteIdsVisibles.Contains(centro.ClienteId)
             join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
             select new

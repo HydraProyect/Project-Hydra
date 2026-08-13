@@ -104,6 +104,51 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Filtrar_por_CentroId_acota_el_lote_a_ese_centro_aunque_el_cliente_tenga_otros_documentos_pendientes()
+    {
+        // Disparo desde Centro 360: el mismo Cliente tiene un segundo Centro
+        // con su propio documento pendiente — filtrar por CentroId no debe
+        // arrastrar lo del otro Centro, solo lo que ese Centro concreto puede
+        // "reclamar con un clic".
+        Guid centroId, otroCentroId;
+        await using (var contexto = CrearContexto())
+        {
+            var empresa = await contexto.Empresas.SingleAsync();
+            var centro = new Centro(_clienteId, empresa.Id, "Centro A");
+            var otroCentro = new Centro(_clienteId, empresa.Id, "Centro B");
+            contexto.Centros.AddRange(centro, otroCentro);
+            await contexto.SaveChangesAsync();
+            centroId = centro.Id;
+            otroCentroId = otroCentro.Id;
+
+            var otroTrabajador = Trabajador.DeEmpresa(empresa.Id, "Otro", "Trabajador", "11223344B");
+            contexto.Trabajadores.Add(otroTrabajador);
+            await contexto.SaveChangesAsync();
+
+            contexto.Asignaciones.Add(new Asignacion(_trabajadorId, centroId, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Asignaciones.Add(new Asignacion(otroTrabajador.Id, otroCentroId, DateOnly.FromDateTime(DateTime.UtcNow)));
+            await contexto.SaveChangesAsync();
+
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                otroTrabajador.Id, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = CrearQueryHandler(lectura, new ContactosClienteServiceFalso(["cliente@example.com"]));
+
+        var lotes = await handler.Handle(new ObtenerLoteReclamacionQuery(CentroId: centroId), CancellationToken.None);
+
+        var lote = lotes.Should().ContainSingle().Which;
+        lote.ClienteId.Should().Be(_clienteId);
+        lote.Documentos.Should().ContainSingle().Which.TrabajadorId.Should().Be(_trabajadorId);
+    }
+
+    [Fact]
     public async Task Un_documento_vigente_que_vence_dentro_de_6_meses_no_aparece()
     {
         await using (var contexto = CrearContexto())
