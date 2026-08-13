@@ -144,14 +144,14 @@ public class EnvioAlertasVencimientoHostedService(
         var proximos = alertas.Count(a => a.Estado == EstadoDocumento.Proximo);
         var faltantes = alertas.Count(a => a.Estado == EstadoDocumento.Faltante);
 
-        var asunto = $"CAE Manager — {alertas.Count} alerta(s) de documentación pendientes de revisión";
+        var asunto = $"{Marca.Nombre} — {alertas.Count} alerta(s) de documentación pendientes de revisión";
 
         var enlace = string.IsNullOrWhiteSpace(urlBase)
             ? string.Empty
             : $"""<p><a href="{WebUtility.HtmlEncode(urlBase.TrimEnd('/'))}/alertas">Ver el detalle en Alertas</a></p>""";
 
         var cuerpo = $"""
-            <p>Resumen diario de documentación pendiente en CAE Manager:</p>
+            <p>Resumen diario de documentación pendiente en {Marca.Nombre}:</p>
             <ul>
                 <li><strong>{vencidos}</strong> documento(s) vencido(s)</li>
                 <li><strong>{urgentes}</strong> próximo(s) a vencer (urgente)</li>

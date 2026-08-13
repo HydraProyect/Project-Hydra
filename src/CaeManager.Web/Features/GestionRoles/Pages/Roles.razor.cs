@@ -156,11 +156,11 @@ public partial class Roles : ComponentBase
         // envío no debe deshacer la asignación de rol, que ya se guardó.
         var cuerpo = $"""
             <p>Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)},</p>
-            <p>Tu acceso a CAE Manager ya está activo, con el rol <strong>{System.Net.WebUtility.HtmlEncode(CaeManager.Infrastructure.Identity.Roles.NombreVisible(rol))}</strong>.</p>
+            <p>Tu acceso a {Marca.Nombre} ya está activo, con el rol <strong>{System.Net.WebUtility.HtmlEncode(CaeManager.Infrastructure.Identity.Roles.NombreVisible(rol))}</strong>.</p>
             <p>Ya puedes iniciar sesión con tu cuenta de Microsoft.</p>
             """;
 
-        var resultado = await EmailService.EnviarAsync(email, "Tu acceso a CAE Manager ya está activo", cuerpo);
+        var resultado = await EmailService.EnviarAsync(email, $"Tu acceso a {Marca.Nombre} ya está activo", cuerpo);
         if (resultado.EsFallido)
             Logger.LogWarning("No se pudo enviar el correo de confirmación de rol a {Email}.", email);
     }

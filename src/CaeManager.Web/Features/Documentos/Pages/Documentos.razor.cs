@@ -72,6 +72,9 @@ public partial class Documentos : ComponentBase
     /// <summary>Comando del palette "Crear documento" (P3-31): /documentos?accion=crear abre el Drawer directamente.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
 
+    /// <summary>Pestaña con la que abrir la página — deep-link desde otras superficies (hoy, el timeline de Comunicaciones).</summary>
+    [SupplyParameterFromQuery] public string? Pestana { get; set; }
+
     private GridItemsProvider<DocumentoListaDto>? _proveedorElementos;
 
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanasDocumentos =
@@ -162,6 +165,12 @@ public partial class Documentos : ComponentBase
             : string.Empty;
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _ambitoFiltro = Ambito ?? string.Empty;
+
+        // Deep-link de pestaña: lo usa el timeline de Comunicaciones para llevar
+        // desde el evento de reclamación enviada a su pestaña. Se ignora un
+        // valor que no exista en vez de dejar la página en blanco.
+        if (!string.IsNullOrWhiteSpace(Pestana) && _pestanasDocumentos.Any(p => p.Id == Pestana))
+            _pestanaActiva = Pestana;
     }
 
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };

@@ -36,4 +36,16 @@ public interface IAlcanceDatosService
 
     /// <summary>Vehículos de una Empresa/Subcontrata visible — usar solo en listados, no en selectores.</summary>
     Task<IReadOnlyList<Guid>?> ObtenerVehiculoIdsVisiblesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// True si <paramref name="conexionIntegracionId"/> no es un buzón
+    /// personal de un gestor (<c>ConexionIntegracion.GestorPropietarioId</c>
+    /// null), o si lo es, el usuario actual es su propio dueño. Distinto eje
+    /// de autorización que el resto de esta interfaz (cartera de Cliente):
+    /// esto es propiedad de un recurso, no pertenencia a una cartera — por
+    /// eso no tiene excepción de rol, ni Administrador ve por defecto el
+    /// correo personal de otro gestor por aquí (para eso está la gestión
+    /// explícita de /integraciones).
+    /// </summary>
+    Task<bool> ConexionIntegracionVisibleAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default);
 }

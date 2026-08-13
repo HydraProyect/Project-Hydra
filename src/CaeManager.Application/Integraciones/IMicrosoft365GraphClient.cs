@@ -26,6 +26,8 @@ public record MensajeResumenGraphDto(
 public record CarpetaGraphDto(
     string CarpetaExternoId, string Nombre, string? CarpetaPadreExternoId, int ElementosNoLeidos, int TotalElementos);
 
+public record MensajeEnviadoGraphDto(string MensajeExternoId, string HiloExternoId);
+
 public static class LimitesAdjuntosCorreo
 {
     /// <summary>
@@ -75,8 +77,8 @@ public interface IMicrosoft365GraphClient
         string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken);
 
-    /// <summary>Redactar un mensaje nuevo (no una respuesta a un hilo existente) — <c>/me/sendMail</c>, sin conversationId previo que preservar.</summary>
-    Task<Result> EnviarNuevoMensajeAsync(
+    /// <summary>Redactar un mensaje nuevo (no una respuesta a un hilo existente) — borrador + envío, devuelve los Ids externos (mensaje e hilo).</summary>
+    Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken);
 

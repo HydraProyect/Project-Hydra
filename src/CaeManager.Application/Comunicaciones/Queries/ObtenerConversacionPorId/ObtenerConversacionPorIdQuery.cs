@@ -1,10 +1,11 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Common;
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
@@ -99,6 +100,7 @@ public class ObtenerConversacionPorIdQueryHandler(
     IClientesQueryContext clientesContext, ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
     ITrabajadoresQueryContext trabajadoresContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     IVisitasQueryContext visitasContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext,
+    IReclamacionesQueryContext reclamacionesContext,
     IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
     ICurrentUserService currentUserService, IMotorCoincidenciaConversacionesService motorCoincidencia)
     : IRequestHandler<ObtenerConversacionPorIdQuery, ConversacionDetalleDto?>
@@ -125,11 +127,23 @@ public class ObtenerConversacionPorIdQueryHandler(
                 c.FechaUltimoMensajeUtc,
                 c.Canal,
                 c.TelefonoContacto,
-                c.FechaUltimoMensajeEntranteUtc
+                c.FechaUltimoMensajeEntranteUtc,
+                c.ConexionIntegracionId
             })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (conversacion is null) return null;
+
+        // Un hilo atado al buzón personal de OTRO gestor nunca se abre desde
+        // aquí, tenga o no Cliente resuelto — acotar solo la rama de triage de
+        // abajo dejaba el hilo accesible por Id a cualquier rol de gestión
+        // (mismo hueco que ObtenerConversacionesQueryHandler, corregido en el
+        // mismo cambio).
+        if (conversacion.ConexionIntegracionId is { } conexionId &&
+            !await alcanceDatos.ConexionIntegracionVisibleAsync(conexionId, cancellationToken))
+        {
+            return null;
+        }
 
         if (conversacion.ClienteId is not null)
         {
@@ -332,9 +346,18 @@ public class ObtenerConversacionPorIdQueryHandler(
             .Select(e => new { e.Id, e.RazonSocial })
             .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
 
+        // Cuántos documentos llevaba cada lote reclamado — es lo único que hace
+        // falta para describirlo; el detalle vive en /documentos.
+        var reclamacionIds = eventosCrudos.Where(e => e.Tipo == TipoEventoConversacion.ReclamacionEnviada).Select(e => e.ReferenciaId).ToList();
+        var documentosPorReclamacion = await reclamacionesContext.ReclamacionesDocumentalesDocumento
+            .Where(d => reclamacionIds.Contains(d.ReclamacionDocumentalId))
+            .GroupBy(d => d.ReclamacionDocumentalId)
+            .Select(g => new { ReclamacionId = g.Key, Total = g.Count() })
+            .ToDictionaryAsync(x => x.ReclamacionId, x => x.Total, cancellationToken);
+
         return eventosCrudos.Select(e => new EventoDetalleDto(e.Id, e.Tipo, e.ReferenciaId, e.FechaUtc, DescribirEvento(
             e.Tipo, e.ReferenciaId, visitas, nombresCentroVisita, documentos, nombresTipoDocumentoEventos,
-            nombresTrabajadorDocumentos, nombresEmpresaDocumentos))).ToList();
+            nombresTrabajadorDocumentos, nombresEmpresaDocumentos, documentosPorReclamacion))).ToList();
     }
 
     private record VisitaResumenParaEvento(Guid Id, Guid CentroId, DateOnly FechaInicio, DateOnly FechaFin);
@@ -345,7 +368,8 @@ public class ObtenerConversacionPorIdQueryHandler(
         TipoEventoConversacion tipo, Guid referenciaId,
         Dictionary<Guid, VisitaResumenParaEvento> visitasPorId, Dictionary<Guid, string> nombresCentroVisita,
         Dictionary<Guid, DocumentoResumenParaEvento> documentosPorId, Dictionary<Guid, string> nombresTipoDocumento,
-        Dictionary<Guid, string> nombresTrabajador, Dictionary<Guid, string> nombresEmpresa) => tipo switch
+        Dictionary<Guid, string> nombresTrabajador, Dictionary<Guid, string> nombresEmpresa,
+        Dictionary<Guid, int> documentosPorReclamacion) => tipo switch
         {
             TipoEventoConversacion.VisitaCreada when visitasPorId.TryGetValue(referenciaId, out var visita) =>
                 $"Se ha creado una visita en {nombresCentroVisita.GetValueOrDefault(visita.CentroId, "el centro")} para el {FormatearRangoFechas(visita.FechaInicio, visita.FechaFin)}.",
@@ -360,6 +384,12 @@ public class ObtenerConversacionPorIdQueryHandler(
             TipoEventoConversacion.DocumentoActualizado => "Se ha actualizado un documento a partir de esta conversación.",
 
             TipoEventoConversacion.ConversacionVinculada => "Se vinculó otra conversación a este hilo (Conversation Matching Engine).",
+
+            TipoEventoConversacion.ReclamacionEnviada when documentosPorReclamacion.TryGetValue(referenciaId, out var total) =>
+                total == 1
+                    ? "Se reclamó 1 documento pendiente por esta conversación."
+                    : $"Se reclamaron {total} documentos pendientes por esta conversación.",
+            TipoEventoConversacion.ReclamacionEnviada => "Se envió una reclamación documental por esta conversación.",
 
             _ => "Evento del sistema."
         };
