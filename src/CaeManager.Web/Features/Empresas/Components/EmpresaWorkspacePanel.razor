@@ -18,6 +18,7 @@
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
 @using CaeManager.Domain.Documentos
 @using FluentValidation
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
@@ -149,6 +150,10 @@ else
                 <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="EntidadId" />
                 break;
 
+            case "agenda":
+                <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Empresa" PropietarioId="EntidadId" />
+                break;
+
             case "historial":
                 <PestanaHistorial EntidadTipo="Empresa" EntidadId="EntidadId" />
                 break;
@@ -162,6 +167,7 @@ else
         new("informacion", "Información"),
         new("centros", "Centros"),
         new("documentacion", "Documentación"),
+        new("agenda", "Agenda"),
         new("historial", "Historial")
     ];
 

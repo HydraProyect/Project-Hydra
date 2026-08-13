@@ -315,6 +315,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Cumplimiento.IAceptacionTerminosRepository, AceptacionTerminosRepository>();
         services.AddScoped<CaeManager.Domain.Reclamaciones.IReclamacionDocumentalRepository, ReclamacionDocumentalRepository>();
         services.AddScoped<CaeManager.Application.Reclamaciones.IReclamacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Domain.Contactos.IContactoAgendaRepository, ContactoAgendaRepository>();
+        services.AddScoped<CaeManager.Application.Contactos.IContactosAgendaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IContactosClienteService, ContactosClienteTenant>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.ISugerenciaGestionCorreoRepository, SugerenciaGestionCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IDetalleSugerenciaGestionCorreoRepository, DetalleSugerenciaGestionCorreoRepository>();

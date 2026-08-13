@@ -62,6 +62,7 @@ else
                         <CampoTexto Etiqueta="Apellidos" Valor="@_apellidosInfo" ValorChanged="v => _apellidosInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Apellidos))" />
                         <CampoTexto Etiqueta="Alias" Valor="@_aliasInfo" ValorChanged="v => _aliasInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Alias))" />
                         <CampoTexto Etiqueta="Email" Type="email" Valor="@_emailInfo" ValorChanged="v => _emailInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Email))" />
+                        <CampoTexto Etiqueta="Teléfono (WhatsApp)" Type="tel" Placeholder="+34 600 00 00 00" Valor="@_telefonoInfo" ValorChanged="v => _telefonoInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Telefono))" />
                         <CampoTexto Etiqueta="Fecha de nacimiento" Type="date" Valor="@_fechaNacimientoInfo" ValorChanged="v => _fechaNacimientoInfo = v" />
                         <CampoTextarea Etiqueta="Observaciones" Valor="@_observacionesInfo" ValorChanged="v => _observacionesInfo = v" Filas="3" />
                     </div>
@@ -78,6 +79,7 @@ else
                         <CampoInfo Etiqueta="DNI" Valor="@_detalle.Dni" />
                         <CampoInfo Etiqueta="Empleador" Valor="@_detalle.EmpleadorNombre" />
                         <CampoInfo Etiqueta="Email" Valor="@_detalle.Email" />
+                        <CampoInfo Etiqueta="Teléfono" Valor="@_detalle.Telefono" />
                         <CampoInfo Etiqueta="Fecha de nacimiento" Valor="@(_detalle.FechaNacimiento?.ToString("dd/MM/yyyy"))" />
                         <CampoInfo Etiqueta="Observaciones" Valor="@_detalle.Observaciones" />
                     </div>
@@ -162,6 +164,7 @@ else
     private string _apellidosInfo = string.Empty;
     private string _aliasInfo = string.Empty;
     private string _emailInfo = string.Empty;
+    private string _telefonoInfo = string.Empty;
     private string _fechaNacimientoInfo = string.Empty;
     private string _observacionesInfo = string.Empty;
     private bool _guardandoInformacion;
@@ -240,6 +243,7 @@ else
         _apellidosInfo = _detalle.Apellidos;
         _aliasInfo = _detalle.Alias ?? string.Empty;
         _emailInfo = _detalle.Email ?? string.Empty;
+        _telefonoInfo = _detalle.Telefono ?? string.Empty;
         _fechaNacimientoInfo = _detalle.FechaNacimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
         _observacionesInfo = _detalle.Observaciones ?? string.Empty;
         _mensajeErrorInformacion = null;
@@ -262,12 +266,13 @@ else
         try
         {
             var email = string.IsNullOrWhiteSpace(_emailInfo) ? null : _emailInfo;
+            var telefono = string.IsNullOrWhiteSpace(_telefonoInfo) ? null : _telefonoInfo;
             var observaciones = string.IsNullOrWhiteSpace(_observacionesInfo) ? null : _observacionesInfo;
             var alias = string.IsNullOrWhiteSpace(_aliasInfo) ? null : _aliasInfo;
             var fechaNacimiento = DateOnly.TryParse(_fechaNacimientoInfo, out var fecha) ? fecha : (DateOnly?)null;
 
             var resultado = await Mediator.Send(new EditarTrabajadorCommand(
-                _detalle.Id, _nombreInfo, _apellidosInfo, fechaNacimiento, email, observaciones, alias, _detalle.Version));
+                _detalle.Id, _nombreInfo, _apellidosInfo, fechaNacimiento, email, observaciones, alias, telefono, _detalle.Version));
 
             if (resultado.EsFallido)
             {
