@@ -20,3 +20,28 @@ App_Data/
 
 # Variables reales del stack local (deploy/local/.env.example es la plantilla)
 deploy/local/.env
+
+# Material de identidad de marca (nombre comercial, lockups, firma de correo) y
+# el sitio web que lo acompaña: van a su propio repositorio, no a este mientras
+# Project-Hydra siga siendo público. El repositorio solo conoce el nombre
+# histórico por defecto (ver CaeManager.Application.Common.Marca); el real llega
+# por configuración desde appsettings.Development.json, ya ignorado arriba.
+# El patrón va sin nombre propio a propósito: nombrar la marca aquí la publicaría
+# igual que publicarla en el código.
+branding/
+web-*/
+
+# Documentación (2026-08-13): este repositorio contiene solo lo estrictamente
+# necesario para compilar, pasar CI y desplegar — ver CLAUDE.md § "Regla operativa".
+# Toda la documentación (negocio, legal, arquitectura, ADRs, gobernanza de agentes,
+# diseño, auditorías de seguridad...) vive en un repositorio local sin remoto,
+# C:\Users\chris\Project-Hydra-Negocio. Esta regla es la red de seguridad, no la
+# protección principal: si alguna sesión (de este agente u otro) crea un .md nuevo
+# aquí por costumbre, que quede sin trackear en vez de colarse en el próximo commit
+# sin que nadie lo note. README.md/CLAUDE.md/AGENTS.md son la única excepción
+# — son las tres piezas mínimas que sí deben vivir en un repositorio público.
+/*.md
+!/README.md
+!/CLAUDE.md
+!/AGENTS.md
+docs/

@@ -1,5 +1,5 @@
-using System.Security.Claims;
 using CaeManager.Application.Common;
+using System.Security.Claims;
 using Microsoft.AspNetCore.DataProtection;
 
 namespace CaeManager.Web.Services;

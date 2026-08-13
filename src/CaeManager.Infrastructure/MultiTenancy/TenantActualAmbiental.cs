@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 
+
 namespace CaeManager.Infrastructure.MultiTenancy;
 
 /// <summary>

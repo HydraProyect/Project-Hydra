@@ -1,5 +1,6 @@
-using CaeManager.Application.Common;
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Common;
+using CaeManager.Application.Contactos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,9 +11,17 @@ public record ObtenerClientesQuery(
     string? OrdenarPor = null, bool Descendente = false)
     : IRequest<ResultadoPaginado<ClienteListaDto>>;
 
-public record ClienteListaDto(Guid Id, string RazonSocial, string Cif, bool EsCritico, DateTime CreadoEnUtc);
+/// <param name="SinContactoEnAgenda">
+/// Perfil incompleto: no hay nadie a quien reclamarle documentación. La
+/// reclamación de este cliente fallará hasta que la agenda tenga al menos un
+/// contacto (decisión del usuario, 2026-08-13) — se expone en el listado para
+/// que el hueco se pueda cerrar en bloque, no de uno en uno al fallar el envío.
+/// </param>
+public record ClienteListaDto(
+    Guid Id, string RazonSocial, string Cif, bool EsCritico, DateTime CreadoEnUtc, bool SinContactoEnAgenda = false);
 
-public class ObtenerClientesQueryHandler(IClientesQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerClientesQueryHandler(
+    IClientesQueryContext dbContext, IContactosAgendaQueryContext contactosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerClientesQuery, ResultadoPaginado<ClienteListaDto>>
 {
     public async Task<ResultadoPaginado<ClienteListaDto>> Handle(ObtenerClientesQuery request, CancellationToken cancellationToken)
@@ -61,6 +70,19 @@ public class ObtenerClientesQueryHandler(IClientesQueryContext dbContext, IAlcan
             .Select(c => new ClienteListaDto(c.Id, c.RazonSocial, c.Cif, c.EsCritico, c.CreadoEnUtc))
             .ToListAsync(cancellationToken);
 
-        return new ResultadoPaginado<ClienteListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
+        // Una sola consulta para la página entera, no una por fila.
+        var idsPagina = elementos.Select(c => c.Id).ToList();
+        var clientesConAgenda = await contactosContext.ContactosAgenda
+            .Where(contacto => contacto.ClienteId != null && idsPagina.Contains(contacto.ClienteId.Value))
+            .Select(contacto => contacto.ClienteId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var conAgenda = clientesConAgenda.ToHashSet();
+        var conAviso = elementos
+            .Select(c => c with { SinContactoEnAgenda = !conAgenda.Contains(c.Id) })
+            .ToList();
+
+        return new ResultadoPaginado<ClienteListaDto>(conAviso, total, request.Pagina, request.TamanoPagina);
     }
 }

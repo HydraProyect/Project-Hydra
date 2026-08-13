@@ -8,10 +8,12 @@
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 
-<PageTitle>Bandeja — CAE Manager</PageTitle>
+@* "Mi trabajo" en vez de "Bandeja" — ver el comentario de NavMenu.razor
+   (H3, decisión provisional 2026-08-13). La ruta sigue siendo /bandeja. *@
+<PageTitle>Mi trabajo — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <h1 class="titulo-pagina">Bandeja del gestor</h1>
+    <h1 class="titulo-pagina">Mi trabajo</h1>
 
     <div class="barra-filtros">
         <CampoSelect Etiqueta="Tipo" Valor="@_tipoFiltro" ValorChanged="CambiarFiltroAsync">

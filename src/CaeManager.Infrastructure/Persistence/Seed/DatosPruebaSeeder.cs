@@ -1,13 +1,15 @@
+using CaeManager.Application.Common;
 using System.Security.Cryptography;
 using System.Text;
-using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Dashboard.Catalogo;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
+using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
@@ -515,6 +517,9 @@ public static class DatosPruebaSeeder
         dbContext.Documentos.AddRange(documentos);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        SembrarAgendaContactos(dbContext, aleatorio, clientes, empresas, subcontratas, centros, tiposDocumento);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
         // --- Visitas con participantes asignados al centro ---
         var visitas = new List<Visita>();
         var centrosConGente = trabajadoresPorCentro.Keys.ToList();
@@ -790,6 +795,124 @@ public static class DatosPruebaSeeder
         return fabrica(new DatosDocumento(tipo.Id, emision, vencimiento));
     }
 
+    /// <summary>
+    /// Agenda de contactos (requerimiento global nº 1) con todas sus variantes:
+    /// reparto por tipo de documento, contacto único predeterminado, propósitos
+    /// que no son documento (visitas, facturación), precedencia del contacto del
+    /// Centro sobre el del Cliente, agenda en Empresa y en Subcontrata, y —a
+    /// propósito— un Cliente **sin** ningún contacto, que es el caso de perfil
+    /// incompleto: su reclamación tiene que fallar con el aviso de que falta
+    /// contacto, no salir a un destinatario inventado.
+    /// </summary>
+    private static void SembrarAgendaContactos(
+        CaeManagerDbContext dbContext, Random aleatorio, List<Cliente> clientes, List<Empresa> empresas,
+        List<Subcontrata> subcontratas, List<Centro> centros, List<TipoDocumento> tiposDocumento)
+    {
+        var contactos = new List<ContactoAgenda>();
+        var indiceNombre = aleatorio.Next(NombresTrabajadores.Length);
+
+        (string Nombre, string Email) Siguiente(string dominio)
+        {
+            var (nombre, apellidos) = NombresTrabajadores[indiceNombre++ % NombresTrabajadores.Length];
+            var usuario = $"{nombre}.{apellidos.Split(' ')[0]}".ToLowerInvariant().Replace(" ", string.Empty);
+            return ($"{nombre} {apellidos}", $"{QuitarAcentos(usuario)}@{dominio}");
+        }
+
+        Guid? TipoId(string nombre) => tiposDocumento.FirstOrDefault(t => t.Nombre == nombre)?.Id;
+
+        void ConTipos(ContactoAgenda contacto, params Guid?[] tipoIds)
+        {
+            var reales = tipoIds.Where(id => id is not null).Select(id => id!.Value).ToList();
+            if (reales.Count > 0) contacto.EstablecerTiposDocumento(reales);
+            contactos.Add(contacto);
+        }
+
+        for (var i = 0; i < clientes.Count; i++)
+        {
+            var cliente = clientes[i];
+            var dominio = $"cliente{i + 1:D2}.local";
+
+            // Cliente sin agenda: perfil incompleto a propósito.
+            if (i == 2) continue;
+
+            if (i == 0)
+            {
+                // Reparto completo — el caso que motivó la agenda: en un mismo
+                // cliente el RLC se le pide a Finanzas, los aptos médicos a
+                // Vigilancia de la Salud y los EPIs al responsable de PRL.
+                var finanzas = Siguiente(dominio);
+                ConTipos(
+                    ContactoAgenda.DeCliente(cliente.Id, finanzas.Nombre, finanzas.Email, cargo: "Finanzas"),
+                    TipoId("RLC/TC1"), TipoId("RLC/TC1 + Recibo de pago"));
+
+                var vigilancia = Siguiente(dominio);
+                ConTipos(
+                    ContactoAgenda.DeCliente(cliente.Id, vigilancia.Nombre, vigilancia.Email, cargo: "Vigilancia de la Salud"),
+                    TipoId("Apto médico laboral"));
+
+                var prl = Siguiente(dominio);
+                ConTipos(
+                    ContactoAgenda.DeCliente(cliente.Id, prl.Nombre, prl.Email, telefono: "+34 611 22 33 44", cargo: "Responsable de PRL"),
+                    TipoId("EPIS (firma)"), TipoId("Formación Art. 19"));
+
+                var recepcion = Siguiente(dominio);
+                ConTipos(ContactoAgenda.DeCliente(
+                    cliente.Id, recepcion.Nombre, recepcion.Email, telefono: "+34 622 33 44 55",
+                    cargo: "Coordinación de accesos", recibeProgramacionVisitas: true));
+
+                var administracion = Siguiente(dominio);
+                ConTipos(ContactoAgenda.DeCliente(
+                    cliente.Id, administracion.Nombre, administracion.Email, cargo: "Administración",
+                    esPredeterminado: true, recibeFacturacion: true));
+            }
+            else
+            {
+                // El caso corriente: una sola persona lo recibe todo.
+                var unico = Siguiente(dominio);
+                ConTipos(ContactoAgenda.DeCliente(
+                    cliente.Id, unico.Nombre, unico.Email,
+                    telefono: i % 2 == 0 ? "+34 633 44 55 66" : null,
+                    cargo: "Contacto CAE", esPredeterminado: true));
+            }
+        }
+
+        // Centro con contacto propio: gana al del Cliente para ese tipo — es lo
+        // que permite verificar la precedencia Centro → Cliente sin leer código.
+        var centroDelPrimerCliente = clientes.Count > 0
+            ? centros.FirstOrDefault(c => c.ClienteId == clientes[0].Id)
+            : null;
+        if (centroDelPrimerCliente is not null)
+        {
+            var jefeObra = Siguiente("centro01.local");
+            ConTipos(
+                ContactoAgenda.DeCentro(
+                    centroDelPrimerCliente.Id, jefeObra.Nombre, jefeObra.Email,
+                    telefono: "+34 644 55 66 77", cargo: "Jefe de obra", recibeProgramacionVisitas: true),
+                TipoId("Apto médico laboral"));
+        }
+
+        foreach (var (empresa, indice) in empresas.Take(3).Select((e, n) => (e, n)))
+        {
+            var contacto = Siguiente($"empresa{indice + 1:D2}.local");
+            ConTipos(ContactoAgenda.DeEmpresa(
+                empresa.Id, contacto.Nombre, contacto.Email, cargo: "Responsable de documentación", esPredeterminado: true));
+        }
+
+        foreach (var (subcontrata, indice) in subcontratas.Take(3).Select((s, n) => (s, n)))
+        {
+            var contacto = Siguiente($"subcontrata{indice + 1:D2}.local");
+            ConTipos(ContactoAgenda.DeSubcontrata(
+                subcontrata.Id, contacto.Nombre, contacto.Email, cargo: "Contacto CAE", esPredeterminado: true));
+        }
+
+        dbContext.ContactosAgenda.AddRange(contactos);
+    }
+
+    private static string QuitarAcentos(string texto) =>
+        new(texto.Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .ToArray());
+
     private static async Task SembrarUsuariosYCarteraAsync(
         CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager, ILogger logger,
         CancellationToken cancellationToken)
@@ -899,7 +1022,7 @@ public static class DatosPruebaSeeder
             dbContext.NotificacionesUsuario.Add(leida);
         }
 
-        await SembrarReclamacionesAsync(dbContext, clientes, cancellationToken);
+        await SembrarReclamacionesAsync(dbContext, clientes, gestoresPrueba.FirstOrDefault()?.Id, cancellationToken);
 
         // --- Claves API (activa y revocada), filtros guardados y preferencia
         // de dashboard: /configuracion/claves-api y los selectores de filtro
@@ -943,17 +1066,45 @@ public static class DatosPruebaSeeder
     /// Historial de lotes de reclamación ya enviados para los primeros
     /// clientes con documentación próxima a vencer — ejercita la vista previa
     /// del lote (que descarta lo reclamado hace poco) y el historial.
+    ///
+    /// Siembra las tres variantes que existen desde que la reclamación puede
+    /// nacer como <see cref="Conversacion"/>, para poder recorrer el ciclo
+    /// entero sin buzón real: (1) con conversación y respuesta del cliente
+    /// dentro del mismo hilo — el caso que cierra el círculo; (2) con
+    /// conversación y **sin** respuesta desde hace más de una semana — el que
+    /// alimenta el seguimiento de reclamaciones sin contestar; (3) histórica
+    /// sin conversación, que es como salían todas antes y como siguen saliendo
+    /// cuando no hay buzón conectado.
+    ///
+    /// Las tres se anclan a la cartera del primer GestorCae de prueba
+    /// (<paramref name="ejecutivoPrincipalId"/>), no a "los tres primeros
+    /// clientes que cumplan" — con reparto round-robin de cartera (ver el
+    /// llamador), dejarlo al orden de <paramref name="clientes"/> repartía una
+    /// variante distinta a cada gestor de prueba, y quien iniciara sesión como
+    /// el primero de ellos nunca veía la variante "sin respuesta" que es la
+    /// que ejercita el requerimiento global nº 1 de esta fase.
+    ///
+    /// Las conversaciones se crean sin <c>AsociarConexion</c>: sembradas a mano
+    /// no tienen hilo de Graph que representar (ver <see cref="Conversacion"/>).
     /// </summary>
     private static async Task SembrarReclamacionesAsync(
-        CaeManagerDbContext dbContext, List<Cliente> clientes, CancellationToken cancellationToken)
+        CaeManagerDbContext dbContext, List<Cliente> clientes, Guid? ejecutivoPrincipalId, CancellationToken cancellationToken)
     {
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var limiteVentana = hoy.AddDays(90);
         var enviadas = 0;
 
-        foreach (var cliente in clientes)
+        // Prioriza la cartera del gestor principal; si no da para las 3
+        // variantes (pocos clientes con documentación en ventana), completa
+        // con cualquier otro cliente con ejecutivo asignado — mejor cubrir las
+        // tres variantes en algún sitio que dejar alguna sin sembrar.
+        var ordenReclamaciones = ejecutivoPrincipalId is null
+            ? clientes
+            : [.. clientes.Where(c => c.EjecutivoUsuarioId == ejecutivoPrincipalId), .. clientes.Where(c => c.EjecutivoUsuarioId != ejecutivoPrincipalId)];
+
+        foreach (var cliente in ordenReclamaciones)
         {
-            if (enviadas == 2)
+            if (enviadas == 3)
                 break;
             if (cliente.EjecutivoUsuarioId is null)
                 continue;
@@ -973,12 +1124,54 @@ public static class DatosPruebaSeeder
             if (documentosProximos.Count == 0)
                 continue;
 
-            dbContext.ReclamacionesDocumentales.Add(new ReclamacionDocumental(
+            var destinatario = $"portal.cliente{enviadas + 1}@buzon-simulado.local";
+            var fechaEnvio = DateTime.UtcNow.AddDays(-7 * (enviadas + 1));
+            Guid? conversacionId = null;
+
+            // Variante 3 (la última): histórica, sin conversación.
+            if (enviadas < 2)
+            {
+                var conversacion = new Conversacion(
+                    $"Documentación pendiente de {cliente.RazonSocial}", cliente.Id);
+                conversacion.AgregarMensaje(
+                    DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@buzon-simulado.local",
+                    "<p>Adjuntamos la documentación que vence próximamente. Por favor, gestiona su renovación.</p>",
+                    fechaEnvio);
+                conversacion.AgregarParticipante(
+                    destinatario, RolParticipante.Para, TipoParticipanteOrigen.UsuarioCliente);
+
+                // Variante 1: el cliente contesta en el MISMO hilo. Variante 2:
+                // no contesta, así que el hilo se queda esperando desde hace más
+                // de una semana.
+                if (enviadas == 0)
+                {
+                    conversacion.AgregarMensaje(
+                        DireccionMensaje.Entrante, CanalConversacion.Correo, destinatario,
+                        "<p>Recibido. Esta semana os subimos los certificados renovados.</p>",
+                        fechaEnvio.AddDays(1));
+                }
+
+                dbContext.Conversaciones.Add(conversacion);
+                conversacionId = conversacion.Id;
+            }
+
+            var reclamacion = new ReclamacionDocumental(
                 cliente.Id,
                 cliente.EjecutivoUsuarioId.Value,
-                $"portal.cliente{enviadas + 1}@caemanager.local",
-                DateTime.UtcNow.AddDays(-7 * (enviadas + 1)),
-                documentosProximos));
+                destinatario,
+                fechaEnvio,
+                documentosProximos,
+                conversacionId);
+            dbContext.ReclamacionesDocumentales.Add(reclamacion);
+
+            // La entrada del Unified Timeline que en producción registra
+            // RegistrarEventoReclamacionEnviadaHandler tras el envío.
+            if (conversacionId is not null)
+            {
+                dbContext.EventosConversacion.Add(new EventoConversacion(
+                    conversacionId.Value, TipoEventoConversacion.ReclamacionEnviada, reclamacion.Id, fechaEnvio));
+            }
+
             enviadas++;
         }
     }

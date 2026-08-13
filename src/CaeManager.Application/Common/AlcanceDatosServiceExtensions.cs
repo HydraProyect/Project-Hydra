@@ -78,4 +78,22 @@ public static class AlcanceDatosServiceExtensions
         var ids = await alcance.ObtenerVehiculoIdsVisiblesAsync(cancellationToken);
         return ids is null || ids.Contains(vehiculoId);
     }
+
+    /// <summary>
+    /// Alcance completo de una <c>Conversacion</c> existente: la cartera de
+    /// su Cliente (o triage compartido si <paramref name="clienteId"/> es
+    /// null, vía <see cref="ClienteOpcionalVisibleAsync"/>) Y, si el hilo está
+    /// atado a un buzón personal de un gestor (<c>ConexionIntegracion.
+    /// GestorPropietarioId</c>), que sea el propio dueño. Sin esto, un hilo de
+    /// un buzón personal ajeno —que también tiene ClienteId null— se colaba
+    /// en la cola de triage compartida como si fuera de cualquiera.
+    /// </summary>
+    public static async Task<bool> ConversacionVisibleAsync(
+        this IAlcanceDatosService alcance, Guid? clienteId, Guid? conexionIntegracionId, CancellationToken cancellationToken = default)
+    {
+        if (conexionIntegracionId is { } conexionId && !await alcance.ConexionIntegracionVisibleAsync(conexionId, cancellationToken))
+            return false;
+
+        return await alcance.ClienteOpcionalVisibleAsync(clienteId, cancellationToken);
+    }
 }

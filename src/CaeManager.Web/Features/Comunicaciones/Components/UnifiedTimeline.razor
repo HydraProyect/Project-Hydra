@@ -39,6 +39,10 @@
                     {
                         <a class="timeline-evento-enlace" href="/documentos">Ver documento</a>
                     }
+                    else if (evento.Tipo == TipoEventoConversacion.ReclamacionEnviada)
+                    {
+                        <a class="timeline-evento-enlace" href="/documentos?pestana=reclamaciones">Ver reclamación</a>
+                    }
                     <span class="timeline-mensaje-fecha">@FormatearFechaRelativa(evento.FechaUtc)</span>
                 </div>
             </div>

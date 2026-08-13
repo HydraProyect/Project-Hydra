@@ -1,6 +1,6 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
@@ -56,8 +56,13 @@ public class PedirPrioridadValidacionCommandHandler(
         if (usuarioId is null)
             return Result.Fallo(Error.Crear("SolicitudPrioridad.SinUsuario", "No pudimos identificar quién envía esta solicitud."));
 
+        // GestorPropietarioId != null excluido a propósito — ver el mismo
+        // comentario en EnviarReclamacionCommand: un buzón personal también
+        // tiene ClienteId null, y sin este filtro "pedir prioridad" podía
+        // salir desde el buzón personal de un gestor cualquiera.
         var conexionId = await integracionesContext.ConexionesIntegracion
             .Where(c => c.Proveedor == ProveedorIntegracion.Microsoft365 && c.Estado == EstadoConexionIntegracion.Habilitada)
+            .Where(c => c.GestorPropietarioId == null)
             .Where(c => c.ClienteId == null || c.ClienteId == centro.ClienteId)
             .OrderByDescending(c => c.ClienteId != null)
             .Select(c => (Guid?)c.Id)

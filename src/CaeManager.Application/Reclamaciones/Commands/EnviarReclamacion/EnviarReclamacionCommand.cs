@@ -3,10 +3,14 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Integraciones;
+using CaeManager.Application.Reclamaciones.Eventos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Reclamaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +27,21 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 /// que se abrió la vista previa y se pulsó Enviar) se descarta en silencio en
 /// vez de fallar todo el envío.
 /// </summary>
-public record EnviarReclamacionCommand(Guid ClienteId, IReadOnlyList<Guid> DocumentoIds) : ICommand;
+/// <param name="CentroId">
+/// Acota la resolución de destinatarios a la agenda de ese Centro antes de caer
+/// a la del Cliente — lo rellena el disparo desde Centro 360. Null desde
+/// /documentos, que reclama por Cliente completo.
+/// </param>
+/// <param name="ContactoIdsSeleccionados">
+/// Contactos marcados a mano en la pantalla. Null/vacío = "los que resuelva la
+/// agenda", que es el camino normal; con valor, manda lo que eligió el gestor —
+/// revalidado igualmente contra la agenda real, no se confía en la UI.
+/// </param>
+public record EnviarReclamacionCommand(
+    Guid ClienteId,
+    IReadOnlyList<Guid> DocumentoIds,
+    Guid? CentroId = null,
+    IReadOnlyList<Guid>? ContactoIdsSeleccionados = null) : ICommand;
 
 public class EnviarReclamacionCommandHandler(
     IClientesQueryContext clientesContext,
@@ -32,11 +50,13 @@ public class EnviarReclamacionCommandHandler(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IAsignacionesQueryContext asignacionesContext,
     ICentrosQueryContext centrosContext,
+    IIntegracionesQueryContext integracionesContext,
     IAlcanceDatosService alcanceDatos,
-    IContactosClienteService contactosClienteService,
+    Contactos.IResolucionDestinatariosAgendaService resolucionDestinatarios,
     IEmailService emailService,
     IReclamacionDocumentalRepository repositorio,
     ICurrentUserService currentUserService,
+    IMediator mediator,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EnviarReclamacionCommand, Result>
 {
@@ -56,14 +76,6 @@ public class EnviarReclamacionCommandHandler(
         if (request.DocumentoIds.Count == 0)
             return Result.Fallo(Error.Crear("Reclamacion.SinDocumentos", "Selecciona al menos un documento a reclamar."));
 
-        var destinatarios = await contactosClienteService.ObtenerEmailsPortalAsync(request.ClienteId, cancellationToken);
-        if (destinatarios.Count == 0)
-        {
-            return Result.Fallo(Error.Crear(
-                "Reclamacion.SinDestinatario",
-                "Este cliente no tiene ningún usuario de portal con email al que reclamar."));
-        }
-
         var idsSolicitados = request.DocumentoIds.Distinct().ToList();
 
         var filas = await (
@@ -80,6 +92,7 @@ public class EnviarReclamacionCommandHandler(
             {
                 DocumentoId = documento.Id,
                 TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos,
+                TipoDocumentoId = tipoDocumento.Id,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaVencimiento
             })
@@ -93,23 +106,84 @@ public class EnviarReclamacionCommandHandler(
                 "Ninguno de los documentos seleccionados sigue siendo reclamable para este cliente — puede que ya se hayan renovado."));
         }
 
+        // La agenda decide a quién se le pide cada documento. Ya no se usan los
+        // usuarios de portal (decisión del usuario 2026-08-13): tener cuenta en
+        // el portal no significa estar en el flujo documental — puede ser el
+        // dueño de la empresa o un comercial.
+        var resueltos = await resolucionDestinatarios.ResolverAsync(
+            request.ClienteId, request.CentroId, filas.Select(f => f.TipoDocumentoId).Distinct().ToList(), cancellationToken);
+
+        // La selección manual se filtra CONTRA lo resuelto, no lo sustituye:
+        // así un Id de contacto de otro cliente colado a mano no se convierte
+        // en destinatario.
+        if (request.ContactoIdsSeleccionados is { Count: > 0 } seleccionados)
+            resueltos = [.. resueltos.Where(d => seleccionados.Contains(d.ContactoId))];
+
+        if (resueltos.Count == 0)
+        {
+            return Result.Fallo(Error.Crear(
+                "Reclamacion.SinDestinatario",
+                "No hay ningún contacto en la agenda al que reclamar esta documentación — añade uno en la ficha del cliente."));
+        }
+
+        var destinatarios = resueltos.Select(d => d.Email).Distinct().ToList();
         var destinatarioUnico = string.Join("; ", destinatarios);
+        var asunto = $"{Marca.Nombre} — documentación pendiente de {cliente.RazonSocial}";
         var cuerpoHtml = ConstruirCuerpoHtml(cliente.RazonSocial, filas.Select(f => (f.TrabajadorNombre, f.TipoDocumentoNombre, f.FechaVencimiento!.Value)));
 
-        foreach (var destinatario in destinatarios)
+        // GestorPropietarioId != null excluido a propósito: un buzón personal
+        // de un gestor (ConexionIntegracion.GestorPropietarioId) también tiene
+        // ClienteId null, igual que el buzón genérico del tenant — sin este
+        // filtro, una reclamación de negocio podía salir desde el buzón
+        // personal de un gestor cualquiera, sin que él lo supiera ni lo
+        // consintiera. Mismo hueco en PedirPrioridadValidacionCommand,
+        // ObtenerBorradorPedirPrioridadQuery y MigrarConversacionACorreoCommand
+        // (corregido en el mismo cambio).
+        var conexionId = await integracionesContext.ConexionesIntegracion
+            .Where(c => c.Proveedor == ProveedorIntegracion.Microsoft365 && c.Estado == EstadoConexionIntegracion.Habilitada)
+            .Where(c => c.GestorPropietarioId == null)
+            .Where(c => c.ClienteId == null || c.ClienteId == request.ClienteId)
+            .OrderByDescending(c => c.ClienteId != null)
+            .Select(c => (Guid?)c.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        Guid? conversacionId = null;
+        if (conexionId is not null)
         {
-            await emailService.EnviarAsync(
-                destinatario, $"CAE Manager — documentación pendiente de {cliente.RazonSocial}", cuerpoHtml, cancellationToken);
+            var envioResultado = await mediator.Send(
+                new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, request.ClienteId),
+                cancellationToken);
+
+            if (envioResultado.EsFallido)
+                return Result.Fallo(envioResultado.Error);
+
+            conversacionId = envioResultado.Valor;
+        }
+        else
+        {
+            foreach (var destinatario in destinatarios)
+            {
+                await emailService.EnviarAsync(
+                    destinatario, asunto, cuerpoHtml, cancellationToken);
+            }
         }
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null)
             return Result.Fallo(Error.Crear("Reclamacion.SinUsuario", "No pudimos identificar tu usuario."));
 
-        repositorio.Agregar(new ReclamacionDocumental(
-            request.ClienteId, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, filas.Select(f => f.DocumentoId)));
+        var reclamacion = new ReclamacionDocumental(
+            request.ClienteId, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, filas.Select(f => f.DocumentoId), conversacionId);
+        repositorio.Agregar(reclamacion);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Después del commit, no antes: el timeline es un reflejo del hecho, no
+        // parte de él. Sin conversación (rama sin buzón conectado) no hay hilo
+        // al que avisar.
+        if (conversacionId is not null)
+            await mediator.Publish(new ReclamacionEnviadaEvent(conversacionId.Value, reclamacion.Id), cancellationToken);
+
         return Result.Exito();
     }
 

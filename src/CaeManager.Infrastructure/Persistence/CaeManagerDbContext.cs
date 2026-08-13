@@ -1,10 +1,10 @@
+using CaeManager.Application.Common;
 using System.Reflection;
 using CaeManager.Application.ApiKeys;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Auditoria;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes;
-using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
@@ -73,7 +73,7 @@ public class CaeManagerDbContext(
         IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext,
         IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
         IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext,
-        ITelemetriaQueryContext
+        ITelemetriaQueryContext, CaeManager.Application.Contactos.IContactosAgendaQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -186,6 +186,10 @@ public class CaeManagerDbContext(
     public DbSet<ReclamacionDocumentalDocumento> ReclamacionesDocumentalesDocumento => Set<ReclamacionDocumentalDocumento>();
     IQueryable<ReclamacionDocumentalDocumento> IReclamacionesQueryContext.ReclamacionesDocumentalesDocumento => ReclamacionesDocumentalesDocumento;
     public DbSet<ReclamacionDocumentalDocumento> ReclamacionesDocumentalesDocumentos => Set<ReclamacionDocumentalDocumento>();
+    public DbSet<CaeManager.Domain.Contactos.ContactoAgenda> ContactosAgenda => Set<CaeManager.Domain.Contactos.ContactoAgenda>();
+    IQueryable<CaeManager.Domain.Contactos.ContactoAgenda> CaeManager.Application.Contactos.IContactosAgendaQueryContext.ContactosAgenda => ContactosAgenda;
+    public DbSet<CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento> ContactosAgendaTiposDocumento => Set<CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento>();
+    IQueryable<CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento> CaeManager.Application.Contactos.IContactosAgendaQueryContext.ContactosAgendaTiposDocumento => ContactosAgendaTiposDocumento;
     public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
     IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
     public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();

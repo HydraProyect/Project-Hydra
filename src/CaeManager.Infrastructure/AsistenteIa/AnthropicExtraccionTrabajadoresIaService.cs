@@ -1,7 +1,7 @@
+using CaeManager.Application.Common;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

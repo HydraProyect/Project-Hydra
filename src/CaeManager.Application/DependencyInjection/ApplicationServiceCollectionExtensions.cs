@@ -1,7 +1,7 @@
+using CaeManager.Application.Common;
 using System.Reflection;
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.Comunicaciones.Matching;
@@ -58,6 +58,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<ISugerenciaVisitaCorreoService, SugerenciaVisitaCorreoService>();
         services.AddScoped<ISugerenciaGestionCorreoService, SugerenciaGestionCorreoService>();
         services.AddScoped<IResolucionParticipanteConversacionService, ResolucionParticipanteConversacionService>();
+        services.AddScoped<Contactos.IResolucionDestinatariosAgendaService, Contactos.ResolucionDestinatariosAgendaService>();
         services.AddScoped<IClasificacionRuidoMensajeService, ClasificacionRuidoMensajeService>();
         services.AddScoped<IRelevanciaCaeService, RelevanciaCaeService>();
         services.AddScoped<IMotorCoincidenciaConversacionesService, MotorCoincidenciaConversacionesService>();

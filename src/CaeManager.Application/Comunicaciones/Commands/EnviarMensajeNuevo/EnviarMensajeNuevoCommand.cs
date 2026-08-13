@@ -11,12 +11,20 @@ namespace CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 
 /// <summary>
 /// "Redactar" — a diferencia de <c>ResponderConversacionCommand</c>, no
-/// contesta un hilo existente: abre uno nuevo (<c>/sendMail</c>, sin
+/// contesta un hilo existente: abre uno nuevo (borrador + envío, sin
 /// <c>conversationId</c> previo que preservar) y crea la
 /// <see cref="Conversacion"/> que lo representa en Hydra. Exige un
 /// buzón conectado — a diferencia de responder, no tiene sentido "simular"
 /// el primer envío de una conversación nueva (sí tiene sentido simular una
 /// respuesta dentro de un hilo ya sembrado como dato de prueba).
+///
+/// El <c>conversationId</c> que devuelve Graph puede ser uno YA conocido: si se
+/// redacta con el mismo asunto al mismo destinatario, Outlook puede agrupar el
+/// mensaje en un hilo existente. Como <c>{TenantId, HiloExternoId}</c> es único
+/// (ver ConversacionConfiguration), crear una Conversacion nueva a ciegas
+/// reventaría el guardado — así que se busca antes y, si el hilo ya existe, el
+/// mensaje se suma a él y se devuelve su Id. Es además lo correcto de negocio:
+/// para Graph es la misma conversación, y para el gestor también.
 /// </summary>
 public record EnviarMensajeNuevoCommand(
     Guid ConexionIntegracionId, IReadOnlyList<string> Destinatarios, string Asunto, string CuerpoHtml,
@@ -54,6 +62,13 @@ public class EnviarMensajeNuevoCommandHandler(
         if (conexion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conexion.ClienteId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
 
+        // Un buzón personal de OTRO gestor no se resuelve por cartera de
+        // Cliente (tiene ClienteId null, igual que el genérico del tenant) —
+        // sin este check, cualquiera con acceso a Comunicaciones podía enviar
+        // correo desde el buzón personal de un colega pasando su Id a mano.
+        if (!await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
+
         if (conexion.Estado != EstadoConexionIntegracion.Habilitada)
             return Result.Fallo<Guid>(Error.Crear("ConexionIntegracion.NoDisponible", "Este buzón no está disponible."));
 
@@ -73,12 +88,26 @@ public class EnviarMensajeNuevoCommandHandler(
         if (envioResultado.EsFallido)
             return Result.Fallo<Guid>(envioResultado.Error);
 
-        var conversacion = new Conversacion(request.Asunto, clienteId);
-        conversacionRepositorio.Agregar(conversacion);
+        var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(envioResultado.Valor.HiloExternoId, cancellationToken);
+        if (conversacion is null)
+        {
+            conversacion = new Conversacion(request.Asunto, clienteId);
+            conversacion.AsociarConexion(conexion.Id, envioResultado.Valor.HiloExternoId);
+            conversacionRepositorio.Agregar(conversacion);
+        }
 
-        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, request.CuerpoHtml);
+        var mensaje = conversacion.AgregarMensaje(
+            DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, request.CuerpoHtml,
+            mensajeExternoId: envioResultado.Valor.MensajeExternoId);
         foreach (var destinatario in request.Destinatarios)
         {
+            // Al sumarse a un hilo ya existente el destinatario suele estar ya
+            // registrado — no se duplica la fila (no hay índice único que lo
+            // impida, así que la guarda va aquí).
+            if (conversacion.Participantes.Any(p => p.Rol == RolParticipante.Para &&
+                                                   string.Equals(p.Email, destinatario, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
             var (tipoOrigen, entidadRelacionadaId) = await resolucionParticipante.ResolverAsync(destinatario, clienteId, cancellationToken);
             conversacion.AgregarParticipante(destinatario, RolParticipante.Para, tipoOrigen, entidadRelacionadaId);
         }

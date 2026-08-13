@@ -172,9 +172,15 @@ public class ObtenerBorradorPedirPrioridadQueryHandler(
         return null;
     }
 
+    // GestorPropietarioId != null excluido a propósito — ver el mismo
+    // comentario en EnviarReclamacionCommand: un buzón personal también tiene
+    // ClienteId null, y el borrador que se acaba enviando (PedirPrioridadValidacionCommand)
+    // debe resolver el mismo buzón que este preview ya mostró, nunca el
+    // personal de un gestor cualquiera.
     private async Task<Guid?> ResolverConexionIntegracionAsync(Guid? clienteId, CancellationToken cancellationToken) =>
         await integracionesContext.ConexionesIntegracion
             .Where(c => c.Proveedor == ProveedorIntegracion.Microsoft365 && c.Estado == EstadoConexionIntegracion.Habilitada)
+            .Where(c => c.GestorPropietarioId == null)
             .Where(c => c.ClienteId == null || c.ClienteId == clienteId)
             .OrderByDescending(c => c.ClienteId != null)
             .Select(c => (Guid?)c.Id)

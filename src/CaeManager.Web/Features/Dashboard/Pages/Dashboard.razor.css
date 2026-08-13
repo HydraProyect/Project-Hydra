@@ -48,3 +48,34 @@
     font: var(--font-body-sm);
     color: var(--color-text-muted);
 }
+
+/*
+  Reclamado y sin respuesta: misma familia visual que las filas de la bandeja
+  —fondo de superficie, borde suave— pero sin el tratamiento de estado del
+  semáforo. Aquí no hay incumplimiento que señalar: la documentación puede
+  estar perfectamente al día y ser el cliente quien no ha contestado todavía.
+*/
+.dashboard-sin-respuesta-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.dashboard-sin-respuesta-cliente {
+    display: block;
+    font: var(--font-label);
+    color: var(--color-text);
+}
+
+.dashboard-sin-respuesta-detalle {
+    display: block;
+    margin-top: var(--space-1);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
