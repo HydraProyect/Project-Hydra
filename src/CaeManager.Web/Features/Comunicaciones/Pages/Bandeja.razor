@@ -96,7 +96,7 @@
                 {
                     <EstadoCargando Filas="6" />
                 }
-                else if (!ConversacionesVisibles().Any())
+                else if (_conversaciones.Count == 0)
                 {
                     <EstadoVacio Titulo="No hay conversaciones" Descripcion="No encontramos conversaciones con estos filtros." />
                 }
@@ -141,6 +141,12 @@
                                 </ul>
                             }
                         </div>
+                    }
+
+                    @if (TotalPaginas > 1)
+                    {
+                        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalConversaciones"
+                                          Etiqueta="conversación(es)" PaginaActualChanged="CambiarPaginaBandejaAsync" />
                     }
                 }
             </div>

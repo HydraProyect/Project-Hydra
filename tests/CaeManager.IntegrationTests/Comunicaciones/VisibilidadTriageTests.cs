@@ -105,7 +105,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
             new AlcanceDatosServiceFalso(clienteIds: [_clientePropio]),
             new CurrentUserServiceFalso(rol: rol));
 
-        return await handler.Handle(new ObtenerConversacionesQuery(), CancellationToken.None);
+        return (await handler.Handle(new ObtenerConversacionesQuery(), CancellationToken.None)).Elementos;
     }
 
     private CaeManagerDbContext CrearContexto()

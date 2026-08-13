@@ -74,6 +74,21 @@ public partial class Bandeja : ComponentBase, IDisposable
     private bool _cargandoLista = true;
     private bool _errorCargaLista;
     private IReadOnlyList<ConversacionListaDto> _conversaciones = [];
+
+    // --- Paginación en SQL (CODING_STANDARDS.md § Paginación/volumen — la
+    // bandeja no tenía techo, cargaba TODAS las conversaciones que cumplieran
+    // los filtros en cada visita). Enteros propios, no PaginationState de
+    // QuickGrid: esto no es una tabla, es una lista agrupada por cliente con
+    // secciones colapsables (ver PaginadorSimple.razor, variante manual).
+    // Un cliente puede quedar partido entre dos páginas si tiene
+    // conversaciones a ambos lados del corte — trade-off aceptado a cambio de
+    // no cargar la bandeja entera en cada visita; en la práctica ocurre solo
+    // con filtros amplios (sin cliente ni buscador), que es justo el caso que
+    // esta paginación existe para acotar.
+    private const int TamanoPaginaBandeja = 20;
+    private int _pagina = 1;
+    private int _totalConversaciones;
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalConversaciones / (double)TamanoPaginaBandeja));
     private IReadOnlyList<ClienteSelectorDto> _clientesSelector = [];
     private IReadOnlyList<EjecutivoSelectorDto> _ejecutivosDisponibles = [];
 
@@ -241,16 +256,21 @@ public partial class Bandeja : ComponentBase, IDisposable
                 mes = mesParseado;
             }
 
-            _conversaciones = await Mediator.Send(new ObtenerConversacionesQuery(
+            var resultado = await Mediator.Send(new ObtenerConversacionesQuery(
                 Estado: string.IsNullOrEmpty(_estadoFiltro) ? null : Enum.Parse<EstadoConversacion>(_estadoFiltro),
                 Anio: anio,
                 Mes: mes,
                 ClienteId: Guid.TryParse(_clienteIdFiltro, out var clienteId) ? clienteId : null,
                 SoloAsignadasAMi: _soloAsignadasAMi,
                 SoloSinAsignar: _soloSinAsignar,
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda));
+                SoloEsperandoCliente: _soloEsperandoCliente,
+                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+                Pagina: _pagina,
+                TamanoPagina: TamanoPaginaBandeja));
             // Sin filtro de Canal a propósito (docs/COMUNICACIONES.md § 10.2):
             // el gestor ve conversaciones, no "correo" o "WhatsApp" por separado.
+            _conversaciones = resultado.Elementos;
+            _totalConversaciones = resultado.TotalElementos;
         }
         catch (Exception ex)
         {
@@ -280,6 +300,9 @@ public partial class Bandeja : ComponentBase, IDisposable
             ["q"] = _busqueda
         });
 
+        // Cambiar cualquier filtro vuelve a la página 1 — quedarse en la 3 de
+        // un filtro que ahora tiene una sola página dejaría la lista en blanco.
+        _pagina = 1;
         return CargarListaAsync();
     }
 
@@ -287,6 +310,7 @@ public partial class Bandeja : ComponentBase, IDisposable
     {
         _soloAsignadasAMi = !_soloAsignadasAMi;
         if (_soloAsignadasAMi) _soloSinAsignar = false;
+        _pagina = 1;
         return CargarListaAsync();
     }
 
@@ -294,6 +318,7 @@ public partial class Bandeja : ComponentBase, IDisposable
     {
         _soloSinAsignar = !_soloSinAsignar;
         if (_soloSinAsignar) _soloAsignadasAMi = false;
+        _pagina = 1;
         return CargarListaAsync();
     }
 
@@ -301,24 +326,35 @@ public partial class Bandeja : ComponentBase, IDisposable
     {
         _soloAsignadasAMi = false;
         _soloSinAsignar = false;
+        _pagina = 1;
         return CargarListaAsync();
     }
 
     /// <summary>
-    /// "Esperando cliente" es un filtro puramente cliente (ConversacionListaDto.EsperandoCliente
-    /// es un campo derivado, no persistido — § 16.4): no hace falta redondear
-    /// contra el servidor, se aplica sobre la lista ya cargada.
+    /// "Esperando cliente" sigue siendo un estado derivado, no persistido
+    /// (§ 16.4) — pero el filtro ya no se aplica en memoria sobre la lista
+    /// cargada: con paginación en SQL, filtrar aquí dejaría páginas que
+    /// parecen vacías cuando en realidad hay coincidencias más adelante. Va
+    /// al servidor con la misma mecánica que SoloAsignadasAMi/SoloSinAsignar.
     /// </summary>
-    private void AlternarEsperandoCliente() => _soloEsperandoCliente = !_soloEsperandoCliente;
+    private Task AlternarEsperandoCliente()
+    {
+        _soloEsperandoCliente = !_soloEsperandoCliente;
+        _pagina = 1;
+        return CargarListaAsync();
+    }
 
-    private IEnumerable<ConversacionListaDto> ConversacionesVisibles() =>
-        _soloEsperandoCliente ? _conversaciones.Where(c => c.EsperandoCliente) : _conversaciones;
+    private Task CambiarPaginaBandejaAsync(int pagina)
+    {
+        _pagina = pagina;
+        return CargarListaAsync();
+    }
 
     private IEnumerable<IGrouping<Guid, ConversacionListaDto>> GruposPorCliente() =>
-        ConversacionesVisibles().Where(c => c.ClienteId is not null).GroupBy(c => c.ClienteId!.Value);
+        _conversaciones.Where(c => c.ClienteId is not null).GroupBy(c => c.ClienteId!.Value);
 
     private IReadOnlyList<ConversacionListaDto> ConversacionesTriage() =>
-        ConversacionesVisibles().Where(c => c.ClienteId is null).OrderByDescending(c => c.FechaUltimoMensajeUtc).ToList();
+        _conversaciones.Where(c => c.ClienteId is null).OrderByDescending(c => c.FechaUltimoMensajeUtc).ToList();
 
     private void AlternarGrupo(string clave)
     {
