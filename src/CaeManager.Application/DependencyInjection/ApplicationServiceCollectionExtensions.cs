@@ -58,6 +58,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<ISugerenciaVisitaCorreoService, SugerenciaVisitaCorreoService>();
         services.AddScoped<ISugerenciaGestionCorreoService, SugerenciaGestionCorreoService>();
         services.AddScoped<IResolucionParticipanteConversacionService, ResolucionParticipanteConversacionService>();
+        services.AddScoped<Contactos.IResolucionDestinatariosAgendaService, Contactos.ResolucionDestinatariosAgendaService>();
         services.AddScoped<IClasificacionRuidoMensajeService, ClasificacionRuidoMensajeService>();
         services.AddScoped<IRelevanciaCaeService, RelevanciaCaeService>();
         services.AddScoped<IMotorCoincidenciaConversacionesService, MotorCoincidenciaConversacionesService>();
