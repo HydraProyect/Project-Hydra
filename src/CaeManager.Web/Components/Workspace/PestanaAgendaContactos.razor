@@ -1,0 +1,193 @@
+@*
+    Pestaña "Agenda" reutilizada por los paneles de Cliente, Empresa,
+    Subcontrata y Centro — ContactoAgenda ya modela su dueño con cuatro FKs
+    excluyentes (ver ContactoAgenda), así que un único componente
+    parametrizado por Tipo+PropietarioId cubre los cuatro casos.
+
+    Es la lista de personas a las que se les pide cada cosa, no los usuarios
+    del portal: tener cuenta no significa estar en el flujo documental
+    (decisión del usuario, 2026-08-13). Por eso el aviso de "sin contacto" no
+    es decorativo — sin ninguna entrada aquí, la reclamación de esta entidad
+    no tiene a quién salir.
+*@
+@using CaeManager.Application.Contactos.Commands.EliminarContactoAgenda
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService Toasts
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="No pudimos cargar la agenda" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_contactos.Count == 0)
+{
+    <EstadoVacio Titulo="Sin contactos en la agenda"
+                 Descripcion="@($"No hay a quién pedirle documentación {TextoDeEsta}. Añade al menos un contacto para poder reclamar.")">
+        <Accion>
+            <Boton OnClick="() => AbrirFormulario(null)">Añadir contacto</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else
+{
+    <div class="agenda-encabezado">
+        <p class="agenda-resumen">@_contactos.Count contacto(s) en la agenda</p>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="() => AbrirFormulario(null)">Añadir contacto</Boton>
+    </div>
+
+    <ul class="agenda-lista">
+        @foreach (var contacto in _contactos)
+        {
+            <li class="agenda-contacto" @key="contacto.Id">
+                <div class="agenda-contacto-datos">
+                    <span class="agenda-contacto-nombre">@contacto.Nombre</span>
+                    <span class="agenda-contacto-email">@contacto.Email</span>
+                    @if (!string.IsNullOrWhiteSpace(contacto.Cargo))
+                    {
+                        <span class="agenda-contacto-cargo">@contacto.Cargo</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(contacto.Telefono))
+                    {
+                        <span class="agenda-contacto-telefono">@contacto.Telefono</span>
+                    }
+                </div>
+                <div class="agenda-contacto-etiquetas">
+                    @if (contacto.EsPredeterminado)
+                    {
+                        <Badge Tono="TonoBadge.Info">Predeterminado</Badge>
+                    }
+                    @foreach (var nombreTipo in contacto.TipoDocumentoNombres)
+                    {
+                        <Badge Tono="TonoBadge.Neutro">@nombreTipo</Badge>
+                    }
+                    @if (contacto.RecibeProgramacionVisitas)
+                    {
+                        <Badge Tono="TonoBadge.Neutro">Programación de visitas</Badge>
+                    }
+                    @if (contacto.RecibeFacturacion)
+                    {
+                        <Badge Tono="TonoBadge.Neutro">Facturación</Badge>
+                    }
+                </div>
+                <div class="agenda-contacto-acciones">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirFormulario(contacto)">Editar</Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => PedirConfirmacionBorrado(contacto)">Quitar</Boton>
+                </div>
+            </li>
+        }
+    </ul>
+
+    @if (!_contactos.Any(c => c.EsPredeterminado))
+    {
+        <p class="agenda-aviso">
+            Ningún contacto está marcado como predeterminado: la documentación que no tenga
+            un destinatario propio se quedará sin a quién reclamar.
+        </p>
+    }
+}
+
+<ModalContactoAgenda Visible="_formularioVisible" VisibleChanged="v => _formularioVisible = v"
+                     Tipo="Tipo" PropietarioId="PropietarioId" Contacto="_contactoEnEdicion"
+                     PredeterminadoPorDefecto="_contactos.Count == 0"
+                     OnGuardado="_ => CargarAsync()" />
+
+<DialogoConfirmacion Visible="_confirmacionVisible" VisibleChanged="v => _confirmacionVisible = v"
+                     Titulo="Quitar contacto"
+                     Mensaje="@($"«{_contactoABorrar?.Nombre}» dejará de recibir las solicitudes de esta agenda.")"
+                     TextoBotonConfirmar="Quitar" OnConfirmar="EliminarAsync" />
+
+@code {
+    [Parameter, EditorRequired] public TipoPropietarioAgenda Tipo { get; set; }
+    [Parameter, EditorRequired] public Guid PropietarioId { get; set; }
+
+    private IReadOnlyList<ContactoAgendaDto> _contactos = [];
+    private bool _cargando = true;
+    private bool _error;
+    private (TipoPropietarioAgenda Tipo, Guid PropietarioId)? _claveCargada;
+
+    private bool _formularioVisible;
+    private ContactoAgendaDto? _contactoEnEdicion;
+
+    private bool _confirmacionVisible;
+    private ContactoAgendaDto? _contactoABorrar;
+
+    private string TextoDeEsta => Tipo switch
+    {
+        TipoPropietarioAgenda.Cliente => "a este cliente",
+        TipoPropietarioAgenda.Empresa => "a esta empresa",
+        TipoPropietarioAgenda.Subcontrata => "a esta subcontrata",
+        _ => "a este centro"
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var clave = (Tipo, PropietarioId);
+        if (_claveCargada == clave) return;
+
+        _claveCargada = clave;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var claveSolicitada = (Tipo, PropietarioId);
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            var contactos = await Mediator.Send(new ObtenerAgendaContactosQuery(Tipo, PropietarioId));
+            if (claveSolicitada == (Tipo, PropietarioId))
+                _contactos = contactos;
+        }
+        catch (Exception)
+        {
+            if (claveSolicitada == (Tipo, PropietarioId))
+                _error = true;
+        }
+        finally
+        {
+            if (claveSolicitada == (Tipo, PropietarioId))
+                _cargando = false;
+        }
+    }
+
+    private void AbrirFormulario(ContactoAgendaDto? contacto)
+    {
+        _contactoEnEdicion = contacto;
+        _formularioVisible = true;
+    }
+
+    private void PedirConfirmacionBorrado(ContactoAgendaDto contacto)
+    {
+        _contactoABorrar = contacto;
+        _confirmacionVisible = true;
+    }
+
+    private async Task EliminarAsync()
+    {
+        if (_contactoABorrar is null) return;
+
+        var resultado = await Mediator.Send(new EliminarContactoAgendaCommand(Tipo, PropietarioId, _contactoABorrar.Id));
+        _contactoABorrar = null;
+        _confirmacionVisible = false;
+
+        if (resultado.EsFallido)
+        {
+            Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            return;
+        }
+
+        Toasts.Mostrar("Contacto retirado de la agenda.", TonoToast.Exito);
+        await CargarAsync();
+    }
+}

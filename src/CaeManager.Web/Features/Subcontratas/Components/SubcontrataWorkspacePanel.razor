@@ -24,6 +24,7 @@
 @using CaeManager.Domain.Subcontratas
 @using Microsoft.AspNetCore.Components.Forms
 @using FluentValidation
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
@@ -277,6 +278,10 @@ else
                 }
                 break;
 
+            case "agenda":
+                <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Subcontrata" PropietarioId="EntidadId" />
+                break;
+
             case "historial":
                 <PestanaHistorial EntidadTipo="Subcontrata" EntidadId="EntidadId" />
                 break;
@@ -358,6 +363,7 @@ else
         new("documentacion", "Documentación"),
         new("supervision", "Supervisión"),
         new("centros", "Centros"),
+        new("agenda", "Agenda"),
         new("historial", "Historial")
     ];
 

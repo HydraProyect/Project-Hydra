@@ -33,6 +33,7 @@
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Documentos
 @using FluentValidation
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using MediatR
 @using Microsoft.AspNetCore.Components.Forms
 @inject IMediator Mediator
@@ -380,6 +381,10 @@ else
                 }
                 break;
 
+            case "agenda":
+                <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Centro" PropietarioId="EntidadId" />
+                break;
+
             case "historial":
                 <PestanaHistorial EntidadTipo="Centro" EntidadId="EntidadId" />
                 break;
@@ -582,13 +587,31 @@ else
                 {
                     <div class="alerta-formulario" role="alert">@_errorReclamacionCentro</div>
                 }
-                @if (_loteReclamacionCentro.DestinatariosEmail.Count == 0)
+                @* Destinatarios resueltos por la agenda del CENTRO primero y la
+                   del Cliente después (IResolucionDestinatariosAgendaService):
+                   es justo aquí donde esa precedencia importa — el jefe de obra
+                   del centro gana al contacto genérico del cliente. *@
+                @if (_loteReclamacionCentro.Destinatarios is not { Count: > 0 })
                 {
-                    <div class="alerta-formulario" role="alert">Este cliente no tiene ningún usuario de portal con email — no se puede enviar la reclamación hasta que tenga uno.</div>
+                    <div class="alerta-formulario" role="alert">
+                        No hay ningún contacto en la agenda al que reclamar esta documentación — añade uno en la pestaña Agenda de este centro o de su cliente.
+                    </div>
                 }
                 else
                 {
-                    <p class="workspace-nota-contextual">Destinatarios: @string.Join(", ", _loteReclamacionCentro.DestinatariosEmail)</p>
+                    <fieldset class="reclamacion-destinatarios">
+                        <legend>Se solicita a</legend>
+                        @foreach (var destinatario in _loteReclamacionCentro.Destinatarios)
+                        {
+                            <label class="campo-checkbox" @key="destinatario.ContactoId">
+                                <input type="checkbox"
+                                       checked="@_contactosReclamacionCentro.Contains(destinatario.ContactoId)"
+                                       @onchange="e => AlternarContactoReclamacionCentro(destinatario.ContactoId, (bool)e.Value!)" />
+                                <span>@destinatario.Nombre — @destinatario.Email</span>
+                                <span class="reclamacion-motivo">@string.Join(", ", destinatario.MotivoTipos)</span>
+                            </label>
+                        }
+                    </fieldset>
                 }
                 <table class="tabla-datos">
                     <thead>
@@ -616,7 +639,7 @@ else
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerReclamacionCentroVisible = false" Deshabilitado="_enviandoReclamacionCentro">Cancelar</Boton>
             <Boton OnClick="EnviarReclamacionCentroAsync" Cargando="_enviandoReclamacionCentro"
-                   Deshabilitado="_loteReclamacionCentro is null || _loteReclamacionCentro.DestinatariosEmail.Count == 0">Enviar</Boton>
+                   Deshabilitado="_loteReclamacionCentro is null || _contactosReclamacionCentro.Count == 0">Enviar</Boton>
         </Pie>
     </Drawer>
 }
@@ -629,6 +652,7 @@ else
         new("trabajadores", "Trabajadores"),
         new("vehiculos", "Vehículos"),
         new("plataforma", "Plataforma"),
+        new("agenda", "Agenda"),
         new("historial", "Historial")
     ];
 
@@ -648,6 +672,7 @@ else
 
     // --- Reclamar documentación del centro (disparo desde Centro 360) ---
     private LoteReclamacionClienteDto? _loteReclamacionCentro;
+    private HashSet<Guid> _contactosReclamacionCentro = [];
     private bool _drawerReclamacionCentroVisible;
     private bool _enviandoReclamacionCentro;
     private string? _errorReclamacionCentro;
@@ -791,6 +816,11 @@ else
             // si falla, simplemente no aparece el botón.
             var lotes = await Mediator.Send(new ObtenerLoteReclamacionQuery(CentroId: EntidadId));
             _loteReclamacionCentro = lotes.FirstOrDefault();
+            // Todos marcados de salida: desmarcar es la excepción, no el paso
+            // obligatorio antes de poder enviar.
+            _contactosReclamacionCentro = (_loteReclamacionCentro?.Destinatarios ?? [])
+                .Select(d => d.ContactoId)
+                .ToHashSet();
         }
         catch (Exception)
         {
@@ -1450,9 +1480,15 @@ else
         }
     }
 
+    private void AlternarContactoReclamacionCentro(Guid contactoId, bool marcado)
+    {
+        if (marcado) _contactosReclamacionCentro.Add(contactoId);
+        else _contactosReclamacionCentro.Remove(contactoId);
+    }
+
     private async Task EnviarReclamacionCentroAsync()
     {
-        if (_loteReclamacionCentro is null) return;
+        if (_loteReclamacionCentro is null || _contactosReclamacionCentro.Count == 0) return;
 
         _enviandoReclamacionCentro = true;
         _errorReclamacionCentro = null;
@@ -1460,7 +1496,12 @@ else
         try
         {
             var documentoIds = _loteReclamacionCentro.Documentos.Select(d => d.DocumentoId).ToList();
-            var resultado = await Mediator.Send(new EnviarReclamacionCommand(_loteReclamacionCentro.ClienteId, documentoIds));
+            // CentroId viaja al Command para que la resolución de destinatarios
+            // vuelva a mirar la agenda de ESTE centro, no solo la del cliente.
+            var resultado = await Mediator.Send(new EnviarReclamacionCommand(
+                _loteReclamacionCentro.ClienteId, documentoIds,
+                CentroId: EntidadId,
+                ContactoIdsSeleccionados: _contactosReclamacionCentro.ToList()));
 
             if (resultado.EsFallido)
             {

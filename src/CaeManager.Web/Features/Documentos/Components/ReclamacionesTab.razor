@@ -6,6 +6,7 @@
     Cliente en vez de uno por Documento — pestaña dentro de /documentos para
     reutilizar esta pantalla en vez de crear una entrada nueva en el menú.
 *@
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion
 @using CaeManager.Domain.Documentos
@@ -38,7 +39,7 @@ else
 
         <Tarjeta @key="lote.ClienteId" Titulo="@lote.RazonSocialCliente" Class="tarjeta-reclamacion">
             <AccionesHeader>
-                <Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || lote.DestinatariosEmail.Count == 0)"
+                <Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.ClienteId).Count == 0)"
                        Cargando="enviando" OnClick="() => EnviarAsync(lote)">
                     Enviar reclamación (@seleccionados.Count)
                 </Boton>
@@ -60,15 +61,40 @@ else
                     }
                 </p>
 
-                @if (lote.DestinatariosEmail.Count == 0)
+                @* A quién se le pide: la agenda del cliente (y la del centro, si
+                   la reclamación va acotada a uno), nunca los usuarios de
+                   portal — ver IResolucionDestinatariosAgendaService. La lista
+                   sale marcada entera: desmarcar es la excepción, no el paso
+                   obligatorio. *@
+                @if (lote.Destinatarios is not { Count: > 0 })
                 {
                     <div class="alerta-formulario" role="alert">
-                        Este cliente no tiene ningún usuario de portal con email — no se puede enviar la reclamación hasta que tenga uno.
+                        No hay ningún contacto en la agenda al que reclamar esta documentación.
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                               OnClick="() => AbrirAltaContacto(lote.ClienteId)">
+                            Añadir contacto
+                        </Boton>
                     </div>
                 }
                 else
                 {
-                    <p class="texto-vacio-seccion">Destinatarios: @string.Join(", ", lote.DestinatariosEmail)</p>
+                    <fieldset class="reclamacion-destinatarios">
+                        <legend>Se solicita a</legend>
+                        @foreach (var destinatario in lote.Destinatarios)
+                        {
+                            <label class="campo-checkbox" @key="destinatario.ContactoId">
+                                <input type="checkbox"
+                                       checked="@ContactosMarcados(lote.ClienteId).Contains(destinatario.ContactoId)"
+                                       @onchange="e => AlternarContacto(lote.ClienteId, destinatario.ContactoId, (bool)e.Value!)" />
+                                <span>@destinatario.Nombre — @destinatario.Email</span>
+                                <span class="reclamacion-motivo">@string.Join(", ", destinatario.MotivoTipos)</span>
+                            </label>
+                        }
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                               OnClick="() => AbrirAltaContacto(lote.ClienteId)">
+                            Añadir contacto
+                        </Boton>
+                    </fieldset>
                 }
 
                 <table class="tabla-datos">
@@ -102,12 +128,21 @@ else
     }
 }
 
+@* Alta inline: el gestor que ve que falta el destinatario lo crea sin salir
+   de la pantalla y la lista se recarga con él ya resuelto. *@
+<ModalContactoAgenda Visible="_altaContactoVisible" VisibleChanged="v => _altaContactoVisible = v"
+                     Tipo="TipoPropietarioAgenda.Cliente" PropietarioId="_clienteAltaContacto"
+                     PredeterminadoPorDefecto="true" OnGuardado="_ => CargarAsync()" />
+
 @code {
     private bool _cargando = true;
     private bool _error;
     private IReadOnlyList<LoteReclamacionClienteDto> _lotes = [];
     private readonly Dictionary<Guid, HashSet<Guid>> _seleccionPorCliente = [];
+    private readonly Dictionary<Guid, HashSet<Guid>> _contactosPorCliente = [];
     private Guid? _enviandoClienteId;
+    private bool _altaContactoVisible;
+    private Guid _clienteAltaContacto;
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
@@ -121,8 +156,13 @@ else
         {
             _lotes = await Mediator.Send(new ObtenerLoteReclamacionQuery());
             _seleccionPorCliente.Clear();
+            _contactosPorCliente.Clear();
             foreach (var lote in _lotes)
+            {
                 _seleccionPorCliente[lote.ClienteId] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
+                _contactosPorCliente[lote.ClienteId] =
+                    (lote.Destinatarios ?? []).Select(d => d.ContactoId).ToHashSet();
+            }
         }
         catch (Exception)
         {
@@ -141,15 +181,37 @@ else
         else seleccionados.Remove(documentoId);
     }
 
+    private HashSet<Guid> ContactosMarcados(Guid clienteId) =>
+        _contactosPorCliente.TryGetValue(clienteId, out var marcados) ? marcados : [];
+
+    private void AlternarContacto(Guid clienteId, Guid contactoId, bool marcado)
+    {
+        if (!_contactosPorCliente.TryGetValue(clienteId, out var marcados))
+            _contactosPorCliente[clienteId] = marcados = [];
+
+        if (marcado) marcados.Add(contactoId);
+        else marcados.Remove(contactoId);
+    }
+
+    private void AbrirAltaContacto(Guid clienteId)
+    {
+        _clienteAltaContacto = clienteId;
+        _altaContactoVisible = true;
+    }
+
     private async Task EnviarAsync(LoteReclamacionClienteDto lote)
     {
         var documentoIds = _seleccionPorCliente[lote.ClienteId].ToList();
         if (documentoIds.Count == 0) return;
 
+        var contactoIds = ContactosMarcados(lote.ClienteId).ToList();
+        if (contactoIds.Count == 0) return;
+
         _enviandoClienteId = lote.ClienteId;
         try
         {
-            var resultado = await Mediator.Send(new EnviarReclamacionCommand(lote.ClienteId, documentoIds));
+            var resultado = await Mediator.Send(new EnviarReclamacionCommand(
+                lote.ClienteId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds));
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
