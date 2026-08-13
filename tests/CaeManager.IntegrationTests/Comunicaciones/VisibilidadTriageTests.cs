@@ -2,6 +2,7 @@
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -85,6 +86,44 @@ public class VisibilidadTriageTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_gestor_no_abre_por_Id_un_hilo_del_buzon_personal_de_otro_gestor()
+    {
+        // Mismo hallazgo que el resto de este archivo, pero para el buzón
+        // personal de un gestor (ConexionIntegracion.GestorPropietarioId) en
+        // vez de la cola de triage: acotar solo el listado (ObtenerConversacionesQuery,
+        // ya cubierto arriba) dejaría el hilo accesible por Id igual que pasaba
+        // con el triage antes de este mismo archivo.
+        Guid conversacionPersonalId;
+        Guid conexionPersonalId;
+        await using (var contexto = CrearContexto())
+        {
+            var conexionPersonal = new ConexionIntegracion(
+                "gestor.otro@ejemplo.local", "Buzón personal", gestorPropietarioId: Guid.NewGuid());
+            contexto.ConexionesIntegracion.Add(conexionPersonal);
+            await contexto.SaveChangesAsync();
+            conexionPersonalId = conexionPersonal.Id;
+
+            var deBuzonPersonal = new Conversacion("Asunto personal ajeno");
+            deBuzonPersonal.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "quien-sea@externo.test", "<p>Privado</p>");
+            deBuzonPersonal.AsociarConexion(conexionPersonal.Id, "hilo-personal-vt-1");
+            contexto.Conversaciones.Add(deBuzonPersonal);
+            await contexto.SaveChangesAsync();
+            conversacionPersonalId = deBuzonPersonal.Id;
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = new ObtenerConversacionPorIdQueryHandler(
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura,
+            new AlcanceDatosServiceFalso(clienteIds: [_clientePropio], conexionesIntegracionAjenas: [conexionPersonalId]),
+            new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "GestorCae"),
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
+
+        var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionPersonalId), CancellationToken.None);
+
+        detalle.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Un_gestor_con_cartera_acotada_si_ve_la_cola_de_triage()
     {
         // Contrapeso imprescindible: si el triaje deja de verse para los roles
@@ -100,6 +139,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionesQueryHandler(
+            contexto,
             contexto,
             contexto,
             new AlcanceDatosServiceFalso(clienteIds: [_clientePropio]),

@@ -1,5 +1,6 @@
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -130,11 +131,78 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
         resultado.Elementos.Should().ContainSingle().Which.Asunto.Should().Be("Reclamación sin contestar");
     }
 
+    [Fact]
+    public async Task Un_hilo_del_buzon_personal_de_otro_gestor_no_aparece_en_la_bandeja_general()
+    {
+        // Regresión: el buzón personal de un gestor (ConexionIntegracion.
+        // GestorPropietarioId) también tiene ClienteId null, igual que la cola
+        // de triage genuina — sin excluirlo, su correspondencia se colaba en
+        // la bandeja de cualquier otro gestor con acceso a Comunicaciones.
+        Guid conversacionTriageId;
+        await using (var contexto = CrearContexto())
+        {
+            var conexionPersonal = new ConexionIntegracion(
+                "gestor.otro@ejemplo.local", "Buzón personal", gestorPropietarioId: Guid.NewGuid());
+            contexto.ConexionesIntegracion.Add(conexionPersonal);
+            await contexto.SaveChangesAsync();
+
+            var deBuzonPersonal = new Conversacion("Asunto personal del otro gestor");
+            deBuzonPersonal.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "quien-sea@externo.test", "<p>Privado</p>");
+            deBuzonPersonal.AsociarConexion(conexionPersonal.Id, "hilo-personal-1");
+            contexto.Conversaciones.Add(deBuzonPersonal);
+
+            var deTriageGenuina = new Conversacion("Correo sin triar de verdad");
+            deTriageGenuina.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@externo.test", "<p>Triage</p>");
+            contexto.Conversaciones.Add(deTriageGenuina);
+
+            await contexto.SaveChangesAsync();
+            conversacionTriageId = deTriageGenuina.Id;
+        }
+
+        // Usuario actual sin Id conocido (equivalente a "no soy el dueño de
+        // ningún buzón personal") — el caso más común: cualquier gestor que
+        // no sea el propietario de esa conexión concreta.
+        var resultado = await EjecutarAsync(new ObtenerConversacionesQuery());
+
+        resultado.Elementos.Should().ContainSingle().Which.Id.Should().Be(conversacionTriageId);
+    }
+
+    [Fact]
+    public async Task El_propio_dueno_del_buzon_personal_si_ve_su_hilo()
+    {
+        var gestorPropietarioId = Guid.NewGuid();
+        Guid conversacionPersonalId;
+        await using (var contexto = CrearContexto())
+        {
+            var conexionPersonal = new ConexionIntegracion(
+                "gestor.propietario@ejemplo.local", "Buzón personal", gestorPropietarioId: gestorPropietarioId);
+            contexto.ConexionesIntegracion.Add(conexionPersonal);
+            await contexto.SaveChangesAsync();
+
+            var deBuzonPersonal = new Conversacion("Asunto personal propio");
+            deBuzonPersonal.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "quien-sea@externo.test", "<p>Privado</p>");
+            deBuzonPersonal.AsociarConexion(conexionPersonal.Id, "hilo-personal-2");
+            contexto.Conversaciones.Add(deBuzonPersonal);
+
+            await contexto.SaveChangesAsync();
+            conversacionPersonalId = deBuzonPersonal.Id;
+        }
+
+        await using var contextoLectura = CrearContexto();
+        var handler = new ObtenerConversacionesQueryHandler(
+            contextoLectura, contextoLectura, contextoLectura, new AlcanceDatosServiceFalso(),
+            new CurrentUserServiceFalso(usuarioId: gestorPropietarioId, rol: "GestorCae"));
+
+        var resultado = await handler.Handle(new ObtenerConversacionesQuery(), CancellationToken.None);
+
+        resultado.Elementos.Should().ContainSingle().Which.Id.Should().Be(conversacionPersonalId);
+    }
+
     private async Task<Application.Common.ResultadoPaginado<ConversacionListaDto>> EjecutarAsync(ObtenerConversacionesQuery query)
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionesQueryHandler(
-            contexto, contexto, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"));
+            contexto, contexto, contexto, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         return await handler.Handle(query, CancellationToken.None);
     }

@@ -15,7 +15,8 @@ public class AlcanceDatosServiceFalso(
     IReadOnlyList<Guid>? empresaIds = null,
     IReadOnlyList<Guid>? subcontrataIds = null,
     IReadOnlyList<Guid>? trabajadorIds = null,
-    IReadOnlyList<Guid>? vehiculoIds = null) : IAlcanceDatosService
+    IReadOnlyList<Guid>? vehiculoIds = null,
+    IReadOnlyList<Guid>? conexionesIntegracionAjenas = null) : IAlcanceDatosService
 {
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(
         clienteIds is null && centroIds is null && empresaIds is null &&
@@ -38,4 +39,8 @@ public class AlcanceDatosServiceFalso(
 
     public Task<IReadOnlyList<Guid>?> ObtenerVehiculoIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(vehiculoIds);
+
+    /// <summary>Por defecto visible (ninguna conexión marcada como ajena) — solo lo controla el test que pase <c>conexionesIntegracionAjenas</c>.</summary>
+    public Task<bool> ConexionIntegracionVisibleAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(conexionesIntegracionAjenas is null || !conexionesIntegracionAjenas.Contains(conexionIntegracionId));
 }

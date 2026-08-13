@@ -53,7 +53,7 @@ public class MigrarConversacionACorreoCommandHandler(
     public async Task<Result> Handle(MigrarConversacionACorreoCommand request, CancellationToken cancellationToken)
     {
         var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(request.ConversacionId, cancellationToken);
-        if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
+        if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
 
         if (conversacion.Canal != CanalConversacion.WhatsApp)

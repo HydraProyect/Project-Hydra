@@ -127,11 +127,23 @@ public class ObtenerConversacionPorIdQueryHandler(
                 c.FechaUltimoMensajeUtc,
                 c.Canal,
                 c.TelefonoContacto,
-                c.FechaUltimoMensajeEntranteUtc
+                c.FechaUltimoMensajeEntranteUtc,
+                c.ConexionIntegracionId
             })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (conversacion is null) return null;
+
+        // Un hilo atado al buzón personal de OTRO gestor nunca se abre desde
+        // aquí, tenga o no Cliente resuelto — acotar solo la rama de triage de
+        // abajo dejaba el hilo accesible por Id a cualquier rol de gestión
+        // (mismo hueco que ObtenerConversacionesQueryHandler, corregido en el
+        // mismo cambio).
+        if (conversacion.ConexionIntegracionId is { } conexionId &&
+            !await alcanceDatos.ConexionIntegracionVisibleAsync(conexionId, cancellationToken))
+        {
+            return null;
+        }
 
         if (conversacion.ClienteId is not null)
         {

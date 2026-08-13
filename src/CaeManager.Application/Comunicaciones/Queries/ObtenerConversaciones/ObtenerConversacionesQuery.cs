@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using System.Text.RegularExpressions;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -69,7 +70,9 @@ public record ConversacionListaDto(
 }
 
 public class ObtenerConversacionesQueryHandler(
-    IClientesQueryContext clientesContext, IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
+    IClientesQueryContext clientesContext, IComunicacionesQueryContext comunicacionesContext,
+    IIntegracionesQueryContext integracionesContext,
+    IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerConversacionesQuery, ResultadoPaginado<ConversacionListaDto>>
 {
     private const int LongitudPreview = 140;
@@ -103,6 +106,23 @@ public class ObtenerConversacionesQueryHandler(
             consulta = rol == RolCliente
                 ? consulta.Where(c => c.ClienteId != null && clienteIdsVisibles.Contains(c.ClienteId!.Value))
                 : consulta.Where(c => c.ClienteId == null || clienteIdsVisibles.Contains(c.ClienteId!.Value));
+        }
+
+        // El buzón personal de OTRO gestor (ConexionIntegracion.GestorPropietarioId)
+        // también tiene ClienteId null, igual que la cola de triage genuina —
+        // sin esto, sus hilos se colaban en la bandeja de cualquier gestor con
+        // acceso a Comunicaciones (mismo hueco corregido en ObtenerConversacionPorIdQuery
+        // y en las cuatro consultas que resuelven "el buzón a usar para enviar").
+        var usuarioActualId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        var conexionesAjenasPersonales = await integracionesContext.ConexionesIntegracion
+            .Where(c => c.GestorPropietarioId != null && c.GestorPropietarioId != usuarioActualId)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
+        if (conexionesAjenasPersonales.Count > 0)
+        {
+            consulta = consulta.Where(c =>
+                c.ConexionIntegracionId == null || !conexionesAjenasPersonales.Contains(c.ConexionIntegracionId!.Value));
         }
 
         if (request.Estado is not null)

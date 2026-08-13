@@ -175,4 +175,33 @@ public class EnviarMensajeNuevoCommandHandlerTests
         conversaciones.Conversaciones.Should().ContainSingle();
         conversacionPrevia.Mensajes.Should().ContainSingle(m => m.MensajeExternoId == "msg-saliente-2");
     }
+
+    [Fact]
+    public async Task No_envia_desde_el_buzon_personal_de_otro_gestor_aunque_se_le_pase_su_Id()
+    {
+        // Regresión: sin este check, cualquiera con acceso a Comunicaciones
+        // podía enviar correo desde el buzón personal de un colega pasando su
+        // ConexionIntegracionId a mano — el Cliente-cartera no protege un
+        // buzón personal, porque tiene ClienteId null.
+        var conexionPersonal = new ConexionIntegracion(
+            "gestor.otro@ejemplo.local", "Buzón personal", gestorPropietarioId: Guid.NewGuid());
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexionPersonal);
+        var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
+        credencialRepositorio.Agregar(new CredencialIntegracion(conexionPersonal.Id, "refresh-token"));
+        var graphClient = new Microsoft365GraphClientFalso();
+        var accesoGraph = new AccesoGraphService(credencialRepositorio, graphClient);
+        var conversaciones = new ConversacionRepositorioFalso();
+
+        var handler = new EnviarMensajeNuevoCommandHandler(
+            conexionRepositorio, conversaciones, new AlcanceDatosServiceFalso(conexionIntegracionVisible: false), graphClient, accesoGraph,
+            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(
+            new EnviarMensajeNuevoCommand(conexionPersonal.Id, ["destinatario@cliente.com"], "Asunto", "<p>Cuerpo</p>"),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        conversaciones.Conversaciones.Should().BeEmpty();
+    }
 }
