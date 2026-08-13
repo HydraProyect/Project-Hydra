@@ -3929,6 +3929,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("ClienteId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ConversacionId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -3960,6 +3963,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ConversacionId");
 
                     b.HasIndex("TenantId", "ClienteId");
 
@@ -5330,6 +5335,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Reclamaciones.ReclamacionDocumental", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Comunicaciones.Conversacion", null)
+                        .WithMany()
+                        .HasForeignKey("ConversacionId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Reclamaciones.ReclamacionDocumentalDocumento", b =>

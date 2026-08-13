@@ -17,3 +17,13 @@ App_Data/
 
 # Carpeta temporal que crea el cliente de Google Drive mientras sincroniza.
 .tmp.driveupload/
+
+# Material de identidad de marca (nombre comercial, lockups, firma de correo) y
+# el sitio web que lo acompaña: van a su propio repositorio, no a este mientras
+# Project-Hydra siga siendo público. El repositorio solo conoce el nombre
+# histórico por defecto (ver CaeManager.Application.Common.Marca); el real llega
+# por configuración desde appsettings.Development.json, ya ignorado arriba.
+# El patrón va sin nombre propio a propósito: nombrar la marca aquí la publicaría
+# igual que publicarla en el código.
+branding/
+web-*/

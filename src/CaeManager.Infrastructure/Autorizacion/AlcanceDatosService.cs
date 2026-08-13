@@ -216,4 +216,24 @@ public class AlcanceDatosService(CaeManagerDbContext dbContext, ICurrentUserServ
 
         return _vehiculoIds;
     }
+
+    /// <summary>
+    /// Sin memoización por diseño: a diferencia de los seis alcances de
+    /// arriba (un único valor por request, reutilizado por varios filtros de
+    /// una misma Query), esto se llama con un Id distinto cada vez —
+    /// memoizar por Id sería un diccionario para un método que ya resuelve
+    /// con una única consulta indexada por clave primaria.
+    /// </summary>
+    public async Task<bool> ConexionIntegracionVisibleAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default)
+    {
+        var propietarioId = await dbContext.ConexionesIntegracion
+            .Where(c => c.Id == conexionIntegracionId)
+            .Select(c => c.GestorPropietarioId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (propietarioId is null) return true;
+
+        var usuarioActualId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        return propietarioId == usuarioActualId;
+    }
 }

@@ -2,6 +2,13 @@
 
 Lee esto antes de planificar cambios de arquitectura.
 
+## Gobernanza común
+
+Antes de interpretar una tarea, lee `docs/AGENT_GOVERNANCE.md`. Define la
+jerarquía de autoridad, qué puede implementar o solo proponer un agente y cómo
+dejar decisiones pendientes sin bloquear el trabajo. Esta sección complementa,
+pero no sustituye, las reglas específicas que siguen.
+
 ## Estado actual del producto (fuente de verdad: `ADR-003-saas-multitenant.md`)
 
 Hydra (CAE Manager) es una **plataforma SaaS multi-tenant**: producto comercial para consultoras de PRL y empresas contratistas (decisión 2026-07-23, que supersede la pausa de `ADR-002-single-tenant.md`). La organización que hoy usa el sistema en producción es el tenant #1.

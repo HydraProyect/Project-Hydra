@@ -122,6 +122,7 @@ Piezas propias del canal WhatsApp: enrutamiento híbrido (§ 4), ventana de serv
 - `PhoneNumberId` con índice único **global** (sin TenantId) — es la única columna del módulo que se consulta con `IgnoreQueryFilters()`, justificada explícitamente porque es el mecanismo que *resuelve* el tenant, no una fuga del filtro.
 - RLS habilitado para `LineasWhatsApp`, `MiembrosPoolLinea`, `ContactosWhatsApp`, `ConversacionesCorreo`/`MensajesCorreo` en las mismas migraciones que las crean.
 - **Fix descubierto en la verificación de la Fase 84** (afectaba también a correo M365): EF clasificaba como `Modified` entidades hijas nuevas descubiertas por fixup de navegación con Guid de constructor — el segundo mensaje de cualquier hilo cargado moría en `TenantSelladoInterceptor` con "pertenece a otro tenant". Se corrigió reclasificando a `Added` cuando el `TenantId` original está vacío (la columna es NOT NULL en BD, señal inequívoca de entidad nueva). Cubierto por `AgregarMensajeAConversacionCargadaTests` en ambos canales.
+- **Aislamiento del buzón personal (encontrado 2026-08-13, explorando el backlog nocturno)**: un buzón personal de un gestor (`ConexionIntegracion.GestorPropietarioId`) tiene `ClienteId` null, igual que la cola de triage genuina y que el buzón genérico del tenant — nada lo distinguía. Sin corregir, cualquier acción de negocio que resolviera "el buzón a usar" (`EnviarReclamacionCommand`, `PedirPrioridadValidacionCommand`, `ObtenerBorradorPedirPrioridadQuery`, `MigrarConversacionACorreoCommand`) podía elegir el buzón personal de un gestor cualquiera sin que él lo supiera, y la bandeja/detalle/acciones generales (`ObtenerConversacionesQuery`, `ObtenerConversacionPorIdQuery`, y los seis Commands que cargan una Conversacion existente) dejaban ver/responder correspondencia personal ajena. Cerrado con `IAlcanceDatosService.ConexionIntegracionVisibleAsync` + `AlcanceDatosServiceExtensions.ConversacionVisibleAsync`, aplicado en los ocho puntos de contacto.
 
 ## 8. Configuración y flag de activación
 
@@ -136,10 +137,10 @@ Piezas propias del canal WhatsApp: enrutamiento híbrido (§ 4), ventana de serv
 
 | Hallazgo | Impacto usuario | Impacto negocio | Horizonte |
 |---|---|---|---|
-| **H1** — el módulo que resuelve la reclamación documental (hueco 4.1.2) está apagado y es solo reactivo: las macros y `EnviarMensajeNuevoCommand` existen, pero nada en Documentos/Centros dispara "enviar reclamación con esta macro" desde un documento vencido o faltante | Alto | Alto — es el hueco 4.1.2 del inventario de producto | Medio plazo |
-| **H2** — sin búsqueda de texto en conversaciones; la bandeja filtra por estado/mes/cliente/asignación pero no busca | Medio | Medio | Medio plazo |
+| ~~**H1**~~ — **Parcialmente cerrado (2026-08-13)**: `EnviarReclamacionCommand` ya nace como `Conversacion` con rastro completo (hilo, timeline, "Ver en Comunicaciones"), y Centro 360 dispara la reclamación de un Centro concreto con un clic (`ObtenerLoteReclamacionQuery(CentroId:)`). Sigue sin disparo desde un documento individual vencido/faltante en la ficha de Documentos — eso queda abierto. | Alto → Medio | Alto → Medio | — |
+| ~~**H2**~~ — **Cerrado (2026-08-13)**: `ObtenerConversacionesQuery.Busqueda` compara ahora Asunto Y el cuerpo de los mensajes del hilo (sin índice de texto completo — mismo nivel que el resto de búsquedas del repo). | — | — | — |
 | **H3** (hipótesis, sin validar) — `/bandeja` (cola documental) y `/comunicaciones` (cola de correo/chat) conviven como dos "bandejas" en el menú; posible confusión de vocabulario | Medio | Bajo | Quick win (renombrar) |
-| Riesgo de escalabilidad — bandeja agrupada sin paginación visible; correrá la suerte de la Bandeja del gestor con volumen real | — | — | Cuando se encienda la ingesta |
+| ~~Riesgo de escalabilidad~~ — **Cerrado (2026-08-13)**: la bandeja pagina en SQL (`ResultadoPaginado<ConversacionListaDto>`, 20 por página) en vez de cargar todas las conversaciones que cumplan los filtros. `SoloEsperandoCliente` pasó de filtro en memoria a filtro de servidor para que la paginación no deje páginas "vacías" con coincidencias más adelante. Trade-off aceptado: un Cliente con conversaciones a ambos lados del corte de página puede quedar partido entre dos páginas. | — | — | — |
 
 ### De `ARQUITECTURA-INTEGRACIONES.md` § 12.7/§ 13 (deuda de diseño ya reconocida, no accidental)
 

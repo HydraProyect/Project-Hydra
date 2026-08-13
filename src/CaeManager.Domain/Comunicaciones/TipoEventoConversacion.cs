@@ -15,5 +15,15 @@ public enum TipoEventoConversacion
     /// Conversation Matching Engine (§ 13.2) — <c>ReferenciaId</c> guarda el
     /// Id de la conversación ORIGEN, ya cerrada y sin mensajes propios.
     /// </summary>
-    ConversacionVinculada = 2
+    ConversacionVinculada = 2,
+
+    /// <summary>
+    /// Un lote de reclamación documental salió por esta conversación —
+    /// <c>ReferenciaId</c> guarda el Id de la <c>ReclamacionDocumental</c>, que
+    /// es quien sabe qué documentos se reclamaron. A diferencia de los otros
+    /// tres, este evento nace en la MISMA conversación que el mensaje saliente
+    /// que lo provocó: sirve para distinguir en el timeline un correo redactado
+    /// a mano de uno que salió de la operación documental.
+    /// </summary>
+    ReclamacionEnviada = 3
 }

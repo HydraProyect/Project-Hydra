@@ -35,6 +35,11 @@ public class ReclamacionDocumental : EntidadBase
 
     public DateTime FechaEnvioUtc { get; private set; }
 
+    /// <summary>
+    /// Identificador de la conversación generada en Comunicaciones si se envió por un buzón conectado (P3-33, Fase A). Null si se envió por IEmailService (sin buzón) o en reclamaciones históricas.
+    /// </summary>
+    public Guid? ConversacionId { get; private set; }
+
     public IReadOnlyList<ReclamacionDocumentalDocumento> Documentos => _documentos.AsReadOnly();
 
     private ReclamacionDocumental()
@@ -43,7 +48,7 @@ public class ReclamacionDocumental : EntidadBase
 
     public ReclamacionDocumental(
         Guid clienteId, Guid enviadoPorUsuarioId, string destinatarioEmail, DateTime fechaEnvioUtc,
-        IEnumerable<Guid> documentoIds)
+        IEnumerable<Guid> documentoIds, Guid? conversacionId = null)
     {
         if (clienteId == Guid.Empty)
             throw new ArgumentException("La reclamación debe pertenecer a un cliente.", nameof(clienteId));
@@ -65,6 +70,7 @@ public class ReclamacionDocumental : EntidadBase
         EnviadoPorUsuarioId = enviadoPorUsuarioId;
         DestinatarioEmail = destinatarioNormalizado;
         FechaEnvioUtc = fechaEnvioUtc;
+        ConversacionId = conversacionId;
 
         foreach (var documentoId in idsUnicos)
             _documentos.Add(new ReclamacionDocumentalDocumento(Id, documentoId));

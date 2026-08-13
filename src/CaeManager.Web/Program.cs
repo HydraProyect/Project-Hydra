@@ -294,6 +294,10 @@ builder.Services.AddHealthChecks()
             ?? throw new InvalidOperationException("Falta el connection string CaeManagerDb."),
         name: "postgresql");
 
+// El nombre comercial se resuelve una sola vez, antes de que nada lo pinte.
+// Sin configuración se queda en el histórico; ver CaeManager.Application.Common.Marca.
+CaeManager.Application.Common.Marca.Configurar(builder.Configuration["Marca:Nombre"]);
+
 var app = builder.Build();
 
 // Modo dedicado para el paso de "pre-deploy" de Railway (ver railway.json y

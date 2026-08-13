@@ -53,7 +53,7 @@ public class MigrarConversacionACorreoCommandHandler(
     public async Task<Result> Handle(MigrarConversacionACorreoCommand request, CancellationToken cancellationToken)
     {
         var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(request.ConversacionId, cancellationToken);
-        if (conversacion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conversacion.ClienteId, cancellationToken))
+        if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
 
         if (conversacion.Canal != CanalConversacion.WhatsApp)
@@ -64,8 +64,13 @@ public class MigrarConversacionACorreoCommandHandler(
             return Result.Fallo(Error.Crear(
                 "Conversacion.VentanaAbierta", "La ventana de WhatsApp sigue abierta — responde por ese canal."));
 
+        // GestorPropietarioId != null excluido a propósito — ver el mismo
+        // comentario en EnviarReclamacionCommand: un buzón personal también
+        // tiene ClienteId null, y la migración a correo debe salir por un
+        // buzón compartido del tenant, nunca por el personal de un gestor.
         var conexionId = await integracionesContext.ConexionesIntegracion
             .Where(c => c.Proveedor == ProveedorIntegracion.Microsoft365 && c.Estado == EstadoConexionIntegracion.Habilitada)
+            .Where(c => c.GestorPropietarioId == null)
             .Where(c => c.ClienteId == conversacion.ClienteId || c.ClienteId == null)
             // Buzón dedicado al Cliente de la conversación antes que el buzón general del tenant.
             .OrderByDescending(c => c.ClienteId != null)
@@ -92,7 +97,9 @@ public class MigrarConversacionACorreoCommandHandler(
         if (envioResultado.EsFallido)
             return Result.Fallo(envioResultado.Error);
 
-        conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, conexion.BuzonEmail, request.CuerpoHtml);
+        conversacion.AgregarMensaje(
+            DireccionMensaje.Saliente, CanalConversacion.Correo, conexion.BuzonEmail, request.CuerpoHtml,
+            mensajeExternoId: envioResultado.Valor.MensajeExternoId);
         var (tipoOrigen, entidadRelacionadaId) = await resolucionParticipante.ResolverAsync(
             request.EmailDestino, conversacion.ClienteId, cancellationToken);
         conversacion.AgregarParticipante(request.EmailDestino, RolParticipante.Para, tipoOrigen, entidadRelacionadaId);

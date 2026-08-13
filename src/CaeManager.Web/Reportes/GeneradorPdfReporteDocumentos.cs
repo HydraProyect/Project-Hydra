@@ -2,6 +2,7 @@ using CaeManager.Application.Reportes.Queries;
 using CaeManager.Web.Features.Documentos;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
+using CaeManager.Application.Common;
 
 namespace CaeManager.Web.Reportes;
 
@@ -50,7 +51,7 @@ public static class GeneradorPdfReporteDocumentos
                 graficos.DrawString("Reporte de vigencia documental", fuenteTitulo, XBrushes.Black, new XPoint(MargenIzquierdo, y));
                 y += 22;
                 graficos.DrawString(
-                    $"CAE Manager — generado el {generadoEnUtc:dd/MM/yyyy HH:mm} UTC — {filas.Count} documento(s)",
+                    $"{Marca.Nombre} — generado el {generadoEnUtc:dd/MM/yyyy HH:mm} UTC — {filas.Count} documento(s)",
                     fuenteSubtitulo, XBrushes.Gray, new XPoint(MargenIzquierdo, y));
                 y += 20;
             }

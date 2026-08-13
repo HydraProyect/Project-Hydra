@@ -23,15 +23,23 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 /// varios Clientes (relación Empresa-Cliente N:N, ver DOMAIN.md) puede
 /// aparecer reclamado desde más de un Cliente — es el comportamiento
 /// correcto: cada titular necesita saberlo para su propio Centro.
+///
+/// <paramref name="CentroId"/> acota el lote a un único Centro — lo usa
+/// Centro 360 para "reclamar documentación de este centro" sin mandar de
+/// paso lo pendiente de otros centros del mismo Cliente. Un Centro pertenece
+/// a un único Cliente, así que con el filtro puesto el resultado tiene como
+/// mucho un elemento. Null (el caso de /documentos) mantiene el
+/// comportamiento de siempre: todos los clientes visibles.
 /// </summary>
-public record ObtenerLoteReclamacionQuery : IRequest<IReadOnlyList<LoteReclamacionClienteDto>>;
+public record ObtenerLoteReclamacionQuery(Guid? CentroId = null) : IRequest<IReadOnlyList<LoteReclamacionClienteDto>>;
 
 public record LoteReclamacionClienteDto(
     Guid ClienteId,
     string RazonSocialCliente,
     IReadOnlyList<string> DestinatariosEmail,
     DateTime? UltimaReclamacionFechaUtc,
-    IReadOnlyList<DocumentoReclamableDto> Documentos);
+    IReadOnlyList<DocumentoReclamableDto> Documentos,
+    Guid? UltimaReclamacionConversacionId = null);
 
 public record DocumentoReclamableDto(
     Guid DocumentoId,
@@ -77,6 +85,7 @@ public class ObtenerLoteReclamacionQueryHandler(
             where asignacion.FechaBaja == null
             where centroIdsVisibles == null || centroIdsVisibles.Contains(asignacion.CentroId)
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
+            where request.CentroId == null || centro.Id == request.CentroId
             where clienteIdsVisibles == null || clienteIdsVisibles.Contains(centro.ClienteId)
             join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
             select new
@@ -96,10 +105,19 @@ public class ObtenerLoteReclamacionQueryHandler(
         // GetValueOrDefault sobre un Dictionary<Guid, DateTime> devolvería
         // DateTime.MinValue para un cliente sin reclamaciones previas, no
         // null — de ahí el valor explícitamente nullable aquí.
+        //
+        // ConversacionId es el de la ÚLTIMA reclamación, que es la que la
+        // pestaña muestra ("Última reclamación: hace X"): null si esa salió sin
+        // buzón conectado, o si es anterior a que existiera el vínculo.
         var ultimasReclamaciones = await reclamacionesContext.ReclamacionesDocumentales
             .GroupBy(r => r.ClienteId)
-            .Select(g => new { ClienteId = g.Key, Ultima = (DateTime?)g.Max(r => r.FechaEnvioUtc) })
-            .ToDictionaryAsync(x => x.ClienteId, x => x.Ultima, cancellationToken);
+            .Select(g => new
+            {
+                ClienteId = g.Key,
+                Ultima = (DateTime?)g.Max(r => r.FechaEnvioUtc),
+                ConversacionId = g.OrderByDescending(r => r.FechaEnvioUtc).Select(r => r.ConversacionId).FirstOrDefault()
+            })
+            .ToDictionaryAsync(x => x.ClienteId, x => x, cancellationToken);
 
         var resultado = new List<LoteReclamacionClienteDto>();
 
@@ -125,12 +143,15 @@ public class ObtenerLoteReclamacionQueryHandler(
 
             var destinatarios = await contactosClienteService.ObtenerEmailsPortalAsync(grupoCliente.Key.Id, cancellationToken);
 
+            var ultima = ultimasReclamaciones.GetValueOrDefault(grupoCliente.Key.Id);
+
             resultado.Add(new LoteReclamacionClienteDto(
                 grupoCliente.Key.Id,
                 grupoCliente.Key.RazonSocial,
                 destinatarios,
-                ultimasReclamaciones.GetValueOrDefault(grupoCliente.Key.Id),
-                documentos));
+                ultima?.Ultima,
+                documentos,
+                ultima?.ConversacionId));
         }
 
         return resultado
