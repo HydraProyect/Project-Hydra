@@ -9,6 +9,48 @@ jerarquía de autoridad, qué puede implementar o solo proponer un agente y cóm
 dejar decisiones pendientes sin bloquear el trabajo. Esta sección complementa,
 pero no sustituye, las reglas específicas que siguen.
 
+## Qué no entra en este repositorio (es público)
+
+Este repositorio es público a propósito — decisión del usuario, ver `docs/AGENT_GOVERNANCE.md`
+§ 1 para la jerarquía de autoridad. Eso no es un descuido a corregir; es una restricción de
+diseño que **cualquier documento o dato nuevo** tiene que respetar, no solo el código.
+Historial: dos purgas completas de historial ya hechas (2026-08-11, identificadores del
+tenant M365; 2026-08-13, toda `docs/business/`) — la meta es que no haga falta una tercera.
+
+**Nunca en un commit de este repositorio**, sin excepción por conveniencia ni por prisa:
+
+- Identificadores reales de infraestructura (Tenant ID, Client ID/Secret, cuentas de
+  administración, dominios internos, nombres de bucket, ARNs) — ni siquiera los que no son
+  técnicamente "secretos" (un Tenant ID viaja en claro en cualquier request), porque publicados
+  son material de reconocimiento y un UPN de admin es un objetivo de phishing con nombre y
+  apellidos.
+- Estrategia de negocio (pricing, competidores, go-to-market, unit economics, ICP) y
+  documentación legal real (DPA, contratos, políticas internas no destinadas a publicarse
+  tal cual).
+- Nombres reales de clientes, empresas o personas — salvo los ya aprobados como ficticios
+  (ArcoSPA/Ibertec/EcoPlant/Obras Reyval en `ADR-004`/`docs/MULTITENANCY.md`, confirmado con
+  el usuario 2026-08-13; no asumas que cualquier nombre nuevo lo es sin confirmar).
+- Material de marca/identidad real (nombre comercial, lockups, dominio del sitio) — el
+  repositorio solo conoce el nombre histórico genérico (`CaeManager.Application.Common.Marca`),
+  el real entra por configuración. Ver el comentario de `branding/` en `.gitignore`.
+
+**Dónde va en su lugar**, según qué sea:
+
+- Documentación de negocio o legal → el repositorio local `C:\Users\chris\Project-Hydra-Negocio`
+  (sin remoto, ver más abajo) — la tarea que la necesite se inicia ahí, no aquí.
+- Un valor real puntual dentro de un documento técnico que por lo demás sí debe vivir aquí
+  (identificadores, credenciales concretas de un runbook) → el documento versionado se queda
+  con placeholders, y el valor real va en un fichero `NOMBRE.local.md` junto a él, cubierto por
+  el patrón `*.local.md` de `.gitignore`. Patrón ya aplicado en `RUNBOOK-GRAPH-M365.md` /
+  `RUNBOOK-GRAPH-M365.local.md` — cópialo para el siguiente caso en vez de inventar uno nuevo.
+- Material de marca/identidad real → `branding/` (ya en `.gitignore`, sin nombre propio
+  siquiera en el comentario, a propósito).
+
+**La duda se resuelve a favor de la privacidad**: si no está claro si algo de lo anterior
+aplica a un documento nuevo, trátalo como si aplicara y pregunta al usuario antes de
+commitear — no lo subas primero "para revisar después". Esta regla se cumple en el mismo
+cambio que introduce el documento, no en una limpieza posterior.
+
 ## Estado actual del producto (fuente de verdad: `ADR-003-saas-multitenant.md`)
 
 Hydra (CAE Manager) es una **plataforma SaaS multi-tenant**: producto comercial para consultoras de PRL y empresas contratistas (decisión 2026-07-23, que supersede la pausa de `ADR-002-single-tenant.md`). La organización que hoy usa el sistema en producción es el tenant #1.
