@@ -103,8 +103,17 @@ public class EnviarReclamacionCommandHandler(
         var asunto = $"{Marca.Nombre} — documentación pendiente de {cliente.RazonSocial}";
         var cuerpoHtml = ConstruirCuerpoHtml(cliente.RazonSocial, filas.Select(f => (f.TrabajadorNombre, f.TipoDocumentoNombre, f.FechaVencimiento!.Value)));
 
+        // GestorPropietarioId != null excluido a propósito: un buzón personal
+        // de un gestor (ConexionIntegracion.GestorPropietarioId) también tiene
+        // ClienteId null, igual que el buzón genérico del tenant — sin este
+        // filtro, una reclamación de negocio podía salir desde el buzón
+        // personal de un gestor cualquiera, sin que él lo supiera ni lo
+        // consintiera. Mismo hueco en PedirPrioridadValidacionCommand,
+        // ObtenerBorradorPedirPrioridadQuery y MigrarConversacionACorreoCommand
+        // (corregido en el mismo cambio).
         var conexionId = await integracionesContext.ConexionesIntegracion
             .Where(c => c.Proveedor == ProveedorIntegracion.Microsoft365 && c.Estado == EstadoConexionIntegracion.Habilitada)
+            .Where(c => c.GestorPropietarioId == null)
             .Where(c => c.ClienteId == null || c.ClienteId == request.ClienteId)
             .OrderByDescending(c => c.ClienteId != null)
             .Select(c => (Guid?)c.Id)

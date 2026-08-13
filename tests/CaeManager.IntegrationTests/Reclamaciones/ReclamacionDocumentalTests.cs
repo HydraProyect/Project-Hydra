@@ -207,6 +207,49 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_buzon_personal_de_un_gestor_nunca_se_usa_como_buzon_generico_de_la_reclamacion()
+    {
+        // Regresión: el buzón personal de un gestor (GestorPropietarioId) tiene
+        // ClienteId null igual que el buzón genérico del tenant — sin excluirlo
+        // explícitamente, la reclamación podía salir desde el correo personal
+        // de un gestor cualquiera, sin que él lo supiera ni lo consintiera.
+        Guid documentoId;
+        await using (var contexto = CrearContexto())
+        {
+            var documento = Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1));
+            contexto.Documentos.Add(documento);
+            // Único buzón habilitado: personal de un gestor. Nunca debe elegirse.
+            contexto.ConexionesIntegracion.Add(new ConexionIntegracion(
+                "gestor.personal@ejemplo.local", "Buzón personal", gestorPropietarioId: Guid.NewGuid()));
+            await contexto.SaveChangesAsync();
+            documentoId = documento.Id;
+        }
+
+        var emailServiceFalso = new EmailServiceFalso();
+        var mediatorFalso = new MediatorFalso(Guid.NewGuid());
+
+        await using (var contexto = CrearContexto())
+        {
+            var handler = CrearCommandHandler(
+                contexto, new ContactosClienteServiceFalso(["cliente@example.com"]), emailServiceFalso, mediatorFalso);
+
+            var resultado = await handler.Handle(new EnviarReclamacionCommand(_clienteId, [documentoId]), CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        // Sin ningún buzón "elegible" (el único que hay es personal y ajeno),
+        // cae a la rama sin buzón conectado — nunca al personal.
+        mediatorFalso.UltimoEnvio.Should().BeNull("un buzón personal de otro gestor nunca es el buzón genérico");
+        emailServiceFalso.Enviados.Should().ContainSingle();
+
+        await using var lectura = CrearContexto();
+        (await lectura.ReclamacionesDocumentales.ToListAsync()).Should().ContainSingle().Which.ConversacionId.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Con_buzon_conectado_la_reclamacion_nace_como_conversacion_en_un_unico_envio()
     {
         Guid documentoId;

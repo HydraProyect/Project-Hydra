@@ -64,8 +64,13 @@ public class MigrarConversacionACorreoCommandHandler(
             return Result.Fallo(Error.Crear(
                 "Conversacion.VentanaAbierta", "La ventana de WhatsApp sigue abierta — responde por ese canal."));
 
+        // GestorPropietarioId != null excluido a propósito — ver el mismo
+        // comentario en EnviarReclamacionCommand: un buzón personal también
+        // tiene ClienteId null, y la migración a correo debe salir por un
+        // buzón compartido del tenant, nunca por el personal de un gestor.
         var conexionId = await integracionesContext.ConexionesIntegracion
             .Where(c => c.Proveedor == ProveedorIntegracion.Microsoft365 && c.Estado == EstadoConexionIntegracion.Habilitada)
+            .Where(c => c.GestorPropietarioId == null)
             .Where(c => c.ClienteId == conversacion.ClienteId || c.ClienteId == null)
             // Buzón dedicado al Cliente de la conversación antes que el buzón general del tenant.
             .OrderByDescending(c => c.ClienteId != null)
