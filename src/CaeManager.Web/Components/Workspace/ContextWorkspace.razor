@@ -17,6 +17,7 @@
 @using CaeManager.Web.Features.Documentos.Components
 @implements IDisposable
 @inject ContextWorkspaceService WorkspaceService
+@inject NavigationManager Navigation
 
 @if (WorkspaceService.EstaAbierto)
 {
@@ -74,15 +75,114 @@
     private int _profundidadAnterior;
     private IReadOnlyList<BreadcrumbElemento> _elementosBreadcrumb = [];
 
+    /// <summary>
+    /// Parámetro de query que serializa el nivel ACTUAL del panel —
+    /// <c>?ctx=Tipo:Id:pestaña</c> (05_WORKSPACE_PATTERNS.md § 3.6, primer
+    /// hueco declarado: "no serializa su estado en la URL, sin deep-link, y
+    /// recargar lo pierde entero").
+    ///
+    /// Solo el nivel actual, no la pila entera: el breadcrumb es historial de
+    /// navegación de la sesión, no estado direccionable. Un enlace compartido
+    /// abre esa entidad con el breadcrumb en un solo nivel — que es
+    /// exactamente lo que significa "enlazar a esta ficha".
+    ///
+    /// Cierra de paso el segundo hueco de § 3.6 ("no se cierra al navegar por
+    /// el menú principal", decisión cerrada desde 2026-07-25 que dependía de
+    /// este mismo mecanismo): un enlace del menú lleva a una URL sin
+    /// <c>ctx</c>, y una URL sin <c>ctx</c> significa panel cerrado.
+    /// </summary>
+    private const string ParametroCtx = "ctx";
+
+    /// <summary>
+    /// Último valor de <c>ctx</c> ya reflejado en el servicio — evita el bucle
+    /// URL→servicio→URL: cada lado comprueba contra esto antes de escribir en
+    /// el otro.
+    /// </summary>
+    private string? _ctxSincronizado;
+
     protected override void OnInitialized()
     {
         WorkspaceService.OnCambio += ManejarCambio;
+        Navigation.LocationChanged += ManejarNavegacion;
+        AplicarCtxDeUrl();
     }
 
     private void ManejarCambio()
     {
         _elementosBreadcrumb = WorkspaceService.Pila.Select(f => new BreadcrumbElemento(f.TituloVisible)).ToList();
+        ActualizarUrlDesdeEstado();
         InvokeAsync(StateHasChanged);
+    }
+
+    private void ManejarNavegacion(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+        InvokeAsync(() =>
+        {
+            AplicarCtxDeUrl();
+            StateHasChanged();
+        });
+
+    /// <summary>La URL manda: sin <c>ctx</c> el panel se cierra; con <c>ctx</c> se abre en ese nivel.</summary>
+    private void AplicarCtxDeUrl()
+    {
+        var ctx = LeerCtxDeUrl();
+        if (ctx == _ctxSincronizado) return;
+
+        _ctxSincronizado = ctx;
+
+        if (ctx is null)
+        {
+            WorkspaceService.CerrarAsync();
+            return;
+        }
+
+        if (!TryParsearCtx(ctx, out var tipo, out var entidadId, out var pestana))
+            return;
+
+        // Título de marcador: al restaurar desde URL todavía no sabemos el
+        // nombre de la entidad (lo carga el panel concreto, que además lo pinta
+        // en su propia cabecera). El breadcrumb muestra el tipo hasta entonces.
+        WorkspaceService.AbrirAsync(tipo, entidadId, tipo.ToString(), pestana);
+    }
+
+    private void ActualizarUrlDesdeEstado()
+    {
+        var ctxDelEstado = WorkspaceService.FrameActual is { } frame
+            ? $"{frame.Tipo}:{frame.EntidadId}:{frame.PestanaActiva}"
+            : null;
+
+        if (ctxDelEstado == _ctxSincronizado) return;
+
+        _ctxSincronizado = ctxDelEstado;
+
+        var destino = Navigation.GetUriWithQueryParameter(ParametroCtx, ctxDelEstado);
+        // replace: abrir/cerrar el panel de contexto no es un paso de
+        // navegación propio — con push, "Atrás" del navegador tendría que
+        // deshacer cada cambio de pestaña del panel antes de salir de la página.
+        Navigation.NavigateTo(destino, forceLoad: false, replace: true);
+    }
+
+    private string? LeerCtxDeUrl()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var valor = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        return valor.TryGetValue(ParametroCtx, out var encontrado) && !string.IsNullOrWhiteSpace(encontrado)
+            ? encontrado.ToString()
+            : null;
+    }
+
+    /// <summary>Un <c>ctx</c> corrupto (enlace viejo, tipo retirado) se ignora en silencio: mejor la página sin panel que un error.</summary>
+    private static bool TryParsearCtx(string ctx, out EntidadWorkspace tipo, out Guid entidadId, out string pestana)
+    {
+        tipo = default;
+        entidadId = default;
+        pestana = string.Empty;
+
+        var partes = ctx.Split(':');
+        if (partes.Length != 3) return false;
+
+        return Enum.TryParse(partes[0], out tipo)
+               && Guid.TryParse(partes[1], out entidadId)
+               && !string.IsNullOrWhiteSpace(pestana = partes[2]);
     }
 
     /// <summary>
@@ -112,5 +212,9 @@
         return WorkspaceService.Pila.Count > 1 ? WorkspaceService.VolverAsync() : WorkspaceService.CerrarAsync();
     }
 
-    public void Dispose() => WorkspaceService.OnCambio -= ManejarCambio;
+    public void Dispose()
+    {
+        WorkspaceService.OnCambio -= ManejarCambio;
+        Navigation.LocationChanged -= ManejarNavegacion;
+    }
 }
