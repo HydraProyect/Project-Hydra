@@ -12,19 +12,31 @@
     de compilacion que se regeneran solos.
 
     Este script invierte el planteamiento: Drive no toca la carpeta de trabajo. Se le
-    entregan dos artefactos cerrados por ejecucion:
+    entregan estos artefactos cerrados por ejecucion:
 
-      1. hydra-<fecha>.bundle  - el repositorio entero (todas las ramas y etiquetas) en
-                                 un solo fichero, verificado antes de publicarse. Se
-                                 restaura con `git clone hydra-<fecha>.bundle`.
-      2. locales-<fecha>.zip   - los ficheros ignorados que si importan, mas un parche
-                                 con el trabajo sin commitear (que el bundle no ve).
+      1. hydra-<fecha>.bundle          - el repositorio publico entero (todas las ramas)
+                                          en un solo fichero, verificado antes de
+                                          publicarse. Se restaura con `git clone`.
+      2. hydra-negocio-<fecha>.bundle  - el repositorio de documentacion de negocio
+                                          (docs/business/ hasta 2026-08-13, ahora vive
+                                          aparte y SIN remoto — ver CLAUDE.md). Esta
+                                          copia es su UNICA redundancia fuera del disco
+                                          local: a diferencia del repo publico, no hay
+                                          GitHub detras que lo respalde. Se omite en
+                                          silencio si $RaizNegocio no existe.
+      3. locales-<fecha>.zip           - los ficheros ignorados del repo publico que si
+                                          importan, mas un parche con el trabajo sin
+                                          commitear (que ningun bundle ve).
 
     Cada artefacto se escribe con extension .part y solo se renombra al terminar, para
     que Drive nunca sincronice un fichero a medio escribir.
 
 .PARAMETER Destino
     Carpeta de Drive donde se dejan los artefactos.
+
+.PARAMETER RaizNegocio
+    Repositorio local (sin remoto) con la documentacion de negocio. Si no existe en esta
+    maquina, ese bundle simplemente no se genera — no es un error.
 
 .PARAMETER Conservar
     Cuantas copias de cada tipo se mantienen. Las mas antiguas se borran.
@@ -42,6 +54,7 @@
 [CmdletBinding()]
 param(
     [string]$Destino = "G:\Mi unidad\Hydra-Respaldos",
+    [string]$RaizNegocio = "C:\Users\chris\Project-Hydra-Negocio",
     [int]$Conservar = 14,
     [switch]$IncluirDatosSubidos
 )
@@ -54,6 +67,34 @@ $temporal = Join-Path $env:TEMP "hydra-respaldo-$marca"
 
 function Escribir($mensaje) {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $mensaje"
+}
+
+# Reutilizada para el repo publico y para el de negocio: mismo criterio de verificacion
+# para ambos, un bundle que no pasa `git bundle verify` no se publica nunca.
+function Generar-Bundle([string]$RaizRepo, [string]$Prefijo, [string]$CarpetaTemporal) {
+    $destinoBundle = Join-Path $CarpetaTemporal "$Prefijo-$marca.bundle"
+    Push-Location $RaizRepo
+    try {
+        # Sin 2>&1: en Windows PowerShell 5.1 redirigir la salida de error de un
+        # ejecutable nativo envuelve cada linea en un ErrorRecord y, con
+        # $ErrorActionPreference = "Stop", aborta el script aunque git haya terminado
+        # con codigo 0. git escribe su progreso por stderr, asi que aqui pasaria siempre.
+        git bundle create $destinoBundle --all HEAD | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "git bundle create ($Prefijo) fallo con codigo $LASTEXITCODE" }
+
+        git bundle verify $destinoBundle | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "El bundle de $Prefijo no supera 'git bundle verify'" }
+
+        $ramasRepo = (git for-each-ref --format="%(refname:short)" refs/heads | Measure-Object).Count
+        $commitsRepo = (git rev-list --all --count)
+    }
+    finally { Pop-Location }
+    return [PSCustomObject]@{
+        Ruta    = $destinoBundle
+        Ramas   = $ramasRepo
+        Commits = $commitsRepo
+        MB      = [math]::Round((Get-Item $destinoBundle).Length / 1MB, 1)
+    }
 }
 
 if (-not (Test-Path (Join-Path $raiz ".git"))) {
@@ -73,29 +114,26 @@ if (-not (Test-Path $Destino)) {
 New-Item -ItemType Directory -Path $temporal -Force | Out-Null
 
 try {
-    # --- 1. El repositorio ---------------------------------------------------------
+    # --- 1. Los repositorios ---------------------------------------------------------
     # --all incluye ramas, etiquetas y notas; HEAD entra aparte porque --all no lo
     # arrastra y sin el un `git clone` del bundle no sabe que rama sacar.
-    $bundle = Join-Path $temporal "hydra-$marca.bundle"
-    Escribir "Generando el bundle del repositorio..."
-    Push-Location $raiz
-    try {
-        # Sin 2>&1: en Windows PowerShell 5.1 redirigir la salida de error de un
-        # ejecutable nativo envuelve cada linea en un ErrorRecord y, con
-        # $ErrorActionPreference = "Stop", aborta el script aunque git haya terminado
-        # con codigo 0. git escribe su progreso por stderr, asi que aqui pasaria siempre.
-        git bundle create $bundle --all HEAD | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "git bundle create fallo con codigo $LASTEXITCODE" }
+    Escribir "Generando el bundle del repositorio publico..."
+    $infoHydra = Generar-Bundle -RaizRepo $raiz -Prefijo "hydra" -CarpetaTemporal $temporal
+    $bundle = $infoHydra.Ruta
+    $ramas = $infoHydra.Ramas
+    $commits = $infoHydra.Commits
+    Escribir "Bundle correcto: $ramas ramas, $commits commits, $($infoHydra.MB) MB"
 
-        # Un bundle que no verifica no es una copia de seguridad, es un fichero grande.
-        git bundle verify $bundle | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "El bundle generado no supera 'git bundle verify'" }
-
-        $ramas = (git for-each-ref --format="%(refname:short)" refs/heads | Measure-Object).Count
-        $commits = (git rev-list --all --count)
+    $bundleNegocio = $null
+    if (Test-Path (Join-Path $RaizNegocio ".git")) {
+        Escribir "Generando el bundle del repositorio de negocio (sin remoto)..."
+        $infoNegocio = Generar-Bundle -RaizRepo $RaizNegocio -Prefijo "hydra-negocio" -CarpetaTemporal $temporal
+        $bundleNegocio = $infoNegocio.Ruta
+        Escribir "Bundle correcto: $($infoNegocio.Ramas) ramas, $($infoNegocio.Commits) commits, $($infoNegocio.MB) MB"
     }
-    finally { Pop-Location }
-    Escribir "Bundle correcto: $ramas ramas, $commits commits, $([math]::Round((Get-Item $bundle).Length / 1MB, 1)) MB"
+    else {
+        Escribir "Repositorio de negocio no encontrado en $RaizNegocio - se omite ese bundle."
+    }
 
     # --- 2. Lo que el repositorio no guarda ----------------------------------------
     $areaLocal = Join-Path $temporal "locales"
@@ -156,7 +194,9 @@ try {
     # --- 3. Publicar en Drive ------------------------------------------------------
     # .part primero y rename despues: Drive sincroniza lo que ve, y lo que ve tiene que
     # estar completo o no estar.
-    foreach ($artefacto in @($bundle, $zip)) {
+    $artefactos = @($bundle, $zip)
+    if ($bundleNegocio) { $artefactos += $bundleNegocio }
+    foreach ($artefacto in $artefactos) {
         $nombre = Split-Path -Leaf $artefacto
         $parcial = Join-Path $Destino "$nombre.part"
         Copy-Item $artefacto $parcial -Force
@@ -165,7 +205,9 @@ try {
     }
 
     # --- 4. Rotacion ---------------------------------------------------------------
-    foreach ($tipo in @("hydra-*.bundle", "locales-*.zip")) {
+    # hydra-negocio-*.bundle no colisiona con hydra-*.bundle: el patron exige que
+    # justo despues de "hydra-" venga la marca de fecha (digitos), no "negocio".
+    foreach ($tipo in @("hydra-????-??-??_*.bundle", "hydra-negocio-*.bundle", "locales-*.zip")) {
         $viejos = Get-ChildItem -Path (Join-Path $Destino $tipo) -ErrorAction SilentlyContinue |
                   Sort-Object LastWriteTime -Descending |
                   Select-Object -Skip $Conservar
@@ -184,7 +226,7 @@ COMO RESTAURAR ESTA COPIA
 =========================
 Generado por scripts/respaldo-local.ps1. Ultima actualizacion: $(Get-Date -Format 'yyyy-MM-dd HH:mm')
 
-1. EL REPOSITORIO (hydra-<fecha>.bundle)
+1. EL REPOSITORIO PUBLICO (hydra-<fecha>.bundle)
 
    git -c core.longpaths=true clone hydra-<fecha>.bundle C:\Project-Hydra
 
@@ -199,7 +241,17 @@ Generado por scripts/respaldo-local.ps1. Ultima actualizacion: $(Get-Date -Forma
      git bundle verify hydra-<fecha>.bundle
      git bundle list-heads hydra-<fecha>.bundle
 
-2. LOS FICHEROS LOCALES (locales-<fecha>.zip)
+1b. EL REPOSITORIO DE NEGOCIO (hydra-negocio-<fecha>.bundle, si existe)
+
+   git clone hydra-negocio-<fecha>.bundle C:\Users\chris\Project-Hydra-Negocio
+
+   Este repositorio nunca tuvo remoto (ver CLAUDE.md del repositorio publico, seccion
+   "Documentos que hay que leer segun la tarea"): antes de este cambio del 2026-08-13
+   vivia como docs/business/ dentro del repositorio publico; ahora es privado y esta
+   copia en Drive es su UNICA redundancia. Si este bundle falta o esta corrupto y la
+   maquina original ya no existe, ese contenido se ha perdido.
+
+2. LOS FICHEROS LOCALES DEL REPOSITORIO PUBLICO (locales-<fecha>.zip)
 
    Descomprimir SOBRE la carpeta ya restaurada, respetando la estructura:
      - RUNBOOK-GRAPH-M365.local.md ......... identificadores reales del tenant M365
@@ -221,9 +273,10 @@ Generado por scripts/respaldo-local.ps1. Ultima actualizacion: $(Get-Date -Forma
 "@
     Set-Content -Path (Join-Path $Destino "COMO-RESTAURAR.txt") -Value $comoRestaurar -Encoding utf8
 
-    $linea = "{0}  bundle={1}MB  ramas={2}  commits={3}  locales={4}" -f `
+    $negocioLog = if ($bundleNegocio) { "SI ($($infoNegocio.MB)MB, $($infoNegocio.Commits) commits)" } else { "no" }
+    $linea = "{0}  bundle={1}MB  ramas={2}  commits={3}  locales={4}  negocio={5}" -f `
         (Get-Date -Format "yyyy-MM-dd HH:mm"),
-        [math]::Round((Get-Item $bundle).Length / 1MB, 1), $ramas, $commits, $copiados
+        [math]::Round((Get-Item $bundle).Length / 1MB, 1), $ramas, $commits, $copiados, $negocioLog
     Add-Content -Path (Join-Path $Destino "historial.log") -Value $linea -Encoding utf8
 
     Escribir "Respaldo completado en: $Destino"
