@@ -173,6 +173,30 @@
     font: var(--font-body-sm);
 }
 
+/* Bloque "Se solicita a" de la reclamación documental: los contactos de la
+   agenda que van a recibir el correo, con el motivo por el que entra cada uno.
+   Global y no aislado porque tiene dos superficies —la pestaña Reclamaciones
+   de /documentos y el drawer de Centro 360— y debe leerse igual en las dos. */
+.reclamacion-destinatarios {
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin: var(--space-3) 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.reclamacion-destinatarios legend {
+    font: var(--font-label);
+    padding: 0 var(--space-1);
+}
+
+.reclamacion-motivo {
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+}
+
 .alerta-info {
     background-color: var(--color-primary-50);
     color: var(--color-primary-500);

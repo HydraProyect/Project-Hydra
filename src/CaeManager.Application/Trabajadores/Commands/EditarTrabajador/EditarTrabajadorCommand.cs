@@ -14,6 +14,7 @@ public record EditarTrabajadorCommand(
     string? Email,
     string? Observaciones,
     string? Alias = null,
+    string? Telefono = null,
     Guid Version = default) : ICommand;
 
 public class EditarTrabajadorCommandValidator : AbstractValidator<EditarTrabajadorCommand>
@@ -37,6 +38,7 @@ public class EditarTrabajadorCommandValidator : AbstractValidator<EditarTrabajad
 
         RuleFor(c => c.Observaciones).MaximumLength(Trabajador.LongitudMaximaObservaciones);
         RuleFor(c => c.Alias).MaximumLength(Trabajador.LongitudMaximaAlias);
+        RuleFor(c => c.Telefono).MaximumLength(Trabajador.LongitudMaximaTelefono);
     }
 }
 
@@ -52,7 +54,9 @@ public class EditarTrabajadorCommandHandler(ITrabajadorRepository repositorio, I
         if (ConcurrenciaOptimista.Verificar(trabajador, request.Version, "este trabajador") is { } conflicto)
             return Result.Fallo(conflicto);
 
-        trabajador.Actualizar(request.Nombre, request.Apellidos, request.FechaNacimiento, request.Email, request.Observaciones, request.Alias);
+        trabajador.Actualizar(
+            request.Nombre, request.Apellidos, request.FechaNacimiento, request.Email,
+            request.Observaciones, request.Alias, request.Telefono);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

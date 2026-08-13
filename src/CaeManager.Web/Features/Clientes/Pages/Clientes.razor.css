@@ -1,0 +1,19 @@
+/* Aviso de perfil incompleto en la fila del cliente: no es el semáforo de
+   vigencia documental (que se reserva a Documento, 06 § 4) sino una
+   configuración que falta, y por eso es un atajo pulsable a la pestaña que la
+   resuelve, no un badge decorativo. */
+.aviso-sin-agenda {
+    display: inline-block;
+    margin-left: var(--space-2);
+    padding: 0 var(--space-2);
+    border: 1px solid var(--color-warning-500);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font: var(--font-caption);
+    cursor: pointer;
+}
+
+.aviso-sin-agenda:hover {
+    border-color: var(--color-warning-700);
+}

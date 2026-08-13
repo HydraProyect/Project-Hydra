@@ -18,9 +18,13 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
         builder.Property(t => t.Alias).HasMaxLength(Trabajador.LongitudMaximaAlias);
         builder.Property(t => t.Dni).IsRequired().HasMaxLength(Trabajador.LongitudMaximaDni);
         builder.Property(t => t.Email).HasMaxLength(Trabajador.LongitudMaximaEmail);
+        builder.Property(t => t.Telefono).HasMaxLength(Trabajador.LongitudMaximaTelefono);
         builder.Property(t => t.Observaciones).HasMaxLength(Trabajador.LongitudMaximaObservaciones);
 
         builder.HasIndex(t => new { t.TenantId, t.Dni }).IsUnique();
+        // Resolver "de quién es este WhatsApp entrante" busca por teléfono en
+        // la ingesta, no por Id — sin índice sería un scan por cada mensaje.
+        builder.HasIndex(t => new { t.TenantId, t.Telefono });
         builder.HasIndex(t => t.EmpresaId);
         builder.HasIndex(t => t.SubcontrataId);
 

@@ -23,7 +23,8 @@ public record CrearTrabajadorCommand(
     DateOnly? FechaNacimiento,
     string? Email,
     string? Observaciones,
-    string? Alias = null) : ICommand<Guid>;
+    string? Alias = null,
+    string? Telefono = null) : ICommand<Guid>;
 
 public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajadorCommand>
 {
@@ -55,6 +56,7 @@ public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajador
 
         RuleFor(c => c.Observaciones).MaximumLength(Trabajador.LongitudMaximaObservaciones);
         RuleFor(c => c.Alias).MaximumLength(Trabajador.LongitudMaximaAlias);
+        RuleFor(c => c.Telefono).MaximumLength(Trabajador.LongitudMaximaTelefono);
     }
 
     private static bool TenerDigitoDeControlValido(string dni)
@@ -86,10 +88,10 @@ public class CrearTrabajadorCommandHandler(
         var trabajador = request.EmpresaId is not null
             ? Trabajador.DeEmpresa(
                 request.EmpresaId.Value, request.Nombre, request.Apellidos, request.Dni,
-                request.FechaNacimiento, request.Email, request.Observaciones, request.Alias)
+                request.FechaNacimiento, request.Email, request.Observaciones, request.Alias, request.Telefono)
             : Trabajador.DeSubcontrata(
                 request.SubcontrataId!.Value, request.Nombre, request.Apellidos, request.Dni,
-                request.FechaNacimiento, request.Email, request.Observaciones, request.Alias);
+                request.FechaNacimiento, request.Email, request.Observaciones, request.Alias, request.Telefono);
 
         repositorio.Agregar(trabajador);
         await unitOfWork.SaveChangesAsync(cancellationToken);

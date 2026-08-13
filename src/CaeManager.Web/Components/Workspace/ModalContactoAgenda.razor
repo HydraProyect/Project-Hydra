@@ -1,0 +1,185 @@
+@*
+    Formulario de alta/edición de un contacto de agenda, en modal.
+
+    Vive aparte de PestanaAgendaContactos porque tiene dos consumidores: la
+    pestaña "Agenda" de las fichas y el "añadir contacto" inline de la
+    reclamación documental — el gestor que está a punto de reclamar y ve que
+    falta el destinatario tiene que poder crearlo sin abandonar la pantalla
+    (requisito del usuario, 2026-08-13).
+*@
+@using CaeManager.Application.Contactos.Commands.GuardarContactoAgenda
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService Toasts
+
+<Modal Visible="Visible" VisibleChanged="CerrarAsync"
+       Titulo="@(Contacto is null ? "Nuevo contacto" : "Editar contacto")"
+       Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="false">
+    <ChildContent>
+        <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@_errorNombre" />
+        <CampoTexto Etiqueta="Email" Type="email" Valor="@_email" ValorChanged="v => _email = v" MensajeError="@_errorEmail" />
+        <CampoTexto Etiqueta="Teléfono (WhatsApp)" Type="tel" Valor="@_telefono" ValorChanged="v => _telefono = v"
+                    Placeholder="+34 600 00 00 00" />
+        <CampoTexto Etiqueta="Cargo" Valor="@_cargo" ValorChanged="v => _cargo = v"
+                    Placeholder="Finanzas, PRL, Vigilancia de la Salud…" />
+        <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" />
+
+        <label class="campo-checkbox">
+            <input type="checkbox" checked="@_esPredeterminado"
+                   @onchange="e => _esPredeterminado = e.Value is bool m && m" />
+            Contacto predeterminado — recibe lo que no tenga destinatario propio
+        </label>
+        <label class="campo-checkbox">
+            <input type="checkbox" checked="@_recibeProgramacionVisitas"
+                   @onchange="e => _recibeProgramacionVisitas = e.Value is bool m && m" />
+            Recibe la programación de visitas
+        </label>
+        <label class="campo-checkbox">
+            <input type="checkbox" checked="@_recibeFacturacion"
+                   @onchange="e => _recibeFacturacion = e.Value is bool m && m" />
+            Recibe la facturación
+        </label>
+
+        <SelectorMultiple Etiqueta="Documentación que se le pide"
+                          Elementos="_opcionesTipoDocumento"
+                          Seleccionados="_tiposSeleccionados"
+                          OnAlternar="AlternarTipoDocumento"
+                          TextoVacio="No hay tipos de documento configurados." />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="() => CerrarAsync(false)" Deshabilitado="_guardando">Cancelar</Boton>
+        <Boton OnClick="GuardarAsync" Cargando="_guardando" Deshabilitado="_guardando">Guardar</Boton>
+    </Pie>
+</Modal>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter, EditorRequired] public TipoPropietarioAgenda Tipo { get; set; }
+    [Parameter, EditorRequired] public Guid PropietarioId { get; set; }
+
+    /// <summary>Null = alta. Con valor, el formulario arranca con sus datos.</summary>
+    [Parameter] public ContactoAgendaDto? Contacto { get; set; }
+
+    /// <summary>Se invoca con el Id guardado, ya sea alta o edición.</summary>
+    [Parameter] public EventCallback<Guid> OnGuardado { get; set; }
+
+    /// <summary>Marca la casilla de predeterminado al abrir un alta — lo usa la agenda vacía, donde el primer contacto casi siempre lo es.</summary>
+    [Parameter] public bool PredeterminadoPorDefecto { get; set; }
+
+    private IReadOnlyList<ElementoSeleccionable> _opcionesTipoDocumento = [];
+    private bool _guardando;
+    private bool _visibleAnterior;
+
+    private string _nombre = string.Empty;
+    private string _email = string.Empty;
+    private string _telefono = string.Empty;
+    private string _cargo = string.Empty;
+    private string _notas = string.Empty;
+    private bool _esPredeterminado;
+    private bool _recibeProgramacionVisitas;
+    private bool _recibeFacturacion;
+    private HashSet<Guid> _tiposSeleccionados = [];
+    private string? _errorNombre;
+    private string? _errorEmail;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Solo en la transición oculto→visible: si se rellenara en cada render
+        // se perdería lo que el usuario está escribiendo.
+        if (Visible && !_visibleAnterior)
+        {
+            RellenarDesdeContacto();
+            await CargarTiposDocumentoAsync();
+        }
+
+        _visibleAnterior = Visible;
+    }
+
+    private void RellenarDesdeContacto()
+    {
+        _nombre = Contacto?.Nombre ?? string.Empty;
+        _email = Contacto?.Email ?? string.Empty;
+        _telefono = Contacto?.Telefono ?? string.Empty;
+        _cargo = Contacto?.Cargo ?? string.Empty;
+        _notas = Contacto?.Notas ?? string.Empty;
+        _esPredeterminado = Contacto?.EsPredeterminado ?? PredeterminadoPorDefecto;
+        _recibeProgramacionVisitas = Contacto?.RecibeProgramacionVisitas ?? false;
+        _recibeFacturacion = Contacto?.RecibeFacturacion ?? false;
+        _tiposSeleccionados = Contacto is null ? [] : [.. Contacto.TipoDocumentoIds];
+        _errorNombre = null;
+        _errorEmail = null;
+    }
+
+    /// <summary>
+    /// El catálogo se pide sin filtro de ámbito a propósito: en la agenda se
+    /// decide "a quién se le pide esto", y a un contacto del Cliente se le
+    /// pueden pedir documentos de ámbito Empresa o Trabajador.
+    /// </summary>
+    private async Task CargarTiposDocumentoAsync()
+    {
+        if (_opcionesTipoDocumento.Count > 0) return;
+
+        try
+        {
+            var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery());
+            _opcionesTipoDocumento = tipos.Select(t => new ElementoSeleccionable(t.Id, t.Nombre)).ToList();
+        }
+        catch (Exception)
+        {
+            // El contacto se puede crear sin asignarle tipos (cae al
+            // predeterminado); no se bloquea el alta por el catálogo.
+            _opcionesTipoDocumento = [];
+        }
+    }
+
+    private void AlternarTipoDocumento((Guid Id, bool Marcado) cambio)
+    {
+        if (cambio.Marcado) _tiposSeleccionados.Add(cambio.Id);
+        else _tiposSeleccionados.Remove(cambio.Id);
+    }
+
+    private Task CerrarAsync(bool visible) =>
+        _guardando ? Task.CompletedTask : VisibleChanged.InvokeAsync(visible);
+
+    private async Task GuardarAsync()
+    {
+        _errorNombre = string.IsNullOrWhiteSpace(_nombre) ? "El nombre es obligatorio." : null;
+        _errorEmail = string.IsNullOrWhiteSpace(_email)
+            ? "El email es obligatorio — la solicitud se envía siempre por correo."
+            : null;
+
+        if (_errorNombre is not null || _errorEmail is not null) return;
+
+        _guardando = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new GuardarContactoAgendaCommand(
+                Tipo, PropietarioId, Contacto?.Id,
+                _nombre, _email,
+                string.IsNullOrWhiteSpace(_telefono) ? null : _telefono,
+                string.IsNullOrWhiteSpace(_cargo) ? null : _cargo,
+                string.IsNullOrWhiteSpace(_notas) ? null : _notas,
+                _esPredeterminado, _recibeProgramacionVisitas, _recibeFacturacion,
+                [.. _tiposSeleccionados]));
+
+            if (resultado.EsFallido)
+            {
+                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            Toasts.Mostrar(Contacto is null ? "Contacto añadido." : "Contacto actualizado.", TonoToast.Exito);
+            _guardando = false;
+            await VisibleChanged.InvokeAsync(false);
+            await OnGuardado.InvokeAsync(resultado.Valor);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}
