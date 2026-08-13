@@ -1,0 +1,14 @@
+# Reverse proxy con TLS automático (Let's Encrypt). Caddy pide, renueva y
+# sirve el certificado sin intervención manual — no hay nada que configurar
+# más allá de las dos variables de abajo (ver .env.example).
+#
+# {$ACME_EMAIL} recibe los avisos de Let's Encrypt si un certificado no logra
+# renovarse — no es obligatorio, pero sin él un problema de renovación no
+# avisa a nadie hasta que el sitio empieza a dar error de TLS.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMINIO} {
+	reverse_proxy app:8080
+}

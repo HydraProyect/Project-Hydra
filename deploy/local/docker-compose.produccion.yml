@@ -1,14 +1,20 @@
-# Stack de producción local (etapa puente post-Railway, ver
-# RUNBOOK-DESPLIEGUE-LOCAL.md): app + PostgreSQL 18 + Cloudflare Tunnel en una
-# sola máquina. No confundir con el docker-compose.yml de la raíz, que es solo
-# el Postgres de desarrollo.
+# Stack de producción (etapa puente post-Railway, ver RUNBOOK-DESPLIEGUE-LOCAL.md
+# en el repositorio local de negocio, tecnico/): app + PostgreSQL 18 + Caddy como
+# reverse proxy con TLS automático (Let's Encrypt). No confundir con el
+# docker-compose.yml de la raíz, que es solo el Postgres de desarrollo.
 #
-# El TLS lo termina Cloudflare en su edge; cloudflared entrega el tráfico a la
-# app por la red interna del compose con X-Forwarded-Proto: https, que la app
-# ya acepta (Program.cs limpia KnownProxies a propósito — mismo motivo que con
-# el edge de Railway).
+# Sin Cloudflare en la cadena a propósito: el compromiso EU-only de
+# DATA_OWNERSHIP.md (repositorio de negocio) excluye subencargados fuera del
+# EEE, y el Tunnel de Cloudflare habría proxyado todo el tráfico de la app por
+# el borde de una empresa estadounidense (SCC + Data Privacy Framework, no
+# ilegal pero sí un subencargado nuevo a declarar). Caddy corre en la misma
+# máquina/VPS (idealmente ya en el EEE, p. ej. Hetzner Falkenstein) y solo
+# necesita el puerto 80/443 abierto — sin cuenta ni servicio de terceros de
+# por medio para el proxy en sí. Let's Encrypt (la CA que Caddy usa por
+# defecto) no procesa datos personales — solo valida la propiedad del dominio
+# para emitir el certificado — y no se considera subencargado en este DPA.
 #
-# Uso:  cp .env.example .env   (rellenar)
+# Uso:  cp .env.example .env   (rellenar, incluida DOMINIO)
 #       docker compose -f docker-compose.produccion.yml up -d --build
 services:
   app:
@@ -28,9 +34,9 @@ services:
       Backups__Activo: "false"
     volumes:
       - caemanager-data:/data
-    # Solo loopback: el acceso público entra por el Tunnel, no por este puerto.
-    ports:
-      - "127.0.0.1:8080:8080"
+    # Sin `ports` publicados: la app solo es alcanzable desde la red interna
+    # del compose (Caddy la referencia como "app:8080"), nunca directamente
+    # desde fuera de la máquina.
     depends_on:
       db:
         condition: service_healthy
@@ -61,14 +67,26 @@ services:
       timeout: 5s
       retries: 10
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: caemanager-cloudflared
+  caddy:
+    image: caddy:2-alpine
+    container_name: caemanager-caddy
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN}
+    env_file: .env
+    ports:
+      # Estos dos sí van al exterior: es el único servicio con superficie
+      # pública del stack. Requiere que el 80/443 de la máquina/VPS estén
+      # abiertos (en Hetzner Cloud, el firewall por defecto ya los permite).
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
     depends_on:
       - app
 
 volumes:
   caemanager-data:
   caemanager-postgres-data:
+  caddy-data:
+  caddy-config:
