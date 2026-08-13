@@ -35,3 +35,13 @@ web-*/
 # u otro) recrea docs/business/ por costumbre, que quede sin trackear en vez de
 # colarse en el próximo commit sin que nadie lo note.
 docs/business/
+
+# Informes de auditoría de seguridad con detalle de explotación (ubicación exacta, payload,
+# comando reproducible): salieron a seguridad/ del repositorio local de negocio el 2026-08-13
+# (ver CLAUDE.md). Red de seguridad igual que la de arriba — nombrados de forma explícita en
+# vez de un patrón amplio, porque docs/archive/ tiene otro contenido histórico legítimo
+# (RUNBOOK-MIGRACION-POSTGRESQL.md, docs/archive/design/) que sí debe quedarse.
+FIX-LOG.md
+INFORME-AUDITORIA-2.md
+INFORME-AUDITORIA-TECNICA.md
+INFORME-MULTITENANT.md

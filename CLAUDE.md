@@ -14,8 +14,14 @@ pero no sustituye, las reglas específicas que siguen.
 Este repositorio es público a propósito — decisión del usuario, ver `docs/AGENT_GOVERNANCE.md`
 § 1 para la jerarquía de autoridad. Eso no es un descuido a corregir; es una restricción de
 diseño que **cualquier documento o dato nuevo** tiene que respetar, no solo el código.
-Historial: dos purgas completas de historial ya hechas (2026-08-11, identificadores del
-tenant M365; 2026-08-13, toda `docs/business/`) — la meta es que no haga falta una tercera.
+Historial: tres purgas completas de historial ya hechas (2026-08-11, identificadores del
+tenant M365; 2026-08-13, toda `docs/business/`; 2026-08-13, informes de auditoría de
+seguridad) — la meta es que no haga falta una cuarta. Lección de la tercera: cuando un
+documento se movió de sitio en algún momento de su historia (p. ej. de la raíz a
+`docs/archive/`), purgar solo su ruta actual no basta — hay que purgar **todas** las rutas
+que ocupó, o el contenido sigue accesible bajo el nombre antiguo en los commits de antes del
+movimiento. Verifica con `git log --all --follow --name-only -- <ruta actual>` antes de dar
+una purga por completa.
 
 **Nunca en un commit de este repositorio**, sin excepción por conveniencia ni por prisa:
 
@@ -33,11 +39,18 @@ tenant M365; 2026-08-13, toda `docs/business/`) — la meta es que no haga falta
 - Material de marca/identidad real (nombre comercial, lockups, dominio del sitio) — el
   repositorio solo conoce el nombre histórico genérico (`CaeManager.Application.Common.Marca`),
   el real entra por configuración. Ver el comentario de `branding/` en `.gitignore`.
+- Informes de auditoría de seguridad, pentesting o hallazgos de vulnerabilidades con detalle
+  de explotación (ubicación exacta, payload, comando reproducible) — **incluso si el hallazgo
+  ya está cerrado**. Un informe de vulnerabilidad ya parcheada sigue siendo un mapa de qué
+  clase de fallo buscar a continuación; y "cerrado" en el propio informe no siempre significa
+  cerrado del todo — verifica contra el código antes de asumirlo (pasó con `INFORME-AUDITORIA-2.md`:
+  parte de lo que decía "latente" dejó de serlo en cuanto un módulo pasó a producción).
 
 **Dónde va en su lugar**, según qué sea:
 
 - Documentación de negocio o legal → el repositorio local `C:\Users\chris\Project-Hydra-Negocio`
   (sin remoto, ver más abajo) — la tarea que la necesite se inicia ahí, no aquí.
+- Informes de auditoría de seguridad → el mismo repositorio local, carpeta `seguridad/`.
 - Un valor real puntual dentro de un documento técnico que por lo demás sí debe vivir aquí
   (identificadores, credenciales concretas de un runbook) → el documento versionado se queda
   con placeholders, y el valor real va en un fichero `NOMBRE.local.md` junto a él, cubierto por
