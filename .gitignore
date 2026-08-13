@@ -27,3 +27,11 @@ App_Data/
 # igual que publicarla en el código.
 branding/
 web-*/
+
+# Documentación de negocio y legal (pricing, competidores, GTM, DPA, contratos...):
+# se sacó entera del repositorio el 2026-08-13 (ver CLAUDE.md § "Qué no entra en
+# este repositorio") a un repositorio local sin remoto aparte. Esta regla es una
+# red de seguridad, no la protección principal — si alguna sesión (de este agente
+# u otro) recrea docs/business/ por costumbre, que quede sin trackear en vez de
+# colarse en el próximo commit sin que nadie lo note.
+docs/business/
