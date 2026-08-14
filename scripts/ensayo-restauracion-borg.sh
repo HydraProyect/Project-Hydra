@@ -39,7 +39,15 @@ docker run -d --name ensayo-restauracion-pg -e POSTGRES_PASSWORD=ensayo \
 until docker exec ensayo-restauracion-pg pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
 
 echo "==> 4/5 Restaurando el dump con pg_restore (dentro del contenedor)..."
-docker exec -i ensayo-restauracion-pg pg_restore --clean --if-exists --no-owner \
+# --no-privileges: el dump incluye GRANT hacia cae_app_runtime (rol de RLS,
+# ver RUNBOOK-RLS.md) que existe en la BD real pero no en este Postgres
+# desechable — pg_dump no puede incluir el CREATE ROLE en sí (es un objeto de
+# cluster, no de base de datos). Sin este flag, pg_restore falla ~89 GRANT y
+# devuelve código de salida no-cero (aunque los DATOS sí se restauran), lo que
+# con set -e aborta el script antes de llegar a las verificaciones de la
+# sección 5. El ensayo verifica recuperabilidad de datos, no ACLs — replicar
+# permisos exactos es un paso aparte si algún día se activa RLS de verdad.
+docker exec -i ensayo-restauracion-pg pg_restore --clean --if-exists --no-owner --no-privileges \
     --username=postgres --dbname=caemanager < "$DIR_TRABAJO/CaeManager.dump"
 
 echo "==> 5/5 Verificaciones..."
