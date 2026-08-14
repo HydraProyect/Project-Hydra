@@ -91,11 +91,32 @@ public class ProcesadorAnalisisDocumentoHostedService(
                 .ToListAsync(stoppingToken);
         }
 
+        // Se mide antes de procesar, no después: "profundidad de cola de IA"
+        // (Horizonte 2.3) es el atasco real en este instante, y
+        // ProcesarPendientesDelTenantAsync vacía la cola de cada tenant hasta
+        // dejarla en 0 — medir al final siempre daría un gauge en cero.
+        await MedirProfundidadColaAsync(tenantsActivos, stoppingToken);
+
         foreach (var tenantId in tenantsActivos)
         {
             stoppingToken.ThrowIfCancellationRequested();
             await ProcesarPendientesDelTenantAsync(tenantId, stoppingToken);
         }
+    }
+
+    private async Task MedirProfundidadColaAsync(IReadOnlyList<Guid> tenantsActivos, CancellationToken stoppingToken)
+    {
+        var total = 0;
+        foreach (var tenantId in tenantsActivos)
+        {
+            using var ambito = ambitoFactory.CreateScope();
+            using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+
+            total += await ambito.ServiceProvider.GetRequiredService<ITrabajoAnalisisDocumentoRepository>()
+                .ContarActivosAsync(stoppingToken);
+        }
+
+        Observabilidad.ActualizarColaIaProfundidad(total);
     }
 
     private async Task ProcesarPendientesDelTenantAsync(Guid tenantId, CancellationToken stoppingToken)
@@ -122,6 +143,10 @@ public class ProcesadorAnalisisDocumentoHostedService(
             {
                 await EjecutarAnalisisAsync(ambito.ServiceProvider, trabajo, stoppingToken);
                 trabajo.MarcarCompletado();
+                // "Documentos procesados/hora" del plan (Horizonte 2.3): un
+                // documento cuenta aquí, no al subirlo — es el momento en que
+                // el análisis IA terminó de verdad, con éxito.
+                Observabilidad.DocumentosProcesados.Add(1, new KeyValuePair<string, object?>("Tipo", trabajo.Tipo.ToString()));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
