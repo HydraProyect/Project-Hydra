@@ -280,8 +280,47 @@ builder.Services.AddRateLimiter(opciones =>
     });
 });
 
+// CircuitOptions explícitas (ADR-008 en Project-Hydra-Negocio, Horizonte 2.1
+// del plan macro) — hasta esta medición la app corría con los defaults de
+// ASP.NET Core sin examinarlos. El VPS de producción (Hetzner CX22: 2 vCPU,
+// ~3.7 GB, ~2.8 GB disponibles, Postgres compartiendo la misma máquina) no
+// tiene margen de RAM que sobre; los defaults de .NET 10 están pensados para
+// un despliegue genérico, no para este presupuesto concreto.
+//
+// Medido con tools/CargaCircuitos (harness de Playwright, no incluido en
+// CaeManager.slnx — ver ese proyecto): hasta 160 circuitos concurrentes
+// reales (login + interacción sostenida sobre /documentos) sin errores, con
+// ~1.8 MB de RAM marginal por circuito — la memoria no es el recurso que se
+// agota a esta escala, muy por debajo de los "10 usuarios concurrentes
+// iniciales, con crecimiento moderado" de ARCHITECTURE.md. El ajuste de abajo
+// no reacciona a un problema medido; es gestión preventiva de un presupuesto
+// de RAM ajustado:
+// PersistedCircuitInMemoryMaxRetained (novedad de .NET 10, estado persistido
+// de componentes para reconexión) viene en 1000 por defecto — a ~1.8 MB por
+// circuito eso es un peor caso de más de 1.5 GB solo de circuitos persistidos,
+// más de la mitad del presupuesto disponible del VPS. Se acota al mismo orden
+// de magnitud que el techo medido, con margen. DisconnectedCircuitMaxRetained
+// se reduce a la mitad por el mismo motivo (circuitos desconectados
+// acumulados por usuarios que cierran el portátil sin salir). El resto de
+// valores se deja en su default documentado — no hay evidencia de esta
+// medición que justifique tocarlos.
+//
+// Configurables (mismo patrón que RateLimiting:Cuenta:* más arriba) para
+// poder ajustarlos en producción sin recompilar si la telemetría real (una
+// vez haya observabilidad, ver RUNBOOK-HORIZONTE-0.md § 0.3) apunta a otro
+// número.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(opcionesCircuito =>
+    {
+        opcionesCircuito.DisconnectedCircuitMaxRetained =
+            builder.Configuration.GetValue("Circuit:DisconnectedCircuitMaxRetained", 50);
+        opcionesCircuito.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(
+            builder.Configuration.GetValue("Circuit:DisconnectedCircuitRetentionMinutes", 3));
+        opcionesCircuito.PersistedCircuitInMemoryMaxRetained =
+            builder.Configuration.GetValue("Circuit:PersistedCircuitInMemoryMaxRetained", 100);
+        opcionesCircuito.MaxBufferedUnacknowledgedRenderBatches =
+            builder.Configuration.GetValue("Circuit:MaxBufferedUnacknowledgedRenderBatches", 10);
+    });
 
 // Health check real (P0-5 de docs/business/MATURITY_REVIEW.md): /salud
 // respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
