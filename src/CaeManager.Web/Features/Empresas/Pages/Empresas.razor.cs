@@ -40,6 +40,9 @@ public partial class Empresas : ComponentBase
     private bool _drawerVisible;
     private string _razonSocial = string.Empty;
     private string _cif = string.Empty;
+    private string _cnae = string.Empty;
+    private string _convenioAplicable = string.Empty;
+    private bool _esActividadAnexoI;
     private HashSet<Guid> _clienteIdsSeleccionados = [];
     private bool _guardando;
     private string? _mensajeErrorFormulario;
@@ -216,6 +219,9 @@ public partial class Empresas : ComponentBase
 
         _razonSocial = string.Empty;
         _cif = string.Empty;
+        _cnae = string.Empty;
+        _convenioAplicable = string.Empty;
+        _esActividadAnexoI = false;
         _clienteIdsSeleccionados = [];
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
@@ -255,8 +261,10 @@ public partial class Empresas : ComponentBase
         {
             var clienteIds = _clienteIdsSeleccionados.ToList();
             var cif = string.IsNullOrWhiteSpace(_cif) ? null : _cif;
+            var cnae = string.IsNullOrWhiteSpace(_cnae) ? null : _cnae;
+            var convenioAplicable = string.IsNullOrWhiteSpace(_convenioAplicable) ? null : _convenioAplicable;
 
-            var resultado = await Mediator.Send(new CrearEmpresaCommand(_razonSocial, cif, clienteIds));
+            var resultado = await Mediator.Send(new CrearEmpresaCommand(_razonSocial, cif, clienteIds, cnae, convenioAplicable, _esActividadAnexoI));
             if (resultado.EsFallido)
             {
                 _mensajeErrorFormulario = resultado.Error.Mensaje;

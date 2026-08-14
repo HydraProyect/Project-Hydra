@@ -62,6 +62,11 @@ else
                     }
                     <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialInfo" ValorChanged="v => _razonSocialInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.RazonSocial))" />
                     <CampoTexto Etiqueta="CIF" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.Cif))" />
+                    <CampoTexto Etiqueta="CNAE" Placeholder="p. ej. 4321" Valor="@_cnaeInfo" ValorChanged="v => _cnaeInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.Cnae))" />
+                    <CampoTexto Etiqueta="Convenio aplicable" Valor="@_convenioAplicableInfo" ValorChanged="v => _convenioAplicableInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.ConvenioAplicable))" />
+                    <label class="campo-checkbox">
+                        <input type="checkbox" @bind="_esActividadAnexoIInfo" /> Actividad del Anexo I del RSP
+                    </label>
                     <SelectorMultiple Etiqueta="Clientes con los que trabaja"
                                        Elementos="@_clientesDisponiblesSelector"
                                        Seleccionados="@_clienteIdsInfo"
@@ -107,6 +112,9 @@ else
                     <div class="workspace-grupo-campos">
                         <CampoInfo Etiqueta="Razón social" Valor="@_detalle.RazonSocial" />
                         <CampoInfo Etiqueta="CIF" Valor="@_detalle.Cif" />
+                        <CampoInfo Etiqueta="CNAE" Valor="@_detalle.Cnae" />
+                        <CampoInfo Etiqueta="Convenio aplicable" Valor="@_detalle.ConvenioAplicable" />
+                        <CampoInfo Etiqueta="Actividad del Anexo I del RSP" Valor="@(_detalle.EsActividadAnexoI ? "Sí" : "No")" />
                         <CampoInfo Etiqueta="Clientes con los que trabaja" Valor="@_detalle.ClienteIds.Count.ToString()" />
                         <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
                     </div>
@@ -195,6 +203,9 @@ else
     private bool _editandoInformacion;
     private string _razonSocialInfo = string.Empty;
     private string _cifInfo = string.Empty;
+    private string _cnaeInfo = string.Empty;
+    private string _convenioAplicableInfo = string.Empty;
+    private bool _esActividadAnexoIInfo;
     private HashSet<Guid> _clienteIdsInfo = [];
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<ElementoSeleccionable> _clientesDisponiblesSelector =>
@@ -282,6 +293,9 @@ else
 
         _razonSocialInfo = _detalle.RazonSocial;
         _cifInfo = _detalle.Cif ?? string.Empty;
+        _cnaeInfo = _detalle.Cnae ?? string.Empty;
+        _convenioAplicableInfo = _detalle.ConvenioAplicable ?? string.Empty;
+        _esActividadAnexoIInfo = _detalle.EsActividadAnexoI;
         _clienteIdsInfo = _detalle.ClienteIds.ToHashSet();
         _mensajeErrorInformacion = null;
         _erroresInformacion = new Dictionary<string, string>();
@@ -320,8 +334,12 @@ else
         try
         {
             var cif = string.IsNullOrWhiteSpace(_cifInfo) ? null : _cifInfo;
+            var cnae = string.IsNullOrWhiteSpace(_cnaeInfo) ? null : _cnaeInfo;
+            var convenioAplicable = string.IsNullOrWhiteSpace(_convenioAplicableInfo) ? null : _convenioAplicableInfo;
             var resultado = await Mediator.Send(
-                new EditarEmpresaCommand(_detalle.Id, _razonSocialInfo, cif, _clienteIdsInfo.ToList(), _detalle.Version));
+                new EditarEmpresaCommand(
+                    _detalle.Id, _razonSocialInfo, cif, _clienteIdsInfo.ToList(),
+                    cnae, convenioAplicable, _esActividadAnexoIInfo, _detalle.Version));
 
             if (resultado.EsFallido)
             {

@@ -65,4 +65,49 @@ public class EmpresaTests
 
         empresa.Cif.Should().Be(CifValido);
     }
+
+    [Fact]
+    public void Crea_una_empresa_con_cnae_convenio_y_actividad_anexo_i()
+    {
+        var empresa = new Empresa(
+            "Limpiezas del Norte S.L.", CifValido, cnae: "4321",
+            convenioAplicable: "Convenio Estatal de la Industria, las Nuevas Tecnologías y los Servicios del Sector del Metal",
+            esActividadAnexoI: true);
+
+        empresa.Cnae.Should().Be("4321");
+        empresa.ConvenioAplicable.Should().Be("Convenio Estatal de la Industria, las Nuevas Tecnologías y los Servicios del Sector del Metal");
+        empresa.EsActividadAnexoI.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Cnae_y_convenio_aplicable_son_opcionales()
+    {
+        var empresa = new Empresa("Limpiezas del Norte S.L.");
+
+        empresa.Cnae.Should().BeNull();
+        empresa.ConvenioAplicable.Should().BeNull();
+        empresa.EsActividadAnexoI.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Rechaza_un_cnae_que_supera_la_longitud_maxima()
+    {
+        var cnaeDemasiadoLargo = new string('4', Empresa.LongitudMaximaCnae + 1);
+
+        var accion = () => new Empresa("Limpiezas del Norte S.L.", cnae: cnaeDemasiadoLargo);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Actualizar_cambia_cnae_convenio_y_actividad_anexo_i()
+    {
+        var empresa = new Empresa("Limpiezas del Norte S.L.");
+
+        empresa.Actualizar("Limpiezas del Norte S.L.", cif: null, cnae: "4321", convenioAplicable: "Convenio del Metal", esActividadAnexoI: true);
+
+        empresa.Cnae.Should().Be("4321");
+        empresa.ConvenioAplicable.Should().Be("Convenio del Metal");
+        empresa.EsActividadAnexoI.Should().BeTrue();
+    }
 }
