@@ -158,9 +158,18 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await Expect(tarjeta).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado"));
 
         // --- Resolver: la acción de la tarjeta abre el Documento subyacente ---
+        // No es un ".workspace-panel": para un ítem "Urgente" (el caso por
+        // defecto de AccionesBandeja.AbrirAsync, ver ese archivo),
+        // "Gestionar" navega a /documentos?documentoId=... y esa página abre
+        // DrawerGestionDocumento -- el mismo ".drawer-panel" que el resto de
+        // la app, no un workspace panel (ese es el destino de otros tipos de
+        // ítem, como RequisitoPendiente). Al editar un documento existente,
+        // el Drawer muestra el nombre del propietario en modo solo lectura
+        // (_propietarioNombreSoloLectura, ver DrawerGestionDocumento.razor.cs),
+        // que contiene los apellidos del trabajador.
         await tarjeta.GetByRole(AriaRole.Button).ClickAsync();
-        var workspacePanel = page.Locator(".workspace-panel");
-        await workspacePanel.GetByText(apellidosTrabajador).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        var drawerDocumento = page.Locator(".drawer-panel");
+        await drawerDocumento.GetByText(apellidosTrabajador).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
