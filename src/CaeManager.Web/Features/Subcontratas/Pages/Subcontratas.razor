@@ -185,11 +185,21 @@
                            OnAlternar="args => AlternarCliente(args.Id, args.Marcado)"
                            TextoVacio="Todavía no hay clientes creados." />
 
-        <SelectorMultiple Etiqueta="Empresas a las que presta servicio"
-                           Elementos="@_empresasDisponiblesSelector"
-                           Seleccionados="@_empresaIdsSeleccionados"
-                           OnAlternar="args => AlternarEmpresa(args.Id, args.Marcado)"
-                           TextoVacio="Todavía no hay empresas creadas." />
+        @if (_resolverEmpresaEnSilencio)
+        {
+            @* DDL-076: perfil Cliente Directo con una única Empresa — sin
+               selector, pedirle que confirme que él es él en una lista de
+               un solo elemento no aporta nada. *@
+            <CampoInfo Etiqueta="Empresa a la que presta servicio" Valor="@_empresasDisponibles[0].RazonSocial" />
+        }
+        else
+        {
+            <SelectorMultiple Etiqueta="Empresas a las que presta servicio"
+                               Elementos="@_empresasDisponiblesSelector"
+                               Seleccionados="@_empresaIdsSeleccionados"
+                               OnAlternar="args => AlternarEmpresa(args.Id, args.Marcado)"
+                               TextoVacio="Todavía no hay empresas creadas." />
+        }
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
