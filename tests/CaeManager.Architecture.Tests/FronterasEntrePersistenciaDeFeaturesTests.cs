@@ -157,10 +157,24 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Contactos.GuardarContactoAgendaCommandHandler", "ITiposDocumentoQueryContext"),
         ("Contactos.ObtenerAgendaContactosQueryHandler", "ITiposDocumentoQueryContext"),
         ("Dashboard.GuardarPreferenciaDashboardCommandHandler", "IPreferenciaDashboardUsuarioRepository"),
+        // Horizonte 2.7: CalcularFacturacionEstimadaAsync pasó de despachar
+        // ObtenerResumenFacturacionQuery por Mediator (la dependencia cruzada
+        // quedaba oculta dentro de ese handler) a inyectar directamente los
+        // QueryContext que necesita para calcular los 7 ConceptoFacturable
+        // agrupados por cliente en una sola consulta — el fix real del N+1,
+        // no un acoplamiento nuevo: la composición cruzada ya existía, solo
+        // se hizo visible en el constructor en vez de estar un salto de
+        // Mediator más lejos.
+        ("Dashboard.ObtenerCatalogoKpisQueryHandler", "IAsignacionesQueryContext"),
         ("Dashboard.ObtenerCatalogoKpisQueryHandler", "ICentrosQueryContext"),
+        ("Dashboard.ObtenerCatalogoKpisQueryHandler", "IConfiguracionQueryContext"),
         ("Dashboard.ObtenerCatalogoKpisQueryHandler", "IDocumentosIaQueryContext"),
+        ("Dashboard.ObtenerCatalogoKpisQueryHandler", "IDocumentosQueryContext"),
         ("Dashboard.ObtenerCatalogoKpisQueryHandler", "IFacturacionQueryContext"),
         ("Dashboard.ObtenerCatalogoKpisQueryHandler", "IIncidenciasQueryContext"),
+        ("Dashboard.ObtenerCatalogoKpisQueryHandler", "IProyectosQueryContext"),
+        ("Dashboard.ObtenerCatalogoKpisQueryHandler", "ITrabajadoresQueryContext"),
+        ("Dashboard.ObtenerCatalogoKpisQueryHandler", "IVisitasQueryContext"),
         ("Dashboard.ObtenerDesgloseDashboardQueryHandler", "IAsignacionesQueryContext"),
         ("Dashboard.ObtenerDesgloseDashboardQueryHandler", "ICentrosQueryContext"),
         ("Dashboard.ObtenerDesgloseDashboardQueryHandler", "IClientesQueryContext"),
