@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Harness de carga de circuitos de Blazor Server — Horizonte 2.1 del plan
+    macro (examen de capacidad, ver ADR-008 en Project-Hydra-Negocio). NO
+    forma parte de CaeManager.slnx a propósito: no debe compilarse ni
+    ejecutarse en ningún job normal de ci.yml (mismo criterio de aislamiento
+    que scripts/carga-basica.js, pero con browsers reales de Playwright en
+    vez de peticiones HTTP anónimas — un circuito real de Blazor Server exige
+    el handshake SignalR completo, que k6 no puede reproducir).
+
+    Deliberadamente separado de tests/CaeManager.E2ETests: ese proyecto mide
+    corrección (¿hay un bug?), este mide capacidad (¿cuántos circuitos
+    concurrentes aguanta el proceso?) — mezclar ambos confundiría un fallo
+    por régimen de carga con un fallo por regresión funcional. Reutiliza el
+    mismo patrón de arranque de proceso real que WebAppFixture.cs (mismo
+    binario que se despliega, contra PostgreSQL real), duplicado aquí en vez
+    de referenciado por la misma razón que Ayudas.cs se duplica entre
+    proyectos de test: sin acoplar el ciclo de vida de un harness de
+    rendimiento al de la suite de corrección.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
+    <PackageReference Include="Npgsql" Version="10.*" />
+  </ItemGroup>
+
+</Project>
