@@ -102,6 +102,7 @@ public partial class Vehiculos : ComponentBase
     public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IValidator<CrearVehiculoCommand> ValidadorCrear { get; set; } = default!;
 
     private GridItemsProvider<VehiculoListaDto>? _proveedorElementos;
 
@@ -326,6 +327,28 @@ public partial class Vehiculos : ComponentBase
     }
 
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
+
+    /// <summary>
+    /// Validación inline al salir del campo (mismo patrón que Centros.razor,
+    /// UX_PATTERNS.md, P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    private Task ValidarNombreAsync() => ValidarCampoAsync(nameof(CrearVehiculoCommand.Nombre));
+
+    private Task ValidarModeloAsync() => ValidarCampoAsync(nameof(CrearVehiculoCommand.Modelo));
+
+    private Task ValidarNumeroPlacaAsync() => ValidarCampoAsync(nameof(CrearVehiculoCommand.NumeroPlaca));
+
+    private async Task ValidarCampoAsync(string campo)
+    {
+        var resultado = await ValidadorCrear.ValidateAsync(
+            new CrearVehiculoCommand(null, null, _nombre, _modelo, _numeroPlaca),
+            opciones => opciones.IncludeProperties(campo));
+
+        if (resultado.IsValid)
+            _erroresCampo.Remove(campo);
+        else
+            _erroresCampo[campo] = resultado.Errors[0].ErrorMessage;
+    }
 
     private void AbrirEliminar(Guid id, string nombre)
     {

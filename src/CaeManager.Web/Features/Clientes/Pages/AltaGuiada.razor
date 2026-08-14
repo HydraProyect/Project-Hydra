@@ -13,6 +13,9 @@
 @inject ToastService ToastService
 @inject NavigationManager NavigationManager
 @inject ContextWorkspaceService WorkspaceService
+@inject IValidator<CrearClienteCommand> ValidadorClienteCrear
+@inject IValidator<CrearEmpresaCommand> ValidadorEmpresaCrear
+@inject IValidator<CrearCentroCommand> ValidadorCentroCrear
 
 <PageTitle>Alta guiada — @Marca.Nombre</PageTitle>
 
@@ -39,9 +42,9 @@
             }
 
             <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialCliente" ValorChanged="v => _razonSocialCliente = v"
-                        MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.RazonSocial))" />
+                        OnBlur="ValidarRazonSocialClienteAsync" MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.RazonSocial))" />
             <CampoTexto Etiqueta="CIF" Valor="@_cifCliente" ValorChanged="v => _cifCliente = v"
-                        MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.Cif))" />
+                        OnBlur="ValidarCifClienteAsync" MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.Cif))" />
 
             <label class="campo-checkbox">
                 <input type="checkbox" @bind="_esCriticoCliente" /> Cliente crítico
@@ -83,9 +86,9 @@
             else
             {
                 <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialEmpresa" ValorChanged="v => _razonSocialEmpresa = v"
-                            MensajeError="@ObtenerError(_erroresEmpresa, nameof(CrearEmpresaCommand.RazonSocial))" />
+                            OnBlur="ValidarRazonSocialEmpresaAsync" MensajeError="@ObtenerError(_erroresEmpresa, nameof(CrearEmpresaCommand.RazonSocial))" />
                 <CampoTexto Etiqueta="CIF" Valor="@_cifEmpresa" ValorChanged="v => _cifEmpresa = v"
-                            MensajeError="@ObtenerError(_erroresEmpresa, nameof(CrearEmpresaCommand.Cif))" />
+                            OnBlur="ValidarCifEmpresaAsync" MensajeError="@ObtenerError(_erroresEmpresa, nameof(CrearEmpresaCommand.Cif))" />
             }
 
             <div class="acciones-formulario">
@@ -110,7 +113,7 @@
             }
 
             <CampoTexto Etiqueta="Nombre" Valor="@_nombreCentro" ValorChanged="v => _nombreCentro = v"
-                        MensajeError="@ObtenerError(_erroresCentro, nameof(CrearCentroCommand.Nombre))" />
+                        OnBlur="ValidarNombreCentroAsync" MensajeError="@ObtenerError(_erroresCentro, nameof(CrearCentroCommand.Nombre))" />
             <CampoTexto Etiqueta="Código de centro" Valor="@_codigoCentro" ValorChanged="v => _codigoCentro = v" />
             <CampoTexto Etiqueta="Dirección" Valor="@_direccionCentro" ValorChanged="v => _direccionCentro = v" />
             <CampoTexto Etiqueta="Contacto" Valor="@_contactoCentro" ValorChanged="v => _contactoCentro = v" />
