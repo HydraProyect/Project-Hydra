@@ -1,0 +1,30 @@
+@*
+    DDL-072: vista previa de vocabulario, solo para Administrador — le deja
+    confirmar que "Empresa final" (Cliente Directo) y "Empresa delegada"
+    (Consultora) leen bien en la interfaz, sin cambiar el perfil real de
+    ningún tenant. Mismo patrón que SelectorClienteActivo.razor: <form> POST
+    con token antiforgery, no @onchange de Blazor — cambiar la vista previa
+    escribe una cookie en el servidor y necesita un reload completo para que
+    todas las pantallas (NavMenu incluido) la recojan.
+*@
+@using CaeManager.Domain.Tenants
+<AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
+    <Authorized>
+        <form method="post" action="/cuenta/vista-vocabulario">
+            @if (_token is not null)
+            {
+                <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+            }
+            <input type="hidden" name="returnUrl" value="@_returnUrl" />
+
+            <select class="selector-vista-vocabulario" name="perfil"
+                    data-enviar-al-cambiar aria-label="Vista previa de vocabulario">
+                <option value="" selected="@(_perfilForzado is null)">Vocabulario: automático</option>
+                <option value="ClienteDirecto" selected="@(_perfilForzado == PerfilVocabularioTenant.ClienteDirecto)">Vista: Empresa final</option>
+                <option value="Consultora" selected="@(_perfilForzado == PerfilVocabularioTenant.Consultora)">Vista: Empresa delegada</option>
+            </select>
+
+            <noscript><button type="submit">Cambiar</button></noscript>
+        </form>
+    </Authorized>
+</AuthorizeView>

@@ -2739,6 +2739,156 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             VerificacionIaActiva = false,
                             VigenciaMeses = 12
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000001"),
+                            AmbitoAplicacion = "Trabajador",
+                            AplicaVencimientoAutomatico = false,
+                            DeteccionTrabajadoresActiva = false,
+                            EsObligatorio = false,
+                            LecturaIaActiva = true,
+                            Nombre = "Autorización de uso de equipo de trabajo",
+                            Notas = "F-27 del catálogo de formatos PRL — arts. 3.4 y 5 RD 1215/1997. Vigente hasta modificación — vencimiento manual.",
+                            Orden = 38,
+                            PerfilDocumentoOficial = "Ninguno",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000002"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            DeteccionTrabajadoresActiva = false,
+                            EsObligatorio = false,
+                            LecturaIaActiva = true,
+                            Nombre = "Acta de presencia del recurso preventivo",
+                            Notas = "F-41 del catálogo de formatos PRL — práctica probatoria del art. 32 bis.3 LPRL. Un acta por presencia — vencimiento manual.",
+                            Orden = 46,
+                            PerfilDocumentoOficial = "Ninguno",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000003"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            DeteccionTrabajadoresActiva = false,
+                            EsObligatorio = false,
+                            LecturaIaActiva = true,
+                            Nombre = "Acta de reunión de coordinación",
+                            Notas = "F-47 del catálogo de formatos PRL — art. 11.b y 11.c RD 171/2004. Un acta por reunión — vencimiento manual.",
+                            Orden = 47,
+                            PerfilDocumentoOficial = "Ninguno",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000004"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            DeteccionTrabajadoresActiva = false,
+                            EsObligatorio = false,
+                            LecturaIaActiva = true,
+                            Nombre = "Informe de investigación de accidente o incidente",
+                            Notas = "F-70 del catálogo de formatos PRL — art. 16.3 LPRL. Un informe por accidente o incidente — vencimiento manual.",
+                            Orden = 48,
+                            PerfilDocumentoOficial = "Ninguno",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000005"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            DeteccionTrabajadoresActiva = false,
+                            EsObligatorio = false,
+                            LecturaIaActiva = true,
+                            Nombre = "Protocolo frente al acoso sexual y por razón de sexo",
+                            Notas = "F-93 del catálogo de formatos PRL — art. 48 LO 3/2007. Obligatorio para todas las empresas, sin umbral de plantilla. Vigente hasta revisión — vencimiento manual.",
+                            Orden = 49,
+                            PerfilDocumentoOficial = "Ninguno",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000006"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            DeteccionTrabajadoresActiva = false,
+                            EsObligatorio = false,
+                            LecturaIaActiva = true,
+                            Nombre = "Registro retributivo",
+                            Notas = "F-95 del catálogo de formatos PRL — RD 902/2020. Obligatorio para todas las empresas, sin umbral de plantilla. Vigente hasta revisión — vencimiento manual.",
+                            Orden = 50,
+                            PerfilDocumentoOficial = "Ninguno",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("70000000-0000-0000-0000-000000000001"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            DeteccionTrabajadoresActiva = false,
+                            EsObligatorio = false,
+                            LecturaIaActiva = true,
+                            Nombre = "Información de riesgos propios aportados al centro",
+                            Notas = "F-44 del catálogo de formatos PRL — art. 4.2 RD 171/2004. El formato Outbound por excelencia: lo emite el contratista hacia el titular del centro. Vigente hasta modificación de los riesgos — vencimiento manual.",
+                            Orden = 51,
+                            PerfilDocumentoOficial = "Ninguno",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("70000000-0000-0000-0000-000000000002"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            DeteccionTrabajadoresActiva = false,
+                            EsObligatorio = false,
+                            LecturaIaActiva = true,
+                            Nombre = "Información y coordinación con trabajadores autónomos",
+                            Notas = "F-52 del catálogo de formatos PRL — art. 24.5 LPRL · art. 4.1 RD 171/2004. Vigente hasta modificación — vencimiento manual.",
+                            Orden = 52,
+                            PerfilDocumentoOficial = "Ninguno",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("70000000-0000-0000-0000-000000000003"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            DeteccionTrabajadoresActiva = false,
+                            EsObligatorio = false,
+                            LecturaIaActiva = true,
+                            Nombre = "Registro del deber de vigilancia sobre subcontratas",
+                            Notas = "F-50 del catálogo de formatos PRL — art. 24.3 LPRL · art. 10 RD 171/2004. El único de la familia D que la ley impone directamente al contratista principal sobre sus Subcontratas. Un registro por subcontrata/verificación — vencimiento manual.",
+                            Orden = 53,
+                            PerfilDocumentoOficial = "Ninguno",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("70000000-0000-0000-0000-000000000004"),
+                            AmbitoAplicacion = "Trabajador",
+                            AplicaVencimientoAutomatico = false,
+                            DeteccionTrabajadoresActiva = false,
+                            EsObligatorio = false,
+                            LecturaIaActiva = true,
+                            Nombre = "Recibí de normas, procedimientos y plan de emergencia",
+                            Notas = "F-29 del catálogo de formatos PRL — arts. 18 y 20 LPRL. Vigente hasta modificación de normas/plan — vencimiento manual.",
+                            Orden = 39,
+                            PerfilDocumentoOficial = "Ninguno",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            VerificacionIaActiva = false
                         });
                 });
 
@@ -3029,6 +3179,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(9)
                         .HasColumnType("character varying(9)");
 
+                    b.Property<string>("Cnae")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("ConvenioAplicable")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -3037,6 +3195,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<Guid?>("EliminadoPorUsuarioId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("EsActividadAnexoI")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
@@ -4539,6 +4700,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("PerfilVocabulario")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.HasKey("Id");
 
                     b.ToTable("Tenants", (string)null);
@@ -4550,7 +4716,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             CreadoEnUtc = new DateTime(2026, 7, 23, 0, 0, 0, 0, DateTimeKind.Utc),
                             EsPlataforma = true,
                             Estado = "Activo",
-                            Nombre = "Organización principal"
+                            Nombre = "Organización principal",
+                            PerfilVocabulario = "ClienteDirecto"
                         });
                 });
 
@@ -4662,6 +4829,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("Puesto")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
                     b.Property<Guid?>("SubcontrataId")
                         .HasColumnType("uuid");
 
@@ -4757,6 +4928,61 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "SubcontrataId");
 
                     b.ToTable("Vehiculos", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DetectadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("FechaPublicacion")
+                        .HasColumnType("date");
+
+                    b.Property<string>("IdentificadorBoe")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("NormaVigilada")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NotasRevision")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("Revisado")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("RevisadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevisadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("UrlHtml")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdentificadorBoe")
+                        .IsUnique();
+
+                    b.HasIndex("Revisado");
+
+                    b.ToTable("AvisosRevisionNormativa", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Visitas.Visita", b =>

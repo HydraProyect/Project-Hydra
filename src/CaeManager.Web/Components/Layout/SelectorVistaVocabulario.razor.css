@@ -1,0 +1,15 @@
+.selector-vista-vocabulario {
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+}
+
+.selector-vista-vocabulario:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}

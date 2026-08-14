@@ -4,6 +4,8 @@ using CaeManager.Application.Vehiculos.Commands.EliminarVehiculos;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
+using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -47,6 +49,12 @@ public partial class Vehiculos : ComponentBase
 
     private bool _drawerVisible;
     private string _tipoEmpleador = "empresa";
+
+    // DDL-076: en perfil Cliente Directo con una única Empresa, el selector
+    // de Empresa no aparece — se resuelve en silencio. Mismo mecanismo que
+    // Trabajadores.razor.cs.
+    private bool _resolverEmpresaEnSilencio;
+
     private string _empresaId = string.Empty;
     private string _subcontrataId = string.Empty;
     private string _nombre = string.Empty;
@@ -210,6 +218,9 @@ public partial class Vehiculos : ComponentBase
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
         _subcontratasDisponibles = await Mediator.Send(new ObtenerSubcontratasParaSelectorQuery());
 
+        var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
+        _resolverEmpresaEnSilencio = perfil == PerfilVocabularioTenant.ClienteDirecto && _empresasDisponibles.Count == 1;
+
         // Si la lista ya está filtrada por Empresa o Subcontrata, se presupone
         // que el vehículo que se va a dar de alta es de ese mismo empleador.
         if (!string.IsNullOrWhiteSpace(_filtroSubcontrataId))
@@ -217,6 +228,12 @@ public partial class Vehiculos : ComponentBase
             _tipoEmpleador = "subcontrata";
             _subcontrataId = _filtroSubcontrataId;
             _empresaId = string.Empty;
+        }
+        else if (_resolverEmpresaEnSilencio)
+        {
+            _tipoEmpleador = "empresa";
+            _empresaId = _empresasDisponibles[0].Id.ToString();
+            _subcontrataId = string.Empty;
         }
         else
         {

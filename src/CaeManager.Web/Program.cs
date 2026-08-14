@@ -125,6 +125,7 @@ builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.ClienteActivoSeleccionado>();
+builder.Services.AddScoped<CaeManager.Application.Tenants.IVistaVocabularioPreviewService, CaeManager.Web.Services.VistaVocabularioPreviewCookie>();
 builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>();
 // Scoped: cachea por circuito si la sesión es de soporte, para que registrar
 // una interacción no cueste una consulta (ver TrazaSoporteService).
@@ -460,6 +461,7 @@ app.MapSubcontratasEndpoints();
 app.MapReportesEndpoints();
 app.MapAuditoriaEndpoints();
 app.MapClienteActivoEndpoints();
+app.MapVistaVocabularioPreviewEndpoints();
 app.MapConectarMicrosoft365Endpoints();
 app.MapWebhookMicrosoft365Endpoints();
 app.MapWebhookWhatsAppEndpoints();

@@ -92,4 +92,30 @@ public class TenantTests
         // exponer ningún TenantId (ver docs/MULTITENANCY.md § 4.1).
         typeof(Tenant).Should().NotBeAssignableTo<CaeManager.Domain.Common.EntidadConTenant>();
     }
+
+    [Fact]
+    public void El_perfil_de_vocabulario_por_defecto_es_cliente_directo()
+    {
+        var tenant = new Tenant("Ibertec");
+
+        tenant.PerfilVocabulario.Should().Be(PerfilVocabularioTenant.ClienteDirecto);
+    }
+
+    [Fact]
+    public void Se_puede_declarar_el_perfil_consultora_al_crear()
+    {
+        var tenant = new Tenant("ArcoSPA", PerfilVocabularioTenant.Consultora);
+
+        tenant.PerfilVocabulario.Should().Be(PerfilVocabularioTenant.Consultora);
+    }
+
+    [Fact]
+    public void CambiarPerfilVocabulario_corrige_el_perfil_declarado()
+    {
+        var tenant = new Tenant("Ibertec", PerfilVocabularioTenant.ClienteDirecto);
+
+        tenant.CambiarPerfilVocabulario(PerfilVocabularioTenant.Consultora);
+
+        tenant.PerfilVocabulario.Should().Be(PerfilVocabularioTenant.Consultora);
+    }
 }

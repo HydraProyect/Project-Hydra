@@ -139,7 +139,14 @@
             </div>
         </div>
 
-        @if (_tipoEmpleador == "empresa")
+        @if (_tipoEmpleador == "empresa" && _resolverEmpresaEnSilencio)
+        {
+            @* DDL-076: perfil Cliente Directo con una única Empresa — sin
+               selector, pedirle que confirme que él es él en un desplegable
+               de un solo elemento no aporta nada. *@
+            <CampoInfo Etiqueta="Empresa" Valor="@_empresasDisponibles[0].RazonSocial" />
+        }
+        else if (_tipoEmpleador == "empresa")
         {
             <CampoSelect Etiqueta="Empresa" Valor="@_empresaId" ValorChanged="v => _empresaId = v">
                 <option value="">Selecciona una empresa…</option>
