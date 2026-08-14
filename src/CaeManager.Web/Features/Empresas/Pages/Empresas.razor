@@ -158,10 +158,10 @@
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
         }
 
-        <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.RazonSocial))" />
-        <CampoTexto Etiqueta="CIF" Valor="@_cif" ValorChanged="v => _cif = v" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.Cif))" />
-        <CampoTexto Etiqueta="CNAE" Placeholder="p. ej. 4321" Valor="@_cnae" ValorChanged="v => _cnae = v" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.Cnae))" />
-        <CampoTexto Etiqueta="Convenio aplicable" Valor="@_convenioAplicable" ValorChanged="v => _convenioAplicable = v" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.ConvenioAplicable))" />
+        <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" OnBlur="ValidarRazonSocialAsync" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.RazonSocial))" />
+        <CampoTexto Etiqueta="CIF" Valor="@_cif" ValorChanged="v => _cif = v" OnBlur="ValidarCifAsync" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.Cif))" />
+        <CampoTexto Etiqueta="CNAE" Placeholder="p. ej. 4321" Valor="@_cnae" ValorChanged="v => _cnae = v" OnBlur="ValidarCnaeAsync" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.Cnae))" />
+        <CampoTexto Etiqueta="Convenio aplicable" Valor="@_convenioAplicable" ValorChanged="v => _convenioAplicable = v" OnBlur="ValidarConvenioAplicableAsync" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.ConvenioAplicable))" />
 
         <label class="campo-checkbox">
             <input type="checkbox" @bind="_esActividadAnexoI" /> Actividad del Anexo I del RSP
