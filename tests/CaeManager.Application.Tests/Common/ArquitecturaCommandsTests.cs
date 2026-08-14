@@ -99,4 +99,94 @@ public class ArquitecturaCommandsTests
             .Count(t => typeof(ICommandBase).IsAssignableFrom(t))
             .Should().BeGreaterThan(50);
     }
+
+    // Horizonte 2.5 (MACRO_PLAN_2026-08-13.md § 2.5, regla 3): "todo Command
+    // de edición declara Version" era revisión manual — CLAUDE.md la
+    // documenta, nada la hacía cumplir. La convención de nombre de este repo
+    // para "edita un agregado ya existente" es el prefijo Editar (10 de 11
+    // Editar*Command actuales ya declaran Guid Version y lo comprueban con
+    // ConcurrenciaOptimista.Verificar). RenovarDocumentoCommand se suma
+    // explícitamente al patrón por nombre: su propio comentario XML dice
+    // "'Editar' un Documento es, en la práctica, renovarlo" — es la edición
+    // real de Documento, con otro verbo.
+    //
+    // Deliberadamente NO se extiende al prefijo Actualizar en general: la
+    // mitad de esos Commands son configuración de tenant sin fila propia
+    // (ActualizarConfiguracionOperativaCommand/ActualizarParametroSistemaCommand)
+    // o interruptores de un único campo booleano sobre TipoDocumento
+    // (ActualizarLecturaIaGlobalCommand y similares) — forzar Version ahí
+    // sería una regla que no encaja con la realidad, no un hueco. Los tres
+    // Actualizar* que sí son la edición completa de un agregado ya lo hacen
+    // bien hoy y se listan explícitamente para que una regresión en ellos
+    // también se detecte (si no, "Actualizar" quedaría fuera del todo del
+    // radar de este test).
+    private static readonly HashSet<string> ComandosDeEdicionPorNombreDistinto =
+    [
+        "ActualizarTarifaClienteCommand", // agregado Tarifa completo, no un campo suelto
+        "ActualizarLineaWhatsAppCommand", // agregado ConexionIntegracion completo
+        "ActualizarProyectoCommand", // agregado Proyecto completo
+    ];
+
+    // Huecos reales encontrados al escribir este test, no exclusiones
+    // legítimas — se documentan aquí (en vez de quedar fuera del todo del
+    // escaneo) para que el gate exista sobre el resto del repo sin bloquear
+    // este PR con un fix de producción que no era el objetivo de esta tarea.
+    // Ver el informe de Horizonte 2.5 para el detalle de cada uno:
+    //
+    // - EditarTipoDocumentoCommand: hueco a nivel de dominio, no solo de
+    //   Command — TipoDocumento hereda de EntidadConTenant, no de
+    //   EntidadBase, así que ni siquiera tiene la propiedad Version que
+    //   propagar. Añadirla es una decisión de dominio (¿TipoDocumento
+    //   necesita concurrencia optimista?), no un simple añadido al Command.
+    // - RenovarDocumentoCommand: hueco solo de Command — Documento SÍ
+    //   hereda de EntidadBase (tiene Version), pero el Command nunca la pide
+    //   ni el handler la comprueba. Es la edición real de Documento (ver su
+    //   propio comentario) y probablemente el agregado más disputado de
+    //   todo el sistema — candidato claro a corregir, fuera de alcance aquí.
+    private static readonly HashSet<string> HuecosConocidosSinVersion =
+    [
+        "CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento.EditarTipoDocumentoCommand",
+        "CaeManager.Application.Documentos.Commands.RenovarDocumento.RenovarDocumentoCommand",
+    ];
+
+    private static IEnumerable<Type> ComandosDeEdicion() => TiposDeApplication()
+        .Where(t => typeof(ICommandBase).IsAssignableFrom(t))
+        .Where(t => t.Name.StartsWith("Editar", StringComparison.Ordinal)
+                    || t.Name.StartsWith("Renovar", StringComparison.Ordinal)
+                    || ComandosDeEdicionPorNombreDistinto.Contains(t.Name));
+
+    [Fact]
+    public void Todo_command_de_edicion_declara_Version_para_concurrencia_optimista()
+    {
+        var infractores = ComandosDeEdicion()
+            .Where(t => t.GetProperty("Version")?.PropertyType != typeof(Guid))
+            .Select(t => t.FullName!)
+            .Where(nombre => !HuecosConocidosSinVersion.Contains(nombre))
+            .ToList();
+
+        string.Join(", ", infractores).Should().BeEmpty(
+            "todo Command que edita un agregado existente debe declarar 'Guid Version = default' y "
+            + "comprobarlo con ConcurrenciaOptimista.Verificar (CLAUDE.md, regla de concurrencia) — "
+            + "si el listado de verdad no lo necesita, documenta por qué y añádelo a las exclusiones "
+            + "de este test; si de verdad debería tenerlo, es un hueco real (ver HuecosConocidosSinVersion)");
+    }
+
+    [Fact]
+    public void Los_huecos_conocidos_de_Version_siguen_vigentes()
+    {
+        // Guarda simétrica de la de arriba: si alguien arregla uno de estos
+        // Commands (le añade Version), esta lista queda con una entrada
+        // muerta que ya no protege nada — mejor que el test lo note y
+        // recuerde borrarla, a que quede ahí indefinidamente como ruido.
+        var comandosDeEdicionPorNombre = ComandosDeEdicion().ToDictionary(t => t.FullName!);
+
+        foreach (var hueco in HuecosConocidosSinVersion)
+        {
+            comandosDeEdicionPorNombre.Should().ContainKey(hueco,
+                $"{hueco} ya no aparece entre los Commands de edición detectados — revisa si el hueco sigue vigente");
+
+            comandosDeEdicionPorNombre[hueco].GetProperty("Version")?.PropertyType.Should().NotBe(typeof(Guid),
+                $"{hueco} ya tiene Version — retíralo de HuecosConocidosSinVersion, el gate ya lo cubre solo");
+        }
+    }
 }
