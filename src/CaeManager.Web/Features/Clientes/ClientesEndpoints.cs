@@ -1,5 +1,6 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Importacion;
+using CaeManager.Web.Exportacion;
 using ClosedXML.Excel;
 using MediatR;
 
@@ -17,10 +18,6 @@ public static class ClientesEndpoints
     {
         endpoints.MapGet("/clientes/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken) =>
         {
-            var resultado = await mediator.Send(
-                new ObtenerClientesQuery(Busqueda: null, SoloCriticos: null, Pagina: 1, TamanoPagina: int.MaxValue),
-                cancellationToken);
-
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Clientes");
 
@@ -30,8 +27,13 @@ public static class ClientesEndpoints
             hoja.Cell(1, 4).Value = "Creado";
             hoja.Row(1).Style.Font.Bold = true;
 
+            // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7):
+            // no materializa toda la tabla de clientes del tenant de golpe.
             var fila = 2;
-            foreach (var cliente in resultado.Elementos)
+            await foreach (var cliente in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+                mediator.Send(
+                    new ObtenerClientesQuery(Busqueda: null, SoloCriticos: null, Pagina: pagina, TamanoPagina: tamanoPagina),
+                    cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = cliente.RazonSocial;
                 hoja.Cell(fila, 2).Value = cliente.Cif;
@@ -42,11 +44,15 @@ public static class ClientesEndpoints
 
             hoja.Columns().AdjustToContents();
 
-            using var stream = new MemoryStream();
+            // Se escribe directo en el stream que consume la respuesta HTTP
+            // (Results.File lo cierra) en vez de bufferear en un MemoryStream
+            // y duplicarlo otra vez con ToArray().
+            var stream = new MemoryStream();
             libro.SaveAs(stream);
+            stream.Position = 0;
 
             return Results.File(
-                stream.ToArray(),
+                stream,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "clientes.xlsx");
         });
