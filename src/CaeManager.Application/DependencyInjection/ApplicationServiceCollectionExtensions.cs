@@ -44,11 +44,17 @@ public static class ApplicationServiceCollectionExtensions
         // envuelve a los otros dos: el choque de concurrencia nace dentro del
         // handler, al guardar, así que quien lo captura tiene que estar por
         // fuera. Después, un Command bloqueado por rol ni siquiera llega a
-        // validarse.
+        // validarse — y GateComercialTenantBehavior (Horizonte 1.7) va justo
+        // a continuación por el mismo motivo, con el estado del TENANT en
+        // vez del rol del usuario.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(SerializacionAccesoDatosBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ConcurrenciaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionEscrituraBehavior<,>));
+        // GateComercialTenantBehavior va justo después: un Command ya
+        // bloqueado por rol ni siquiera necesita la consulta a Tenants que
+        // hace este behavior (Horizonte 1.7, "Billing mínimo viable").
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(GateComercialTenantBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
         // Orquestador puro (solo depende de contratos de Application, ver
