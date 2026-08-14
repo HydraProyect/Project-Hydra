@@ -1,5 +1,6 @@
 using CaeManager.Application.Incidencias.Queries.ObtenerIncidencias;
 using CaeManager.Domain.Incidencias;
+using CaeManager.Web.Exportacion;
 using ClosedXML.Excel;
 using MediatR;
 
@@ -15,10 +16,6 @@ public static class IncidenciasEndpoints
     {
         endpoints.MapGet("/incidencias/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken) =>
         {
-            var resultado = await mediator.Send(
-                new ObtenerIncidenciasQuery(Busqueda: null, SoloSinResolver: false, Pagina: 1, TamanoPagina: int.MaxValue),
-                cancellationToken);
-
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Incidencias");
 
@@ -30,8 +27,13 @@ public static class IncidenciasEndpoints
             hoja.Cell(1, 6).Value = "Estado";
             hoja.Row(1).Style.Font.Bold = true;
 
+            // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7):
+            // no materializa toda la tabla de incidencias del tenant de golpe.
             var fila = 2;
-            foreach (var incidencia in resultado.Elementos)
+            await foreach (var incidencia in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+                mediator.Send(
+                    new ObtenerIncidenciasQuery(Busqueda: null, SoloSinResolver: false, Pagina: pagina, TamanoPagina: tamanoPagina),
+                    cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = incidencia.CentroNombre;
                 hoja.Cell(fila, 2).Value = incidencia.TrabajadorNombre;
@@ -44,11 +46,15 @@ public static class IncidenciasEndpoints
 
             hoja.Columns().AdjustToContents();
 
-            using var stream = new MemoryStream();
+            // Se escribe directo en el stream que consume la respuesta HTTP
+            // (Results.File lo cierra) en vez de bufferear en un MemoryStream
+            // y duplicarlo otra vez con ToArray().
+            var stream = new MemoryStream();
             libro.SaveAs(stream);
+            stream.Position = 0;
 
             return Results.File(
-                stream.ToArray(),
+                stream,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "incidencias.xlsx");
         });
