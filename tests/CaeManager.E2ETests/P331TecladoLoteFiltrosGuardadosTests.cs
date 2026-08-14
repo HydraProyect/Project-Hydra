@@ -60,14 +60,24 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // mientras el foco está en un <input>.
         await page.Locator("h1.titulo-pagina").ClickAsync();
 
+        // Espera breve tras cada tecla, además del reintento propio de las
+        // aserciones: j/k/x/Enter viajan por interop JS -> SignalR -> C# ->
+        // StateHasChanged -> parche de DOM, y mandar la siguiente tecla
+        // justo cuando la aserción anterior confirma el primer cambio deja
+        // sin margen ese último tramo de asentamiento (detectado en CI: la
+        // primera "j" pasaba, la segunda llegaba antes de que el circuito
+        // terminase de procesar la primera).
         await page.Keyboard.PressAsync("j");
         await Expect(filaA).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("fila-enfocada"));
+        await page.WaitForTimeoutAsync(300);
 
         await page.Keyboard.PressAsync("j");
         await Expect(filaB).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("fila-enfocada"));
+        await page.WaitForTimeoutAsync(300);
 
         await page.Keyboard.PressAsync("k");
         await Expect(filaA).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("fila-enfocada"));
+        await page.WaitForTimeoutAsync(300);
 
         // "x" alterna la selección de la fila enfocada (Alfa) sin necesidad
         // de activar antes "Selección múltiple" — AlternarSeleccion actúa
@@ -76,6 +86,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         var barraLote = page.Locator(".barra-acciones-lote");
         await barraLote.WaitForAsync(new LocatorWaitForOptions { Timeout = 5_000 });
         await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("1 seleccionado");
+        await page.WaitForTimeoutAsync(300);
 
         // --- Enter abre el Workspace panel del Cliente enfocado ---
         await page.Keyboard.PressAsync("Enter");
