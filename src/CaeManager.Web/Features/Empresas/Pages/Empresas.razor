@@ -11,6 +11,8 @@
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresas
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using CaeManager.Application.Common
+@using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual
+@using CaeManager.Domain.Tenants
 @using FluentValidation
 @using MediatR
 @using CaeManager.Web.Features.Documentos
@@ -19,11 +21,11 @@
 @inject ContextWorkspaceService WorkspaceService
 @inject ICurrentUserService CurrentUserService
 
-<PageTitle>Empresas — @Marca.Nombre</PageTitle>
+<PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
     <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Empresas</h1>
+        <h1 class="titulo-pagina">@_tituloPagina</h1>
         <div class="acciones-cabecera">
             <a class="enlace-exportar" href="/empresas/exportar.xlsx">Exportar a Excel</a>
             <Boton OnClick="AbrirCrear">+ Nueva empresa</Boton>

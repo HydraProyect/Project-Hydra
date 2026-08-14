@@ -26,9 +26,13 @@
     cuenta como el tema, es puramente cosmético) y lo reaplica tras cada
     navegación "enhanced" de Blazor, mismo mecanismo que tema.js.
 *@
+@using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual
+@using CaeManager.Domain.Tenants
 @using CaeManager.Infrastructure.Comunicaciones
+@using MediatR
 @using Microsoft.Extensions.Options
 @inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
+@inject IMediator Mediator
 <nav class="nav-principal">
     <AuthorizeView Roles="@RolesConMenuCompleto">
         <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
@@ -58,7 +62,7 @@
             </summary>
             <div class="nav-grupo-items">
                 <NavLink class="nav-item" href="empresas">
-                    <Icono Nombre="empresas" /> Empresas
+                    <Icono Nombre="empresas" /> @EtiquetaEmpresas
                 </NavLink>
                 <NavLink class="nav-item" href="subcontratas">
                     <Icono Nombre="subcontratas" /> Subcontratas
@@ -246,4 +250,16 @@
     private const string RolesDeCartera =
         $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
         $"{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}";
+
+    // DDL-072: "Mi empresa" (registro único) en perfil Cliente Directo,
+    // "Empresas" (lista) en perfil Consultora — capa de presentación pura,
+    // 03_INFORMATION_ARCHITECTURE.md § 3.2 confirma que es la misma entrada
+    // de menú bajo los dos perfiles, solo cambia la etiqueta.
+    private string EtiquetaEmpresas = "Empresas";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
+        EtiquetaEmpresas = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mi empresa" : "Empresas";
+    }
 }

@@ -447,7 +447,12 @@ public static class DelegacionDemoSeeder
         if (tenantExistente is not null)
             return tenantExistente.Id;
 
-        var tenantCliente = new Tenant(nombreTenant);
+        // Un Cliente Delegante es una única empresa gestionada por la
+        // consultora — vocabulario ClienteDirecto para él mismo, aunque el
+        // tenant de la consultora que lo opera vea "Empresas" en plural
+        // (DDL-072: el perfil es del tenant que se mira a sí mismo, no de
+        // quién lo administra).
+        var tenantCliente = new Tenant(nombreTenant, PerfilVocabularioTenant.ClienteDirecto);
 
         // Mismo motivo que SegundoTenantSeeder: hace falta un tenant
         // resuelto ya para este primer guardado (el interceptor de

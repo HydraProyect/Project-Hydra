@@ -6,6 +6,8 @@ using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -93,6 +95,10 @@ public partial class Empresas : ComponentBase
     private bool _eliminandoLote;
     private bool _confirmarEliminarLoteVisible;
 
+    // DDL-072: "Mi empresa" en perfil Cliente Directo, "Empresas" en perfil
+    // Consultora — mismo mecanismo que NavMenu.razor.
+    private string _tituloPagina = "Empresas";
+
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
@@ -120,6 +126,10 @@ public partial class Empresas : ComponentBase
     {
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _estadoFiltro = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial) ? EstadoInicial! : string.Empty;
+
+        var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
+        _tituloPagina = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mi empresa" : "Empresas";
+
         await CargarAsync();
 
         if (Accion == "crear")
