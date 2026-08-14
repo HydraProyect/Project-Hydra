@@ -12,24 +12,23 @@ using Microsoft.Extensions.Logging;
 namespace CaeManager.Infrastructure.Persistence.Seed;
 
 /// <summary>
-/// Siembra el escenario de demo de ADR-004-delegacion-consultoras-cae.md: el
-/// tenant #1 (<see cref="TenantSeedData.IdPorDefecto"/>) pasa a jugar el
-/// papel de Consultora — sin datos operativos propios (ADR-004 § 5.1) — y
-/// todos los datos de prueba de CAE (<see cref="DatosPruebaSeeder"/>) se
-/// siembran en un tenant Cliente Delegante nuevo, unido al tenant #1 por una
-/// <see cref="DelegacionTenant"/> activa y una
-/// <see cref="AsignacionOperadorDelegado"/> para el Administrador inicial
-/// (<see cref="IdentitySeeder"/>) — así el selector "Cliente activo" tiene
-/// algo real que mostrar nada más arrancar en desarrollo.
+/// Siembra el escenario de demo de ADR-004-delegacion-consultoras-cae.md.
 ///
-/// Sustituye la siembra anterior, que ponía los 200 clientes/etc. de prueba
-/// directamente en el tenant #1: esos datos eran siempre de prueba, nunca
-/// datos reales, así que no hace falta preservarlos ni migrarlos — decisión
-/// explícita para esta ronda (ver DESIGN_SYSTEM.md/ROADMAP.md). Sigue abierta
-/// (ADR-004 § 12.6) la pregunta de qué pasa con el tenant #1 real de
-/// producción, que no encaja tal cual en "Consultora sin datos propios" —
-/// esta siembra es exclusivamente para desarrollo/demo, no toca ningún
-/// entorno desplegado.
+/// El tenant #1 (<see cref="TenantSeedData.IdPorDefecto"/>, TALVEG) es
+/// puramente el administrador de la plataforma (<c>EsPlataforma = true</c>)
+/// — no opera ningún Delegated Workspace y no tiene datos operativos propios
+/// de demo. La Consultora de la demo es un tenant aparte, "ArcoSPA
+/// Prevención S.L.", con su propio Administrador — decisión del propietario
+/// (2026-08-14): mezclar la cuenta de plataforma con la de consultora hacía
+/// imposible entender cada rol por separado.
+///
+/// ArcoSPA gestiona cuatro Clientes Delegantes: "Refrielectric S.L." (datos
+/// completos + roster de usuarios propio, la referencia principal de
+/// "empresa final"), "Laboratorios Dexter S.L." (datos + usuarios
+/// <c>prueba.&lt;rol&gt;</c> — sin cambios respecto a la siembra anterior,
+/// solo cambia quién los opera), "Transportes Planet Express S.A." (solo
+/// datos, cartera repartida a un único gestor) y "Hosteleria Krusty Krab
+/// S.L." (sin datos, solo la delegación comercial revocada de demo).
 ///
 /// Apagado por defecto, mismo principio "inerte por defecto" que
 /// <see cref="SegundoTenantSeeder"/> — corre exactamente cuando
@@ -38,13 +37,29 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// </summary>
 public static class DelegacionDemoSeeder
 {
+    public const string NombreTenantConsultora = "ArcoSPA Prevención S.L. (Consultora demo)";
+    public const string EmailAdministradorConsultora = "admin.arcospa@caemanager.local";
+
+    /// <summary>
+    /// Primer Cliente Delegante: la referencia principal de "empresa final"
+    /// (perfil Cliente Directo, DDL-072) — datos operativos del mismo
+    /// tamaño que Laboratorios Dexter (ver
+    /// <see cref="DatosPruebaSeeder.SembrarSoloDatosCompletosAsync"/>) y un
+    /// roster de usuarios propio (<c>refri.&lt;rol&gt;</c>), no los
+    /// <c>prueba.&lt;rol&gt;</c> compartidos — esos ya pertenecen a
+    /// Laboratorios Dexter y repetirlos aquí los movería de cartera.
+    /// </summary>
+    public const string NombreTenantRefrielectric = "Refrielectric S.L. (Cliente Delegante demo)";
+
+    public const string PrefijoEmailRefrielectric = "refri.";
+
     // Nombres de ficción (caricaturas), como el resto de la siembra de
     // demo (ver DatosPruebaSeeder) — distintos de los 9 "Cliente" que
     // DatosPruebaSeeder crea dentro de cada tenant, para no repetir marca.
     public const string NombreTenantClienteDemo = "Laboratorios Dexter S.L. (Cliente Delegante demo)";
 
     /// <summary>
-    /// Segundo Cliente Delegante, con datos propios más pequeños y sin
+    /// Tercer Cliente Delegante, con datos propios más pequeños y sin
     /// usuarios de prueba: da a la Consultora una cartera de más de un
     /// cliente (Visión de cartera, selector de Cliente activo con opciones
     /// reales) y permite comprobar a simple vista que los datos de un tenant
@@ -53,12 +68,12 @@ public static class DelegacionDemoSeeder
     public const string NombreTenantClienteDemo2 = "Transportes Planet Express S.A. (Cliente Delegante demo 2)";
 
     /// <summary>
-    /// Tercer Cliente Delegante, sin datos ni operadores: existe solo para
+    /// Cuarto Cliente Delegante, sin datos ni operadores: existe solo para
     /// que la pantalla /delegaciones tenga una delegación comercial
     /// <b>revocada</b> que reactivar — la única variante de estado de
-    /// DelegacionTenant comercial que no puede verse en las otras dos
-    /// (revocar y reactivar una activa se prueba sobre cualquiera; una que
-    /// ya está revocada hay que sembrarla).
+    /// DelegacionTenant comercial que no puede verse en las otras (revocar y
+    /// reactivar una activa se prueba sobre cualquiera; una que ya está
+    /// revocada hay que sembrarla).
     /// </summary>
     public const string NombreTenantClienteDemo3 = "Hosteleria Krusty Krab S.L. (Cliente Delegante demo 3)";
 
@@ -75,7 +90,25 @@ public static class DelegacionDemoSeeder
         if (!configuration.GetValue<bool>("DatosPrueba:Activo"))
             return;
 
-        var tenantClienteId = await AprovisionarTenantClienteAsync(dbContext, NombreTenantClienteDemo, logger, cancellationToken);
+        var tenantConsultoraId = await AprovisionarTenantAsync(
+            dbContext, NombreTenantConsultora, PerfilVocabularioTenant.Consultora, logger, cancellationToken);
+        var administradorConsultora = await CrearAdministradorConsultoraAsync(
+            dbContext, userManager, userStore, logger, tenantConsultoraId, cancellationToken);
+
+        // --- Refrielectric: la referencia principal de "empresa final" ---
+        var refrielectricId = await AprovisionarTenantAsync(
+            dbContext, NombreTenantRefrielectric, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
+        using (AmbitoTenantExplicito.Establecer(refrielectricId))
+        {
+            await DatosPruebaSeeder.SembrarSoloDatosCompletosAsync(dbContext, logger, cancellationToken);
+            await SembrarUsuariosRefrielectricAsync(dbContext, userManager, userStore, logger, cancellationToken);
+        }
+        await CrearDelegacionAsync(
+            dbContext, tenantConsultoraId, refrielectricId, administradorConsultora, logger, NombreTenantRefrielectric, cancellationToken);
+
+        // --- Laboratorios Dexter: datos + usuarios prueba.<rol>, sin cambios ---
+        var tenantClienteId = await AprovisionarTenantAsync(
+            dbContext, NombreTenantClienteDemo, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
 
         // Todos los datos operativos de prueba (clientes, empresas, centros,
         // trabajadores, documentos, usuarios prueba.<rol><n>@...) se siembran
@@ -89,60 +122,218 @@ public static class DelegacionDemoSeeder
             await CicloDocumentalDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
             await SembrarVariantesIdentidadAsync(dbContext, userManager, userStore, logger, cancellationToken);
         }
+        await CrearDelegacionAsync(
+            dbContext, tenantConsultoraId, tenantClienteId, administradorConsultora, logger, NombreTenantClienteDemo, cancellationToken);
 
-        await CrearDelegacionConAdministradorAsync(
-            dbContext, userManager, configuration, logger, tenantClienteId, NombreTenantClienteDemo, cancellationToken);
-
-        // Segundo Cliente Delegante: solo datos (los usuarios de prueba son
-        // únicos por email y ya pertenecen al primero).
-        var tenantCliente2Id = await AprovisionarTenantClienteAsync(dbContext, NombreTenantClienteDemo2, logger, cancellationToken);
+        // --- Transportes Planet Express: solo datos + cartera a un único gestor ---
+        var tenantCliente2Id = await AprovisionarTenantAsync(
+            dbContext, NombreTenantClienteDemo2, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
 
         using (AmbitoTenantExplicito.Establecer(tenantCliente2Id))
         {
             await DatosPruebaSeeder.SembrarSoloDatosAsync(dbContext, logger, cancellationToken);
             await SembrarUsuariosDemo2Async(dbContext, userManager, userStore, logger, cancellationToken);
         }
+        await CrearDelegacionAsync(
+            dbContext, tenantConsultoraId, tenantCliente2Id, administradorConsultora, logger, NombreTenantClienteDemo2, cancellationToken);
 
-        await CrearDelegacionConAdministradorAsync(
-            dbContext, userManager, configuration, logger, tenantCliente2Id, NombreTenantClienteDemo2, cancellationToken);
-
-        // Tercer tenant, sin datos: solo aporta la delegación comercial revocada.
-        var tenantCliente3Id = await AprovisionarTenantClienteAsync(dbContext, NombreTenantClienteDemo3, logger, cancellationToken);
-        await CrearDelegacionRevocadaAsync(dbContext, tenantCliente3Id, logger, cancellationToken);
+        // --- Hosteleria Krusty Krab: sin datos, solo la delegación comercial revocada ---
+        var tenantCliente3Id = await AprovisionarTenantAsync(
+            dbContext, NombreTenantClienteDemo3, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
+        await CrearDelegacionRevocadaAsync(dbContext, tenantConsultoraId, tenantCliente3Id, logger, cancellationToken);
 
         await SembrarOperadoresConsultoraAsync(
-            dbContext, userManager, logger, tenantClienteId, tenantCliente2Id, cancellationToken);
+            dbContext, userManager, logger, tenantConsultoraId, refrielectricId, tenantClienteId, cancellationToken);
     }
 
     /// <summary>
-    /// Usuarios de la Consultora (tenant #1) que operan Delegated Workspaces
-    /// con roles distintos de Administrador — sin ellos, el selector de
-    /// Cliente activo y "retirar operador" solo podían probarse con el
-    /// Administrador de plataforma.
+    /// Administrador propio de ArcoSPA — nunca <c>admin@caemanager.local</c>
+    /// (ese es el administrador de la plataforma, TALVEG, que no debe operar
+    /// ningún Delegated Workspace). Con 2FA activo (P1-13 de
+    /// docs/business/MATURITY_REVIEW.md exige 2FA para todo Administrador) y
+    /// la misma clave TOTP fija que el resto de la siembra, para que los
+    /// tests E2E puedan calcular el código sin acceso a BD.
+    /// </summary>
+    private static async Task<ApplicationUser> CrearAdministradorConsultoraAsync(
+        CaeManagerDbContext dbContext,
+        UserManager<ApplicationUser> userManager,
+        IUserStore<ApplicationUser> userStore,
+        ILogger logger,
+        Guid tenantConsultoraId,
+        CancellationToken cancellationToken)
+    {
+        var existente = await userManager.FindByEmailAsync(EmailAdministradorConsultora);
+        if (existente is not null)
+            return existente;
+
+        var administrador = new ApplicationUser
+        {
+            UserName = EmailAdministradorConsultora,
+            Email = EmailAdministradorConsultora,
+            NombreCompleto = "Administrador ArcoSPA",
+            EmailConfirmed = true,
+            DebeCambiarContrasena = false,
+            TenantId = tenantConsultoraId
+        };
+
+        var resultado = await userManager.CreateAsync(administrador, DatosPruebaSeeder.ContrasenaUsuariosPrueba);
+        if (!resultado.Succeeded)
+        {
+            logger.LogWarning("No se pudo crear el administrador de ArcoSPA: {Errores}",
+                string.Join(", ", resultado.Errors.Select(e => e.Description)));
+            throw new InvalidOperationException("No se pudo crear el administrador de ArcoSPA.");
+        }
+
+        await userManager.AddToRoleAsync(administrador, Roles.Administrador);
+
+        if (userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
+        {
+            await claveStore.SetAuthenticatorKeyAsync(
+                administrador, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);
+            await userManager.UpdateAsync(administrador);
+        }
+        await userManager.SetTwoFactorEnabledAsync(administrador, true);
+
+        using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
+        {
+            await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, administrador.Id, cancellationToken);
+        }
+
+        return administrador;
+    }
+
+    /// <summary>
+    /// Roster de usuarios propio de Refrielectric — no reutiliza los
+    /// <c>prueba.&lt;rol&gt;</c> de Laboratorios Dexter (emails únicos, ya
+    /// pertenecen a ese tenant) ni la siembra completa de claves API /
+    /// filtros guardados / reclamaciones de <see cref="DatosPruebaSeeder"/>
+    /// (pensada para un único tenant "principal", no para repetirse). Cubre
+    /// los mismos roles con la misma forma de cartera (3 GestorCae, reparto
+    /// round-robin de los 9 Clientes) para que Refrielectric sea una
+    /// referencia de "empresa final" tan completa como Laboratorios Dexter.
+    /// </summary>
+    private static async Task SembrarUsuariosRefrielectricAsync(
+        CaeManagerDbContext dbContext,
+        UserManager<ApplicationUser> userManager,
+        IUserStore<ApplicationUser> userStore,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = AmbitoTenantExplicito.TenantIdActual!.Value;
+
+        async Task<ApplicationUser?> CrearAsync(string rol, int indice, string rolVisible)
+        {
+            var email = $"{PrefijoEmailRefrielectric}{rol.ToLowerInvariant()}{indice}@caemanager.local";
+            if (await userManager.FindByEmailAsync(email) is not null)
+                return null;
+
+            var usuario = new ApplicationUser
+            {
+                UserName = email,
+                Email = email,
+                NombreCompleto = $"Refrielectric {rolVisible} {indice}",
+                EmailConfirmed = true,
+                DebeCambiarContrasena = false,
+                TenantId = tenantId
+            };
+
+            var resultado = await userManager.CreateAsync(usuario, DatosPruebaSeeder.ContrasenaUsuariosPrueba);
+            if (!resultado.Succeeded)
+            {
+                logger.LogWarning("No se pudo crear el usuario de Refrielectric {Email}: {Errores}",
+                    email, string.Join(", ", resultado.Errors.Select(e => e.Description)));
+                return null;
+            }
+
+            await userManager.AddToRoleAsync(usuario, rol);
+            await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, usuario.Id, cancellationToken);
+            return usuario;
+        }
+
+        var administrador = await CrearAsync(Roles.Administrador, 1, "Administrador");
+        if (administrador is not null && userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
+        {
+            // P1-13: todo Administrador con 2FA — misma clave fija que el resto de la siembra.
+            await claveStore.SetAuthenticatorKeyAsync(administrador, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);
+            await userManager.UpdateAsync(administrador);
+            await userManager.SetTwoFactorEnabledAsync(administrador, true);
+        }
+
+        await CrearAsync(Roles.DireccionCae, 1, "Direccion CAE");
+        var coordinador = await CrearAsync(Roles.CoordinadorCae, 1, "Coordinador CAE");
+
+        var gestores = new List<ApplicationUser>();
+        for (var i = 1; i <= 3; i++)
+        {
+            var gestor = await CrearAsync(Roles.GestorCae, i, "Gestor CAE");
+            if (gestor is not null) gestores.Add(gestor);
+        }
+
+        if (coordinador is not null)
+        {
+            foreach (var gestor in gestores)
+            {
+                gestor.CoordinadorUsuarioId = coordinador.Id;
+                await userManager.UpdateAsync(gestor);
+            }
+        }
+
+        if (gestores.Count > 0)
+        {
+            var clientes = await dbContext.Clientes.OrderBy(c => c.CreadoEnUtc).ToListAsync(cancellationToken);
+            for (var i = 0; i < clientes.Count; i++)
+                clientes[i].AsignarEjecutivo(gestores[i % gestores.Count].Id);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var clientePrueba = await CrearAsync(Roles.Cliente, 1, "Cliente");
+        if (clientePrueba is not null)
+        {
+            var primerCliente = await dbContext.Clientes.OrderBy(c => c.CreadoEnUtc).FirstOrDefaultAsync(cancellationToken);
+            if (primerCliente is not null)
+            {
+                clientePrueba.ClienteId = primerCliente.Id;
+                await userManager.UpdateAsync(clientePrueba);
+            }
+        }
+
+        await CrearAsync(Roles.Consulta, 1, "Consulta");
+
+        logger.LogInformation(
+            "Usuarios de Refrielectric sembrados (contraseña «{Contrasena}» para todos, email {Prefijo}<rol><n>@caemanager.local).",
+            DatosPruebaSeeder.ContrasenaUsuariosPrueba, PrefijoEmailRefrielectric);
+    }
+
+    /// <summary>
+    /// Usuarios de ArcoSPA que operan Delegated Workspaces con roles
+    /// distintos de Administrador — sin ellos, el selector de Cliente activo
+    /// y "retirar operador" solo podían probarse con el Administrador de
+    /// ArcoSPA.
     /// </summary>
     private static async Task SembrarOperadoresConsultoraAsync(
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         ILogger logger,
+        Guid tenantConsultoraId,
         Guid tenantClienteDemo1Id,
         Guid tenantClienteDemo2Id,
         CancellationToken cancellationToken)
     {
         var operadorGestor = await CrearUsuarioConsultoraAsync(
-            dbContext, userManager, logger, "prueba.operador.gestor1@caemanager.local",
+            dbContext, userManager, logger, tenantConsultoraId, "prueba.operador.gestor1@caemanager.local",
             "Operador Consultora Gestor (prueba)", Roles.GestorCae, cancellationToken);
         var operadorConsulta = await CrearUsuarioConsultoraAsync(
-            dbContext, userManager, logger, "prueba.operador.consulta1@caemanager.local",
+            dbContext, userManager, logger, tenantConsultoraId, "prueba.operador.consulta1@caemanager.local",
             "Operador Consultora Consulta (prueba)", Roles.Consulta, cancellationToken);
 
         var delegacionDemo1 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
-            d => d.TenantConsultoraId == TenantSeedData.IdPorDefecto && d.TenantClienteId == tenantClienteDemo1Id
+            d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo1Id
                  && d.Proposito == PropositoDelegacion.Comercial, cancellationToken);
         var delegacionDemo2 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
-            d => d.TenantConsultoraId == TenantSeedData.IdPorDefecto && d.TenantClienteId == tenantClienteDemo2Id
+            d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo2Id
                  && d.Proposito == PropositoDelegacion.Comercial, cancellationToken);
 
-        using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
+        using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
             if (operadorGestor is not null && delegacionDemo1 is not null &&
                 !await dbContext.AsignacionesOperadorDelegado.AnyAsync(
@@ -168,6 +359,7 @@ public static class DelegacionDemoSeeder
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         ILogger logger,
+        Guid tenantConsultoraId,
         string email,
         string nombreCompleto,
         string rol,
@@ -184,7 +376,7 @@ public static class DelegacionDemoSeeder
             NombreCompleto = nombreCompleto,
             EmailConfirmed = true,
             DebeCambiarContrasena = false,
-            TenantId = TenantSeedData.IdPorDefecto
+            TenantId = tenantConsultoraId
         };
 
         var resultado = await userManager.CreateAsync(usuario, DatosPruebaSeeder.ContrasenaUsuariosPrueba);
@@ -196,7 +388,7 @@ public static class DelegacionDemoSeeder
         }
 
         await userManager.AddToRoleAsync(usuario, rol);
-        using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
+        using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
             await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, usuario.Id, cancellationToken);
         }
@@ -418,19 +610,19 @@ public static class DelegacionDemoSeeder
     /// /delegaciones, que es exactamente lo que esta variante permite probar.
     /// </summary>
     private static async Task CrearDelegacionRevocadaAsync(
-        CaeManagerDbContext dbContext, Guid tenantClienteId, ILogger logger, CancellationToken cancellationToken)
+        CaeManagerDbContext dbContext, Guid tenantConsultoraId, Guid tenantClienteId, ILogger logger, CancellationToken cancellationToken)
     {
         if (await dbContext.DelegacionesTenant.AnyAsync(
-                d => d.TenantConsultoraId == TenantSeedData.IdPorDefecto && d.TenantClienteId == tenantClienteId,
+                d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId,
                 cancellationToken))
         {
             return;
         }
 
-        var delegacion = new DelegacionTenant(TenantSeedData.IdPorDefecto, tenantClienteId);
+        var delegacion = new DelegacionTenant(tenantConsultoraId, tenantClienteId);
         delegacion.Desactivar();
 
-        using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
+        using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
             dbContext.DelegacionesTenant.Add(delegacion);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -439,29 +631,27 @@ public static class DelegacionDemoSeeder
         logger.LogInformation("Delegación comercial revocada de demo sembrada hacia {TenantCliente}.", tenantClienteId);
     }
 
-    private static async Task<Guid> AprovisionarTenantClienteAsync(
-        CaeManagerDbContext dbContext, string nombreTenant, ILogger logger, CancellationToken cancellationToken)
+    private static async Task<Guid> AprovisionarTenantAsync(
+        CaeManagerDbContext dbContext, string nombreTenant, PerfilVocabularioTenant perfil, ILogger logger, CancellationToken cancellationToken)
     {
         var tenantExistente = await dbContext.Tenants
             .FirstOrDefaultAsync(t => t.Nombre == nombreTenant, cancellationToken);
         if (tenantExistente is not null)
             return tenantExistente.Id;
 
-        // Un Cliente Delegante es una única empresa gestionada por la
-        // consultora — vocabulario ClienteDirecto para él mismo, aunque el
-        // tenant de la consultora que lo opera vea "Empresas" en plural
-        // (DDL-072: el perfil es del tenant que se mira a sí mismo, no de
-        // quién lo administra).
-        var tenantCliente = new Tenant(nombreTenant, PerfilVocabularioTenant.ClienteDirecto);
+        // DDL-072: el perfil de vocabulario es del tenant que se mira a sí
+        // mismo, no de quién lo administra — un Cliente Delegante se ve como
+        // Cliente Directo aunque ArcoSPA (Consultora) lo opere en plural.
+        var tenant = new Tenant(nombreTenant, perfil);
 
         // Mismo motivo que SegundoTenantSeeder: hace falta un tenant
         // resuelto ya para este primer guardado (el interceptor de
         // auditoría necesita sellar contra algo), antes incluso de que
         // el propio Tenant exista en la base de datos — el Id ya se
         // conoce porque se genera en el constructor (ver Entity).
-        using (AmbitoTenantExplicito.Establecer(tenantCliente.Id))
+        using (AmbitoTenantExplicito.Establecer(tenant.Id))
         {
-            dbContext.Tenants.Add(tenantCliente);
+            dbContext.Tenants.Add(tenant);
 
             // Todo tenant necesita su propia fila de ParametroSistema —
             // ObtenerKpisDashboardQuery/ObtenerDesgloseDashboardQuery la
@@ -490,49 +680,34 @@ public static class DelegacionDemoSeeder
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        logger.LogInformation("Tenant Cliente Delegante de demo sembrado: {Nombre} ({TenantId}).", nombreTenant, tenantCliente.Id);
-        return tenantCliente.Id;
+        logger.LogInformation("Tenant de demo sembrado: {Nombre} ({TenantId}).", nombreTenant, tenant.Id);
+        return tenant.Id;
     }
 
-    private static async Task CrearDelegacionConAdministradorAsync(
+    private static async Task CrearDelegacionAsync(
         CaeManagerDbContext dbContext,
-        UserManager<ApplicationUser> userManager,
-        IConfiguration configuration,
-        ILogger logger,
+        Guid tenantConsultoraId,
         Guid tenantClienteId,
+        ApplicationUser administradorConsultora,
+        ILogger logger,
         string nombreTenantCliente,
         CancellationToken cancellationToken)
     {
         if (await dbContext.DelegacionesTenant.AnyAsync(
-                d => d.TenantConsultoraId == TenantSeedData.IdPorDefecto && d.TenantClienteId == tenantClienteId,
+                d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId,
                 cancellationToken))
         {
             return;
         }
 
-        var delegacion = new DelegacionTenant(TenantSeedData.IdPorDefecto, tenantClienteId);
+        var delegacion = new DelegacionTenant(tenantConsultoraId, tenantClienteId);
 
-        using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
+        using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
             dbContext.DelegacionesTenant.Add(delegacion);
             await dbContext.SaveChangesAsync(cancellationToken);
-        }
 
-        var emailAdministradorConsultora = configuration["AdministradorInicial:Email"] ?? IdentitySeeder.EmailAdministradorInicial;
-        var administradorConsultora = await userManager.FindByEmailAsync(emailAdministradorConsultora);
-
-        if (administradorConsultora is null)
-        {
-            logger.LogWarning(
-                "No se encontró el Administrador inicial ({Email}) para asignarlo como Operador Delegado de demo.",
-                emailAdministradorConsultora);
-            return;
-        }
-
-        var asignacion = new AsignacionOperadorDelegado(delegacion.Id, administradorConsultora.Id, RolOperadorDelegadoDemo);
-
-        using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
-        {
+            var asignacion = new AsignacionOperadorDelegado(delegacion.Id, administradorConsultora.Id, RolOperadorDelegadoDemo);
             dbContext.AsignacionesOperadorDelegado.Add(asignacion);
             await dbContext.SaveChangesAsync(cancellationToken);
         }

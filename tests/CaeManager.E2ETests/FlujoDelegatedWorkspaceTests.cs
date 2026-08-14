@@ -20,9 +20,9 @@ public class FlujoDelegatedWorkspaceTests(WebAppFixture fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
 
-        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
 
-        // El Administrador inicial arranca en su tenant de origen (la
+        // El Administrador de ArcoSPA arranca en su tenant de origen (la
         // Consultora, ADR-004 § 5.1) — el <select> lo refleja como
         // seleccionado por defecto.
         var origenId = await page.Locator(".selector-cliente-activo").InputValueAsync();
@@ -45,7 +45,7 @@ public class FlujoDelegatedWorkspaceTests(WebAppFixture fixture)
         // Vuelve al tenant de origen — el selector debe reflejar exactamente
         // el mismo Id que al principio, no solo "un tenant distinto del
         // delegado".
-        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreTenantOrigenPorDefecto);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreTenantConsultora);
 
         var idTrasVolver = await page.Locator(".selector-cliente-activo").InputValueAsync();
         Assert.Equal(origenId, idTrasVolver);
@@ -63,7 +63,7 @@ public class FlujoDelegatedWorkspaceTests(WebAppFixture fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
 
-        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
 
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
         var primerId = await page.Locator(".selector-cliente-activo").InputValueAsync();

@@ -64,6 +64,11 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     /// Administrador y DireccionCae de los roles asignables — se opera dentro
     /// del alcance del workspace, nunca con privilegios de administración de
     /// la plataforma del cliente.
+    ///
+    /// El Administrador que opera el Delegated Workspace es el de ArcoSPA
+    /// (la Consultora de la demo), no <c>admin@caemanager.local</c> — desde
+    /// el 2026-08-14 la cuenta de plataforma no opera ningún Delegated
+    /// Workspace (ver DelegacionDemoSeeder).
     /// </summary>
     [Fact]
     public async Task El_rol_de_la_delegacion_acota_al_administrador_dentro_del_workspace_delegado()
@@ -71,7 +76,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
 
-        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
 
         // El tenant de origen del Administrador (Consultora, ADR-004 § 5.1)
         // no tiene datos operativos propios — los ~200 Clientes sembrados de

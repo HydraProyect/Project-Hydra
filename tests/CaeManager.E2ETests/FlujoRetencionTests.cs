@@ -32,13 +32,15 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
 
-        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
 
         // Los "veteranos" viven en el Delegated Workspace de demo, no en el
         // tenant de origen del Administrador (la Consultora no tiene datos
         // operativos propios) — el rol Administrador es global a la cuenta,
         // no por tenant, así que sigue teniendo acceso a /retencion tras
-        // cambiar de workspace (ver ADR-004).
+        // cambiar de workspace (ver ADR-004). El Administrador que opera el
+        // Delegated Workspace es el de ArcoSPA, no admin@caemanager.local
+        // (ver DelegacionDemoSeeder, 2026-08-14).
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/retencion");
 

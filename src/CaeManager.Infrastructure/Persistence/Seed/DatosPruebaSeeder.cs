@@ -276,6 +276,33 @@ public static class DatosPruebaSeeder
         return resumen;
     }
 
+    /// <summary>
+    /// Igual que <see cref="SembrarSoloDatosAsync"/> (sin usuarios de prueba,
+    /// para no colisionar emails entre tenants), pero con el tamaño completo
+    /// de <see cref="SeedAsync"/> (9 clientes/24 empresas/8 subcontratas) en
+    /// vez del recorte de "tenant de demo adicional" — para un segundo tenant
+    /// que necesita ser tan rico como el primero (ver DelegacionDemoSeeder,
+    /// tenant "Refrielectric"), no solo aportar variedad de aislamiento.
+    /// </summary>
+    public static async Task<ResumenSiembra?> SembrarSoloDatosCompletosAsync(
+        CaeManagerDbContext dbContext, ILogger logger, CancellationToken cancellationToken = default)
+    {
+        if (await dbContext.Clientes.AnyAsync(cancellationToken))
+            return null;
+
+        // Semilla distinta a la del tenant principal (20260801) y a la del
+        // recorte (20260802) — mismos generadores, datos distintos.
+        var aleatorio = new Random(20260803);
+        var resumen = await SembrarDatosOperativosAsync(
+            dbContext, aleatorio, RazonesSocialesClientes.Length, numeroEmpresas: 24, numeroSubcontratas: 8, cancellationToken);
+
+        logger.LogInformation(
+            "Datos operativos completos sembrados en tenant de demo adicional: {Clientes} clientes, {Empresas} empresas, {Trabajadores} trabajadores.",
+            resumen.Clientes, resumen.Empresas, resumen.Trabajadores);
+
+        return resumen;
+    }
+
     private static async Task<ResumenSiembra> SembrarDatosOperativosAsync(
         CaeManagerDbContext dbContext, Random aleatorio, int numeroClientes, int numeroEmpresas,
         int numeroSubcontratas, CancellationToken cancellationToken)
