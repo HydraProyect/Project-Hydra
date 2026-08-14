@@ -42,7 +42,7 @@ public class MigracionesTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Siembra_los_77_tipos_de_documento_del_catalogo()
+    public async Task Siembra_los_81_tipos_de_documento_del_catalogo()
     {
         // 15+21+1=37 de Trabajador (excel original + ampliación Fase 37 +
         // "DNI o NIE en vigor", 2026-08-09) + 13+17=30 de Empresa (documentos
@@ -50,9 +50,11 @@ public class MigracionesTests : IAsyncLifetime
         // (ITC, ficha técnica, seguro, autorización de circulación) + 6 del
         // tramo 0.3 del MVP-1 de formatos (2026-08-14, F-27/F-41/F-47/F-70/
         // F-93/F-95 — F-107 no suma porque ya existía como "Comunicación de
-        // desplazamiento") = 37+30+4+6 = 77.
+        // desplazamiento") + 4 del tramo 1.2 (F-44/F-52/F-50/F-29 — F-53 no
+        // suma porque ya existía como "Declaración Responsable CAE") =
+        // 37+30+4+6+4 = 81.
         var total = await _dbContext.TiposDocumento.CountAsync();
-        total.Should().Be(77);
+        total.Should().Be(81);
     }
 
     [Fact]

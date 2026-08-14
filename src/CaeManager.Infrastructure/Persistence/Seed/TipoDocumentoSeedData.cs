@@ -134,6 +134,19 @@ public static class TipoDocumentoSeedData
         (new Guid("60000000-0000-0000-0000-000000000004"), "Informe de investigación de accidente o incidente", null, false, 48, AmbitoAplicacion.Empresa, false, "F-70 del catálogo de formatos PRL — art. 16.3 LPRL. Un informe por accidente o incidente — vencimiento manual."),
         (new Guid("60000000-0000-0000-0000-000000000005"), "Protocolo frente al acoso sexual y por razón de sexo", null, false, 49, AmbitoAplicacion.Empresa, false, "F-93 del catálogo de formatos PRL — art. 48 LO 3/2007. Obligatorio para todas las empresas, sin umbral de plantilla. Vigente hasta revisión — vencimiento manual."),
         (new Guid("60000000-0000-0000-0000-000000000006"), "Registro retributivo", null, false, 50, AmbitoAplicacion.Empresa, false, "F-95 del catálogo de formatos PRL — RD 902/2020. Obligatorio para todas las empresas, sin umbral de plantilla. Vigente hasta revisión — vencimiento manual."),
+
+        // --- Tramo 1.2 del MVP-1 de formatos (2026-08-14): al construir la
+        // plantilla impresa de F-44/F-52/F-50/F-29, se detectó que tampoco
+        // tenían TipoDocumento (CATALOGO_FORMATOS_PRL.md § 9.2 clasifica solo
+        // F-53 como "tipo existente" para este tramo — F-44/F-52/F-50/F-29
+        // habían quedado fuera de esa clasificación por error, verificado en
+        // TipoDocumentoSeedData.cs antes de asumirlo). F-53 ("Declaración
+        // Responsable CAE") no se repite aquí: ya existe (Id
+        // 4000000C-...-00000000000C, línea de arriba).
+        (new Guid("70000000-0000-0000-0000-000000000001"), "Información de riesgos propios aportados al centro", null, false, 51, AmbitoAplicacion.Empresa, false, "F-44 del catálogo de formatos PRL — art. 4.2 RD 171/2004. El formato Outbound por excelencia: lo emite el contratista hacia el titular del centro. Vigente hasta modificación de los riesgos — vencimiento manual."),
+        (new Guid("70000000-0000-0000-0000-000000000002"), "Información y coordinación con trabajadores autónomos", null, false, 52, AmbitoAplicacion.Empresa, false, "F-52 del catálogo de formatos PRL — art. 24.5 LPRL · art. 4.1 RD 171/2004. Vigente hasta modificación — vencimiento manual."),
+        (new Guid("70000000-0000-0000-0000-000000000003"), "Registro del deber de vigilancia sobre subcontratas", null, false, 53, AmbitoAplicacion.Empresa, false, "F-50 del catálogo de formatos PRL — art. 24.3 LPRL · art. 10 RD 171/2004. El único de la familia D que la ley impone directamente al contratista principal sobre sus Subcontratas. Un registro por subcontrata/verificación — vencimiento manual."),
+        (new Guid("70000000-0000-0000-0000-000000000004"), "Recibí de normas, procedimientos y plan de emergencia", null, false, 39, AmbitoAplicacion.Trabajador, false, "F-29 del catálogo de formatos PRL — arts. 18 y 20 LPRL. Vigente hasta modificación de normas/plan — vencimiento manual."),
     ];
 
     /// <summary>
