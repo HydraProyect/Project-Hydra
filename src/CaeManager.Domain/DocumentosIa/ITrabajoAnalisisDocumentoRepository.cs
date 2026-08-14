@@ -19,4 +19,14 @@ public interface ITrabajoAnalisisDocumentoRepository
     /// </summary>
     Task<IReadOnlyList<TrabajoAnalisisDocumento>> ObtenerEstancadosAsync(
         TimeSpan umbral, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cuántos trabajos del tenant activo siguen <see cref="EstadoTrabajoAnalisisDocumento.Pendiente"/>
+    /// o <see cref="EstadoTrabajoAnalisisDocumento.Procesando"/> — un COUNT,
+    /// no una carga de entidades: es lo que alimenta el gauge de
+    /// "profundidad de cola de IA" (Horizonte 2.3,
+    /// <c>Observabilidad.ActualizarColaIaProfundidad</c>) sin pagar el coste
+    /// de traer los trabajos completos solo para contarlos.
+    /// </summary>
+    Task<int> ContarActivosAsync(CancellationToken cancellationToken = default);
 }

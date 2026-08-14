@@ -21,4 +21,9 @@ public class TrabajoAnalisisDocumentoRepository(CaeManagerDbContext dbContext) :
             .Where(t => t.Estado == EstadoTrabajoAnalisisDocumento.Procesando && t.IniciadoEnUtc != null && t.IniciadoEnUtc < limite)
             .ToListAsync(cancellationToken);
     }
+
+    public Task<int> ContarActivosAsync(CancellationToken cancellationToken = default) =>
+        dbContext.TrabajosAnalisisDocumento
+            .Where(t => t.Estado == EstadoTrabajoAnalisisDocumento.Pendiente || t.Estado == EstadoTrabajoAnalisisDocumento.Procesando)
+            .CountAsync(cancellationToken);
 }
