@@ -298,6 +298,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.ITenantRepository, TenantRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
+        services.AddScoped<CaeManager.Domain.VigilanciaNormativa.IAvisoRevisionNormativaRepository, CaeManager.Infrastructure.Persistence.Repositories.AvisoRevisionNormativaRepository>();
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
         services.AddScoped<IPreferenciaDashboardUsuarioRepository, PreferenciaDashboardUsuarioRepository>();
         services.AddScoped<IFiltroGuardadoRepository, FiltroGuardadoRepository>();
@@ -445,6 +446,26 @@ public static class InfrastructureServiceCollectionExtensions
         // sin interruptor de configuración propio (a diferencia del resumen
         // de alertas por correo, no manda nada fuera de la aplicación).
         services.AddHostedService<Visitas.VigilanciaVisitasUrgentesHostedService>();
+
+        // Tramo 1 bis del MVP-1 de formatos (corte mínimo, 2026-08-14):
+        // sondeo del sumario diario del BOE. El cliente HTTP se registra
+        // siempre (barato, sin llamadas hasta que alguien lo invoca); el
+        // BackgroundService que sí llama a boe.es en cada ciclo se registra
+        // solo si está activo — apagado por defecto (ver
+        // VigilanciaNormativaBoeOptions), mismo motivo que Graph/WhatsApp:
+        // manda algo fuera de la aplicación.
+        services.AddHttpClient<CaeManager.Application.VigilanciaNormativa.IBoeSumarioClient, CaeManager.Infrastructure.VigilanciaNormativa.BoeSumarioClient>(
+                cliente => cliente.BaseAddress = new Uri("https://www.boe.es/"))
+            .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
+
+        var opcionesVigilanciaNormativaBoe = new CaeManager.Infrastructure.VigilanciaNormativa.VigilanciaNormativaBoeOptions();
+        configuration.GetSection(CaeManager.Infrastructure.VigilanciaNormativa.VigilanciaNormativaBoeOptions.SeccionConfiguracion)
+            .Bind(opcionesVigilanciaNormativaBoe);
+        services.Configure<CaeManager.Infrastructure.VigilanciaNormativa.VigilanciaNormativaBoeOptions>(
+            configuration.GetSection(CaeManager.Infrastructure.VigilanciaNormativa.VigilanciaNormativaBoeOptions.SeccionConfiguracion));
+
+        if (opcionesVigilanciaNormativaBoe.Activa)
+            services.AddHostedService<CaeManager.Infrastructure.VigilanciaNormativa.VigilanciaNormativaBoeHostedService>();
 
         // Timeouts explícitos en todos los HttpClient de IA/Graph (P0-9 de
         // docs/business/MATURITY_REVIEW.md): el procesador de la cola de IA es

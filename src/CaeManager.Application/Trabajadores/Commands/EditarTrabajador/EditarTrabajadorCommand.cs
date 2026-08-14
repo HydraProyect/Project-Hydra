@@ -15,6 +15,7 @@ public record EditarTrabajadorCommand(
     string? Observaciones,
     string? Alias = null,
     string? Telefono = null,
+    string? Puesto = null,
     Guid Version = default) : ICommand;
 
 public class EditarTrabajadorCommandValidator : AbstractValidator<EditarTrabajadorCommand>
@@ -39,6 +40,7 @@ public class EditarTrabajadorCommandValidator : AbstractValidator<EditarTrabajad
         RuleFor(c => c.Observaciones).MaximumLength(Trabajador.LongitudMaximaObservaciones);
         RuleFor(c => c.Alias).MaximumLength(Trabajador.LongitudMaximaAlias);
         RuleFor(c => c.Telefono).MaximumLength(Trabajador.LongitudMaximaTelefono);
+        RuleFor(c => c.Puesto).MaximumLength(Trabajador.LongitudMaximaPuesto);
     }
 }
 
@@ -56,7 +58,7 @@ public class EditarTrabajadorCommandHandler(ITrabajadorRepository repositorio, I
 
         trabajador.Actualizar(
             request.Nombre, request.Apellidos, request.FechaNacimiento, request.Email,
-            request.Observaciones, request.Alias, request.Telefono);
+            request.Observaciones, request.Alias, request.Telefono, request.Puesto);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

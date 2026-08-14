@@ -9,7 +9,14 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Empresas.Commands.EditarEmpresa;
 
 public record EditarEmpresaCommand(
-    Guid Id, string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds, Guid Version = default) : ICommand;
+    Guid Id,
+    string RazonSocial,
+    string? Cif,
+    IReadOnlyList<Guid> ClienteIds,
+    string? Cnae = null,
+    string? ConvenioAplicable = null,
+    bool EsActividadAnexoI = false,
+    Guid Version = default) : ICommand;
 
 public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaCommand>
 {
@@ -22,9 +29,15 @@ public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaComm
             .MaximumLength(Empresa.LongitudMaximaRazonSocial)
             .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
 
+        // A diferencia del alta (CrearEmpresaCommand), aquí el CIF sigue
+        // siendo opcional: hay Empresas legacy sin CIF (ver Empresa.Cif) y
+        // editar otro campo no debe forzar retroactivamente su relleno.
         RuleFor(c => c.Cif)
             .Must(EsCifValido).WithMessage("El CIF no es válido.")
             .When(c => !string.IsNullOrWhiteSpace(c.Cif));
+
+        RuleFor(c => c.Cnae).MaximumLength(Empresa.LongitudMaximaCnae);
+        RuleFor(c => c.ConvenioAplicable).MaximumLength(Empresa.LongitudMaximaConvenioAplicable);
     }
 
     private static bool EsCifValido(string? cif)
@@ -54,7 +67,7 @@ public class EditarEmpresaCommandHandler(
         if (!string.IsNullOrWhiteSpace(request.Cif) && await repositorio.ExisteConCifAsync(request.Cif, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Empresa.CifDuplicado", "Ya existe una empresa con este CIF."));
 
-        empresa.Actualizar(request.RazonSocial, request.Cif);
+        empresa.Actualizar(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);
 
         var actuales = await empresaClienteRepositorio.ObtenerPorEmpresaAsync(empresa.Id, cancellationToken);
         var deseados = request.ClienteIds.Distinct().ToHashSet();

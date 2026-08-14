@@ -65,4 +65,50 @@ public class TrabajadorTests
 
         accion.Should().Throw<ArgumentException>();
     }
+
+    [Fact]
+    public void Crea_un_trabajador_con_puesto_y_lo_recorta()
+    {
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Alvaro", "Sanchez Martin", "77189989B", puesto: "  Soldador  ");
+
+        trabajador.Puesto.Should().Be("Soldador");
+    }
+
+    [Fact]
+    public void El_puesto_es_opcional()
+    {
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Alvaro", "Sanchez Martin", "77189989B");
+
+        trabajador.Puesto.Should().BeNull();
+    }
+
+    [Fact]
+    public void Rechaza_un_puesto_que_supera_la_longitud_maxima()
+    {
+        var puestoDemasiadoLargo = new string('A', Trabajador.LongitudMaximaPuesto + 1);
+
+        var accion = () => Trabajador.DeEmpresa(Guid.NewGuid(), "Alvaro", "Sanchez Martin", "77189989B", puesto: puestoDemasiadoLargo);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Actualizar_cambia_el_puesto()
+    {
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Alvaro", "Sanchez Martin", "77189989B", puesto: "Soldador");
+
+        trabajador.Actualizar("Alvaro", "Sanchez Martin", null, null, null, null, puesto: "Administrativo");
+
+        trabajador.Puesto.Should().Be("Administrativo");
+    }
+
+    [Fact]
+    public void Anonimizar_borra_el_puesto()
+    {
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Alvaro", "Sanchez Martin", "77189989B", puesto: "Soldador");
+
+        trabajador.Anonimizar(DateTime.UtcNow);
+
+        trabajador.Puesto.Should().BeNull();
+    }
 }

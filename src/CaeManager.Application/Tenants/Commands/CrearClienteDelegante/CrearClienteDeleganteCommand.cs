@@ -96,7 +96,10 @@ public class CrearClienteDeleganteCommandHandler(
         if (await tenantRepositorio.ExisteConNombreAsync(request.NombreTenantCliente, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("ClienteDelegante.NombreDuplicado", "Ya existe un tenant con este nombre."));
 
-        var tenantCliente = new Tenant(request.NombreTenantCliente);
+        // Un Cliente Delegante es una única empresa gestionada por la
+        // consultora — vocabulario ClienteDirecto para él mismo (DDL-072: el
+        // perfil es de cómo el tenant se ve a sí mismo, no de quién lo opera).
+        var tenantCliente = new Tenant(request.NombreTenantCliente, PerfilVocabularioTenant.ClienteDirecto);
 
         // Ámbito explícito: la fila de ParametroSistema del tenant nuevo debe
         // sellarse contra SU PROPIO Id, no contra el tenant de origen de

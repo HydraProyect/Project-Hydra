@@ -40,7 +40,7 @@ public static class SegundoTenantSeeder
         Guid tenantId;
         if (tenantExistente is null)
         {
-            var tenant = new Tenant(NombreSegundoTenant);
+            var tenant = new Tenant(NombreSegundoTenant, PerfilVocabularioTenant.ClienteDirecto);
             tenantId = tenant.Id;
 
             // AuditoriaInterceptor registra un RegistroAuditoria (EntidadConTenant)

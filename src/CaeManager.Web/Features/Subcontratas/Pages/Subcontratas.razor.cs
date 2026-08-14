@@ -4,6 +4,8 @@ using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
+using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -41,6 +43,13 @@ public partial class Subcontratas : ComponentBase
     private string _cif = string.Empty;
     private HashSet<Guid> _clienteIdsSeleccionados = [];
     private HashSet<Guid> _empresaIdsSeleccionados = [];
+
+    // DDL-076: en perfil Cliente Directo con una única Empresa, el selector
+    // de Empresas no aparece — se marca en silencio. Mismo mecanismo que
+    // Trabajadores.razor.cs, adaptado a la relación N:N de Subcontrata con
+    // Empresa (aquí no hay "tipo de empleador" que alternar: una Subcontrata
+    // siempre se relaciona con Empresas, nunca con una sola de forma exclusiva).
+    private bool _resolverEmpresaEnSilencio;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -160,10 +169,13 @@ public partial class Subcontratas : ComponentBase
         _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
 
+        var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
+        _resolverEmpresaEnSilencio = perfil == PerfilVocabularioTenant.ClienteDirecto && _empresasDisponibles.Count == 1;
+
         _razonSocial = string.Empty;
         _cif = string.Empty;
         _clienteIdsSeleccionados = [];
-        _empresaIdsSeleccionados = [];
+        _empresaIdsSeleccionados = _resolverEmpresaEnSilencio ? [_empresasDisponibles[0].Id] : [];
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;

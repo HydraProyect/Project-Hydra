@@ -8,7 +8,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Empresas.Commands.CrearEmpresa;
 
-public record CrearEmpresaCommand(string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds) : ICommand<Guid>;
+public record CrearEmpresaCommand(
+    string RazonSocial,
+    string? Cif,
+    IReadOnlyList<Guid> ClienteIds,
+    string? Cnae = null,
+    string? ConvenioAplicable = null,
+    bool EsActividadAnexoI = false) : ICommand<Guid>;
 
 public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaCommand>
 {
@@ -19,9 +25,17 @@ public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaComman
             .MaximumLength(Empresa.LongitudMaximaRazonSocial)
             .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
 
+        // Obligatorio en el alta para MVP-1 (Escenario 2, tecnico/docs/MULTITENANCY.md
+        // § 2 — el tenant ES la Empresa contratista): sin CIF no se puede emitir un
+        // F-22 válido, va en cabecera y en la cláusula RGPD.
+        RuleFor(c => c.Cif).NotEmpty().WithMessage("El CIF es obligatorio.");
+
         RuleFor(c => c.Cif)
             .Must(EsCifValido).WithMessage("El CIF no es válido.")
             .When(c => !string.IsNullOrWhiteSpace(c.Cif));
+
+        RuleFor(c => c.Cnae).MaximumLength(Empresa.LongitudMaximaCnae);
+        RuleFor(c => c.ConvenioAplicable).MaximumLength(Empresa.LongitudMaximaConvenioAplicable);
     }
 
     private static bool EsCifValido(string? cif)
@@ -53,7 +67,7 @@ public class CrearEmpresaCommandHandler(
         if (clientesEncontrados != clienteIds.Count)
             return Result.Fallo<Guid>(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));
 
-        var empresa = new Empresa(request.RazonSocial, request.Cif);
+        var empresa = new Empresa(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);
         repositorio.Agregar(empresa);
 
         foreach (var clienteId in clienteIds)

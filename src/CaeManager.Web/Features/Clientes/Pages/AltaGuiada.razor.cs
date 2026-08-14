@@ -169,7 +169,9 @@ public partial class AltaGuiada : ComponentBase
         {
             var clienteIds = existente.ClienteIds.Append(clienteId).ToList();
             var resultado = await Mediator.Send(
-                new EditarEmpresaCommand(existente.Id, existente.RazonSocial, existente.Cif, clienteIds, existente.Version));
+                new EditarEmpresaCommand(
+                    existente.Id, existente.RazonSocial, existente.Cif, clienteIds,
+                    existente.Cnae, existente.ConvenioAplicable, existente.EsActividadAnexoI, existente.Version));
 
             if (resultado.EsFallido)
             {

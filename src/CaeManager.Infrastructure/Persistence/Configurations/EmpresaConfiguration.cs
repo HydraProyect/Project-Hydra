@@ -18,6 +18,15 @@ public class EmpresaConfiguration : IEntityTypeConfiguration<Empresa>
         builder.Property(e => e.Cif)
             .HasMaxLength(Empresa.LongitudCif);
 
+        builder.Property(e => e.Cnae)
+            .HasMaxLength(Empresa.LongitudMaximaCnae);
+
+        builder.Property(e => e.ConvenioAplicable)
+            .HasMaxLength(Empresa.LongitudMaximaConvenioAplicable);
+
+        builder.Property(e => e.EsActividadAnexoI)
+            .IsRequired();
+
         builder.HasIndex(e => new { e.TenantId, e.RazonSocial }).IsUnique();
         builder.HasIndex(e => new { e.TenantId, e.Cif }).IsUnique();
 

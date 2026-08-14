@@ -34,17 +34,38 @@ public class Tenant : Entity
     /// </summary>
     public bool EsPlataforma { get; private set; }
 
+    /// <summary>
+    /// DDL-072 — capa de presentación, nunca rama de dominio. "Se declara, no
+    /// se infiere" se refiere a no derivarlo del número de Empresas del
+    /// tenant (DDL-072, tecnico/DESIGN_DECISION_LOG.md) — las tres altas
+    /// reales (seed del tenant #1, CrearClienteDeleganteCommand,
+    /// SegundoTenantSeeder/DelegacionDemoSeeder) lo pasan explícitamente. El
+    /// valor por defecto de este parámetro es conveniencia para el resto de
+    /// tests, que no ejercitan DDL-072 y no deberían tener que declarar un
+    /// perfil que no les importa — mismo criterio que <c>esPlataforma</c>.
+    /// </summary>
+    public PerfilVocabularioTenant PerfilVocabulario { get; private set; }
+
     private Tenant()
     {
         // Requerido por EF Core.
     }
 
-    public Tenant(string nombre, bool esPlataforma = false)
+    public Tenant(string nombre, PerfilVocabularioTenant perfilVocabulario = PerfilVocabularioTenant.ClienteDirecto, bool esPlataforma = false)
     {
         EstablecerNombre(nombre);
         Estado = EstadoTenant.Activo;
         EsPlataforma = esPlataforma;
+        PerfilVocabulario = perfilVocabulario;
     }
+
+    /// <summary>
+    /// Corrige el perfil declarado al alta. Operación de negocio explícita,
+    /// no un setter público — mismo criterio que <see cref="MarcarComoPlataforma"/>:
+    /// cambia cómo se lee toda la interfaz para este tenant.
+    /// </summary>
+    public void CambiarPerfilVocabulario(PerfilVocabularioTenant perfilVocabulario) =>
+        PerfilVocabulario = perfilVocabulario;
 
     /// <summary>
     /// Marca este tenant como el de la plataforma. Operación aparte y no un
