@@ -68,7 +68,7 @@
                     <Icono Nombre="subcontratas" /> Subcontratas
                 </NavLink>
                 <NavLink class="nav-item" href="trabajadores">
-                    <Icono Nombre="trabajadores" /> Trabajadores
+                    <Icono Nombre="trabajadores" /> @EtiquetaTrabajadores
                 </NavLink>
                 <NavLink class="nav-item" href="clientes">
                     <Icono Nombre="clientes" /> Clientes
@@ -257,9 +257,14 @@
     // de menú bajo los dos perfiles, solo cambia la etiqueta.
     private string EtiquetaEmpresas = "Empresas";
 
+    // DDL-072 (misma tabla de vocabulario): "Mis trabajadores" en perfil
+    // Cliente Directo, "Trabajadores" en perfil Consultora.
+    private string EtiquetaTrabajadores = "Trabajadores";
+
     protected override async Task OnInitializedAsync()
     {
         var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
         EtiquetaEmpresas = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mi empresa" : "Empresas";
+        EtiquetaTrabajadores = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mis trabajadores" : "Trabajadores";
     }
 }

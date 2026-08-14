@@ -57,6 +57,11 @@ public partial class Trabajadores : ComponentBase
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
     private IReadOnlyList<SubcontrataSelectorDto> _subcontratasDisponibles = [];
 
+    // DDL-072 (misma tabla de vocabulario que EtiquetaEmpresas de NavMenu.razor
+    // y _tituloPagina de Empresas.razor.cs): "Mis trabajadores" en perfil
+    // Cliente Directo, "Trabajadores" en perfil Consultora.
+    private string _tituloPagina = "Trabajadores";
+
     private bool _drawerVisible;
     private string _tipoEmpleador = "empresa";
 
@@ -153,6 +158,9 @@ public partial class Trabajadores : ComponentBase
 
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
         _subcontratasDisponibles = await Mediator.Send(new ObtenerSubcontratasParaSelectorQuery());
+
+        var perfilPagina = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
+        _tituloPagina = perfilPagina == PerfilVocabularioTenant.ClienteDirecto ? "Mis trabajadores" : "Trabajadores";
 
         if (Accion == "crear")
         {

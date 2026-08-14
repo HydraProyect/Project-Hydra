@@ -21,11 +21,11 @@
 @inject ICurrentUserService CurrentUserService
 @inject ContextWorkspaceService WorkspaceService
 
-<PageTitle>Trabajadores — @Marca.Nombre</PageTitle>
+<PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
     <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Trabajadores</h1>
+        <h1 class="titulo-pagina">@_tituloPagina</h1>
         <Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton>
     </div>
 
