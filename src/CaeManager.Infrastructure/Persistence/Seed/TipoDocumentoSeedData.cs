@@ -116,6 +116,24 @@ public static class TipoDocumentoSeedData
         (new Guid("30000000-0000-0000-0000-000000000002"), "Ficha técnica", 12, true, 2, AmbitoAplicacion.Vehiculo, true, "Vigencia anual."),
         (new Guid("30000000-0000-0000-0000-000000000003"), "Seguro", 12, true, 3, AmbitoAplicacion.Vehiculo, true, "Vigencia anual."),
         (new Guid("30000000-0000-0000-0000-000000000004"), "Autorización de circulación", 12, true, 4, AmbitoAplicacion.Vehiculo, true, "Vigencia anual."),
+
+        // --- Tramo 0.3 del MVP-1 de formatos (2026-08-14): altas de TipoDocumento
+        // que faltaban para poder archivar seis de los formatos del censo de
+        // CATALOGO_FORMATOS_PRL.md. F-107 ("Comunicación de desplazamiento a la
+        // autoridad laboral") NO se da de alta aquí: ya existe como "Comunicación
+        // de desplazamiento" (Id 40000011-...-000000000011, línea de arriba) —
+        // verificado antes de añadir para no duplicar. Ninguno se marca
+        // EsObligatorio=true por defecto pese a que F-93/F-95 no tienen umbral de
+        // plantilla legal (CATALOGO_FORMATOS_PRL.md § 5.5): activarlo por defecto
+        // cambiaría de golpe el estado de cumplimiento de todos los centros
+        // existentes sin que el propietario lo haya confirmado — queda a criterio
+        // de cada Administrador vía /tipos-documento.
+        (new Guid("60000000-0000-0000-0000-000000000001"), "Autorización de uso de equipo de trabajo", null, false, 38, AmbitoAplicacion.Trabajador, false, "F-27 del catálogo de formatos PRL — arts. 3.4 y 5 RD 1215/1997. Vigente hasta modificación — vencimiento manual."),
+        (new Guid("60000000-0000-0000-0000-000000000002"), "Acta de presencia del recurso preventivo", null, false, 46, AmbitoAplicacion.Empresa, false, "F-41 del catálogo de formatos PRL — práctica probatoria del art. 32 bis.3 LPRL. Un acta por presencia — vencimiento manual."),
+        (new Guid("60000000-0000-0000-0000-000000000003"), "Acta de reunión de coordinación", null, false, 47, AmbitoAplicacion.Empresa, false, "F-47 del catálogo de formatos PRL — art. 11.b y 11.c RD 171/2004. Un acta por reunión — vencimiento manual."),
+        (new Guid("60000000-0000-0000-0000-000000000004"), "Informe de investigación de accidente o incidente", null, false, 48, AmbitoAplicacion.Empresa, false, "F-70 del catálogo de formatos PRL — art. 16.3 LPRL. Un informe por accidente o incidente — vencimiento manual."),
+        (new Guid("60000000-0000-0000-0000-000000000005"), "Protocolo frente al acoso sexual y por razón de sexo", null, false, 49, AmbitoAplicacion.Empresa, false, "F-93 del catálogo de formatos PRL — art. 48 LO 3/2007. Obligatorio para todas las empresas, sin umbral de plantilla. Vigente hasta revisión — vencimiento manual."),
+        (new Guid("60000000-0000-0000-0000-000000000006"), "Registro retributivo", null, false, 50, AmbitoAplicacion.Empresa, false, "F-95 del catálogo de formatos PRL — RD 902/2020. Obligatorio para todas las empresas, sin umbral de plantilla. Vigente hasta revisión — vencimiento manual."),
     ];
 
     /// <summary>
