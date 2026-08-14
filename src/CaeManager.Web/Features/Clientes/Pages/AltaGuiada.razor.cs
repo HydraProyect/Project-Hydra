@@ -276,4 +276,50 @@ public partial class AltaGuiada : ComponentBase
         NavigationManager.NavigateTo($"/centros?q={Uri.EscapeDataString(_ultimoCentroNombre)}");
 
     private static string? ObtenerError(Dictionary<string, string> errores, string campo) => errores.GetValueOrDefault(campo);
+
+    /// <summary>
+    /// Validación inline al salir del campo, en los tres pasos del asistente
+    /// (mismo patrón que Centros.razor, UX_PATTERNS.md, P1-18 de
+    /// docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    private Task ValidarRazonSocialClienteAsync() => ValidarCampoClienteAsync(nameof(CrearClienteCommand.RazonSocial));
+
+    private Task ValidarCifClienteAsync() => ValidarCampoClienteAsync(nameof(CrearClienteCommand.Cif));
+
+    private async Task ValidarCampoClienteAsync(string campo)
+    {
+        var notas = string.IsNullOrWhiteSpace(_notasCliente) ? null : _notasCliente;
+        var resultado = await ValidadorClienteCrear.ValidateAsync(
+            new CrearClienteCommand(_razonSocialCliente, _cifCliente, _esCriticoCliente, notas),
+            opciones => opciones.IncludeProperties(campo));
+
+        if (resultado.IsValid) _erroresCliente.Remove(campo);
+        else _erroresCliente[campo] = resultado.Errors[0].ErrorMessage;
+    }
+
+    private Task ValidarRazonSocialEmpresaAsync() => ValidarCampoEmpresaAsync(nameof(CrearEmpresaCommand.RazonSocial));
+
+    private Task ValidarCifEmpresaAsync() => ValidarCampoEmpresaAsync(nameof(CrearEmpresaCommand.Cif));
+
+    private async Task ValidarCampoEmpresaAsync(string campo)
+    {
+        var cif = string.IsNullOrWhiteSpace(_cifEmpresa) ? null : _cifEmpresa;
+        var resultado = await ValidadorEmpresaCrear.ValidateAsync(
+            new CrearEmpresaCommand(_razonSocialEmpresa, cif, []),
+            opciones => opciones.IncludeProperties(campo));
+
+        if (resultado.IsValid) _erroresEmpresa.Remove(campo);
+        else _erroresEmpresa[campo] = resultado.Errors[0].ErrorMessage;
+    }
+
+    private async Task ValidarNombreCentroAsync()
+    {
+        const string campo = nameof(CrearCentroCommand.Nombre);
+        var resultado = await ValidadorCentroCrear.ValidateAsync(
+            new CrearCentroCommand(Guid.Empty, Guid.Empty, _nombreCentro, null, null, null, null),
+            opciones => opciones.IncludeProperties(campo));
+
+        if (resultado.IsValid) _erroresCentro.Remove(campo);
+        else _erroresCentro[campo] = resultado.Errors[0].ErrorMessage;
+    }
 }

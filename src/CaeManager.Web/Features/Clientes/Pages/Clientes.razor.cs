@@ -28,6 +28,7 @@ public partial class Clientes : ComponentBase
 {
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+    [Inject] private IValidator<CrearClienteCommand> ValidadorCrear { get; set; } = default!;
 
     private static readonly string[] RolesQuePuedenReasignar =
         [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae];
@@ -387,6 +388,27 @@ public partial class Clientes : ComponentBase
     }
 
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
+
+    /// <summary>
+    /// Validación inline al salir del campo (mismo patrón que Centros.razor,
+    /// UX_PATTERNS.md, P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    private async Task ValidarRazonSocialAsync() => await ValidarCampoAsync(nameof(CrearClienteCommand.RazonSocial));
+
+    private async Task ValidarCifAsync() => await ValidarCampoAsync(nameof(CrearClienteCommand.Cif));
+
+    private async Task ValidarCampoAsync(string campo)
+    {
+        var notas = string.IsNullOrWhiteSpace(_notas) ? null : _notas;
+        var resultado = await ValidadorCrear.ValidateAsync(
+            new CrearClienteCommand(_razonSocial, _cif, _esCritico, notas),
+            opciones => opciones.IncludeProperties(campo));
+
+        if (resultado.IsValid)
+            _erroresCampo.Remove(campo);
+        else
+            _erroresCampo[campo] = resultado.Errors[0].ErrorMessage;
+    }
 
     private void AbrirEliminar(Guid id, string razonSocial)
     {

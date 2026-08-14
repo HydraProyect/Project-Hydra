@@ -167,9 +167,9 @@
             </CampoSelect>
         }
 
-        <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearVehiculoCommand.Nombre))" />
-        <CampoTexto Etiqueta="Modelo" Valor="@_modelo" ValorChanged="v => _modelo = v" MensajeError="@ObtenerError(nameof(CrearVehiculoCommand.Modelo))" />
-        <CampoTexto Etiqueta="Número de placa" Valor="@_numeroPlaca" ValorChanged="v => _numeroPlaca = v" MensajeError="@ObtenerError(nameof(CrearVehiculoCommand.NumeroPlaca))" />
+        <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" OnBlur="ValidarNombreAsync" MensajeError="@ObtenerError(nameof(CrearVehiculoCommand.Nombre))" />
+        <CampoTexto Etiqueta="Modelo" Valor="@_modelo" ValorChanged="v => _modelo = v" OnBlur="ValidarModeloAsync" MensajeError="@ObtenerError(nameof(CrearVehiculoCommand.Modelo))" />
+        <CampoTexto Etiqueta="Número de placa" Valor="@_numeroPlaca" ValorChanged="v => _numeroPlaca = v" OnBlur="ValidarNumeroPlacaAsync" MensajeError="@ObtenerError(nameof(CrearVehiculoCommand.NumeroPlaca))" />
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">

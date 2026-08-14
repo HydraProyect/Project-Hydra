@@ -102,6 +102,7 @@ public partial class Trabajadores : ComponentBase
     public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IValidator<CrearTrabajadorCommand> ValidadorCrear { get; set; } = default!;
 
     /// <summary>Comando del palette "Crear trabajador" / "Crear trabajador «nombre»" (P3-31): abre el Drawer, con el nombre precargado si viene del palette.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
@@ -397,6 +398,46 @@ public partial class Trabajadores : ComponentBase
     }
 
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
+
+    /// <summary>
+    /// Validación inline al salir del campo (mismo patrón que Centros.razor,
+    /// UX_PATTERNS.md, P1-18 de docs/business/MATURITY_REVIEW.md). El
+    /// empleador (empresa/subcontrata) no se valida aquí — IncludeProperties
+    /// restringe la validación al campo que perdió el foco, así que null
+    /// para ambos no afecta el resultado de estas reglas.
+    /// </summary>
+    private Task ValidarDniAsync() => ValidarCampoAsync(nameof(CrearTrabajadorCommand.Dni));
+
+    private Task ValidarNombreAsync() => ValidarCampoAsync(nameof(CrearTrabajadorCommand.Nombre));
+
+    private Task ValidarApellidosAsync() => ValidarCampoAsync(nameof(CrearTrabajadorCommand.Apellidos));
+
+    private Task ValidarAliasAsync() => ValidarCampoAsync(nameof(CrearTrabajadorCommand.Alias));
+
+    private Task ValidarPuestoAsync() => ValidarCampoAsync(nameof(CrearTrabajadorCommand.Puesto));
+
+    private Task ValidarEmailAsync() => ValidarCampoAsync(nameof(CrearTrabajadorCommand.Email));
+
+    private Task ValidarTelefonoAsync() => ValidarCampoAsync(nameof(CrearTrabajadorCommand.Telefono));
+
+    private async Task ValidarCampoAsync(string campo)
+    {
+        var email = string.IsNullOrWhiteSpace(_email) ? null : _email;
+        var telefono = string.IsNullOrWhiteSpace(_telefono) ? null : _telefono;
+        var observaciones = string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones;
+        var alias = string.IsNullOrWhiteSpace(_alias) ? null : _alias;
+        var puesto = string.IsNullOrWhiteSpace(_puesto) ? null : _puesto;
+        var fechaNacimiento = DateOnly.TryParse(_fechaNacimiento, out var fecha) ? fecha : (DateOnly?)null;
+
+        var resultado = await ValidadorCrear.ValidateAsync(
+            new CrearTrabajadorCommand(null, null, _nombre, _apellidos, _dni, fechaNacimiento, email, observaciones, alias, telefono, puesto),
+            opciones => opciones.IncludeProperties(campo));
+
+        if (resultado.IsValid)
+            _erroresCampo.Remove(campo);
+        else
+            _erroresCampo[campo] = resultado.Errors[0].ErrorMessage;
+    }
 
     private string? PistaDni
     {

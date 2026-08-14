@@ -75,6 +75,7 @@ public partial class Subcontratas : ComponentBase
     public string? TerminoBusquedaInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IValidator<CrearSubcontrataCommand> ValidadorCrear { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -243,6 +244,27 @@ public partial class Subcontratas : ComponentBase
     }
 
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
+
+    /// <summary>
+    /// Validación inline al salir del campo (mismo patrón que Centros.razor,
+    /// UX_PATTERNS.md, P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    private Task ValidarRazonSocialAsync() => ValidarCampoAsync(nameof(CrearSubcontrataCommand.RazonSocial));
+
+    private Task ValidarCifAsync() => ValidarCampoAsync(nameof(CrearSubcontrataCommand.Cif));
+
+    private async Task ValidarCampoAsync(string campo)
+    {
+        var cif = string.IsNullOrWhiteSpace(_cif) ? null : _cif;
+        var resultado = await ValidadorCrear.ValidateAsync(
+            new CrearSubcontrataCommand(_razonSocial, cif, _clienteIdsSeleccionados.ToList(), _empresaIdsSeleccionados.ToList()),
+            opciones => opciones.IncludeProperties(campo));
+
+        if (resultado.IsValid)
+            _erroresCampo.Remove(campo);
+        else
+            _erroresCampo[campo] = resultado.Errors[0].ErrorMessage;
+    }
 
     private bool TodosSeleccionados =>
         _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));

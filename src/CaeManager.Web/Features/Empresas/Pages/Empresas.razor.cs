@@ -107,6 +107,7 @@ public partial class Empresas : ComponentBase
     public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IValidator<CrearEmpresaCommand> ValidadorCrear { get; set; } = default!;
 
     /// <summary>Comando del palette "Crear empresa «nombre»" (P3-31): abre el Drawer con la razón social precargada.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
@@ -317,6 +318,34 @@ public partial class Empresas : ComponentBase
     }
 
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
+
+    /// <summary>
+    /// Validación inline al salir del campo (mismo patrón que Centros.razor,
+    /// UX_PATTERNS.md, P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// </summary>
+    private Task ValidarRazonSocialAsync() => ValidarCampoAsync(nameof(CrearEmpresaCommand.RazonSocial));
+
+    private Task ValidarCifAsync() => ValidarCampoAsync(nameof(CrearEmpresaCommand.Cif));
+
+    private Task ValidarCnaeAsync() => ValidarCampoAsync(nameof(CrearEmpresaCommand.Cnae));
+
+    private Task ValidarConvenioAplicableAsync() => ValidarCampoAsync(nameof(CrearEmpresaCommand.ConvenioAplicable));
+
+    private async Task ValidarCampoAsync(string campo)
+    {
+        var cif = string.IsNullOrWhiteSpace(_cif) ? null : _cif;
+        var cnae = string.IsNullOrWhiteSpace(_cnae) ? null : _cnae;
+        var convenioAplicable = string.IsNullOrWhiteSpace(_convenioAplicable) ? null : _convenioAplicable;
+
+        var resultado = await ValidadorCrear.ValidateAsync(
+            new CrearEmpresaCommand(_razonSocial, cif, _clienteIdsSeleccionados.ToList(), cnae, convenioAplicable, _esActividadAnexoI),
+            opciones => opciones.IncludeProperties(campo));
+
+        if (resultado.IsValid)
+            _erroresCampo.Remove(campo);
+        else
+            _erroresCampo[campo] = resultado.Errors[0].ErrorMessage;
+    }
 
     private void AbrirEliminar(Guid id, string razonSocial)
     {
