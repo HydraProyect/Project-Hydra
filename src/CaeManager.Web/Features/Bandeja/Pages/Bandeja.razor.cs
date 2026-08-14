@@ -77,12 +77,6 @@ public partial class Bandeja : ComponentBase
 
     private async Task ManejarAtajoAsync(string tecla)
     {
-        // DIAGNOSTICO TEMPORAL (a quitar tras confirmar en CI): stderr sí se
-        // reenvía a los logs de CI (ver WebAppFixture.cs), a diferencia de
-        // stdout -- confirma si el interop llega hasta aquí, para distinguir
-        // un fallo del lado JS de uno del lado servidor.
-        Console.Error.WriteLine($"[DIAG-ManejarAtajoAsync] tecla={tecla} idEnfocadoAntes={_idEnfocado} items={ItemsFiltrados.Count}");
-
         var items = ItemsFiltrados;
         if (items.Count == 0) return;
 

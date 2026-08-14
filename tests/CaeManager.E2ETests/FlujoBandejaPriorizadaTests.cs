@@ -117,23 +117,43 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Value = "Urgente" });
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
-        // --- Atajos de teclado: con un único ítem filtrado, "j" lo enfoca ---
-        // Nada de Tab aquí: diagnóstico en CI confirmó que, con el <select>
-        // de "Tipo" enfocado (tras SelectOptionAsync), un Tab sintético en
-        // este Chromium headless NO mueve el foco -- se queda en el propio
-        // <select> (quirk conocido de Chromium headless con controles
-        // nativos: las pulsaciones de letra sintéticas sobre un <select>
-        // enfocado tampoco llegan como keydown normal a document). Enfocar
-        // directamente el botón de la tarjeta evita depender de Tab o de
-        // cómo este navegador maneje el foco de un <select>.
-        await tarjeta.GetByRole(AriaRole.Button).FocusAsync();
-        await page.Keyboard.PressAsync("j");
+        // --- Atajos de teclado ---
+        // Nada de Tab: diagnóstico en CI confirmó que, con el <select> de
+        // "Tipo" enfocado (tras SelectOptionAsync), un Tab sintético en el
+        // Chromium headless de CI no mueve el foco -- se queda en el propio
+        // <select> (quirk de Chromium headless con controles nativos).
+        // Enfocar directamente el botón de la tarjeta evita depender de Tab.
+        //
+        // No se asume que sea el único ítem "Urgente": la colección
+        // "AppCollection" comparte una única base de datos entre TODAS las
+        // clases de test (ver WebAppFixture.cs), y FlujoCriticoTests crea un
+        // documento con el mismo vencimiento a 10 días (mismo umbral de
+        // "Urgente") -- con ambos tests en la misma suite, ItemsFiltrados
+        // tiene 2 elementos, no 1. "j" SÍ enfoca algo desde la primera
+        // pulsación (confirmado en CI con diagnóstico servidor: el interop
+        // llega bien), pero enfoca el primero de la lista según su orden
+        // real, que puede no ser el de este test. Se calcula el índice real
+        // de la tarjeta entre las visibles y se pulsa "j" esa cantidad de
+        // veces, en vez de asumir una sola pulsación.
+        var tarjetasVisibles = page.Locator(".panel-resolver-item");
+        var totalVisibles = await tarjetasVisibles.CountAsync();
+        var indiceTarjeta = -1;
+        for (var i = 0; i < totalVisibles; i++)
+        {
+            if ((await tarjetasVisibles.Nth(i).InnerTextAsync()).Contains(apellidosTrabajador))
+            {
+                indiceTarjeta = i;
+                break;
+            }
+        }
+        Assert.True(indiceTarjeta >= 0, "No se encontró la tarjeta de este test entre los ítems 'Urgente' filtrados.");
 
-        // DIAGNOSTICO TEMPORAL (a quitar tras confirmar en CI): qué vio el
-        // manejador de atajos-lista.js en la última tecla admitida, para
-        // saber si el problema es del lado JS (nunca llega, o llega
-        // bloqueada) o del lado servidor (llega bien pero no se refleja).
-        Console.WriteLine($"[DIAG-Bandeja2] {await page.EvaluateAsync<string>("() => JSON.stringify(window.__atajosListaDiag || null)")}");
+        await tarjeta.GetByRole(AriaRole.Button).FocusAsync();
+        for (var i = 0; i <= indiceTarjeta; i++)
+        {
+            await page.Keyboard.PressAsync("j");
+            await page.WaitForTimeoutAsync(200);
+        }
 
         await Expect(tarjeta).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado"));
 
