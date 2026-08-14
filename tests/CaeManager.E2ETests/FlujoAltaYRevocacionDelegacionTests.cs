@@ -42,6 +42,15 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         await Expect(tarjeta.GetByText("Revocar acceso")).ToBeVisibleAsync();
 
         // --- Operar el Delegated Workspace recién creado ---
+        // SelectorClienteActivo (en el layout) solo carga _clientes en
+        // OnInitializedAsync — no hay ningún mecanismo que lo refresque en
+        // vivo tras crear una delegación en la misma navegación in-app, así
+        // que sin recargar la página la nueva delegación no está todavía en
+        // el <select> (ver SelectorClienteActivo.razor.cs). Un reload es
+        // además lo que haría un usuario real antes de esperar verla ahí.
+        await page.ReloadAsync();
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
         // El tenant nuevo no tiene datos propios todavía (se acaba de crear),
         // así que la comprobación real es que el selector de Cliente activo
         // cambia y la app deja de estar en la Consultora de origen.

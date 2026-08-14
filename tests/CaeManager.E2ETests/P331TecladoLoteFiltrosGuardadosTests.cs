@@ -63,6 +63,15 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // llegaba a moverse porque el foco seguía en el buscador.
         await page.Keyboard.PressAsync("Tab");
 
+        // Salir del buscador dispara ManejarBlurAsync (CampoTexto.razor),
+        // que reinvoca ValorChanged aunque el valor no haya cambiado — eso
+        // vuelve a llamar a BuscarAsync -> RecargarAsync, que resetea
+        // _idEnfocado a null como parte de ProveerElementosAsync
+        // (Clientes.razor.cs). Sin esta espera, la primera "j" puede llegar
+        // mientras esa recarga por blur sigue en vuelo y su reset de
+        // _idEnfocado puede pisar el enfoque que "j" acaba de fijar.
+        await page.WaitForTimeoutAsync(400);
+
         // Espera breve tras cada tecla, además del reintento propio de las
         // aserciones: j/k/x/Enter viajan por interop JS -> SignalR -> C# ->
         // StateHasChanged -> parche de DOM, y mandar la siguiente tecla

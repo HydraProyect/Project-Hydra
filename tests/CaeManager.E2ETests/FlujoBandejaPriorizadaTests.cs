@@ -104,14 +104,17 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
 
         // Filtra por "Urgente" — la tarjeta debe seguir visible; filtrar por
         // otro tipo (Vencido) debe ocultarla, confirmando que el filtro de
-        // verdad reduce la lista y no solo decora.
-        await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Label = "Urgente" });
+        // verdad reduce la lista y no solo decora. Por Value, no por Label:
+        // Bandeja.razor añade el contador a cada <option> ("Urgente (1)"),
+        // así que el texto visible no es estable entre ejecuciones, pero el
+        // value (nameof(TipoItemBandeja.X)) sí lo es.
+        await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Value = "Urgente" });
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
-        await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Label = "Vencido" });
+        await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Value = "Vencido" });
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
-        await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Label = "Urgente" });
+        await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Value = "Urgente" });
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         // --- Atajos de teclado: con un único ítem filtrado, "j" lo enfoca ---
