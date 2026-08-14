@@ -25,6 +25,13 @@ export function registrarAtajosLista(dotNetRef) {
             activo.tagName === 'TEXTAREA' || activo.isContentEditable ||
             (activo.tagName === 'INPUT' && !TIPOS_INPUT_NO_TEXTO.has(activo.type))
         );
+        // DIAGNOSTICO TEMPORAL (a quitar tras confirmar en CI): última tecla
+        // admitida vista por este manejador y si se descartó como "campo
+        // editable" -- para distinguir un fallo del lado JS (nunca llega
+        // aquí, o llega bloqueada) de uno del lado servidor (invokeMethodAsync
+        // se llama pero RecibirAtajo/StateHasChanged no produce el cambio
+        // esperado en el DOM).
+        window.__atajosListaDiag = { tecla: evento.key, activo: activo ? activo.tagName + ':' + (activo.type || '') : null, bloqueado: enCampoEditable };
         if (enCampoEditable) return;
 
         evento.preventDefault();

@@ -128,6 +128,13 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // cómo este navegador maneje el foco de un <select>.
         await tarjeta.GetByRole(AriaRole.Button).FocusAsync();
         await page.Keyboard.PressAsync("j");
+
+        // DIAGNOSTICO TEMPORAL (a quitar tras confirmar en CI): qué vio el
+        // manejador de atajos-lista.js en la última tecla admitida, para
+        // saber si el problema es del lado JS (nunca llega, o llega
+        // bloqueada) o del lado servidor (llega bien pero no se refleja).
+        Console.WriteLine($"[DIAG-Bandeja2] {await page.EvaluateAsync<string>("() => JSON.stringify(window.__atajosListaDiag || null)")}");
+
         await Expect(tarjeta).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado"));
 
         // --- Resolver: la acción de la tarjeta abre el Documento subyacente ---

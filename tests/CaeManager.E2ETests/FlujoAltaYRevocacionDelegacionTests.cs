@@ -84,7 +84,17 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         // probar aquí (además, DesactivarDelegacionTenantCommand actúa sobre
         // la delegación, no exige haber cambiado de vuelta, pero hacerlo así
         // es el camino real que seguiría un usuario).
+        //
+        // Misma comprobación concreta que tras el primer cambio (línea
+        // arriba), y por el mismo motivo: sin ella, el NavegarYEsperarAsync
+        // siguiente puede disparar mientras el <form> POST de este segundo
+        // cambio de tenant todavía está resolviéndose, y /delegaciones
+        // termina cargando en el workspace delegado equivocado (donde esta
+        // tarjeta no tiene "Revocar acceso", o no existe) — fallo real visto
+        // en CI: timeout de 30s esperando ese texto tras volver al origen.
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreTenantOrigenPorDefecto);
+        await Expect(page.Locator(".selector-cliente-activo")).ToHaveValueAsync(
+            await page.Locator(".selector-cliente-activo option", new PageLocatorOptions { HasText = Ayudas.NombreTenantOrigenPorDefecto }).GetAttributeAsync("value") ?? string.Empty);
 
         // --- Revocación ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
