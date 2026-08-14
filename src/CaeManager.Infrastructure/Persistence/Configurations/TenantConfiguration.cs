@@ -20,6 +20,11 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             .IsRequired()
             .HasConversion<string>();
 
+        builder.Property(t => t.PerfilVocabulario)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(20);
+
         // Sin HasQueryFilter: Tenant no pertenece a ningún tenant (ver
         // docs/MULTITENANCY.md § 4.1) y no tiene soft delete (ver Tenant.cs).
 
@@ -37,6 +42,10 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             // soporte sobre los demás (ver Tenant.EsPlataforma). Se marca aquí
             // y no se deduce del Id, que es público y determinista.
             EsPlataforma = true,
+            // El tenant #1 es la Empresa contratista de MVP-1 (Escenario 2 de
+            // docs/MULTITENANCY.md § 2) — DDL-072 lo declara ClienteDirecto
+            // explícitamente, nunca se infiere.
+            PerfilVocabulario = PerfilVocabularioTenant.ClienteDirecto,
         });
     }
 }

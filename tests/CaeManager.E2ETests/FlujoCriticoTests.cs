@@ -76,8 +76,22 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // <select> de CampoSelect, el propio radio de "tipo de empleador"
         // también se llama "Empresa" — se desambigua por rol (combobox vs.
         // radio) en vez de por texto.
-        await drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" })
-            .SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
+        //
+        // DDL-076 (tramo 3.2b): en perfil Cliente Directo con una única
+        // Empresa, el selector se resuelve en silencio — no aparece ningún
+        // combobox, solo un CampoInfo de solo lectura. La Empresa que este
+        // test acaba de crear es la única del tenant en ese momento, así que
+        // hay que aceptar las dos formas: seleccionar si aparece el
+        // combobox, o solo comprobar que el valor resuelto es el correcto.
+        var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
+        if (await comboEmpresa.CountAsync() > 0)
+        {
+            await comboEmpresa.SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
+        }
+        else
+        {
+            await drawer.GetByText(razonSocialEmpresa).WaitForAsync(new LocatorWaitForOptions { Timeout = 5_000 });
+        }
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
         await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);

@@ -12,6 +12,7 @@ public class Trabajador : EntidadBase
     public const int LongitudMaximaNombre = 100;
     public const int LongitudMaximaApellidos = 150;
     public const int LongitudMaximaAlias = 150;
+    public const int LongitudMaximaPuesto = 150;
     public const int LongitudMaximaEmail = 200;
 
     /// <summary>Igual que <c>Conversacion.LongitudMaximaTelefonoContacto</c> — un E.164 nunca pasa de 15 dígitos más el "+".</summary>
@@ -34,6 +35,13 @@ public class Trabajador : EntidadBase
     /// hace siempre el <see cref="Dni"/>.
     /// </summary>
     public string? Alias { get; private set; }
+
+    /// <summary>
+    /// Puesto u oficio de la persona (p. ej. "Soldador", "Administrativo") —
+    /// eje E3 de la capa sectorial (MATRIZ_SECTORIAL_PRL.md § 9.1). Bloquea
+    /// F-20/F-22/F-40, que lo referencian y hoy no pueden rellenarlo.
+    /// </summary>
+    public string? Puesto { get; private set; }
 
     public string Dni { get; private set; } = string.Empty;
     public DateOnly? FechaNacimiento { get; private set; }
@@ -72,7 +80,8 @@ public class Trabajador : EntidadBase
         DateOnly? fechaNacimiento,
         string? email,
         string? observaciones,
-        string? telefono)
+        string? telefono,
+        string? puesto)
     {
         EmpresaId = empresaId;
         SubcontrataId = subcontrataId;
@@ -84,6 +93,7 @@ public class Trabajador : EntidadBase
         Email = email;
         Observaciones = observaciones;
         EstablecerTelefono(telefono);
+        EstablecerPuesto(puesto);
     }
 
     public static Trabajador DeEmpresa(
@@ -95,12 +105,13 @@ public class Trabajador : EntidadBase
         string? email = null,
         string? observaciones = null,
         string? alias = null,
-        string? telefono = null)
+        string? telefono = null,
+        string? puesto = null)
     {
         if (empresaId == Guid.Empty)
             throw new ArgumentException("El trabajador debe pertenecer a una empresa.", nameof(empresaId));
 
-        return new Trabajador(empresaId, null, nombre, apellidos, alias, dni, fechaNacimiento, email, observaciones, telefono);
+        return new Trabajador(empresaId, null, nombre, apellidos, alias, dni, fechaNacimiento, email, observaciones, telefono, puesto);
     }
 
     public static Trabajador DeSubcontrata(
@@ -112,12 +123,13 @@ public class Trabajador : EntidadBase
         string? email = null,
         string? observaciones = null,
         string? alias = null,
-        string? telefono = null)
+        string? telefono = null,
+        string? puesto = null)
     {
         if (subcontrataId == Guid.Empty)
             throw new ArgumentException("El trabajador debe pertenecer a una subcontrata.", nameof(subcontrataId));
 
-        return new Trabajador(null, subcontrataId, nombre, apellidos, alias, dni, fechaNacimiento, email, observaciones, telefono);
+        return new Trabajador(null, subcontrataId, nombre, apellidos, alias, dni, fechaNacimiento, email, observaciones, telefono, puesto);
     }
 
     /// <summary>
@@ -163,6 +175,7 @@ public class Trabajador : EntidadBase
         Email = null;
         Telefono = null;
         Observaciones = null;
+        Puesto = null;
 
         AnonimizadoEnUtc = ahoraUtc;
     }
@@ -174,7 +187,8 @@ public class Trabajador : EntidadBase
         string? email,
         string? observaciones,
         string? alias,
-        string? telefono = null)
+        string? telefono = null,
+        string? puesto = null)
     {
         // Editar un trabajador anonimizado reintroduciría datos personales de
         // alguien cuyo plazo de conservación ya venció, y dejaría la
@@ -190,6 +204,7 @@ public class Trabajador : EntidadBase
         Email = email;
         Observaciones = observaciones;
         EstablecerTelefono(telefono);
+        EstablecerPuesto(puesto);
     }
 
     /// <summary>
@@ -233,6 +248,21 @@ public class Trabajador : EntidadBase
     }
 
     private void EstablecerAlias(string? alias) => Alias = string.IsNullOrWhiteSpace(alias) ? null : alias.Trim();
+
+    private void EstablecerPuesto(string? puesto)
+    {
+        if (string.IsNullOrWhiteSpace(puesto))
+        {
+            Puesto = null;
+            return;
+        }
+
+        var normalizado = puesto.Trim();
+        if (normalizado.Length > LongitudMaximaPuesto)
+            throw new ArgumentException($"El puesto no puede superar {LongitudMaximaPuesto} caracteres.", nameof(puesto));
+
+        Puesto = normalizado;
+    }
 
     /// <summary>
     /// Alta de un solo clic desde la sugerencia de identidad por IA al subir

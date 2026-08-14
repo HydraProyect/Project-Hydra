@@ -61,6 +61,7 @@ else
                         <CampoTexto Etiqueta="Nombre" Valor="@_nombreInfo" ValorChanged="v => _nombreInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Nombre))" />
                         <CampoTexto Etiqueta="Apellidos" Valor="@_apellidosInfo" ValorChanged="v => _apellidosInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Apellidos))" />
                         <CampoTexto Etiqueta="Alias" Valor="@_aliasInfo" ValorChanged="v => _aliasInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Alias))" />
+                        <CampoTexto Etiqueta="Puesto / oficio" Valor="@_puestoInfo" ValorChanged="v => _puestoInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Puesto))" />
                         <CampoTexto Etiqueta="Email" Type="email" Valor="@_emailInfo" ValorChanged="v => _emailInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Email))" />
                         <CampoTexto Etiqueta="Teléfono (WhatsApp)" Type="tel" Placeholder="+34 600 00 00 00" Valor="@_telefonoInfo" ValorChanged="v => _telefonoInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Telefono))" />
                         <CampoTexto Etiqueta="Fecha de nacimiento" Type="date" Valor="@_fechaNacimientoInfo" ValorChanged="v => _fechaNacimientoInfo = v" />
@@ -76,6 +77,7 @@ else
                     <div class="workspace-grupo-campos">
                         <CampoInfo Etiqueta="Nombre completo" Valor="@($"{_detalle.Nombre} {_detalle.Apellidos}")" />
                         <CampoInfo Etiqueta="Alias" Valor="@_detalle.Alias" />
+                        <CampoInfo Etiqueta="Puesto / oficio" Valor="@_detalle.Puesto" />
                         <CampoInfo Etiqueta="DNI" Valor="@_detalle.Dni" />
                         <CampoInfo Etiqueta="Empleador" Valor="@_detalle.EmpleadorNombre" />
                         <CampoInfo Etiqueta="Email" Valor="@_detalle.Email" />
@@ -163,6 +165,7 @@ else
     private string _nombreInfo = string.Empty;
     private string _apellidosInfo = string.Empty;
     private string _aliasInfo = string.Empty;
+    private string _puestoInfo = string.Empty;
     private string _emailInfo = string.Empty;
     private string _telefonoInfo = string.Empty;
     private string _fechaNacimientoInfo = string.Empty;
@@ -242,6 +245,7 @@ else
         _nombreInfo = _detalle.Nombre;
         _apellidosInfo = _detalle.Apellidos;
         _aliasInfo = _detalle.Alias ?? string.Empty;
+        _puestoInfo = _detalle.Puesto ?? string.Empty;
         _emailInfo = _detalle.Email ?? string.Empty;
         _telefonoInfo = _detalle.Telefono ?? string.Empty;
         _fechaNacimientoInfo = _detalle.FechaNacimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
@@ -269,10 +273,11 @@ else
             var telefono = string.IsNullOrWhiteSpace(_telefonoInfo) ? null : _telefonoInfo;
             var observaciones = string.IsNullOrWhiteSpace(_observacionesInfo) ? null : _observacionesInfo;
             var alias = string.IsNullOrWhiteSpace(_aliasInfo) ? null : _aliasInfo;
+            var puesto = string.IsNullOrWhiteSpace(_puestoInfo) ? null : _puestoInfo;
             var fechaNacimiento = DateOnly.TryParse(_fechaNacimientoInfo, out var fecha) ? fecha : (DateOnly?)null;
 
             var resultado = await Mediator.Send(new EditarTrabajadorCommand(
-                _detalle.Id, _nombreInfo, _apellidosInfo, fechaNacimiento, email, observaciones, alias, telefono, _detalle.Version));
+                _detalle.Id, _nombreInfo, _apellidosInfo, fechaNacimiento, email, observaciones, alias, telefono, puesto, _detalle.Version));
 
             if (resultado.EsFallido)
             {

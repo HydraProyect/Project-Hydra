@@ -11,30 +11,55 @@ public class Empresa : EntidadBase
 {
     public const int LongitudMaximaRazonSocial = 200;
     public const int LongitudCif = 9;
+    public const int LongitudMaximaCnae = 10;
+    public const int LongitudMaximaConvenioAplicable = 300;
 
     public string RazonSocial { get; private set; } = string.Empty;
 
     /// <summary>
     /// A diferencia de Cliente, el CIF de Empresa es opcional — hay Empresas
     /// ya creadas (sembradas o importadas) sin CIF, y las plantillas de
-    /// importación tampoco lo recogen todavía (ver ROADMAP.md).
+    /// importación tampoco lo recogen todavía (ver ROADMAP.md). El alta
+    /// nueva (CrearEmpresaCommand) sí lo exige para MVP-1 (Escenario 2,
+    /// tecnico/docs/MULTITENANCY.md § 2): sin CIF no se puede emitir un F-22
+    /// válido — va en cabecera y en la cláusula RGPD.
     /// </summary>
     public string? Cif { get; private set; }
+
+    /// <summary>Código CNAE de la actividad — eje E1 de la capa sectorial (MATRIZ_SECTORIAL_PRL.md § 9.1).</summary>
+    public string? Cnae { get; private set; }
+
+    /// <summary>Convenio colectivo aplicado — eje E2 de la capa sectorial. Lo declara el cliente, nunca se deduce.</summary>
+    public string? ConvenioAplicable { get; private set; }
+
+    /// <summary>
+    /// Si la actividad de la Empresa está en el Anexo I del RSP — determina si
+    /// el supuesto b) del art. 32 bis.1 LPRL aplica al designar un recurso
+    /// preventivo (F-40) y si el tope de F-13/F-05 por plantilla reducida es
+    /// aplicable.
+    /// </summary>
+    public bool EsActividadAnexoI { get; private set; }
 
     private Empresa()
     {
     }
 
-    public Empresa(string razonSocial, string? cif = null)
+    public Empresa(string razonSocial, string? cif = null, string? cnae = null, string? convenioAplicable = null, bool esActividadAnexoI = false)
     {
         EstablecerRazonSocial(razonSocial);
         EstablecerCif(cif);
+        EstablecerCnae(cnae);
+        EstablecerConvenioAplicable(convenioAplicable);
+        EsActividadAnexoI = esActividadAnexoI;
     }
 
-    public void Actualizar(string razonSocial, string? cif)
+    public void Actualizar(string razonSocial, string? cif, string? cnae = null, string? convenioAplicable = null, bool esActividadAnexoI = false)
     {
         EstablecerRazonSocial(razonSocial);
         EstablecerCif(cif);
+        EstablecerCnae(cnae);
+        EstablecerConvenioAplicable(convenioAplicable);
+        EsActividadAnexoI = esActividadAnexoI;
     }
 
     private void EstablecerRazonSocial(string razonSocial)
@@ -66,5 +91,36 @@ public class Empresa : EntidadBase
             throw new ArgumentException("El CIF no es válido.", nameof(cif));
 
         Cif = normalizado;
+    }
+
+    private void EstablecerCnae(string? cnae)
+    {
+        if (string.IsNullOrWhiteSpace(cnae))
+        {
+            Cnae = null;
+            return;
+        }
+
+        var normalizado = cnae.Trim();
+        if (normalizado.Length > LongitudMaximaCnae)
+            throw new ArgumentException($"El CNAE no puede superar {LongitudMaximaCnae} caracteres.", nameof(cnae));
+
+        Cnae = normalizado;
+    }
+
+    private void EstablecerConvenioAplicable(string? convenioAplicable)
+    {
+        if (string.IsNullOrWhiteSpace(convenioAplicable))
+        {
+            ConvenioAplicable = null;
+            return;
+        }
+
+        var normalizado = convenioAplicable.Trim();
+        if (normalizado.Length > LongitudMaximaConvenioAplicable)
+            throw new ArgumentException(
+                $"El convenio aplicable no puede superar {LongitudMaximaConvenioAplicable} caracteres.", nameof(convenioAplicable));
+
+        ConvenioAplicable = normalizado;
     }
 }

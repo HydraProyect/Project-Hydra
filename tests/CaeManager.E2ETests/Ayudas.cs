@@ -50,6 +50,18 @@ public static class Ayudas
     /// </summary>
     public const string NombreTenantOrigenPorDefecto = "Organización principal";
 
+    /// <summary>
+    /// La Consultora de la demo (ArcoSPA, no TALVEG — decisión del
+    /// propietario del 2026-08-14: la cuenta de plataforma no debe operar
+    /// ningún Delegated Workspace) y su Administrador propio, con el mismo
+    /// 2FA fijo que el resto de la siembra (ver DelegacionDemoSeeder).
+    /// </summary>
+    public const string NombreTenantConsultora = "ArcoSPA Prevención S.L. (Consultora demo)";
+    public const string EmailAdministradorConsultora = "admin.arcospa@caemanager.local";
+
+    /// <summary>Primer Cliente Delegante de la demo — la referencia de "empresa final" (ver DelegacionDemoSeeder.NombreTenantRefrielectric).</summary>
+    public const string NombreTenantRefrielectric = "Refrielectric S.L. (Cliente Delegante demo)";
+
     public static string EmailPrueba(string rolEnMinusculas, int numero) =>
         $"prueba.{rolEnMinusculas}{numero}@caemanager.local";
 
