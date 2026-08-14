@@ -53,11 +53,19 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
         await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
+        // A diferencia de FlujoCriticoTests (tenant con una única Empresa en
+        // ese momento), en esta colección compartida el tenant ya puede
+        // tener varias Empresas de otros tests -- DDL-076 (resolución
+        // silenciosa) solo aplica con una sola, así que hay que comprobar
+        // visibilidad real, no solo si el <select> existe en el DOM (existe
+        // oculto incluso cuando se resuelve en silencio) ni comprobarlo
+        // antes de que Blazor termine de decidir qué rama pintar.
         var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
-        if (await comboEmpresa.CountAsync() > 0)
+        await page.WaitForTimeoutAsync(300);
+        if (await comboEmpresa.IsVisibleAsync())
             await comboEmpresa.SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
         else
-            await drawer.GetByText(razonSocialEmpresa).WaitForAsync(new LocatorWaitForOptions { Timeout = 5_000 });
+            await drawer.GetByText(razonSocialEmpresa).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
         await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);
@@ -107,7 +115,10 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         // --- Atajos de teclado: con un único ítem filtrado, "j" lo enfoca ---
-        await page.Locator("h1.titulo-pagina").ClickAsync();
+        // Tab, no clic en el h1: un encabezado no es focable, así que un
+        // clic ahí no mueve el foco de verdad (atajos-lista.js ignora
+        // j/k/x/Enter mientras el foco sigue en un <input>/<textarea>).
+        await page.Keyboard.PressAsync("Tab");
         await page.Keyboard.PressAsync("j");
         await Expect(tarjeta).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado"));
 

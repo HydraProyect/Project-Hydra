@@ -55,10 +55,13 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await filaB.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // --- Atajos de teclado: j/k mueven el foco, x alterna selección ---
-        // Clic en la cabecera (no editable) para asegurar que el foco no está
-        // en el propio campo de búsqueda — atajos-lista.js ignora j/k/x/Enter
-        // mientras el foco está en un <input>.
-        await page.Locator("h1.titulo-pagina").ClickAsync();
+        // Tab, no clic en el h1: un encabezado no es focable (sin
+        // tabindex), así que un clic ahí no mueve el foco de verdad y el
+        // campo de búsqueda se lo queda — atajos-lista.js ignora
+        // j/k/x/Enter mientras el foco está en un <input>/<textarea>. Fallo
+        // real visto en CI antes de este cambio: la primera "j" nunca
+        // llegaba a moverse porque el foco seguía en el buscador.
+        await page.Keyboard.PressAsync("Tab");
 
         // Espera breve tras cada tecla, además del reintento propio de las
         // aserciones: j/k/x/Enter viajan por interop JS -> SignalR -> C# ->

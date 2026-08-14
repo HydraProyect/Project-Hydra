@@ -30,7 +30,10 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         await page.GetByText("Nueva delegación").ClickAsync();
         var modalNueva = page.GetByRole(AriaRole.Dialog).Filter(new LocatorFilterOptions { HasText = "Nueva delegación" });
         await modalNueva.GetByLabel("Nombre del Cliente Delegante").FillAsync(nombreClienteDelegante);
-        await modalNueva.GetByText("Crear").ClickAsync();
+        // Exact: true -- sin esto, GetByText hace match por substring y
+        // también resuelve el párrafo "Se creará una organización..." (que
+        // contiene "creará", que empieza igual que "Crear").
+        await modalNueva.GetByText("Crear", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
         await modalNueva.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         var tarjeta = page.Locator(".tarjeta-delegacion", new PageLocatorOptions { HasText = nombreClienteDelegante });
