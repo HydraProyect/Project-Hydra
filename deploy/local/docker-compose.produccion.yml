@@ -101,11 +101,18 @@ services:
     restart: unless-stopped
     environment:
       ACCEPT_EULA: "Y"
+      # Seq 2026.x se niega a arrancar sin decidir autenticación (falla con
+      # "No default admin password was supplied"). Se opta explícitamente por
+      # sin autenticación propia porque la frontera de seguridad real es de
+      # red, no de aplicación (ver el "Solo loopback" de abajo) — añadir una
+      # contraseña de Seq encima solo sumaría un secreto más que gestionar
+      # sin reforzar nada que el aislamiento de red no cubra ya.
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "True"
     volumes:
       - seq-data:/data
-    # Solo loopback a propósito, igual que la BD: el panel de Seq no tiene
-    # autenticación propia configurada, así que no debe ser alcanzable desde
-    # internet. Para verlo desde el navegador local: túnel SSH
+    # Solo loopback a propósito, igual que la BD: sin autenticación propia
+    # (ver arriba), este puerto no debe ser alcanzable desde internet bajo
+    # ningún concepto. Para verlo desde el navegador local: túnel SSH
     #   ssh -L 5341:localhost:5341 root@<IP-del-VPS>
     # y abrir http://localhost:5341 en tu máquina.
     ports:
