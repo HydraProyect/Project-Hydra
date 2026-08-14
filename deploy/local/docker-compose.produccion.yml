@@ -1,0 +1,126 @@
+# Stack de producción (etapa puente post-Railway, ver RUNBOOK-DESPLIEGUE-LOCAL.md
+# en el repositorio local de negocio, tecnico/): app + PostgreSQL 18 + Caddy como
+# reverse proxy con TLS automático (Let's Encrypt). No confundir con el
+# docker-compose.yml de la raíz, que es solo el Postgres de desarrollo.
+#
+# Sin Cloudflare en la cadena a propósito: el compromiso EU-only de
+# DATA_OWNERSHIP.md (repositorio de negocio) excluye subencargados fuera del
+# EEE, y el Tunnel de Cloudflare habría proxyado todo el tráfico de la app por
+# el borde de una empresa estadounidense (SCC + Data Privacy Framework, no
+# ilegal pero sí un subencargado nuevo a declarar). Caddy corre en la misma
+# máquina/VPS (idealmente ya en el EEE, p. ej. Hetzner Falkenstein) y solo
+# necesita el puerto 80/443 abierto — sin cuenta ni servicio de terceros de
+# por medio para el proxy en sí. Let's Encrypt (la CA que Caddy usa por
+# defecto) no procesa datos personales — solo valida la propiedad del dominio
+# para emitir el certificado — y no se considera subencargado en este DPA.
+#
+# Uso:  cp .env.example .env   (rellenar, incluida DOMINIO)
+#       docker compose -f docker-compose.produccion.yml up -d --build
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: caemanager-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      AlmacenamientoArchivos__Ruta: /data/documentos
+      DataProtection__RutaClaves: /data/dataprotection-keys
+      # El backup a S3 del BackupHostedService queda apagado en esta etapa: el
+      # backup lo hace scripts/backup-borg.sh (cron del host) contra el
+      # Storage Box de Hetzner, que no habla S3.
+      Backups__Activo: "false"
+    volumes:
+      - caemanager-data:/data
+    # Sin `ports` publicados: la app solo es alcanzable desde la red interna
+    # del compose (Caddy la referencia como "app:8080"), nunca directamente
+    # desde fuera de la máquina.
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/salud"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  db:
+    # Misma versión mayor que llevaba producción en Railway (18.4) y que el
+    # pg_dump de la imagen de la app (postgresql-client-18 del Dockerfile).
+    image: postgres:18
+    container_name: caemanager-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: caemanager
+    # Desde la imagen oficial de postgres:18, el volumen se monta en el
+    # directorio PADRE, no en /var/lib/postgresql/data — el propio entrypoint
+    # ahora organiza los datos en subcarpetas por versión mayor (compatible
+    # con pg_ctlcluster) y rechaza arrancar si el volumen apunta al layout
+    # antiguo (docker-library/postgres#1259). Detectado en el primer
+    # despliegue real contra un volumen nuevo — no aparecía en Railway porque
+    # gestionaba el volumen a su manera.
+    volumes:
+      - caemanager-postgres-data:/var/lib/postgresql
+    # Sin `ports` a propósito: la BD solo es alcanzable desde la red interna
+    # del compose, nunca desde fuera de la máquina.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caemanager-caddy
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      # Estos dos sí van al exterior: es el único servicio con superficie
+      # pública del stack. Requiere que el 80/443 de la máquina/VPS estén
+      # abiertos (en Hetzner Cloud, el firewall por defecto ya los permite).
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+  seq:
+    # Logs centralizados (P0-3 de RUNBOOK-HORIZONTE-0.md) — licencia
+    # Individual gratuita, autoalojado, sin coste por asiento (Datalust
+    # solo cobra por usuarios adicionales, no aplica con un único operador).
+    image: datalust/seq:latest
+    container_name: caemanager-seq
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      # Seq 2026.x se niega a arrancar sin decidir autenticación (falla con
+      # "No default admin password was supplied"). Se opta explícitamente por
+      # sin autenticación propia porque la frontera de seguridad real es de
+      # red, no de aplicación (ver el "Solo loopback" de abajo) — añadir una
+      # contraseña de Seq encima solo sumaría un secreto más que gestionar
+      # sin reforzar nada que el aislamiento de red no cubra ya.
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "True"
+    volumes:
+      - seq-data:/data
+    # Solo loopback a propósito, igual que la BD: sin autenticación propia
+    # (ver arriba), este puerto no debe ser alcanzable desde internet bajo
+    # ningún concepto. Para verlo desde el navegador local: túnel SSH
+    #   ssh -L 5341:localhost:5341 root@<IP-del-VPS>
+    # y abrir http://localhost:5341 en tu máquina.
+    ports:
+      - "127.0.0.1:5341:80"
+
+volumes:
+  caemanager-data:
+  caemanager-postgres-data:
+  caddy-data:
+  caddy-config:
+  seq-data:

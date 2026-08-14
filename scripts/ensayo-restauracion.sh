@@ -37,7 +37,10 @@ docker run -d --name ensayo-restauracion-pg -e POSTGRES_PASSWORD=ensayo \
 until docker exec ensayo-restauracion-pg pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
 
 echo "==> 4/5 Restaurando el dump con pg_restore..."
-PGPASSWORD=ensayo pg_restore --clean --if-exists --no-owner \
+# --no-privileges: mismo motivo que en ensayo-restauracion-borg.sh — el dump
+# referencia el rol cae_app_runtime (RLS, RUNBOOK-RLS.md), que no existe en
+# este Postgres desechable y no puede incluirse en un dump de una sola BD.
+PGPASSWORD=ensayo pg_restore --clean --if-exists --no-owner --no-privileges \
     --host=localhost --port="$PUERTO_LOCAL" --username=postgres --dbname=caemanager \
     "$DIR_TRABAJO/CaeManager.dump"
 
