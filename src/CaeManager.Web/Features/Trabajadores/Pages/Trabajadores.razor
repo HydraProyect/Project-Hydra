@@ -189,6 +189,7 @@
         <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Nombre))" />
         <CampoTexto Etiqueta="Apellidos" Valor="@_apellidos" ValorChanged="v => _apellidos = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Apellidos))" />
         <CampoTexto Etiqueta="Alias / nombre con el que firma (opcional)" Placeholder="p. ej. Pancho Villa" Valor="@_alias" ValorChanged="v => _alias = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Alias))" />
+        <CampoTexto Etiqueta="Puesto / oficio (opcional)" Placeholder="p. ej. Soldador" Valor="@_puesto" ValorChanged="v => _puesto = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Puesto))" />
         <CampoTexto Etiqueta="Fecha de nacimiento" Type="date" Valor="@_fechaNacimiento" ValorChanged="v => _fechaNacimiento = v" />
         <CampoTexto Etiqueta="Email" Type="email" Valor="@_email" ValorChanged="v => _email = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Email))" />
         <CampoTexto Etiqueta="Teléfono (WhatsApp)" Type="tel" Placeholder="+34 600 00 00 00" Valor="@_telefono" ValorChanged="v => _telefono = v" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Telefono))" />
