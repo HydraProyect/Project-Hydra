@@ -118,15 +118,15 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         // --- Atajos de teclado: con un único ítem filtrado, "j" lo enfoca ---
-        // Tab, no clic en el h1: un encabezado no es focable, así que un
-        // clic ahí no mueve el foco de verdad (atajos-lista.js ignora
-        // j/k/x/Enter mientras el foco sigue en un <input>/<textarea>).
-        await page.Keyboard.PressAsync("Tab");
-
-        // DIAGNOSTICO TEMPORAL (a quitar tras confirmar en CI): qué elemento
-        // queda enfocado tras el Tab, misma hipótesis que P331TecladoLote...
-        Console.WriteLine($"[DIAG-Bandeja] foco tras Tab: {await page.EvaluateAsync<string>("() => document.activeElement ? document.activeElement.tagName + ':' + document.activeElement.type + ':' + document.activeElement.className : 'null'")}");
-
+        // Nada de Tab aquí: diagnóstico en CI confirmó que, con el <select>
+        // de "Tipo" enfocado (tras SelectOptionAsync), un Tab sintético en
+        // este Chromium headless NO mueve el foco -- se queda en el propio
+        // <select> (quirk conocido de Chromium headless con controles
+        // nativos: las pulsaciones de letra sintéticas sobre un <select>
+        // enfocado tampoco llegan como keydown normal a document). Enfocar
+        // directamente el botón de la tarjeta evita depender de Tab o de
+        // cómo este navegador maneje el foco de un <select>.
+        await tarjeta.GetByRole(AriaRole.Button).FocusAsync();
         await page.Keyboard.PressAsync("j");
         await Expect(tarjeta).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado"));
 

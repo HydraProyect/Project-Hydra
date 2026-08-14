@@ -58,15 +58,14 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // Tab, no clic en el h1: un encabezado no es focable (sin
         // tabindex), así que un clic ahí no mueve el foco de verdad y el
         // campo de búsqueda se lo queda — atajos-lista.js ignora
-        // j/k/x/Enter mientras el foco está en un <input>/<textarea>. Fallo
-        // real visto en CI antes de este cambio: la primera "j" nunca
-        // llegaba a moverse porque el foco seguía en el buscador.
+        // j/k/x/Enter mientras el foco está en un <input>/<textarea>. Causa
+        // raíz real confirmada en CI con un diagnóstico temporal: el Tab sí
+        // movía el foco, pero a "Solo críticos" (el siguiente <input> en el
+        // DOM) — un checkbox, que también es tagName INPUT, así que
+        // atajos-lista.js lo trataba igual que un campo de texto y
+        // descartaba la primera "j" en silencio. Corregido en
+        // wwwroot/js/atajos-lista.js distinguiendo por type, no por tagName.
         await page.Keyboard.PressAsync("Tab");
-
-        // DIAGNOSTICO TEMPORAL (a quitar tras confirmar en CI): qué elemento
-        // queda enfocado tras el Tab, para verificar la hipótesis del
-        // checkbox "Solo críticos" bloqueando j/k/x/Enter en atajos-lista.js.
-        Console.WriteLine($"[DIAG-P331] foco tras Tab: {await page.EvaluateAsync<string>("() => document.activeElement ? document.activeElement.tagName + ':' + document.activeElement.type + ':' + document.activeElement.className : 'null'")}");
 
         // Salir del buscador dispara ManejarBlurAsync (CampoTexto.razor),
         // que reinvoca ValorChanged aunque el valor no haya cambiado — eso

@@ -62,8 +62,14 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         // interactivo de verdad, no solo de que la red esté momentáneamente
         // en silencio.
         await page.ReloadAsync();
+        // State: Attached, no el Visible por defecto -- un <option> nunca se
+        // reporta "visible" para Playwright mientras el <select> está
+        // cerrado (no tiene caja de layout real), así que WaitForAsync con
+        // el estado por defecto nunca resolvía aunque el elemento ya
+        // existiera en el DOM (confirmado en CI: 34 reintentos, siempre
+        // resuelto pero "hidden").
         await page.Locator(".selector-cliente-activo option", new PageLocatorOptions { HasText = nombreClienteDelegante })
-            .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            .WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached, Timeout = 15_000 });
 
         // El tenant nuevo no tiene datos propios todavía (se acaba de crear),
         // así que la comprobación real es que el selector de Cliente activo
