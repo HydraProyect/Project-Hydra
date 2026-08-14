@@ -15,11 +15,16 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 /// </summary>
 public record ObtenerPerfilVocabularioActualQuery : IRequest<PerfilVocabularioTenant>;
 
-public class ObtenerPerfilVocabularioActualQueryHandler(ITenantsQueryContext tenantsContext, ITenantActual tenantActual)
+public class ObtenerPerfilVocabularioActualQueryHandler(
+    ITenantsQueryContext tenantsContext, ITenantActual tenantActual, IVistaVocabularioPreviewService vistaPreview)
     : IRequestHandler<ObtenerPerfilVocabularioActualQuery, PerfilVocabularioTenant>
 {
     public async Task<PerfilVocabularioTenant> Handle(ObtenerPerfilVocabularioActualQuery request, CancellationToken cancellationToken)
     {
+        // Vista previa de Administrador (ver IVistaVocabularioPreviewService):
+        // gana siempre que esté activa, sin tocar el perfil real del tenant.
+        if (vistaPreview.PerfilForzado is { } perfilForzado) return perfilForzado;
+
         if (tenantActual.TenantId is null) return PerfilVocabularioTenant.ClienteDirecto;
 
         return await tenantsContext.Tenants
