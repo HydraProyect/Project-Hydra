@@ -29,6 +29,7 @@ using CaeManager.Web.Features.Tenants;
 using CaeManager.Web.Reportes;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -36,6 +37,10 @@ using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using PdfSharp.Fonts;
 using Serilog;
 using System.Globalization;
@@ -119,6 +124,62 @@ builder.WebHost.UseSentry(options =>
     options.Environment = builder.Environment.EnvironmentName;
     options.SendDefaultPii = false;
 });
+
+// OpenTelemetry (Horizonte 2.3 del plan macro): trazas de MediatR (un span
+// por Command/Query, ver LoggingBehavior/Observabilidad), HTTP entrante y
+// saliente (incluidas las llamadas de AsistenteIa a Anthropic/Gemini/Mistral
+// OCR) y EF Core, más las 4 métricas que pide el plan (latencia por comando,
+// profundidad de cola de IA, circuitos activos, documentos
+// procesados/hora — ver Observabilidad.cs y ProcesadorAnalisisDocumentoHostedService)
+// — todo exportado por OTLP al mismo Seq que ya recibe los logs
+// correlacionados (WriteTo.Seq más arriba). Seq habla OTLP nativamente desde
+// 2024.1 (trazas y métricas, endpoints /ingest/otlp/v1/*), así que esto
+// reutiliza el backend ya desplegado (docker-compose.produccion.yml) en vez
+// de sumar Jaeger/Prometheus/Grafana para un despliegue de un solo operador
+// — la misma razón por la que el plan lo sugiere como primera opción.
+// Reutiliza las dos variables del sink de logs de arriba: el mismo
+// "Serilog:Seq:ApiKey" también autentica el ingest de OTLP (cabecera
+// X-Seq-ApiKey, ver la documentación de Seq), y el mismo principio "inerte
+// por defecto" — sin "Serilog:Seq:ServerUrl" no se registra ningún pipeline
+// de OpenTelemetry, ni exportador ni instrumentación. El
+// ActivitySource/Meter de Observabilidad siguen existiendo igualmente
+// (LoggingBehavior y el resto los usan sin condición), pero sin listener
+// StartActivity devuelve null y las métricas no tienen a quién exportar: el
+// coste es marginal, no una llamada de red que reintentar en bucle.
+if (!string.IsNullOrWhiteSpace(urlSeq))
+{
+    var otlpTracesUrl = new Uri($"{urlSeq.TrimEnd('/')}/ingest/otlp/v1/traces");
+    var otlpMetricsUrl = new Uri($"{urlSeq.TrimEnd('/')}/ingest/otlp/v1/metrics");
+
+    void ConfigurarExportadorSeq(OtlpExporterOptions opciones, Uri endpoint)
+    {
+        opciones.Endpoint = endpoint;
+        opciones.Protocol = OtlpExportProtocol.HttpProtobuf;
+        if (!string.IsNullOrWhiteSpace(apiKeySeq))
+            opciones.Headers = $"X-Seq-ApiKey={apiKeySeq}";
+    }
+
+    builder.Services.AddOpenTelemetry()
+        .ConfigureResource(recurso => recurso.AddService(
+            "CaeManager", serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString()))
+        .WithTracing(tracing => tracing
+            // MediatR: ver Observabilidad.ActivitySource / LoggingBehavior.
+            .AddSource(Observabilidad.NombreOrigen)
+            // HTTP entrante (páginas Razor, endpoints, API v1) y saliente
+            // (Anthropic/Gemini/Mistral OCR, Microsoft Graph...).
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            // EF Core: la traza real de cada SELECT/INSERT/UPDATE — lo que
+            // permite ver si una latencia alta de comando viene de la cola
+            // de PuertaAccesoDatos o de la consulta misma.
+            .AddEntityFrameworkCoreInstrumentation()
+            .AddOtlpExporter(opciones => ConfigurarExportadorSeq(opciones, otlpTracesUrl)))
+        .WithMetrics(metrics => metrics
+            .AddMeter(Observabilidad.NombreOrigen)
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddOtlpExporter(opciones => ConfigurarExportadorSeq(opciones, otlpMetricsUrl)));
+}
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
@@ -321,6 +382,12 @@ builder.Services.AddRazorComponents()
         opcionesCircuito.MaxBufferedUnacknowledgedRenderBatches =
             builder.Configuration.GetValue("Circuit:MaxBufferedUnacknowledgedRenderBatches", 10);
     });
+
+// "Circuitos activos" (Horizonte 2.3, ver Observabilidad.CircuitosActivos):
+// singleton porque no guarda estado por circuito, solo cuenta — compone con
+// las CircuitOptions de arriba, es la señal real de cuándo ese ajuste deja
+// de bastar (umbral de la multi-réplica, ADR-008 § 2.1).
+builder.Services.AddSingleton<CircuitHandler, CaeManager.Web.Services.MetricasCircuitHandler>();
 
 // Health check real (P0-5 de docs/business/MATURITY_REVIEW.md): /salud
 // respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
