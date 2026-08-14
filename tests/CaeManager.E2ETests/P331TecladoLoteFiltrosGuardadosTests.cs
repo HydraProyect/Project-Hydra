@@ -63,6 +63,11 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // llegaba a moverse porque el foco seguía en el buscador.
         await page.Keyboard.PressAsync("Tab");
 
+        // DIAGNOSTICO TEMPORAL (a quitar tras confirmar en CI): qué elemento
+        // queda enfocado tras el Tab, para verificar la hipótesis del
+        // checkbox "Solo críticos" bloqueando j/k/x/Enter en atajos-lista.js.
+        Console.WriteLine($"[DIAG-P331] foco tras Tab: {await page.EvaluateAsync<string>("() => document.activeElement ? document.activeElement.tagName + ':' + document.activeElement.type + ':' + document.activeElement.className : 'null'")}");
+
         // Salir del buscador dispara ManejarBlurAsync (CampoTexto.razor),
         // que reinvoca ValorChanged aunque el valor no haya cambiado — eso
         // vuelve a llamar a BuscarAsync -> RecargarAsync, que resetea

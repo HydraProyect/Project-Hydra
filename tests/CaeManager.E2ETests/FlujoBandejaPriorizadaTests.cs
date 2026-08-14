@@ -122,6 +122,11 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // clic ahí no mueve el foco de verdad (atajos-lista.js ignora
         // j/k/x/Enter mientras el foco sigue en un <input>/<textarea>).
         await page.Keyboard.PressAsync("Tab");
+
+        // DIAGNOSTICO TEMPORAL (a quitar tras confirmar en CI): qué elemento
+        // queda enfocado tras el Tab, misma hipótesis que P331TecladoLote...
+        Console.WriteLine($"[DIAG-Bandeja] foco tras Tab: {await page.EvaluateAsync<string>("() => document.activeElement ? document.activeElement.tagName + ':' + document.activeElement.type + ':' + document.activeElement.className : 'null'")}");
+
         await page.Keyboard.PressAsync("j");
         await Expect(tarjeta).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado"));
 

@@ -76,7 +76,12 @@ public class AltaGuiadaTests(WebAppFixture fixture)
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await page.GetByPlaceholder("Buscar por razón social…").FillAsync(razonSocialEmpresa);
-        await page.Locator("tr", new PageLocatorOptions { HasText = razonSocialEmpresa })
+        // No es un <tr>: Empresas.razor no usa QuickGrid (migrado a tarjetas
+        // con acordeón de Clientes, Centro 360 — PLAN-EJECUCION-UX.md § 0.11),
+        // así que la fila real es ".tarjeta-fila-acordeon". Este era el
+        // timeout de 15s real visto en CI: el locator "tr" nunca podía
+        // resolver nada en esta página, con o sin datos.
+        await page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialEmpresa })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");

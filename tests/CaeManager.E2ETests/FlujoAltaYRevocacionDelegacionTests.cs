@@ -48,8 +48,22 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         // que sin recargar la página la nueva delegación no está todavía en
         // el <select> (ver SelectorClienteActivo.razor.cs). Un reload es
         // además lo que haría un usuario real antes de esperar verla ahí.
+        //
+        // Esperar NetworkIdle tras el reload (intento anterior) no basta:
+        // deja el circuito de SignalR "asentándose" de fondo y esa actividad
+        // de reconexión se solapa con el WaitForLoadStateAsync(NetworkIdle)
+        // interno de CambiarClienteActivoAsync justo después, adelantando su
+        // resolución antes de que la navegación real (el <form> POST que
+        // dispara microinteracciones.js) termine — el GotoAsync("/clientes")
+        // posterior llegaba entonces con esa navegación todavía en vuelo y el
+        // navegador la abortaba (net::ERR_ABORTED). Esperar a que la propia
+        // opción de la delegación exista en el <select> es una señal
+        // concreta de que OnInitializedAsync ya corrió con el circuito
+        // interactivo de verdad, no solo de que la red esté momentáneamente
+        // en silencio.
         await page.ReloadAsync();
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await page.Locator(".selector-cliente-activo option", new PageLocatorOptions { HasText = nombreClienteDelegante })
+            .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // El tenant nuevo no tiene datos propios todavía (se acaba de crear),
         // así que la comprobación real es que el selector de Cliente activo
