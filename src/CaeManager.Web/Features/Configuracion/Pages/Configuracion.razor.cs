@@ -1,5 +1,6 @@
 using CaeManager.Application.Configuracion.Commands.ActualizarConfiguracionOperativa;
 using CaeManager.Application.Configuracion.Commands.ActualizarParametroSistema;
+using CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
@@ -32,6 +33,10 @@ public partial class Configuracion : ComponentBase
     private string? _mensajeErrorOperativa;
     private Dictionary<string, string> _erroresCampoOperativa = new();
 
+    private bool _guardandoPresupuestoIa;
+    private string _presupuestoMensualIaUsd = string.Empty;
+    private string? _mensajeErrorPresupuestoIa;
+
     protected override Task OnInitializedAsync() => CargarAsync();
 
     private async Task CargarAsync()
@@ -51,6 +56,7 @@ public partial class Configuracion : ComponentBase
             _medicionTiempoActiva = parametros.MedicionTiempoActiva;
             _segundosInactividadPausa = parametros.SegundosInactividadPausa.ToString();
             _excluirFueraDeJornadaEnMetricas = parametros.ExcluirFueraDeJornadaEnMetricas;
+            _presupuestoMensualIaUsd = parametros.PresupuestoMensualIaUsd?.ToString("F2") ?? string.Empty;
         }
         catch (Exception)
         {
@@ -144,6 +150,47 @@ public partial class Configuracion : ComponentBase
         finally
         {
             _guardandoOperativa = false;
+        }
+    }
+
+    private async Task GuardarPresupuestoIaAsync()
+    {
+        _guardandoPresupuestoIa = true;
+        _mensajeErrorPresupuestoIa = null;
+        StateHasChanged();
+
+        try
+        {
+            // Campo vacío = sin presupuesto configurado (desactiva el aviso), no "0 USD".
+            decimal? presupuesto = null;
+            if (!string.IsNullOrWhiteSpace(_presupuestoMensualIaUsd))
+            {
+                if (!decimal.TryParse(_presupuestoMensualIaUsd, out var valor))
+                {
+                    _mensajeErrorPresupuestoIa = "El presupuesto debe ser un número.";
+                    return;
+                }
+
+                presupuesto = valor;
+            }
+
+            var resultado = await Mediator.Send(new ActualizarPresupuestoIaCommand(presupuesto));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorPresupuestoIa = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Presupuesto de IA actualizado correctamente.", TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            _mensajeErrorPresupuestoIa = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _guardandoPresupuestoIa = false;
         }
     }
 

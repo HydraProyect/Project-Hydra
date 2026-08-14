@@ -82,5 +82,25 @@
                 <Boton OnClick="GuardarOperativaAsync" Cargando="_guardandoOperativa">Guardar cambios</Boton>
             </div>
         </Tarjeta>
+
+        <Tarjeta Titulo="Presupuesto de IA" Class="tarjeta-configuracion">
+            <p class="descripcion-configuracion">
+                Límite blando (no bloqueante) de gasto estimado en IA documental por mes natural.
+                Superarlo no detiene ni degrada nada: solo enciende un aviso en el Dashboard Ejecutivo
+                para que el operador lo vea antes de que aparezca en la factura. Déjalo en blanco para
+                desactivar el aviso.
+            </p>
+
+            @if (_mensajeErrorPresupuestoIa is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorPresupuestoIa</div>
+            }
+
+            <CampoTexto Etiqueta="Presupuesto mensual (USD)" Type="number" Valor="@_presupuestoMensualIaUsd" ValorChanged="v => _presupuestoMensualIaUsd = v" />
+
+            <div class="acciones-formulario">
+                <Boton OnClick="GuardarPresupuestoIaAsync" Cargando="_guardandoPresupuestoIa">Guardar cambios</Boton>
+            </div>
+        </Tarjeta>
     }
 </div>

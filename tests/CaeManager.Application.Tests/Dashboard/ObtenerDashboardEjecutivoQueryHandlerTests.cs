@@ -18,7 +18,7 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
         int incidenciasAbiertas = 0, IReadOnlyList<GravedadIncidenciaConteoDto>? incidenciasPorGravedad = null,
         double? tiempoMedioResolucionDias = null, int totalIncidenciasResueltas = 0,
         double? confianzaMediaIa = null, decimal costeIaMes = 0m, double? tiempoMedioMsIa = null, int totalAuditoriasIaMes = 0,
-        decimal facturacionEstimada = 0m, KpisBpoDto? bpo = null) =>
+        decimal facturacionEstimada = 0m, KpisBpoDto? bpo = null, decimal? presupuestoMensualIaUsd = null) =>
         new(
             Documental: new KpisDashboardDto(trabajadoresActivos, centros, vencidos, urgentes, proximos, vigentes, visitas, 0),
             TotalDocumentosConVigencia: vigentes + proximos + urgentes + vencidos,
@@ -34,7 +34,8 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
             TiempoMedioProcesamientoIaMs: tiempoMedioMsIa,
             TotalAuditoriasIaMes: totalAuditoriasIaMes,
             FacturacionEstimadaMesActual: facturacionEstimada,
-            Bpo: bpo ?? KpisBpoDto.Vacio);
+            Bpo: bpo ?? KpisBpoDto.Vacio,
+            PresupuestoMensualIaUsd: presupuestoMensualIaUsd);
 
     [Fact]
     public void Suma_los_conteos_de_todos_los_tenants()
@@ -217,5 +218,55 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
         resultado.TrabajadoresActivos.Should().Be(0);
         resultado.TasaCumplimiento.Should().Be(100, "sin documentos con vigencia, el mismo criterio que ObtenerKpisDashboardQuery aplica: 100%, no 0%");
         resultado.CentrosConMenorCumplimiento.Should().BeEmpty();
+    }
+
+    // --- Presupuesto de IA (Horizonte 2.7): límite blando por tenant, aviso al operador ---
+
+    [Theory]
+    [InlineData(null, 100)]   // sin presupuesto configurado: nunca avisa, por mucho que se gaste.
+    [InlineData(200.0, 100)]  // dentro del presupuesto.
+    [InlineData(100.0, 100)]  // exactamente en el límite: no es "superarlo".
+    public void No_marca_excedido_cuando_no_hay_presupuesto_o_el_gasto_no_lo_supera(double? presupuesto, decimal costeIaMes)
+    {
+        var valores = Valores(costeIaMes: costeIaMes, presupuestoMensualIaUsd: (decimal?)presupuesto);
+
+        valores.PresupuestoIaExcedido.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Marca_excedido_cuando_el_gasto_del_periodo_supera_el_presupuesto_configurado()
+    {
+        var valores = Valores(costeIaMes: 150m, presupuestoMensualIaUsd: 100m);
+
+        valores.PresupuestoIaExcedido.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Fusionar_solo_lista_los_tenants_que_de_verdad_superan_su_propio_presupuesto()
+    {
+        var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>
+        {
+            (Cliente("SinPresupuesto"), Valores(costeIaMes: 9999m, presupuestoMensualIaUsd: null)),
+            (Cliente("DentroDelLimite"), Valores(costeIaMes: 50m, presupuestoMensualIaUsd: 100m)),
+            (Cliente("Excedido"), Valores(costeIaMes: 150m, presupuestoMensualIaUsd: 100m)),
+        };
+
+        var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant);
+
+        resultado.TenantsConPresupuestoIaExcedido.Should().BeEquivalentTo(["Excedido"]);
+    }
+
+    [Fact]
+    public void Fusionar_no_avisa_de_nada_cuando_ningun_tenant_supera_su_presupuesto()
+    {
+        var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>
+        {
+            (Cliente("Ibertec"), Valores(costeIaMes: 9999m, presupuestoMensualIaUsd: null)),
+            (Cliente("EcoPlant"), Valores(costeIaMes: 20m, presupuestoMensualIaUsd: 100m)),
+        };
+
+        var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant);
+
+        resultado.TenantsConPresupuestoIaExcedido.Should().BeEmpty();
     }
 }

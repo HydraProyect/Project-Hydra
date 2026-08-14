@@ -41,6 +41,18 @@ public class ParametroSistema : EntidadConTenant
     /// <summary>Si el tiempo registrado fuera de la franja de jornada se descarta al agregar métricas. No afecta a la captura — el tramo se guarda igual, solo se excluye del cálculo.</summary>
     public bool ExcluirFueraDeJornadaEnMetricas { get; private set; } = true;
 
+    /// <summary>
+    /// Límite blando (no bloqueante) de gasto estimado en IA documental por mes natural, en
+    /// USD — mismo criterio de coste que <c>AuditoriaExtraccionIa.CosteEstimado</c>/
+    /// <c>CosteEstimadoOcr</c> (Horizonte 2.7 del plan: "antes de que un piloto con mil
+    /// documentos lo descubra por la factura de Anthropic"). <c>null</c> significa "sin
+    /// presupuesto configurado" — no se avisa de nada, el comportamiento de hoy. Superarlo
+    /// no bloquea ni degrada el servicio: solo enciende un aviso visual en el Dashboard
+    /// Ejecutivo para el operador de la plataforma, igual que los umbrales de vencimiento
+    /// documental no bloquean nada por sí mismos.
+    /// </summary>
+    public decimal? PresupuestoMensualIaUsd { get; private set; }
+
     private ParametroSistema()
     {
     }
@@ -94,5 +106,14 @@ public class ParametroSistema : EntidadConTenant
         MedicionTiempoActiva = medicionTiempoActiva;
         SegundosInactividadPausa = segundosInactividadPausa;
         ExcluirFueraDeJornadaEnMetricas = excluirFueraDeJornadaEnMetricas;
+    }
+
+    /// <summary><paramref name="presupuestoMensualIaUsd"/> en <c>null</c> desactiva el aviso (sin presupuesto configurado).</summary>
+    public void ActualizarPresupuestoIa(decimal? presupuestoMensualIaUsd)
+    {
+        if (presupuestoMensualIaUsd is < 0)
+            throw new ArgumentException("El presupuesto mensual de IA no puede ser negativo.", nameof(presupuestoMensualIaUsd));
+
+        PresupuestoMensualIaUsd = presupuestoMensualIaUsd;
     }
 }
