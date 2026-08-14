@@ -45,38 +45,32 @@
             </NavLink>
         </AuthorizeView>
 
+        @* Orden por DDL-073 (03_INFORMATION_ARCHITECTURE.md § 3.2): Negocio
+           sigue la cadena de titularidad, de lo mío a lo ajeno — Empresas
+           ("Mi empresa" bajo el perfil de vocabulario de DDL-072, tramo 3.2,
+           todavía no implementado aquí) → Subcontratas → Trabajadores →
+           Clientes → Centros → Documentos, al final por ser la vista
+           transversal (cada Entity Workspace ya lleva los suyos). *@
         <details class="nav-grupo-detalle" data-grupo="negocio" open>
             <summary class="nav-grupo-titulo">
                 <span>Negocio</span>
                 <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
             </summary>
             <div class="nav-grupo-items">
-                <NavLink class="nav-item" href="clientes">
-                    <Icono Nombre="clientes" /> Clientes
-                </NavLink>
                 <NavLink class="nav-item" href="empresas">
                     <Icono Nombre="empresas" /> Empresas
                 </NavLink>
                 <NavLink class="nav-item" href="subcontratas">
                     <Icono Nombre="subcontratas" /> Subcontratas
                 </NavLink>
-                <NavLink class="nav-item" href="centros">
-                    <Icono Nombre="centros" /> Centros
-                </NavLink>
-            </div>
-        </details>
-
-        <details class="nav-grupo-detalle" data-grupo="operacion" open>
-            <summary class="nav-grupo-titulo">
-                <span>Operación</span>
-                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-            </summary>
-            <div class="nav-grupo-items">
                 <NavLink class="nav-item" href="trabajadores">
                     <Icono Nombre="trabajadores" /> Trabajadores
                 </NavLink>
-                <NavLink class="nav-item" href="vehiculos">
-                    <Icono Nombre="vehiculos" /> Vehículos
+                <NavLink class="nav-item" href="clientes">
+                    <Icono Nombre="clientes" /> Clientes
+                </NavLink>
+                <NavLink class="nav-item" href="centros">
+                    <Icono Nombre="centros" /> Centros
                 </NavLink>
                 <NavLink class="nav-item" href="documentos">
                     <Icono Nombre="documentos" /> Documentos
@@ -84,24 +78,40 @@
                 <NavLink class="nav-item" href="documentos/revision-ia">
                     <Icono Nombre="documentos" /> Revisión IA
                 </NavLink>
-                <NavLink class="nav-item" href="visitas">
-                    <Icono Nombre="visitas" /> Visitas
-                </NavLink>
-                <NavLink class="nav-item" href="gestiones">
-                    <Icono Nombre="incidencias" /> Gestiones
-                </NavLink>
-                <NavLink class="nav-item" href="proyectos">
-                    <Icono Nombre="proyectos" /> Proyectos
-                </NavLink>
-                <NavLink class="nav-item" href="incidencias">
-                    <Icono Nombre="incidencias" /> Incidencias
-                </NavLink>
+            </div>
+        </details>
+
+        @* Orden por DDL-073: Operación sigue la frecuencia de uso diario.
+           "Vehículos y Maquinaria" de 03 § 3.2 se deja como "Vehículos" —
+           Maquinaria es un tramo bloqueado (2.4, pendiente de ADR-006), y
+           una entrada de menú no se adelanta a una entidad que no existe. *@
+        <details class="nav-grupo-detalle" data-grupo="operacion" open>
+            <summary class="nav-grupo-titulo">
+                <span>Operación</span>
+                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+            </summary>
+            <div class="nav-grupo-items">
                 @if (OpcionesComunicaciones.Value.Activo)
                 {
                     <NavLink class="nav-item" href="comunicaciones">
                         <Icono Nombre="chat" /> Comunicaciones
                     </NavLink>
                 }
+                <NavLink class="nav-item" href="gestiones">
+                    <Icono Nombre="incidencias" /> Gestiones
+                </NavLink>
+                <NavLink class="nav-item" href="incidencias">
+                    <Icono Nombre="incidencias" /> Incidencias
+                </NavLink>
+                <NavLink class="nav-item" href="visitas">
+                    <Icono Nombre="visitas" /> Visitas
+                </NavLink>
+                <NavLink class="nav-item" href="vehiculos">
+                    <Icono Nombre="vehiculos" /> Vehículos
+                </NavLink>
+                <NavLink class="nav-item" href="proyectos">
+                    <Icono Nombre="proyectos" /> Proyectos
+                </NavLink>
             </div>
         </details>
 
