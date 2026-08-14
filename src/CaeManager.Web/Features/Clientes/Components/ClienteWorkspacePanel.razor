@@ -1,9 +1,15 @@
 @*
     Panel de Cliente para el Context Workspace (ver arquitectura acordada
-    con el usuario). Pestañas: Información, Empresas, Subcontratas,
+    con el usuario). Pestañas: Información, Empresas, Subcontratas, Centros,
     Documentación, Actividad (= historial de auditoría, con otro nombre
     porque Cliente no tiene una pestaña "Historial" separada), Notas.
+
+    "Centros" es la relación directa: Centro.ClienteId es FK real (un Cliente
+    es dueño de todos sus Centros, los opere la Empresa que los opere) — a
+    diferencia de "Clientes" en el panel de Empresa, que se deriva de
+    EmpresaCliente. Ver ObtenerCentrosDeClienteQuery.
 *@
+@using CaeManager.Application.Clientes.Queries.ObtenerCentrosDeCliente
 @using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
 @using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente
 @using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente
@@ -103,6 +109,34 @@ else
                 }
                 break;
 
+            case "centros":
+                @if (_cargandoCentros)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_errorCentros)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="CargarCentrosAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (_centros is { Count: 0 })
+                {
+                    <EstadoVacio Titulo="Sin centros" Descripcion="Este cliente todavía no tiene ningún Centro." />
+                }
+                else if (_centros is not null)
+                {
+                    <ul class="workspace-lista-entidades">
+                        @foreach (var centro in _centros)
+                        {
+                            <FilaEntidadRelacionada @key="centro.Id" Titulo="@centro.Nombre" Subtitulo="@centro.EmpresaRazonSocial" OnClic="() => AbrirCentroAsync(centro)" />
+                        }
+                    </ul>
+                }
+                break;
+
             case "documentacion":
                 <PestanaDocumentacion Ambito="AmbitoAplicacion.Cliente" PropietarioId="EntidadId" />
                 break;
@@ -128,6 +162,7 @@ else
         new("informacion", "Información"),
         new("empresas", "Empresas"),
         new("subcontratas", "Subcontratas"),
+        new("centros", "Centros"),
         new("documentacion", "Documentación"),
         new("agenda", "Agenda"),
         new("actividad", "Actividad"),
@@ -149,6 +184,9 @@ else
     private IReadOnlyList<SubcontrataDeClienteDto>? _subcontratas;
     private bool _cargandoSubcontratas;
     private bool _errorSubcontratas;
+    private IReadOnlyList<CentroDeClienteDto>? _centros;
+    private bool _cargandoCentros;
+    private bool _errorCentros;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -159,6 +197,8 @@ else
             _errorEmpresas = false;
             _subcontratas = null;
             _errorSubcontratas = false;
+            _centros = null;
+            _errorCentros = false;
             await CargarCabeceraAsync();
         }
 
@@ -167,6 +207,9 @@ else
 
         if (PestanaActiva == "subcontratas" && _subcontratas is null && !_errorSubcontratas && !_cargandoSubcontratas)
             await CargarSubcontratasAsync();
+
+        if (PestanaActiva == "centros" && _centros is null && !_errorCentros && !_cargandoCentros)
+            await CargarCentrosAsync();
     }
 
     private async Task CargarCabeceraAsync()
@@ -236,9 +279,36 @@ else
         }
     }
 
+    private async Task CargarCentrosAsync()
+    {
+        var idSolicitado = EntidadId;
+        _cargandoCentros = true;
+        _errorCentros = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerCentrosDeClienteQuery(idSolicitado));
+            if (idSolicitado == EntidadId)
+                _centros = resultado;
+        }
+        catch (Exception)
+        {
+            if (idSolicitado == EntidadId)
+                _errorCentros = true;
+        }
+        finally
+        {
+            if (idSolicitado == EntidadId)
+                _cargandoCentros = false;
+        }
+    }
+
     private Task AbrirEmpresaAsync(EmpresaDeClienteDto empresa) =>
         WorkspaceService.NavegarAAsync(EntidadWorkspace.Empresa, empresa.Id, empresa.RazonSocial, "informacion");
 
     private Task AbrirSubcontrataAsync(SubcontrataDeClienteDto subcontrata) =>
         WorkspaceService.NavegarAAsync(EntidadWorkspace.Subcontrata, subcontrata.Id, subcontrata.RazonSocial, "informacion");
+
+    private Task AbrirCentroAsync(CentroDeClienteDto centro) =>
+        WorkspaceService.NavegarAAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
 }

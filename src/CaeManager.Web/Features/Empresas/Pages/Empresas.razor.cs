@@ -1,10 +1,9 @@
-using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
-using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa;
+using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Domain.Tenants;
@@ -74,21 +73,19 @@ public partial class Empresas : ComponentBase
     }
 
     /// <summary>
-    /// Qué filas tienen el acordeón de "Centros con actividad" abierto — la
-    /// expansión la lleva la página, no un estado interno por fila, para que
+    /// Qué filas tienen el acordeón de "Clientes" abierto — la expansión la
+    /// lleva la página, no un estado interno por fila, para que
     /// "Expandir/Colapsar todos" pueda decidirlo desde fuera (§ 0.9).
     /// </summary>
     private readonly HashSet<Guid> _expandidos = [];
 
     /// <summary>
-    /// Carga perezosa por Empresa, al expandir — igual que
-    /// <c>AcordeonAsignacionesCentro</c> en Centros.razor: no tiene sentido
-    /// pagar N consultas de "Centros con actividad" (una por Empresa de la
-    /// página) si la mayoría de acordeones se quedan cerrados.
-    /// <c>null</c> = todavía no se ha pedido; lista vacía = ya se pidió y no
-    /// hay actividad.
+    /// Carga perezosa por Empresa, al expandir: no tiene sentido pagar N
+    /// consultas de "Clientes de la Empresa" (una por Empresa de la página)
+    /// si la mayoría de acordeones se quedan cerrados. <c>null</c> = todavía
+    /// no se ha pedido; lista vacía = ya se pidió y no tiene clientes.
     /// </summary>
-    private readonly Dictionary<Guid, IReadOnlyList<CentroConActividadDto>?> _centrosPorEmpresa = new();
+    private readonly Dictionary<Guid, IReadOnlyList<ClienteDeEmpresaDto>?> _clientesPorEmpresa = new();
 
     private List<EmpresaListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
@@ -182,7 +179,7 @@ public partial class Empresas : ComponentBase
             _elementosPagina = resultado.Elementos.ToList();
             _seleccionados.Clear();
             _expandidos.Clear();
-            _centrosPorEmpresa.Clear();
+            _clientesPorEmpresa.Clear();
             _idEnfocado = null;
         }
         catch (Exception)
@@ -400,8 +397,8 @@ public partial class Empresas : ComponentBase
             return;
         }
 
-        if (!_centrosPorEmpresa.ContainsKey(empresaId))
-            await CargarCentrosDeEmpresaAsync(empresaId);
+        if (!_clientesPorEmpresa.ContainsKey(empresaId))
+            await CargarClientesDeEmpresaAsync(empresaId);
     }
 
     private async Task AlternarTodosExpandidosAsync(bool expandir)
@@ -416,29 +413,25 @@ public partial class Empresas : ComponentBase
 
         var pendientes = _elementosPagina
             .Select(e => e.Id)
-            .Where(id => !_centrosPorEmpresa.ContainsKey(id))
-            .Select(CargarCentrosDeEmpresaAsync);
+            .Where(id => !_clientesPorEmpresa.ContainsKey(id))
+            .Select(CargarClientesDeEmpresaAsync);
 
         await Task.WhenAll(pendientes);
     }
 
-    /// <summary>
-    /// Drill-down desde el desplegable de Centros con actividad (§ 0.11) a
-    /// <c>/centros</c> prefiltrado por ese Centro exacto — no por texto libre,
-    /// que sería ambiguo entre Centros con nombre parecido.
-    /// </summary>
-    private void IrAlCentro(Guid centroId) => NavigationManager.NavigateTo($"/centros?centroId={centroId}");
+    private void IrAlCliente(Guid clienteId, string razonSocial) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, clienteId, razonSocial, "informacion");
 
-    private async Task CargarCentrosDeEmpresaAsync(Guid empresaId)
+    private async Task CargarClientesDeEmpresaAsync(Guid empresaId)
     {
         try
         {
-            var resultado = await Mediator.Send(new ObtenerCentrosConActividadDeEmpresaQuery(empresaId));
-            _centrosPorEmpresa[empresaId] = resultado;
+            var resultado = await Mediator.Send(new ObtenerClientesDeEmpresaQuery(empresaId));
+            _clientesPorEmpresa[empresaId] = resultado;
         }
         catch (Exception)
         {
-            _centrosPorEmpresa[empresaId] = [];
+            _clientesPorEmpresa[empresaId] = [];
         }
 
         StateHasChanged();

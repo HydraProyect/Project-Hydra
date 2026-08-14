@@ -5,7 +5,7 @@
 @using CaeManager.Application.Empresas.Commands.EliminarEmpresa
 @using CaeManager.Application.Empresas.Commands.EliminarEmpresas
 @using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa
-@using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa
+@using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresas
@@ -85,7 +85,7 @@
                         }
                         <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                 aria-expanded="@(expandido ? "true" : "false")"
-                                aria-label="@($"Centros con actividad de {empresa.RazonSocial}")"
+                                aria-label="@($"Clientes de {empresa.RazonSocial}")"
                                 @onclick="() => AlternarExpansionAsync(empresa.Id)">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
@@ -117,26 +117,25 @@
                     @if (expandido)
                     {
                         <div class="tarjeta-fila-acordeon-contenido">
-                            @{ var centros = _centrosPorEmpresa.GetValueOrDefault(empresa.Id); }
-                            @if (centros is null)
+                            @{ var clientes = _clientesPorEmpresa.GetValueOrDefault(empresa.Id); }
+                            @if (clientes is null)
                             {
                                 <EstadoCargando Filas="2" />
                             }
-                            else if (centros.Count == 0)
+                            else if (clientes.Count == 0)
                             {
-                                <EstadoVacio Titulo="Sin actividad en ningún centro" Descripcion="Ningún trabajador de esta empresa tiene asignaciones activas todavía." />
+                                <EstadoVacio Titulo="Sin clientes" Descripcion="Esta empresa todavía no tiene ningún Cliente asociado." />
                             }
                             else
                             {
-                                <p class="workspace-nota-contextual">Centros donde esta empresa tiene actividad real (trabajadores con asignación activa) — no todos los centros de sus clientes.</p>
                                 <ul class="workspace-lista-entidades">
-                                    @foreach (var centro in centros)
+                                    @foreach (var cliente in clientes)
                                     {
                                         <FilaEntidadRelacionada
-                                            @key="centro.Id"
-                                            Titulo="@centro.Nombre"
-                                            Subtitulo="@($"{centro.ClienteRazonSocial} · {centro.TrabajadoresAsignados} trabajador(es)")"
-                                            OnClic="() => IrAlCentro(centro.Id)" />
+                                            @key="cliente.Id"
+                                            Titulo="@cliente.RazonSocial"
+                                            Subtitulo="@cliente.Cif"
+                                            OnClic="() => IrAlCliente(cliente.Id, cliente.RazonSocial)" />
                                     }
                                 </ul>
                             }

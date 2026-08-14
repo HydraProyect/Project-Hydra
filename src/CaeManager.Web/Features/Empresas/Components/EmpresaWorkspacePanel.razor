@@ -1,18 +1,17 @@
 @*
     Panel de Empresa para el Context Workspace. Pestañas: Información,
-    Centros, Documentación, Historial.
+    Clientes, Documentación, Historial.
 
-    "Centros" no es una relación directa (Centro cuelga de Cliente, no de
-    Empresa — ver DATABASE.md): se deriva la actividad real
-    (Empresa → Trabajadores → Asignaciones activas → Centro), decisión
-    tomada explícitamente para no listar "todos los centros del cliente"
-    cuando la Empresa solo opera en unos pocos.
+    "Clientes" es la relación directa (EmpresaCliente, N:N) — quiénes
+    contratan a esta Empresa. No es "Centros": Centro cuelga de Cliente, no
+    de Empresa (Centro.ClienteId es la FK real, ver ObtenerCentrosDeClienteQuery
+    en ClienteWorkspacePanel.razor), y mostrar aquí los centros de sus
+    Clientes describía datos ajenos a la Empresa, no propios.
 *@
-@using CaeManager.Application.Centros
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using CaeManager.Application.Empresas.Commands.EditarEmpresa
 @using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa
-@using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa
+@using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
@@ -121,34 +120,33 @@ else
                 }
                 break;
 
-            case "centros":
-                @if (_cargandoCentros)
+            case "clientes":
+                @if (_cargandoClientes)
                 {
                     <EstadoCargando Filas="3" />
                 }
-                else if (_errorCentros)
+                else if (_errorClientes)
                 {
-                    <EstadoVacio Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
+                    <EstadoVacio Titulo="No pudimos cargar los clientes" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarCentrosAsync">Reintentar</Boton>
+                            <Boton OnClick="CargarClientesAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
-                else if (_centros is { Count: 0 })
+                else if (_clientes is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin actividad en ningún centro" Descripcion="Ningún trabajador de esta empresa tiene asignaciones activas todavía." />
+                    <EstadoVacio Titulo="Sin clientes" Descripcion="Esta empresa todavía no tiene ningún Cliente asociado." />
                 }
-                else if (_centros is not null)
+                else if (_clientes is not null)
                 {
-                    <p class="workspace-nota-contextual">Centros donde esta empresa tiene actividad real (trabajadores con asignación activa) — no todos los centros de sus clientes.</p>
                     <ul class="workspace-lista-entidades">
-                        @foreach (var centro in _centros)
+                        @foreach (var cliente in _clientes)
                         {
                             <FilaEntidadRelacionada
-                                @key="centro.Id"
-                                Titulo="@centro.Nombre"
-                                Subtitulo="@($"{centro.ClienteRazonSocial} · {centro.TrabajadoresAsignados} trabajador(es)")"
-                                OnClic="() => AbrirCentroAsync(centro)" />
+                                @key="cliente.Id"
+                                Titulo="@cliente.RazonSocial"
+                                Subtitulo="@cliente.Cif"
+                                OnClic="() => AbrirClienteAsync(cliente)" />
                         }
                     </ul>
                 }
@@ -173,7 +171,7 @@ else
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
     [
         new("informacion", "Información"),
-        new("centros", "Centros"),
+        new("clientes", "Clientes"),
         new("documentacion", "Documentación"),
         new("agenda", "Agenda"),
         new("historial", "Historial")
@@ -189,9 +187,9 @@ else
     private Guid _idCargado;
     private int? _cumplimiento;
 
-    private IReadOnlyList<CentroConActividadDto>? _centros;
-    private bool _cargandoCentros;
-    private bool _errorCentros;
+    private IReadOnlyList<ClienteDeEmpresaDto>? _clientes;
+    private bool _cargandoClientes;
+    private bool _errorClientes;
 
     /// <summary>
     /// Edición in situ de "Información" (Centro 360, PLAN-EJECUCION-UX.md
@@ -227,15 +225,15 @@ else
         if (EntidadId != _idCargado)
         {
             _idCargado = EntidadId;
-            _centros = null;
-            _errorCentros = false;
+            _clientes = null;
+            _errorClientes = false;
             _cumplimiento = null;
             _editandoInformacion = false;
             await CargarCabeceraAsync();
         }
 
-        if (PestanaActiva == "centros" && _centros is null && !_errorCentros && !_cargandoCentros)
-            await CargarCentrosAsync();
+        if (PestanaActiva == "clientes" && _clientes is null && !_errorClientes && !_cargandoClientes)
+            await CargarClientesAsync();
     }
 
     private async Task CargarCabeceraAsync()
@@ -258,32 +256,32 @@ else
         }
     }
 
-    private async Task CargarCentrosAsync()
+    private async Task CargarClientesAsync()
     {
         var idSolicitado = EntidadId;
-        _cargandoCentros = true;
-        _errorCentros = false;
+        _cargandoClientes = true;
+        _errorClientes = false;
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerCentrosConActividadDeEmpresaQuery(idSolicitado));
+            var resultado = await Mediator.Send(new ObtenerClientesDeEmpresaQuery(idSolicitado));
             if (idSolicitado == EntidadId)
-                _centros = resultado;
+                _clientes = resultado;
         }
         catch (Exception)
         {
             if (idSolicitado == EntidadId)
-                _errorCentros = true;
+                _errorClientes = true;
         }
         finally
         {
             if (idSolicitado == EntidadId)
-                _cargandoCentros = false;
+                _cargandoClientes = false;
         }
     }
 
-    private Task AbrirCentroAsync(CentroConActividadDto centro) =>
-        WorkspaceService.NavegarAAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
+    private Task AbrirClienteAsync(ClienteDeEmpresaDto cliente) =>
+        WorkspaceService.NavegarAAsync(EntidadWorkspace.Cliente, cliente.Id, cliente.RazonSocial, "informacion");
 
     private async Task IniciarEdicionInformacionAsync()
     {
