@@ -28,7 +28,13 @@ public record DashboardEjecutivoDto(
     decimal CosteIaMesActual,
     double? TiempoMedioProcesamientoIaMs,
     decimal FacturacionEstimadaMesActual,
-    KpisBpoDto Bpo);
+    KpisBpoDto Bpo,
+    /// <summary>
+    /// Aviso al operador (Horizonte 2.7): tenants cuyo gasto estimado de IA del período
+    /// supera el <c>PresupuestoMensualIaUsd</c> que tienen configurado — vacío si ninguno
+    /// tiene presupuesto configurado o si todos están dentro. No bloquea nada.
+    /// </summary>
+    IReadOnlyList<string> TenantsConPresupuestoIaExcedido);
 
 /// <summary>
 /// Generaliza el patrón de <c>ObtenerKpisGlobalesQuery</c> (Fase 57, Visión
@@ -122,7 +128,11 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator) : IReques
             TiempoMedioProcesamientoIaMs: PromedioPonderado(
                 porTenant.Select(p => (p.Valores.TiempoMedioProcesamientoIaMs, (double)p.Valores.TotalAuditoriasIaMes))),
             FacturacionEstimadaMesActual: porTenant.Sum(p => p.Valores.FacturacionEstimadaMesActual),
-            Bpo: FusionarBpo(porTenant));
+            Bpo: FusionarBpo(porTenant),
+            TenantsConPresupuestoIaExcedido: porTenant
+                .Where(p => p.Valores.PresupuestoIaExcedido)
+                .Select(p => p.Cliente.Nombre)
+                .ToList());
     }
 
     /// <summary>
