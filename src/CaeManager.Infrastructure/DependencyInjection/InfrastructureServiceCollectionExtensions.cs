@@ -529,6 +529,18 @@ public static class InfrastructureServiceCollectionExtensions
         // reintento — cambiar cuál es "primario" para estructuración es
         // una decisión de benchmark, no algo que se cambie por tener una
         // clave nueva (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1).
+        //
+        // ProveedorFalsoDocumentAI (Horizonte 1.6, ciclo documental E2E):
+        // SIEMPRE antes que los reales, gateado por
+        // "DocumentosIa:ProveedorFalsoActivo" — apagado en cualquier sitio
+        // que no sea WebAppFixture (ver ese archivo), así que este bloque es
+        // inerte en producción. Ir primero es lo que lo convierte en el
+        // proveedor que de verdad usa DocumentAIRouterService, tanto para
+        // OCR como para extracción estructurada — ver el comentario de esa
+        // clase.
+        if (configuration.GetValue<bool>("DocumentosIa:ProveedorFalsoActivo"))
+            services.AddSingleton<IDocumentAIProvider, ProveedorFalsoDocumentAI>();
+
         services.Configure<MistralOcrOptions>(configuration.GetSection(MistralOcrOptions.SeccionConfiguracion));
         services.AddHttpClient<MistralOcrDocumentAIProvider>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
