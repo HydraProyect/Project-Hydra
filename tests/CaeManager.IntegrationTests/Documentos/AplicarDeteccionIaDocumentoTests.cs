@@ -1,5 +1,6 @@
 using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -59,6 +60,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
 
     private AplicarDeteccionIaDocumentoCommandHandler CrearHandler(IReadOnlyList<Guid>? trabajadorIds = null) =>
         new(new RevisionIaDocumentoRepository(_dbContext), new DocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
+            new AuditoriaExtraccionIaRepository(_dbContext),
             _dbContext, new AlcanceDatosServiceFalso(trabajadorIds: trabajadorIds ?? [_trabajador.Id]), _dbContext,
             new CurrentUserServiceFalso(usuarioId: _usuarioId), new PublisherFalso(), _dbContext);
 
@@ -88,6 +90,32 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
         (await _dbContext.RevisionesIaDocumento.SingleAsync(r => r.Id == revision.Id)).Resuelta.Should().BeTrue();
         var aprobacion = await _dbContext.AprobacionesDocumento.SingleAsync(a => a.DocumentoId == documento.Id);
         aprobacion.UsuarioId.Should().Be(_usuarioId);
+    }
+
+    [Fact]
+    public async Task Marca_como_confirmada_manual_la_auditoria_de_ia_ligada_al_documento()
+    {
+        var fechaOriginal = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, null);
+        _dbContext.Documentos.Add(documento);
+
+        var fechaDetectada = DateOnly.FromDateTime(DateTime.UtcNow);
+        var auditoria = AuditoriaExtraccionIa.Crear(
+            new string('a', AuditoriaExtraccionIa.LongitudHash), "Apto médico", "anthropic", 900,
+            null, 0.01m, 1, 92, null, documento.Id);
+        _dbContext.AuditoriasExtraccionIa.Add(auditoria);
+
+        var revision = RevisionIaDocumento.Crear(
+            documento.Id, 92, "Apto médico", fechaDetectada, fechaDetectada.AddMonths(6), true, "Confianza baja");
+        _dbContext.RevisionesIaDocumento.Add(revision);
+        await _dbContext.SaveChangesAsync();
+
+        var resultado = await CrearHandler().Handle(new AplicarDeteccionIaDocumentoCommand(revision.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var auditoriaActualizada = await _dbContext.AuditoriasExtraccionIa.SingleAsync(a => a.Id == auditoria.Id);
+        auditoriaActualizada.DecisionHumana.Should().Be(DecisionHumanaIa.ConfirmadaManual);
+        auditoriaActualizada.UsuarioDecisionId.Should().Be(_usuarioId);
     }
 
     [Fact]

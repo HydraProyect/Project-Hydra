@@ -2,6 +2,7 @@
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -56,7 +57,8 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
 
     private VerificacionIaDocumentoService CrearServicio(IExtraccionMetadatosDocumentoIaService extraccion, IFileStorageService? almacenamiento = null) =>
         new(_dbContext, _dbContext, almacenamiento ?? new AlmacenamientoFalso(), extraccion,
-            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext), _dbContext,
+            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
+            new AuditoriaExtraccionIaRepository(_dbContext), _dbContext,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<VerificacionIaDocumentoService>.Instance);
 
     private Trabajador CrearTrabajador() => Trabajador.DeEmpresa(_empresa.Id, "Alvaro", "Sanchez Martin", "77189989B");
@@ -129,6 +131,31 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Cierra_la_auditoria_ligada_al_documento_como_automatica_sin_revision_cuando_aprueba_solo()
+    {
+        var trabajador = CrearTrabajador();
+        _dbContext.Trabajadores.Add(trabajador);
+        var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        var auditoria = AuditoriaExtraccionIa.Crear(
+            new string('a', AuditoriaExtraccionIa.LongitudHash), "Apto médico", "anthropic", 800,
+            null, 0.01m, 1, 99, null, documento.Id);
+        _dbContext.AuditoriasExtraccionIa.Add(auditoria);
+        await _dbContext.SaveChangesAsync();
+
+        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, 99, null);
+        var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var auditoriaActualizada = await _dbContext.AuditoriasExtraccionIa.SingleAsync(a => a.Id == auditoria.Id);
+        auditoriaActualizada.DecisionHumana.Should().Be(DecisionHumanaIa.AutomaticaSinRevision);
+        auditoriaActualizada.UsuarioDecisionId.Should().BeNull();
+        auditoriaActualizada.FechaDecisionUtc.Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task No_hace_nada_si_el_tipo_de_documento_no_tiene_verificacion_activa()
     {
         _tipoApto.EstablecerVerificacionIaActiva(false);
@@ -171,13 +198,13 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
 
     private sealed class ExtraccionIaFalsa(Result<MetadatosDocumentoExtraidosDto> resultado) : IExtraccionMetadatosDocumentoIaService
     {
-        public Task<Result<MetadatosDocumentoExtraidosDto>> ExtraerAsync(byte[] contenidoPdf, string nombreTipoDocumento, CancellationToken cancellationToken = default) =>
+        public Task<Result<MetadatosDocumentoExtraidosDto>> ExtraerAsync(byte[] contenidoPdf, string nombreTipoDocumento, Guid? documentoId = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(resultado);
     }
 
     private sealed class ExtraccionIaFalsaConSenal(Action alLlamar) : IExtraccionMetadatosDocumentoIaService
     {
-        public Task<Result<MetadatosDocumentoExtraidosDto>> ExtraerAsync(byte[] contenidoPdf, string nombreTipoDocumento, CancellationToken cancellationToken = default)
+        public Task<Result<MetadatosDocumentoExtraidosDto>> ExtraerAsync(byte[] contenidoPdf, string nombreTipoDocumento, Guid? documentoId = null, CancellationToken cancellationToken = default)
         {
             alLlamar();
             return Task.FromResult(Result.Fallo<MetadatosDocumentoExtraidosDto>(Error.Crear("Test.NoLlamar", "No debería llamarse.")));
