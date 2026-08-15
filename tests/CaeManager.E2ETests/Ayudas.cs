@@ -89,6 +89,46 @@ public static class Ayudas
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
     }
 
+    /// <summary>
+    /// Descarta el modal de notificaciones pendientes (ver
+    /// Features/Notificaciones/NotificacionesPopup.razor, montado en
+    /// MainLayout) si aparece — se dispara en el primer render de cada
+    /// circuito nuevo (recarga real de página) mientras el usuario tenga
+    /// notificaciones sin leer, y bloquea toda interacción con la página
+    /// (<c>CerrarAlHacerClicFuera="false"</c>) hasta que se descarta. Los
+    /// usuarios <c>prueba.&lt;rol&gt;</c> de DatosPruebaSeeder arrancan con una
+    /// notificación sin leer a propósito ("la campana no debe arrancar
+    /// vacía") — sin este paso, cualquier test que inicie sesión con esos
+    /// usuarios y luego interactúe con la página se bloquea contra el modal.
+    /// No-op si no hay ninguna pendiente.
+    /// </summary>
+    public static async Task DescartarNotificacionesPendientesAsync(IPage page)
+    {
+        // Como mucho unas pocas notificaciones sembradas por usuario — el
+        // límite evita un bucle infinito si el modal nunca llega a cerrarse.
+        for (var intentos = 0; intentos < 8; intentos++)
+        {
+            var botonOmitir = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Omitir" });
+            if (await botonOmitir.CountAsync() == 0) return;
+
+            try
+            {
+                // Timeout corto y locator fresco en cada vuelta: justo tras el
+                // login la página puede estar a mitad de la transición de
+                // prerenderizado estático a circuito interactivo, y el DOM del
+                // modal se sustituye entero en ese momento — un clic que cae
+                // justo ahí ve el elemento "detached" y hay que reintentarlo
+                // contra el nuevo DOM, no contra la misma referencia.
+                await botonOmitir.First.ClickAsync(new LocatorClickOptions { Timeout = 5_000 });
+            }
+            catch (TimeoutException)
+            {
+            }
+
+            await page.WaitForTimeoutAsync(300);
+        }
+    }
+
     public static async Task IniciarSesionAsync(IPage page, string baseUrl, string email, string password)
     {
         await page.GotoAsync($"{baseUrl}/cuenta/iniciar-sesion");
