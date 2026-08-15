@@ -293,13 +293,16 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
     /// /documentos/revision-ia no se actualiza sola cuando termina un
     /// análisis en segundo plano (ver el comentario del Paso 5 más arriba) —
     /// se recarga en bucle hasta encontrar la fila o agotar el presupuesto
-    /// de tiempo. 45s cubre con margen el sondeo de 5s de
+    /// de tiempo. 90s (antes 45s) cubre con margen el sondeo de 5s de
     /// ProcesadorAnalisisDocumentoHostedService más la elección de líder y
-    /// el resto de la tubería (clasificación, extracción, guardado).
+    /// el resto de la tubería (clasificación, extracción, guardado) — el
+    /// margen original ya no bastaba con la suite de AppCollection tan
+    /// crecida esta noche (varios flujos nuevos compitiendo por el mismo
+    /// runner de CI), sin que cambiara nada en la tubería en sí.
     /// </summary>
     private static async Task<ILocator> EsperarFilaRevisionIaAsync(IPage page, string baseUrl, string apellidosTrabajador)
     {
-        var limite = DateTime.UtcNow.AddSeconds(45);
+        var limite = DateTime.UtcNow.AddSeconds(90);
 
         while (true)
         {
@@ -311,7 +314,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
             if (DateTime.UtcNow >= limite)
                 throw new TimeoutException(
-                    $"La revisión IA de \"{apellidosTrabajador}\" no apareció en /documentos/revision-ia tras 45s.");
+                    $"La revisión IA de \"{apellidosTrabajador}\" no apareció en /documentos/revision-ia tras 90s.");
 
             await page.WaitForTimeoutAsync(2_000);
         }
