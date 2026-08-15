@@ -313,6 +313,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Plantillas.GenerarDocumentoIndividualCommandHandler", "ITrabajadoresQueryContext"),
         // Progreso de lote: nombre del trabajador de cada item, para no obligar a la UI a resolverlo aparte.
         ("Plantillas.ObtenerLoteGeneracionDocumentosQueryHandler", "ITrabajadoresQueryContext"),
+        // Trazabilidad: nombre del trabajador/empresa de cada DocumentoGenerado.
+        ("Plantillas.ObtenerDocumentosGeneradosQueryHandler", "ITrabajadoresQueryContext"),
+        ("Plantillas.ObtenerDocumentosGeneradosQueryHandler", "IEmpresasQueryContext"),
         ("Proyectos.AsignarTecnicoProyectoCommandHandler", "ITrabajadoresQueryContext"),
         ("Proyectos.CrearProyectoCommandHandler", "ICentrosQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "ICentrosQueryContext"),

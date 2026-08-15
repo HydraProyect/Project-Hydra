@@ -1,0 +1,89 @@
+@page "/plantillas/documentos-generados"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using CaeManager.Domain.Plantillas
+@using MediatR
+@inject IMediator Mediator
+
+<PageTitle>Documentos generados — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Documentos generados</h1>
+        <a class="enlace-exportar" href="/plantillas">Volver a Plantillas</a>
+    </div>
+
+    <div class="barra-filtros">
+        <CampoSelect Etiqueta="Plantilla" Valor="@(_plantillaFiltro?.ToString() ?? "")" ValorChanged="CambiarPlantillaFiltroAsync">
+            <option value="">Todas las plantillas</option>
+            @foreach (var plantilla in _plantillasDisponibles)
+            {
+                <option value="@plantilla.Id">@plantilla.Nombre</option>
+            }
+        </CampoSelect>
+
+        <CampoSelect Etiqueta="Trabajador" Valor="@(_trabajadorFiltro?.ToString() ?? "")" ValorChanged="CambiarTrabajadorFiltroAsync">
+            <option value="">Todos los trabajadores</option>
+            @foreach (var trabajador in _trabajadoresDisponibles)
+            {
+                <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+            }
+        </CampoSelect>
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar los documentos generados" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="6" />
+    }
+    else if (_documentosGenerados.Count == 0)
+    {
+        <EstadoVacio Titulo="Todavía no se ha generado ningún documento" Descripcion="Genera uno individual o en lote desde una plantilla confirmada." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Plantilla</th>
+                    <th>Trabajador</th>
+                    <th>Empresa</th>
+                    <th>Generado el</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var generado in _documentosGenerados)
+                {
+                    <tr>
+                        <td>@generado.PlantillaNombre</td>
+                        <td>@(generado.TrabajadorNombreCompleto ?? "—")</td>
+                        <td>@(generado.EmpresaRazonSocial ?? "—")</td>
+                        <td>@generado.GeneradoEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>
+                            @if (generado.Estado == EstadoDocumentoGenerado.Generado)
+                            {
+                                <Badge Tono="TonoBadge.Exito">Generado</Badge>
+                            }
+                            else
+                            {
+                                <Badge>@generado.Estado</Badge>
+                            }
+                        </td>
+                        <td>
+                            <a class="enlace-exportar" href="@($"/documentos?documentoId={generado.DocumentoId}")">Ver documento</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>

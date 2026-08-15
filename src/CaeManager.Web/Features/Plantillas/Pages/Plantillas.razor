@@ -11,7 +11,10 @@
 <div class="contenedor-pagina">
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">Plantillas</h1>
-        <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
+        <div class="acciones-cabecera">
+            <a class="enlace-exportar" href="/plantillas/documentos-generados">Documentos generados</a>
+            <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
+        </div>
     </div>
 
     <p class="descripcion-subida-masiva">
