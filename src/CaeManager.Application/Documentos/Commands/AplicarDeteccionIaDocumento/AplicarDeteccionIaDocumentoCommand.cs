@@ -5,6 +5,7 @@ using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,6 +26,10 @@ namespace CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento
 /// fecha de vencimiento es siempre un cálculo, nunca un dato de entrada —
 /// ver DATABASE.md); solo si no aplica cálculo automático se usa la fecha de
 /// vencimiento que detectó la IA.
+///
+/// Si hay una AuditoriaExtraccionIa ligada al Documento sin decisión
+/// todavía, queda registrada como <see cref="DecisionHumanaIa.ConfirmadaManual"/>
+/// (MACRO_PLAN § 6.6, "¿qué hizo la IA y quién lo confirmó?").
 /// </summary>
 public record AplicarDeteccionIaDocumentoCommand(Guid RevisionId) : ICommand;
 
@@ -32,6 +37,7 @@ public class AplicarDeteccionIaDocumentoCommandHandler(
     IRevisionIaDocumentoRepository revisionRepositorio,
     IDocumentoRepository documentoRepositorio,
     IAprobacionDocumentoRepository aprobacionRepositorio,
+    IAuditoriaExtraccionIaRepository auditoriaRepositorio,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IAlcanceDatosService alcanceDatos,
     IProyectosQueryContext proyectosContext,
@@ -73,6 +79,9 @@ public class AplicarDeteccionIaDocumentoCommandHandler(
         documento.Renovar(fechaEmision, fechaVencimiento);
         revision.Resolver();
         aprobacionRepositorio.Agregar(AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, usuarioId.Value));
+
+        var auditoria = await auditoriaRepositorio.ObtenerUltimaSinDecisionPorDocumentoAsync(revision.DocumentoId, cancellationToken);
+        auditoria?.RegistrarDecisionHumana(DecisionHumanaIa.ConfirmadaManual, usuarioId.Value);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

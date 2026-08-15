@@ -19,5 +19,6 @@ public class AuditoriaExtraccionIaConfiguration : IEntityTypeConfiguration<Audit
         builder.Property(a => a.Incidencias).HasMaxLength(AuditoriaExtraccionIa.LongitudMaximaIncidencias);
 
         builder.HasIndex(a => new { a.TenantId, a.CreadaEnUtc });
+        builder.HasIndex(a => a.DocumentoId);
     }
 }
