@@ -57,6 +57,11 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         servicios.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         servicios.AddSingleton<ITenantActual>(tenantActual);
         servicios.AddSingleton<IUnitOfWork>(_dbContext);
+        // GateComercialTenantBehavior (Horizonte 1.7) es un IPipelineBehavior
+        // global — cualquier despacho por IMediator, incluida una Query, lo
+        // construye, así que este contenedor mínimo necesita la interfaz
+        // aunque el propio comportamiento no toque nada para una Query.
+        servicios.AddSingleton<CaeManager.Application.Tenants.ITenantsQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Clientes.IClientesQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Empresas.IEmpresasQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Centros.ICentrosQueryContext>(_dbContext);
