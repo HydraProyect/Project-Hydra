@@ -178,6 +178,42 @@ public static class Ayudas
     }
 
     /// <summary>
+    /// Resuelve el campo "Empresa" del drawer de alta de Trabajador
+    /// (Trabajadores.razor), que renderiza de dos formas mutuamente
+    /// excluyentes según el estado del tenant en ese instante: un
+    /// combobox real cuando hay más de una Empresa, o un CampoInfo de
+    /// solo lectura cuando DDL-076 (perfil Cliente Directo + una única
+    /// Empresa) resuelve "en silencio" — ver _resolverEmpresaEnSilencio
+    /// en Trabajadores.razor.cs. Cuál de los dos aparece depende del
+    /// número de Empresas ya creadas por OTROS tests que comparten el
+    /// mismo tenant en "AppCollection", así que no es fijo por test.
+    ///
+    /// Comprobar comboEmpresa.CountAsync() inmediatamente después de abrir
+    /// el drawer es una carrera real (visto en CI): Blazor todavía no ha
+    /// terminado de decidir/renderizar cuál de las dos ramas le toca, así
+    /// que un CountAsync() prematuro puede leer "0" aunque el combobox
+    /// esté a punto de aparecer, y el resto del test acaba esperando el
+    /// campo equivocado. Se espera primero a que cualquiera de los dos
+    /// esté realmente visible, y solo entonces se decide la rama.
+    /// </summary>
+    public static async Task SeleccionarEmpresaEnDrawerTrabajadorAsync(ILocator drawer, string razonSocialEmpresa)
+    {
+        var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
+        var infoEmpresa = drawer.Locator(".campo-info-valor", new LocatorLocatorOptions { HasText = razonSocialEmpresa });
+
+        await comboEmpresa.Or(infoEmpresa).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+
+        if (await comboEmpresa.CountAsync() > 0)
+        {
+            await comboEmpresa.SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
+        }
+        else
+        {
+            await infoEmpresa.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        }
+    }
+
+    /// <summary>
     /// Genera un PDF de una página válido con PDFsharp — la misma librería
     /// que usa ConversorArchivosPdf en producción para combinar/leer los
     /// archivos subidos — para que el flujo de subida real (import vía
