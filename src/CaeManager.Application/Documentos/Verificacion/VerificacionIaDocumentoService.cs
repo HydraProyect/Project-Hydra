@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -39,6 +40,7 @@ public class VerificacionIaDocumentoService(
     IExtraccionMetadatosDocumentoIaService extraccion,
     IRevisionIaDocumentoRepository revisionRepositorio,
     IAprobacionDocumentoRepository aprobacionRepositorio,
+    IAuditoriaExtraccionIaRepository auditoriaRepositorio,
     IUnitOfWork unitOfWork,
     ILogger<VerificacionIaDocumentoService> logger) : IVerificacionIaDocumentoService
 {
@@ -78,7 +80,7 @@ public class VerificacionIaDocumentoService(
             return;
         }
 
-        var resultadoExtraccion = await extraccion.ExtraerAsync(contenido, tipoDocumento.Nombre, cancellationToken);
+        var resultadoExtraccion = await extraccion.ExtraerAsync(contenido, tipoDocumento.Nombre, documentoId, cancellationToken);
 
         if (resultadoExtraccion.EsFallido)
         {
@@ -93,6 +95,7 @@ public class VerificacionIaDocumentoService(
         if (motivos.Count == 0)
         {
             aprobacionRepositorio.Agregar(AprobacionDocumento.CrearAutomatica(documentoId, extraido.ConfianzaGeneral));
+            await RegistrarDecisionEnAuditoriaAsync(documentoId, DecisionHumanaIa.AutomaticaSinRevision, usuarioId: null, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return;
         }
@@ -104,6 +107,21 @@ public class VerificacionIaDocumentoService(
 
         revisionRepositorio.Agregar(revision);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Cierra el ciclo "la IA propone, el humano dispone" sobre la
+    /// <see cref="AuditoriaExtraccionIa"/> que el router de IA documental ya
+    /// escribió para este Documento (ver RouterExtraccionMetadatosDocumentoIaService).
+    /// Mejor esfuerzo: si no hay auditoría que enlazar (proveedor no
+    /// configurado, o un Documento de antes de que existiera este enlace),
+    /// no bloquea el flujo — la aprobación/revisión ya quedó registrada de
+    /// todos modos por su propio camino.
+    /// </summary>
+    private async Task RegistrarDecisionEnAuditoriaAsync(Guid documentoId, DecisionHumanaIa decision, Guid? usuarioId, CancellationToken cancellationToken)
+    {
+        var auditoria = await auditoriaRepositorio.ObtenerUltimaSinDecisionPorDocumentoAsync(documentoId, cancellationToken);
+        auditoria?.RegistrarDecisionHumana(decision, usuarioId);
     }
 
     private static List<string> ComputarMotivos(Documento documento, MetadatosDocumentoExtraidosDto extraido)

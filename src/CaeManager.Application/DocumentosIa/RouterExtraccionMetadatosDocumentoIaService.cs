@@ -20,9 +20,9 @@ public class RouterExtraccionMetadatosDocumentoIaService(IDocumentAIRouterServic
     private const string NombreArchivoPorDefecto = "documento.pdf";
 
     public async Task<Result<MetadatosDocumentoExtraidosDto>> ExtraerAsync(
-        byte[] contenidoPdf, string nombreTipoDocumento, CancellationToken cancellationToken = default)
+        byte[] contenidoPdf, string nombreTipoDocumento, Guid? documentoId = null, CancellationToken cancellationToken = default)
     {
-        var resultado = await router.ProcesarAsync(contenidoPdf, NombreArchivoPorDefecto, nombreTipoDocumento, cancellationToken);
+        var resultado = await router.ProcesarAsync(contenidoPdf, NombreArchivoPorDefecto, nombreTipoDocumento, documentoId, cancellationToken);
         if (resultado.EsFallido)
             return Result.Fallo<MetadatosDocumentoExtraidosDto>(resultado.Error);
 

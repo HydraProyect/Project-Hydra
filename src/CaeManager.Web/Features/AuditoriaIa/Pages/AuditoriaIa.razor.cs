@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.DocumentosIa.Queries;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
@@ -91,4 +92,27 @@ public partial class AuditoriaIa : ComponentBase
 
     private static string FormatearCoste(decimal? coste) =>
         coste.HasValue ? $"${coste.Value:F4}" : "—";
+
+    /// <summary>
+    /// "¿qué hizo la IA y quién lo confirmó?" (MACRO_PLAN § 6.6): null sin
+    /// DocumentoId significa triage previo a la creación del Documento (no
+    /// aplica decisión); null con DocumentoId significa que todavía no se
+    /// resolvió la revisión pendiente.
+    /// </summary>
+    private static string TextoDecision(RegistroAuditoriaIaDto registro) => registro switch
+    {
+        { DocumentoId: null } => "—",
+        { DecisionHumana: DecisionHumanaIa.AutomaticaSinRevision } => "Automática",
+        { DecisionHumana: DecisionHumanaIa.ConfirmadaManual } => "Confirmada",
+        { DecisionHumana: DecisionHumanaIa.DescartadaManual } => "Descartada",
+        _ => "Pendiente"
+    };
+
+    private static TonoBadge BadgeParaDecision(RegistroAuditoriaIaDto registro) => registro.DecisionHumana switch
+    {
+        DecisionHumanaIa.AutomaticaSinRevision => TonoBadge.Info,
+        DecisionHumanaIa.ConfirmadaManual => TonoBadge.Exito,
+        DecisionHumanaIa.DescartadaManual => TonoBadge.Advertencia,
+        _ => TonoBadge.Info
+    };
 }
