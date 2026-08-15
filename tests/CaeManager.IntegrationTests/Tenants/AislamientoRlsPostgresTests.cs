@@ -1,5 +1,6 @@
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -61,6 +62,10 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         var empresa = new Empresa("Empresa de prueba", "B12345674");
         dbContext.Empresas.Add(empresa);
         dbContext.SellosEmpresa.Add(new SelloEmpresa(empresa.Id, "url/sello.png", DateTime.UtcNow));
+
+        var contacto = ContactoAgenda.DeEmpresa(empresa.Id, "Juan Pérez", "juan@example.com");
+        contacto.EstablecerRoles([RolContacto.ResponsablePrl]);
+        dbContext.ContactosAgenda.Add(contacto);
 
         await dbContext.SaveChangesAsync();
     }
@@ -204,6 +209,18 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
 
         await FijarTenantDeSesionAsync(conexion, _tenantB);
         (await ContarAsync(conexion, "SellosEmpresa")).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_rol_restringido_solo_ve_el_rol_de_contacto_del_tenant_fijado_en_la_sesion()
+    {
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+        (await ContarAsync(conexion, "ContactosAgendaRoles")).Should().Be(1);
+
+        await FijarTenantDeSesionAsync(conexion, _tenantB);
+        (await ContarAsync(conexion, "ContactosAgendaRoles")).Should().Be(0);
     }
 
     [Fact]

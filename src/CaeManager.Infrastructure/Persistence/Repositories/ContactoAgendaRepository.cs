@@ -18,5 +18,6 @@ public class ContactoAgendaRepository(CaeManagerDbContext dbContext) : IContacto
     public Task<ContactoAgenda?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.ContactosAgenda
             .Include(c => c.TiposDocumento)
+            .Include(c => c.Roles)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 }

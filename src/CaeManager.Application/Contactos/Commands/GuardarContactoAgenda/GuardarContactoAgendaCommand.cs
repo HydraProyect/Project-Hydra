@@ -26,7 +26,8 @@ public record GuardarContactoAgendaCommand(
     bool EsPredeterminado,
     bool RecibeProgramacionVisitas,
     bool RecibeFacturacion,
-    IReadOnlyList<Guid> TipoDocumentoIds) : ICommand<Guid>;
+    IReadOnlyList<Guid> TipoDocumentoIds,
+    IReadOnlyList<RolContacto> Roles) : ICommand<Guid>;
 
 public class GuardarContactoAgendaCommandValidator : AbstractValidator<GuardarContactoAgendaCommand>
 {
@@ -110,6 +111,7 @@ public class GuardarContactoAgendaCommandHandler(
         }
 
         contacto.EstablecerTiposDocumento(tipoDocumentoIdsValidos);
+        contacto.EstablecerRoles(request.Roles);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito(contacto.Id);

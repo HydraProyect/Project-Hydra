@@ -197,6 +197,8 @@ public class CaeManagerDbContext(
     IQueryable<CaeManager.Domain.Contactos.ContactoAgenda> CaeManager.Application.Contactos.IContactosAgendaQueryContext.ContactosAgenda => ContactosAgenda;
     public DbSet<CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento> ContactosAgendaTiposDocumento => Set<CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento>();
     IQueryable<CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento> CaeManager.Application.Contactos.IContactosAgendaQueryContext.ContactosAgendaTiposDocumento => ContactosAgendaTiposDocumento;
+    public DbSet<CaeManager.Domain.Contactos.ContactoAgendaRol> ContactosAgendaRoles => Set<CaeManager.Domain.Contactos.ContactoAgendaRol>();
+    IQueryable<CaeManager.Domain.Contactos.ContactoAgendaRol> CaeManager.Application.Contactos.IContactosAgendaQueryContext.ContactosAgendaRoles => ContactosAgendaRoles;
     public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
     IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
     public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();

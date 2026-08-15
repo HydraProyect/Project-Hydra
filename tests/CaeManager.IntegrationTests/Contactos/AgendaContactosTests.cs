@@ -149,7 +149,7 @@ public class AgendaContactosTests : IAsyncLifetime
             new GuardarContactoAgendaCommand(
                 TipoPropietarioAgenda.Cliente, _clienteId, contactoId, nombre, email, telefono,
                 Cargo: null, Notas: null, EsPredeterminado: false, RecibeProgramacionVisitas: false,
-                RecibeFacturacion: false, tipoDocumentoIds),
+                RecibeFacturacion: false, tipoDocumentoIds, Roles: []),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
