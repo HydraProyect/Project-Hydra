@@ -145,6 +145,7 @@ public class CaeManagerDbContext(
     public DbSet<TrabajoAnalisisDocumento> TrabajosAnalisisDocumento => Set<TrabajoAnalisisDocumento>();
     public DbSet<FirmaDigitalDocumento> FirmasDigitalesDocumento => Set<FirmaDigitalDocumento>();
     IQueryable<FirmaDigitalDocumento> IDocumentosQueryContext.FirmasDigitalesDocumento => FirmasDigitalesDocumento;
+    public DbSet<FirmaEnCampoDocumento> FirmasEnCampoDocumento => Set<FirmaEnCampoDocumento>();
     public DbSet<VerificacionDocumentoOficial> VerificacionesDocumentoOficial => Set<VerificacionDocumentoOficial>();
     IQueryable<VerificacionDocumentoOficial> IDocumentosQueryContext.VerificacionesDocumentoOficial => VerificacionesDocumentoOficial;
     public DbSet<AcreditacionDocumentoPlataforma> AcreditacionesDocumentoPlataforma => Set<AcreditacionDocumentoPlataforma>();
