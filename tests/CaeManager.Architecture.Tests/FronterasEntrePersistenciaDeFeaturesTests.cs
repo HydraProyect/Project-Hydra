@@ -231,6 +231,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.RenovarDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.RenovarDocumentoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Documentos.RenovarDocumentoCommandHandler", "ITrabajoAnalisisDocumentoRepository"),
+        // Mismo par que RenovarDocumentoCommandHandler: DocumentoAlcanceExtensions.DocumentoVisibleAsync
+        // necesita IProyectosQueryContext para resolver el ClienteId de un Documento de Proyecto,
+        // y la guarda de perfil oficial (Fase A de firma en campo) necesita ITiposDocumentoQueryContext.
+        ("Documentos.FirmarDocumentoEnCampoCommandHandler", "IProyectosQueryContext"),
+        ("Documentos.FirmarDocumentoEnCampoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Empresas.CrearEmpresaCommandHandler", "IClientesQueryContext"),
         ("Empresas.EditarEmpresaCommandHandler", "IClientesQueryContext"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "IAsignacionesQueryContext"),
