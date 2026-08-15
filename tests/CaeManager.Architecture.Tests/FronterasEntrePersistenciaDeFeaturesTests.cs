@@ -116,6 +116,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Clientes.ObtenerSubcontratasDeClienteQueryHandler", "ISubcontratasQueryContext"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "IConfiguracionIaDocumentoClienteRepository"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "INotificacionUsuarioRepository"),
+        // Comercial (Horizonte 1.7, "Billing mínimo viable") opera
+        // directamente sobre el agregado Tenant (EstadoComercial,
+        // StripeCustomerId/SubscriptionId) — mismo motivo que ApiKeys arriba:
+        // no tiene sentido una feature de "billing" con su propio
+        // repositorio de Tenant en paralelo al de Tenants.
+        ("Comercial.ActualizarEstadoComercialTenantCommandHandler", "ITenantsQueryContext"),
+        ("Comercial.ObtenerEstadoComercialTenantsQueryHandler", "ITenantsQueryContext"),
+        ("Comercial.RegistrarSuscripcionTenantCommandHandler", "ITenantsQueryContext"),
         ("Comunicaciones.ActualizarDocumentoDesdeAdjuntoCommandHandler", "IDocumentosQueryContext"),
         ("Comunicaciones.AsignarClienteConversacionCommandHandler", "IClienteRepository"),
         ("Comunicaciones.CrearMacroCommandHandler", "IClienteRepository"),
