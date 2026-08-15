@@ -162,5 +162,8 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
         public Task<IReadOnlyList<TrabajoAnalisisDocumento>> ObtenerEstancadosAsync(
             TimeSpan umbral, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<TrabajoAnalisisDocumento>>([]);
+
+        public Task<int> ContarActivosAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
     }
 }
