@@ -114,7 +114,7 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
     private class RouterQueNuncaSeDebeLlamar : CaeManager.Application.DocumentosIa.IDocumentAIRouterService
     {
         public Task<Result<CaeManager.Application.DocumentosIa.Common.ExtraccionEstructuradaDto>> ProcesarAsync(
-            byte[] contenido, string nombreArchivo, string tipoEsperado, CancellationToken cancellationToken = default) =>
+            byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("No debería llamarse con el kill switch apagado.");
     }
 }

@@ -217,6 +217,35 @@ public class DocumentAIRouterServiceTests
     }
 
     [Fact]
+    public async Task Enlaza_la_auditoria_al_documento_cuando_se_indica_documentoId()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Apto médico", new Dictionary<string, string?>(), 97, null)));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+        var documentoId = Guid.NewGuid();
+
+        await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Apto médico", documentoId);
+
+        auditoria.Auditorias.Should().ContainSingle();
+        auditoria.Auditorias[0].DocumentoId.Should().Be(documentoId);
+        auditoria.Auditorias[0].DecisionHumana.Should().BeNull("todavía no hay decisión humana — solo el enlace");
+    }
+
+    [Fact]
+    public async Task No_enlaza_la_auditoria_a_ningun_documento_cuando_no_se_indica()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Apto médico", new Dictionary<string, string?>(), 97, null)));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+
+        await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Apto médico");
+
+        auditoria.Auditorias[0].DocumentoId.Should().BeNull("triage previo a la creación del Documento — todavía no existe qué enlazar");
+    }
+
+    [Fact]
     public async Task Registra_una_auditoria_con_proveedor_ninguno_cuando_falla()
     {
         var (router, _, auditoria, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"));
