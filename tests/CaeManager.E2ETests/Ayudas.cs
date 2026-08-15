@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using ClosedXML.Excel;
 using Microsoft.Playwright;
 using PdfSharp.Pdf;
 
@@ -217,6 +218,42 @@ public static class Ayudas
     }
 
     /// <summary>
+    /// Resuelve el campo "Empresa" del drawer de alta de Trabajador
+    /// (Trabajadores.razor), que renderiza de dos formas mutuamente
+    /// excluyentes según el estado del tenant en ese instante: un
+    /// combobox real cuando hay más de una Empresa, o un CampoInfo de
+    /// solo lectura cuando DDL-076 (perfil Cliente Directo + una única
+    /// Empresa) resuelve "en silencio" — ver _resolverEmpresaEnSilencio
+    /// en Trabajadores.razor.cs. Cuál de los dos aparece depende del
+    /// número de Empresas ya creadas por OTROS tests que comparten el
+    /// mismo tenant en "AppCollection", así que no es fijo por test.
+    ///
+    /// Comprobar comboEmpresa.CountAsync() inmediatamente después de abrir
+    /// el drawer es una carrera real (visto en CI): Blazor todavía no ha
+    /// terminado de decidir/renderizar cuál de las dos ramas le toca, así
+    /// que un CountAsync() prematuro puede leer "0" aunque el combobox
+    /// esté a punto de aparecer, y el resto del test acaba esperando el
+    /// campo equivocado. Se espera primero a que cualquiera de los dos
+    /// esté realmente visible, y solo entonces se decide la rama.
+    /// </summary>
+    public static async Task SeleccionarEmpresaEnDrawerTrabajadorAsync(ILocator drawer, string razonSocialEmpresa)
+    {
+        var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
+        var infoEmpresa = drawer.Locator(".campo-info-valor", new LocatorLocatorOptions { HasText = razonSocialEmpresa });
+
+        await comboEmpresa.Or(infoEmpresa).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+
+        if (await comboEmpresa.CountAsync() > 0)
+        {
+            await comboEmpresa.SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
+        }
+        else
+        {
+            await infoEmpresa.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        }
+    }
+
+    /// <summary>
     /// Genera un PDF de una página válido con PDFsharp — la misma librería
     /// que usa ConversorArchivosPdf en producción para combinar/leer los
     /// archivos subidos — para que el flujo de subida real (import vía
@@ -269,5 +306,50 @@ public static class Ayudas
     {
         const string letrasControl = "TRWAGMYFPDXBNJZSQVHLCKE";
         return $"{numero:D8}{letrasControl[numero % 23]}";
+    }
+
+    /// <summary>
+    /// Vuelve inválido un CIF generado por <see cref="GenerarCifValido"/> sin
+    /// tocar su formato (letra + 7 dígitos + dígito de control) — solo
+    /// cambia el dígito de control por uno distinto, así que
+    /// ValidadorIdentificacion.Analizar lo sigue reconociendo como
+    /// TipoIdentificacion.NifEmpresa pero con EsValido=false. Para los tests
+    /// de importación que deliberadamente prueban la fila "CIF no válido".
+    /// </summary>
+    public static string InvalidarCif(string cifValido)
+    {
+        var ultimoDigito = cifValido[^1];
+        var sustituto = ultimoDigito == '0' ? '1' : '0';
+        return cifValido[..^1] + sustituto;
+    }
+
+    /// <summary>
+    /// Guarda un libro ClosedXML ya construido por el test en un archivo
+    /// temporal — mismo patrón que GenerarPdfDePruebaEnDisco (SetInputFilesAsync
+    /// necesita una ruta real en disco). ClosedXML es la misma librería que
+    /// ya usan ClosedXmlPlantillaClientesService/ClosedXmlPlantillaCombinadaService/
+    /// ClosedXmlPlantillaDocumentosService/ClosedXmlImportacionParser en
+    /// producción para generar y leer estos mismos formatos — cada test
+    /// construye el libro con las columnas exactas que ese parser espera
+    /// (documentadas en cada uno de esos archivos), no una plantilla
+    /// genérica de conveniencia.
+    /// </summary>
+    public static string GuardarLibroDePruebaEnDisco(XLWorkbook libro, string nombreArchivo)
+    {
+        var ruta = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}-{nombreArchivo}");
+        libro.SaveAs(ruta);
+        return ruta;
+    }
+
+    /// <summary>
+    /// Lee el número mostrado por una TarjetaMetrica de las pantallas de
+    /// importación ("Clientes nuevos", "Documentos creados"…) — cada
+    /// etiqueta es única dentro de la pantalla, así que HasText sobre
+    /// ".tarjeta-metrica" no ambigua entre tarjetas.
+    /// </summary>
+    public static async Task<string> LeerMetricaAsync(IPage page, string etiqueta)
+    {
+        var tarjeta = page.Locator(".tarjeta-metrica", new PageLocatorOptions { HasText = etiqueta });
+        return (await tarjeta.Locator(".tarjeta-metrica-valor").InnerTextAsync()).Trim();
     }
 }
