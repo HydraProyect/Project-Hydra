@@ -31,6 +31,20 @@ public interface IResolucionDestinatariosAgendaService
 {
     Task<IReadOnlyList<DestinatarioAgendaDto>> ResolverAsync(
         Guid clienteId, Guid? centroId, IReadOnlyList<Guid> tipoDocumentoIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Igual que <see cref="ResolverAsync"/> pero para N Clientes de una sola
+    /// vez: una consulta de contactos y una de vínculos sobre la unión de
+    /// todos, en vez de repetir ambas por Cliente (ver
+    /// ObtenerLoteReclamacionQuery, caso CentroId null: un Cliente por email
+    /// de reclamación, así que sin batch son 2 queries × Cliente visible).
+    /// <paramref name="centroId"/> es único para toda la llamada, no por
+    /// Cliente — igual que en ObtenerLoteReclamacionQuery, de donde viene:
+    /// un Centro pertenece a un único Cliente, así que cuando va acotada a
+    /// uno el diccionario de entrada solo trae esa entrada de todos modos.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>> ResolverParaClientesAsync(
+        Guid? centroId, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> tipoDocumentoIdsPorCliente, CancellationToken cancellationToken = default);
 }
 
 public class ResolucionDestinatariosAgendaService(
@@ -38,34 +52,73 @@ public class ResolucionDestinatariosAgendaService(
     TiposDocumento.ITiposDocumentoQueryContext tiposDocumentoContext)
     : IResolucionDestinatariosAgendaService
 {
+    private sealed record Contacto(Guid Id, Guid? ClienteId, string Nombre, string Email, bool EsPredeterminado, bool EsDelCentro);
+    private sealed record Vinculo(Guid ContactoAgendaId, Guid TipoDocumentoId);
+
     public async Task<IReadOnlyList<DestinatarioAgendaDto>> ResolverAsync(
         Guid clienteId, Guid? centroId, IReadOnlyList<Guid> tipoDocumentoIds, CancellationToken cancellationToken = default)
     {
+        var resultado = await ResolverParaClientesAsync(
+            centroId,
+            new Dictionary<Guid, IReadOnlyList<Guid>> { [clienteId] = tipoDocumentoIds },
+            cancellationToken);
+
+        return resultado.GetValueOrDefault(clienteId, []);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>> ResolverParaClientesAsync(
+        Guid? centroId, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> tipoDocumentoIdsPorCliente, CancellationToken cancellationToken = default)
+    {
+        if (tipoDocumentoIdsPorCliente.Count == 0) return new Dictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>();
+
+        var clienteIds = tipoDocumentoIdsPorCliente.Keys.ToList();
+
         var contactos = await contactosContext.ContactosAgenda
-            .Where(c => c.ClienteId == clienteId || (centroId != null && c.CentroId == centroId))
-            .Select(c => new
-            {
-                c.Id,
-                c.Nombre,
-                c.Email,
-                c.EsPredeterminado,
-                EsDelCentro = c.CentroId != null
-            })
+            .Where(c => (c.ClienteId != null && clienteIds.Contains(c.ClienteId.Value)) || (centroId != null && c.CentroId == centroId))
+            .Select(c => new Contacto(c.Id, c.ClienteId, c.Nombre, c.Email, c.EsPredeterminado, c.CentroId != null))
             .ToListAsync(cancellationToken);
 
-        if (contactos.Count == 0) return [];
+        var resultado = new Dictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>();
+
+        if (contactos.Count == 0)
+        {
+            foreach (var clienteId in clienteIds)
+                resultado[clienteId] = [];
+
+            return resultado;
+        }
 
         var contactoIds = contactos.Select(c => c.Id).ToList();
-        var tiposUnicos = tipoDocumentoIds.Distinct().ToList();
+        var tiposUnicos = tipoDocumentoIdsPorCliente.Values.SelectMany(t => t).Distinct().ToList();
 
         var vinculos = await contactosContext.ContactosAgendaTiposDocumento
             .Where(v => contactoIds.Contains(v.ContactoAgendaId) && tiposUnicos.Contains(v.TipoDocumentoId))
-            .Select(v => new { v.ContactoAgendaId, v.TipoDocumentoId })
+            .Select(v => new Vinculo(v.ContactoAgendaId, v.TipoDocumentoId))
             .ToListAsync(cancellationToken);
 
         var nombresTipo = await tiposDocumentoContext.TiposDocumento
             .Where(t => tiposUnicos.Contains(t.Id))
             .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
+
+        foreach (var (clienteId, tipoDocumentoIds) in tipoDocumentoIdsPorCliente)
+        {
+            // Los del propio Cliente, más los del Centro compartido de la
+            // llamada si lo hay (a lo sumo un Cliente en ese caso, ver docstring).
+            var contactosDelCliente = contactos.Where(c => c.ClienteId == clienteId || (centroId != null && c.EsDelCentro)).ToList();
+
+            resultado[clienteId] = Resolver(contactosDelCliente, vinculos, nombresTipo, tipoDocumentoIds.Distinct().ToList());
+        }
+
+        return resultado;
+    }
+
+    private static IReadOnlyList<DestinatarioAgendaDto> Resolver(
+        List<Contacto> contactos, List<Vinculo> vinculosGlobales, Dictionary<Guid, string> nombresTipo, List<Guid> tiposUnicos)
+    {
+        if (contactos.Count == 0) return [];
+
+        var contactoIds = contactos.Select(c => c.Id).ToHashSet();
+        var vinculos = vinculosGlobales.Where(v => contactoIds.Contains(v.ContactoAgendaId)).ToList();
 
         // ContactoId → motivos por los que entra en la lista.
         var motivosPorContacto = new Dictionary<Guid, List<string>>();

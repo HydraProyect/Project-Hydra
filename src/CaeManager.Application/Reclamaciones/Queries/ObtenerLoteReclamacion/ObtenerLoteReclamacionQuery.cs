@@ -126,44 +126,55 @@ public class ObtenerLoteReclamacionQueryHandler(
             })
             .ToDictionaryAsync(x => x.ClienteId, x => x, cancellationToken);
 
-        var resultado = new List<LoteReclamacionClienteDto>();
+        // Sin filtrar por Estado: el filtro SQL de arriba (FechaVencimiento
+        // <= limiteVentana) ya acota la ventana de 1 a 3 meses que pidió el
+        // usuario. Filtrar además por Proximo/Urgente/Vencido reintroduciría
+        // el umbral corto de Alertas (30/15 días por defecto) y dejaría
+        // fuera justo los documentos a 2-3 meses que esta ventana existe
+        // para capturar con antelación — Estado se calcula solo para
+        // mostrarlo como badge informativo en la fila.
+        var documentosPorCliente = filas
+            .GroupBy(f => new { f.Id, f.RazonSocial })
+            .Select(grupoCliente => (
+                Cliente: grupoCliente.Key,
+                Documentos: grupoCliente
+                    .Select(f => new DocumentoReclamableDto(
+                        f.DocumentoId, f.TrabajadorId, f.TrabajadorNombre, f.TipoDocumentoId, f.TipoDocumentoNombre,
+                        f.FechaVencimiento!.Value,
+                        CalculadoraEstadoDocumento.Calcular(
+                            f.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
+                    .OrderBy(d => d.FechaVencimiento)
+                    .ToList()))
+            .Where(x => x.Documentos.Count > 0)
+            .ToList();
 
-        foreach (var grupoCliente in filas.GroupBy(f => new { f.Id, f.RazonSocial }))
-        {
-            // Sin filtrar por Estado: el filtro SQL de arriba (FechaVencimiento
-            // <= limiteVentana) ya acota la ventana de 1 a 3 meses que pidió el
-            // usuario. Filtrar además por Proximo/Urgente/Vencido reintroduciría
-            // el umbral corto de Alertas (30/15 días por defecto) y dejaría
-            // fuera justo los documentos a 2-3 meses que esta ventana existe
-            // para capturar con antelación — Estado se calcula solo para
-            // mostrarlo como badge informativo en la fila.
-            var documentos = grupoCliente
-                .Select(f => new DocumentoReclamableDto(
-                    f.DocumentoId, f.TrabajadorId, f.TrabajadorNombre, f.TipoDocumentoId, f.TipoDocumentoNombre,
-                    f.FechaVencimiento!.Value,
-                    CalculadoraEstadoDocumento.Calcular(
-                        f.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
-                .OrderBy(d => d.FechaVencimiento)
-                .ToList();
+        // Destinatarios desde la agenda, no desde los usuarios de portal (ver
+        // IResolucionDestinatariosAgendaService): la vista previa debe enseñar
+        // exactamente a quién va a salir el correo. Resuelto para todos los
+        // Clientes del lote de una vez (ResolverParaClientesAsync) en vez de
+        // uno por uno: con CentroId null (caso /documentos) esto puede ser un
+        // Cliente por cada email de reclamación pendiente.
+        var tipoDocumentoIdsPorCliente = documentosPorCliente
+            .ToDictionary(
+                x => x.Cliente.Id,
+                IReadOnlyList<Guid> (x) => x.Documentos.Select(d => d.TipoDocumentoId).Distinct().ToList());
 
-            if (documentos.Count == 0) continue;
+        var destinatariosPorCliente = await resolucionDestinatarios.ResolverParaClientesAsync(
+            request.CentroId, tipoDocumentoIdsPorCliente, cancellationToken);
 
-            // Destinatarios desde la agenda, no desde los usuarios de portal
-            // (ver IResolucionDestinatariosAgendaService): la vista previa debe
-            // enseñar exactamente a quién va a salir el correo.
-            var resueltos = await resolucionDestinatarios.ResolverAsync(
-                grupoCliente.Key.Id, request.CentroId, documentos.Select(d => d.TipoDocumentoId).Distinct().ToList(), cancellationToken);
-
-            var ultima = ultimasReclamaciones.GetValueOrDefault(grupoCliente.Key.Id);
-
-            resultado.Add(new LoteReclamacionClienteDto(
-                grupoCliente.Key.Id,
-                grupoCliente.Key.RazonSocial,
-                ultima?.Ultima,
-                documentos,
-                ultima?.ConversacionId,
-                resueltos));
-        }
+        var resultado = documentosPorCliente
+            .Select(x =>
+            {
+                var ultima = ultimasReclamaciones.GetValueOrDefault(x.Cliente.Id);
+                return new LoteReclamacionClienteDto(
+                    x.Cliente.Id,
+                    x.Cliente.RazonSocial,
+                    ultima?.Ultima,
+                    x.Documentos,
+                    ultima?.ConversacionId,
+                    destinatariosPorCliente.GetValueOrDefault(x.Cliente.Id, []));
+            })
+            .ToList();
 
         return resultado
             .OrderByDescending(r => r.Documentos.Any(d => d.Estado == EstadoDocumento.Vencido))
