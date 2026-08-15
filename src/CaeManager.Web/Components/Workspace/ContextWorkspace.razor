@@ -15,9 +15,11 @@
 @using CaeManager.Web.Features.Trabajadores.Components
 @using CaeManager.Web.Features.Vehiculos.Components
 @using CaeManager.Web.Features.Documentos.Components
-@implements IDisposable
+@implements IAsyncDisposable
 @inject ContextWorkspaceService WorkspaceService
 @inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
+@inject ToastService ToastService
 
 @if (WorkspaceService.EstaAbierto)
 {
@@ -38,7 +40,13 @@
                 }
                 <Breadcrumb Elementos="_elementosBreadcrumb" ElementoSeleccionadoChanged="IrABreadcrumbAsync" EtiquetaNavegacion="Ruta del Context Workspace" />
             </div>
-            <button type="button" class="workspace-cerrar" aria-label="Cerrar panel de contexto" @onclick="() => WorkspaceService.CerrarAsync()">×</button>
+            <div class="workspace-header-acciones">
+                <button type="button" class="workspace-copiar-enlace" title="Copiar enlace a esta ficha"
+                        aria-label="Copiar enlace a esta ficha" @onclick="CopiarEnlaceAsync">
+                    <Icono Nombre="copiar" Tamano="TamanoIcono.Pequeno" />
+                </button>
+                <button type="button" class="workspace-cerrar" aria-label="Cerrar panel de contexto" @onclick="() => WorkspaceService.CerrarAsync()">×</button>
+            </div>
         </header>
 
         <div class="workspace-cuerpo">
@@ -212,9 +220,35 @@
         return WorkspaceService.Pila.Count > 1 ? WorkspaceService.VolverAsync() : WorkspaceService.CerrarAsync();
     }
 
-    public void Dispose()
+    private IJSObjectReference? _moduloClipboard;
+
+    /// <summary>
+    /// "Copiar enlace" (§ 7 punto 3 y Horizonte 2.6 de MACRO_PLAN_2026-08-13.md):
+    /// como <see cref="ActualizarUrlDesdeEstado"/> ya mantiene <c>ctx</c>
+    /// sincronizado con el nivel actual de la pila, la URL del navegador EN
+    /// ESTE MOMENTO ya es el deep-link — no hace falta construir nada aparte,
+    /// solo copiarla. Mismo módulo clipboard.js que BotonCopiar.
+    /// </summary>
+    private async Task CopiarEnlaceAsync()
+    {
+        try
+        {
+            _moduloClipboard ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/clipboard.js");
+            await _moduloClipboard.InvokeVoidAsync("copiarAlPortapapeles", Navigation.Uri);
+            ToastService.Mostrar("Se copió el enlace a esta ficha al portapapeles.", TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos copiar el enlace.", TonoToast.Error);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
     {
         WorkspaceService.OnCambio -= ManejarCambio;
         Navigation.LocationChanged -= ManejarNavegacion;
+
+        if (_moduloClipboard is not null)
+            await _moduloClipboard.DisposeAsync();
     }
 }
