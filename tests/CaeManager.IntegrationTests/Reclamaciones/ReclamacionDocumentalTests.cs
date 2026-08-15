@@ -31,6 +31,8 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Data.Common;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Reclamaciones;
@@ -333,6 +335,162 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Reclamacion.SinDestinatario");
+    }
+
+    /// <summary>
+    /// Regresión N+1: con CentroId null (caso /documentos), Handle() agrupaba
+    /// las filas por Cliente y llamaba a
+    /// IResolucionDestinatariosAgendaService.ResolverAsync UNA VEZ POR
+    /// CLIENTE dentro del bucle -- una consultora con muchos clientes con
+    /// documentación pendiente disparaba 2 consultas SQL más (contactos +
+    /// vínculos) por cada Cliente adicional del lote. ResolverParaClientesAsync
+    /// resuelve todos los Clientes del lote con las mismas 2 consultas
+    /// agrupadas sobre la unión -- el número de comandos SQL del Handle
+    /// completo no debe crecer con el número de Clientes.
+    /// </summary>
+    [Fact]
+    public async Task Resolver_destinatarios_del_lote_no_escala_en_consultas_sql_con_el_numero_de_clientes()
+    {
+        var comandosCon2Clientes = await ContarComandosSqlDelLoteAsync(2);
+        var comandosCon6Clientes = await ContarComandosSqlDelLoteAsync(6);
+
+        comandosCon6Clientes.Should().Be(
+            comandosCon2Clientes,
+            "el número de comandos SQL de Handle() no debe depender de cuántos Clientes tengan documentación pendiente en el lote");
+    }
+
+    /// <summary>
+    /// Siembra <paramref name="numeroClientes"/> Clientes independientes, cada
+    /// uno con un Centro, un Trabajador con Asignación activa, un Documento
+    /// reclamable dentro de la ventana y un contacto de agenda predeterminado
+    /// propio -- así cada Cliente aparece en un grupo distinto del lote (caso
+    /// CentroId null) -- y devuelve cuántos comandos SQL reales ejecuta
+    /// Handle() completo, contados con un DbCommandInterceptor.
+    /// </summary>
+    private static async Task<int> ContarComandosSqlDelLoteAsync(int numeroClientes)
+    {
+        var cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
+        var tenant = Guid.NewGuid();
+
+        try
+        {
+            await using (var setup = CrearContexto(cadenaConexion, tenant))
+            {
+                await setup.Database.MigrateAsync();
+                setup.ParametrosSistema.Add(new ParametroSistema(30, 15));
+                await setup.SaveChangesAsync();
+
+                for (var i = 0; i < numeroClientes; i++)
+                {
+                    var cliente = new Cliente($"Reclamación Bulk {i} S.L.", GenerarCifValido(i * 2), esCritico: false);
+                    var empresa = new Empresa($"Contratista Bulk {i} S.L.", GenerarCifValido(i * 2 + 1));
+                    setup.Clientes.Add(cliente);
+                    setup.Empresas.Add(empresa);
+                    await setup.SaveChangesAsync();
+
+                    var centro = new Centro(cliente.Id, empresa.Id, $"Centro Bulk {i}");
+                    setup.Centros.Add(centro);
+
+                    var trabajador = Trabajador.DeEmpresa(empresa.Id, $"Bulk{i}", "Trabajador", GenerarDniValido(i));
+                    setup.Trabajadores.Add(trabajador);
+
+                    var tipo = new TipoDocumento($"Tipo Bulk {i}", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+                    setup.TiposDocumento.Add(tipo);
+                    await setup.SaveChangesAsync();
+
+                    setup.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+                    setup.Documentos.Add(Documento.DeTrabajador(
+                        trabajador.Id, tipo.Id,
+                        DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+                    setup.ContactosAgenda.Add(ContactoAgenda.DeCliente(
+                        cliente.Id, $"Agenda Bulk {i}", $"agenda-bulk-{i}@cliente.test", esPredeterminado: true));
+                    await setup.SaveChangesAsync();
+                }
+            }
+
+            var contador = new ContadorComandosInterceptor();
+            await using var lectura = CrearContexto(cadenaConexion, tenant, contador);
+
+            var handler = new ObtenerLoteReclamacionQueryHandler(
+                lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura,
+                new AlcanceDatosServiceFalso(), new ResolucionDestinatariosAgendaService(lectura, lectura));
+
+            var lotes = await handler.Handle(new ObtenerLoteReclamacionQuery(), CancellationToken.None);
+
+            lotes.Should().HaveCount(numeroClientes);
+            lotes.Should().OnlyContain(l => l.Destinatarios!.Count == 1);
+
+            return contador.NumeroDeComandos;
+        }
+        finally
+        {
+            await BaseDatosPostgresDePruebas.EliminarAsync(cadenaConexion);
+        }
+    }
+
+    /// <summary>CIF con dígito de control real (organización "B"), mismo algoritmo que AislamientoPorAgregadoTests.GenerarCifValido pero indexado para no colisionar dentro de un mismo lote.</summary>
+    private static string GenerarCifValido(int indice)
+    {
+        var digitos = (indice + 1).ToString().PadLeft(7, '0');
+        var sumaPares = 0;
+        var sumaImpares = 0;
+        for (var i = 0; i < digitos.Length; i++)
+        {
+            var num = digitos[i] - '0';
+            if (i % 2 == 1)
+            {
+                sumaPares += num;
+            }
+            else
+            {
+                var multiplicado = num * 2;
+                sumaImpares += multiplicado > 9 ? multiplicado - 9 : multiplicado;
+            }
+        }
+
+        var residuo = (sumaPares + sumaImpares) % 10;
+        var digitoControl = residuo == 0 ? 0 : 10 - residuo;
+        return $"B{digitos}{digitoControl}";
+    }
+
+    /// <summary>DNI con letra de control real (algoritmo estándar módulo 23), indexado igual que GenerarCifValido.</summary>
+    private static string GenerarDniValido(int indice)
+    {
+        const string letras = "TRWAGMYFPDXBNJZSQVHLCKE";
+        var numero = indice + 1;
+        return $"{numero:D8}{letras[numero % 23]}";
+    }
+
+    private static CaeManagerDbContext CrearContexto(string cadenaConexion, Guid tenant, params IInterceptor[] interceptoresAdicionales)
+    {
+        var tenantActual = new TenantActualAmbiental { TenantId = tenant };
+        var builder = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual));
+
+        if (interceptoresAdicionales.Length > 0)
+            builder = builder.AddInterceptors(interceptoresAdicionales);
+
+        return new CaeManagerDbContext(builder.Options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    private sealed class ContadorComandosInterceptor : DbCommandInterceptor
+    {
+        public int NumeroDeComandos { get; private set; }
+
+        public override InterceptionResult<DbDataReader> ReaderExecuting(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
+        {
+            NumeroDeComandos++;
+            return base.ReaderExecuting(command, eventData, result);
+        }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            NumeroDeComandos++;
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
     }
 
     // Servicio de resolución REAL, no un doble: los destinatarios salen ahora

@@ -252,6 +252,13 @@ public partial class DashboardEjecutivo : ComponentBase
         // Invertido a propósito: aquí un porcentaje alto es un problema del cliente,
         // no un logro. 30% de falsos avisos no puede pintarse en verde.
         CatalogoKpis.FalsosAvisos when PorcentajeFalsosAvisos is { } fa => TonoPorcentaje(100 - fa),
+        // Aviso al operador (Horizonte 2.7): límite blando de gasto en IA por
+        // tenant, superado — ver ParametroSistema.PresupuestoMensualIaUsd.
+        // No bloquea nada, solo cambia el semáforo de la tile a rojo.
+        CatalogoKpis.CosteMesActualIa when TenantsConPresupuestoIaExcedido.Count > 0 => TonoBadge.Peligro,
         _ => TonoBadge.Neutro
     };
+
+    /// <summary>Tenants (de entre los que este operador ve en el fan-out) cuyo gasto de IA del período supera su presupuesto mensual configurado — vacío si ninguno tiene presupuesto configurado o si todos están dentro.</summary>
+    private IReadOnlyList<string> TenantsConPresupuestoIaExcedido => _valores?.TenantsConPresupuestoIaExcedido ?? [];
 }

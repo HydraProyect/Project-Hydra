@@ -1,4 +1,5 @@
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignaciones;
+using CaeManager.Web.Exportacion;
 using ClosedXML.Excel;
 using MediatR;
 
@@ -16,10 +17,6 @@ public static class AsignacionesEndpoints
     {
         endpoints.MapGet("/asignaciones/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken) =>
         {
-            var resultado = await mediator.Send(
-                new ObtenerAsignacionesQuery(Busqueda: null, Activa: true, Pagina: 1, TamanoPagina: int.MaxValue),
-                cancellationToken);
-
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Asignaciones");
 
@@ -30,8 +27,13 @@ public static class AsignacionesEndpoints
             hoja.Cell(1, 5).Value = "Estado";
             hoja.Row(1).Style.Font.Bold = true;
 
+            // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7):
+            // no materializa toda la tabla de asignaciones del tenant de golpe.
             var fila = 2;
-            foreach (var asignacion in resultado.Elementos)
+            await foreach (var asignacion in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+                mediator.Send(
+                    new ObtenerAsignacionesQuery(Busqueda: null, Activa: true, Pagina: pagina, TamanoPagina: tamanoPagina),
+                    cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = asignacion.TrabajadorNombre;
                 hoja.Cell(fila, 2).Value = asignacion.CentroNombre;
@@ -43,11 +45,15 @@ public static class AsignacionesEndpoints
 
             hoja.Columns().AdjustToContents();
 
-            using var stream = new MemoryStream();
+            // Se escribe directo en el stream que consume la respuesta HTTP
+            // (Results.File lo cierra) en vez de bufferear en un MemoryStream
+            // y duplicarlo otra vez con ToArray().
+            var stream = new MemoryStream();
             libro.SaveAs(stream);
+            stream.Position = 0;
 
             return Results.File(
-                stream.ToArray(),
+                stream,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "asignaciones.xlsx");
         });

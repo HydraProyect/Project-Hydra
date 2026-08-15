@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using System.Text.Json;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Exportacion;
 using ClosedXML.Excel;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
@@ -25,19 +26,6 @@ public static class AuditoriaEndpoints
         endpoints.MapGet("/auditoria/exportar.xlsx", async (
             string? entidad, IMediator mediator, UserManager<ApplicationUser> userManager, CancellationToken cancellationToken) =>
         {
-            var resultado = await mediator.Send(
-                new ObtenerAuditoriaQuery(
-                    EntidadTipo: string.IsNullOrWhiteSpace(entidad) ? null : entidad,
-                    UsuarioId: null, Pagina: 1, TamanoPagina: int.MaxValue),
-                cancellationToken);
-
-            var usuariosPorId = new Dictionary<Guid, string>();
-            foreach (var usuarioId in resultado.Elementos.Where(r => r.UsuarioId is not null).Select(r => r.UsuarioId!.Value).Distinct())
-            {
-                var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
-                usuariosPorId[usuarioId] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
-            }
-
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Auditoría");
 
@@ -47,23 +35,50 @@ public static class AuditoriaEndpoints
             hoja.Cell(1, 4).Value = "Usuario";
             hoja.Row(1).Style.Font.Bold = true;
 
+            // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7): no
+            // materializa todo el histórico de auditoría del tenant de golpe.
+            // La caché de nombres de usuario se sigue rellenando una sola vez
+            // por UsuarioId (igual que antes con el .Distinct() previo), solo
+            // que ahora perezosamente a medida que aparecen en cada lote.
+            var usuariosPorId = new Dictionary<Guid, string>();
             var fila = 2;
-            foreach (var registro in resultado.Elementos)
+            await foreach (var registro in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+                mediator.Send(
+                    new ObtenerAuditoriaQuery(
+                        EntidadTipo: string.IsNullOrWhiteSpace(entidad) ? null : entidad,
+                        UsuarioId: null, Pagina: pagina, TamanoPagina: tamanoPagina),
+                    cancellationToken)))
             {
+                string nombreUsuario;
+                if (registro.UsuarioId is null)
+                {
+                    nombreUsuario = "Sistema";
+                }
+                else if (!usuariosPorId.TryGetValue(registro.UsuarioId.Value, out nombreUsuario!))
+                {
+                    var usuario = await userManager.FindByIdAsync(registro.UsuarioId.Value.ToString());
+                    nombreUsuario = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+                    usuariosPorId[registro.UsuarioId.Value] = nombreUsuario;
+                }
+
                 hoja.Cell(fila, 1).Value = registro.FechaUtc.ToLocalTime();
                 hoja.Cell(fila, 2).Value = registro.EntidadTipo;
                 hoja.Cell(fila, 3).Value = registro.Accion;
-                hoja.Cell(fila, 4).Value = registro.UsuarioId is null ? "Sistema" : usuariosPorId.GetValueOrDefault(registro.UsuarioId.Value, "—");
+                hoja.Cell(fila, 4).Value = nombreUsuario;
                 fila++;
             }
 
             hoja.Columns().AdjustToContents();
 
-            using var stream = new MemoryStream();
+            // Se escribe directo en el stream que consume la respuesta HTTP
+            // (Results.File lo cierra) en vez de bufferear en un MemoryStream
+            // y duplicarlo otra vez con ToArray().
+            var stream = new MemoryStream();
             libro.SaveAs(stream);
+            stream.Position = 0;
 
             return Results.File(
-                stream.ToArray(),
+                stream,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "auditoria.xlsx");
         }).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador));

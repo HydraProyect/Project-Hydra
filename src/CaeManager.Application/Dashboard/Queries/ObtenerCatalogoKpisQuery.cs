@@ -1,9 +1,16 @@
+using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.Facturacion;
 using CaeManager.Application.Incidencias;
-using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
+using CaeManager.Application.Proyectos;
+using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Visitas;
+using CaeManager.Domain.Common;
+using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Incidencias;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -39,7 +46,16 @@ public record CatalogoKpisValoresDto(
     double? TiempoMedioProcesamientoIaMs,
     int TotalAuditoriasIaMes,
     decimal FacturacionEstimadaMesActual,
-    KpisBpoDto Bpo);
+    KpisBpoDto Bpo,
+    /// <summary>
+    /// Límite blando configurado en <see cref="Domain.Configuracion.ParametroSistema.PresupuestoMensualIaUsd"/>
+    /// para este tenant — <c>null</c> si no se ha configurado ninguno (aviso apagado).
+    /// </summary>
+    decimal? PresupuestoMensualIaUsd = null)
+{
+    /// <summary>Aviso al operador (Horizonte 2.7): true cuando hay presupuesto configurado y el gasto del período lo supera. No bloquea nada — solo enciende el aviso visual del Dashboard Ejecutivo.</summary>
+    public bool PresupuestoIaExcedido => PresupuestoMensualIaUsd is { } presupuesto && CosteIaMesActual > presupuesto;
+}
 
 /// <summary>
 /// Calcula, para el tenant activo (fijado por <see cref="AmbitoTenantExplicito"/>
@@ -54,7 +70,13 @@ public record CatalogoKpisValoresDto(
 /// puede recibir la lista de códigos seleccionados y calcular solo esas
 /// sub-áreas.
 /// </summary>
-public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext, IDocumentosIaQueryContext documentosIaContext, ICalculoEstadoCentroService calculoEstadoCentro, IFacturacionQueryContext facturacionContext, IIncidenciasQueryContext incidenciasContext, IAlcanceDatosService alcanceDatos, IMediator mediator)
+public class ObtenerCatalogoKpisQueryHandler(
+    ICentrosQueryContext centrosContext, IDocumentosIaQueryContext documentosIaContext,
+    ICalculoEstadoCentroService calculoEstadoCentro, IFacturacionQueryContext facturacionContext,
+    IIncidenciasQueryContext incidenciasContext, IAlcanceDatosService alcanceDatos, IMediator mediator,
+    IAsignacionesQueryContext asignacionesContext, IDocumentosQueryContext documentosContext,
+    IProyectosQueryContext proyectosContext, ITrabajadoresQueryContext trabajadoresContext,
+    IVisitasQueryContext visitasContext, IConfiguracionQueryContext configuracionContext)
     : IRequestHandler<ObtenerCatalogoKpisQuery, CatalogoKpisValoresDto>
 {
     public async Task<CatalogoKpisValoresDto> Handle(ObtenerCatalogoKpisQuery request, CancellationToken cancellationToken)
@@ -77,6 +99,8 @@ public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext
 
         var bpo = await mediator.Send(new ObtenerKpisBpoQuery(request.Periodo), cancellationToken);
 
+        var presupuestoMensualIaUsd = (await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken)).PresupuestoMensualIaUsd;
+
         return new CatalogoKpisValoresDto(
             Documental: documental,
             TotalDocumentosConVigencia: totalConVigencia,
@@ -92,7 +116,8 @@ public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext
             TiempoMedioProcesamientoIaMs: tiempoMedioMs,
             TotalAuditoriasIaMes: totalAuditoriasMes,
             FacturacionEstimadaMesActual: facturacionEstimada,
-            Bpo: bpo);
+            Bpo: bpo,
+            PresupuestoMensualIaUsd: presupuestoMensualIaUsd);
     }
 
     /// <summary>
@@ -175,39 +200,231 @@ public class ObtenerCatalogoKpisQueryHandler(ICentrosQueryContext centrosContext
     }
 
     /// <summary>
-    /// Suma el resumen de facturación del mes actual solo de los Clientes que
-    /// tienen al menos una <c>TarifaCliente</c> configurada — evita llamar a
-    /// <see cref="ObtenerResumenFacturacionQuery"/> (varias sub-queries) por
-    /// cada Cliente del tenant cuando la inmensa mayoría no tiene facturación
-    /// configurada.
+    /// Suma el resumen de facturación estimada del período para todos los Clientes que
+    /// tienen al menos una <c>TarifaCliente</c> configurada.
+    ///
+    /// Antes llamaba a <see cref="ObtenerResumenFacturacionQuery"/> (varias sub-queries
+    /// cada una) una vez por Cliente-con-tarifa y por mes del periodo — un Dashboard
+    /// Ejecutivo de una consultora con varios tenants, cada uno con varios clientes
+    /// facturables, disparaba cientos de idas y vueltas a la base de datos en una sola
+    /// carga de página (Horizonte 2.7, revisión de N+1 en las vistas de la ventana
+    /// 73-93). Aquí se recalculan las mismas 7 fórmulas de <c>ConceptoFacturable</c> que
+    /// esa Query, pero agrupadas por cliente en una sola consulta por concepto y mes —
+    /// igual "para toda la página en vez de una consulta por fila" que
+    /// <c>ObtenerEmpresasQuery.CalcularCumplimientoPorEmpresaAsync</c> — en vez de una
+    /// consulta por cliente. El cálculo por cliente individual (pantalla de Facturación)
+    /// sigue viviendo, sin tocar, en <see cref="ObtenerResumenFacturacionQuery"/>.
     /// </summary>
     private async Task<decimal> CalcularFacturacionEstimadaAsync(PeriodoKpi periodo, CancellationToken cancellationToken)
     {
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
-        var clientesConTarifaQuery = facturacionContext.TarifasCliente.Select(t => t.ClienteId).Distinct();
+        var tarifasQuery = facturacionContext.TarifasCliente.AsQueryable();
         if (clienteIdsVisibles is not null)
-            clientesConTarifaQuery = clientesConTarifaQuery.Where(id => clienteIdsVisibles.Contains(id));
+            tarifasQuery = tarifasQuery.Where(t => clienteIdsVisibles.Contains(t.ClienteId));
 
-        var clientesConTarifa = await clientesConTarifaQuery.ToListAsync(cancellationToken);
-        if (clientesConTarifa.Count == 0) return 0m;
+        var tarifas = await tarifasQuery
+            .Select(t => new { t.ClienteId, t.Concepto, t.PrecioUnitario })
+            .ToListAsync(cancellationToken);
 
-        // ObtenerResumenFacturacionQuery solo sabe calcular por mes natural, así que un
-        // periodo arbitrario se resuelve sumando los meses que toca. Un rango de mes y
-        // medio suma dos meses completos: se prefiere sumar de más y decirlo (está en la
-        // descripción del KPI) antes que inventar un prorrateo que nadie ha decidido.
-        var meses = periodo.MesesQueAbarca().ToList();
-        var total = 0m;
+        if (tarifas.Count == 0) return 0m;
 
-        foreach (var clienteId in clientesConTarifa)
+        var clienteIds = tarifas.Select(t => t.ClienteId).Distinct().ToList();
+        var conceptosUsados = tarifas.Select(t => t.Concepto).Distinct().ToList();
+
+        var centros = await centrosContext.Centros
+            .Where(c => clienteIds.Contains(c.ClienteId))
+            .Select(c => new { c.Id, c.ClienteId })
+            .ToListAsync(cancellationToken);
+        var clientePorCentro = centros.ToDictionary(c => c.Id, c => c.ClienteId);
+        var centroIds = centros.Select(c => c.Id).ToList();
+
+        // Igual que ObtenerResumenFacturacionQuery: un periodo arbitrario se resuelve
+        // sumando los meses naturales que toca (se prefiere sumar de más y decirlo a
+        // inventar un prorrateo que nadie ha decidido).
+        var unidadesPorClienteYConcepto = new Dictionary<(Guid ClienteId, ConceptoFacturable Concepto), int>();
+
+        foreach (var (anyo, mes) in periodo.MesesQueAbarca())
         {
-            foreach (var (anyo, mes) in meses)
+            var inicio = new DateTime(anyo, mes, 1, 0, 0, 0, DateTimeKind.Utc);
+            var fin = inicio.AddMonths(1);
+            var inicioFecha = DateOnly.FromDateTime(inicio);
+            var finFecha = DateOnly.FromDateTime(fin.AddDays(-1));
+
+            foreach (var concepto in conceptosUsados)
             {
-                var resumen = await mediator.Send(new ObtenerResumenFacturacionQuery(clienteId, anyo, mes), cancellationToken);
-                if (resumen is not null) total += resumen.TotalEstimado;
+                var porCliente = concepto switch
+                {
+                    ConceptoFacturable.TrabajadorActivo =>
+                        await ContarTrabajadoresActivosPorClienteAsync(centroIds, clientePorCentro, inicioFecha, finFecha, cancellationToken),
+                    ConceptoFacturable.AltaCentro =>
+                        await ContarAltasCentroPorClienteAsync(clienteIds, inicio, fin, cancellationToken),
+                    ConceptoFacturable.VisitaTrabajadorExtranjero =>
+                        await ContarVisitasExtranjeroPorClienteAsync(centroIds, clientePorCentro, inicioFecha, finFecha, cancellationToken),
+                    ConceptoFacturable.DocumentoGestionado =>
+                        await ContarDocumentosGestionadosPorClienteAsync(centroIds, clientePorCentro, inicioFecha, finFecha, inicio, fin, cancellationToken),
+                    ConceptoFacturable.TecnicoAsignadoProyecto =>
+                        await ContarTecnicosAsignadosProyectoPorClienteAsync(clienteIds, inicioFecha, finFecha, cancellationToken),
+                    ConceptoFacturable.GestionProyectoRealizada =>
+                        await ContarGestionesProyectoPorClienteAsync(clienteIds, inicio, fin, cancellationToken),
+                    ConceptoFacturable.DiaProyectoAbierto =>
+                        await ContarDiasProyectoAbiertoPorClienteAsync(clienteIds, inicioFecha, finFecha, cancellationToken),
+                    _ => new Dictionary<Guid, int>()
+                };
+
+                foreach (var (clienteId, unidades) in porCliente)
+                {
+                    var clave = (clienteId, concepto);
+                    unidadesPorClienteYConcepto[clave] = unidadesPorClienteYConcepto.GetValueOrDefault(clave) + unidades;
+                }
             }
         }
 
-        return total;
+        return tarifas.Sum(t => unidadesPorClienteYConcepto.GetValueOrDefault((t.ClienteId, t.Concepto)) * t.PrecioUnitario);
+    }
+
+    private async Task<Dictionary<Guid, int>> ContarTrabajadoresActivosPorClienteAsync(
+        IReadOnlyList<Guid> centroIds, IReadOnlyDictionary<Guid, Guid> clientePorCentro,
+        DateOnly inicio, DateOnly fin, CancellationToken cancellationToken)
+    {
+        if (centroIds.Count == 0) return new Dictionary<Guid, int>();
+
+        var filas = await asignacionesContext.Asignaciones
+            .Where(a => centroIds.Contains(a.CentroId) && a.FechaAlta <= fin && (a.FechaBaja == null || a.FechaBaja >= inicio))
+            .Select(a => new { a.CentroId, a.TrabajadorId })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return filas
+            .GroupBy(f => clientePorCentro[f.CentroId])
+            .ToDictionary(g => g.Key, g => g.Select(x => x.TrabajadorId).Distinct().Count());
+    }
+
+    private async Task<Dictionary<Guid, int>> ContarAltasCentroPorClienteAsync(
+        IReadOnlyList<Guid> clienteIds, DateTime inicio, DateTime fin, CancellationToken cancellationToken) =>
+        (await centrosContext.Centros
+            .Where(c => clienteIds.Contains(c.ClienteId) && c.CreadoEnUtc >= inicio && c.CreadoEnUtc < fin)
+            .GroupBy(c => c.ClienteId)
+            .Select(g => new { ClienteId = g.Key, Cantidad = g.Count() })
+            .ToListAsync(cancellationToken))
+            .ToDictionary(x => x.ClienteId, x => x.Cantidad);
+
+    private async Task<Dictionary<Guid, int>> ContarVisitasExtranjeroPorClienteAsync(
+        IReadOnlyList<Guid> centroIds, IReadOnlyDictionary<Guid, Guid> clientePorCentro,
+        DateOnly inicio, DateOnly fin, CancellationToken cancellationToken)
+    {
+        if (centroIds.Count == 0) return new Dictionary<Guid, int>();
+
+        var visitas = await visitasContext.Visitas
+            .Where(v => centroIds.Contains(v.CentroId) && v.FechaInicio >= inicio && v.FechaInicio <= fin)
+            .Select(v => new { v.Id, v.CentroId })
+            .ToListAsync(cancellationToken);
+
+        if (visitas.Count == 0) return new Dictionary<Guid, int>();
+
+        var visitaIds = visitas.Select(v => v.Id).ToList();
+        var centroPorVisita = visitas.ToDictionary(v => v.Id, v => v.CentroId);
+
+        var filas = await visitasContext.VisitasTrabajadores
+            .Where(vt => visitaIds.Contains(vt.VisitaId))
+            .Join(trabajadoresContext.Trabajadores, vt => vt.TrabajadorId, t => t.Id, (vt, t) => new { vt.VisitaId, t.Dni })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        // Trabajadores con NIE, TIE o documento extranjero (no DNI español).
+        return filas
+            .Where(f => ValidadorIdentificacion.Analizar(f.Dni).Tipo != TipoIdentificacion.Dni)
+            .GroupBy(f => clientePorCentro[centroPorVisita[f.VisitaId]])
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Dni).Distinct().Count());
+    }
+
+    private async Task<Dictionary<Guid, int>> ContarDocumentosGestionadosPorClienteAsync(
+        IReadOnlyList<Guid> centroIds, IReadOnlyDictionary<Guid, Guid> clientePorCentro,
+        DateOnly inicioFecha, DateOnly finFecha, DateTime inicio, DateTime fin, CancellationToken cancellationToken)
+    {
+        if (centroIds.Count == 0) return new Dictionary<Guid, int>();
+
+        // Join (no atribución por diccionario) a propósito: si un mismo Trabajador
+        // estuvo asignado a Centros de más de un Cliente dentro del período, su
+        // documento cuenta para cada uno de esos Clientes — igual que si se llamara
+        // a ObtenerResumenFacturacionQuery por separado para cada Cliente.
+        var pares = await (
+            from asignacion in asignacionesContext.Asignaciones
+            where centroIds.Contains(asignacion.CentroId)
+                && asignacion.FechaAlta <= finFecha
+                && (asignacion.FechaBaja == null || asignacion.FechaBaja >= inicioFecha)
+            join documento in documentosContext.Documentos
+                on asignacion.TrabajadorId equals documento.TrabajadorId
+            where documento.CreadoEnUtc >= inicio && documento.CreadoEnUtc < fin
+            select new { asignacion.CentroId, DocumentoId = documento.Id })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return pares
+            .GroupBy(p => clientePorCentro[p.CentroId])
+            .ToDictionary(g => g.Key, g => g.Select(x => x.DocumentoId).Distinct().Count());
+    }
+
+    private async Task<Dictionary<Guid, int>> ContarTecnicosAsignadosProyectoPorClienteAsync(
+        IReadOnlyList<Guid> clienteIds, DateOnly inicio, DateOnly fin, CancellationToken cancellationToken) =>
+        (await (
+            from proyecto in proyectosContext.Proyectos
+            where clienteIds.Contains(proyecto.ClienteId)
+            join tecnico in proyectosContext.ProyectosTecnicos on proyecto.Id equals tecnico.ProyectoId
+            where tecnico.FechaAlta <= fin && (tecnico.FechaBaja == null || tecnico.FechaBaja >= inicio)
+            select new { proyecto.ClienteId, tecnico.TrabajadorId })
+            .Distinct()
+            .ToListAsync(cancellationToken))
+            .GroupBy(x => x.ClienteId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.TrabajadorId).Distinct().Count());
+
+    private async Task<Dictionary<Guid, int>> ContarGestionesProyectoPorClienteAsync(
+        IReadOnlyList<Guid> clienteIds, DateTime inicio, DateTime fin, CancellationToken cancellationToken)
+    {
+        var proyectos = await proyectosContext.Proyectos
+            .Where(p => clienteIds.Contains(p.ClienteId))
+            .Select(p => new { p.Id, p.ClienteId })
+            .ToListAsync(cancellationToken);
+
+        if (proyectos.Count == 0) return new Dictionary<Guid, int>();
+
+        var proyectoIds = proyectos.Select(p => p.Id).ToList();
+        var clientePorProyecto = proyectos.ToDictionary(p => p.Id, p => p.ClienteId);
+
+        var documentos = await documentosContext.Documentos
+            .Where(d => d.ProyectoId != null && proyectoIds.Contains(d.ProyectoId!.Value) && d.CreadoEnUtc >= inicio && d.CreadoEnUtc < fin)
+            .Select(d => d.ProyectoId!.Value)
+            .ToListAsync(cancellationToken);
+
+        return documentos
+            .GroupBy(p => clientePorProyecto[p])
+            .ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    /// <summary>Suma de días en memoria (sin agregación en SQL posible: cada Proyecto intersecta el período de forma distinta) tras traer los datos de todos los Clientes en una sola consulta.</summary>
+    private async Task<Dictionary<Guid, int>> ContarDiasProyectoAbiertoPorClienteAsync(
+        IReadOnlyList<Guid> clienteIds, DateOnly inicio, DateOnly fin, CancellationToken cancellationToken)
+    {
+        var proyectos = await proyectosContext.Proyectos
+            .Where(p => clienteIds.Contains(p.ClienteId))
+            .Select(p => new { p.ClienteId, p.FechaInicio, p.FechaCierreReal })
+            .ToListAsync(cancellationToken);
+
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var resultado = new Dictionary<Guid, int>();
+
+        foreach (var proyecto in proyectos)
+        {
+            var aperturaFin = proyecto.FechaCierreReal ?? hoy;
+            var desde = proyecto.FechaInicio > inicio ? proyecto.FechaInicio : inicio;
+            var hasta = aperturaFin < fin ? aperturaFin : fin;
+
+            if (hasta < desde) continue;
+
+            var dias = hasta.DayNumber - desde.DayNumber + 1;
+            resultado[proyecto.ClienteId] = resultado.GetValueOrDefault(proyecto.ClienteId) + dias;
+        }
+
+        return resultado;
     }
 }
