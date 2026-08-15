@@ -20,6 +20,8 @@ App_Data/
 
 # Variables reales del stack local (deploy/local/.env.example es la plantilla)
 deploy/local/.env
+# Idem para el stack de staging (deploy/local/.env.staging.example es la plantilla)
+deploy/local/.env.staging
 
 # Material de identidad de marca (nombre comercial, lockups, firma de correo) y
 # el sitio web que lo acompaña: van a su propio repositorio, no a este mientras
