@@ -70,7 +70,7 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
         using var memoria = new MemoryStream();
         await flujo.CopyToAsync(memoria, cancellationToken);
 
-        var resultado = await router.ProcesarAsync(memoria.ToArray(), adjunto.NombreArchivo, TipoEsperadoDesconocido, cancellationToken);
+        var resultado = await router.ProcesarAsync(memoria.ToArray(), adjunto.NombreArchivo, TipoEsperadoDesconocido, cancellationToken: cancellationToken);
         if (resultado.EsFallido)
             return Result.Fallo<DeteccionActualizacionDocumentoDto>(resultado.Error);
 

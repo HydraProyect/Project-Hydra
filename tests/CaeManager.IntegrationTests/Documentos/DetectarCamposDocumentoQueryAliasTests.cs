@@ -120,7 +120,7 @@ public class DetectarCamposDocumentoQueryAliasTests : IAsyncLifetime
     private sealed class RouterFalso(Result<ExtraccionEstructuradaDto> resultado) : IDocumentAIRouterService
     {
         public Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
-            byte[] contenido, string nombreArchivo, string tipoEsperado, CancellationToken cancellationToken = default) =>
+            byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(resultado);
     }
 }

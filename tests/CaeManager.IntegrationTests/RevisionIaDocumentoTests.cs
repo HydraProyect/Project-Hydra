@@ -1,6 +1,7 @@
 ﻿using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -86,7 +87,8 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
     {
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisible.Id]);
         var handler = new ResolverRevisionIaDocumentoCommandHandler(
-            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext), _dbContext,
+            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
+            new AuditoriaExtraccionIaRepository(_dbContext), _dbContext,
             alcance, new CurrentUserServiceFalso(usuarioId: _usuarioIdDePrueba), _dbContext);
 
         var resultado = await handler.Handle(new ResolverRevisionIaDocumentoCommand(_revisionVisible.Id), CancellationToken.None);
@@ -101,11 +103,35 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Resolver_marca_como_descartada_manual_la_auditoria_de_ia_ligada_al_documento()
+    {
+        var auditoria = AuditoriaExtraccionIa.Crear(
+            new string('a', AuditoriaExtraccionIa.LongitudHash), "Apto médico", "anthropic", 700,
+            null, 0.01m, 1, _revisionVisible.ConfianzaGeneral, null, _revisionVisible.DocumentoId);
+        _dbContext.AuditoriasExtraccionIa.Add(auditoria);
+        await _dbContext.SaveChangesAsync();
+
+        var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisible.Id]);
+        var handler = new ResolverRevisionIaDocumentoCommandHandler(
+            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
+            new AuditoriaExtraccionIaRepository(_dbContext), _dbContext,
+            alcance, new CurrentUserServiceFalso(usuarioId: _usuarioIdDePrueba), _dbContext);
+
+        var resultado = await handler.Handle(new ResolverRevisionIaDocumentoCommand(_revisionVisible.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var auditoriaActualizada = await _dbContext.AuditoriasExtraccionIa.SingleAsync(a => a.Id == auditoria.Id);
+        auditoriaActualizada.DecisionHumana.Should().Be(DecisionHumanaIa.DescartadaManual);
+        auditoriaActualizada.UsuarioDecisionId.Should().Be(_usuarioIdDePrueba);
+    }
+
+    [Fact]
     public async Task Resolver_falla_como_no_encontrada_cuando_el_trabajador_no_es_visible()
     {
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisible.Id]);
         var handler = new ResolverRevisionIaDocumentoCommandHandler(
-            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext), _dbContext,
+            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
+            new AuditoriaExtraccionIaRepository(_dbContext), _dbContext,
             alcance, new CurrentUserServiceFalso(usuarioId: _usuarioIdDePrueba), _dbContext);
 
         var resultado = await handler.Handle(new ResolverRevisionIaDocumentoCommand(_revisionAjena.Id), CancellationToken.None);
@@ -123,7 +149,8 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
 
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisible.Id]);
         var handler = new ResolverRevisionIaDocumentoCommandHandler(
-            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext), _dbContext,
+            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
+            new AuditoriaExtraccionIaRepository(_dbContext), _dbContext,
             alcance, new CurrentUserServiceFalso(usuarioId: _usuarioIdDePrueba), _dbContext);
 
         var resultado = await handler.Handle(new ResolverRevisionIaDocumentoCommand(_revisionVisible.Id), CancellationToken.None);

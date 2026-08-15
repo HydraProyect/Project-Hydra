@@ -1,5 +1,6 @@
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.DocumentosIa;
 
 namespace CaeManager.Application.DocumentosIa;
 
@@ -10,6 +11,13 @@ namespace CaeManager.Application.DocumentosIa;
 /// </summary>
 public interface IDocumentAIRouterService
 {
+    /// <summary>
+    /// <paramref name="documentoId"/> es opcional: solo se conoce cuando esta
+    /// llamada verifica un Documento ya creado (ver VerificacionIaDocumentoService).
+    /// Cuando se indica, la <see cref="AuditoriaExtraccionIa"/> resultante queda
+    /// enlazada a ese Documento — el enganche que permite registrar después la
+    /// decisión humana (MACRO_PLAN § 6.6).
+    /// </summary>
     Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
-        byte[] contenido, string nombreArchivo, string tipoEsperado, CancellationToken cancellationToken = default);
+        byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default);
 }

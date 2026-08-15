@@ -50,7 +50,7 @@ public class DetectarCamposDocumentoQueryHandler(
         if (!opciones.Value.Activa)
             return Result.Exito(new DeteccionCamposDocumentoDto(null, null, 0));
 
-        var resultado = await router.ProcesarAsync(request.Contenido, request.NombreArchivo, TipoEsperadoDesconocido, cancellationToken);
+        var resultado = await router.ProcesarAsync(request.Contenido, request.NombreArchivo, TipoEsperadoDesconocido, cancellationToken: cancellationToken);
         if (resultado.EsFallido)
             return Result.Fallo<DeteccionCamposDocumentoDto>(resultado.Error);
 

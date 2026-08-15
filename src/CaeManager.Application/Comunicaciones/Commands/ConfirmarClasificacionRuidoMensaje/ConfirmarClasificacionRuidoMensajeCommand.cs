@@ -25,11 +25,34 @@ public class ConfirmarClasificacionRuidoMensajeCommandHandler(
     IClasificacionRuidoMensajeRepository clasificacionMensajeRepositorio,
     IClasificacionRuidoDetalleGestionRepository clasificacionDetalleRepositorio,
     IComunicacionesQueryContext comunicacionesContext,
+    IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork)
     : IRequestHandler<ConfirmarClasificacionRuidoMensajeCommand, Result>
 {
     public async Task<Result> Handle(ConfirmarClasificacionRuidoMensajeCommand request, CancellationToken cancellationToken)
     {
+        // Verificación de Id ajeno (mismo hallazgo que PR #190,
+        // AlcanceDeConversacionesYBuzonesTests lo mecaniza): el Mensaje pertenece a una
+        // Conversacion que puede estar atada al buzón personal de otro gestor —
+        // ConversacionVisibleAsync cubre cartera de Cliente y buzón personal a la vez.
+        var conversacionDelMensaje = await comunicacionesContext.Mensajes
+            .Where(m => m.Id == request.MensajeId)
+            .Select(m => new { m.ConversacionId })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (conversacionDelMensaje is null)
+            return Result.Fallo(Error.Crear(
+                "ClasificacionRuidoMensaje.NoEncontrada", "No encontramos ninguna clasificación de ruido para este mensaje."));
+
+        var conversacion = await comunicacionesContext.Conversaciones
+            .Where(c => c.Id == conversacionDelMensaje.ConversacionId)
+            .Select(c => new { c.ClienteId, c.ConexionIntegracionId })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.ConexionIntegracionId, cancellationToken))
+            return Result.Fallo(Error.Crear(
+                "ClasificacionRuidoMensaje.NoEncontrada", "No encontramos ninguna clasificación de ruido para este mensaje."));
+
         var clasificacionMensaje = await clasificacionMensajeRepositorio.ObtenerPorMensajeIdAsync(request.MensajeId, cancellationToken);
         clasificacionMensaje?.ConfirmarManualmente();
 
