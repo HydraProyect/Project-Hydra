@@ -23,6 +23,7 @@ using CaeManager.Domain.Visitas;
 using CaeManager.Application.Importacion;
 using Microsoft.AspNetCore.Authentication;
 using CaeManager.Infrastructure.Alertas;
+using CaeManager.Infrastructure.AlertasOperativas;
 using CaeManager.Infrastructure.AsistenteIa;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
@@ -374,6 +375,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         // Sin estado propio (abre una conexión Npgsql nueva por llamada) — una sola instancia sirve.
         services.AddSingleton<IEleccionLiderService, EleccionLiderPostgresService>();
+        // Horizonte 2.4: sin estado propio (delega en el Hub global de
+        // Sentry ya inicializado por Program.cs), así que un singleton es
+        // suficiente y evita crear una instancia por request.
+        services.AddSingleton<IAlertaOperativa, SentryAlertaOperativa>();
         // La clase concreta se registra además de la interfaz: las páginas de
         // administración necesitan sus listados, y los Commands solo la
         // comprobación de IDirectorioUsuariosService.

@@ -33,10 +33,18 @@ namespace CaeManager.Infrastructure.DocumentosIa;
 /// trabajo pendiente se pide ya dentro del ámbito de un tenant concreto
 /// (<see cref="AmbitoTenantExplicito"/>, docs/MULTITENANCY.md § 8.4) — mismo
 /// patrón que <c>ObtenerKpisGlobalesQuery</c>.
+///
+/// Desde Horizonte 2.4, cada sondeo también vigila si la cola está
+/// "estancada" (ver <see cref="UmbralColaEstancada"/>) y avisa por
+/// <see cref="IAlertaOperativa"/> — la alerta de guardia, distinta de
+/// <see cref="RecuperarEstancadosAsync"/>, que recupera trabajos
+/// individuales colgados en "Procesando" y no avisa a nadie porque se
+/// autocorrige solo.
 /// </summary>
 public class ProcesadorAnalisisDocumentoHostedService(
     IServiceScopeFactory ambitoFactory,
     IEleccionLiderService eleccionLider,
+    IAlertaOperativa alertaOperativa,
     ILogger<ProcesadorAnalisisDocumentoHostedService> logger) : BackgroundService
 {
     private static readonly TimeSpan IntervaloSondeo = TimeSpan.FromSeconds(5);
@@ -48,6 +56,35 @@ public class ProcesadorAnalisisDocumentoHostedService(
     /// que 15 minutos no compite nunca con uno que sigue en curso de verdad.
     /// </summary>
     private static readonly TimeSpan UmbralEstancado = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Umbral de "cola de IA estancada" (Horizonte 2.4): cuánto puede llevar
+    /// el trabajo Pendiente más antiguo esperando antes de avisar. Mayor que
+    /// <see cref="UmbralEstancado"/> a propósito — ese umbral ya recupera
+    /// trabajos individuales colgados en "Procesando"; este otro detecta el
+    /// síntoma más grave de que el motor entero no avanza (p. ej. el
+    /// proveedor de IA está caído y cada intento falla y se reencola), no un
+    /// trabajo suelto. Edad del más antiguo, no "N sondeos seguidos por
+    /// encima de un umbral de profundidad": es más simple de calcular
+    /// correctamente (una consulta ya existente,
+    /// <see cref="ITrabajoAnalisisDocumentoRepository.ObtenerSiguientePendienteAsync"/>,
+    /// sin contador propio que perder si el proceso se reinicia) y mide
+    /// exactamente lo que le importa al operador de guardia: cuánto lleva
+    /// esperando el documento que más lleva esperando.
+    /// </summary>
+    private static readonly TimeSpan UmbralColaEstancada = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// Sin esto, cada sondeo (cada 5 s) mientras la cola sigue estancada
+    /// generaría un evento de Sentry nuevo — mismo problema en miniatura que
+    /// el propio dead man's switch busca evitar en el sentido contrario:
+    /// ruido en vez de silencio. Un aviso cada media hora mientras la
+    /// condición persiste es suficiente para que la guardia se entere sin
+    /// ahogar el canal.
+    /// </summary>
+    private static readonly TimeSpan CooldownAlertaColaEstancada = TimeSpan.FromMinutes(30);
+
+    private DateTime? _ultimaAlertaColaEstancadaUtc;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -107,16 +144,46 @@ public class ProcesadorAnalisisDocumentoHostedService(
     private async Task MedirProfundidadColaAsync(IReadOnlyList<Guid> tenantsActivos, CancellationToken stoppingToken)
     {
         var total = 0;
+        TrabajoAnalisisDocumento? masAntiguoPendiente = null;
+
         foreach (var tenantId in tenantsActivos)
         {
             using var ambito = ambitoFactory.CreateScope();
             using var _ = AmbitoTenantExplicito.Establecer(tenantId);
 
-            total += await ambito.ServiceProvider.GetRequiredService<ITrabajoAnalisisDocumentoRepository>()
-                .ContarActivosAsync(stoppingToken);
+            var repositorio = ambito.ServiceProvider.GetRequiredService<ITrabajoAnalisisDocumentoRepository>();
+            total += await repositorio.ContarActivosAsync(stoppingToken);
+
+            // Reutiliza la misma consulta que ya usa el sondeo real (ordena
+            // por CreadoEnUtc ascendente) solo para leer su antigüedad — no
+            // hace falta un método de repositorio nuevo para esto.
+            var pendienteDelTenant = await repositorio.ObtenerSiguientePendienteAsync(stoppingToken);
+            if (pendienteDelTenant is not null &&
+                (masAntiguoPendiente is null || pendienteDelTenant.CreadoEnUtc < masAntiguoPendiente.CreadoEnUtc))
+            {
+                masAntiguoPendiente = pendienteDelTenant;
+            }
         }
 
         Observabilidad.ActualizarColaIaProfundidad(total);
+        AvisarSiColaEstancada(masAntiguoPendiente);
+    }
+
+    /// <summary>Ver <see cref="UmbralColaEstancada"/> y <see cref="CooldownAlertaColaEstancada"/> para el razonamiento de los dos umbrales.</summary>
+    private void AvisarSiColaEstancada(TrabajoAnalisisDocumento? masAntiguoPendiente)
+    {
+        if (masAntiguoPendiente is null) return;
+
+        var ahora = DateTime.UtcNow;
+        var antiguedad = ahora - masAntiguoPendiente.CreadoEnUtc;
+        if (antiguedad < UmbralColaEstancada) return;
+
+        if (_ultimaAlertaColaEstancadaUtc is { } ultima && ahora - ultima < CooldownAlertaColaEstancada) return;
+        _ultimaAlertaColaEstancadaUtc = ahora;
+
+        alertaOperativa.Emitir(
+            $"Cola de análisis IA estancada: el trabajo pendiente más antiguo (documento {masAntiguoPendiente.DocumentoId}) lleva {antiguedad.TotalMinutes:F0} min esperando (umbral {UmbralColaEstancada.TotalMinutes:F0} min).",
+            NivelAlertaOperativa.Critica);
     }
 
     private async Task ProcesarPendientesDelTenantAsync(Guid tenantId, CancellationToken stoppingToken)

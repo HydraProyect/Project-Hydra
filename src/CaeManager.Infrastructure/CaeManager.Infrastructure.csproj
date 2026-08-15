@@ -25,6 +25,13 @@
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.*" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <!-- Solo el SDK "core" (no Sentry.AspNetCore, que es de CaeManager.Web,
+         el composition root que configura el DSN) — lo mínimo para poder
+         llamar a SentrySdk.CaptureMessage desde SentryAlertaOperativa
+         (Horizonte 2.4). Comparte el mismo Hub global que ya inicializa
+         Program.cs con UseSentry(...), así que hereda el mismo "inerte por
+         defecto" sin Sentry:Dsn configurado (ver Program.cs). -->
+    <PackageReference Include="Sentry" Version="6.7.0" />
     <PackageReference Include="Stripe.net" Version="52.3.0" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.*" />
     <PackageReference Include="PDFtoImage" Version="5.2.1" />
