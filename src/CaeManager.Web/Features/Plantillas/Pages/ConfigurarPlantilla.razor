@@ -2,6 +2,7 @@
 @page "/plantillas/{PlantillaDocumentoVersionId:guid}/editar"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@using System.Globalization
 @using CaeManager.Domain.Documentos
 @using CaeManager.Domain.Plantillas
 @using MediatR
@@ -99,12 +100,12 @@
                 @foreach (var pagina in _paginas)
                 {
                     <div class="editor-plantilla-pagina"
-                         style="width:@(pagina.AnchoPuntos)px;height:@(pagina.AltoPuntos)px;background-image:url(data:image/png;base64,@pagina.ImagenBase64)">
+                         style="width:@(pagina.AnchoPuntos.ToString(CultureInfo.InvariantCulture))px;height:@(pagina.AltoPuntos.ToString(CultureInfo.InvariantCulture))px;background-image:url(data:image/png;base64,@pagina.ImagenBase64)">
                         @foreach (var elemento in _elementos.Where(e => e.Pagina == pagina.NumeroPagina))
                         {
                             <div class="editor-plantilla-caja @(elemento.IdLocal == _idLocalSeleccionado ? "editor-plantilla-caja-seleccionada" : "")"
                                  data-id-local="@elemento.IdLocal"
-                                 style="left:@(elemento.X)px;top:@(elemento.Y)px;width:@(elemento.Ancho)px;height:@(elemento.Alto)px"
+                                 style="left:@(elemento.X.ToString(CultureInfo.InvariantCulture))px;top:@(elemento.Y.ToString(CultureInfo.InvariantCulture))px;width:@(elemento.Ancho.ToString(CultureInfo.InvariantCulture))px;height:@(elemento.Alto.ToString(CultureInfo.InvariantCulture))px"
                                  @onclick="() => SeleccionarElemento(elemento.IdLocal)">
                                 <span class="editor-plantilla-caja-etiqueta">@elemento.EtiquetaVisible</span>
                                 @if (PuedeEditar)
