@@ -79,7 +79,8 @@ public class LoggingBehaviorTests
         var fabrica = new FabricaLoggerFalsa();
         var tenantOrigen = Guid.Parse("33333333-3333-3333-3333-333333333333");
         var behavior = new LoggingBehavior<FalsoCommand, Result>(
-            fabrica, new CurrentUserServiceFalso(UsuarioId, "GestorCae", tenantOrigen), new TenantActualFalso(TenantId));
+            fabrica, new CurrentUserServiceFalso(UsuarioId, "GestorCae", tenantOrigen), new TenantActualFalso(TenantId),
+            new VentanaSaludOperativa(new AlertaOperativaFalsa()));
 
         await behavior.Handle(new FalsoCommand("12345678Z"), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
@@ -92,7 +93,8 @@ public class LoggingBehaviorTests
     {
         var fabrica = new FabricaLoggerFalsa();
         var behavior = new LoggingBehavior<FalsaQuery, string>(
-            fabrica, new CurrentUserServiceFalso(UsuarioId, "Consulta", TenantId), new TenantActualFalso(TenantId));
+            fabrica, new CurrentUserServiceFalso(UsuarioId, "Consulta", TenantId), new TenantActualFalso(TenantId),
+            new VentanaSaludOperativa(new AlertaOperativaFalsa()));
 
         await behavior.Handle(new FalsaQuery(), _ => Task.FromResult("ok"), CancellationToken.None);
 
@@ -135,7 +137,9 @@ public class LoggingBehaviorTests
 
     private static LoggingBehavior<TRequest, TResponse> Construir<TRequest, TResponse>(FabricaLoggerFalsa fabrica)
         where TRequest : notnull
-        => new(fabrica, new CurrentUserServiceFalso(UsuarioId, "GestorCae", TenantId), new TenantActualFalso(TenantId));
+        => new(
+            fabrica, new CurrentUserServiceFalso(UsuarioId, "GestorCae", TenantId), new TenantActualFalso(TenantId),
+            new VentanaSaludOperativa(new AlertaOperativaFalsa()));
 
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
     {

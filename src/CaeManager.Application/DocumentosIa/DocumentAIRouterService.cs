@@ -45,7 +45,7 @@ public class DocumentAIRouterService(
     private sealed record TextoExtraidoDto(string Texto, string? NotaLocalizacion, decimal? CosteEstimadoOcr = null);
 
     public async Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
-        byte[] contenido, string nombreArchivo, string tipoEsperado, CancellationToken cancellationToken = default)
+        byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default)
     {
         var cronometro = Stopwatch.StartNew();
         var hash = CalcularHash(contenido);
@@ -59,7 +59,7 @@ public class DocumentAIRouterService(
                 await RegistrarAuditoriaAsync(
                     hash, tipoEsperado, "cache", cronometro.ElapsedMilliseconds,
                     costeEstimadoOcr: null, costeEstimado: 0m,
-                    numeroPaginas: 0, resultadoCache.ConfianzaGeneral, "Resultado servido desde caché documental.", cancellationToken);
+                    numeroPaginas: 0, resultadoCache.ConfianzaGeneral, "Resultado servido desde caché documental.", documentoId, cancellationToken);
                 return Result.Exito(resultadoCache);
             }
         }
@@ -69,7 +69,7 @@ public class DocumentAIRouterService(
         {
             await RegistrarAuditoriaAsync(
                 hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
-                costeEstimadoOcr: null, costeEstimado: null, 0, 0, clasificacion.Error.Mensaje, cancellationToken);
+                costeEstimadoOcr: null, costeEstimado: null, 0, 0, clasificacion.Error.Mensaje, documentoId, cancellationToken);
             return Result.Fallo<ExtraccionEstructuradaDto>(clasificacion.Error);
         }
 
@@ -78,7 +78,7 @@ public class DocumentAIRouterService(
         {
             await RegistrarAuditoriaAsync(
                 hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
-                costeEstimadoOcr: null, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, texto.Error.Mensaje, cancellationToken);
+                costeEstimadoOcr: null, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, texto.Error.Mensaje, documentoId, cancellationToken);
             return Result.Fallo<ExtraccionEstructuradaDto>(texto.Error);
         }
 
@@ -88,7 +88,7 @@ public class DocumentAIRouterService(
             const string mensaje = "No hay ningún proveedor de IA disponible para procesar este documento.";
             await RegistrarAuditoriaAsync(
                 hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
-                texto.Valor.CosteEstimadoOcr, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, mensaje, cancellationToken);
+                texto.Valor.CosteEstimadoOcr, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, mensaje, documentoId, cancellationToken);
             return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIRouter.SinProveedor", mensaje));
         }
 
@@ -101,7 +101,7 @@ public class DocumentAIRouterService(
         {
             await RegistrarAuditoriaAsync(
                 hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
-                texto.Valor.CosteEstimadoOcr, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, resultado.Error.Mensaje, cancellationToken);
+                texto.Valor.CosteEstimadoOcr, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, resultado.Error.Mensaje, documentoId, cancellationToken);
             return resultado;
         }
 
@@ -110,7 +110,7 @@ public class DocumentAIRouterService(
         await RegistrarAuditoriaAsync(
             hash, tipoEsperado, proveedorUsado.Codigo, cronometro.ElapsedMilliseconds,
             texto.Valor.CosteEstimadoOcr, resultado.Valor.CosteEstimado,
-            clasificacion.Valor.TotalPaginas, resultado.Valor.ConfianzaGeneral, incidencias, cancellationToken);
+            clasificacion.Valor.TotalPaginas, resultado.Valor.ConfianzaGeneral, incidencias, documentoId, cancellationToken);
 
         return resultado;
     }
@@ -252,10 +252,10 @@ public class DocumentAIRouterService(
 
     private async Task RegistrarAuditoriaAsync(
         string hash, string tipoEsperado, string proveedorCodigo, long tiempoMs, decimal? costeEstimadoOcr,
-        decimal? costeEstimado, int numeroPaginas, int confianzaGeneral, string? incidencias, CancellationToken cancellationToken)
+        decimal? costeEstimado, int numeroPaginas, int confianzaGeneral, string? incidencias, Guid? documentoId, CancellationToken cancellationToken)
     {
         auditoriaRepositorio.Agregar(AuditoriaExtraccionIa.Crear(
-            hash, tipoEsperado, proveedorCodigo, tiempoMs, costeEstimadoOcr, costeEstimado, numeroPaginas, confianzaGeneral, incidencias));
+            hash, tipoEsperado, proveedorCodigo, tiempoMs, costeEstimadoOcr, costeEstimado, numeroPaginas, confianzaGeneral, incidencias, documentoId));
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

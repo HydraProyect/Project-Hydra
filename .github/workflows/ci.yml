@@ -73,10 +73,9 @@ jobs:
       # en los tres proyectos de test) escribe un coverage.cobertura.xml por
       # suite bajo ./coverage — P1-19 de docs/business/MATURITY_REVIEW.md:
       # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
-      # visibilidad ni de gate. Se empieza por visibilidad (el informe de
-      # más abajo) — un umbral que falle el build queda para cuando haya una
-      # primera cifra real con la que decidir uno defendible, no uno
-      # inventado a ciegas.
+      # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
+      # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
+      # después de él es el gate real (ratchet, ver su comentario).
       - name: Tests de Domain
         run: >
           dotnet test tests/CaeManager.Domain.Tests --no-restore --logger "console;verbosity=normal"
@@ -97,16 +96,49 @@ jobs:
 
       # MarkdownSummaryGithub: pensado por ReportGenerator específicamente
       # para $GITHUB_STEP_SUMMARY — aparece en la pestaña Summary del run,
-      # no hace falta abrir un artefacto para ver el número.
-      # continue-on-error: un fallo en el informe (p. ej. ningún .cobertura.xml
-      # si algo cambia en coverlet) no debe tumbar un job cuyos tests ya
-      # pasaron — es visibilidad, no gate (ver el comentario de arriba).
+      # no hace falta abrir un artefacto para ver el número. JsonSummary es
+      # para el paso siguiente (el gate) — el mismo run de reportgenerator
+      # produce los dos formatos, sin repetir el cálculo.
+      # continue-on-error: un fallo en este informe (p. ej. ningún
+      # .cobertura.xml si algo cambia en coverlet) no debe tumbar un job
+      # cuyos tests ya pasaron por esta parte — es visibilidad. El gate de
+      # verdad es el paso siguiente, que si no encuentra Summary.json falla
+      # por su cuenta (ver su comentario) — el fallo del informe no queda
+      # silenciado, solo no duplica el mensaje de error.
       - name: Informe de cobertura
         if: always()
         continue-on-error: true
         run: |
-          dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:MarkdownSummaryGithub
+          dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:"MarkdownSummaryGithub;JsonSummary"
           cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Ratchet de cobertura (§ 8 del plan de negocio, Horizonte transversal):
+      # cobertura de línea medida en local a 2026-08-15 sobre Domain +
+      # Application + Integration (los tres proyectos con --collect de este
+      # job) = 91.6%. El umbral se fija en 90.0%, no en 91.6% exacto — 1.6
+      # puntos de margen absorben el ruido normal entre ejecuciones (orden
+      # de tests, generación de datos aleatorios en los builders) sin que un
+      # PR legítimo falle por decimales; una caída real de cobertura (borrar
+      # tests, añadir código sin cubrir de un tamaño con el que valga la
+      # pena preocuparse) sigue siendo mucho mayor que ese margen y sí falla
+      # el build. Es un ratchet: solo sube cuando la cobertura real mejora
+      # de forma sostenida, nunca se baja para que pase un PR concreto.
+      #
+      # Vive dentro de "Build, format y tests" — ya es required status check
+      # de la protección de la rama main — en vez de un job nuevo: así el
+      # gate hereda ese estado "required" sin tocar la configuración de
+      # protección de rama, y no hay forma de que este paso corra y su
+      # resultado se ignore (a diferencia del job de k6 de más abajo, que es
+      # informativo a propósito y por eso está fuera de los required checks).
+      - name: Umbral de cobertura (ratchet — nunca bajar de 90%)
+        run: |
+          cobertura=$(jq -r '.summary.linecoverage' coveragereport/Summary.json)
+          umbral="90.0"
+          echo "Cobertura de línea (Domain+Application+Integration): ${cobertura}% — umbral ratchet: ${umbral}%"
+          if ! python3 -c "import sys; sys.exit(0 if float('${cobertura}') >= float('${umbral}') else 1)"; then
+            echo "::error::La cobertura de línea (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
+            exit 1
+          fi
 
   migraciones-pendientes:
     name: Detectar migraciones EF olvidadas
@@ -194,7 +226,20 @@ jobs:
 
       # continue-on-error: un fallo en el informe (p. ej. ningún .cobertura.xml
       # si algo cambia en coverlet) no debe tumbar un job cuyos tests ya
-      # pasaron — es visibilidad, no gate (ver el comentario de arriba).
+      # pasaron — es visibilidad, no gate.
+      #
+      # Deliberadamente sin el ratchet que sí tiene "Build, format y tests":
+      # coverlet instrumenta todo el árbol de dependencias de
+      # CaeManager.Web.Tests (Domain/Application/Infrastructure/Web
+      # completos, no solo los componentes Blazor), así que esta cifra
+      # es "cuánto del código TOTAL ejecuta la suite de bUnit sola" — medido
+      # en local, 0.4% — no "cuánto cubren los componentes Blazor". Fijar un
+      # umbral sobre ese número sería o bien un gate casi vacío (cualquier
+      # umbral bajo pasa siempre) o uno que falla por ruido de instrumentación
+      # sin relación con una regresión real. El número honesto de cobertura ya
+      # tiene su gate en "Build, format y tests" (Domain+Application+
+      # Integration, 91.6% medido); replicarlo aquí sobre una cifra que no
+      # significa lo que parece decir sería peor que no tener gate.
       - name: Informe de cobertura
         if: always()
         continue-on-error: true
