@@ -288,6 +288,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton(AlmacenConfianzaFirmas.AdministracionEspanola());
         services.AddSingleton<IVerificadorFirmaPdfService, VerificadorFirmaPdfService>();
         services.AddSingleton<IEstampadoFirmaEnCampoPdfService, EstampadoFirmaEnCampoPdfService>();
+        services.AddSingleton<IConversorImagenSelloService, SkiaConversorImagenSelloService>();
         services.AddScoped<INotificacionUsuarioRepository, NotificacionUsuarioRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
         services.AddScoped<IAsignacionRepository, AsignacionRepository>();
