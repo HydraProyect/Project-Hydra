@@ -35,7 +35,8 @@ public record DocumentoDetalleDto(
     string? TipoDocumentoSeSolicitaA,
     string? TipoDocumentoObservaciones,
     Guid Version,
-    PerfilDocumentoOficial TipoDocumentoPerfilDocumentoOficial);
+    PerfilDocumentoOficial TipoDocumentoPerfilDocumentoOficial,
+    Guid? EmpresaId);
 
 public class ObtenerDocumentoPorIdQueryHandler(IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentoPorIdQuery, DocumentoDetalleDto?>
@@ -130,6 +131,6 @@ public class ObtenerDocumentoPorIdQueryHandler(IClientesQueryContext clientesCon
             tipoDocumento.AplicaVencimientoAutomatico, documento.FechaEmision, documento.FechaVencimiento,
             documento.ArchivoUrl, documento.Comentarios,
             tipoDocumento.Descripcion, tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones,
-            documento.Version, tipoDocumento.PerfilDocumentoOficial);
+            documento.Version, tipoDocumento.PerfilDocumentoOficial, documento.EmpresaId);
     }
 }

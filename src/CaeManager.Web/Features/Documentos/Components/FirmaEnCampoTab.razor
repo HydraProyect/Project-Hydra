@@ -4,10 +4,18 @@
     proveedor externo. Ver PdfSharp: PdfDocumentOpenMode.Modify reescribe
     el archivo entero, por eso un documento con perfil oficial nunca
     muestra el lienzo (se destruiría su firma digital real).
+
+    Activos reutilizables (Fase A, PR 8): si el usuario ya tiene una firma
+    guardada (/mi-firma) se ofrece por defecto en vez del lienzo, y si la
+    Empresa relevante del Documento tiene un sello guardado se ofrece
+    incluirlo junto a la firma.
 *@
 @using CaeManager.Application.Documentos.Commands.FirmarDocumentoEnCampo
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
+@using CaeManager.Application.Documentos.Queries.ObtenerEmpresasConSelloGuardado
+@using CaeManager.Application.Documentos.Queries.ObtenerFirmaGuardadaUsuario
 @using CaeManager.Application.Documentos.Queries.ObtenerFirmasEnCampoDocumento
+@using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa
 @using CaeManager.Domain.Documentos
 @using MediatR
 @inject IMediator Mediator
@@ -54,7 +62,58 @@ else
     }
 
     <h3 class="workspace-subtitulo">Nueva firma</h3>
-    <canvas id="@_idCanvas" class="firma-en-campo-lienzo" width="500" height="200"></canvas>
+
+    @if (_firmaGuardada is not null && _usarFirmaGuardada)
+    {
+        <div class="workspace-grupo-campos">
+            <CampoInfo Etiqueta="Tu firma guardada">
+                <img src="/mi-firma/archivo" alt="Firma guardada" class="firma-guardada-vista-previa" />
+            </CampoInfo>
+        </div>
+        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _usarFirmaGuardada = false">
+            Dibujar otra firma
+        </Boton>
+    }
+    else
+    {
+        @if (_firmaGuardada is not null)
+        {
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _usarFirmaGuardada = true">
+                Usar mi firma guardada
+            </Boton>
+        }
+    }
+
+    <canvas id="@_idCanvas" class="firma-en-campo-lienzo @(_usarFirmaGuardada ? "oculto" : "")" width="500" height="200"></canvas>
+
+    @if (!_usarFirmaGuardada)
+    {
+        <label class="campo-checkbox">
+            <input type="checkbox" checked="@_guardarComoFirmaHabitual" @onchange="e => _guardarComoFirmaHabitual = e.Value is bool m && m" />
+            Guardar también como mi firma habitual
+        </label>
+    }
+
+    @if (_seloDirectoDisponible)
+    {
+        <label class="campo-checkbox">
+            <input type="checkbox" checked="@_incluirSello" @onchange="e => _incluirSello = e.Value is bool m && m" />
+            Incluir sello de @_documento.PropietarioNombre
+        </label>
+    }
+    else if (_documento.EmpresaId is null && _empresasConSello.Count > 0)
+    {
+        <div class="campo">
+            <label for="selector-sello-firma-en-campo">Sello a incluir (opcional)</label>
+            <select id="selector-sello-firma-en-campo" @onchange="AlCambiarEmpresaSeleccionadaParaSello">
+                <option value="">Ninguno</option>
+                @foreach (var empresa in _empresasConSello)
+                {
+                    <option value="@empresa.EmpresaId">@empresa.RazonSocial</option>
+                }
+            </select>
+        </div>
+    }
 
     <label class="campo-checkbox">
         <input type="checkbox" checked="@_incluirUbicacion" @onchange="e => _incluirUbicacion = e.Value is bool m && m" />
@@ -62,7 +121,7 @@ else
     </label>
 
     <div class="workspace-acciones-edicion">
-        <Boton Variante="VarianteBoton.Secundario" OnClick="RepetirAsync" Deshabilitado="_firmando">Repetir firma</Boton>
-        <Boton OnClick="FirmarAsync" Cargando="_firmando" Deshabilitado="@(!_trazoIniciado || _firmando)">Firmar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="RepetirAsync" Deshabilitado="@(_firmando || _usarFirmaGuardada)">Repetir firma</Boton>
+        <Boton OnClick="FirmarAsync" Cargando="_firmando" Deshabilitado="@(!PuedeFirmarAhora() || _firmando)">Firmar</Boton>
     </div>
 }

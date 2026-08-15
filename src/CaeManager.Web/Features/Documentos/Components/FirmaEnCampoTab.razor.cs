@@ -1,8 +1,13 @@
 using CaeManager.Application.Documentos.Commands.FirmarDocumentoEnCampo;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
+using CaeManager.Application.Documentos.Queries.ObtenerEmpresasConSelloGuardado;
+using CaeManager.Application.Documentos.Queries.ObtenerFirmaGuardadaUsuario;
 using CaeManager.Application.Documentos.Queries.ObtenerFirmasEnCampoDocumento;
+using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
+using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.Documentos.Components;
@@ -25,6 +30,20 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
     private bool _firmando;
     private Guid _idCargado;
 
+    // Firma guardada del usuario (PR 8): si existe, se ofrece por defecto en
+    // vez de tener que volver a dibujar en cada Documento.
+    private FirmaGuardadaUsuarioDto? _firmaGuardada;
+    private bool _usarFirmaGuardada;
+    private bool _guardarComoFirmaHabitual;
+
+    // Sello de la Empresa relevante — resuelto directamente si el Documento
+    // es de ámbito Empresa, o elegido de un selector en cualquier otro
+    // ámbito (Trabajador/Cliente/Vehículo/Proyecto no auto-resuelven).
+    private bool _seloDirectoDisponible;
+    private bool _incluirSello;
+    private IReadOnlyList<EmpresaConSelloDto> _empresasConSello = [];
+    private Guid? _empresaSeleccionadaEnSelector;
+
     protected override Task OnParametersSetAsync()
     {
         if (EntidadId == _idCargado)
@@ -43,6 +62,20 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
         {
             _documento = await Mediator.Send(new ObtenerDocumentoPorIdQuery(EntidadId));
             _firmas = await Mediator.Send(new ObtenerFirmasEnCampoDocumentoQuery(EntidadId));
+            _firmaGuardada = await Mediator.Send(new ObtenerFirmaGuardadaUsuarioQuery());
+            _usarFirmaGuardada = _firmaGuardada is not null;
+            _guardarComoFirmaHabitual = _firmaGuardada is null;
+
+            if (_documento?.EmpresaId is { } empresaId)
+            {
+                var sello = await Mediator.Send(new ObtenerSelloEmpresaQuery(empresaId));
+                _seloDirectoDisponible = sello is not null;
+                _incluirSello = sello is not null;
+            }
+            else
+            {
+                _empresasConSello = await Mediator.Send(new ObtenerEmpresasConSelloGuardadoQuery());
+            }
         }
         catch (Exception)
         {
@@ -59,7 +92,9 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
     /// _documento es asíncrona, así que el primer render real puede caer
     /// todavía en el estado "cargando" (sin &lt;canvas&gt; en el DOM). Se
     /// inicializa el módulo la primera vez que, tras cualquier render, el
-    /// lienzo ya es visible.
+    /// lienzo ya es visible — el lienzo se renderiza siempre (aunque oculto
+    /// tras "usar mi firma"), para no tener que re-atar los listeners cada
+    /// vez que se alterna entre firma guardada y dibujo.
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -72,7 +107,9 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
     }
 
     private bool PuedeFirmar() =>
-        _documento is { ArchivoUrl: not null, TipoDocumentoPerfilDocumentoOficial: Domain.Documentos.PerfilDocumentoOficial.Ninguno };
+        _documento is { ArchivoUrl: not null, TipoDocumentoPerfilDocumentoOficial: PerfilDocumentoOficial.Ninguno };
+
+    private bool PuedeFirmarAhora() => _usarFirmaGuardada || _trazoIniciado;
 
     [JSInvokable]
     public void MarcarTrazoIniciadoAsync()
@@ -89,24 +126,36 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
         _trazoIniciado = false;
     }
 
+    private void AlCambiarEmpresaSeleccionadaParaSello(ChangeEventArgs args) =>
+        _empresaSeleccionadaEnSelector = Guid.TryParse(args.Value as string, out var id) ? id : null;
+
+    private Guid? ResolverSelloEmpresaId() =>
+        _seloDirectoDisponible ? (_incluirSello ? _documento!.EmpresaId : null) : _empresaSeleccionadaEnSelector;
+
     private async Task FirmarAsync()
     {
-        if (_modulo is null || _firmando) return;
+        if (_modulo is null || _firmando || !PuedeFirmarAhora()) return;
 
         _firmando = true;
 
         try
         {
-            var trazoPngBase64 = await _modulo.InvokeAsync<string?>("exportarPng", _idCanvas);
-            if (string.IsNullOrEmpty(trazoPngBase64))
+            string? trazoPngBase64 = null;
+            if (!_usarFirmaGuardada)
             {
-                Toasts.Mostrar("No se pudo capturar la firma. Vuelve a dibujarla.", TonoToast.Error);
-                return;
+                trazoPngBase64 = await _modulo.InvokeAsync<string?>("exportarPng", _idCanvas);
+                if (string.IsNullOrEmpty(trazoPngBase64))
+                {
+                    Toasts.Mostrar("No se pudo capturar la firma. Vuelve a dibujarla.", TonoToast.Error);
+                    return;
+                }
             }
 
             var ubicacion = _incluirUbicacion ? await _modulo.InvokeAsync<string?>("obtenerUbicacion") : null;
 
-            var resultado = await Mediator.Send(new FirmarDocumentoEnCampoCommand(EntidadId, trazoPngBase64, ubicacion));
+            var resultado = await Mediator.Send(new FirmarDocumentoEnCampoCommand(
+                EntidadId, trazoPngBase64, ubicacion, _usarFirmaGuardada, ResolverSelloEmpresaId(),
+                !_usarFirmaGuardada && _guardarComoFirmaHabitual));
 
             if (resultado.EsFallido)
             {

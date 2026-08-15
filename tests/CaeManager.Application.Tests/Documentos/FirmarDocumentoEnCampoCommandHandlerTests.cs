@@ -1,9 +1,11 @@
 using System.Text;
 using CaeManager.Application.Documentos.Commands.FirmarDocumentoEnCampo;
+using CaeManager.Application.Documentos.Commands.GuardarFirmaGuardadaUsuario;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Proyectos;
 using CaeManager.Application.Tests.TiposDocumento;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,16 +24,19 @@ public class FirmarDocumentoEnCampoCommandHandlerTests
         public TiposDocumentoQueryContextFalso TiposDocumento { get; } = new();
         public FirmaDigitalDocumentoRepositorioFalso FirmasDigitales { get; } = new();
         public FirmaEnCampoDocumentoRepositorioFalso FirmasEnCampo { get; } = new();
+        public FirmaGuardadaUsuarioRepositorioFalso FirmaGuardada { get; } = new();
+        public SelloEmpresaRepositorioFalso SelloEmpresa { get; } = new();
         public FileStorageServiceFalso Almacenamiento { get; } = new();
         public EstampadoFirmaEnCampoPdfServiceFalso Estampador { get; } = new();
+        public MediatorFalso Mediator { get; } = new() { Respuesta = Result.Exito() };
         public PublisherFalso Publisher { get; } = new();
         public UnitOfWorkFalso UnitOfWork { get; } = new();
 
         public FirmarDocumentoEnCampoCommandHandler CrearHandler(bool sinUsuario = false, string? rol = "GestorCae") =>
             new(Documentos, TiposDocumento, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
-                FirmasDigitales, FirmasEnCampo, Almacenamiento, Estampador,
+                FirmasDigitales, FirmasEnCampo, FirmaGuardada, SelloEmpresa, Almacenamiento, Estampador,
                 new CurrentUserServiceFalso(sinUsuario ? null : UsuarioActualId, rol), new DirectorioUsuariosServiceFalso(),
-                Publisher, UnitOfWork, NullLogger<FirmarDocumentoEnCampoCommandHandler>.Instance);
+                Mediator, Publisher, UnitOfWork, NullLogger<FirmarDocumentoEnCampoCommandHandler>.Instance);
 
         public async Task<Documento> CrearDocumentoConArchivoAsync(CaeManager.Domain.Documentos.TipoDocumento tipoDocumento)
         {
@@ -170,5 +175,107 @@ public class FirmarDocumentoEnCampoCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("FirmaEnCampo.SinUsuario");
+    }
+
+    [Fact]
+    public async Task Falla_cuando_UsarFirmaGuardada_y_el_usuario_no_tiene_firma_guardada()
+    {
+        var contexto = new Contexto();
+        var tipo = CrearTipoDocumento();
+        var documento = await contexto.CrearDocumentoConArchivoAsync(tipo);
+        var handler = contexto.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new FirmarDocumentoEnCampoCommand(documento.Id, null, null, UsarFirmaGuardada: true), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("FirmaEnCampo.SinFirmaGuardada");
+    }
+
+    [Fact]
+    public async Task UsarFirmaGuardada_estampa_con_la_imagen_guardada_en_vez_del_trazo()
+    {
+        var contexto = new Contexto();
+        var tipo = CrearTipoDocumento();
+        var documento = await contexto.CrearDocumentoConArchivoAsync(tipo);
+        var urlFirmaGuardada = await contexto.Almacenamiento.GuardarAsync(
+            new MemoryStream(Encoding.UTF8.GetBytes("imagen-firma-guardada")), "firma.png");
+        contexto.FirmaGuardada.Agregar(new FirmaGuardadaUsuario(UsuarioActualId, urlFirmaGuardada, DateTime.UtcNow));
+        var handler = contexto.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new FirmarDocumentoEnCampoCommand(documento.Id, null, null, UsarFirmaGuardada: true), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        Encoding.UTF8.GetString(contexto.Estampador.UltimoFirmaPng!).Should().Be("imagen-firma-guardada");
+    }
+
+    [Fact]
+    public async Task SelloEmpresaId_informado_pasa_el_sello_al_estampador()
+    {
+        var contexto = new Contexto();
+        var tipo = CrearTipoDocumento();
+        var documento = await contexto.CrearDocumentoConArchivoAsync(tipo);
+        var empresaId = Guid.NewGuid();
+        var urlSello = await contexto.Almacenamiento.GuardarAsync(
+            new MemoryStream(Encoding.UTF8.GetBytes("imagen-sello")), "sello.png");
+        contexto.SelloEmpresa.Agregar(new SelloEmpresa(empresaId, urlSello, DateTime.UtcNow));
+        var handler = contexto.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new FirmarDocumentoEnCampoCommand(documento.Id, TrazoPngBase64, null, SelloEmpresaId: empresaId), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        Encoding.UTF8.GetString(contexto.Estampador.UltimoSelloPng!).Should().Be("imagen-sello");
+    }
+
+    [Fact]
+    public async Task SelloEmpresaId_informado_sin_sello_guardado_firma_igualmente_sin_sello()
+    {
+        var contexto = new Contexto();
+        var tipo = CrearTipoDocumento();
+        var documento = await contexto.CrearDocumentoConArchivoAsync(tipo);
+        var handler = contexto.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new FirmarDocumentoEnCampoCommand(documento.Id, TrazoPngBase64, null, SelloEmpresaId: Guid.NewGuid()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        contexto.Estampador.UltimoSelloPng.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GuardarComoFirmaHabitual_envia_el_command_de_guardar_firma_guardada()
+    {
+        var contexto = new Contexto();
+        var tipo = CrearTipoDocumento();
+        var documento = await contexto.CrearDocumentoConArchivoAsync(tipo);
+        var handler = contexto.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new FirmarDocumentoEnCampoCommand(documento.Id, TrazoPngBase64, null, GuardarComoFirmaHabitual: true), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        contexto.Mediator.Enviados.OfType<GuardarFirmaGuardadaUsuarioCommand>().Should().ContainSingle(
+            c => c.EsImagenDibujada);
+    }
+
+    [Fact]
+    public async Task GuardarComoFirmaHabitual_no_reenvia_nada_cuando_se_reutiliza_la_firma_guardada()
+    {
+        var contexto = new Contexto();
+        var tipo = CrearTipoDocumento();
+        var documento = await contexto.CrearDocumentoConArchivoAsync(tipo);
+        var urlFirmaGuardada = await contexto.Almacenamiento.GuardarAsync(
+            new MemoryStream(Encoding.UTF8.GetBytes("imagen-firma-guardada")), "firma.png");
+        contexto.FirmaGuardada.Agregar(new FirmaGuardadaUsuario(UsuarioActualId, urlFirmaGuardada, DateTime.UtcNow));
+        var handler = contexto.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new FirmarDocumentoEnCampoCommand(documento.Id, null, null, UsarFirmaGuardada: true, GuardarComoFirmaHabitual: true),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        contexto.Mediator.Enviados.OfType<GuardarFirmaGuardadaUsuarioCommand>().Should().BeEmpty();
     }
 }

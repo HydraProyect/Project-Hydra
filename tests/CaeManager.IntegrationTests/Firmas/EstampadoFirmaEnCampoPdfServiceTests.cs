@@ -45,7 +45,7 @@ public class EstampadoFirmaEnCampoPdfServiceTests
         var servicio = new EstampadoFirmaEnCampoPdfService();
         var original = CrearPdfDeUnaPagina();
 
-        var resultado = servicio.Estampar(original, TrazoPngDePrueba, "Juan Pérez", "GestorCae", DateTime.UtcNow, "Madrid");
+        var resultado = servicio.Estampar(original, TrazoPngDePrueba, null, "Juan Pérez", "GestorCae", DateTime.UtcNow, "Madrid");
 
         ContarPaginas(resultado).Should().Be(ContarPaginas(original) + 1);
     }
@@ -56,7 +56,7 @@ public class EstampadoFirmaEnCampoPdfServiceTests
         var servicio = new EstampadoFirmaEnCampoPdfService();
         var original = CrearPdfDeUnaPagina();
 
-        var resultado = servicio.Estampar(original, TrazoPngDePrueba, "Juan Pérez", "GestorCae", DateTime.UtcNow, null);
+        var resultado = servicio.Estampar(original, TrazoPngDePrueba, null, "Juan Pérez", "GestorCae", DateTime.UtcNow, null);
 
         resultado.Should().NotBeEquivalentTo(original);
     }
@@ -67,7 +67,18 @@ public class EstampadoFirmaEnCampoPdfServiceTests
         var servicio = new EstampadoFirmaEnCampoPdfService();
         var original = CrearPdfDeUnaPagina();
 
-        var accion = () => servicio.Estampar(original, TrazoPngDePrueba, "Juan Pérez", "GestorCae", DateTime.UtcNow, null);
+        var accion = () => servicio.Estampar(original, TrazoPngDePrueba, null, "Juan Pérez", "GestorCae", DateTime.UtcNow, null);
+
+        accion.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Estampar_con_sello_dibuja_ambas_imagenes_sin_fallar()
+    {
+        var servicio = new EstampadoFirmaEnCampoPdfService();
+        var original = CrearPdfDeUnaPagina();
+
+        var accion = () => servicio.Estampar(original, TrazoPngDePrueba, TrazoPngDePrueba, "Juan Pérez", "GestorCae", DateTime.UtcNow, null);
 
         accion.Should().NotThrow();
     }

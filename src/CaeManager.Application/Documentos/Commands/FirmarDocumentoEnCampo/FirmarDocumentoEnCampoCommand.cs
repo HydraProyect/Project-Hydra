@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Commands.GuardarFirmaGuardadaUsuario;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
@@ -13,11 +14,18 @@ using Microsoft.Extensions.Logging;
 namespace CaeManager.Application.Documentos.Commands.FirmarDocumentoEnCampo;
 
 /// <summary>
-/// Estampa una firma en campo (trazo manuscrito capturado en pantalla) sobre
-/// el archivo actual de un Documento — capacidad genérica sobre Documento,
-/// no atada a ningún formato concreto (plan Fase A de firma en campo).
+/// Estampa una firma en campo (trazo manuscrito capturado en pantalla, o la
+/// firma guardada del usuario) sobre el archivo actual de un Documento, con
+/// un sello de empresa opcional — capacidad genérica sobre Documento, no
+/// atada a ningún formato concreto (plan Fase A de firma en campo).
 /// </summary>
-public record FirmarDocumentoEnCampoCommand(Guid DocumentoId, string TrazoPngBase64, string? Ubicacion) : ICommand;
+public record FirmarDocumentoEnCampoCommand(
+    Guid DocumentoId,
+    string? TrazoPngBase64,
+    string? Ubicacion,
+    bool UsarFirmaGuardada = false,
+    Guid? SelloEmpresaId = null,
+    bool GuardarComoFirmaHabitual = false) : ICommand;
 
 public class FirmarDocumentoEnCampoCommandValidator : AbstractValidator<FirmarDocumentoEnCampoCommand>
 {
@@ -28,7 +36,13 @@ public class FirmarDocumentoEnCampoCommandValidator : AbstractValidator<FirmarDo
     public FirmarDocumentoEnCampoCommandValidator()
     {
         RuleFor(c => c.DocumentoId).NotEmpty();
-        RuleFor(c => c.TrazoPngBase64).NotEmpty().MaximumLength(LongitudMaximaTrazoBase64);
+
+        RuleFor(c => c.TrazoPngBase64).MaximumLength(LongitudMaximaTrazoBase64);
+        RuleFor(c => c)
+            .Must(c => c.UsarFirmaGuardada || !string.IsNullOrEmpty(c.TrazoPngBase64))
+            .WithMessage("Hace falta un trazo dibujado o usar la firma guardada.")
+            .WithName(nameof(FirmarDocumentoEnCampoCommand.TrazoPngBase64));
+
         RuleFor(c => c.Ubicacion).MaximumLength(FirmaEnCampoDocumento.LongitudMaximaUbicacion);
     }
 }
@@ -40,10 +54,13 @@ public class FirmarDocumentoEnCampoCommandHandler(
     IProyectosQueryContext proyectosContext,
     IFirmaDigitalDocumentoRepository firmasDigitalesRepositorio,
     IFirmaEnCampoDocumentoRepository firmasEnCampoRepositorio,
+    IFirmaGuardadaUsuarioRepository firmaGuardadaRepositorio,
+    ISelloEmpresaRepository selloEmpresaRepositorio,
     IFileStorageService almacenamiento,
     IEstampadoFirmaEnCampoPdfService estampador,
     ICurrentUserService currentUserService,
     IDirectorioUsuariosService directorioUsuarios,
+    IMediator mediator,
     IPublisher publisher,
     IUnitOfWork unitOfWork,
     ILogger<FirmarDocumentoEnCampoCommandHandler> logger)
@@ -79,19 +96,53 @@ public class FirmarDocumentoEnCampoCommandHandler(
                 "Documento.FirmaEnCampoBloqueadaPorFirmaExistente",
                 "Este archivo ya lleva una firma digital válida: firmarlo en campo la destruiría. No se puede firmar en campo."));
 
-        byte[] trazoPng;
-        try
-        {
-            trazoPng = Convert.FromBase64String(request.TrazoPngBase64);
-        }
-        catch (FormatException)
-        {
-            return Result.Fallo(Error.Crear("FirmaEnCampo.TrazoInvalido", "El trazo de la firma no es una imagen válida."));
-        }
-
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is not { } firmanteUsuarioId)
             return Result.Fallo(Error.Crear("FirmaEnCampo.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
+
+        byte[] firmaPng;
+        var trazoDibujadoEnEstaFirma = !request.UsarFirmaGuardada;
+
+        if (request.UsarFirmaGuardada)
+        {
+            var firmaGuardada = await firmaGuardadaRepositorio.ObtenerPorUsuarioAsync(firmanteUsuarioId, cancellationToken);
+            if (firmaGuardada is null)
+                return Result.Fallo(Error.Crear(
+                    "FirmaEnCampo.SinFirmaGuardada", "No tienes ninguna firma guardada. Dibújala o súbela primero en 'Mi firma'."));
+
+            await using var flujoFirmaGuardada = await almacenamiento.AbrirAsync(firmaGuardada.ImagenUrl, cancellationToken);
+            using var memoriaFirmaGuardada = new MemoryStream();
+            await flujoFirmaGuardada.CopyToAsync(memoriaFirmaGuardada, cancellationToken);
+            firmaPng = memoriaFirmaGuardada.ToArray();
+        }
+        else
+        {
+            try
+            {
+                firmaPng = Convert.FromBase64String(request.TrazoPngBase64!);
+            }
+            catch (FormatException)
+            {
+                return Result.Fallo(Error.Crear("FirmaEnCampo.TrazoInvalido", "El trazo de la firma no es una imagen válida."));
+            }
+        }
+
+        // El sello es un realce secundario de la constancia: si el Id llegó
+        // pero ya no hay sello guardado (se borró entre que se cargó el
+        // selector y se firmó), se firma igualmente sin él en vez de
+        // bloquear la firma por algo que no es la firma en sí.
+        byte[]? selloPng = null;
+        if (request.SelloEmpresaId is { } empresaIdDelSello)
+        {
+            var selloEmpresa = await selloEmpresaRepositorio.ObtenerPorEmpresaAsync(empresaIdDelSello, cancellationToken);
+            if (selloEmpresa is not null)
+            {
+                await using var flujoSello = await almacenamiento.AbrirAsync(selloEmpresa.ImagenUrl, cancellationToken);
+                using var memoriaSello = new MemoryStream();
+                await flujoSello.CopyToAsync(memoriaSello, cancellationToken);
+                selloPng = memoriaSello.ToArray();
+            }
+        }
 
         var nombres = await directorioUsuarios.ObtenerNombresVisiblesAsync([firmanteUsuarioId], cancellationToken);
         var firmanteNombre = nombres.GetValueOrDefault(firmanteUsuarioId, string.Empty);
@@ -104,7 +155,7 @@ public class FirmarDocumentoEnCampoCommandHandler(
 
         var firmadoEnUtc = DateTime.UtcNow;
         var contenidoFirmado = estampador.Estampar(
-            pdfOriginal, trazoPng, firmanteNombre, firmanteRol, firmadoEnUtc, request.Ubicacion);
+            pdfOriginal, firmaPng, selloPng, firmanteNombre, firmanteRol, firmadoEnUtc, request.Ubicacion);
         var hash = Convert.ToHexStringLower(SHA256.HashData(contenidoFirmado));
 
         var urlAnterior = documento.ArchivoUrl;
@@ -120,6 +171,20 @@ public class FirmarDocumentoEnCampoCommandHandler(
         // El ArchivoUrl cambió: un expediente de Visita puede depender de este
         // documento. Mismo patrón que RenovarDocumentoCommandHandler.
         await publisher.Publish(new DocumentacionCambiadaEvent(documento.Id), cancellationToken);
+
+        // Solo tiene sentido guardar como firma habitual un trazo nuevo — si
+        // ya se usó la firma guardada, no hay nada que actualizar.
+        if (request.GuardarComoFirmaHabitual && trazoDibujadoEnEstaFirma)
+        {
+            var resultadoGuardar = await mediator.Send(
+                new GuardarFirmaGuardadaUsuarioCommand(firmaPng, EsImagenDibujada: true), cancellationToken);
+            if (resultadoGuardar.EsFallido)
+            {
+                logger.LogWarning(
+                    "No se pudo guardar la firma habitual del usuario {UsuarioId} tras firmar el documento {DocumentoId}: {Motivo}",
+                    firmanteUsuarioId, documento.Id, resultadoGuardar.Error.Mensaje);
+            }
+        }
 
         try
         {

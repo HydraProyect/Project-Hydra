@@ -239,6 +239,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // El sello guardado (Fase A de firma en campo) cuelga de la Empresa —
         // necesita confirmar que existe antes de guardarle un sello.
         ("Documentos.GuardarSelloEmpresaCommandHandler", "IEmpresaRepository"),
+        // El selector de "incluir sello" en la pestaña Firma necesita el
+        // nombre de las Empresas del tenant que tienen sello guardado.
+        ("Documentos.ObtenerEmpresasConSelloGuardadoQueryHandler", "IEmpresasQueryContext"),
         ("Empresas.CrearEmpresaCommandHandler", "IClientesQueryContext"),
         ("Empresas.EditarEmpresaCommandHandler", "IClientesQueryContext"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "IAsignacionesQueryContext"),

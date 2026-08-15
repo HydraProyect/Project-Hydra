@@ -23,11 +23,13 @@ public class EstampadoFirmaEnCampoPdfService : IEstampadoFirmaEnCampoPdfService
     private const string NombreFuente = "DejaVu Sans";
     private const double AnchoCajaImagen = 200;
     private const double AltoCajaImagen = 80;
+    private const double SeparacionCajas = 20;
     private const double Margen = 40;
 
     public byte[] Estampar(
         byte[] pdfOriginal,
-        byte[] trazoPng,
+        byte[] firmaPng,
+        byte[]? selloPng,
         string firmanteNombre,
         string firmanteRol,
         DateTime firmadoEnUtc,
@@ -46,7 +48,12 @@ public class EstampadoFirmaEnCampoPdfService : IEstampadoFirmaEnCampoPdfService
         graficos.DrawString("Constancia de firma en campo", fuenteTitulo, XBrushes.Black, new XPoint(Margen, y));
         y += 30;
 
-        DibujarImagenEnCaja(graficos, trazoPng, Margen, y, AnchoCajaImagen, AltoCajaImagen);
+        DibujarImagenEnCaja(graficos, firmaPng, Margen, y, AnchoCajaImagen, AltoCajaImagen);
+        if (selloPng is not null)
+        {
+            // Firma y sello lado a lado, como en un documento físico.
+            DibujarImagenEnCaja(graficos, selloPng, Margen + AnchoCajaImagen + SeparacionCajas, y, AnchoCajaImagen, AltoCajaImagen);
+        }
         y += AltoCajaImagen + 20;
 
         graficos.DrawLine(XPens.Gray, Margen, y, pagina.Width.Point - Margen, y);

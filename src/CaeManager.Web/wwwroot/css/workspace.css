@@ -71,6 +71,10 @@
     touch-action: none;
 }
 
+.firma-en-campo-lienzo.oculto {
+    display: none;
+}
+
 .firma-guardada-vista-previa {
     max-width: 300px;
     max-height: 120px;

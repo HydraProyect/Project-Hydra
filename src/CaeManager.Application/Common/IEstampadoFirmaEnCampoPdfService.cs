@@ -12,7 +12,8 @@ public interface IEstampadoFirmaEnCampoPdfService
 {
     byte[] Estampar(
         byte[] pdfOriginal,
-        byte[] trazoPng,
+        byte[] firmaPng,
+        byte[]? selloPng,
         string firmanteNombre,
         string firmanteRol,
         DateTime firmadoEnUtc,
