@@ -64,7 +64,10 @@ public class ImportarClientesTests(WebAppFixture fixture)
             await page.GetByText("Confirmar importación").ClickAsync();
 
             // --- Resultado: la fila "nueva" no crea nada, termina omitida con motivo explícito ---
-            await page.GetByText("Importación completada").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            // GetByText a secas ambigua con el toast "Importación completada." (con punto) que
+            // se dispara en el mismo instante — el encabezado h2 es inequívoco.
+            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Importación completada" })
+                .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
             Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Clientes creados"));
             Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Centros creados"));
 

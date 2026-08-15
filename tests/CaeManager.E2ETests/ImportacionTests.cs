@@ -93,7 +93,9 @@ public class ImportacionTests(WebAppFixture fixture)
 
             // --- Resultado: Empresa/Trabajador/Documento sí se crean; Cliente/Centro se omiten con motivo;
             // Asignaciones queda en 0 SIN ningún Omitido que lo explique — la pérdida silenciosa. ---
-            await page.GetByText("Importación completada").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            // GetByText a secas ambigua con el toast "Importación completada." (con punto).
+            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Importación completada" })
+                .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
             Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Clientes creados"));
             Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Centros creados"));
             Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Empresas creadas"));

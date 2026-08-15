@@ -101,7 +101,9 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
             await page.GetByText("Confirmar importación").ClickAsync();
 
             // --- Resultado: las 4 altas reales, la fila inválida sigue fuera ---
-            await page.GetByText("Importación completada").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            // GetByText a secas ambigua con el toast "Importación completada." (con punto).
+            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Importación completada" })
+                .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
             Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Clientes creados"));
             Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Empresas creadas"));
             Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Centros creados"));

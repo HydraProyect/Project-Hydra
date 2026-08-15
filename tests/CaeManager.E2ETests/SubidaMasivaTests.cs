@@ -71,7 +71,14 @@ public class SubidaMasivaTests(WebAppFixture fixture)
         }
         else
         {
-            await drawer.GetByText(razonSocialEmpresa).WaitForAsync(new LocatorWaitForOptions { Timeout = 5_000 });
+            // DDL-076: perfil Cliente Directo con una única Empresa resuelve en
+            // silencio con un CampoInfo de solo lectura (ver Trabajadores.razor,
+            // _resolverEmpresaEnSilencio) — drawer.GetByText a secas también
+            // coincide con el <option> (oculto) del combobox que sigue existiendo
+            // en el DOM para otro caso, así que aquí se acota al contenedor real
+            // de CampoInfo (.campo-info-valor) para no esperar por un nodo oculto.
+            await drawer.Locator(".campo-info-valor", new LocatorLocatorOptions { HasText = razonSocialEmpresa })
+                .WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         }
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
