@@ -11,6 +11,7 @@ using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Notificaciones;
+using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Soporte;
@@ -281,6 +282,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IFirmaEnCampoDocumentoRepository, FirmaEnCampoDocumentoRepository>();
         services.AddScoped<IFirmaGuardadaUsuarioRepository, FirmaGuardadaUsuarioRepository>();
         services.AddScoped<ISelloEmpresaRepository, SelloEmpresaRepository>();
+        services.AddScoped<IPlantillaDocumentoRepository, PlantillaDocumentoRepository>();
+        services.AddScoped<IPlantillaDocumentoVersionRepository, PlantillaDocumentoVersionRepository>();
         services.AddScoped<IVerificacionDocumentoOficialRepository, VerificacionDocumentoOficialRepository>();
         services.AddScoped<IExtraccionIaCacheRepository, ExtraccionIaCacheRepository>();
         services.AddScoped<IAuditoriaExtraccionIaRepository, AuditoriaExtraccionIaRepository>();
