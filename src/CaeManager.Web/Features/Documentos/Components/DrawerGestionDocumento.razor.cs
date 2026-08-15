@@ -37,6 +37,7 @@ public partial class DrawerGestionDocumento : ComponentBase
 
     private bool _drawerVisible;
     private Guid? _editandoId;
+    private Guid _versionEditando;
     private string _ambitoAplicacion = nameof(AmbitoAplicacion.Trabajador);
     private string _trabajadorId = string.Empty;
     private string _clienteId = string.Empty;
@@ -168,6 +169,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         }
 
         _editandoId = documento.Id;
+        _versionEditando = documento.Version;
         _ambitoAplicacion = documento.Ambito.ToString();
         _propietarioNombreSoloLectura = documento.PropietarioNombre;
         _tipoDocumentoNombreSoloLectura = documento.TipoDocumentoNombre;
@@ -512,7 +514,7 @@ public partial class DrawerGestionDocumento : ComponentBase
             else
             {
                 var resultado = await Mediator.Send(
-                    new RenovarDocumentoCommand(_editandoId.Value, fechaEmision, fechaVencimientoManual, _archivoUrl, comentarios));
+                    new RenovarDocumentoCommand(_editandoId.Value, fechaEmision, fechaVencimientoManual, _archivoUrl, comentarios, _versionEditando));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 

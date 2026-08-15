@@ -127,26 +127,44 @@ public class ArquitecturaCommandsTests
         "ActualizarProyectoCommand", // agregado Proyecto completo
     ];
 
-    // Huecos reales encontrados al escribir este test, no exclusiones
-    // legítimas — se documentan aquí (en vez de quedar fuera del todo del
-    // escaneo) para que el gate exista sobre el resto del repo sin bloquear
-    // este PR con un fix de producción que no era el objetivo de esta tarea.
-    // Ver el informe de Horizonte 2.5 para el detalle de cada uno:
+    // RenovarDocumentoCommand (el otro hueco real que dejó Horizonte 2.5,
+    // fuera de alcance de aquel PR) ya se corrigió: Documento hereda de
+    // EntidadBase, el Command declara Version y el handler la comprueba con
+    // ConcurrenciaOptimista.Verificar — ver RenovarDocumentoConcurrenciaTests
+    // para el test de punta a punta.
     //
-    // - EditarTipoDocumentoCommand: hueco a nivel de dominio, no solo de
-    //   Command — TipoDocumento hereda de EntidadConTenant, no de
-    //   EntidadBase, así que ni siquiera tiene la propiedad Version que
-    //   propagar. Añadirla es una decisión de dominio (¿TipoDocumento
-    //   necesita concurrencia optimista?), no un simple añadido al Command.
-    // - RenovarDocumentoCommand: hueco solo de Command — Documento SÍ
-    //   hereda de EntidadBase (tiene Version), pero el Command nunca la pide
-    //   ni el handler la comprueba. Es la edición real de Documento (ver su
-    //   propio comentario) y probablemente el agregado más disputado de
-    //   todo el sistema — candidato claro a corregir, fuera de alcance aquí.
+    // EditarTipoDocumentoCommand se investigó en la misma tarea y se decidió
+    // NO añadirle Version — es una exclusión deliberada, no un TODO
+    // pendiente, así que se documenta aquí en vez de desaparecer del listado
+    // sin explicación:
+    //
+    // - El hueco es de dominio, no solo de Command: TipoDocumento hereda de
+    //   EntidadConTenant, no de EntidadBase, así que ni siquiera tiene la
+    //   propiedad Version que propagar.
+    // - Subir TipoDocumento a EntidadBase no es gratis: además de Version
+    //   arrastraría soft delete completo (MarcarComoEliminado/Restaurar,
+    //   EstaEliminado, EliminadoEnUtc, EliminadoPorUsuarioId) y
+    //   CreadoEnUtc — capacidades que TipoDocumento no usa hoy. No existe
+    //   ni un EliminarTipoDocumentoCommand: es un catálogo que se crea y se
+    //   edita, nunca se borra. Añadir esa superficie solo para llegar a
+    //   Version sería alcance no pedido, no una corrección con margen.
+    // - El propio agregado es de bajo riesgo de concurrencia real:
+    //   TipoDocumento es configuración de sistema ("Catálogo maestro de
+    //   documentos PRL exigibles", ver TipoDocumento.cs), editable solo por
+    //   el rol Administrador desde una única pantalla
+    //   (TiposDocumento.razor.cs) — no es un agregado que dos gestores CAE
+    //   editen a la vez sobre la misma cartera de clientes, como sí lo son
+    //   Documento o Cliente. La pérdida silenciosa de una edición aquí es
+    //   una molestia recuperable (se vuelve a aplicar el cambio), no una
+    //   vigencia mal calculada.
+    //
+    // Si en el futuro TipoDocumento gana borrado (lógico o no) o pasa a
+    // editarse con más frecuencia/concurrencia real, esta exclusión hay que
+    // revisitarla — no es una garantía permanente, es la lectura del estado
+    // actual del código.
     private static readonly HashSet<string> HuecosConocidosSinVersion =
     [
         "CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento.EditarTipoDocumentoCommand",
-        "CaeManager.Application.Documentos.Commands.RenovarDocumento.RenovarDocumentoCommand",
     ];
 
     private static IEnumerable<Type> ComandosDeEdicion() => TiposDeApplication()

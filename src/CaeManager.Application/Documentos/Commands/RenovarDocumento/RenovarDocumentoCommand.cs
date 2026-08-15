@@ -16,9 +16,16 @@ namespace CaeManager.Application.Documentos.Commands.RenovarDocumento;
 /// emisión (y opcionalmente un nuevo archivo). El trabajador y el tipo de
 /// documento no cambian — si son incorrectos, se elimina y se crea de nuevo
 /// (ver UX_PATTERNS.md, "Cambiar estado").
+///
+/// <paramref name="Version"/> es la del registro tal como lo vio quien
+/// renueva (llega en <c>DocumentoDetalleDto</c>) — mismo patrón que
+/// <see cref="Application.Clientes.Commands.EditarCliente.EditarClienteCommand"/>.
+/// <see cref="Guid.Empty"/> significa "sin comprobación", para los
+/// llamadores que todavía no la propagan.
 /// </summary>
 public record RenovarDocumentoCommand(
-    Guid Id, DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios) : ICommand;
+    Guid Id, DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios,
+    Guid Version = default) : ICommand;
 
 public class RenovarDocumentoCommandValidator : AbstractValidator<RenovarDocumentoCommand>
 {
@@ -45,6 +52,9 @@ public class RenovarDocumentoCommandHandler(
         var documento = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
             return Result.Fallo(Error.Crear("Documento.NoEncontrado", "No encontramos este documento."));
+
+        if (ConcurrenciaOptimista.Verificar(documento, request.Version, "este documento") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         var tipoDocumento = await dbContext.TiposDocumento
             .FirstOrDefaultAsync(t => t.Id == documento.TipoDocumentoId, cancellationToken);
