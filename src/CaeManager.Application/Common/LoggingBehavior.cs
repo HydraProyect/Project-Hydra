@@ -33,6 +33,12 @@ namespace CaeManager.Application.Common;
 /// El histograma de latencia (<see cref="Observabilidad.DuracionComandoMs"/>)
 /// es la misma medición que este behavior ya hacía, expuesta también como
 /// métrica en vez de solo como línea de log.
+///
+/// Desde Horizonte 2.4, cada desenlace también alimenta
+/// <see cref="VentanaSaludOperativa"/> (tasa de error y latencia degradada,
+/// las dos alertas por tasa del plan) — reutiliza exactamente la misma
+/// clasificación fallo/lento que ya se calculaba aquí para el log, sin
+/// duplicar lógica.
 /// </summary>
 public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
@@ -54,13 +60,16 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
     private readonly ILogger _logger;
     private readonly ICurrentUserService _currentUserService;
     private readonly ITenantActual _tenantActual;
+    private readonly VentanaSaludOperativa _ventanaSalud;
 
     public LoggingBehavior(
-        ILoggerFactory loggerFactory, ICurrentUserService currentUserService, ITenantActual tenantActual)
+        ILoggerFactory loggerFactory, ICurrentUserService currentUserService, ITenantActual tenantActual,
+        VentanaSaludOperativa ventanaSalud)
     {
         _logger = loggerFactory.CreateLogger(CategoriaLog);
         _currentUserService = currentUserService;
         _tenantActual = tenantActual;
+        _ventanaSalud = ventanaSalud;
     }
 
     public async Task<TResponse> Handle(
@@ -123,6 +132,10 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
             _logger.LogError(
                 ex, "{Request} lanzó {Excepcion} tras {DuracionMs} ms",
                 nombre, ex.GetType().Name, cronometro.ElapsedMilliseconds);
+            // Alertas por tasa (Horizonte 2.4): una excepción es un fallo
+            // igual que un Result fallido a efectos de la tasa de error —
+            // ver RegistrarDesenlace para el otro punto de entrada.
+            _ventanaSalud.RegistrarDesenlace(fallo: true, lento: cronometro.ElapsedMilliseconds >= UmbralLentitudMs);
             throw;
         }
     }
@@ -135,6 +148,12 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
         // las series temporales de un histograma que sí se consulta agregado
         // (p95 por comando).
         Observabilidad.DuracionComandoMs.Record(duracionMs, new KeyValuePair<string, object?>("Request", nombre));
+
+        // Alertas por tasa (Horizonte 2.4): se alimenta aquí, antes de
+        // cualquier "return" de abajo, para que todo desenlace (éxito,
+        // Result fallido, lento) cuente exactamente una vez en la ventana.
+        _ventanaSalud.RegistrarDesenlace(
+            fallo: respuesta is Result { EsFallido: true }, lento: duracionMs >= UmbralLentitudMs);
 
         // Un Result fallido es un desenlace de negocio esperado, no un error
         // del sistema: se registra como aviso y con su código, que es lo que
