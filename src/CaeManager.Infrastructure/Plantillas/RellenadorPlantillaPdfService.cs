@@ -38,8 +38,15 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
         using var flujo = new MemoryStream(pdfOriginal);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
 
-        var acroForm = documento.AcroForm
-            ?? throw new InvalidOperationException("El PDF no tiene un AcroForm — no se puede rellenar por nombre de campo.");
+        // documento.AcroForm lanza su propia InvalidOperationException si no
+        // hay AcroForm en vez de devolver null (pese a estar anotado como
+        // nullable) — el "?? throw" de abajo nunca llegaría a ejecutarse sin
+        // esta comprobación previa contra el diccionario crudo del catálogo
+        // (ver ExtractorCamposAcroFormService, mismo hallazgo).
+        if (!documento.Internals.Catalog.Elements.ContainsKey("/AcroForm"))
+            throw new InvalidOperationException("El PDF no tiene un AcroForm — no se puede rellenar por nombre de campo.");
+
+        var acroForm = documento.AcroForm;
 
         var camposPorNombre = IndexarCampos(acroForm.Fields);
 

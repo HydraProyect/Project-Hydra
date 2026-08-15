@@ -286,6 +286,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPlantillaDocumentoRepository, PlantillaDocumentoRepository>();
         services.AddScoped<IPlantillaDocumentoVersionRepository, PlantillaDocumentoVersionRepository>();
         services.AddSingleton<IRellenadorPlantillaPdfService, RellenadorPlantillaPdfService>();
+        services.AddSingleton<IExtractorCamposAcroFormService, ExtractorCamposAcroFormService>();
         services.AddScoped<IVerificacionDocumentoOficialRepository, VerificacionDocumentoOficialRepository>();
         services.AddScoped<IExtraccionIaCacheRepository, ExtraccionIaCacheRepository>();
         services.AddScoped<IAuditoriaExtraccionIaRepository, AuditoriaExtraccionIaRepository>();
@@ -378,6 +379,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Integraciones.IIntegracionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Gestiones.IGestionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Integraciones.IProveedoresPlataformaCaeQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Plantillas.IPlantillasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
         services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         // Sin estado propio (abre una conexión Npgsql nueva por llamada) — una sola instancia sirve.
