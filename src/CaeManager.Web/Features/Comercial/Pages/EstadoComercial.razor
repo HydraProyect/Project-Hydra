@@ -1,0 +1,112 @@
+@page "/configuracion/comercial"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@using CaeManager.Domain.Tenants
+
+<PageTitle>Estado comercial — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <h1 class="titulo-pagina">Estado comercial de los tenants</h1>
+
+    <p class="descripcion-delegaciones">
+        Alta manual de suscripción (Horizonte 1.7): la Subscription se crea en Stripe fuera de Hydra
+        (link de pago) y aquí solo se vincula su Id — nunca desde la organización del cliente, igual
+        criterio que Claves API. El estado se aplica automáticamente por webhook de Stripe; "Actualizar
+        desde Stripe" es solo para resincronizar a mano.
+    </p>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_tenants.Count == 0)
+    {
+        <EstadoVacio Titulo="No hay ningún tenant cliente todavía" Descripcion="Los tenants aparecerán aquí en cuanto existan." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Tenant</th>
+                    <th>Estado comercial</th>
+                    <th>Suscripción de Stripe</th>
+                    <th>Actualizado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var tenant in _tenants)
+                {
+                    <tr>
+                        <td>@tenant.Nombre</td>
+                        <td><Badge Tono="@TonoDe(tenant.EstadoComercial)">@TextoDe(tenant.EstadoComercial)</Badge></td>
+                        <td>@(tenant.StripeSubscriptionId is null ? "—" : (MarkupString)$"<code>{tenant.StripeSubscriptionId}</code>")</td>
+                        <td>@(tenant.EstadoComercialActualizadoEnUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")</td>
+                        <td>
+                            @if (tenant.StripeSubscriptionId is null)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirVincular(tenant)">Vincular suscripción</Boton>
+                            }
+                            else
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                                       Cargando="@(_actualizandoTenantId == tenant.TenantId)"
+                                       OnClick="() => ActualizarDesdeStripeAsync(tenant)">
+                                    Actualizar desde Stripe
+                                </Boton>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<Modal Visible="_tenantAVincular is not null" VisibleChanged="v => { if (!v) _tenantAVincular = null; }"
+       Titulo="Vincular suscripción de Stripe" CerrarAlHacerClicFuera="!_vinculando">
+    <ChildContent>
+        @if (_tenantAVincular is not null)
+        {
+            <p>
+                Tenant: <strong>@_tenantAVincular.Nombre</strong>. Pega el Id de la Subscription creada en
+                Stripe (empieza por <code>sub_</code>) — el Id de cliente y el estado inicial se toman
+                directamente de Stripe.
+            </p>
+
+            <CampoTexto Etiqueta="Id de suscripción de Stripe" Valor="@_stripeSubscriptionId"
+                        ValorChanged="v => _stripeSubscriptionId = v" Placeholder="sub_..." />
+
+            @if (_errorVincular is not null)
+            {
+                <p class="aviso-error">@_errorVincular</p>
+            }
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_vinculando" OnClick="() => _tenantAVincular = null">Cancelar</Boton>
+        <Boton Cargando="_vinculando" OnClick="VincularAsync">Vincular</Boton>
+    </Pie>
+</Modal>
+
+@code {
+    private static TonoBadge TonoDe(EstadoComercialTenant estado) => estado switch
+    {
+        EstadoComercialTenant.Activa => TonoBadge.Exito,
+        EstadoComercialTenant.AvisoImpago => TonoBadge.Advertencia,
+        EstadoComercialTenant.SoloLectura => TonoBadge.Advertencia,
+        EstadoComercialTenant.Suspendida => TonoBadge.Peligro,
+        _ => TonoBadge.Neutro,
+    };
+
+    private static string TextoDe(EstadoComercialTenant estado) => estado switch
+    {
+        EstadoComercialTenant.SinSuscripcion => "Sin suscripción",
+        EstadoComercialTenant.Activa => "Activa",
+        EstadoComercialTenant.AvisoImpago => "Aviso de impago",
+        EstadoComercialTenant.SoloLectura => "Solo lectura",
+        EstadoComercialTenant.Suspendida => "Suspendida",
+        _ => estado.ToString(),
+    };
+}
