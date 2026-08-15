@@ -1,0 +1,211 @@
+@page "/plantillas/nueva"
+@page "/plantillas/{PlantillaDocumentoVersionId:guid}/editar"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using CaeManager.Domain.Documentos
+@using CaeManager.Domain.Plantillas
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService Toasts
+@inject IJSRuntime JSRuntime
+@inject CaeManager.Application.Common.IFileStorageService AlmacenamientoArchivos
+@inject CaeManager.Application.DocumentosIa.Common.IRasterizadorPaginasPdfService Rasterizador
+@inject NavigationManager Navigation
+
+<PageTitle>@(PlantillaDocumentoVersionId is null ? "Nueva plantilla" : _nombrePlantilla) — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">@(PlantillaDocumentoVersionId is null ? "Nueva plantilla" : _nombrePlantilla)</h1>
+        <a class="enlace-exportar" href="/plantillas">Volver a Plantillas</a>
+    </div>
+
+    @if (PlantillaDocumentoVersionId is null && _versionIdActual is null)
+    {
+        <div class="editor-plantilla-alta">
+            <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" />
+            <CampoTextarea Etiqueta="Descripción (opcional)" Valor="@(_descripcion ?? "")" ValorChanged="v => _descripcion = string.IsNullOrWhiteSpace(v) ? null : v" />
+
+            <CampoSelect Etiqueta="Ámbito" Valor="@_ambitoAplicacion.ToString()" ValorChanged="CambiarAmbito">
+                <option value="@AmbitoAplicacion.Trabajador">Trabajador</option>
+                <option value="@AmbitoAplicacion.Empresa">Empresa</option>
+                <option value="@AmbitoAplicacion.Cliente">Cliente</option>
+            </CampoSelect>
+
+            <CampoSelect Etiqueta="Formato del PDF" Valor="@_formatoOrigenSeleccionado.ToString()" ValorChanged="CambiarFormatoOrigen">
+                <option value="@FormatoOrigenPlantilla.PdfConCampos">Tiene campos de formulario (AcroForm)</option>
+                <option value="@FormatoOrigenPlantilla.PdfVisual">No tiene campos — hay que marcar la posición a mano</option>
+            </CampoSelect>
+
+            <CampoSelect Etiqueta="Centro (opcional)" Valor="@(_centroId?.ToString() ?? "")" ValorChanged="CambiarCentro">
+                <option value="">Todo el tenant</option>
+                @foreach (var centro in _centrosDisponibles)
+                {
+                    <option value="@centro.Id">@centro.Nombre — @centro.EmpresaRazonSocial</option>
+                }
+            </CampoSelect>
+
+            <CampoSelect Etiqueta="Cliente (opcional)" Valor="@(_clienteId?.ToString() ?? "")" ValorChanged="CambiarCliente">
+                <option value="">Todo el tenant</option>
+                @foreach (var cliente in _clientesDisponibles)
+                {
+                    <option value="@cliente.Id">@cliente.RazonSocial</option>
+                }
+            </CampoSelect>
+
+            <div class="campo">
+                <label>PDF de la plantilla</label>
+                <InputFile OnChange="ManejarArchivoSeleccionadoAsync" accept=".pdf" />
+                @if (!string.IsNullOrWhiteSpace(_nombreArchivoSeleccionado))
+                {
+                    <span class="detalle-tecnico">@_nombreArchivoSeleccionado</span>
+                }
+            </div>
+
+            <Boton OnClick="CrearPlantillaAsync" Deshabilitado="@(!PuedeCrear)">
+                @(_creando ? "Creando…" : "Crear y configurar campos")
+            </Boton>
+        </div>
+    }
+    else if (_cargandoEditor)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar esta plantilla" Descripcion="Intenta nuevamente en unos segundos." />
+    }
+    else
+    {
+        <div class="editor-plantilla-layout">
+            <div class="editor-plantilla-lienzo" id="@_idContenedor">
+                @if (_estadoConfiguracion == EstadoConfiguracionPlantilla.Confirmada)
+                {
+                    <Badge Tono="TonoBadge.Exito">Confirmada</Badge>
+                }
+                else
+                {
+                    <Badge Tono="TonoBadge.Advertencia">@_estadoConfiguracion</Badge>
+                }
+
+                @foreach (var pagina in _paginas)
+                {
+                    <div class="editor-plantilla-pagina"
+                         style="width:@(pagina.AnchoPuntos)px;height:@(pagina.AltoPuntos)px;background-image:url(data:image/png;base64,@pagina.ImagenBase64)">
+                        @foreach (var elemento in _elementos.Where(e => e.Pagina == pagina.NumeroPagina))
+                        {
+                            <div class="editor-plantilla-caja @(elemento.IdLocal == _idLocalSeleccionado ? "editor-plantilla-caja-seleccionada" : "")"
+                                 data-id-local="@elemento.IdLocal"
+                                 style="left:@(elemento.X)px;top:@(elemento.Y)px;width:@(elemento.Ancho)px;height:@(elemento.Alto)px"
+                                 @onclick="() => SeleccionarElemento(elemento.IdLocal)">
+                                <span class="editor-plantilla-caja-etiqueta">@elemento.EtiquetaVisible</span>
+                                @if (PuedeEditar)
+                                {
+                                    <span class="editor-plantilla-handle"></span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            @if (PuedeEditar)
+            {
+                <div class="editor-plantilla-panel">
+                    <Boton OnClick="AnadirElemento" Variante="VarianteBoton.Secundario">+ Añadir campo</Boton>
+
+                    @if (ElementoSeleccionado is { } sel)
+                    {
+                        <div class="editor-plantilla-panel-campo">
+                            <CampoTexto Etiqueta="Etiqueta" Valor="@sel.EtiquetaVisible" ValorChanged="v => sel.EtiquetaVisible = v" />
+
+                            <CampoSelect Etiqueta="Tipo" Valor="@sel.Tipo.ToString()" ValorChanged="v => sel.Tipo = Enum.Parse<TipoElementoPlantilla>(v)">
+                                <option value="@TipoElementoPlantilla.Texto">Texto</option>
+                                <option value="@TipoElementoPlantilla.Fecha">Fecha</option>
+                                <option value="@TipoElementoPlantilla.Checkbox">Casilla</option>
+                                <option value="@TipoElementoPlantilla.Firma">Firma</option>
+                                <option value="@TipoElementoPlantilla.Imagen">Imagen</option>
+                                <option value="@TipoElementoPlantilla.Constante">Texto fijo</option>
+                            </CampoSelect>
+
+                            @if (sel.Tipo == TipoElementoPlantilla.Firma)
+                            {
+                                <CampoSelect Etiqueta="Quién firma" Valor="@(sel.RolFirmante?.ToString() ?? "")" ValorChanged="v => sel.RolFirmante = string.IsNullOrEmpty(v) ? null : Enum.Parse<RolFirmantePlantilla>(v)">
+                                    <option value="">— Selecciona —</option>
+                                    <option value="@RolFirmantePlantilla.Trabajador">Trabajador</option>
+                                    <option value="@RolFirmantePlantilla.Gestor">Gestor</option>
+                                    <option value="@RolFirmantePlantilla.ResponsableEmpresa">Responsable de empresa</option>
+                                    <option value="@RolFirmantePlantilla.RepresentanteLegal">Representante legal</option>
+                                    <option value="@RolFirmantePlantilla.Otro">Otro</option>
+                                </CampoSelect>
+                            }
+                            else
+                            {
+                                <CampoSelect Etiqueta="Origen del dato" Valor="@(sel.FuenteDato?.ToString() ?? "")" ValorChanged="v => sel.FuenteDato = string.IsNullOrEmpty(v) ? null : Enum.Parse<FuenteDatoPlantilla>(v)">
+                                    <option value="">— Sin asignar —</option>
+                                    <option value="@FuenteDatoPlantilla.EmpresaRazonSocial">Empresa — razón social</option>
+                                    <option value="@FuenteDatoPlantilla.EmpresaCif">Empresa — CIF</option>
+                                    <option value="@FuenteDatoPlantilla.TrabajadorNombreCompleto">Trabajador — nombre completo</option>
+                                    <option value="@FuenteDatoPlantilla.TrabajadorDni">Trabajador — DNI</option>
+                                    <option value="@FuenteDatoPlantilla.TrabajadorPuesto">Trabajador — puesto</option>
+                                    <option value="@FuenteDatoPlantilla.CentroNombre">Centro — nombre</option>
+                                    <option value="@FuenteDatoPlantilla.CentroDireccion">Centro — dirección</option>
+                                    <option value="@FuenteDatoPlantilla.ClienteRazonSocial">Cliente — razón social</option>
+                                    <option value="@FuenteDatoPlantilla.ClienteCif">Cliente — CIF</option>
+                                    <option value="@FuenteDatoPlantilla.DocumentoFechaGeneracion">Fecha de generación</option>
+                                    <option value="@FuenteDatoPlantilla.EmpresaResponsablePrl">Empresa — responsable PRL</option>
+                                    <option value="@FuenteDatoPlantilla.EmpresaRepresentanteLegal">Empresa — representante legal</option>
+                                    <option value="@FuenteDatoPlantilla.EmpresaContactoCae">Empresa — contacto CAE</option>
+                                    <option value="@FuenteDatoPlantilla.Manual">Manual (lo rellena el gestor)</option>
+                                    <option value="@FuenteDatoPlantilla.Constante">Texto fijo</option>
+                                </CampoSelect>
+
+                                @if (sel.FuenteDato == FuenteDatoPlantilla.Constante)
+                                {
+                                    <CampoTexto Etiqueta="Valor fijo" Valor="@(sel.ValorConstante ?? "")" ValorChanged="v => sel.ValorConstante = v" />
+                                }
+
+                                @if (sel.Tipo == TipoElementoPlantilla.Fecha)
+                                {
+                                    <CampoTexto Etiqueta="Formato (p.ej. dd/MM/yyyy)" Valor="@(sel.Formato ?? "")" ValorChanged="v => sel.Formato = v" />
+                                }
+                            }
+
+                            @if (_formatoOrigen == FormatoOrigenPlantilla.PdfConCampos)
+                            {
+                                <CampoTexto Etiqueta="Nombre del campo AcroForm" Valor="@(sel.NombreCampoAcroForm ?? "")" ValorChanged="v => sel.NombreCampoAcroForm = v" />
+                            }
+
+                            <label class="campo-checkbox">
+                                <input type="checkbox" checked="@sel.Obligatorio" @onchange="e => sel.Obligatorio = e.Value is bool b && b" />
+                                Obligatorio
+                            </label>
+
+                            <Boton OnClick="() => EliminarElemento(sel.IdLocal)" Variante="VarianteBoton.Fantasma">Eliminar campo</Boton>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="texto-vacio-seccion">Selecciona una caja del PDF para editar sus datos, o añade un campo nuevo.</p>
+                    }
+
+                    <div class="editor-plantilla-acciones">
+                        <Boton OnClick="() => GuardarCambiosAsync(true)" Variante="VarianteBoton.Secundario" Deshabilitado="@_guardando">
+                            @(_guardando ? "Guardando…" : "Guardar cambios")
+                        </Boton>
+                        <Boton OnClick="ConfirmarAsync" Deshabilitado="@(_confirmando || _elementos.Count == 0)">
+                            @(_confirmando ? "Confirmando…" : "Confirmar plantilla")
+                        </Boton>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private void CambiarAmbito(string valor) => _ambitoAplicacion = Enum.Parse<AmbitoAplicacion>(valor);
+    private void CambiarFormatoOrigen(string valor) => _formatoOrigenSeleccionado = Enum.Parse<FormatoOrigenPlantilla>(valor);
+    private void CambiarCentro(string valor) => _centroId = Guid.TryParse(valor, out var id) ? id : null;
+    private void CambiarCliente(string valor) => _clienteId = Guid.TryParse(valor, out var id) ? id : null;
+}

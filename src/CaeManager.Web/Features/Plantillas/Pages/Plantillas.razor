@@ -1,0 +1,86 @@
+@page "/plantillas"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using CaeManager.Domain.Plantillas
+@using MediatR
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<PageTitle>Plantillas — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Plantillas</h1>
+        <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
+    </div>
+
+    <p class="descripcion-subida-masiva">
+        Formularios que entrega un centro (acceso, autorización, ficha de riesgos…) configurados una vez para
+        rellenarse automáticamente con los datos ya conocidos de cada Trabajador o Empresa.
+    </p>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las plantillas" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_plantillas.Count == 0)
+    {
+        <EstadoVacio Titulo="Todavía no hay plantillas" Descripcion="Crea la primera a partir de un PDF que te entregue un centro.">
+            <Accion>
+                <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Ámbito</th>
+                    <th>Formato</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var plantilla in _plantillas)
+                {
+                    <tr>
+                        <td>@plantilla.Nombre</td>
+                        <td>@plantilla.AmbitoAplicacion</td>
+                        <td>@(plantilla.FormatoOrigen == FormatoOrigenPlantilla.PdfConCampos ? "Campos AcroForm" : "Posición manual")</td>
+                        <td>
+                            @if (plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada)
+                            {
+                                <Badge Tono="TonoBadge.Exito">Confirmada</Badge>
+                            }
+                            else
+                            {
+                                <Badge Tono="TonoBadge.Advertencia">@plantilla.UltimaVersionEstado</Badge>
+                            }
+                        </td>
+                        <td>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                   OnClick="() => IrAConfigurar(plantilla.UltimaVersionId)">
+                                @(plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada ? "Ver" : "Configurar")
+                            </Boton>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private void IrAConfigurar(Guid versionId) => Navigation.NavigateTo($"/plantillas/{versionId}/editar");
+}
