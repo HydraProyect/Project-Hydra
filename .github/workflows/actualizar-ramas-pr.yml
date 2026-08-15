@@ -1,0 +1,39 @@
+name: Actualizar ramas de PRs abiertas
+
+# Cuando varias PRs están abiertas a la vez contra main con "strict" en los
+# required status checks (main tiene que estar al día, no solo en verde), la
+# primera que mergea deja a todas las demás "behind" y bloqueadas hasta que
+# alguien las actualiza a mano — el cuello de botella real de una noche con
+# muchas PRs en paralelo (2026-08-15). Este workflow hace ese "git merge
+# origin/main && git push" por cada PR abierta automáticamente en cuanto algo
+# llega a main, usando el endpoint nativo de GitHub para ello (que ya resuelve
+# el merge en el propio servidor, sin necesitar un checkout aquí).
+#
+# No se sustituye por merge queue porque esa función no está disponible para
+# este repositorio (personal, no organización) — confirmado por la propia API
+# devolviendo "Invalid rule 'merge_queue'" al intentar crearlo.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Actualizar cada PR abierta a la última main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number --jq '.[].number')
+          for pr in $prs; do
+            echo "Actualizando PR #$pr..."
+            # 422 es el caso esperado y silencioso: la rama ya está al día, o
+            # tiene un conflicto real que el endpoint no puede resolver solo
+            # (en ese caso, como esta noche con #207, hace falta resolverlo a
+            # mano — este workflow no lo intenta, solo evita el caso común).
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/pulls/$pr/update-branch" \
+              --silent || echo "  #$pr: no actualizada (ya al día o con conflicto real)"
+          done
