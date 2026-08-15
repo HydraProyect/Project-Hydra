@@ -10,6 +10,7 @@ public partial class DocumentosGenerados : ComponentBase
     private IReadOnlyList<DocumentoGeneradoListaDto> _documentosGenerados = [];
     private IReadOnlyList<PlantillaDocumentoListaDto> _plantillasDisponibles = [];
     private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
+    private Dictionary<Guid, Guid> _versionActualPorPlantilla = [];
     private Guid? _plantillaFiltro;
     private Guid? _trabajadorFiltro;
     private bool _cargando = true;
@@ -18,6 +19,7 @@ public partial class DocumentosGenerados : ComponentBase
     protected override async Task OnInitializedAsync()
     {
         _plantillasDisponibles = await Mediator.Send(new ObtenerPlantillasDocumentoQuery());
+        _versionActualPorPlantilla = _plantillasDisponibles.ToDictionary(p => p.Id, p => p.UltimaVersionId);
         _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
         await CargarAsync();
     }

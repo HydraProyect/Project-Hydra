@@ -338,7 +338,7 @@
 
                         @if (_documentoGeneradoId is { } documentoGeneradoId)
                         {
-                            <a class="enlace-exportar" href="@($"/documentos?documentoId={documentoGeneradoId}")">Ver documento generado</a>
+                            <a class="enlace-exportar" href="@($"/documentos/{documentoGeneradoId}/archivo")" target="_blank">Ver PDF con los datos rellenados</a>
                         }
                     }
                 </div>

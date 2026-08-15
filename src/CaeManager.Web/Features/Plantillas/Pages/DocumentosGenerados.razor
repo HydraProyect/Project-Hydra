@@ -64,7 +64,16 @@
                 @foreach (var generado in _documentosGenerados)
                 {
                     <tr>
-                        <td>@generado.PlantillaNombre</td>
+                        <td>
+                            @if (_versionActualPorPlantilla.TryGetValue(generado.PlantillaDocumentoId, out var versionId))
+                            {
+                                <a class="enlace-exportar" href="@($"/plantillas/{versionId}/editar")" title="Ir a configurar los campos de esta plantilla">@generado.PlantillaNombre</a>
+                            }
+                            else
+                            {
+                                @generado.PlantillaNombre
+                            }
+                        </td>
                         <td>@(generado.TrabajadorNombreCompleto ?? "—")</td>
                         <td>@(generado.EmpresaRazonSocial ?? "—")</td>
                         <td>@generado.GeneradoEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
@@ -79,7 +88,9 @@
                             }
                         </td>
                         <td>
-                            <a class="enlace-exportar" href="@($"/documentos?documentoId={generado.DocumentoId}")">Ver documento</a>
+                            <a class="enlace-exportar" href="@($"/documentos/{generado.DocumentoId}/archivo")" target="_blank" title="Abre el PDF generado en una pestaña nueva">Ver PDF</a>
+                            &nbsp;·&nbsp;
+                            <a class="enlace-exportar" href="@($"/documentos?documentoId={generado.DocumentoId}")" title="Abre la ficha del documento en el módulo de Documentos">Gestionar</a>
                         </td>
                     </tr>
                 }
