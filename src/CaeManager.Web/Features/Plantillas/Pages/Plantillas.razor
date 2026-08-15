@@ -5,6 +5,7 @@
 @using MediatR
 @inject IMediator Mediator
 @inject NavigationManager Navigation
+@inject ToastService Toasts
 
 <PageTitle>Plantillas — @Marca.Nombre</PageTitle>
 
@@ -76,6 +77,13 @@
                                    OnClick="() => IrAConfigurar(plantilla.UltimaVersionId)">
                                 @(plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada ? "Ver" : "Configurar")
                             </Boton>
+                            @if (plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada)
+                            {
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       OnClick="() => AbrirModalNuevaVersion(plantilla.Id, plantilla.Nombre)">
+                                    Subir nueva versión
+                                </Boton>
+                            }
                         </td>
                     </tr>
                 }
@@ -83,6 +91,27 @@
         </table>
     }
 </div>
+
+<Modal Titulo="@($"Subir nueva versión — {_plantillaParaNuevaVersionNombre}")" Visible="ModalNuevaVersionVisible" VisibleChanged="CerrarModalNuevaVersion">
+    <ChildContent>
+        <p class="texto-vacio-seccion">
+            El PDF nuevo sustituye al actual. Los campos ya configurados se copian como punto de partida — revísalos y ajústalos antes de confirmar.
+        </p>
+        <div class="campo">
+            <label>PDF de la nueva versión</label>
+            <InputFile OnChange="ManejarArchivoNuevaVersionAsync" accept=".pdf" />
+            @if (!string.IsNullOrWhiteSpace(_nombreArchivoNuevaVersion))
+            {
+                <span class="detalle-tecnico">@_nombreArchivoNuevaVersion</span>
+            }
+        </div>
+    </ChildContent>
+    <Pie>
+        <Boton OnClick="SubirNuevaVersionAsync" Deshabilitado="@(!PuedeSubirNuevaVersion)">
+            @(_subiendoNuevaVersion ? "Subiendo…" : "Subir y configurar")
+        </Boton>
+    </Pie>
+</Modal>
 
 @code {
     private void IrAConfigurar(Guid versionId) => Navigation.NavigateTo($"/plantillas/{versionId}/editar");
