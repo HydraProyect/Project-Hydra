@@ -41,7 +41,7 @@ public class DetectarCamposDocumentoQueryHandlerTests
     private sealed class RouterQueLanzaSiSeInvoca : IDocumentAIRouterService
     {
         public Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
-            byte[] contenido, string nombreArchivo, string tipoEsperado, CancellationToken cancellationToken = default) =>
+            byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException(
                 "El gate de DeteccionPreviaDocumentoOptions.Activa=false debía impedir esta llamada.");
     }

@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.DocumentosIa.Common;
@@ -23,6 +24,7 @@ using CaeManager.Domain.Visitas;
 using CaeManager.Application.Importacion;
 using Microsoft.AspNetCore.Authentication;
 using CaeManager.Infrastructure.Alertas;
+using CaeManager.Infrastructure.AlertasOperativas;
 using CaeManager.Infrastructure.AsistenteIa;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
@@ -30,6 +32,7 @@ using Amazon;
 using Amazon.KeyManagementService;
 using Amazon.S3;
 using CaeManager.Infrastructure.Backups;
+using CaeManager.Infrastructure.Comercial;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Conversion;
@@ -387,6 +390,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         // Sin estado propio (abre una conexión Npgsql nueva por llamada) — una sola instancia sirve.
         services.AddSingleton<IEleccionLiderService, EleccionLiderPostgresService>();
+        // Horizonte 2.4: sin estado propio (delega en el Hub global de
+        // Sentry ya inicializado por Program.cs), así que un singleton es
+        // suficiente y evita crear una instancia por request.
+        services.AddSingleton<IAlertaOperativa, SentryAlertaOperativa>();
         // La clase concreta se registra además de la interfaz: las páginas de
         // administración necesitan sus listados, y los Commands solo la
         // comprobación de IDirectorioUsuariosService.
@@ -539,6 +546,18 @@ public static class InfrastructureServiceCollectionExtensions
         // reintento — cambiar cuál es "primario" para estructuración es
         // una decisión de benchmark, no algo que se cambie por tener una
         // clave nueva (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1).
+        //
+        // ProveedorFalsoDocumentAI (Horizonte 1.6, ciclo documental E2E):
+        // SIEMPRE antes que los reales, gateado por
+        // "DocumentosIa:ProveedorFalsoActivo" — apagado en cualquier sitio
+        // que no sea WebAppFixture (ver ese archivo), así que este bloque es
+        // inerte en producción. Ir primero es lo que lo convierte en el
+        // proveedor que de verdad usa DocumentAIRouterService, tanto para
+        // OCR como para extracción estructurada — ver el comentario de esa
+        // clase.
+        if (configuration.GetValue<bool>("DocumentosIa:ProveedorFalsoActivo"))
+            services.AddSingleton<IDocumentAIProvider, ProveedorFalsoDocumentAI>();
+
         services.Configure<MistralOcrOptions>(configuration.GetSection(MistralOcrOptions.SeccionConfiguracion));
         services.AddHttpClient<MistralOcrDocumentAIProvider>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
@@ -555,6 +574,18 @@ public static class InfrastructureServiceCollectionExtensions
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<GeminiDocumentAIProvider>());
+
+        // Horizonte 1.7 ("Billing mínimo viable") — StripePaymentProvider es
+        // el único IPaymentProvider real (ver su comentario sobre por qué no
+        // hay una implementación de GoCardless todavía). Sin
+        // StripeOptions.ApiKey/WebhookSecret configurados, cada método
+        // devuelve un Result fallido controlado — mismo patrón "inerte por
+        // defecto" que los proveedores de IA de arriba. No usa
+        // AddHttpClient<T>: StripeClient gestiona su propio HttpClient
+        // internamente (SDK oficial), igual que el resto de SDKs con typed
+        // client propio de este proyecto (AWSSDK.*).
+        services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SeccionConfiguracion));
+        services.AddScoped<IPaymentProvider, StripePaymentProvider>();
 
         // Graph SendMail no es idempotente: un reintento tras un 5xx/timeout
         // transitorio podría duplicar el correo si el envío ya se había

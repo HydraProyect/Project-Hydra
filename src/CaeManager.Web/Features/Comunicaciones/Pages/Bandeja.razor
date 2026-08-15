@@ -165,7 +165,13 @@
             {
                 <div class="bandeja-centro-cabecera">
                     <div class="bandeja-centro-titulo">
-                        <h2>@_detalle.Asunto</h2>
+                        <div class="bandeja-centro-titulo-fila">
+                            <h2>@_detalle.Asunto</h2>
+                            <button type="button" class="bandeja-centro-copiar-enlace" title="Copiar enlace a esta conversación"
+                                    aria-label="Copiar enlace a esta conversación" @onclick="CopiarEnlaceAsync">
+                                <Icono Nombre="copiar" Tamano="TamanoIcono.Pequeno" />
+                            </button>
+                        </div>
                         <div class="bandeja-centro-meta">
                             <span class="bandeja-badge-canal bandeja-badge-canal-@_detalle.Canal.ToString().ToLowerInvariant()" title="@(_detalle.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")">
                                 <Icono Nombre="@(_detalle.Canal == CanalConversacion.WhatsApp ? "chat" : "correo")" Tamano="TamanoIcono.Pequeno" />

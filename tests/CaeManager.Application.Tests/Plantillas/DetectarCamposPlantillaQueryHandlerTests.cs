@@ -155,14 +155,14 @@ public class DetectarCamposPlantillaQueryHandlerTests
     private sealed class RouterFalso(Result<ExtraccionEstructuradaDto> resultado) : IDocumentAIRouterService
     {
         public Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
-            byte[] contenido, string nombreArchivo, string tipoEsperado, CancellationToken cancellationToken = default) =>
+            byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(resultado);
     }
 
     private sealed class RouterQueLanzaSiSeInvoca : IDocumentAIRouterService
     {
         public Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
-            byte[] contenido, string nombreArchivo, string tipoEsperado, CancellationToken cancellationToken = default) =>
+            byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("El path PdfConCampos no debería llamar nunca al router de IA.");
     }
 }

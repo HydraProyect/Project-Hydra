@@ -39,6 +39,7 @@ public class RegistrarTramoGestionCommandHandler(
     IRegistroTiempoGestionRepository repositorio,
     IComunicacionesQueryContext comunicacionesContext,
     IConfiguracionQueryContext configuracionContext,
+    IAlcanceDatosService alcanceDatos,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<RegistrarTramoGestionCommand, Result>
@@ -60,14 +61,17 @@ public class RegistrarTramoGestionCommandHandler(
         if (usuarioId is null)
             return Result.Fallo(Error.Crear("TiempoGestion.SinUsuario", "No pudimos identificar de quién es este tramo."));
 
-        // Verificación de Id ajeno: con el filtro de tenant activo, una conversación de
-        // otro tenant simplemente no aparece.
+        // Verificación de Id ajeno: el filtro de tenant ya descarta una conversación de
+        // otro tenant, pero no basta — un hilo de un buzón personal ajeno también tiene
+        // ClienteId null (mismo hallazgo que PR #190, AlcanceDeConversacionesYBuzonesTests
+        // lo mecaniza). ConversacionVisibleAsync cubre las dos cosas: cartera del Cliente
+        // Y, si el hilo está atado a un buzón personal, que sea el propio dueño.
         var conversacion = await comunicacionesContext.Conversaciones
             .Where(c => c.Id == request.ConversacionId)
-            .Select(c => new { c.Id, c.ClienteId })
+            .Select(c => new { c.Id, c.ClienteId, c.ConexionIntegracionId })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (conversacion is null)
+        if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("TiempoGestion.ConversacionNoEncontrada", "No encontramos esta conversación."));
 
         var segundos = Math.Min(request.SegundosActivos, SegundosMaximosPorTramo);

@@ -7,6 +7,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
+using CaeManager.Web.Api.Comercial;
 using CaeManager.Web.Api.Integraciones;
 using CaeManager.Web.Api.V1;
 using CaeManager.Web.Components;
@@ -572,6 +573,7 @@ app.MapVistaVocabularioPreviewEndpoints();
 app.MapConectarMicrosoft365Endpoints();
 app.MapWebhookMicrosoft365Endpoints();
 app.MapWebhookWhatsAppEndpoints();
+app.MapWebhookStripeEndpoints();
 
 // API pública v1 (P3-29) — solo lectura, no publicada todavía. Un único
 // grupo con la política de auth/rate-limit aplicada una vez, en vez de por

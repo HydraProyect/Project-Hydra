@@ -65,6 +65,18 @@ public class WebAppFixture : IAsyncLifetime
         infoInicio.Environment["ConnectionStrings__CaeManagerDb"] = _cadenaConexion;
         infoInicio.Environment["DatosPrueba__Activo"] = "true";
 
+        // Horizonte 1.6 (ciclo documental E2E): registra ProveedorFalsoDocumentAI
+        // como IDocumentAIProvider primario (ver InfrastructureServiceCollectionExtensions)
+        // en vez de depender de Anthropic/Gemini/Mistral reales — que en este
+        // proceso son "inertes" de todos modos (sin ApiKey, ver
+        // AnthropicDocumentAIProvider) y, aunque tuvieran clave, harían de un
+        // test de flujo de aplicación algo no determinista, de pago y lento.
+        // Inerte para el resto de la suite: solo se enciende algo si un test
+        // activa VerificacionIaActiva en un TipoDocumento (ningún dato
+        // sembrado lo trae activo por defecto, ver TipoDocumentoSeedData),
+        // así que compartirlo en "AppCollection" no afecta a ningún otro test.
+        infoInicio.Environment["DocumentosIa__ProveedorFalsoActivo"] = "true";
+
         // El rate limiting de /cuenta/* (P0-2: fuerza bruta) limita los POST
         // anónimos a 10/min POR IP — y toda esta suite llega desde 127.0.0.1
         // haciendo logins reales en serie, donde cada login del Administrador

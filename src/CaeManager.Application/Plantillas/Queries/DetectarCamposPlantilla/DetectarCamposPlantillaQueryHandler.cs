@@ -99,7 +99,10 @@ public class DetectarCamposPlantillaQueryHandler(
         if (!opciones.Value.Activa)
             return Result.Exito<IReadOnlyList<PlantillaElementoCandidatoDto>>([]);
 
-        var resultado = await router.ProcesarAsync(contenido, "plantilla.pdf", TipoEsperadoPlantilla, cancellationToken);
+        // Sin documentoId: una plantilla en blanco no es un Documento, nunca lo será
+        // (ver el propio doc-comment de ProcesarAsync — ese enlace es para verificar
+        // un Documento ya creado, VerificacionIaDocumentoService).
+        var resultado = await router.ProcesarAsync(contenido, "plantilla.pdf", TipoEsperadoPlantilla, cancellationToken: cancellationToken);
         if (resultado.EsFallido)
             return Result.Fallo<IReadOnlyList<PlantillaElementoCandidatoDto>>(resultado.Error);
 
