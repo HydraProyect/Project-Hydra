@@ -79,19 +79,14 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         //
         // DDL-076 (tramo 3.2b): en perfil Cliente Directo con una única
         // Empresa, el selector se resuelve en silencio — no aparece ningún
-        // combobox, solo un CampoInfo de solo lectura. La Empresa que este
-        // test acaba de crear es la única del tenant en ese momento, así que
-        // hay que aceptar las dos formas: seleccionar si aparece el
-        // combobox, o solo comprobar que el valor resuelto es el correcto.
-        var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
-        if (await comboEmpresa.CountAsync() > 0)
-        {
-            await comboEmpresa.SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
-        }
-        else
-        {
-            await drawer.GetByText(razonSocialEmpresa).WaitForAsync(new LocatorWaitForOptions { Timeout = 5_000 });
-        }
+        // combobox, solo un CampoInfo de solo lectura. Cuál de las dos ramas
+        // renderiza depende de cuántas Empresas existan ya en el tenant
+        // compartido de "AppCollection" en ese instante (no solo de esta),
+        // así que comprobar comboEmpresa.CountAsync() nada más abrir el
+        // drawer es una carrera real — visto en CI, no una hipótesis: Blazor
+        // puede no haber terminado de decidir la rama todavía. Se espera
+        // primero a que cualquiera de las dos esté realmente visible.
+        await Ayudas.SeleccionarEmpresaEnDrawerTrabajadorAsync(drawer, razonSocialEmpresa);
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
         await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);
