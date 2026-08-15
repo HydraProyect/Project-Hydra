@@ -20,7 +20,6 @@ using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.JSInterop;
-using PdfSharp.Drawing;
 using PdfSharp.Pdf.IO;
 
 namespace CaeManager.Web.Features.Plantillas.Pages;
@@ -296,7 +295,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
             case AmbitoAplicacion.Empresa:
                 _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
                 break;
-            // Cliente reutiliza _clientesDisponibles, ya cargado en OnInitializedAsync.
+                // Cliente reutiliza _clientesDisponibles, ya cargado en OnInitializedAsync.
         }
     }
 
@@ -427,16 +426,18 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         for (var i = 0; i < resultado.Valor.Count; i++)
         {
             var png = resultado.Valor[i];
-            using var xImagen = XImage.FromStream(new MemoryStream(png));
-            var anchoPuntos = xImagen.PixelWidth * 72.0 / xImagen.HorizontalResolution;
-            var altoPuntos = xImagen.PixelHeight * 72.0 / xImagen.VerticalResolution;
+            var paginaPdf = documento.Pages[i];
 
             paginas.Add(new PaginaEditor
             {
                 NumeroPagina = i + 1,
                 ImagenBase64 = Convert.ToBase64String(png),
-                AnchoPuntos = anchoPuntos,
-                AltoPuntos = altoPuntos,
+                // El ancho/alto se toma del PDF real, no de la imagen rasterizada: el PNG
+                // generado por el rasterizador no trae metadatos de resolución fiables (XImage
+                // cae a 96 dpi por defecto aunque se renderizó a 150), lo que inflaba el espacio
+                // de coordenadas del editor un ~1,56x respecto al PDF y desplazaba el estampado.
+                AnchoPuntos = paginaPdf.Width.Point,
+                AltoPuntos = paginaPdf.Height.Point,
             });
         }
 

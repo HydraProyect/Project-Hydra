@@ -188,24 +188,24 @@ public class GenerarDocumentoIndividualCommandHandler(
         Cliente? cliente,
         IReadOnlyDictionary<RolContacto, string> contactosPorRol,
         DateTime ahoraUtc) => elemento.FuenteDato switch
-    {
-        FuenteDatoPlantilla.Constante => elemento.ValorConstante,
-        FuenteDatoPlantilla.Manual => valoresManuales?.GetValueOrDefault(elemento.Id),
-        FuenteDatoPlantilla.EmpresaRazonSocial => empresa?.RazonSocial,
-        FuenteDatoPlantilla.EmpresaCif => empresa?.Cif,
-        FuenteDatoPlantilla.TrabajadorNombreCompleto => trabajador?.NombreCompleto,
-        FuenteDatoPlantilla.TrabajadorDni => trabajador?.Dni,
-        FuenteDatoPlantilla.TrabajadorPuesto => trabajador?.Puesto,
-        FuenteDatoPlantilla.CentroNombre => centro?.Nombre,
-        FuenteDatoPlantilla.CentroDireccion => centro?.Direccion,
-        FuenteDatoPlantilla.ClienteRazonSocial => cliente?.RazonSocial,
-        FuenteDatoPlantilla.ClienteCif => cliente?.Cif,
-        FuenteDatoPlantilla.DocumentoFechaGeneracion => DateOnly.FromDateTime(ahoraUtc).ToString(elemento.Formato ?? "dd/MM/yyyy"),
-        FuenteDatoPlantilla.EmpresaResponsablePrl => contactosPorRol.GetValueOrDefault(RolContacto.ResponsablePrl),
-        FuenteDatoPlantilla.EmpresaRepresentanteLegal => contactosPorRol.GetValueOrDefault(RolContacto.RepresentanteLegal),
-        FuenteDatoPlantilla.EmpresaContactoCae => contactosPorRol.GetValueOrDefault(RolContacto.ContactoCae),
-        _ => null
-    };
+        {
+            FuenteDatoPlantilla.Constante => elemento.ValorConstante,
+            FuenteDatoPlantilla.Manual => valoresManuales?.GetValueOrDefault(elemento.Id),
+            FuenteDatoPlantilla.EmpresaRazonSocial => empresa?.RazonSocial,
+            FuenteDatoPlantilla.EmpresaCif => empresa?.Cif,
+            FuenteDatoPlantilla.TrabajadorNombreCompleto => trabajador?.NombreCompleto,
+            FuenteDatoPlantilla.TrabajadorDni => trabajador?.Dni,
+            FuenteDatoPlantilla.TrabajadorPuesto => trabajador?.Puesto,
+            FuenteDatoPlantilla.CentroNombre => centro?.Nombre,
+            FuenteDatoPlantilla.CentroDireccion => centro?.Direccion,
+            FuenteDatoPlantilla.ClienteRazonSocial => cliente?.RazonSocial,
+            FuenteDatoPlantilla.ClienteCif => cliente?.Cif,
+            FuenteDatoPlantilla.DocumentoFechaGeneracion => DateOnly.FromDateTime(ahoraUtc).ToString(elemento.Formato ?? "dd/MM/yyyy"),
+            FuenteDatoPlantilla.EmpresaResponsablePrl => contactosPorRol.GetValueOrDefault(RolContacto.ResponsablePrl),
+            FuenteDatoPlantilla.EmpresaRepresentanteLegal => contactosPorRol.GetValueOrDefault(RolContacto.RepresentanteLegal),
+            FuenteDatoPlantilla.EmpresaContactoCae => contactosPorRol.GetValueOrDefault(RolContacto.ContactoCae),
+            _ => null
+        };
 
     private static Result<GenerarDocumentoIndividualResultadoDto> Fallo(string codigo, string mensaje) =>
         Result.Fallo<GenerarDocumentoIndividualResultadoDto>(Error.Crear(codigo, mensaje));
