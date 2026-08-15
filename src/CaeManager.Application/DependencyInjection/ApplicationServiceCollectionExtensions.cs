@@ -33,6 +33,11 @@ public static class ApplicationServiceCollectionExtensions
         // Scoped: una puerta por petición HTTP o circuito de Blazor — la
         // misma que usan los accesos a datos que no pasan por MediatR.
         services.AddScoped<PuertaAccesoDatos>();
+        // Singleton a propósito (Horizonte 2.4): la ventana de tasa de
+        // error/latencia degradada tiene que acumular entre requests de todo
+        // el proceso, no reiniciarse en cada petición como el resto de
+        // dependencias Scoped de este método.
+        services.AddSingleton<VentanaSaludOperativa>();
         // Orden importa. LoggingBehavior va el primero de todos: mide lo que
         // el usuario espera de verdad, incluido el tiempo en la cola de
         // acceso a datos, y su ámbito de log correlaciona todo lo que
