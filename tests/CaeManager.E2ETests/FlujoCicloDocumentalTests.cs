@@ -234,7 +234,22 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // al recargar (ver ReclamacionesTab.razor) — no hace falta marcar
         // ninguna casilla a mano.
         await tarjetaCliente.GetByText(emailContacto).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await tarjetaCliente.GetByText(new Regex("^Enviar reclamación")).ClickAsync();
+
+        // Diagnóstico si "Enviar reclamación" no aparece: CI ya reveló varias
+        // sorpresas de datos en pasos anteriores de este mismo test (el
+        // texto real de la opción de Centro, el modal de notificación) que
+        // ningún razonamiento a ciegas habría adivinado sin ver el HTML real
+        // — mejor volcar el contenido de la tarjeta en el mensaje de fallo
+        // que reintentar a ciegas otra vez.
+        try
+        {
+            await tarjetaCliente.GetByText(new Regex("^Enviar reclamación")).ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
+        }
+        catch (TimeoutException)
+        {
+            var contenido = await tarjetaCliente.InnerTextAsync();
+            throw new TimeoutException($"No se encontró \"Enviar reclamación\" en la tarjeta de \"{razonSocialCliente}\". Contenido actual de la tarjeta:\n{contenido}");
+        }
 
         // "Nunca reclamado." pasa a "Última reclamación: hoy." solo si
         // EnviarReclamacionCommand terminó con éxito y persistió la
