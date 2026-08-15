@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.DocumentosIa.Common;
@@ -30,6 +31,7 @@ using Amazon;
 using Amazon.KeyManagementService;
 using Amazon.S3;
 using CaeManager.Infrastructure.Backups;
+using CaeManager.Infrastructure.Comercial;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Conversion;
@@ -557,6 +559,18 @@ public static class InfrastructureServiceCollectionExtensions
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<GeminiDocumentAIProvider>());
+
+        // Horizonte 1.7 ("Billing mínimo viable") — StripePaymentProvider es
+        // el único IPaymentProvider real (ver su comentario sobre por qué no
+        // hay una implementación de GoCardless todavía). Sin
+        // StripeOptions.ApiKey/WebhookSecret configurados, cada método
+        // devuelve un Result fallido controlado — mismo patrón "inerte por
+        // defecto" que los proveedores de IA de arriba. No usa
+        // AddHttpClient<T>: StripeClient gestiona su propio HttpClient
+        // internamente (SDK oficial), igual que el resto de SDKs con typed
+        // client propio de este proyecto (AWSSDK.*).
+        services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SeccionConfiguracion));
+        services.AddScoped<IPaymentProvider, StripePaymentProvider>();
 
         // Graph SendMail no es idempotente: un reintento tras un 5xx/timeout
         // transitorio podría duplicar el correo si el envío ya se había

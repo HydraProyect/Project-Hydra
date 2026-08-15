@@ -25,6 +25,25 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             .HasConversion<string>()
             .HasMaxLength(20);
 
+        // Horizonte 1.7 ("Billing mínimo viable") — ver EstadoComercialTenant
+        // sobre por qué es un campo aparte de Estado.
+        builder.Property(t => t.EstadoComercial)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(20);
+
+        builder.Property(t => t.StripeCustomerId).HasMaxLength(100);
+        builder.Property(t => t.StripeSubscriptionId).HasMaxLength(100);
+
+        // Búsqueda del tenant dueño de una Subscription al procesar un
+        // webhook de Stripe (ver WebhookStripeEndpoints) — filtrado, no
+        // único: la mayoría de tenants no tienen ninguna suscripción
+        // vinculada (NULL, ver StripeSubscriptionId) y Postgres no exige
+        // unicidad entre NULLs de todas formas, pero el filtro deja fuera
+        // esas filas del índice sin necesidad de pensarlo.
+        builder.HasIndex(t => t.StripeSubscriptionId)
+            .HasFilter("\"StripeSubscriptionId\" IS NOT NULL");
+
         // Sin HasQueryFilter: Tenant no pertenece a ningún tenant (ver
         // docs/MULTITENANCY.md § 4.1) y no tiene soft delete (ver Tenant.cs).
 
@@ -46,6 +65,11 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             // docs/MULTITENANCY.md § 2) — DDL-072 lo declara ClienteDirecto
             // explícitamente, nunca se infiere.
             PerfilVocabulario = PerfilVocabularioTenant.ClienteDirecto,
+            // El tenant de plataforma nunca es él mismo un suscriptor de
+            // pago (es quien opera Hydra, no un cliente) — se queda en
+            // SinSuscripcion para siempre, y GateComercialTenantBehavior lo
+            // exime del gate igualmente por EsPlataforma.
+            EstadoComercial = EstadoComercialTenant.SinSuscripcion,
         });
     }
 }
