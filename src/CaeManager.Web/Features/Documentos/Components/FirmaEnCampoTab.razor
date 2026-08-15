@@ -70,7 +70,7 @@ else
                 <img src="/mi-firma/archivo" alt="Firma guardada" class="firma-guardada-vista-previa" />
             </CampoInfo>
         </div>
-        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _usarFirmaGuardada = false">
+        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="CambiarAOtraFirmaAsync">
             Dibujar otra firma
         </Boton>
     }
@@ -78,9 +78,26 @@ else
     {
         @if (_firmaGuardada is not null)
         {
-            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _usarFirmaGuardada = true">
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="UsarFirmaGuardadaAsync">
                 Usar mi firma guardada
             </Boton>
+        }
+    }
+
+    @if (!_usarFirmaGuardada)
+    {
+        <div class="workspace-acciones-edicion">
+            <Boton Variante="@(_escribirNombre ? VarianteBoton.Secundario : VarianteBoton.Primario)" Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarModoEntradaAsync(escribir: false)">
+                Dibujar
+            </Boton>
+            <Boton Variante="@(_escribirNombre ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarModoEntradaAsync(escribir: true)">
+                Escribir mi nombre
+            </Boton>
+        </div>
+
+        @if (_escribirNombre)
+        {
+            <CampoTexto Etiqueta="Tu nombre" Valor="@_nombreEscrito" ValorChanged="AlCambiarNombreEscritoAsync" Placeholder="Escribe tu nombre tal como quieres que aparezca" class="firma-escrita-nombre" />
         }
     }
 

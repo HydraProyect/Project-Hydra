@@ -56,6 +56,45 @@ export function iniciar(referencia, idCanvas) {
     canvas.addEventListener('pointercancel', terminarTrazo);
 }
 
+// Firma "escrita": el nombre tecleado se dibuja con la tipografía cursiva
+// 'Dancing Script' (ver @font-face en workspace.css) sobre el mismo canvas
+// del trazo — de ahí en adelante sigue el mismo camino que un trazo dibujado
+// a mano (exportarPng captura el canvas tal cual, sin distinguir origen).
+// Autoajuste de tamaño para que un nombre largo no se salga del lienzo.
+export async function escribirNombre(idCanvas, texto) {
+    const canvas = document.getElementById(idCanvas);
+    if (!canvas) return;
+
+    const contexto = canvas.getContext('2d');
+    contexto.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.dataset.trazoAvisado = 'false';
+
+    const limpio = (texto || '').trim();
+    if (!limpio) return;
+
+    try {
+        await document.fonts.load("64px 'Dancing Script'");
+    } catch {
+        // Sin la fuente cargada, el navegador cae a su cursiva por defecto
+        // — sigue siendo una firma válida, solo con otro trazo visual.
+    }
+
+    const margen = 20;
+    const maxAncho = canvas.width - margen * 2;
+    contexto.textBaseline = 'middle';
+    contexto.textAlign = 'center';
+    contexto.fillStyle = '#1a1a1a';
+
+    let tamano = 64;
+    do {
+        contexto.font = `${tamano}px 'Dancing Script', cursive`;
+        tamano -= 2;
+    } while (contexto.measureText(limpio).width > maxAncho && tamano > 20);
+
+    contexto.fillText(limpio, canvas.width / 2, canvas.height / 2);
+    canvas.dataset.trazoAvisado = 'true';
+}
+
 export function exportarPng(idCanvas) {
     const canvas = document.getElementById(idCanvas);
     if (!canvas) return null;

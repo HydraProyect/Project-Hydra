@@ -36,6 +36,13 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
     private bool _usarFirmaGuardada;
     private bool _guardarComoFirmaHabitual;
 
+    // Firma "escrita": el nombre tecleado se renderiza con una tipografía
+    // cursiva sobre el mismo canvas del trazo (ver firmaEnCampo.js,
+    // escribirNombre) — desde ahí en adelante sigue el mismo camino que un
+    // trazo dibujado a mano, exportarPng no distingue el origen.
+    private bool _escribirNombre;
+    private string _nombreEscrito = string.Empty;
+
     // Sello de la Empresa relevante — resuelto directamente si el Documento
     // es de ámbito Empresa, o elegido de un selector en cualquier otro
     // ámbito (Trabajador/Cliente/Vehículo/Proyecto no auto-resuelven).
@@ -124,6 +131,46 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
 
         await _modulo.InvokeVoidAsync("limpiar", _idCanvas);
         _trazoIniciado = false;
+        _nombreEscrito = string.Empty;
+    }
+
+    private async Task CambiarModoEntradaAsync(bool escribir)
+    {
+        if (_escribirNombre == escribir) return;
+
+        _escribirNombre = escribir;
+        _nombreEscrito = string.Empty;
+        _trazoIniciado = false;
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync("limpiar", _idCanvas);
+    }
+
+    private async Task AlCambiarNombreEscritoAsync(string valor)
+    {
+        _nombreEscrito = valor;
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync("escribirNombre", _idCanvas, valor);
+        _trazoIniciado = !string.IsNullOrWhiteSpace(valor);
+    }
+
+    private async Task CambiarAOtraFirmaAsync()
+    {
+        _usarFirmaGuardada = false;
+        _escribirNombre = false;
+        _nombreEscrito = string.Empty;
+        _trazoIniciado = false;
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync("limpiar", _idCanvas);
+    }
+
+    private async Task UsarFirmaGuardadaAsync()
+    {
+        _usarFirmaGuardada = true;
+        _escribirNombre = false;
+        _nombreEscrito = string.Empty;
+        _trazoIniciado = false;
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync("limpiar", _idCanvas);
     }
 
     private void AlCambiarEmpresaSeleccionadaParaSello(ChangeEventArgs args) =>

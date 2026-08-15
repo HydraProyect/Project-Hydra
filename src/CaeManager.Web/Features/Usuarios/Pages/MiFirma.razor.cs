@@ -21,6 +21,10 @@ public partial class MiFirma : ComponentBase, IAsyncDisposable
     private bool _trazoIniciado;
     private bool _guardando;
 
+    // Firma "escrita" — ver comentario equivalente en FirmaEnCampoTab.razor.cs.
+    private bool _escribirNombre;
+    private string _nombreEscrito = string.Empty;
+
     protected override async Task OnInitializedAsync()
     {
         _firmaActual = await Mediator.Send(new ObtenerFirmaGuardadaUsuarioQuery());
@@ -51,6 +55,26 @@ public partial class MiFirma : ComponentBase, IAsyncDisposable
 
         await _modulo.InvokeVoidAsync("limpiar", _idCanvas);
         _trazoIniciado = false;
+        _nombreEscrito = string.Empty;
+    }
+
+    private async Task CambiarModoEntradaAsync(bool escribir)
+    {
+        if (_escribirNombre == escribir) return;
+
+        _escribirNombre = escribir;
+        _nombreEscrito = string.Empty;
+        _trazoIniciado = false;
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync("limpiar", _idCanvas);
+    }
+
+    private async Task AlCambiarNombreEscritoAsync(string valor)
+    {
+        _nombreEscrito = valor;
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync("escribirNombre", _idCanvas, valor);
+        _trazoIniciado = !string.IsNullOrWhiteSpace(valor);
     }
 
     private async Task GuardarDibujadaAsync()
@@ -109,6 +133,7 @@ public partial class MiFirma : ComponentBase, IAsyncDisposable
         if (_modulo is not null)
             await _modulo.InvokeVoidAsync("limpiar", _idCanvas);
         _trazoIniciado = false;
+        _nombreEscrito = string.Empty;
 
         _firmaActual = await Mediator.Send(new ObtenerFirmaGuardadaUsuarioQuery());
     }

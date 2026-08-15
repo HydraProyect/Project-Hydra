@@ -53,6 +53,25 @@
 }
 
 /*
+  Tipografía cursiva para la firma "escrita" (el nombre tecleado se dibuja
+  con esta fuente sobre el mismo <canvas> del trazo — ver firmaEnCampo.js,
+  función escribirNombre). Autoalojada (TTF variable de Google Fonts,
+  licencia OFL-1.1 en wwwroot/fonts/LICENSE-DancingScript.txt) — nada de
+  CDN externo en tiempo de ejecución, mismo criterio que DejaVu Sans para
+  PdfSharp.
+*/
+@font-face {
+    font-family: 'Dancing Script';
+    src: url('/fonts/DancingScript-Variable.ttf') format('truetype-variations');
+    font-weight: 400 700;
+    font-display: swap;
+}
+
+.firma-escrita-nombre {
+    max-width: 500px;
+}
+
+/*
   Lienzo de captura del trazo manuscrito (firma en campo) — global y no
   aislado a un componente porque lo comparten FirmaEnCampoTab (pestaña
   "Firma" de un Documento) y MiFirma (/mi-firma, la firma habitual del
