@@ -1,0 +1,127 @@
+# Stack de STAGING — segundo stack en la MISMA máquina que
+# docker-compose.produccion.yml (ver RUNBOOK-DESPLIEGUE-LOCAL.md en el
+# repositorio local de negocio, tecnico/). Mismo Dockerfile, mismo servicio
+# postgres:18, misma estructura que producción — con las diferencias que
+# importan para convivir en la misma máquina sin pisarse con producción:
+#
+# 1. Nombres de contenedor y volúmenes propios (prefijo "caemanager-staging-")
+#    — el volumen de datos de Postgres NUNCA se comparte con producción, eso
+#    sería catastrófico.
+# 2. Dominio propio (staging.talveg.es) servido por el MISMO Caddy de
+#    producción, no uno propio: dos procesos Caddy no pueden compartir el
+#    80/443 del host, y levantar un segundo Caddy en puertos alternativos no
+#    sirve porque Let's Encrypt necesita el 80 (HTTP-01) o el 443 (TLS-ALPN-01)
+#    reales. Este stack no publica ningún puerto 80/443 propio — en vez de
+#    eso, el contenedor `app` se une a la red externa "caemanager-edge" que
+#    crea docker-compose.produccion.yml, y el Caddyfile de producción gana un
+#    segundo bloque de sitio para este dominio (ver ese Caddyfile).
+# 3. Imagen: se compila desde código igual que producción (`build: ../..`),
+#    no se reutiliza la imagen del job "Build de la imagen de despliegue" de
+#    ci.yml — ese job compila con `push: false` (solo valida/escanea con
+#    Trivy en el runner, nunca sube la imagen a ningún registro), así que no
+#    hay artefacto publicado al que este VPS pueda apuntar. Si algún día ese
+#    job empieza a subir a un registro alcanzable desde el VPS, reutilizar esa
+#    misma imagen aquí sería más honesto (prueba justo lo que se va a
+#    desplegar) — hoy no es posible.
+#
+# Requisito previo: producción ya desplegada con la red "caemanager-edge"
+# (este mismo cambio, en docker-compose.produccion.yml) — sin ese requisito
+# Caddy no tiene forma de alcanzar a este `app`.
+#
+# Uso:  cp .env.staging.example .env.staging   (rellenar, incluida una
+#       POSTGRES_PASSWORD PROPIA — no reutilizar la de producción)
+#       docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+#
+# --env-file es obligatorio en cada comando: sin él, Compose busca un ".env"
+# por defecto (el de producción, si se ejecuta desde el mismo directorio
+# deploy/local) para interpolar ${POSTGRES_PASSWORD} en este archivo, que es
+# exactamente la confusión que separar los nombres de archivo quiere evitar.
+name: caemanager-staging
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: caemanager-staging-app
+    restart: unless-stopped
+    env_file: .env.staging
+    environment:
+      ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      AlmacenamientoArchivos__Ruta: /data/documentos
+      DataProtection__RutaClaves: /data/dataprotection-keys
+      # Sin backup real: staging es desechable por diseño (datos de prueba
+      # re-sembrables con DatosPrueba__Activo=true), no vale la pena montar
+      # scripts/backup-borg.sh contra un segundo repo Borg para esto.
+      Backups__Activo: "false"
+    volumes:
+      - caemanager-staging-data:/data
+    # Sin `ports` publicados — igual que producción, solo alcanzable desde
+    # dentro de la red del compose. La única entrada de fuera es el Caddy de
+    # producción, vía la red "edge" de abajo.
+    networks:
+      - default
+      - edge
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/salud"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  db:
+    image: postgres:18
+    container_name: caemanager-staging-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: caemanager
+    # Volumen propio, distinto del de producción — ver la nota de arriba.
+    volumes:
+      - caemanager-staging-postgres-data:/var/lib/postgresql
+    # Sin `ports` a propósito, igual que producción: solo alcanzable desde la
+    # red interna de este compose (ni siquiera desde la red "edge" — db no
+    # está en esa lista de networks, así que el Caddy/app de producción no
+    # pueden alcanzarla aunque compartan máquina).
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  seq:
+    image: datalust/seq:latest
+    container_name: caemanager-staging-seq
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "True"
+    volumes:
+      - caemanager-staging-seq-data:/data
+    # Solo loopback, igual que producción — y en un puerto de host distinto
+    # (5342, no 5341) para que ambos Seq puedan convivir en la misma máquina.
+    # Túnel: ssh -L 5342:localhost:5342 root@<IP-del-VPS>
+    ports:
+      - "127.0.0.1:5342:80"
+
+volumes:
+  caemanager-staging-data:
+    name: caemanager-staging-data
+  caemanager-staging-postgres-data:
+    name: caemanager-staging-postgres-data
+  caemanager-staging-seq-data:
+    name: caemanager-staging-seq-data
+
+networks:
+  # Red externa creada por docker-compose.produccion.yml — no la crea este
+  # archivo (external: true), solo se une a ella para que el Caddy de
+  # producción pueda alcanzar a "caemanager-staging-app". Nombre pinneado
+  # explícitamente en los dos archivos para no depender de cómo se llame
+  # cada proyecto Compose.
+  edge:
+    external: true
+    name: caemanager-edge
