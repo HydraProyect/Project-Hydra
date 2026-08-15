@@ -35,6 +35,7 @@ using CaeManager.Infrastructure.Autorizacion;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.Options;
+using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.Comunicaciones.Pages;
 
@@ -48,7 +49,7 @@ public record EjecutivoSelectorDto(Guid Id, string NombreCompleto);
 /// (§ 10.2) es que el gestor nunca elige "voy a Correo" o "voy a WhatsApp":
 /// entra a Comunicaciones y ve conversaciones.
 /// </summary>
-public partial class Bandeja : ComponentBase, IDisposable
+public partial class Bandeja : ComponentBase, IAsyncDisposable
 {
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ILogger<Bandeja> Logger { get; set; } = default!;
@@ -56,11 +57,22 @@ public partial class Bandeja : ComponentBase, IDisposable
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private INotificadorMensajesTiempoReal Notificador { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
+    [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "estado")] public string? EstadoInicial { get; set; }
     [SupplyParameterFromQuery(Name = "mes")] public string? MesInicial { get; set; }
     [SupplyParameterFromQuery(Name = "cliente")] public string? ClienteInicial { get; set; }
     [SupplyParameterFromQuery(Name = "q")] public string? BusquedaInicial { get; set; }
+
+    /// <summary>
+    /// Deep-link a una conversación concreta (Horizonte 2.6 de
+    /// MACRO_PLAN_2026-08-13.md, § 7 punto 3): a diferencia de "ctx" en el
+    /// Context Workspace (ContextWorkspace.razor), aquí no hay un mecanismo
+    /// genérico que restaurar — la Bandeja unificada es maestro-detalle
+    /// propio, así que este parámetro y su sincronización viven en la propia
+    /// página, con el mismo patrón "la URL manda" que el resto de filtros.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "conversacion")] public string? ConversacionInicial { get; set; }
 
     // --- Filtros ---
     private string _estadoFiltro = string.Empty;
@@ -199,7 +211,13 @@ public partial class Bandeja : ComponentBase, IDisposable
         await CargarListaAsync();
     }
 
-    public void Dispose() => _suscripcionTiempoReal?.Dispose();
+    public async ValueTask DisposeAsync()
+    {
+        _suscripcionTiempoReal?.Dispose();
+
+        if (_moduloClipboard is not null)
+            await _moduloClipboard.DisposeAsync();
+    }
 
     /// <summary>Llega desde el hilo del job de fondo — todo lo que toque estado del componente va dentro de InvokeAsync.</summary>
     private Task AlRecibirMensajeAsync(MensajeWhatsAppRecibidoEvent aviso) =>
@@ -228,6 +246,22 @@ public partial class Bandeja : ComponentBase, IDisposable
     /// este método, para no depender del timing del router.
     /// </summary>
     protected override void OnParametersSet() => SincronizarFiltrosDesdeUrl();
+
+    /// <summary>
+    /// Igual que SincronizarFiltrosDesdeUrl pero async — OnParametersSet(Async)
+    /// corre después de OnInitializedAsync incluso en el primer render (por
+    /// eso basta con esto y no hace falta duplicar la llamada allí), así que
+    /// cubre a la vez la carga en frío del deep-link y sus recargas
+    /// posteriores (compartir la URL, atrás/adelante del navegador).
+    ///
+    /// La guarda contra <c>_conversacionSeleccionadaId</c> es lo que evita el
+    /// bucle URL→selección→URL: SeleccionarConversacionAsync también escribe
+    /// "conversacion" en la URL, lo que dispara este mismo método otra vez.
+    /// </summary>
+    protected override Task OnParametersSetAsync() =>
+        Guid.TryParse(ConversacionInicial, out var idDeepLink) && idDeepLink != _conversacionSeleccionadaId
+            ? SeleccionarConversacionAsync(idDeepLink)
+            : Task.CompletedTask;
 
     private void SincronizarFiltrosDesdeUrl()
     {
@@ -375,6 +409,23 @@ public partial class Bandeja : ComponentBase, IDisposable
         _centroFormatosSeleccionado = string.Empty;
         _emailFallback = string.Empty;
 
+        // Deep-link (Horizonte 2.6 de MACRO_PLAN_2026-08-13.md): la URL queda
+        // como la fuente de verdad de qué conversación está abierta, mismo
+        // patrón que el resto de filtros de esta página (y que "ctx" en el
+        // Context Workspace). replace: seleccionar un hilo no es un paso de
+        // navegación propio para "Atrás" del navegador.
+        //
+        // Solo si de verdad cambia algo: ActualizarFiltroEnUrl navega
+        // incondicionalmente, y OnParametersSetAsync llega hasta aquí
+        // precisamente cuando "conversacion" YA trae este id (carga en frío
+        // de un deep-link). NavigateTo durante el prerenderizado estático de
+        // InteractiveServer (antes de que exista circuito) se resuelve como
+        // una redirección HTTP real — repetirla a la misma URL en cada vuelta
+        // del prerender es el bucle de "demasiadas redirecciones" que se veía
+        // al abrir un enlace de conversación en una pestaña nueva.
+        if (id.ToString() != ConversacionInicial)
+            NavigationManager.ActualizarFiltroEnUrl("conversacion", id.ToString());
+
         await CargarDetalleAsync();
     }
 
@@ -388,6 +439,19 @@ public partial class Bandeja : ComponentBase, IDisposable
         try
         {
             _detalle = await Mediator.Send(new ObtenerConversacionPorIdQuery(id));
+
+            // Enlace corrupto o conversación fuera de alcance (borrada, de
+            // otro tenant, sin visibilidad): mismo criterio que
+            // ContextWorkspace.TryParsearCtx con un "ctx" inválido — se
+            // ignora en silencio y la página vuelve al estado "sin selección"
+            // en vez de quedarse con un panel central en blanco para siempre.
+            if (_detalle is null)
+            {
+                _conversacionSeleccionadaId = null;
+                NavigationManager.ActualizarFiltroEnUrl("conversacion", null);
+                return;
+            }
+
             _ejecutivoSeleccionado = _detalle?.EjecutivoAsignadoId?.ToString() ?? string.Empty;
 
             if (_detalle?.ClienteId is not null)
@@ -566,6 +630,29 @@ public partial class Bandeja : ComponentBase, IDisposable
         finally
         {
             _enviando = false;
+        }
+    }
+
+    private IJSObjectReference? _moduloClipboard;
+
+    /// <summary>
+    /// "Copiar enlace" (§ 7 punto 3 y Horizonte 2.6 de
+    /// MACRO_PLAN_2026-08-13.md): con "conversacion" ya sincronizado en la
+    /// URL por SeleccionarConversacionAsync, la URL actual del navegador ya
+    /// es el deep-link — mismo criterio que ContextWorkspace.CopiarEnlaceAsync
+    /// y mismo módulo clipboard.js que BotonCopiar.
+    /// </summary>
+    private async Task CopiarEnlaceAsync()
+    {
+        try
+        {
+            _moduloClipboard ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/clipboard.js");
+            await _moduloClipboard.InvokeVoidAsync("copiarAlPortapapeles", NavigationManager.Uri);
+            ToastService.Mostrar("Se copió el enlace a esta conversación al portapapeles.", TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos copiar el enlace.", TonoToast.Error);
         }
     }
 
