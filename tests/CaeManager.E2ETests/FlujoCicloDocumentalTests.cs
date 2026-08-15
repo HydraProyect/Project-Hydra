@@ -196,8 +196,18 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // aria-labelledby → "Asignar 1 trabajador(es) a un centro", que
         // contiene "centro" como subcadena (visto en CI —
         // "strict mode violation... resolved to 2 elements").
+        //
+        // CampoBuscarSelect resuelve por texto EXACTO de la opción — y la
+        // opción de Centro no es solo el nombre: OpcionesCentrosParaAsignar
+        // (Trabajadores.razor.cs) la construye como "{Nombre} ({Cliente})"
+        // para poder distinguir centros del mismo nombre en clientes
+        // distintos. Rellenar solo con nombreCentro no coincidía con
+        // ninguna opción — _centroIdParaAsignar se quedaba vacío y
+        // "Asignar" fallaba en silencio con el toast "Selecciona un
+        // centro.", sin cerrar el modal (visto en CI: timeout esperando a
+        // que ".modal-pie" desapareciera).
         await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync(nombreCentro);
+            .FillAsync($"{nombreCentro} ({razonSocialCliente})");
         await page.WaitForTimeoutAsync(500);
         // El botón de confirmar cambia de texto a "Asignar igualmente" si
         // quedan documentos obligatorios sin cubrir (ver Trabajadores.razor.cs,
