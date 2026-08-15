@@ -240,6 +240,17 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.RenovarDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.RenovarDocumentoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Documentos.RenovarDocumentoCommandHandler", "ITrabajoAnalisisDocumentoRepository"),
+        // Mismo par que RenovarDocumentoCommandHandler: DocumentoAlcanceExtensions.DocumentoVisibleAsync
+        // necesita IProyectosQueryContext para resolver el ClienteId de un Documento de Proyecto,
+        // y la guarda de perfil oficial (Fase A de firma en campo) necesita ITiposDocumentoQueryContext.
+        ("Documentos.FirmarDocumentoEnCampoCommandHandler", "IProyectosQueryContext"),
+        ("Documentos.FirmarDocumentoEnCampoCommandHandler", "ITiposDocumentoQueryContext"),
+        // El sello guardado (Fase A de firma en campo) cuelga de la Empresa —
+        // necesita confirmar que existe antes de guardarle un sello.
+        ("Documentos.GuardarSelloEmpresaCommandHandler", "IEmpresaRepository"),
+        // El selector de "incluir sello" en la pestaña Firma necesita el
+        // nombre de las Empresas del tenant que tienen sello guardado.
+        ("Documentos.ObtenerEmpresasConSelloGuardadoQueryHandler", "IEmpresasQueryContext"),
         ("Documentos.ResolverRevisionIaDocumentoCommandHandler", "IAuditoriaExtraccionIaRepository"),
         ("Empresas.CrearEmpresaCommandHandler", "IClientesQueryContext"),
         ("Empresas.EditarEmpresaCommandHandler", "IClientesQueryContext"),
@@ -297,6 +308,24 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Integraciones.CrearLineaWhatsAppCommandHandler", "IClienteRepository"),
         ("Integraciones.ObtenerConexionesIntegracionQueryHandler", "IClientesQueryContext"),
         ("Integraciones.ObtenerLineasWhatsAppQueryHandler", "IClientesQueryContext"),
+        // Alta de plantilla exige un TipoDocumento existente cuyo Ambito coincida
+        // (mismo criterio que Documentos.CrearDocumentoCommandHandler).
+        ("Plantillas.CrearPlantillaDocumentoCommandHandler", "ITiposDocumentoQueryContext"),
+        // Generación individual: resuelve TipoDocumento/Empresa/Trabajador/Centro/
+        // Cliente/ContactoAgenda para rellenar la plantilla y crea el Documento real
+        // (Domain.Documentos.IDocumentoRepository, otra feature de Domain).
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "ICentrosQueryContext"),
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "IClientesQueryContext"),
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "IContactosAgendaQueryContext"),
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "IDocumentoRepository"),
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "IEmpresasQueryContext"),
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "ITiposDocumentoQueryContext"),
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "ITrabajadoresQueryContext"),
+        // Progreso de lote: nombre del trabajador de cada item, para no obligar a la UI a resolverlo aparte.
+        ("Plantillas.ObtenerLoteGeneracionDocumentosQueryHandler", "ITrabajadoresQueryContext"),
+        // Trazabilidad: nombre del trabajador/empresa de cada DocumentoGenerado.
+        ("Plantillas.ObtenerDocumentosGeneradosQueryHandler", "ITrabajadoresQueryContext"),
+        ("Plantillas.ObtenerDocumentosGeneradosQueryHandler", "IEmpresasQueryContext"),
         ("Proyectos.AsignarTecnicoProyectoCommandHandler", "ITrabajadoresQueryContext"),
         ("Proyectos.CrearProyectoCommandHandler", "ICentrosQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "ICentrosQueryContext"),

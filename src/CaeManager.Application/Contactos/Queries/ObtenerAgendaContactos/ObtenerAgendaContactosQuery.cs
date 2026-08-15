@@ -32,7 +32,8 @@ public record ContactoAgendaDto(
     bool RecibeProgramacionVisitas,
     bool RecibeFacturacion,
     IReadOnlyList<Guid> TipoDocumentoIds,
-    IReadOnlyList<string> TipoDocumentoNombres);
+    IReadOnlyList<string> TipoDocumentoNombres,
+    IReadOnlyList<RolContacto> Roles);
 
 public class ObtenerAgendaContactosQueryHandler(
     IContactosAgendaQueryContext contactosContext,
@@ -87,6 +88,12 @@ public class ObtenerAgendaContactosQueryHandler(
 
         var vinculosPorContacto = vinculos.GroupBy(v => v.ContactoAgendaId).ToDictionary(g => g.Key, g => g.ToList());
 
+        var roles = await contactosContext.ContactosAgendaRoles
+            .Where(r => contactoIds.Contains(r.ContactoAgendaId))
+            .Select(r => new { r.ContactoAgendaId, r.Rol })
+            .ToListAsync(cancellationToken);
+        var rolesPorContacto = roles.GroupBy(r => r.ContactoAgendaId).ToDictionary(g => g.Key, g => g.Select(r => r.Rol).ToList());
+
         return contactos.Select(c =>
         {
             var suyos = vinculosPorContacto.GetValueOrDefault(c.Id, []);
@@ -94,7 +101,8 @@ public class ObtenerAgendaContactosQueryHandler(
                 c.Id, c.Nombre, c.Email, c.Telefono, c.Cargo, c.Notas,
                 c.EsPredeterminado, c.RecibeProgramacionVisitas, c.RecibeFacturacion,
                 suyos.Select(v => v.TipoDocumentoId).ToList(),
-                suyos.OrderBy(v => v.Nombre).Select(v => v.Nombre).ToList());
+                suyos.OrderBy(v => v.Nombre).Select(v => v.Nombre).ToList(),
+                rolesPorContacto.GetValueOrDefault(c.Id, []));
         }).ToList();
     }
 

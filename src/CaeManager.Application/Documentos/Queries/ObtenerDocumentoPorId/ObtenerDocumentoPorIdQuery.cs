@@ -34,7 +34,9 @@ public record DocumentoDetalleDto(
     string? TipoDocumentoCriteriosValidacion,
     string? TipoDocumentoSeSolicitaA,
     string? TipoDocumentoObservaciones,
-    Guid Version);
+    Guid Version,
+    PerfilDocumentoOficial TipoDocumentoPerfilDocumentoOficial,
+    Guid? EmpresaId);
 
 public class ObtenerDocumentoPorIdQueryHandler(IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentoPorIdQuery, DocumentoDetalleDto?>
@@ -92,7 +94,8 @@ public class ObtenerDocumentoPorIdQueryHandler(IClientesQueryContext clientesCon
                 t.Descripcion,
                 t.CriteriosValidacion,
                 t.SeSolicitaA,
-                t.Observaciones
+                t.Observaciones,
+                t.PerfilDocumentoOficial
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -128,6 +131,6 @@ public class ObtenerDocumentoPorIdQueryHandler(IClientesQueryContext clientesCon
             tipoDocumento.AplicaVencimientoAutomatico, documento.FechaEmision, documento.FechaVencimiento,
             documento.ArchivoUrl, documento.Comentarios,
             tipoDocumento.Descripcion, tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones,
-            documento.Version);
+            documento.Version, tipoDocumento.PerfilDocumentoOficial, documento.EmpresaId);
     }
 }

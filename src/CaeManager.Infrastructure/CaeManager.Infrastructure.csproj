@@ -35,6 +35,7 @@
     <PackageReference Include="Stripe.net" Version="52.3.0" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.*" />
     <PackageReference Include="PDFtoImage" Version="5.2.1" />
+    <PackageReference Include="SkiaSharp" Version="3.119.2" />
   </ItemGroup>
 
   <PropertyGroup>

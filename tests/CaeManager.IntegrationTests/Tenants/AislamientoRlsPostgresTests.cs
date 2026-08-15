@@ -1,5 +1,9 @@
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Contactos;
+using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Plantillas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -44,8 +48,38 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         await using var dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
         await dbContext.Database.MigrateAsync();
 
-        dbContext.Clientes.Add(new Cliente("RENDELSUR", "B12345674", esCritico: false));
+        var cliente = new Cliente("RENDELSUR", "B12345674", esCritico: false);
+        dbContext.Clientes.Add(cliente);
         dbContext.ClavesApi.Add(new ClaveApi("Integración de prueba", "cae_abcd", "hash-de-prueba", Guid.NewGuid()));
+
+        var tipoDocumento = new TipoDocumento("Certificado", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, esObligatorio: true);
+        dbContext.TiposDocumento.Add(tipoDocumento);
+        var documento = Documento.DeCliente(cliente.Id, tipoDocumento.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
+        dbContext.Documentos.Add(documento);
+        dbContext.FirmasEnCampoDocumento.Add(new FirmaEnCampoDocumento(
+            documento.Id, Guid.NewGuid(), "Juan Pérez", "GestorCae", DateTime.UtcNow, null, new string('a', 64)));
+
+        dbContext.FirmasGuardadasUsuario.Add(new FirmaGuardadaUsuario(Guid.NewGuid(), "url/firma.png", DateTime.UtcNow));
+        var empresa = new Empresa("Empresa de prueba", "B12345674");
+        dbContext.Empresas.Add(empresa);
+        dbContext.SellosEmpresa.Add(new SelloEmpresa(empresa.Id, "url/sello.png", DateTime.UtcNow));
+
+        var contacto = ContactoAgenda.DeEmpresa(empresa.Id, "Juan Pérez", "juan@example.com");
+        contacto.EstablecerRoles([RolContacto.ResponsablePrl]);
+        dbContext.ContactosAgenda.Add(contacto);
+
+        var tipoDocumentoPlantilla = new TipoDocumento("Ficha de acceso", null, aplicaVencimientoAutomatico: false, 2, AmbitoAplicacion.Trabajador);
+        dbContext.TiposDocumento.Add(tipoDocumentoPlantilla);
+        var plantilla = new PlantillaDocumento(
+            OrigenPlantilla.Externa, "Ficha de acceso al centro", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual, tipoDocumentoPlantilla.Id);
+        dbContext.PlantillasDocumento.Add(plantilla);
+        var plantillaVersion = new PlantillaDocumentoVersion(plantilla.Id, 1, "url/plantilla.pdf", new string('a', 64));
+        plantillaVersion.EstablecerElementos([
+            new PlantillaElemento(plantillaVersion.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 100, 20, "Razón social",
+                fuenteDato: FuenteDatoPlantilla.EmpresaRazonSocial)
+        ]);
+        dbContext.PlantillasDocumentoVersion.Add(plantillaVersion);
+
         await dbContext.SaveChangesAsync();
     }
 
@@ -83,6 +117,20 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
     {
         await using var consulta = conexion.CreateCommand();
         consulta.CommandText = "SELECT count(*) FROM \"ClavesApi\";";
+        return (long)(await consulta.ExecuteScalarAsync())!;
+    }
+
+    private static async Task<long> ContarFirmasEnCampoAsync(NpgsqlConnection conexion)
+    {
+        await using var consulta = conexion.CreateCommand();
+        consulta.CommandText = "SELECT count(*) FROM \"FirmasEnCampoDocumento\";";
+        return (long)(await consulta.ExecuteScalarAsync())!;
+    }
+
+    private static async Task<long> ContarAsync(NpgsqlConnection conexion, string tabla)
+    {
+        await using var consulta = conexion.CreateCommand();
+        consulta.CommandText = $"SELECT count(*) FROM \"{tabla}\";";
         return (long)(await consulta.ExecuteScalarAsync())!;
     }
 
@@ -135,6 +183,72 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
 
         await FijarTenantDeSesionAsync(conexion, _tenantB);
         (await ContarClavesApiAsync(conexion)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_rol_restringido_solo_ve_las_firmas_en_campo_del_tenant_fijado_en_la_sesion()
+    {
+        // FirmasEnCampoDocumento (Fase A de firma en campo) se creó después de
+        // HabilitarRlsPostgres — verificado aquí igual que ClavesApi, para que
+        // el hueco no vuelva a colarse en la tabla nueva.
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+        (await ContarFirmasEnCampoAsync(conexion)).Should().Be(1);
+
+        await FijarTenantDeSesionAsync(conexion, _tenantB);
+        (await ContarFirmasEnCampoAsync(conexion)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_rol_restringido_solo_ve_la_firma_guardada_del_tenant_fijado_en_la_sesion()
+    {
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+        (await ContarAsync(conexion, "FirmasGuardadasUsuario")).Should().Be(1);
+
+        await FijarTenantDeSesionAsync(conexion, _tenantB);
+        (await ContarAsync(conexion, "FirmasGuardadasUsuario")).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_rol_restringido_solo_ve_el_sello_de_empresa_del_tenant_fijado_en_la_sesion()
+    {
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+        (await ContarAsync(conexion, "SellosEmpresa")).Should().Be(1);
+
+        await FijarTenantDeSesionAsync(conexion, _tenantB);
+        (await ContarAsync(conexion, "SellosEmpresa")).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_rol_restringido_solo_ve_el_rol_de_contacto_del_tenant_fijado_en_la_sesion()
+    {
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+        (await ContarAsync(conexion, "ContactosAgendaRoles")).Should().Be(1);
+
+        await FijarTenantDeSesionAsync(conexion, _tenantB);
+        (await ContarAsync(conexion, "ContactosAgendaRoles")).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("PlantillasDocumento")]
+    [InlineData("PlantillasDocumentoVersion")]
+    [InlineData("PlantillasElemento")]
+    public async Task El_rol_restringido_solo_ve_las_plantillas_del_tenant_fijado_en_la_sesion(string tabla)
+    {
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+        (await ContarAsync(conexion, tabla)).Should().Be(1);
+
+        await FijarTenantDeSesionAsync(conexion, _tenantB);
+        (await ContarAsync(conexion, tabla)).Should().Be(0);
     }
 
     [Fact]
