@@ -1,0 +1,60 @@
+name: Desplegar
+
+# Staging se despliega solo en cuanto algo llega a main — para cuando eso
+# pasa, el commit ya superó CI (required_status_checks.strict exige que la
+# rama esté al día Y en verde antes de poder mergear), así que no hace falta
+# volver a esperar aquí. Esto recupera el "cada push queda visible en un
+# entorno real" que antes daba Railway automáticamente.
+#
+# Producción NO es automática a propósito: un solo push a main puede traer
+# cambios con impacto en clientes reales (facturación de Stripe, migraciones,
+# etc.) — el despliegue a producción queda como un botón manual
+# (workflow_dispatch) para decidir el momento después de probar en staging,
+# no algo que se dispare solo.
+#
+# La clave SSH (secrets.VPS_SSH_KEY) es de un par dedicado, restringido en el
+# propio VPS (ver /root/.ssh/authorized_keys, entrada con "command=") a solo
+# poder ejecutar /opt/talveg/deploy/ci-deploy.sh — ese script decide, por el
+# comando recibido ("staging" o "produccion"), cuál de los dos stacks
+# reconstruye. Aunque este secreto se filtrara, no da una shell libre en el
+# VPS: como mucho, permite forzar un redeploy desde el main real de GitHub.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: 'Escribe DEPLOY para confirmar el despliegue a producción'
+        required: true
+
+env:
+  VPS_HOST: 2.29.9.79
+
+jobs:
+  staging:
+    if: github.event_name == 'push'
+    name: Desplegar a staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preparar clave SSH
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: git pull + docker compose up --build (staging)
+        run: ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" staging
+
+  produccion:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirmar == 'DEPLOY'
+    name: Desplegar a producción
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preparar clave SSH
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: git pull + docker compose up --build (producción)
+        run: ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" produccion
