@@ -46,6 +46,7 @@ using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
 using CaeManager.Infrastructure.Persistence.Repositories;
+using CaeManager.Infrastructure.Plantillas;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -284,6 +285,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ISelloEmpresaRepository, SelloEmpresaRepository>();
         services.AddScoped<IPlantillaDocumentoRepository, PlantillaDocumentoRepository>();
         services.AddScoped<IPlantillaDocumentoVersionRepository, PlantillaDocumentoVersionRepository>();
+        services.AddSingleton<IRellenadorPlantillaPdfService, RellenadorPlantillaPdfService>();
         services.AddScoped<IVerificacionDocumentoOficialRepository, VerificacionDocumentoOficialRepository>();
         services.AddScoped<IExtraccionIaCacheRepository, ExtraccionIaCacheRepository>();
         services.AddScoped<IAuditoriaExtraccionIaRepository, AuditoriaExtraccionIaRepository>();

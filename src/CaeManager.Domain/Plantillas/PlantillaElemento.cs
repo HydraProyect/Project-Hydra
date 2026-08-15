@@ -15,6 +15,7 @@ public class PlantillaElemento : EntidadConTenant
     public const int LongitudMaximaEtiquetaVisible = 200;
     public const int LongitudMaximaValorConstante = 500;
     public const int LongitudMaximaFormato = 50;
+    public const int LongitudMaximaNombreCampoAcroForm = 200;
 
     public Guid PlantillaDocumentoVersionId { get; private set; }
     public TipoElementoPlantilla Tipo { get; private set; }
@@ -41,6 +42,17 @@ public class PlantillaElemento : EntidadConTenant
     /// <summary>Informado solo cuando <see cref="Tipo"/> es <see cref="TipoElementoPlantilla.Firma"/>.</summary>
     public RolFirmantePlantilla? RolFirmante { get; private set; }
 
+    /// <summary>
+    /// Nombre interno (<c>/T</c>) del campo AcroForm a rellenar — solo
+    /// cuando la <see cref="PlantillaDocumento.FormatoOrigen"/> es
+    /// <see cref="FormatoOrigenPlantilla.PdfConCampos"/>. En ese caso
+    /// <see cref="Pagina"/>/<see cref="X"/>/<see cref="Y"/> son solo
+    /// informativos para el editor visual (la posición real la define el
+    /// propio PDF, no esta fila) — el relleno se hace por nombre de campo,
+    /// nunca por coordenadas.
+    /// </summary>
+    public string? NombreCampoAcroForm { get; private set; }
+
     private PlantillaElemento()
     {
     }
@@ -58,7 +70,8 @@ public class PlantillaElemento : EntidadConTenant
         string? valorConstante = null,
         string? formato = null,
         bool obligatorio = false,
-        RolFirmantePlantilla? rolFirmante = null)
+        RolFirmantePlantilla? rolFirmante = null,
+        string? nombreCampoAcroForm = null)
     {
         if (plantillaDocumentoVersionId == Guid.Empty)
             throw new ArgumentException("El elemento debe pertenecer a una versión de plantilla.", nameof(plantillaDocumentoVersionId));
@@ -88,6 +101,7 @@ public class PlantillaElemento : EntidadConTenant
         Formato = Truncar(formato, LongitudMaximaFormato);
         Obligatorio = obligatorio;
         RolFirmante = rolFirmante;
+        NombreCampoAcroForm = Truncar(nombreCampoAcroForm, LongitudMaximaNombreCampoAcroForm);
     }
 
     /// <summary>El editor visual mueve/redimensiona sin recrear el elemento — conserva Id y el resto de configuración.</summary>

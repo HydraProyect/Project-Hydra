@@ -48,6 +48,7 @@ public class PlantillaElementoConfiguration : IEntityTypeConfiguration<Plantilla
         builder.Property(e => e.ValorConstante).HasMaxLength(PlantillaElemento.LongitudMaximaValorConstante);
         builder.Property(e => e.Formato).HasMaxLength(PlantillaElemento.LongitudMaximaFormato);
         builder.Property(e => e.RolFirmante).HasConversion<string>();
+        builder.Property(e => e.NombreCampoAcroForm).HasMaxLength(PlantillaElemento.LongitudMaximaNombreCampoAcroForm);
 
         builder.HasIndex(e => e.PlantillaDocumentoVersionId);
 
