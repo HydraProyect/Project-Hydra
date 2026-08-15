@@ -46,6 +46,21 @@ public class Tenant : Entity
     /// </summary>
     public PerfilVocabularioTenant PerfilVocabulario { get; private set; }
 
+    /// <summary>
+    /// Estado de la suscripción de pago (Horizonte 1.7, "Billing mínimo
+    /// viable") — ver <see cref="EstadoComercialTenant"/> para por qué es un
+    /// campo aparte de <see cref="Estado"/> y no una reutilización suya.
+    /// </summary>
+    public EstadoComercialTenant EstadoComercial { get; private set; } = EstadoComercialTenant.SinSuscripcion;
+
+    /// <summary>Id del Customer en Stripe. Null hasta <see cref="VincularSuscripcionStripe"/>.</summary>
+    public string? StripeCustomerId { get; private set; }
+
+    /// <summary>Id de la Subscription en Stripe. Null hasta <see cref="VincularSuscripcionStripe"/>.</summary>
+    public string? StripeSubscriptionId { get; private set; }
+
+    public DateTime? EstadoComercialActualizadoEnUtc { get; private set; }
+
     private Tenant()
     {
         // Requerido por EF Core.
@@ -81,6 +96,46 @@ public class Tenant : Entity
     public void Reactivar() => Estado = EstadoTenant.Activo;
 
     public void RenombrarA(string nombre) => EstablecerNombre(nombre);
+
+    /// <summary>
+    /// Alta manual de la suscripción (plan de negocio § 1.7: "alta manual de
+    /// suscripción + Stripe... link de pago + registro manual del estado en
+    /// el tenant") — vincula este Tenant a un Customer/Subscription ya
+    /// creados en Stripe (fuera de Hydra, vía Payment Link) y aplica el
+    /// primer estado comercial real, tal como lo reporta Stripe en el
+    /// momento del alta (nunca se asume "Activa" a ciegas: la Subscription
+    /// podría empezar en "incomplete" o similar).
+    /// </summary>
+    public void VincularSuscripcionStripe(string stripeCustomerId, string stripeSubscriptionId, EstadoComercialTenant estadoInicial)
+    {
+        if (string.IsNullOrWhiteSpace(stripeCustomerId))
+            throw new ArgumentException("El Id de cliente de Stripe es obligatorio.", nameof(stripeCustomerId));
+
+        if (string.IsNullOrWhiteSpace(stripeSubscriptionId))
+            throw new ArgumentException("El Id de suscripción de Stripe es obligatorio.", nameof(stripeSubscriptionId));
+
+        StripeCustomerId = stripeCustomerId;
+        StripeSubscriptionId = stripeSubscriptionId;
+        EstadoComercial = estadoInicial;
+        EstadoComercialActualizadoEnUtc = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Aplica un cambio de estado comercial reportado por Stripe (webhook o
+    /// resincronización manual desde el panel de plataforma) — el mapeo de
+    /// estado de Stripe a <see cref="EstadoComercialTenant"/> vive en
+    /// Application (<c>MapeoEstadoComercialTenant</c>), no aquí: el dominio no
+    /// conoce los nombres de estado de ningún proveedor de pago concreto.
+    /// </summary>
+    public void ActualizarEstadoComercial(EstadoComercialTenant nuevoEstado)
+    {
+        if (StripeSubscriptionId is null)
+            throw new InvalidOperationException(
+                "No se puede actualizar el estado comercial de un tenant sin una suscripción de Stripe vinculada.");
+
+        EstadoComercial = nuevoEstado;
+        EstadoComercialActualizadoEnUtc = DateTime.UtcNow;
+    }
 
     private void EstablecerNombre(string nombre)
     {
