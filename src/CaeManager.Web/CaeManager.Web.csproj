@@ -28,6 +28,19 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <!-- OpenTelemetry (Horizonte 2.3 del plan macro) — solo aquí, el
+         composition root: Application/Infrastructure emiten trazas/métricas
+         con los tipos de System.Diagnostics(.Metrics) del framework
+         compartido (ver Observabilidad.cs), no con el SDK. -->
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
+    <!-- Todavía en beta aguas arriba (opentelemetry-dotnet-contrib) mientras
+         el resto de paquetes de instrumentación ya está en 1.17.0 estable —
+         es la única versión que existe hoy, no una elección de quedarse
+         atrás a propósito. -->
+    <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.17.0-beta.1" />
     <PackageReference Include="PDFsharp" Version="6.2.4" />
     <PackageReference Include="QRCoder" Version="1.8.0" />
     <PackageReference Include="Sentry.AspNetCore" Version="6.7.0" />

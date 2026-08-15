@@ -86,6 +86,16 @@
                         <TarjetaMetrica Etiqueta="@kpi.Titulo" Valor="@ValorTile(kpi.Codigo)" Tono="@TonoTile(kpi.Codigo)" />
                     }
                 </div>
+
+                @if (tiles.Any(k => k.Codigo == CatalogoKpis.CosteMesActualIa) && TenantsConPresupuestoIaExcedido.Count > 0)
+                {
+                    <div class="alerta-formulario" role="alert">
+                        Presupuesto de IA superado este período en:
+                        @string.Join(", ", TenantsConPresupuestoIaExcedido).
+                        No se ha bloqueado ni degradado nada — ajusta el límite en
+                        <a href="/configuracion">Configuración</a> si sigue siendo el esperado.
+                    </div>
+                }
             }
 
             @foreach (var kpi in graficos)

@@ -1,4 +1,5 @@
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Web.Exportacion;
 using ClosedXML.Excel;
 using MediatR;
 
@@ -15,10 +16,6 @@ public static class CentrosEndpoints
     {
         endpoints.MapGet("/centros/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken) =>
         {
-            var resultado = await mediator.Send(
-                new ObtenerCentrosQuery(Busqueda: null, ClienteId: null, Pagina: 1, TamanoPagina: int.MaxValue),
-                cancellationToken);
-
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Centros");
 
@@ -29,9 +26,15 @@ public static class CentrosEndpoints
             hoja.Cell(1, 5).Value = "Estado";
             hoja.Cell(1, 6).Value = "% cumplimiento";
             hoja.Row(1).Style.Font.Bold = true;
+            hoja.Column(6).Style.NumberFormat.Format = "0%";
 
+            // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7):
+            // no materializa toda la tabla de centros del tenant de golpe.
             var fila = 2;
-            foreach (var centro in resultado.Elementos)
+            await foreach (var centro in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+                mediator.Send(
+                    new ObtenerCentrosQuery(Busqueda: null, ClienteId: null, Pagina: pagina, TamanoPagina: tamanoPagina),
+                    cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = centro.Nombre;
                 hoja.Cell(fila, 2).Value = centro.CodigoCentro;
@@ -43,14 +46,17 @@ public static class CentrosEndpoints
                 fila++;
             }
 
-            hoja.Column(6).Style.NumberFormat.Format = "0%";
             hoja.Columns().AdjustToContents();
 
-            using var stream = new MemoryStream();
+            // Se escribe directo en el stream que consume la respuesta HTTP
+            // (Results.File lo cierra) en vez de bufferear en un MemoryStream
+            // y duplicarlo otra vez con ToArray().
+            var stream = new MemoryStream();
             libro.SaveAs(stream);
+            stream.Position = 0;
 
             return Results.File(
-                stream.ToArray(),
+                stream,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "centros.xlsx");
         });

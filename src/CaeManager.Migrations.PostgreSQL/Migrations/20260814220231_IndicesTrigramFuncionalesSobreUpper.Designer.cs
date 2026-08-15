@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260814220231_IndicesTrigramFuncionalesSobreUpper")]
+    partial class IndicesTrigramFuncionalesSobreUpper
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1044,9 +1047,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<bool>("MedicionTiempoActiva")
                         .HasColumnType("boolean");
-
-                    b.Property<decimal?>("PresupuestoMensualIaUsd")
-                        .HasColumnType("numeric");
 
                     b.Property<int>("SegundosInactividadPausa")
                         .HasColumnType("integer");
@@ -4698,14 +4698,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("EstadoComercial")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime?>("EstadoComercialActualizadoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -4716,18 +4708,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<string>("StripeCustomerId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("StripeSubscriptionId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("StripeSubscriptionId")
-                        .HasFilter("\"StripeSubscriptionId\" IS NOT NULL");
 
                     b.ToTable("Tenants", (string)null);
 
@@ -4738,7 +4719,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             CreadoEnUtc = new DateTime(2026, 7, 23, 0, 0, 0, 0, DateTimeKind.Utc),
                             EsPlataforma = true,
                             Estado = "Activo",
-                            EstadoComercial = "SinSuscripcion",
                             Nombre = "Organización principal",
                             PerfilVocabulario = "ClienteDirecto"
                         });

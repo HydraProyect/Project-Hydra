@@ -15,7 +15,8 @@ public record ParametroSistemaDto(
     int HorasJornadaMensualGestor,
     bool MedicionTiempoActiva,
     int SegundosInactividadPausa,
-    bool ExcluirFueraDeJornadaEnMetricas);
+    bool ExcluirFueraDeJornadaEnMetricas,
+    decimal? PresupuestoMensualIaUsd);
 
 public class ObtenerParametroSistemaQueryHandler(IConfiguracionQueryContext dbContext)
     : IRequestHandler<ObtenerParametroSistemaQuery, ParametroSistemaDto>
@@ -31,6 +32,7 @@ public class ObtenerParametroSistemaQueryHandler(IConfiguracionQueryContext dbCo
             parametros.HorasJornadaMensualGestor,
             parametros.MedicionTiempoActiva,
             parametros.SegundosInactividadPausa,
-            parametros.ExcluirFueraDeJornadaEnMetricas);
+            parametros.ExcluirFueraDeJornadaEnMetricas,
+            parametros.PresupuestoMensualIaUsd);
     }
 }
