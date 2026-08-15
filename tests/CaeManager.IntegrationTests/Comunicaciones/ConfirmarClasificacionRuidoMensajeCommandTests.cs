@@ -1,6 +1,7 @@
 using CaeManager.Application.Comunicaciones.Commands.ConfirmarClasificacionRuidoMensaje;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
@@ -60,7 +61,7 @@ public class ConfirmarClasificacionRuidoMensajeCommandTests : IAsyncLifetime
         await using var contextoComando = CrearContexto();
         var handler = new ConfirmarClasificacionRuidoMensajeCommandHandler(
             new ClasificacionRuidoMensajeRepository(contextoComando), new ClasificacionRuidoDetalleGestionRepository(contextoComando),
-            contextoComando, contextoComando);
+            contextoComando, new AlcanceDatosService(contextoComando, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador")), contextoComando);
 
         var resultado = await handler.Handle(new ConfirmarClasificacionRuidoMensajeCommand(mensajeId), CancellationToken.None);
 
@@ -99,7 +100,7 @@ public class ConfirmarClasificacionRuidoMensajeCommandTests : IAsyncLifetime
         await using var contextoComando = CrearContexto();
         var handler = new ConfirmarClasificacionRuidoMensajeCommandHandler(
             new ClasificacionRuidoMensajeRepository(contextoComando), new ClasificacionRuidoDetalleGestionRepository(contextoComando),
-            contextoComando, contextoComando);
+            contextoComando, new AlcanceDatosService(contextoComando, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador")), contextoComando);
 
         var resultado = await handler.Handle(new ConfirmarClasificacionRuidoMensajeCommand(mensajeId), CancellationToken.None);
 
@@ -129,7 +130,7 @@ public class ConfirmarClasificacionRuidoMensajeCommandTests : IAsyncLifetime
         await using var contextoComando = CrearContexto();
         var handler = new ConfirmarClasificacionRuidoMensajeCommandHandler(
             new ClasificacionRuidoMensajeRepository(contextoComando), new ClasificacionRuidoDetalleGestionRepository(contextoComando),
-            contextoComando, contextoComando);
+            contextoComando, new AlcanceDatosService(contextoComando, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador")), contextoComando);
 
         var resultado = await handler.Handle(new ConfirmarClasificacionRuidoMensajeCommand(mensajeId), CancellationToken.None);
 
