@@ -43,6 +43,12 @@ public class ContactoAgendaConfiguration : IEntityTypeConfiguration<ContactoAgen
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(c => c.TiposDocumento).UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        builder.HasMany(c => c.Roles)
+            .WithOne()
+            .HasForeignKey(r => r.ContactoAgendaId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(c => c.Roles).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         // El CHECK XOR del propietario polimórfico se declara en la migración
         // (mismo criterio que Documentos: EF no genera num_nonnulls).
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
@@ -65,6 +71,24 @@ public class ContactoAgendaTipoDocumentoConfiguration : IEntityTypeConfiguration
             .WithMany()
             .HasForeignKey(t => t.TipoDocumentoId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.
+    }
+}
+
+public class ContactoAgendaRolConfiguration : IEntityTypeConfiguration<ContactoAgendaRol>
+{
+    public void Configure(EntityTypeBuilder<ContactoAgendaRol> builder)
+    {
+        builder.ToTable("ContactosAgendaRoles");
+        builder.HasKey(r => r.Id);
+
+        builder.Property(r => r.Rol).IsRequired().HasConversion<string>();
+
+        builder.HasIndex(r => r.ContactoAgendaId);
+
+        // Único por contacto: marcar el mismo rol dos veces no significa nada.
+        builder.HasIndex(r => new { r.TenantId, r.ContactoAgendaId, r.Rol }).IsUnique();
 
         // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.
     }

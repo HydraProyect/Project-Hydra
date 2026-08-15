@@ -16,7 +16,7 @@
                         <SelectorClienteActivo @rendermode="InteractiveServer" />
                         <SelectorVistaVocabulario @rendermode="InteractiveServer" />
                         <SelectorTema @rendermode="InteractiveServer" />
-                        <span class="menu-usuario-nombre">@context.User.Identity?.Name</span>
+                        <a href="/mi-firma" class="menu-usuario-nombre" title="Mi firma">@context.User.Identity?.Name</a>
                         <form method="post" action="/cuenta/cerrar-sesion">
                             <AntiforgeryToken />
                             <button type="submit" class="boton-cerrar-sesion" aria-label="Cerrar sesión">

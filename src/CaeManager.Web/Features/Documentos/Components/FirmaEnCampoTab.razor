@@ -1,0 +1,144 @@
+@*
+    Pestaña "Firma" del panel de Documento — firma en campo (Fase A):
+    trazo manuscrito capturado en un <canvas>, estampado sobre el PDF sin
+    proveedor externo. Ver PdfSharp: PdfDocumentOpenMode.Modify reescribe
+    el archivo entero, por eso un documento con perfil oficial nunca
+    muestra el lienzo (se destruiría su firma digital real).
+
+    Activos reutilizables (Fase A, PR 8): si el usuario ya tiene una firma
+    guardada (/mi-firma) se ofrece por defecto en vez del lienzo, y si la
+    Empresa relevante del Documento tiene un sello guardado se ofrece
+    incluirlo junto a la firma.
+*@
+@using CaeManager.Application.Documentos.Commands.FirmarDocumentoEnCampo
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
+@using CaeManager.Application.Documentos.Queries.ObtenerEmpresasConSelloGuardado
+@using CaeManager.Application.Documentos.Queries.ObtenerFirmaGuardadaUsuario
+@using CaeManager.Application.Documentos.Queries.ObtenerFirmasEnCampoDocumento
+@using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa
+@using CaeManager.Domain.Documentos
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService Toasts
+@inject IJSRuntime JSRuntime
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error || _documento is null)
+{
+    <EstadoVacio Titulo="No pudimos cargar la firma en campo" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_documento.TipoDocumentoPerfilDocumentoOficial != PerfilDocumentoOficial.Ninguno)
+{
+    <EstadoVacio Titulo="No se puede firmar en campo"
+                 Descripcion="Este documento es un formato oficial de la Administración (verificado por firma digital). Firmarlo en campo destruiría esa firma, así que aquí solo se permite para documentación sin perfil oficial." />
+}
+else if (_documento.ArchivoUrl is null)
+{
+    <EstadoVacio Titulo="Sin archivo" Descripcion="Este documento no tiene ningún archivo que firmar todavía." />
+}
+else
+{
+    @if (_firmas.Count > 0)
+    {
+        <h3 class="workspace-subtitulo">Firmas ya realizadas</h3>
+        <div class="workspace-grupo-campos">
+            @foreach (var firma in _firmas)
+            {
+                <CampoInfo Etiqueta="@firma.FirmanteNombre">
+                    <span class="detalle-tecnico">
+                        @firma.FirmanteRol · @firma.FirmadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                        @(firma.Ubicacion is not null ? $" · {firma.Ubicacion}" : "")
+                    </span>
+                </CampoInfo>
+            }
+        </div>
+    }
+
+    <h3 class="workspace-subtitulo">Nueva firma</h3>
+
+    @if (_firmaGuardada is not null && _usarFirmaGuardada)
+    {
+        <div class="workspace-grupo-campos">
+            <CampoInfo Etiqueta="Tu firma guardada">
+                <img src="/mi-firma/archivo" alt="Firma guardada" class="firma-guardada-vista-previa" />
+            </CampoInfo>
+        </div>
+        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="CambiarAOtraFirmaAsync">
+            Dibujar otra firma
+        </Boton>
+    }
+    else
+    {
+        @if (_firmaGuardada is not null)
+        {
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="UsarFirmaGuardadaAsync">
+                Usar mi firma guardada
+            </Boton>
+        }
+    }
+
+    @if (!_usarFirmaGuardada)
+    {
+        <div class="workspace-acciones-edicion">
+            <Boton Variante="@(_escribirNombre ? VarianteBoton.Secundario : VarianteBoton.Primario)" Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarModoEntradaAsync(escribir: false)">
+                Dibujar
+            </Boton>
+            <Boton Variante="@(_escribirNombre ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarModoEntradaAsync(escribir: true)">
+                Escribir mi nombre
+            </Boton>
+        </div>
+
+        @if (_escribirNombre)
+        {
+            <CampoTexto Etiqueta="Tu nombre" Valor="@_nombreEscrito" ValorChanged="AlCambiarNombreEscritoAsync" Placeholder="Escribe tu nombre tal como quieres que aparezca" class="firma-escrita-nombre" />
+        }
+    }
+
+    <canvas id="@_idCanvas" class="firma-en-campo-lienzo @(_usarFirmaGuardada ? "oculto" : "")" width="500" height="200"></canvas>
+
+    @if (!_usarFirmaGuardada)
+    {
+        <label class="campo-checkbox">
+            <input type="checkbox" checked="@_guardarComoFirmaHabitual" @onchange="e => _guardarComoFirmaHabitual = e.Value is bool m && m" />
+            Guardar también como mi firma habitual
+        </label>
+    }
+
+    @if (_seloDirectoDisponible)
+    {
+        <label class="campo-checkbox">
+            <input type="checkbox" checked="@_incluirSello" @onchange="e => _incluirSello = e.Value is bool m && m" />
+            Incluir sello de @_documento.PropietarioNombre
+        </label>
+    }
+    else if (_documento.EmpresaId is null && _empresasConSello.Count > 0)
+    {
+        <div class="campo">
+            <label for="selector-sello-firma-en-campo">Sello a incluir (opcional)</label>
+            <select id="selector-sello-firma-en-campo" @onchange="AlCambiarEmpresaSeleccionadaParaSello">
+                <option value="">Ninguno</option>
+                @foreach (var empresa in _empresasConSello)
+                {
+                    <option value="@empresa.EmpresaId">@empresa.RazonSocial</option>
+                }
+            </select>
+        </div>
+    }
+
+    <label class="campo-checkbox">
+        <input type="checkbox" checked="@_incluirUbicacion" @onchange="e => _incluirUbicacion = e.Value is bool m && m" />
+        Incluir mi ubicación
+    </label>
+
+    <div class="workspace-acciones-edicion">
+        <Boton Variante="VarianteBoton.Secundario" OnClick="RepetirAsync" Deshabilitado="@(_firmando || _usarFirmaGuardada)">Repetir firma</Boton>
+        <Boton OnClick="FirmarAsync" Cargando="_firmando" Deshabilitado="@(!PuedeFirmarAhora() || _firmando)">Firmar</Boton>
+    </div>
+}

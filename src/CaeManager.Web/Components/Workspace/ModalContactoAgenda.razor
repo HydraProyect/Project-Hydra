@@ -10,6 +10,7 @@
 @using CaeManager.Application.Contactos.Commands.GuardarContactoAgenda
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
+@using CaeManager.Domain.Contactos
 @using MediatR
 @inject IMediator Mediator
 @inject ToastService Toasts
@@ -40,6 +41,22 @@
             <input type="checkbox" checked="@_recibeFacturacion"
                    @onchange="e => _recibeFacturacion = e.Value is bool m && m" />
             Recibe la facturación
+        </label>
+
+        <label class="campo-checkbox">
+            <input type="checkbox" checked="@_roles.Contains(RolContacto.ResponsablePrl)"
+                   @onchange="e => AlternarRol(RolContacto.ResponsablePrl, e.Value is bool m && m)" />
+            Responsable de PRL
+        </label>
+        <label class="campo-checkbox">
+            <input type="checkbox" checked="@_roles.Contains(RolContacto.RepresentanteLegal)"
+                   @onchange="e => AlternarRol(RolContacto.RepresentanteLegal, e.Value is bool m && m)" />
+            Representante legal
+        </label>
+        <label class="campo-checkbox">
+            <input type="checkbox" checked="@_roles.Contains(RolContacto.ContactoCae)"
+                   @onchange="e => AlternarRol(RolContacto.ContactoCae, e.Value is bool m && m)" />
+            Contacto CAE
         </label>
 
         <SelectorMultiple Etiqueta="Documentación que se le pide"
@@ -82,6 +99,7 @@
     private bool _recibeProgramacionVisitas;
     private bool _recibeFacturacion;
     private HashSet<Guid> _tiposSeleccionados = [];
+    private HashSet<RolContacto> _roles = [];
     private string? _errorNombre;
     private string? _errorEmail;
 
@@ -109,6 +127,7 @@
         _recibeProgramacionVisitas = Contacto?.RecibeProgramacionVisitas ?? false;
         _recibeFacturacion = Contacto?.RecibeFacturacion ?? false;
         _tiposSeleccionados = Contacto is null ? [] : [.. Contacto.TipoDocumentoIds];
+        _roles = Contacto is null ? [] : [.. Contacto.Roles];
         _errorNombre = null;
         _errorEmail = null;
     }
@@ -141,6 +160,12 @@
         else _tiposSeleccionados.Remove(cambio.Id);
     }
 
+    private void AlternarRol(RolContacto rol, bool marcado)
+    {
+        if (marcado) _roles.Add(rol);
+        else _roles.Remove(rol);
+    }
+
     private Task CerrarAsync(bool visible) =>
         _guardando ? Task.CompletedTask : VisibleChanged.InvokeAsync(visible);
 
@@ -164,7 +189,7 @@
                 string.IsNullOrWhiteSpace(_cargo) ? null : _cargo,
                 string.IsNullOrWhiteSpace(_notas) ? null : _notas,
                 _esPredeterminado, _recibeProgramacionVisitas, _recibeFacturacion,
-                [.. _tiposSeleccionados]));
+                [.. _tiposSeleccionados], [.. _roles]));
 
             if (resultado.EsFallido)
             {

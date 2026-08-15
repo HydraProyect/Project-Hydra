@@ -1192,6 +1192,32 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ContactosAgenda", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Contactos.ContactoAgendaRol", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContactoAgendaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Rol")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContactoAgendaId");
+
+                    b.HasIndex("TenantId", "ContactoAgendaId", "Rol")
+                        .IsUnique();
+
+                    b.ToTable("ContactosAgendaRoles", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1508,6 +1534,80 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("FirmasDigitalesDocumento", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Documentos.FirmaEnCampoDocumento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("FirmadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FirmanteNombre")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("FirmanteRol")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("FirmanteUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("HashSha256Pdf")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Ubicacion")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentoId");
+
+                    b.HasIndex("TenantId", "DocumentoId");
+
+                    b.ToTable("FirmasEnCampoDocumento", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.FirmaGuardadaUsuario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ActualizadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ImagenUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "UsuarioId")
+                        .IsUnique();
+
+                    b.ToTable("FirmasGuardadasUsuario", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Documentos.RechazoAcreditacionDocumentoPlataforma", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1584,6 +1684,36 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("DocumentoId", "Resuelta");
 
                     b.ToTable("RevisionesIaDocumento", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.SelloEmpresa", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ActualizadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EmpresaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ImagenUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmpresaId");
+
+                    b.HasIndex("TenantId", "EmpresaId")
+                        .IsUnique();
+
+                    b.ToTable("SellosEmpresa", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.TipoDocumento", b =>
@@ -4116,6 +4246,553 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("NotificacionesUsuario", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.ConocimientoDeteccionCampo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EtiquetaNormalizada")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("FuenteDatoCandidata")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Prioridad")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EtiquetaNormalizada");
+
+                    b.ToTable("ConocimientosDeteccionCampo", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("6a000000-0000-0000-0000-000000000001"),
+                            EtiquetaNormalizada = "razon social",
+                            FuenteDatoCandidata = "EmpresaRazonSocial",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a000000-0000-0000-0000-000000000002"),
+                            EtiquetaNormalizada = "empresa",
+                            FuenteDatoCandidata = "EmpresaRazonSocial",
+                            Prioridad = 50
+                        },
+                        new
+                        {
+                            Id = new Guid("6a000000-0000-0000-0000-000000000003"),
+                            EtiquetaNormalizada = "nombre de la empresa",
+                            FuenteDatoCandidata = "EmpresaRazonSocial",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a000000-0000-0000-0000-000000000004"),
+                            EtiquetaNormalizada = "cif",
+                            FuenteDatoCandidata = "EmpresaCif",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a000000-0000-0000-0000-000000000005"),
+                            EtiquetaNormalizada = "cif empresa",
+                            FuenteDatoCandidata = "EmpresaCif",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a000000-0000-0000-0000-000000000006"),
+                            EtiquetaNormalizada = "nif",
+                            FuenteDatoCandidata = "EmpresaCif",
+                            Prioridad = 80
+                        },
+                        new
+                        {
+                            Id = new Guid("6a000000-0000-0000-0000-000000000007"),
+                            EtiquetaNormalizada = "nombre y apellidos",
+                            FuenteDatoCandidata = "TrabajadorNombreCompleto",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a000000-0000-0000-0000-000000000008"),
+                            EtiquetaNormalizada = "nombre completo",
+                            FuenteDatoCandidata = "TrabajadorNombreCompleto",
+                            Prioridad = 90
+                        },
+                        new
+                        {
+                            Id = new Guid("6a000000-0000-0000-0000-000000000009"),
+                            EtiquetaNormalizada = "trabajador",
+                            FuenteDatoCandidata = "TrabajadorNombreCompleto",
+                            Prioridad = 50
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000a-0000-0000-0000-000000000001"),
+                            EtiquetaNormalizada = "nombre del trabajador",
+                            FuenteDatoCandidata = "TrabajadorNombreCompleto",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000a-0000-0000-0000-000000000002"),
+                            EtiquetaNormalizada = "dni",
+                            FuenteDatoCandidata = "TrabajadorDni",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000a-0000-0000-0000-000000000003"),
+                            EtiquetaNormalizada = "dni trabajador",
+                            FuenteDatoCandidata = "TrabajadorDni",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000a-0000-0000-0000-000000000004"),
+                            EtiquetaNormalizada = "documento de identidad",
+                            FuenteDatoCandidata = "TrabajadorDni",
+                            Prioridad = 80
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000a-0000-0000-0000-000000000005"),
+                            EtiquetaNormalizada = "puesto",
+                            FuenteDatoCandidata = "TrabajadorPuesto",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000a-0000-0000-0000-000000000006"),
+                            EtiquetaNormalizada = "puesto de trabajo",
+                            FuenteDatoCandidata = "TrabajadorPuesto",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000a-0000-0000-0000-000000000007"),
+                            EtiquetaNormalizada = "categoria profesional",
+                            FuenteDatoCandidata = "TrabajadorPuesto",
+                            Prioridad = 70
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000a-0000-0000-0000-000000000008"),
+                            EtiquetaNormalizada = "centro de trabajo",
+                            FuenteDatoCandidata = "CentroNombre",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000a-0000-0000-0000-000000000009"),
+                            EtiquetaNormalizada = "centro",
+                            FuenteDatoCandidata = "CentroNombre",
+                            Prioridad = 60
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000b-0000-0000-0000-000000000001"),
+                            EtiquetaNormalizada = "direccion del centro",
+                            FuenteDatoCandidata = "CentroDireccion",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000b-0000-0000-0000-000000000002"),
+                            EtiquetaNormalizada = "direccion",
+                            FuenteDatoCandidata = "CentroDireccion",
+                            Prioridad = 60
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000b-0000-0000-0000-000000000003"),
+                            EtiquetaNormalizada = "cliente",
+                            FuenteDatoCandidata = "ClienteRazonSocial",
+                            Prioridad = 50
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000b-0000-0000-0000-000000000004"),
+                            EtiquetaNormalizada = "fecha",
+                            FuenteDatoCandidata = "DocumentoFechaGeneracion",
+                            Prioridad = 60
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000b-0000-0000-0000-000000000005"),
+                            EtiquetaNormalizada = "responsable de prl",
+                            FuenteDatoCandidata = "EmpresaResponsablePrl",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000b-0000-0000-0000-000000000006"),
+                            EtiquetaNormalizada = "responsable prl",
+                            FuenteDatoCandidata = "EmpresaResponsablePrl",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000b-0000-0000-0000-000000000007"),
+                            EtiquetaNormalizada = "representante legal",
+                            FuenteDatoCandidata = "EmpresaRepresentanteLegal",
+                            Prioridad = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("6a00000b-0000-0000-0000-000000000008"),
+                            EtiquetaNormalizada = "contacto cae",
+                            FuenteDatoCandidata = "EmpresaContactoCae",
+                            Prioridad = 100
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.DocumentoGenerado", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodigoSeguroVerificacion")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DatosUtilizadosJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("EmpresaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("GeneradoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("GeneradoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("HashSha256Impreso")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("PlantillaDocumentoVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("SelloElectronicoAplicadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentoId");
+
+                    b.HasIndex("PlantillaDocumentoVersionId");
+
+                    b.HasIndex("TenantId", "EmpresaId");
+
+                    b.HasIndex("TenantId", "PlantillaDocumentoVersionId");
+
+                    b.HasIndex("TenantId", "TrabajadorId");
+
+                    b.ToTable("DocumentosGenerados", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.ItemGeneracionDocumento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DocumentoGeneradoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("LoteGeneracionDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "LoteGeneracionDocumentoId");
+
+                    b.ToTable("ItemsGeneracionDocumento", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.LoteGeneracionDocumento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ContextoJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("ItemsCompletados")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ItemsFallidos")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PlantillaDocumentoVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TotalItems")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UsuarioSolicitanteId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlantillaDocumentoVersionId");
+
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "PlantillaDocumentoVersionId");
+
+                    b.ToTable("LotesGeneracionDocumento", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.PlantillaDocumento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AmbitoAplicacion")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ClienteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodigoFormato")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FormatoOrigen")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Origen")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TipoDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("VersionActualId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VersionActualId");
+
+                    b.HasIndex("TenantId", "CentroId");
+
+                    b.HasIndex("TenantId", "ClienteId");
+
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "TipoDocumentoId");
+
+                    b.ToTable("PlantillasDocumento", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.PlantillaDocumentoVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ArchivoOriginalUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ConfirmadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ConfirmadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EstadoConfiguracion")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("HashSha256ArchivoOriginal")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("NumeroVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PlantillaDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("VigenciaLegalHasta")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlantillaDocumentoId");
+
+                    b.HasIndex("TenantId", "PlantillaDocumentoId", "NumeroVersion")
+                        .IsUnique();
+
+                    b.ToTable("PlantillasDocumentoVersion", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.PlantillaElemento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("Alto")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("Ancho")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("EtiquetaVisible")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Formato")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("FuenteDato")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NombreCampoAcroForm")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("Obligatorio")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Pagina")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PlantillaDocumentoVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RolFirmante")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ValorConstante")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<double>("X")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("Y")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlantillaDocumentoVersionId");
+
+                    b.ToTable("PlantillasElemento", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Proyectos.Proyecto", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5525,6 +6202,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Contactos.ContactoAgendaRol", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Contactos.ContactoAgenda", null)
+                        .WithMany("Roles")
+                        .HasForeignKey("ContactoAgendaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento", b =>
                 {
                     b.HasOne("CaeManager.Domain.Contactos.ContactoAgenda", null)
@@ -5606,11 +6292,29 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Documentos.FirmaEnCampoDocumento", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Documentos.Documento", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Documentos.RechazoAcreditacionDocumentoPlataforma", b =>
                 {
                     b.HasOne("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", null)
                         .WithMany("HistorialRechazos")
                         .HasForeignKey("AcreditacionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.SelloEmpresa", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("EmpresaId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -5722,6 +6426,73 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasOne("CaeManager.Domain.Integraciones.LineaWhatsApp", null)
                         .WithMany("MiembrosPool")
                         .HasForeignKey("LineaWhatsAppId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.DocumentoGenerado", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Documentos.Documento", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Plantillas.PlantillaDocumentoVersion", null)
+                        .WithMany()
+                        .HasForeignKey("PlantillaDocumentoVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.ItemGeneracionDocumento", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Plantillas.LoteGeneracionDocumento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "LoteGeneracionDocumentoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.LoteGeneracionDocumento", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Plantillas.PlantillaDocumentoVersion", null)
+                        .WithMany()
+                        .HasForeignKey("PlantillaDocumentoVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.PlantillaDocumento", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Plantillas.PlantillaDocumentoVersion", null)
+                        .WithMany()
+                        .HasForeignKey("VersionActualId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Documentos.TipoDocumento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TipoDocumentoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.PlantillaDocumentoVersion", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Plantillas.PlantillaDocumento", null)
+                        .WithMany()
+                        .HasForeignKey("PlantillaDocumentoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.PlantillaElemento", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Plantillas.PlantillaDocumentoVersion", null)
+                        .WithMany("Elementos")
+                        .HasForeignKey("PlantillaDocumentoVersionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -5962,6 +6733,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Contactos.ContactoAgenda", b =>
                 {
+                    b.Navigation("Roles");
+
                     b.Navigation("TiposDocumento");
                 });
 
@@ -5973,6 +6746,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             modelBuilder.Entity("CaeManager.Domain.Integraciones.LineaWhatsApp", b =>
                 {
                     b.Navigation("MiembrosPool");
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plantillas.PlantillaDocumentoVersion", b =>
+                {
+                    b.Navigation("Elementos");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Reclamaciones.ReclamacionDocumental", b =>

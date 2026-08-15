@@ -201,11 +201,29 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         var profundidadActual = WorkspaceService.Pila.Count;
+        var seAbreDesdeCerrado = profundidadActual > 0 && _profundidadAnterior == 0;
 
-        if (profundidadActual > 0 && _profundidadAnterior == 0)
-            await _referenciaPanel.FocusAsync();
-
+        // Se actualiza ANTES del await, no después: OnAfterRenderAsync no es
+        // reentrant-safe por diseño (Blazor puede invocarlo de nuevo para un
+        // render posterior mientras este await sigue en vuelo, típicamente
+        // porque NavigateTo dentro de ManejarCambio dispara su propio
+        // LocationChanged y el Router vuelve a renderizar el árbol de
+        // MainLayout). Con el campo actualizado al final (como estaba antes),
+        // esa segunda invocación también veía _profundidadAnterior == 0 y
+        // volvía a llamar FocusAsync — dos llamadas concurrentes sobre
+        // _referenciaPanel, confirmado con un diagnóstico real en CI (siempre
+        // dos, no un caso raro). Si la segunda ocurre después de que Blazor
+        // haya sustituido el nodo del <aside> (p. ej. bajo la carga real de
+        // CI, con más renders intermedios que en local), _referenciaPanel
+        // puede apuntar a un elemento ya desmontado — un FocusAsync que no
+        // falla pero tampoco mueve el foco de verdad, dejándolo fuera del
+        // panel y con eso el @onkeydown de Escape sin nada que lo dispare.
+        // Marcar la transición ya consumida antes de ceder el control cierra
+        // esa ventana: solo la primera invocación entra aquí.
         _profundidadAnterior = profundidadActual;
+
+        if (seAbreDesdeCerrado)
+            await _referenciaPanel.FocusAsync();
     }
 
     private Task IrABreadcrumbAsync(int indice) => WorkspaceService.IrABreadcrumbAsync(indice);

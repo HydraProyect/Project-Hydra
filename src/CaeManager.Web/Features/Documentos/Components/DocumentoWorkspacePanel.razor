@@ -123,6 +123,10 @@ else
                 }
                 break;
 
+            case "firma":
+                <FirmaEnCampoTab EntidadId="EntidadId" />
+                break;
+
             case "historial":
                 <PestanaHistorial EntidadTipo="Documento" EntidadId="EntidadId" />
                 break;
@@ -136,6 +140,7 @@ else
         new("informacion", "Información"),
         new("versiones", "Versiones"),
         new("validacion", "Validación"),
+        new("firma", "Firma"),
         new("historial", "Historial")
     ];
 

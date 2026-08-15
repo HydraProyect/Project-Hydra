@@ -73,7 +73,8 @@ public class CaeManagerDbContext(
         IFacturacionQueryContext, IProyectosQueryContext, IRetencionQueryContext,
         IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
         IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext,
-        ITelemetriaQueryContext, CaeManager.Application.Contactos.IContactosAgendaQueryContext
+        ITelemetriaQueryContext, CaeManager.Application.Contactos.IContactosAgendaQueryContext,
+        CaeManager.Application.Plantillas.IPlantillasQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -145,6 +146,12 @@ public class CaeManagerDbContext(
     public DbSet<TrabajoAnalisisDocumento> TrabajosAnalisisDocumento => Set<TrabajoAnalisisDocumento>();
     public DbSet<FirmaDigitalDocumento> FirmasDigitalesDocumento => Set<FirmaDigitalDocumento>();
     IQueryable<FirmaDigitalDocumento> IDocumentosQueryContext.FirmasDigitalesDocumento => FirmasDigitalesDocumento;
+    public DbSet<FirmaEnCampoDocumento> FirmasEnCampoDocumento => Set<FirmaEnCampoDocumento>();
+    IQueryable<FirmaEnCampoDocumento> IDocumentosQueryContext.FirmasEnCampoDocumento => FirmasEnCampoDocumento;
+    public DbSet<FirmaGuardadaUsuario> FirmasGuardadasUsuario => Set<FirmaGuardadaUsuario>();
+    IQueryable<FirmaGuardadaUsuario> IDocumentosQueryContext.FirmasGuardadasUsuario => FirmasGuardadasUsuario;
+    public DbSet<SelloEmpresa> SellosEmpresa => Set<SelloEmpresa>();
+    IQueryable<SelloEmpresa> IDocumentosQueryContext.SellosEmpresa => SellosEmpresa;
     public DbSet<VerificacionDocumentoOficial> VerificacionesDocumentoOficial => Set<VerificacionDocumentoOficial>();
     IQueryable<VerificacionDocumentoOficial> IDocumentosQueryContext.VerificacionesDocumentoOficial => VerificacionesDocumentoOficial;
     public DbSet<AcreditacionDocumentoPlataforma> AcreditacionesDocumentoPlataforma => Set<AcreditacionDocumentoPlataforma>();
@@ -191,6 +198,22 @@ public class CaeManagerDbContext(
     IQueryable<CaeManager.Domain.Contactos.ContactoAgenda> CaeManager.Application.Contactos.IContactosAgendaQueryContext.ContactosAgenda => ContactosAgenda;
     public DbSet<CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento> ContactosAgendaTiposDocumento => Set<CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento>();
     IQueryable<CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento> CaeManager.Application.Contactos.IContactosAgendaQueryContext.ContactosAgendaTiposDocumento => ContactosAgendaTiposDocumento;
+    public DbSet<CaeManager.Domain.Contactos.ContactoAgendaRol> ContactosAgendaRoles => Set<CaeManager.Domain.Contactos.ContactoAgendaRol>();
+    IQueryable<CaeManager.Domain.Contactos.ContactoAgendaRol> CaeManager.Application.Contactos.IContactosAgendaQueryContext.ContactosAgendaRoles => ContactosAgendaRoles;
+    public DbSet<CaeManager.Domain.Plantillas.PlantillaDocumento> PlantillasDocumento => Set<CaeManager.Domain.Plantillas.PlantillaDocumento>();
+    IQueryable<CaeManager.Domain.Plantillas.PlantillaDocumento> CaeManager.Application.Plantillas.IPlantillasQueryContext.PlantillasDocumento => PlantillasDocumento;
+    public DbSet<CaeManager.Domain.Plantillas.PlantillaDocumentoVersion> PlantillasDocumentoVersion => Set<CaeManager.Domain.Plantillas.PlantillaDocumentoVersion>();
+    IQueryable<CaeManager.Domain.Plantillas.PlantillaDocumentoVersion> CaeManager.Application.Plantillas.IPlantillasQueryContext.PlantillasDocumentoVersion => PlantillasDocumentoVersion;
+    public DbSet<CaeManager.Domain.Plantillas.PlantillaElemento> PlantillasElemento => Set<CaeManager.Domain.Plantillas.PlantillaElemento>();
+    IQueryable<CaeManager.Domain.Plantillas.PlantillaElemento> CaeManager.Application.Plantillas.IPlantillasQueryContext.PlantillasElemento => PlantillasElemento;
+    public DbSet<CaeManager.Domain.Plantillas.ConocimientoDeteccionCampo> ConocimientosDeteccionCampo => Set<CaeManager.Domain.Plantillas.ConocimientoDeteccionCampo>();
+    IQueryable<CaeManager.Domain.Plantillas.ConocimientoDeteccionCampo> CaeManager.Application.Plantillas.IPlantillasQueryContext.ConocimientosDeteccionCampo => ConocimientosDeteccionCampo;
+    public DbSet<CaeManager.Domain.Plantillas.DocumentoGenerado> DocumentosGenerados => Set<CaeManager.Domain.Plantillas.DocumentoGenerado>();
+    IQueryable<CaeManager.Domain.Plantillas.DocumentoGenerado> CaeManager.Application.Plantillas.IPlantillasQueryContext.DocumentosGenerados => DocumentosGenerados;
+    public DbSet<CaeManager.Domain.Plantillas.LoteGeneracionDocumento> LotesGeneracionDocumento => Set<CaeManager.Domain.Plantillas.LoteGeneracionDocumento>();
+    IQueryable<CaeManager.Domain.Plantillas.LoteGeneracionDocumento> CaeManager.Application.Plantillas.IPlantillasQueryContext.LotesGeneracionDocumento => LotesGeneracionDocumento;
+    public DbSet<CaeManager.Domain.Plantillas.ItemGeneracionDocumento> ItemsGeneracionDocumento => Set<CaeManager.Domain.Plantillas.ItemGeneracionDocumento>();
+    IQueryable<CaeManager.Domain.Plantillas.ItemGeneracionDocumento> CaeManager.Application.Plantillas.IPlantillasQueryContext.ItemsGeneracionDocumento => ItemsGeneracionDocumento;
     public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
     IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
     public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();

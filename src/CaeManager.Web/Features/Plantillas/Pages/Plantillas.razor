@@ -1,0 +1,118 @@
+@page "/plantillas"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using CaeManager.Domain.Plantillas
+@using MediatR
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject ToastService Toasts
+
+<PageTitle>Plantillas — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Plantillas</h1>
+        <div class="acciones-cabecera">
+            <a class="enlace-exportar" href="/plantillas/documentos-generados">Documentos generados</a>
+            <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
+        </div>
+    </div>
+
+    <p class="descripcion-subida-masiva">
+        Formularios que entrega un centro (acceso, autorización, ficha de riesgos…) configurados una vez para
+        rellenarse automáticamente con los datos ya conocidos de cada Trabajador o Empresa.
+    </p>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las plantillas" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_plantillas.Count == 0)
+    {
+        <EstadoVacio Titulo="Todavía no hay plantillas" Descripcion="Crea la primera a partir de un PDF que te entregue un centro.">
+            <Accion>
+                <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Ámbito</th>
+                    <th>Formato</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var plantilla in _plantillas)
+                {
+                    <tr>
+                        <td>@plantilla.Nombre</td>
+                        <td>@plantilla.AmbitoAplicacion</td>
+                        <td>@(plantilla.FormatoOrigen == FormatoOrigenPlantilla.PdfConCampos ? "Campos AcroForm" : "Posición manual")</td>
+                        <td>
+                            @if (plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada)
+                            {
+                                <Badge Tono="TonoBadge.Exito">Confirmada</Badge>
+                            }
+                            else
+                            {
+                                <Badge Tono="TonoBadge.Advertencia">@plantilla.UltimaVersionEstado</Badge>
+                            }
+                        </td>
+                        <td>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                   OnClick="() => IrAConfigurar(plantilla.UltimaVersionId)">
+                                @(plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada ? "Ver" : "Configurar")
+                            </Boton>
+                            @if (plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada)
+                            {
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       OnClick="() => AbrirModalNuevaVersion(plantilla.Id, plantilla.Nombre)">
+                                    Subir nueva versión
+                                </Boton>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<Modal Titulo="@($"Subir nueva versión — {_plantillaParaNuevaVersionNombre}")" Visible="ModalNuevaVersionVisible" VisibleChanged="CerrarModalNuevaVersion">
+    <ChildContent>
+        <p class="texto-vacio-seccion">
+            El PDF nuevo sustituye al actual. Los campos ya configurados se copian como punto de partida — revísalos y ajústalos antes de confirmar.
+        </p>
+        <div class="campo">
+            <label>PDF de la nueva versión</label>
+            <InputFile OnChange="ManejarArchivoNuevaVersionAsync" accept=".pdf" />
+            @if (!string.IsNullOrWhiteSpace(_nombreArchivoNuevaVersion))
+            {
+                <span class="detalle-tecnico">@_nombreArchivoNuevaVersion</span>
+            }
+        </div>
+    </ChildContent>
+    <Pie>
+        <Boton OnClick="SubirNuevaVersionAsync" Deshabilitado="@(!PuedeSubirNuevaVersion)">
+            @(_subiendoNuevaVersion ? "Subiendo…" : "Subir y configurar")
+        </Boton>
+    </Pie>
+</Modal>
+
+@code {
+    private void IrAConfigurar(Guid versionId) => Navigation.NavigateTo($"/plantillas/{versionId}/editar");
+}

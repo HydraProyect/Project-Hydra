@@ -36,6 +36,7 @@ public class ContactoAgenda : EntidadBase
     public const int LongitudMaximaNotas = 1000;
 
     private readonly List<ContactoAgendaTipoDocumento> _tiposDocumento = [];
+    private readonly List<ContactoAgendaRol> _roles = [];
 
     public Guid? ClienteId { get; private set; }
     public Guid? EmpresaId { get; private set; }
@@ -63,6 +64,9 @@ public class ContactoAgenda : EntidadBase
 
     /// <summary>Tipos de documento concretos que se le piden a esta persona (RLC/TC1, Apto médico, EPIS…).</summary>
     public IReadOnlyList<ContactoAgendaTipoDocumento> TiposDocumento => _tiposDocumento.AsReadOnly();
+
+    /// <summary>Roles estructurados de este contacto (responsable de PRL, representante legal…) — ver <see cref="RolContacto"/>.</summary>
+    public IReadOnlyList<ContactoAgendaRol> Roles => _roles.AsReadOnly();
 
     private ContactoAgenda()
     {
@@ -156,6 +160,15 @@ public class ContactoAgenda : EntidadBase
 
             _tiposDocumento.Add(new ContactoAgendaTipoDocumento(Id, tipoDocumentoId));
         }
+    }
+
+    /// <summary>Reemplaza el conjunto completo de roles — mismo criterio que <see cref="EstablecerTiposDocumento"/>: la pantalla edita el conjunto entero con casillas.</summary>
+    public void EstablecerRoles(IEnumerable<RolContacto> roles)
+    {
+        _roles.Clear();
+
+        foreach (var rol in roles.Distinct())
+            _roles.Add(new ContactoAgendaRol(Id, rol));
     }
 
     private static void RequerirPropietario(Guid propietarioId, string nombreParametro)
