@@ -294,12 +294,24 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
     /// "Omitir" (solo marca MarcarNotificacionLeidaCommand, sin navegar) en
     /// cuanto aparece — la marca queda persistida, así que basta una vez
     /// para el resto de este test y para toda la suite.
+    ///
+    /// Espera explícitamente a que la superposición desaparezca del DOM
+    /// tras el clic: ClickAsync solo confirma que el evento llegó al
+    /// navegador, no que el viaje de ida y vuelta al servidor
+    /// (MarcarNotificacionLeidaCommand) ya terminó y Blazor ya desmontó el
+    /// modal — visto en CI, una llamada posterior a este mismo método podía
+    /// resolver el MISMO botón a medio desmontar y fallar con "element was
+    /// detached from the DOM" en vez de simplemente no encontrar nada.
     /// </summary>
     private static async Task DescartarNotificacionPendienteSiApareceAsync(IPage page)
     {
         var boton = page.GetByText("Omitir");
-        if (await boton.CountAsync() > 0)
-            await boton.ClickAsync();
+        if (await boton.CountAsync() == 0)
+            return;
+
+        await boton.ClickAsync();
+        await page.Locator(".modal-superposicion").WaitForAsync(
+            new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
