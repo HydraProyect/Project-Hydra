@@ -1,0 +1,68 @@
+@*
+    Pestaña "Firma" del panel de Documento — firma en campo (Fase A):
+    trazo manuscrito capturado en un <canvas>, estampado sobre el PDF sin
+    proveedor externo. Ver PdfSharp: PdfDocumentOpenMode.Modify reescribe
+    el archivo entero, por eso un documento con perfil oficial nunca
+    muestra el lienzo (se destruiría su firma digital real).
+*@
+@using CaeManager.Application.Documentos.Commands.FirmarDocumentoEnCampo
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
+@using CaeManager.Application.Documentos.Queries.ObtenerFirmasEnCampoDocumento
+@using CaeManager.Domain.Documentos
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService Toasts
+@inject IJSRuntime JSRuntime
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error || _documento is null)
+{
+    <EstadoVacio Titulo="No pudimos cargar la firma en campo" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_documento.TipoDocumentoPerfilDocumentoOficial != PerfilDocumentoOficial.Ninguno)
+{
+    <EstadoVacio Titulo="No se puede firmar en campo"
+                 Descripcion="Este documento es un formato oficial de la Administración (verificado por firma digital). Firmarlo en campo destruiría esa firma, así que aquí solo se permite para documentación sin perfil oficial." />
+}
+else if (_documento.ArchivoUrl is null)
+{
+    <EstadoVacio Titulo="Sin archivo" Descripcion="Este documento no tiene ningún archivo que firmar todavía." />
+}
+else
+{
+    @if (_firmas.Count > 0)
+    {
+        <h3 class="workspace-subtitulo">Firmas ya realizadas</h3>
+        <div class="workspace-grupo-campos">
+            @foreach (var firma in _firmas)
+            {
+                <CampoInfo Etiqueta="@firma.FirmanteNombre">
+                    <span class="detalle-tecnico">
+                        @firma.FirmanteRol · @firma.FirmadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                        @(firma.Ubicacion is not null ? $" · {firma.Ubicacion}" : "")
+                    </span>
+                </CampoInfo>
+            }
+        </div>
+    }
+
+    <h3 class="workspace-subtitulo">Nueva firma</h3>
+    <canvas id="@_idCanvas" class="firma-en-campo-lienzo" width="500" height="200"></canvas>
+
+    <label class="campo-checkbox">
+        <input type="checkbox" checked="@_incluirUbicacion" @onchange="e => _incluirUbicacion = e.Value is bool m && m" />
+        Incluir mi ubicación
+    </label>
+
+    <div class="workspace-acciones-edicion">
+        <Boton Variante="VarianteBoton.Secundario" OnClick="RepetirAsync" Deshabilitado="_firmando">Repetir firma</Boton>
+        <Boton OnClick="FirmarAsync" Cargando="_firmando" Deshabilitado="@(!_trazoIniciado || _firmando)">Firmar</Boton>
+    </div>
+}

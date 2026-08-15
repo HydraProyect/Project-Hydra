@@ -45,6 +45,13 @@
     flex-direction: column;
 }
 
+/* Subtítulo de una sub-sección dentro de una pestaña (p. ej. "Firmas del archivo" en Validación, "Firmas ya realizadas" en Firma). */
+.workspace-subtitulo {
+    font: var(--font-heading-sm);
+    color: var(--color-text);
+    margin: var(--space-4) 0 var(--space-2);
+}
+
 /*
   Edición in situ de la pestaña "Información" (Centro 360 § 0.10) —
   Guardar/Cancelar bajo los campos editables, mismo alineado a la derecha
