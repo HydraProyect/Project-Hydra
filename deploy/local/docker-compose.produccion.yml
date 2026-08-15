@@ -16,6 +16,16 @@
 #
 # Uso:  cp .env.example .env   (rellenar, incluida DOMINIO)
 #       docker compose -f docker-compose.produccion.yml up -d --build
+#
+# Red "edge" (staging, ver docker-compose.staging.yml): dos procesos Caddy no
+# pueden compartir el 80/443 del host, así que el segundo dominio
+# (staging.talveg.es) no lleva su propio Caddy — se enruta desde ESTE mismo
+# Caddy, que gana un segundo bloque de sitio en Caddyfile. Para que este Caddy
+# alcance al contenedor `app` de staging (proyecto Compose distinto), ambos se
+# unen a la red "caemanager-edge" de abajo. db/seq se quedan fuera de esa red
+# a propósito: solo app y caddy salen a ella, así que el stack de staging
+# nunca puede alcanzar el Postgres/Seq de producción por red aunque compartan
+# máquina — el aislamiento real sigue siendo el volumen de datos separado.
 services:
   app:
     build:
@@ -35,8 +45,13 @@ services:
     volumes:
       - caemanager-data:/data
     # Sin `ports` publicados: la app solo es alcanzable desde la red interna
-    # del compose (Caddy la referencia como "app:8080"), nunca directamente
-    # desde fuera de la máquina.
+    # del compose (Caddy la referencia como "caemanager-app:8080", el
+    # container_name — no el nombre de servicio "app", que en la red "edge"
+    # compartida con staging sería ambiguo entre los dos stacks), nunca
+    # directamente desde fuera de la máquina.
+    networks:
+      - default
+      - edge
     depends_on:
       db:
         condition: service_healthy
@@ -89,6 +104,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+    networks:
+      - edge
     depends_on:
       - app
 
@@ -124,3 +141,10 @@ volumes:
   caddy-data:
   caddy-config:
   seq-data:
+
+networks:
+  # Nombre explícito (no el "local_default" implícito que pondría Compose por
+  # defecto) para que docker-compose.staging.yml pueda unirse a ella como red
+  # externa por un nombre estable, sin adivinar cómo se llamó este proyecto.
+  edge:
+    name: caemanager-edge
