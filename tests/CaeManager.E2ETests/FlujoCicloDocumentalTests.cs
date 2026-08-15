@@ -191,7 +191,13 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
 
         await page.Locator(".barra-acciones-lote").GetByText("Asignar a centro…").ClickAsync();
-        await page.GetByLabel("Centro").FillAsync(nombreCentro);
+        // Sin Exact/scope, GetByLabel("Centro") también resuelve el propio
+        // <div role="dialog"> del modal: su nombre accesible viene de
+        // aria-labelledby → "Asignar 1 trabajador(es) a un centro", que
+        // contiene "centro" como subcadena (visto en CI —
+        // "strict mode violation... resolved to 2 elements").
+        await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
+            .FillAsync(nombreCentro);
         await page.WaitForTimeoutAsync(500);
         // El botón de confirmar cambia de texto a "Asignar igualmente" si
         // quedan documentos obligatorios sin cubrir (ver Trabajadores.razor.cs,
