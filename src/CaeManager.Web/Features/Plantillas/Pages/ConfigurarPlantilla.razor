@@ -207,6 +207,74 @@
                     </div>
                 </div>
             }
+            else
+            {
+                <div class="editor-plantilla-panel">
+                    <h2 class="titulo-seccion">Generar documento</h2>
+
+                    @if (_ambitoAplicacion == AmbitoAplicacion.Trabajador)
+                    {
+                        <CampoSelect Etiqueta="Trabajador" Valor="@(_ownerIdGeneracion?.ToString() ?? "")" ValorChanged="v => _ownerIdGeneracion = Guid.TryParse(v, out var id) ? id : null">
+                            <option value="">— Selecciona —</option>
+                            @foreach (var trabajador in _trabajadoresDisponibles)
+                            {
+                                <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+                            }
+                        </CampoSelect>
+                    }
+                    else if (_ambitoAplicacion == AmbitoAplicacion.Empresa)
+                    {
+                        <CampoSelect Etiqueta="Empresa" Valor="@(_ownerIdGeneracion?.ToString() ?? "")" ValorChanged="v => _ownerIdGeneracion = Guid.TryParse(v, out var id) ? id : null">
+                            <option value="">— Selecciona —</option>
+                            @foreach (var empresa in _empresasDisponibles)
+                            {
+                                <option value="@empresa.Id">@empresa.RazonSocial</option>
+                            }
+                        </CampoSelect>
+                    }
+                    else
+                    {
+                        <CampoSelect Etiqueta="Cliente" Valor="@(_ownerIdGeneracion?.ToString() ?? "")" ValorChanged="v => _ownerIdGeneracion = Guid.TryParse(v, out var id) ? id : null">
+                            <option value="">— Selecciona —</option>
+                            @foreach (var cliente in _clientesDisponibles)
+                            {
+                                <option value="@cliente.Id">@cliente.RazonSocial</option>
+                            }
+                        </CampoSelect>
+                    }
+
+                    <CampoSelect Etiqueta="Centro (opcional)" Valor="@(_centroIdGeneracion?.ToString() ?? "")" ValorChanged="v => _centroIdGeneracion = Guid.TryParse(v, out var id) ? id : null">
+                        <option value="">Sin centro</option>
+                        @foreach (var centro in _centrosDisponibles)
+                        {
+                            <option value="@centro.Id">@centro.Nombre — @centro.EmpresaRazonSocial</option>
+                        }
+                    </CampoSelect>
+
+                    @{ var elementosManuales = _elementos.Where(e => e.FuenteDato == FuenteDatoPlantilla.Manual && e.IdReal is not null).ToList(); }
+                    @if (elementosManuales.Count > 0)
+                    {
+                        <p class="texto-vacio-seccion">Estos campos no se rellenan solos — complétalos antes de generar:</p>
+                        @foreach (var elemento in elementosManuales)
+                        {
+                            <CampoTexto Etiqueta="@elemento.EtiquetaVisible"
+                                        Valor="@_valoresManualesPorIdReal.GetValueOrDefault(elemento.IdReal!.Value, "")"
+                                        ValorChanged="v => CambiarValorManual(elemento.IdReal!.Value, v)" />
+                        }
+                    }
+
+                    <div class="editor-plantilla-acciones">
+                        <Boton OnClick="GenerarDocumentoAsync" Deshabilitado="@(!PuedeGenerar)">
+                            @(_generando ? "Generando…" : "Generar documento")
+                        </Boton>
+                    </div>
+
+                    @if (_documentoGeneradoId is { } documentoGeneradoId)
+                    {
+                        <a class="enlace-exportar" href="@($"/documentos?documentoId={documentoGeneradoId}")">Ver documento generado</a>
+                    }
+                </div>
+            }
         </div>
     }
 </div>

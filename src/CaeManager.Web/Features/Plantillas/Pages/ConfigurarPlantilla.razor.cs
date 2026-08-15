@@ -1,12 +1,15 @@
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Plantillas.Commands.ConfirmarPlantillaDocumentoVersion;
 using CaeManager.Application.Plantillas.Commands.CrearPlantillaDocumento;
+using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 using CaeManager.Application.Plantillas.Commands.GuardarElementosPlantilla;
 using CaeManager.Application.Plantillas.Queries.DetectarCamposPlantilla;
 using CaeManager.Application.Plantillas.Queries.ObtenerPlantillaDocumentoVersion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Web.Components.DesignSystem;
@@ -43,6 +46,9 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     private sealed class ElementoEditor
     {
         public required int IdLocal { get; init; }
+
+        /// <summary>Id real de <c>PlantillaElemento</c> — null para un elemento añadido en el editor que aún no se ha guardado. Necesario para <see cref="GenerarDocumentoIndividualCommand.ValoresManuales"/>.</summary>
+        public Guid? IdReal { get; init; }
         public TipoElementoPlantilla Tipo { get; set; }
         public int Pagina { get; set; }
         public double X { get; set; }
@@ -87,6 +93,16 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     private bool _guardando;
     private bool _confirmando;
     private bool _errorCarga;
+
+    // Generación individual (PR7) — solo cuando la versión está Confirmada.
+    private Guid? _ownerIdGeneracion;
+    private Guid? _centroIdGeneracion;
+    private readonly Dictionary<Guid, string> _valoresManualesPorIdReal = [];
+    private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
+    private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
+    private bool _opcionesGeneracionCargadas;
+    private bool _generando;
+    private Guid? _documentoGeneradoId;
 
     private ElementoEditor? ElementoSeleccionado =>
         _idLocalSeleccionado is { } id ? _elementos.FirstOrDefault(e => e.IdLocal == id) : null;
@@ -141,7 +157,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
             var contenido = memoria.ToArray();
 
             await IniciarEditorAsync(
-                versionId, detalle.PlantillaDocumentoId, detalle.NombrePlantilla, detalle.FormatoOrigen,
+                versionId, detalle.PlantillaDocumentoId, detalle.NombrePlantilla, detalle.AmbitoAplicacion, detalle.FormatoOrigen,
                 detalle.EstadoConfiguracion, contenido, ElementosIniciales(detalle));
         }
         catch (Exception)
@@ -159,6 +175,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         detalle.Elementos.Select(e => new ElementoEditor
         {
             IdLocal = _siguienteIdLocal++,
+            IdReal = e.Id,
             Tipo = e.Tipo,
             Pagina = e.Pagina,
             X = e.X,
@@ -206,7 +223,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
             }
 
             await IniciarEditorAsync(
-                resultado.Valor.PlantillaDocumentoVersionId, resultado.Valor.PlantillaDocumentoId, _nombre,
+                resultado.Valor.PlantillaDocumentoVersionId, resultado.Valor.PlantillaDocumentoId, _nombre, _ambitoAplicacion,
                 _formatoOrigenSeleccionado, EstadoConfiguracionPlantilla.Borrador, _archivoSeleccionado, []);
 
             Navigation.NavigateTo($"/plantillas/{resultado.Valor.PlantillaDocumentoVersionId}/editar", replace: true);
@@ -225,12 +242,13 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     /// y confirma" (ADR-010 § 2.4).
     /// </summary>
     private async Task IniciarEditorAsync(
-        Guid versionId, Guid documentoId, string nombrePlantilla, FormatoOrigenPlantilla formatoOrigen,
+        Guid versionId, Guid documentoId, string nombrePlantilla, AmbitoAplicacion ambitoAplicacion, FormatoOrigenPlantilla formatoOrigen,
         EstadoConfiguracionPlantilla estadoConfiguracion, byte[] contenidoPdf, List<ElementoEditor> elementosExistentes)
     {
         _versionIdActual = versionId;
         _documentoId = documentoId;
         _nombrePlantilla = nombrePlantilla;
+        _ambitoAplicacion = ambitoAplicacion;
         _formatoOrigen = formatoOrigen;
         _estadoConfiguracion = estadoConfiguracion;
         _elementos = elementosExistentes;
@@ -240,7 +258,63 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
         if (_elementos.Count == 0 && estadoConfiguracion == EstadoConfiguracionPlantilla.Borrador)
             await EjecutarDeteccionInicialAsync(versionId, formatoOrigen, contenidoPdf);
+
+        if (estadoConfiguracion == EstadoConfiguracionPlantilla.Confirmada)
+            await CargarOpcionesGeneracionAsync();
     }
+
+    private async Task CargarOpcionesGeneracionAsync()
+    {
+        if (_opcionesGeneracionCargadas) return;
+        _opcionesGeneracionCargadas = true;
+
+        switch (_ambitoAplicacion)
+        {
+            case AmbitoAplicacion.Trabajador:
+                _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+                break;
+            case AmbitoAplicacion.Empresa:
+                _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+                break;
+            // Cliente reutiliza _clientesDisponibles, ya cargado en OnInitializedAsync.
+        }
+    }
+
+    private bool PuedeGenerar => !_generando && _ownerIdGeneracion is not null;
+
+    private async Task GenerarDocumentoAsync()
+    {
+        if (!PuedeGenerar || _versionIdActual is not { } versionId || _ownerIdGeneracion is not { } ownerId) return;
+
+        _generando = true;
+        _documentoGeneradoId = null;
+        StateHasChanged();
+
+        try
+        {
+            var valoresManuales = _valoresManualesPorIdReal
+                .Where(par => !string.IsNullOrWhiteSpace(par.Value))
+                .ToDictionary(par => par.Key, par => par.Value);
+
+            var resultado = await Mediator.Send(new GenerarDocumentoIndividualCommand(
+                versionId, ownerId, _centroIdGeneracion, valoresManuales.Count == 0 ? null : valoresManuales));
+
+            if (resultado.EsFallido)
+            {
+                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            _documentoGeneradoId = resultado.Valor.DocumentoId;
+            Toasts.Mostrar("Documento generado.", TonoToast.Exito);
+        }
+        finally
+        {
+            _generando = false;
+        }
+    }
+
+    private void CambiarValorManual(Guid idElemento, string valor) => _valoresManualesPorIdReal[idElemento] = valor;
 
     private async Task<List<PaginaEditor>> RasterizarPaginasAsync(byte[] contenidoPdf)
     {

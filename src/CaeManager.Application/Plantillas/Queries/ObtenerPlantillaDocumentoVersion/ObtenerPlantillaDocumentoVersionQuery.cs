@@ -1,4 +1,5 @@
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ public record PlantillaDocumentoVersionDetalleDto(
     Guid PlantillaDocumentoVersionId,
     Guid PlantillaDocumentoId,
     string NombrePlantilla,
+    AmbitoAplicacion AmbitoAplicacion,
     FormatoOrigenPlantilla FormatoOrigen,
     EstadoConfiguracionPlantilla EstadoConfiguracion,
     string ArchivoOriginalUrl,
@@ -63,7 +65,7 @@ public class ObtenerPlantillaDocumentoVersionQueryHandler(IPlantillasQueryContex
             .ToList();
 
         return Result.Exito(new PlantillaDocumentoVersionDetalleDto(
-            version.Id, documento.Id, documento.Nombre, documento.FormatoOrigen, version.EstadoConfiguracion,
+            version.Id, documento.Id, documento.Nombre, documento.AmbitoAplicacion, documento.FormatoOrigen, version.EstadoConfiguracion,
             version.ArchivoOriginalUrl ?? string.Empty, elementosDto));
     }
 }
