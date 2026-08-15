@@ -14,8 +14,13 @@ namespace CaeManager.Application.Common;
 /// </summary>
 public interface IExtraccionMetadatosDocumentoIaService
 {
+    /// <summary>
+    /// <paramref name="documentoId"/>: el Documento que se está verificando —
+    /// se propaga a <c>IDocumentAIRouterService.ProcesarAsync</c> para que la
+    /// auditoría de esta extracción quede enlazada a él (MACRO_PLAN § 6.6).
+    /// </summary>
     Task<Result<MetadatosDocumentoExtraidosDto>> ExtraerAsync(
-        byte[] contenidoPdf, string nombreTipoDocumento, CancellationToken cancellationToken = default);
+        byte[] contenidoPdf, string nombreTipoDocumento, Guid? documentoId = null, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

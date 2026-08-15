@@ -52,4 +52,82 @@ public class AuditoriaExtraccionIaTests
 
         accion.Should().Throw<ArgumentException>();
     }
+
+    [Fact]
+    public void Sin_documentoId_no_queda_ligada_a_ningun_documento()
+    {
+        var auditoria = AuditoriaExtraccionIa.Crear(HashDeEjemplo(), "Certificado", "anthropic", 100, null, null, 1, 80, null);
+
+        auditoria.DocumentoId.Should().BeNull();
+        auditoria.DecisionHumana.Should().BeNull();
+    }
+
+    [Fact]
+    public void Registra_una_decision_automatica_sin_usuario_cuando_esta_ligada_a_un_documento()
+    {
+        var documentoId = Guid.NewGuid();
+        var auditoria = AuditoriaExtraccionIa.Crear(HashDeEjemplo(), "Certificado", "anthropic", 100, null, null, 1, 95, null, documentoId);
+
+        auditoria.RegistrarDecisionHumana(DecisionHumanaIa.AutomaticaSinRevision, usuarioId: null);
+
+        auditoria.DecisionHumana.Should().Be(DecisionHumanaIa.AutomaticaSinRevision);
+        auditoria.UsuarioDecisionId.Should().BeNull();
+        auditoria.FechaDecisionUtc.Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData(DecisionHumanaIa.ConfirmadaManual)]
+    [InlineData(DecisionHumanaIa.DescartadaManual)]
+    public void Registra_una_decision_manual_con_el_usuario_que_la_tomo(DecisionHumanaIa decision)
+    {
+        var documentoId = Guid.NewGuid();
+        var usuarioId = Guid.NewGuid();
+        var auditoria = AuditoriaExtraccionIa.Crear(HashDeEjemplo(), "Certificado", "anthropic", 100, null, null, 1, 62, null, documentoId);
+
+        auditoria.RegistrarDecisionHumana(decision, usuarioId);
+
+        auditoria.DecisionHumana.Should().Be(decision);
+        auditoria.UsuarioDecisionId.Should().Be(usuarioId);
+    }
+
+    [Fact]
+    public void Rechaza_registrar_decision_sin_documento_ligado()
+    {
+        var auditoria = AuditoriaExtraccionIa.Crear(HashDeEjemplo(), "Certificado", "anthropic", 100, null, null, 1, 95, null);
+
+        var accion = () => auditoria.RegistrarDecisionHumana(DecisionHumanaIa.AutomaticaSinRevision, null);
+
+        accion.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Rechaza_una_decision_manual_sin_usuario()
+    {
+        var auditoria = AuditoriaExtraccionIa.Crear(HashDeEjemplo(), "Certificado", "anthropic", 100, null, null, 1, 62, null, Guid.NewGuid());
+
+        var accion = () => auditoria.RegistrarDecisionHumana(DecisionHumanaIa.ConfirmadaManual, null);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Rechaza_una_decision_automatica_con_usuario()
+    {
+        var auditoria = AuditoriaExtraccionIa.Crear(HashDeEjemplo(), "Certificado", "anthropic", 100, null, null, 1, 95, null, Guid.NewGuid());
+
+        var accion = () => auditoria.RegistrarDecisionHumana(DecisionHumanaIa.AutomaticaSinRevision, Guid.NewGuid());
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Rechaza_registrar_una_segunda_decision_sobre_la_misma_auditoria()
+    {
+        var auditoria = AuditoriaExtraccionIa.Crear(HashDeEjemplo(), "Certificado", "anthropic", 100, null, null, 1, 62, null, Guid.NewGuid());
+        auditoria.RegistrarDecisionHumana(DecisionHumanaIa.DescartadaManual, Guid.NewGuid());
+
+        var accion = () => auditoria.RegistrarDecisionHumana(DecisionHumanaIa.ConfirmadaManual, Guid.NewGuid());
+
+        accion.Should().Throw<InvalidOperationException>();
+    }
 }
