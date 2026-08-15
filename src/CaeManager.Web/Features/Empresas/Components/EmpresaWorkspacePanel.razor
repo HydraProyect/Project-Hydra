@@ -160,6 +160,10 @@ else
                 <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Empresa" PropietarioId="EntidadId" />
                 break;
 
+            case "sello":
+                <PestanaSelloEmpresa EntidadId="EntidadId" />
+                break;
+
             case "historial":
                 <PestanaHistorial EntidadTipo="Empresa" EntidadId="EntidadId" />
                 break;
@@ -174,6 +178,7 @@ else
         new("clientes", "Clientes"),
         new("documentacion", "Documentación"),
         new("agenda", "Agenda"),
+        new("sello", "Sello"),
         new("historial", "Historial")
     ];
 

@@ -10,6 +10,8 @@ public interface IDocumentosQueryContext
     IQueryable<VerificacionDocumentoOficial> VerificacionesDocumentoOficial { get; }
     IQueryable<FirmaDigitalDocumento> FirmasDigitalesDocumento { get; }
     IQueryable<FirmaEnCampoDocumento> FirmasEnCampoDocumento { get; }
+    IQueryable<FirmaGuardadaUsuario> FirmasGuardadasUsuario { get; }
+    IQueryable<SelloEmpresa> SellosEmpresa { get; }
     IQueryable<AcreditacionDocumentoPlataforma> AcreditacionesDocumentoPlataforma { get; }
     IQueryable<RechazoAcreditacionDocumentoPlataforma> RechazosAcreditacionDocumentoPlataforma { get; }
 }

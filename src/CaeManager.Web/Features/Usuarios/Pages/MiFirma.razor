@@ -1,0 +1,51 @@
+@page "/mi-firma"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using CaeManager.Application.Documentos.Commands.GuardarFirmaGuardadaUsuario
+@using CaeManager.Application.Documentos.Queries.ObtenerFirmaGuardadaUsuario
+@using Microsoft.AspNetCore.Authorization
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService Toasts
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Mi firma — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="cabecera-pagina">
+        <h1 class="titulo-pagina">Mi firma</h1>
+    </div>
+
+    <p class="descripcion-roles">
+        Esta es la firma que se ofrecerá por defecto al firmar documentos en campo. Dibújala o sube una
+        foto de tu firma en papel — se guarda una sola, la última que confirmes reemplaza a la anterior.
+    </p>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else
+    {
+        @if (_firmaActual is not null)
+        {
+            <div class="workspace-grupo-campos">
+                <CampoInfo Etiqueta="Firma guardada actualmente">
+                    <img src="/mi-firma/archivo" alt="Firma guardada" class="firma-guardada-vista-previa" />
+                </CampoInfo>
+                <CampoInfo Etiqueta="Actualizada" Valor="@_firmaActual.ActualizadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")" />
+            </div>
+        }
+
+        <h3 class="workspace-subtitulo">Dibujar</h3>
+        <canvas id="@_idCanvas" class="firma-en-campo-lienzo" width="500" height="200"></canvas>
+        <div class="workspace-acciones-edicion">
+            <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarLienzoAsync" Deshabilitado="_guardando">Borrar trazo</Boton>
+            <Boton OnClick="GuardarDibujadaAsync" Cargando="_guardando" Deshabilitado="@(!_trazoIniciado || _guardando)">Guardar como mi firma</Boton>
+        </div>
+
+        <h3 class="workspace-subtitulo">O sube una foto</h3>
+        <ZonaSoltarArchivo Titulo="Sube una foto de tu firma" FormatosTexto="JPG o PNG, máx. 5 MB" Accept="image/*"
+                           Cargando="_guardando" OnChange="SubirArchivoAsync" />
+    }
+</div>

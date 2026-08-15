@@ -279,6 +279,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAprobacionDocumentoRepository, AprobacionDocumentoRepository>();
         services.AddScoped<IFirmaDigitalDocumentoRepository, FirmaDigitalDocumentoRepository>();
         services.AddScoped<IFirmaEnCampoDocumentoRepository, FirmaEnCampoDocumentoRepository>();
+        services.AddScoped<IFirmaGuardadaUsuarioRepository, FirmaGuardadaUsuarioRepository>();
+        services.AddScoped<ISelloEmpresaRepository, SelloEmpresaRepository>();
         services.AddScoped<IVerificacionDocumentoOficialRepository, VerificacionDocumentoOficialRepository>();
         services.AddScoped<IExtraccionIaCacheRepository, ExtraccionIaCacheRepository>();
         services.AddScoped<IAuditoriaExtraccionIaRepository, AuditoriaExtraccionIaRepository>();

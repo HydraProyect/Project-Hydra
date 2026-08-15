@@ -147,6 +147,10 @@ public class CaeManagerDbContext(
     IQueryable<FirmaDigitalDocumento> IDocumentosQueryContext.FirmasDigitalesDocumento => FirmasDigitalesDocumento;
     public DbSet<FirmaEnCampoDocumento> FirmasEnCampoDocumento => Set<FirmaEnCampoDocumento>();
     IQueryable<FirmaEnCampoDocumento> IDocumentosQueryContext.FirmasEnCampoDocumento => FirmasEnCampoDocumento;
+    public DbSet<FirmaGuardadaUsuario> FirmasGuardadasUsuario => Set<FirmaGuardadaUsuario>();
+    IQueryable<FirmaGuardadaUsuario> IDocumentosQueryContext.FirmasGuardadasUsuario => FirmasGuardadasUsuario;
+    public DbSet<SelloEmpresa> SellosEmpresa => Set<SelloEmpresa>();
+    IQueryable<SelloEmpresa> IDocumentosQueryContext.SellosEmpresa => SellosEmpresa;
     public DbSet<VerificacionDocumentoOficial> VerificacionesDocumentoOficial => Set<VerificacionDocumentoOficial>();
     IQueryable<VerificacionDocumentoOficial> IDocumentosQueryContext.VerificacionesDocumentoOficial => VerificacionesDocumentoOficial;
     public DbSet<AcreditacionDocumentoPlataforma> AcreditacionesDocumentoPlataforma => Set<AcreditacionDocumentoPlataforma>();

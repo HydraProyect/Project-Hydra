@@ -53,6 +53,33 @@
 }
 
 /*
+  Lienzo de captura del trazo manuscrito (firma en campo) — global y no
+  aislado a un componente porque lo comparten FirmaEnCampoTab (pestaña
+  "Firma" de un Documento) y MiFirma (/mi-firma, la firma habitual del
+  usuario), ambos con firmaEnCampo.js.
+*/
+.firma-en-campo-lienzo {
+    display: block;
+    width: 100%;
+    max-width: 500px;
+    height: 200px;
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg);
+    cursor: crosshair;
+    /* Sin esto, un dedo sobre el lienzo hace scroll de la página en vez de dibujar. */
+    touch-action: none;
+}
+
+.firma-guardada-vista-previa {
+    max-width: 300px;
+    max-height: 120px;
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg);
+}
+
+/*
   Edición in situ de la pestaña "Información" (Centro 360 § 0.10) —
   Guardar/Cancelar bajo los campos editables, mismo alineado a la derecha
   que el pie de un Drawer.

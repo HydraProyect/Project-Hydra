@@ -236,6 +236,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // y la guarda de perfil oficial (Fase A de firma en campo) necesita ITiposDocumentoQueryContext.
         ("Documentos.FirmarDocumentoEnCampoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.FirmarDocumentoEnCampoCommandHandler", "ITiposDocumentoQueryContext"),
+        // El sello guardado (Fase A de firma en campo) cuelga de la Empresa —
+        // necesita confirmar que existe antes de guardarle un sello.
+        ("Documentos.GuardarSelloEmpresaCommandHandler", "IEmpresaRepository"),
         ("Empresas.CrearEmpresaCommandHandler", "IClientesQueryContext"),
         ("Empresas.EditarEmpresaCommandHandler", "IClientesQueryContext"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "IAsignacionesQueryContext"),

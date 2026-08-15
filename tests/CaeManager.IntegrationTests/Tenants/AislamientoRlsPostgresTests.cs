@@ -1,6 +1,7 @@
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -56,6 +57,11 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         dbContext.FirmasEnCampoDocumento.Add(new FirmaEnCampoDocumento(
             documento.Id, Guid.NewGuid(), "Juan Pérez", "GestorCae", DateTime.UtcNow, null, new string('a', 64)));
 
+        dbContext.FirmasGuardadasUsuario.Add(new FirmaGuardadaUsuario(Guid.NewGuid(), "url/firma.png", DateTime.UtcNow));
+        var empresa = new Empresa("Empresa de prueba", "B12345674");
+        dbContext.Empresas.Add(empresa);
+        dbContext.SellosEmpresa.Add(new SelloEmpresa(empresa.Id, "url/sello.png", DateTime.UtcNow));
+
         await dbContext.SaveChangesAsync();
     }
 
@@ -100,6 +106,13 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
     {
         await using var consulta = conexion.CreateCommand();
         consulta.CommandText = "SELECT count(*) FROM \"FirmasEnCampoDocumento\";";
+        return (long)(await consulta.ExecuteScalarAsync())!;
+    }
+
+    private static async Task<long> ContarAsync(NpgsqlConnection conexion, string tabla)
+    {
+        await using var consulta = conexion.CreateCommand();
+        consulta.CommandText = $"SELECT count(*) FROM \"{tabla}\";";
         return (long)(await consulta.ExecuteScalarAsync())!;
     }
 
@@ -167,6 +180,30 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
 
         await FijarTenantDeSesionAsync(conexion, _tenantB);
         (await ContarFirmasEnCampoAsync(conexion)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_rol_restringido_solo_ve_la_firma_guardada_del_tenant_fijado_en_la_sesion()
+    {
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+        (await ContarAsync(conexion, "FirmasGuardadasUsuario")).Should().Be(1);
+
+        await FijarTenantDeSesionAsync(conexion, _tenantB);
+        (await ContarAsync(conexion, "FirmasGuardadasUsuario")).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_rol_restringido_solo_ve_el_sello_de_empresa_del_tenant_fijado_en_la_sesion()
+    {
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+        (await ContarAsync(conexion, "SellosEmpresa")).Should().Be(1);
+
+        await FijarTenantDeSesionAsync(conexion, _tenantB);
+        (await ContarAsync(conexion, "SellosEmpresa")).Should().Be(0);
     }
 
     [Fact]

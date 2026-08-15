@@ -13,6 +13,8 @@ public class DocumentosQueryContextFalso : IDocumentosQueryContext
     public List<VerificacionDocumentoOficial> ListaVerificacionesDocumentoOficial { get; } = [];
     public List<FirmaDigitalDocumento> ListaFirmasDigitalesDocumento { get; } = [];
     public List<FirmaEnCampoDocumento> ListaFirmasEnCampoDocumento { get; } = [];
+    public List<FirmaGuardadaUsuario> ListaFirmasGuardadasUsuario { get; } = [];
+    public List<SelloEmpresa> ListaSellosEmpresa { get; } = [];
     public List<AcreditacionDocumentoPlataforma> ListaAcreditacionesDocumentoPlataforma { get; } = [];
     public List<RechazoAcreditacionDocumentoPlataforma> ListaRechazosAcreditacionDocumentoPlataforma { get; } = [];
 
@@ -22,6 +24,8 @@ public class DocumentosQueryContextFalso : IDocumentosQueryContext
     public IQueryable<VerificacionDocumentoOficial> VerificacionesDocumentoOficial => new TestAsyncQueryable<VerificacionDocumentoOficial>(ListaVerificacionesDocumentoOficial.AsQueryable());
     public IQueryable<FirmaDigitalDocumento> FirmasDigitalesDocumento => new TestAsyncQueryable<FirmaDigitalDocumento>(ListaFirmasDigitalesDocumento.AsQueryable());
     public IQueryable<FirmaEnCampoDocumento> FirmasEnCampoDocumento => new TestAsyncQueryable<FirmaEnCampoDocumento>(ListaFirmasEnCampoDocumento.AsQueryable());
+    public IQueryable<FirmaGuardadaUsuario> FirmasGuardadasUsuario => new TestAsyncQueryable<FirmaGuardadaUsuario>(ListaFirmasGuardadasUsuario.AsQueryable());
+    public IQueryable<SelloEmpresa> SellosEmpresa => new TestAsyncQueryable<SelloEmpresa>(ListaSellosEmpresa.AsQueryable());
     public IQueryable<AcreditacionDocumentoPlataforma> AcreditacionesDocumentoPlataforma => new TestAsyncQueryable<AcreditacionDocumentoPlataforma>(ListaAcreditacionesDocumentoPlataforma.AsQueryable());
     public IQueryable<RechazoAcreditacionDocumentoPlataforma> RechazosAcreditacionDocumentoPlataforma => new TestAsyncQueryable<RechazoAcreditacionDocumentoPlataforma>(ListaRechazosAcreditacionDocumentoPlataforma.AsQueryable());
 }

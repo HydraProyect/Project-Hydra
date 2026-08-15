@@ -1,0 +1,91 @@
+@*
+    Pestaña "Sello" del panel de Empresa — sello habitual reutilizable en
+    cada firma en campo que lo incluya (plan Fase A). Solo por subida: no
+    tiene sentido "dibujar" el sello de una empresa, es la reproducción de
+    un sello físico real. Mismos permisos que ya rigen la edición de la
+    Empresa — sin capa de autorización nueva.
+*@
+@using CaeManager.Application.Documentos.Commands.GuardarSelloEmpresa
+@using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService Toasts
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="2" />
+}
+else
+{
+    @if (_selloActual is not null)
+    {
+        <div class="workspace-grupo-campos">
+            <CampoInfo Etiqueta="Sello guardado actualmente">
+                <img src="/empresas/@EntidadId/sello/archivo" alt="Sello de la empresa" class="firma-guardada-vista-previa" />
+            </CampoInfo>
+            <CampoInfo Etiqueta="Actualizado" Valor="@_selloActual.ActualizadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")" />
+        </div>
+    }
+    else
+    {
+        <EstadoVacio Titulo="Sin sello guardado" Descripcion="Sube una foto del sello de la empresa para poder incluirlo en las firmas en campo de sus documentos." />
+    }
+
+    <ZonaSoltarArchivo Titulo="Sube una foto del sello" FormatosTexto="JPG o PNG, máx. 5 MB" Accept="image/*"
+                       Cargando="_guardando" OnChange="SubirArchivoAsync" />
+}
+
+@code {
+    private const long TamanoMaximoArchivoBytes = 5 * 1024 * 1024;
+
+    [Parameter, EditorRequired] public Guid EntidadId { get; set; }
+
+    private SelloEmpresaDto? _selloActual;
+    private bool _cargando = true;
+    private bool _guardando;
+    private Guid _idCargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EntidadId == _idCargado) return;
+
+        _idCargado = EntidadId;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _selloActual = await Mediator.Send(new ObtenerSelloEmpresaQuery(EntidadId));
+        _cargando = false;
+    }
+
+    private async Task SubirArchivoAsync(Microsoft.AspNetCore.Components.Forms.InputFileChangeEventArgs args)
+    {
+        _guardando = true;
+        try
+        {
+            await using var flujo = args.File.OpenReadStream(TamanoMaximoArchivoBytes);
+            using var memoria = new MemoryStream();
+            await flujo.CopyToAsync(memoria);
+
+            var resultado = await Mediator.Send(new GuardarSelloEmpresaCommand(EntidadId, memoria.ToArray()));
+            if (resultado.EsFallido)
+            {
+                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            Toasts.Mostrar("Sello guardado.", TonoToast.Exito);
+            await CargarAsync();
+        }
+        catch (Exception)
+        {
+            Toasts.Mostrar("No se pudo leer el archivo. Prueba con otra imagen.", TonoToast.Error);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

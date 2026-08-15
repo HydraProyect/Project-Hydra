@@ -561,6 +561,7 @@ app.MapCentrosEndpoints();
 app.MapIncidenciasEndpoints();
 app.MapFacturacionEndpoints();
 app.MapDocumentosEndpoints();
+app.MapFirmasGuardadasEndpoints();
 app.MapRequisitosDocumentalesEndpoints();
 app.MapComunicacionesEndpoints();
 app.MapSubcontratasEndpoints();
