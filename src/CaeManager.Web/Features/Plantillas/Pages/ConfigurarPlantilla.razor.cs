@@ -6,7 +6,10 @@ using CaeManager.Application.Plantillas.Commands.ConfirmarPlantillaDocumentoVers
 using CaeManager.Application.Plantillas.Commands.CrearPlantillaDocumento;
 using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 using CaeManager.Application.Plantillas.Commands.GuardarElementosPlantilla;
+using CaeManager.Application.Plantillas.Commands.IniciarLoteGeneracionDocumentos;
+using CaeManager.Application.Plantillas.Commands.ProcesarItemLoteGeneracion;
 using CaeManager.Application.Plantillas.Queries.DetectarCamposPlantilla;
+using CaeManager.Application.Plantillas.Queries.ObtenerLoteGeneracionDocumentos;
 using CaeManager.Application.Plantillas.Queries.ObtenerPlantillaDocumentoVersion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -103,6 +106,23 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     private bool _opcionesGeneracionCargadas;
     private bool _generando;
     private Guid? _documentoGeneradoId;
+
+    // Generación en lote (PR8) — solo AmbitoAplicacion.Trabajador (ADR-010 § 3).
+    private sealed class ItemLoteEstado
+    {
+        public required Guid ItemId { get; init; }
+        public required Guid TrabajadorId { get; init; }
+        public required string TrabajadorNombre { get; init; }
+        public EstadoItemGeneracion Estado { get; set; } = EstadoItemGeneracion.Pendiente;
+        public string? Error { get; set; }
+    }
+
+    private bool _modoLote;
+    private readonly HashSet<Guid> _trabajadoresSeleccionadosLote = [];
+    private List<ItemLoteEstado> _itemsLote = [];
+    private bool _procesandoLote;
+    private int TotalCompletadosLote => _itemsLote.Count(i => i.Estado == EstadoItemGeneracion.Completado);
+    private int TotalFallidosLote => _itemsLote.Count(i => i.Estado == EstadoItemGeneracion.Fallido);
 
     private ElementoEditor? ElementoSeleccionado =>
         _idLocalSeleccionado is { } id ? _elementos.FirstOrDefault(e => e.IdLocal == id) : null;
@@ -315,6 +335,84 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     }
 
     private void CambiarValorManual(Guid idElemento, string valor) => _valoresManualesPorIdReal[idElemento] = valor;
+
+    private void AlternarTrabajadorLote(Guid trabajadorId, bool marcado)
+    {
+        if (marcado) _trabajadoresSeleccionadosLote.Add(trabajadorId);
+        else _trabajadoresSeleccionadosLote.Remove(trabajadorId);
+    }
+
+    private bool PuedeGenerarLote => !_procesandoLote && _trabajadoresSeleccionadosLote.Count > 0;
+
+    /// <summary>
+    /// IniciarLoteGeneracionDocumentosCommand crea el lote y sus items de una
+    /// vez (ya consultables por Query aunque la página se recargue); el
+    /// bucle que sigue —ProcesarItemLoteGeneracionCommand uno a uno— es la
+    /// ejecución síncrona-inmediata que ADR-010 § 2.6 nombra como opción por
+    /// defecto del MVP, con progreso en vivo dentro de este mismo circuito.
+    /// </summary>
+    private async Task GenerarLoteAsync()
+    {
+        if (!PuedeGenerarLote || _versionIdActual is not { } versionId) return;
+
+        _procesandoLote = true;
+        _itemsLote = [];
+        StateHasChanged();
+
+        try
+        {
+            var valoresManuales = _valoresManualesPorIdReal
+                .Where(par => !string.IsNullOrWhiteSpace(par.Value))
+                .ToDictionary(par => par.Key, par => par.Value);
+
+            var trabajadorIds = _trabajadoresSeleccionadosLote.ToList();
+            var resultado = await Mediator.Send(new IniciarLoteGeneracionDocumentosCommand(
+                versionId, trabajadorIds, _centroIdGeneracion, valoresManuales.Count == 0 ? null : valoresManuales));
+
+            if (resultado.EsFallido)
+            {
+                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            _itemsLote = resultado.Valor.ItemIds.Select((itemId, indice) => new ItemLoteEstado
+            {
+                ItemId = itemId,
+                TrabajadorId = trabajadorIds[indice],
+                TrabajadorNombre = _trabajadoresDisponibles.FirstOrDefault(t => t.Id == trabajadorIds[indice])?.NombreCompleto ?? "—",
+            }).ToList();
+            StateHasChanged();
+
+            foreach (var item in _itemsLote)
+            {
+                var resultadoItem = await Mediator.Send(new ProcesarItemLoteGeneracionCommand(item.ItemId));
+                var progreso = await Mediator.Send(new ObtenerLoteGeneracionDocumentosQuery(resultado.Valor.LoteId));
+                if (progreso.EsExitoso)
+                {
+                    var actualizado = progreso.Valor.Items.FirstOrDefault(i => i.ItemId == item.ItemId);
+                    if (actualizado is not null)
+                    {
+                        item.Estado = actualizado.Estado;
+                        item.Error = actualizado.Error;
+                    }
+                }
+                else if (resultadoItem.EsFallido)
+                {
+                    item.Estado = EstadoItemGeneracion.Fallido;
+                    item.Error = resultadoItem.Error.Mensaje;
+                }
+
+                StateHasChanged();
+            }
+
+            Toasts.Mostrar($"Lote terminado: {TotalCompletadosLote} generado(s), {TotalFallidosLote} con error.",
+                TotalFallidosLote == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+        }
+        finally
+        {
+            _procesandoLote = false;
+        }
+    }
 
     private async Task<List<PaginaEditor>> RasterizarPaginasAsync(byte[] contenidoPdf)
     {

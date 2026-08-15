@@ -214,6 +214,34 @@
 
                     @if (_ambitoAplicacion == AmbitoAplicacion.Trabajador)
                     {
+                        <div class="editor-plantilla-modo-generacion">
+                            <label class="campo-checkbox">
+                                <input type="radio" checked="@(!_modoLote)" @onchange="() => _modoLote = false" />
+                                Un trabajador
+                            </label>
+                            <label class="campo-checkbox">
+                                <input type="radio" checked="@_modoLote" @onchange="() => _modoLote = true" />
+                                Varios trabajadores (lote)
+                            </label>
+                        </div>
+                    }
+
+                    @if (_ambitoAplicacion == AmbitoAplicacion.Trabajador && _modoLote)
+                    {
+                        <p class="texto-vacio-seccion">Selecciona a quién se les genera el documento:</p>
+                        <div class="editor-plantilla-lista-trabajadores">
+                            @foreach (var trabajador in _trabajadoresDisponibles)
+                            {
+                                <label class="campo-checkbox">
+                                    <input type="checkbox" checked="@_trabajadoresSeleccionadosLote.Contains(trabajador.Id)"
+                                           @onchange="e => AlternarTrabajadorLote(trabajador.Id, e.Value is bool b && b)" />
+                                    @trabajador.NombreCompleto (@trabajador.Dni)
+                                </label>
+                            }
+                        </div>
+                    }
+                    else if (_ambitoAplicacion == AmbitoAplicacion.Trabajador)
+                    {
                         <CampoSelect Etiqueta="Trabajador" Valor="@(_ownerIdGeneracion?.ToString() ?? "")" ValorChanged="v => _ownerIdGeneracion = Guid.TryParse(v, out var id) ? id : null">
                             <option value="">— Selecciona —</option>
                             @foreach (var trabajador in _trabajadoresDisponibles)
@@ -254,7 +282,10 @@
                     @{ var elementosManuales = _elementos.Where(e => e.FuenteDato == FuenteDatoPlantilla.Manual && e.IdReal is not null).ToList(); }
                     @if (elementosManuales.Count > 0)
                     {
-                        <p class="texto-vacio-seccion">Estos campos no se rellenan solos — complétalos antes de generar:</p>
+                        <p class="texto-vacio-seccion">
+                            Estos campos no se rellenan solos — complétalos antes de generar
+                            @(_modoLote ? "(se aplica el mismo valor a todo el lote):" : ":")
+                        </p>
                         @foreach (var elemento in elementosManuales)
                         {
                             <CampoTexto Etiqueta="@elemento.EtiquetaVisible"
@@ -263,15 +294,51 @@
                         }
                     }
 
-                    <div class="editor-plantilla-acciones">
-                        <Boton OnClick="GenerarDocumentoAsync" Deshabilitado="@(!PuedeGenerar)">
-                            @(_generando ? "Generando…" : "Generar documento")
-                        </Boton>
-                    </div>
-
-                    @if (_documentoGeneradoId is { } documentoGeneradoId)
+                    @if (_ambitoAplicacion == AmbitoAplicacion.Trabajador && _modoLote)
                     {
-                        <a class="enlace-exportar" href="@($"/documentos?documentoId={documentoGeneradoId}")">Ver documento generado</a>
+                        <div class="editor-plantilla-acciones">
+                            <Boton OnClick="GenerarLoteAsync" Deshabilitado="@(!PuedeGenerarLote)">
+                                @(_procesandoLote ? $"Generando… ({TotalCompletadosLote + TotalFallidosLote}/{_itemsLote.Count})" : "Generar lote")
+                            </Boton>
+                        </div>
+
+                        @if (_itemsLote.Count > 0)
+                        {
+                            <div class="editor-plantilla-progreso-lote">
+                                <p>@TotalCompletadosLote generado(s), @TotalFallidosLote con error, de @_itemsLote.Count.</p>
+                                @foreach (var item in _itemsLote)
+                                {
+                                    <div class="editor-plantilla-progreso-item">
+                                        <span>@item.TrabajadorNombre</span>
+                                        @if (item.Estado == EstadoItemGeneracion.Completado)
+                                        {
+                                            <Badge Tono="TonoBadge.Exito">Generado</Badge>
+                                        }
+                                        else if (item.Estado == EstadoItemGeneracion.Fallido)
+                                        {
+                                            <Badge Tono="TonoBadge.Peligro">@(item.Error ?? "Error")</Badge>
+                                        }
+                                        else
+                                        {
+                                            <Badge Tono="TonoBadge.Neutro">Pendiente</Badge>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="editor-plantilla-acciones">
+                            <Boton OnClick="GenerarDocumentoAsync" Deshabilitado="@(!PuedeGenerar)">
+                                @(_generando ? "Generando…" : "Generar documento")
+                            </Boton>
+                        </div>
+
+                        @if (_documentoGeneradoId is { } documentoGeneradoId)
+                        {
+                            <a class="enlace-exportar" href="@($"/documentos?documentoId={documentoGeneradoId}")">Ver documento generado</a>
+                        }
                     }
                 </div>
             }
