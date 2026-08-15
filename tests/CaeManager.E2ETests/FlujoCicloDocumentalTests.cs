@@ -262,8 +262,15 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.GetByPlaceholder("Buscar por propietario o tipo de documento…").FillAsync(apellidosTrabajador);
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
+        // MenuAcciones.razor abre el desplegable con un @onclick server-side
+        // (alterna _abierto e ida y vuelta por SignalR) — se espera
+        // explícitamente a que el panel ".menu-acciones-panel" esté
+        // presente antes de buscar "Renovar" dentro, en vez de encadenar
+        // los dos clics de golpe.
         await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Más acciones" }).ClickAsync();
-        await filaDocumento.GetByText("Renovar").ClickAsync();
+        var panelAccionesDocumento = filaDocumento.Locator(".menu-acciones-panel");
+        await panelAccionesDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        await panelAccionesDocumento.GetByText("Renovar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         // Fecha de emisión sin tocar (sigue siendo hoy — evita el diálogo de
