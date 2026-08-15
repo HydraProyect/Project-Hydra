@@ -32,6 +32,7 @@
          Program.cs con UseSentry(...), así que hereda el mismo "inerte por
          defecto" sin Sentry:Dsn configurado (ver Program.cs). -->
     <PackageReference Include="Sentry" Version="6.7.0" />
+    <PackageReference Include="Stripe.net" Version="52.3.0" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.*" />
     <PackageReference Include="PDFtoImage" Version="5.2.1" />
   </ItemGroup>

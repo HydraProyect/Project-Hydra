@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260814224730_AgregarEstadoComercialATenant")]
+    partial class AgregarEstadoComercialATenant
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1044,9 +1047,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<bool>("MedicionTiempoActiva")
                         .HasColumnType("boolean");
-
-                    b.Property<decimal?>("PresupuestoMensualIaUsd")
-                        .HasColumnType("numeric");
 
                     b.Property<int>("SegundosInactividadPausa")
                         .HasColumnType("integer");
@@ -3024,15 +3024,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("CreadaEnUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int?>("DecisionHumana")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid?>("DocumentoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("FechaDecisionUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("HashSha256")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -3061,12 +3052,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
-                    b.Property<Guid?>("UsuarioDecisionId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("DocumentoId");
 
                     b.HasIndex("TenantId", "CreadaEnUtc");
 

@@ -118,4 +118,78 @@ public class TenantTests
 
         tenant.PerfilVocabulario.Should().Be(PerfilVocabularioTenant.Consultora);
     }
+
+    // Horizonte 1.7 ("Billing mínimo viable") — EstadoComercial es un campo
+    // aparte de Estado (ver EstadoComercialTenant): estos tests son la
+    // contrapartida de Suspender_cambia_el_estado_a_suspendido/Reactivar_revierte_la_suspension
+    // de arriba, demostrando que son independientes entre sí.
+
+    [Fact]
+    public void Un_tenant_nuevo_no_tiene_suscripcion_vinculada()
+    {
+        var tenant = new Tenant("Ibertec");
+
+        tenant.EstadoComercial.Should().Be(EstadoComercialTenant.SinSuscripcion);
+        tenant.StripeCustomerId.Should().BeNull();
+        tenant.StripeSubscriptionId.Should().BeNull();
+    }
+
+    [Fact]
+    public void VincularSuscripcionStripe_registra_los_ids_y_el_estado_inicial()
+    {
+        var tenant = new Tenant("Ibertec");
+
+        tenant.VincularSuscripcionStripe("cus_123", "sub_123", EstadoComercialTenant.Activa);
+
+        tenant.StripeCustomerId.Should().Be("cus_123");
+        tenant.StripeSubscriptionId.Should().Be("sub_123");
+        tenant.EstadoComercial.Should().Be(EstadoComercialTenant.Activa);
+        tenant.EstadoComercialActualizadoEnUtc.Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void VincularSuscripcionStripe_no_permite_un_customer_id_vacio(string invalido)
+    {
+        var tenant = new Tenant("Ibertec");
+
+        var accion = () => tenant.VincularSuscripcionStripe(invalido, "sub_123", EstadoComercialTenant.Activa);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void VincularSuscripcionStripe_no_permite_un_subscription_id_vacio(string invalido)
+    {
+        var tenant = new Tenant("Ibertec");
+
+        var accion = () => tenant.VincularSuscripcionStripe("cus_123", invalido, EstadoComercialTenant.Activa);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void ActualizarEstadoComercial_no_permite_cambiar_el_estado_sin_suscripcion_vinculada()
+    {
+        var tenant = new Tenant("Ibertec");
+
+        var accion = () => tenant.ActualizarEstadoComercial(EstadoComercialTenant.SoloLectura);
+
+        accion.Should().Throw<InvalidOperationException>();
+        tenant.EstadoComercial.Should().Be(EstadoComercialTenant.SinSuscripcion);
+    }
+
+    [Fact]
+    public void ActualizarEstadoComercial_aplica_el_nuevo_estado_de_una_suscripcion_ya_vinculada()
+    {
+        var tenant = new Tenant("Ibertec");
+        tenant.VincularSuscripcionStripe("cus_123", "sub_123", EstadoComercialTenant.Activa);
+
+        tenant.ActualizarEstadoComercial(EstadoComercialTenant.SoloLectura);
+
+        tenant.EstadoComercial.Should().Be(EstadoComercialTenant.SoloLectura);
+    }
 }
