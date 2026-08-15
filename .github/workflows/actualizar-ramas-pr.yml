@@ -12,6 +12,15 @@ name: Actualizar ramas de PRs abiertas
 # No se sustituye por merge queue porque esa función no está disponible para
 # este repositorio (personal, no organización) — confirmado por la propia API
 # devolviendo "Invalid rule 'merge_queue'" al intentar crearlo.
+#
+# PAT_ACTUALIZAR_RAMAS, no GITHUB_TOKEN: GitHub bloquea por diseño que un
+# push autorizado con el token por defecto de una Action dispare en cascada
+# el "pull_request" de otro workflow (protección contra una Action que
+# escala privilegios disparando otra) — el run queda en "action_required",
+# sin ejecutarse, hasta que alguien lo re-lanza a mano. Un PAT de verdad se
+# trata como si lo hubiera empujado una persona, así que sí encadena. Hallazgo
+# real la primera vez que este workflow corrió de verdad (2026-08-15): las 5
+# PRs que actualizó se quedaron todas en "action_required" a la vez.
 on:
   push:
     branches: [main]
@@ -25,7 +34,7 @@ jobs:
     steps:
       - name: Actualizar cada PR abierta a la última main
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_ACTUALIZAR_RAMAS }}
         run: |
           prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number --jq '.[].number')
           for pr in $prs; do
