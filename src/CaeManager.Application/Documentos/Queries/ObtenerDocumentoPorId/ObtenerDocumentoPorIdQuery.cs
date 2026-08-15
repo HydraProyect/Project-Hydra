@@ -14,6 +14,12 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 
 public record ObtenerDocumentoPorIdQuery(Guid Id) : IRequest<DocumentoDetalleDto?>;
 
+/// <summary>
+/// <paramref name="Version"/> viaja al formulario para volver en
+/// <c>RenovarDocumentoCommand</c>: es lo que permite detectar que otra
+/// persona renovó el documento mientras tanto (ver
+/// <c>ClienteDetalleDto</c> para el mismo patrón en Cliente).
+/// </summary>
 public record DocumentoDetalleDto(
     Guid Id,
     AmbitoAplicacion Ambito,
@@ -27,7 +33,8 @@ public record DocumentoDetalleDto(
     string? TipoDocumentoDescripcion,
     string? TipoDocumentoCriteriosValidacion,
     string? TipoDocumentoSeSolicitaA,
-    string? TipoDocumentoObservaciones);
+    string? TipoDocumentoObservaciones,
+    Guid Version);
 
 public class ObtenerDocumentoPorIdQueryHandler(IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentoPorIdQuery, DocumentoDetalleDto?>
@@ -48,7 +55,8 @@ public class ObtenerDocumentoPorIdQueryHandler(IClientesQueryContext clientesCon
                 d.FechaEmision,
                 d.FechaVencimiento,
                 d.ArchivoUrl,
-                d.Comentarios
+                d.Comentarios,
+                d.Version
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -119,6 +127,7 @@ public class ObtenerDocumentoPorIdQueryHandler(IClientesQueryContext clientesCon
             documento.Id, ambito, propietarioNombre, tipoDocumento.Nombre,
             tipoDocumento.AplicaVencimientoAutomatico, documento.FechaEmision, documento.FechaVencimiento,
             documento.ArchivoUrl, documento.Comentarios,
-            tipoDocumento.Descripcion, tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones);
+            tipoDocumento.Descripcion, tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones,
+            documento.Version);
     }
 }
