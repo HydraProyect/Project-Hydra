@@ -108,7 +108,20 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await page.Keyboard.PressAsync("Enter");
         var workspacePanel = page.Locator(".workspace-panel");
         await workspacePanel.GetByText(razonSocialA).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+
+        // DIAG temporal: confirmar dónde está el foco real del navegador justo
+        // antes de mandar "Escape" — la hipótesis es que ManejarTeclaGlobalAsync
+        // (@onkeydown solo en el <aside>) nunca se invoca porque el foco no
+        // está ahí de verdad, aunque el panel ya esté pintado en pantalla.
+        var activoAntes = await page.EvaluateAsync<string>(
+            "() => { const el = document.activeElement; return el ? `${el.tagName}#${el.id}.${el.className}` : 'null'; }");
+        Console.WriteLine($"[DIAG-TEST] document.activeElement antes de Escape: {activoAntes}");
+
         await page.Keyboard.PressAsync("Escape");
+
+        var activoDespues = await page.EvaluateAsync<string>(
+            "() => { const el = document.activeElement; return el ? `${el.tagName}#${el.id}.${el.className}` : 'null'; }");
+        Console.WriteLine($"[DIAG-TEST] document.activeElement justo despues de Escape: {activoDespues}");
         // 15s, no 10s: el cierre pasa por ContextWorkspace -> actualizar la URL
         // (?ctx=) -> LocationChanged -> reconciliar estado, una ruta más larga
         // que un simple toggle de clase, y la suite completa de AppCollection

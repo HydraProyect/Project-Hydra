@@ -86,11 +86,14 @@ public class ContextWorkspaceService
 
     public Task CerrarAsync()
     {
+        Console.Error.WriteLine($"[DIAG-WORKSPACE] CerrarAsync invocado, Pila.Count={_pila.Count}");
+
         if (_pila.Count == 0)
             return Task.CompletedTask;
 
         _pila.Clear();
         OnCambio?.Invoke();
+        Console.Error.WriteLine("[DIAG-WORKSPACE] CerrarAsync: pila vaciada, OnCambio invocado");
         return Task.CompletedTask;
     }
 }

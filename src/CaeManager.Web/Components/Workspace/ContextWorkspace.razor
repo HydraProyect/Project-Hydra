@@ -195,7 +195,11 @@
         var profundidadActual = WorkspaceService.Pila.Count;
 
         if (profundidadActual > 0 && _profundidadAnterior == 0)
+        {
+            Console.Error.WriteLine("[DIAG-WORKSPACE] OnAfterRenderAsync: 0->1, llamando FocusAsync sobre el aside");
             await _referenciaPanel.FocusAsync();
+            Console.Error.WriteLine("[DIAG-WORKSPACE] OnAfterRenderAsync: FocusAsync completado");
+        }
 
         _profundidadAnterior = profundidadActual;
     }
@@ -206,9 +210,12 @@
 
     private Task ManejarTeclaGlobalAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
     {
+        Console.Error.WriteLine($"[DIAG-WORKSPACE] ManejarTeclaGlobalAsync invocado, key={e.Key}");
+
         if (e.Key != "Escape")
             return Task.CompletedTask;
 
+        Console.Error.WriteLine($"[DIAG-WORKSPACE] Escape recibido, Pila.Count={WorkspaceService.Pila.Count}");
         return WorkspaceService.Pila.Count > 1 ? WorkspaceService.VolverAsync() : WorkspaceService.CerrarAsync();
     }
 
