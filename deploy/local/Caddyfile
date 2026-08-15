@@ -5,10 +5,28 @@
 # {$ACME_EMAIL} recibe los avisos de Let's Encrypt si un certificado no logra
 # renovarse — no es obligatorio, pero sin él un problema de renovación no
 # avisa a nadie hasta que el sitio empieza a dar error de TLS.
+#
+# Este Caddy es el único proceso de la máquina que puede ocupar el 80/443, así
+# que también sirve el segundo dominio de staging (ver
+# docker-compose.staging.yml) en vez de que staging levante su propio Caddy —
+# dos Caddy no pueden competir por los mismos puertos del host. La ACME_EMAIL
+# de arriba aplica a los certificados de ambos dominios.
 {
 	email {$ACME_EMAIL}
 }
 
 {$DOMINIO} {
-	reverse_proxy app:8080
+	# "caemanager-app" es el container_name, no el nombre de servicio "app" —
+	# en la red "caemanager-edge" (compartida con el stack de staging) el
+	# nombre de servicio "app" existe en los dos proyectos Compose a la vez y
+	# sería ambiguo; el container_name es único en toda la máquina.
+	reverse_proxy caemanager-app:8080
+}
+
+staging.talveg.es {
+	# Dominio de staging escrito literal (no ${DOMINIO_STAGING}): este
+	# Caddyfile y su .env son de producción — no tiene sentido acoplar el .env
+	# de producción a una variable que solo staging necesita. Cambiarlo aquí
+	# si el subdominio de staging cambia alguna vez.
+	reverse_proxy caemanager-staging-app:8080
 }
