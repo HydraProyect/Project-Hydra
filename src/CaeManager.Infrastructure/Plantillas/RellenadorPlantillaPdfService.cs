@@ -118,6 +118,14 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
 
     private static void DibujarElemento(XGraphics graficos, XFont fuente, ElementoRellenoPlantilla elemento)
     {
+        // La caja del editor visual (elemento.X/Y/Ancho/Alto) tiene su origen en la
+        // esquina superior izquierda, igual que el div CSS que el usuario arrastra.
+        // DrawString(texto, fuente, brocha, XPoint) ancla el punto en la LÍNEA BASE del
+        // texto, no en su parte superior — pasar elemento.Y directamente dibujaba el
+        // texto por encima de la caja. El overlay con XRect + XStringFormats.TopLeft sí
+        // ancla al borde superior, igual que ve el usuario en el editor.
+        var caja = new XRect(elemento.X, elemento.Y, elemento.Ancho, elemento.Alto);
+
         switch (elemento.Tipo)
         {
             case TipoElementoPlantilla.Imagen when elemento.ValorImagen is not null:
@@ -128,12 +136,12 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
 
             case TipoElementoPlantilla.Checkbox:
                 if (EsValorAfirmativo(elemento.Valor))
-                    graficos.DrawString("X", fuente, XBrushes.Black, new XPoint(elemento.X, elemento.Y));
+                    graficos.DrawString("X", fuente, XBrushes.Black, caja, XStringFormats.TopLeft);
                 break;
 
             default:
                 if (!string.IsNullOrEmpty(elemento.Valor))
-                    graficos.DrawString(elemento.Valor, fuente, XBrushes.Black, new XPoint(elemento.X, elemento.Y));
+                    graficos.DrawString(elemento.Valor, fuente, XBrushes.Black, caja, XStringFormats.TopLeft);
                 break;
         }
     }

@@ -43,7 +43,10 @@
     cursor: move;
     touch-action: none;
     display: flex;
-    align-items: center;
+    /* Alineado arriba, no centrado: el PDF final ancla el texto al borde
+       superior de la caja (XStringFormats.TopLeft en RellenadorPlantillaPdfService),
+       así que el editor debe mostrar lo mismo que se va a estampar. */
+    align-items: flex-start;
     overflow: hidden;
 }
 
