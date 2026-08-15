@@ -19,6 +19,7 @@ using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Visitas.PaqueteDocumental;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CaeManager.Application.DependencyInjection;
 
@@ -38,6 +39,13 @@ public static class ApplicationServiceCollectionExtensions
         // el proceso, no reiniciarse en cada petición como el resto de
         // dependencias Scoped de este método.
         services.AddSingleton<VentanaSaludOperativa>();
+        // TryAdd, no Add: Program.cs registra la implementación real
+        // (SentryAlertaOperativa, Infrastructure) después de AddApplication()
+        // y la sustituye — ver AlertaOperativaInerte para el porqué de este
+        // valor por defecto en vez de exigir que cada host que monte el
+        // pipeline de MediatR (incluidos los fixtures mínimos de
+        // CaeManager.IntegrationTests) registre uno explícito.
+        services.TryAddSingleton<IAlertaOperativa, AlertaOperativaInerte>();
         // Orden importa. LoggingBehavior va el primero de todos: mide lo que
         // el usuario espera de verdad, incluido el tiempo en la cola de
         // acceso a datos, y su ámbito de log correlaciona todo lo que
