@@ -235,21 +235,22 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // ninguna casilla a mano.
         await tarjetaCliente.GetByText(emailContacto).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-        // Diagnóstico si "Enviar reclamación" no aparece: CI ya reveló varias
-        // sorpresas de datos en pasos anteriores de este mismo test (el
-        // texto real de la opción de Centro, el modal de notificación) que
-        // ningún razonamiento a ciegas habría adivinado sin ver el HTML real
-        // — mejor volcar el contenido de la tarjeta en el mensaje de fallo
-        // que reintentar a ciegas otra vez.
-        try
-        {
-            await tarjetaCliente.GetByText(new Regex("^Enviar reclamación")).ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
-        }
-        catch (TimeoutException)
-        {
-            var contenido = await tarjetaCliente.InnerTextAsync();
-            throw new TimeoutException($"No se encontró \"Enviar reclamación\" en la tarjeta de \"{razonSocialCliente}\". Contenido actual de la tarjeta:\n{contenido}");
-        }
+        // El botón "Enviar reclamación (N)" en sí (ver AccionesHeader de
+        // ReclamacionesTab.razor) — Deshabilitado="@(seleccionados.Count == 0
+        // || ContactosMarcados(lote.ClienteId).Count == 0)". El diagnóstico
+        // de una ronda anterior en CI (InnerTextAsync de la tarjeta)
+        // confirmó que el texto SÍ está en el DOM — el fallo real era de
+        // actionability (visible/habilitado/estable), no de contenido.
+        // Se comprueba Deshabilitado explícitamente antes del clic: si de
+        // verdad está deshabilitado, esto falla al instante con un mensaje
+        // claro en vez de esperar 30s a un timeout genérico de Playwright.
+        var botonEnviarReclamacion = tarjetaCliente.GetByRole(
+            AriaRole.Button, new LocatorGetByRoleOptions { NameRegex = new Regex("^Enviar reclamación") });
+        await botonEnviarReclamacion.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        Assert.False(
+            await botonEnviarReclamacion.IsDisabledAsync(),
+            "El botón \"Enviar reclamación\" está deshabilitado — seleccionados o ContactosMarcados vacío en ReclamacionesTab (ver DrawerGestionDocumento/ModalContactoAgenda).");
+        await botonEnviarReclamacion.ClickAsync();
 
         // "Nunca reclamado." pasa a "Última reclamación: hoy." solo si
         // EnviarReclamacionCommand terminó con éxito y persistió la
