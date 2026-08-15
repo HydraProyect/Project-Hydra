@@ -285,6 +285,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ISelloEmpresaRepository, SelloEmpresaRepository>();
         services.AddScoped<IPlantillaDocumentoRepository, PlantillaDocumentoRepository>();
         services.AddScoped<IPlantillaDocumentoVersionRepository, PlantillaDocumentoVersionRepository>();
+        services.AddScoped<IDocumentoGeneradoRepository, DocumentoGeneradoRepository>();
         services.AddSingleton<IRellenadorPlantillaPdfService, RellenadorPlantillaPdfService>();
         services.AddSingleton<IExtractorCamposAcroFormService, ExtractorCamposAcroFormService>();
         services.AddScoped<IVerificacionDocumentoOficialRepository, VerificacionDocumentoOficialRepository>();

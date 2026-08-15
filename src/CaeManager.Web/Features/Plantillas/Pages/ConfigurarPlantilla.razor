@@ -26,10 +26,18 @@
             <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" />
             <CampoTextarea Etiqueta="Descripción (opcional)" Valor="@(_descripcion ?? "")" ValorChanged="v => _descripcion = string.IsNullOrWhiteSpace(v) ? null : v" />
 
-            <CampoSelect Etiqueta="Ámbito" Valor="@_ambitoAplicacion.ToString()" ValorChanged="CambiarAmbito">
+            <CampoSelect Etiqueta="Ámbito" Valor="@_ambitoAplicacion.ToString()" ValorChanged="CambiarAmbitoAsync">
                 <option value="@AmbitoAplicacion.Trabajador">Trabajador</option>
                 <option value="@AmbitoAplicacion.Empresa">Empresa</option>
                 <option value="@AmbitoAplicacion.Cliente">Cliente</option>
+            </CampoSelect>
+
+            <CampoSelect Etiqueta="Tipo de documento" Valor="@(_tipoDocumentoId?.ToString() ?? "")" ValorChanged="CambiarTipoDocumento">
+                <option value="">— Selecciona —</option>
+                @foreach (var tipo in _tiposDocumentoDisponibles)
+                {
+                    <option value="@tipo.Id">@tipo.Nombre</option>
+                }
             </CampoSelect>
 
             <CampoSelect Etiqueta="Formato del PDF" Valor="@_formatoOrigenSeleccionado.ToString()" ValorChanged="CambiarFormatoOrigen">
@@ -204,7 +212,13 @@
 </div>
 
 @code {
-    private void CambiarAmbito(string valor) => _ambitoAplicacion = Enum.Parse<AmbitoAplicacion>(valor);
+    private async Task CambiarAmbitoAsync(string valor)
+    {
+        _ambitoAplicacion = Enum.Parse<AmbitoAplicacion>(valor);
+        await CargarTiposDocumentoAsync();
+    }
+
+    private void CambiarTipoDocumento(string valor) => _tipoDocumentoId = Guid.TryParse(valor, out var id) ? id : null;
     private void CambiarFormatoOrigen(string valor) => _formatoOrigenSeleccionado = Enum.Parse<FormatoOrigenPlantilla>(valor);
     private void CambiarCentro(string valor) => _centroId = Guid.TryParse(valor, out var id) ? id : null;
     private void CambiarCliente(string valor) => _clienteId = Guid.TryParse(valor, out var id) ? id : null;

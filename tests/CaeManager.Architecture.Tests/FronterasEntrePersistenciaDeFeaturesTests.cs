@@ -298,6 +298,19 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Integraciones.CrearLineaWhatsAppCommandHandler", "IClienteRepository"),
         ("Integraciones.ObtenerConexionesIntegracionQueryHandler", "IClientesQueryContext"),
         ("Integraciones.ObtenerLineasWhatsAppQueryHandler", "IClientesQueryContext"),
+        // Alta de plantilla exige un TipoDocumento existente cuyo Ambito coincida
+        // (mismo criterio que Documentos.CrearDocumentoCommandHandler).
+        ("Plantillas.CrearPlantillaDocumentoCommandHandler", "ITiposDocumentoQueryContext"),
+        // Generación individual: resuelve TipoDocumento/Empresa/Trabajador/Centro/
+        // Cliente/ContactoAgenda para rellenar la plantilla y crea el Documento real
+        // (Domain.Documentos.IDocumentoRepository, otra feature de Domain).
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "ICentrosQueryContext"),
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "IClientesQueryContext"),
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "IContactosAgendaQueryContext"),
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "IDocumentoRepository"),
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "IEmpresasQueryContext"),
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "ITiposDocumentoQueryContext"),
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "ITrabajadoresQueryContext"),
         ("Proyectos.AsignarTecnicoProyectoCommandHandler", "ITrabajadoresQueryContext"),
         ("Proyectos.CrearProyectoCommandHandler", "ICentrosQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "ICentrosQueryContext"),

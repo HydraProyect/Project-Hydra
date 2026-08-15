@@ -8,7 +8,7 @@ namespace CaeManager.Domain.Tests.Plantillas;
 public class PlantillaDocumentoTests
 {
     private static PlantillaDocumento CrearPlantilla() =>
-        new(OrigenPlantilla.Externa, "Ficha de acceso al centro", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual);
+        new(OrigenPlantilla.Externa, "Ficha de acceso al centro", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual, Guid.NewGuid());
 
     [Fact]
     public void Nace_activa_y_sin_version_actual()
@@ -23,7 +23,16 @@ public class PlantillaDocumentoTests
     public void Constructor_rechaza_nombre_vacio()
     {
         var accion = () => new PlantillaDocumento(
-            OrigenPlantilla.Externa, "  ", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual);
+            OrigenPlantilla.Externa, "  ", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual, Guid.NewGuid());
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Constructor_rechaza_tipoDocumentoId_vacio()
+    {
+        var accion = () => new PlantillaDocumento(
+            OrigenPlantilla.Externa, "Ficha de acceso", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual, Guid.Empty);
 
         accion.Should().Throw<ArgumentException>();
     }

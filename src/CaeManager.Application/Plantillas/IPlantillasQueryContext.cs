@@ -8,4 +8,5 @@ public interface IPlantillasQueryContext
     IQueryable<PlantillaDocumentoVersion> PlantillasDocumentoVersion { get; }
     IQueryable<PlantillaElemento> PlantillasElemento { get; }
     IQueryable<ConocimientoDeteccionCampo> ConocimientosDeteccionCampo { get; }
+    IQueryable<DocumentoGenerado> DocumentosGenerados { get; }
 }

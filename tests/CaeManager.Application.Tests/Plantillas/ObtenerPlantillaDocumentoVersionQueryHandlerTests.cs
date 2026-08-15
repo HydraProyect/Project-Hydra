@@ -13,7 +13,7 @@ public class ObtenerPlantillaDocumentoVersionQueryHandlerTests
     {
         var contexto = new PlantillasQueryContextFalso();
         var documento = new PlantillaDocumento(
-            OrigenPlantilla.Externa, "Ficha de riesgos", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfConCampos);
+            OrigenPlantilla.Externa, "Ficha de riesgos", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfConCampos, Guid.NewGuid());
         var version = new PlantillaDocumentoVersion(documento.Id, 1, "url.pdf", new string('a', 64));
         var elemento = new PlantillaElemento(version.Id, TipoElementoPlantilla.Texto, 1, 10, 20, 100, 15, "CIF",
             FuenteDatoPlantilla.EmpresaCif);

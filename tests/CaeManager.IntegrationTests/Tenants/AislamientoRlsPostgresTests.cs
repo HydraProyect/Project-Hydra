@@ -68,8 +68,10 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         contacto.EstablecerRoles([RolContacto.ResponsablePrl]);
         dbContext.ContactosAgenda.Add(contacto);
 
+        var tipoDocumentoPlantilla = new TipoDocumento("Ficha de acceso", null, aplicaVencimientoAutomatico: false, 2, AmbitoAplicacion.Trabajador);
+        dbContext.TiposDocumento.Add(tipoDocumentoPlantilla);
         var plantilla = new PlantillaDocumento(
-            OrigenPlantilla.Externa, "Ficha de acceso al centro", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual);
+            OrigenPlantilla.Externa, "Ficha de acceso al centro", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual, tipoDocumentoPlantilla.Id);
         dbContext.PlantillasDocumento.Add(plantilla);
         var plantillaVersion = new PlantillaDocumentoVersion(plantilla.Id, 1, "url/plantilla.pdf", new string('a', 64));
         plantillaVersion.EstablecerElementos([

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -28,6 +29,16 @@ public class PlantillaDocumentoConfiguration : IEntityTypeConfiguration<Plantill
             .WithMany()
             .HasForeignKey(p => p.VersionActualId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Mismo criterio que Documento → TipoDocumento (DocumentoConfiguration).
+        builder.HasOne<TipoDocumento>()
+            .WithMany()
+            .HasForeignKey(p => new { p.TenantId, p.TipoDocumentoId })
+            .HasPrincipalKey(t => new { t.TenantId, t.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Prerequisito de la FK que DocumentoGenerado declara hacia PlantillaDocumento (vía versión).
+        builder.HasIndex(p => new { p.TenantId, p.Id }).IsUnique();
 
         // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.
     }

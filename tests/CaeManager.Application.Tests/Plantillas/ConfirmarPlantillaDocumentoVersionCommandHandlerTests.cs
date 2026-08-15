@@ -12,7 +12,7 @@ public class ConfirmarPlantillaDocumentoVersionCommandHandlerTests
     private static (PlantillaDocumento Documento, PlantillaDocumentoVersion Version) CrearPlantillaConVersion(bool conElementos = true)
     {
         var documento = new PlantillaDocumento(
-            OrigenPlantilla.Externa, "Ficha de riesgos", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfConCampos);
+            OrigenPlantilla.Externa, "Ficha de riesgos", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfConCampos, Guid.NewGuid());
         var version = new PlantillaDocumentoVersion(documento.Id, 1, "url-falsa.pdf", new string('a', 64));
         if (conElementos)
             version.EstablecerElementos([new PlantillaElemento(version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Campo")]);

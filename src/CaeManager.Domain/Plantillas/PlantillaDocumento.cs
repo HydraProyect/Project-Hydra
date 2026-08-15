@@ -25,6 +25,16 @@ public class PlantillaDocumento : EntidadConTenant
     public string? Descripcion { get; private set; }
     public AmbitoAplicacion AmbitoAplicacion { get; private set; }
 
+    /// <summary>
+    /// Bajo qué TipoDocumento cuenta cada documento generado a partir de esta
+    /// plantilla — un <see cref="Documentos.Documento"/> siempre exige uno
+    /// (ver <c>Documento</c>, campo obligatorio). Su
+    /// <c>AmbitoAplicacion</c> debe coincidir con <see cref="AmbitoAplicacion"/>
+    /// (validado al crear la plantilla, mismo criterio que
+    /// <c>CrearDocumentoCommandHandler</c>).
+    /// </summary>
+    public Guid TipoDocumentoId { get; private set; }
+
     /// <summary>Alcance opcional — a qué Centro o Cliente pertenece esta plantilla (ADR-010 § 2.9: "Centro-specific"). Ninguno de los dos informado = disponible para todo el tenant.</summary>
     public Guid? CentroId { get; private set; }
     public Guid? ClienteId { get; private set; }
@@ -47,15 +57,20 @@ public class PlantillaDocumento : EntidadConTenant
         string nombre,
         AmbitoAplicacion ambitoAplicacion,
         FormatoOrigenPlantilla formatoOrigen,
+        Guid tipoDocumentoId,
         string? descripcion = null,
         Guid? centroId = null,
         Guid? clienteId = null,
         string? codigoFormato = null)
     {
+        if (tipoDocumentoId == Guid.Empty)
+            throw new ArgumentException("La plantilla debe indicar bajo qué tipo de documento cuentan sus generaciones.", nameof(tipoDocumentoId));
+
         EstablecerNombre(nombre);
         Origen = origen;
         AmbitoAplicacion = ambitoAplicacion;
         FormatoOrigen = formatoOrigen;
+        TipoDocumentoId = tipoDocumentoId;
         EstablecerDescripcion(descripcion);
         CentroId = centroId;
         ClienteId = clienteId;

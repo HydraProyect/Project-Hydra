@@ -10,9 +10,11 @@ public class PlantillasQueryContextFalso : IPlantillasQueryContext
     public List<PlantillaDocumentoVersion> ListaPlantillasDocumentoVersion { get; } = [];
     public List<PlantillaElemento> ListaPlantillasElemento { get; } = [];
     public List<ConocimientoDeteccionCampo> ListaConocimientosDeteccionCampo { get; } = [];
+    public List<DocumentoGenerado> ListaDocumentosGenerados { get; } = [];
 
     public IQueryable<PlantillaDocumento> PlantillasDocumento => new TestAsyncQueryable<PlantillaDocumento>(ListaPlantillasDocumento.AsQueryable());
     public IQueryable<PlantillaDocumentoVersion> PlantillasDocumentoVersion => new TestAsyncQueryable<PlantillaDocumentoVersion>(ListaPlantillasDocumentoVersion.AsQueryable());
     public IQueryable<PlantillaElemento> PlantillasElemento => new TestAsyncQueryable<PlantillaElemento>(ListaPlantillasElemento.AsQueryable());
     public IQueryable<ConocimientoDeteccionCampo> ConocimientosDeteccionCampo => new TestAsyncQueryable<ConocimientoDeteccionCampo>(ListaConocimientosDeteccionCampo.AsQueryable());
+    public IQueryable<DocumentoGenerado> DocumentosGenerados => new TestAsyncQueryable<DocumentoGenerado>(ListaDocumentosGenerados.AsQueryable());
 }

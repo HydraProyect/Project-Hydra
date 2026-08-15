@@ -18,6 +18,7 @@ public record CrearPlantillaDocumentoCommand(
     string Nombre,
     AmbitoAplicacion AmbitoAplicacion,
     FormatoOrigenPlantilla FormatoOrigen,
+    Guid TipoDocumentoId,
     byte[] Contenido,
     string NombreArchivo,
     string? Descripcion = null,
@@ -33,6 +34,7 @@ public class CrearPlantillaDocumentoCommandValidator : AbstractValidator<CrearPl
     {
         RuleFor(c => c.Nombre).NotEmpty().MaximumLength(PlantillaDocumento.LongitudMaximaNombre);
         RuleFor(c => c.Descripcion).MaximumLength(PlantillaDocumento.LongitudMaximaDescripcion);
+        RuleFor(c => c.TipoDocumentoId).NotEmpty().WithMessage("Selecciona bajo qué tipo de documento cuentan los documentos generados.");
         RuleFor(c => c.Contenido).NotEmpty().WithMessage("El PDF de la plantilla es obligatorio.");
         RuleFor(c => c.NombreArchivo).NotEmpty();
         RuleFor(c => c.FormatoOrigen)

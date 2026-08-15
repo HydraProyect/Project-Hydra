@@ -6,6 +6,7 @@ using CaeManager.Application.Plantillas.Commands.CrearPlantillaDocumento;
 using CaeManager.Application.Plantillas.Commands.GuardarElementosPlantilla;
 using CaeManager.Application.Plantillas.Queries.DetectarCamposPlantilla;
 using CaeManager.Application.Plantillas.Queries.ObtenerPlantillaDocumentoVersion;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Web.Components.DesignSystem;
@@ -64,11 +65,13 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     private FormatoOrigenPlantilla _formatoOrigenSeleccionado = FormatoOrigenPlantilla.PdfConCampos;
     private Guid? _centroId;
     private Guid? _clienteId;
+    private Guid? _tipoDocumentoId;
     private byte[]? _archivoSeleccionado;
     private string? _nombreArchivoSeleccionado;
     private bool _creando;
     private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
+    private IReadOnlyList<TipoDocumentoListaDto> _tiposDocumentoDisponibles = [];
 
     // Editor — una vez creada (o al reabrir un borrador existente).
     private Guid? _versionIdActual;
@@ -92,6 +95,14 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     {
         _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
         _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+        await CargarTiposDocumentoAsync();
+    }
+
+    private async Task CargarTiposDocumentoAsync()
+    {
+        _tiposDocumentoDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: _ambitoAplicacion));
+        if (_tipoDocumentoId is { } id && _tiposDocumentoDisponibles.All(t => t.Id != id))
+            _tipoDocumentoId = null;
     }
 
     protected override async Task OnParametersSetAsync()
@@ -173,11 +184,11 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     }
 
     private bool PuedeCrear =>
-        !_creando && !string.IsNullOrWhiteSpace(_nombre) && _archivoSeleccionado is { Length: > 0 };
+        !_creando && !string.IsNullOrWhiteSpace(_nombre) && _archivoSeleccionado is { Length: > 0 } && _tipoDocumentoId is not null;
 
     private async Task CrearPlantillaAsync()
     {
-        if (!PuedeCrear || _archivoSeleccionado is null) return;
+        if (!PuedeCrear || _archivoSeleccionado is null || _tipoDocumentoId is not { } tipoDocumentoId) return;
 
         _creando = true;
         StateHasChanged();
@@ -185,7 +196,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         try
         {
             var resultado = await Mediator.Send(new CrearPlantillaDocumentoCommand(
-                _nombre, _ambitoAplicacion, _formatoOrigenSeleccionado, _archivoSeleccionado,
+                _nombre, _ambitoAplicacion, _formatoOrigenSeleccionado, tipoDocumentoId, _archivoSeleccionado,
                 _nombreArchivoSeleccionado ?? "plantilla.pdf", _descripcion, _centroId, _clienteId));
 
             if (resultado.EsFallido)

@@ -208,6 +208,8 @@ public class CaeManagerDbContext(
     IQueryable<CaeManager.Domain.Plantillas.PlantillaElemento> CaeManager.Application.Plantillas.IPlantillasQueryContext.PlantillasElemento => PlantillasElemento;
     public DbSet<CaeManager.Domain.Plantillas.ConocimientoDeteccionCampo> ConocimientosDeteccionCampo => Set<CaeManager.Domain.Plantillas.ConocimientoDeteccionCampo>();
     IQueryable<CaeManager.Domain.Plantillas.ConocimientoDeteccionCampo> CaeManager.Application.Plantillas.IPlantillasQueryContext.ConocimientosDeteccionCampo => ConocimientosDeteccionCampo;
+    public DbSet<CaeManager.Domain.Plantillas.DocumentoGenerado> DocumentosGenerados => Set<CaeManager.Domain.Plantillas.DocumentoGenerado>();
+    IQueryable<CaeManager.Domain.Plantillas.DocumentoGenerado> CaeManager.Application.Plantillas.IPlantillasQueryContext.DocumentosGenerados => DocumentosGenerados;
     public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
     IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
     public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();
