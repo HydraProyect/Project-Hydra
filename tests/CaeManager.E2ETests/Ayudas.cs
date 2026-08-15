@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using ClosedXML.Excel;
 using Microsoft.Playwright;
 using PdfSharp.Pdf;
 
@@ -229,5 +230,50 @@ public static class Ayudas
     {
         const string letrasControl = "TRWAGMYFPDXBNJZSQVHLCKE";
         return $"{numero:D8}{letrasControl[numero % 23]}";
+    }
+
+    /// <summary>
+    /// Vuelve inválido un CIF generado por <see cref="GenerarCifValido"/> sin
+    /// tocar su formato (letra + 7 dígitos + dígito de control) — solo
+    /// cambia el dígito de control por uno distinto, así que
+    /// ValidadorIdentificacion.Analizar lo sigue reconociendo como
+    /// TipoIdentificacion.NifEmpresa pero con EsValido=false. Para los tests
+    /// de importación que deliberadamente prueban la fila "CIF no válido".
+    /// </summary>
+    public static string InvalidarCif(string cifValido)
+    {
+        var ultimoDigito = cifValido[^1];
+        var sustituto = ultimoDigito == '0' ? '1' : '0';
+        return cifValido[..^1] + sustituto;
+    }
+
+    /// <summary>
+    /// Guarda un libro ClosedXML ya construido por el test en un archivo
+    /// temporal — mismo patrón que GenerarPdfDePruebaEnDisco (SetInputFilesAsync
+    /// necesita una ruta real en disco). ClosedXML es la misma librería que
+    /// ya usan ClosedXmlPlantillaClientesService/ClosedXmlPlantillaCombinadaService/
+    /// ClosedXmlPlantillaDocumentosService/ClosedXmlImportacionParser en
+    /// producción para generar y leer estos mismos formatos — cada test
+    /// construye el libro con las columnas exactas que ese parser espera
+    /// (documentadas en cada uno de esos archivos), no una plantilla
+    /// genérica de conveniencia.
+    /// </summary>
+    public static string GuardarLibroDePruebaEnDisco(XLWorkbook libro, string nombreArchivo)
+    {
+        var ruta = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}-{nombreArchivo}");
+        libro.SaveAs(ruta);
+        return ruta;
+    }
+
+    /// <summary>
+    /// Lee el número mostrado por una TarjetaMetrica de las pantallas de
+    /// importación ("Clientes nuevos", "Documentos creados"…) — cada
+    /// etiqueta es única dentro de la pantalla, así que HasText sobre
+    /// ".tarjeta-metrica" no ambigua entre tarjetas.
+    /// </summary>
+    public static async Task<string> LeerMetricaAsync(IPage page, string etiqueta)
+    {
+        var tarjeta = page.Locator(".tarjeta-metrica", new PageLocatorOptions { HasText = etiqueta });
+        return (await tarjeta.Locator(".tarjeta-metrica-valor").InnerTextAsync()).Trim();
     }
 }
