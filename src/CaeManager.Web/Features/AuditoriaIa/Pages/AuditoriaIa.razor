@@ -49,6 +49,7 @@
                     <th>Coste OCR</th>
                     <th>Coste extracción</th>
                     <th>Tiempo (ms)</th>
+                    <th>Decisión humana</th>
                     <th>Incidencias</th>
                 </tr>
             </thead>
@@ -75,6 +76,16 @@
                         <td>@FormatearCoste(registro.CosteEstimadoOcr)</td>
                         <td>@FormatearCoste(registro.CosteEstimado)</td>
                         <td>@registro.TiempoProcesamientoMs</td>
+                        <td>
+                            @if (registro.DocumentoId is null)
+                            {
+                                <span>—</span>
+                            }
+                            else
+                            {
+                                <Badge Tono="@BadgeParaDecision(registro)">@TextoDecision(registro)</Badge>
+                            }
+                        </td>
                         <td class="celda-incidencias">@(registro.Incidencias ?? "—")</td>
                     </tr>
                 }
