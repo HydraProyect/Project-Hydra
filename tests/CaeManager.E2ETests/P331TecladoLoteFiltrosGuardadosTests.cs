@@ -108,26 +108,18 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await page.Keyboard.PressAsync("Enter");
         var workspacePanel = page.Locator(".workspace-panel");
         await workspacePanel.GetByText(razonSocialA).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-
-        // DIAG temporal: confirmar dónde está el foco real del navegador justo
-        // antes de mandar "Escape" — la hipótesis es que ManejarTeclaGlobalAsync
-        // (@onkeydown solo en el <aside>) nunca se invoca porque el foco no
-        // está ahí de verdad, aunque el panel ya esté pintado en pantalla.
-        var activoAntes = await page.EvaluateAsync<string>(
-            "() => { const el = document.activeElement; return el ? `${el.tagName}#${el.id}.${el.className}` : 'null'; }");
-        Console.WriteLine($"[DIAG-TEST] document.activeElement antes de Escape: {activoAntes}");
-
         await page.Keyboard.PressAsync("Escape");
-
-        var activoDespues = await page.EvaluateAsync<string>(
-            "() => { const el = document.activeElement; return el ? `${el.tagName}#${el.id}.${el.className}` : 'null'; }");
-        Console.WriteLine($"[DIAG-TEST] document.activeElement justo despues de Escape: {activoDespues}");
-        // 15s, no 10s: el cierre pasa por ContextWorkspace -> actualizar la URL
-        // (?ctx=) -> LocationChanged -> reconciliar estado, una ruta más larga
-        // que un simple toggle de clase, y la suite completa de AppCollection
-        // ha crecido bastante esta noche — bajo esa carga, 10s empezó a
-        // quedarse corto sin que cambiara nada en la lógica de cierre en sí
-        // (sin tocar desde #191, y este mismo test pasaba limpio horas antes).
+        // 15s: el cierre pasa por ContextWorkspace -> actualizar la URL (?ctx=)
+        // -> LocationChanged -> reconciliar estado. La causa real del cuelgue
+        // intermitente (visto en CI en #209/#211) era otra: OnAfterRenderAsync
+        // podía invocarse dos veces para la misma apertura (Blazor puede
+        // volver a renderizar mientras el primer FocusAsync seguía en vuelo,
+        // vía el propio NavigateTo de ManejarCambio) y, bajo carga real, la
+        // segunda llamada a FocusAsync podía caer sobre una referencia ya
+        // obsoleta del <aside> — el foco del navegador nunca llegaba a él, así
+        // que el Escape del test no tenía ningún @onkeydown que lo recogiera.
+        // Corregido marcando la transición como consumida antes del await en
+        // OnAfterRenderAsync (ver ese método).
         await workspacePanel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Selección múltiple visible + segunda fila por checkbox, y borrado en lote ---
