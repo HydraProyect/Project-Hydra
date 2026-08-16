@@ -16,11 +16,17 @@
 // interactivo es un experimento aparte y más caro de mantener; esto es la
 // primera cifra defendible, no una suite de carga completa.
 //
-// Sin thresholds que fallen el build a propósito (mismo criterio que la
-// cobertura de código, ver ci.yml): con cero cifras previas, un umbral
-// inventado no sería defendible. El resumen impreso al final es la primera
-// cifra real con la que decidir uno.
-
+// Thresholds (auditoría de madurez 2026-08-16, P2 #14 heredado del informe
+// anterior): tres runs consecutivos en CI (2026-08-15, mismo hardware de
+// runner) dieron p(95) entre 1,9ms y 2,15ms y 0% de fallos sobre 910
+// peticiones cada vez — la primera cifra real con la que fijar un umbral
+// defendible. Los valores de abajo dejan ~100x de margen sobre lo observado
+// a propósito: el objetivo es cazar una regresión real (una consulta N+1,
+// un lock, un timeout) contra rutas anónimas en un runner de CI compartido,
+// no reproducir un SLA de producción con tráfico real. El job sigue con
+// continue-on-error a nivel de job (ver ci.yml) — un umbral roto se ve en
+// rojo en el resumen, pero no bloquea el merge todavía: hace falta más
+// historial bajo distintas condiciones de runner antes de dar ese paso.
 import http from "k6/http";
 import { check, sleep } from "k6";
 
@@ -35,6 +41,11 @@ export const options = {
         { duration: "15s", target: 0 },
       ],
     },
+  },
+  thresholds: {
+    http_req_failed: ["rate<0.01"],
+    http_req_duration: ["p(95)<200"],
+    checks: ["rate>0.99"],
   },
 };
 
