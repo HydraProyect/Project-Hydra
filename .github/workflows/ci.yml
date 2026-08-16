@@ -190,17 +190,20 @@ jobs:
 
       # P2 #25 de docs/business/MATURITY_REVIEW.md: escaneo de la imagen de
       # despliegue en busca de vulnerabilidades conocidas (SO + paquetes del
-      # framework de .NET). No bloqueante a propósito (exit-code 0) hasta que
-      # alguien triage el primer informe — convertirlo en bloqueante sin
-      # revisarlo antes rompería el CI de golpe por vulnerabilidades ya
-      # existentes que nadie ha decidido todavía si son aceptables o no.
+      # framework de .NET). Bloqueante desde la auditoría de madurez
+      # 2026-08-16: el primer triage real (los tres runs previos de este
+      # mismo workflow, 2026-08-15) dio 0 hallazgos CRITICAL/HIGH — no había
+      # nada pendiente que este cambio convirtiera en bloqueante de golpe.
+      # Si una vulnerabilidad nueva aparece y se decide que es aceptable
+      # (falso positivo, sin parche disponible todavía), se documenta con
+      # un .trivyignore en vez de volver a exit-code 0 para todo el escaneo.
       - name: Escanear vulnerabilidades de la imagen (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: caemanager:ci
           format: table
           severity: CRITICAL,HIGH
-          exit-code: "0"
+          exit-code: "1"
 
   bunit-tests:
     name: Tests de componentes (bUnit)

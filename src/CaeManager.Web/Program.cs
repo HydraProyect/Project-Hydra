@@ -395,7 +395,8 @@ builder.Services.AddSingleton<CircuitHandler, CaeManager.Web.Services.MetricasCi
 // cualquier uptime check externo veía un servicio sano que no podía servir
 // ni el login. Ahora ejecuta un SELECT 1 contra la base de datos: 200
 // "Healthy" solo si el proceso vive Y la BD responde. Sigue siendo anónimo
-// y barato a propósito (es lo que sondea Railway y el uptime check externo).
+// y barato a propósito (es lo que sondea el healthcheck de Docker Compose y
+// el uptime check externo — ver deploy/local/docker-compose.produccion.yml).
 builder.Services.AddHealthChecks()
     .AddNpgSql(
         sp => builder.Configuration.GetConnectionString("CaeManagerDb")
@@ -408,13 +409,16 @@ CaeManager.Application.Common.Marca.Configurar(builder.Configuration["Marca:Nomb
 
 var app = builder.Build();
 
-// Modo dedicado para el paso de "pre-deploy" de Railway (ver railway.json y
-// DEPLOY.md § 4 — P2 #22 de docs/business/MATURITY_REVIEW.md, una de las
-// tres cosas que desbloquean multi-réplica): aplica las migraciones
-// pendientes y termina, sin levantar Kestrel ni sembrar datos. Así el
-// esquema se cierra una única vez, antes de que arranque ninguna réplica del
-// proceso web — no N réplicas compitiendo por aplicar DDL a la vez en cada
-// redeploy/reinicio.
+// Modo dedicado para un paso de "pre-deploy" (ver DEPLOY.md § 4 — P2 #22 de
+// docs/business/MATURITY_REVIEW.md, una de las tres cosas que desbloquean
+// multi-réplica): aplica las migraciones pendientes y termina, sin levantar
+// Kestrel ni sembrar datos. Así el esquema se cierra una única vez, antes de
+// que arranque ninguna réplica del proceso web — no N réplicas compitiendo
+// por aplicar DDL a la vez en cada redeploy/reinicio. No está wireado a
+// ningún paso del pipeline de deploy actual (deploy/local, .github/workflows/
+// deploy.yml aplican las migraciones en el arranque normal, ver
+// Migraciones:AlArrancar más abajo) — queda disponible para cuando el
+// despliegue pase a multi-réplica y haga falta un pre-deploy explícito.
 if (args.Contains("--migrate-only"))
 {
     using var scopeMigracion = app.Services.CreateScope();
@@ -422,8 +426,8 @@ if (args.Contains("--migrate-only"))
     return;
 }
 
-// Detrás de un proxy inverso (Railway, cualquier despliegue en contenedor —
-// ver DEPLOY.md), Kestrel solo ve tráfico HTTP interno; sin esto,
+// Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y DEPLOY.md),
+// Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS
 // y pueden entrar en bucle de redirección. KnownProxies/KnownNetworks se
 // dejan vacíos a propósito: el proxy de entrada cambia según dónde se
@@ -435,24 +439,24 @@ var opcionesForwardedHeaders = new ForwardedHeadersOptions
 };
 // KnownProxies/KnownIPNetworks traen loopback por defecto: un inicializador
 // `= { }` no los vacía, solo no añade nada más. Sin este Clear() explícito,
-// el middleware descarta X-Forwarded-Proto porque el edge de Railway no es
-// loopback, y la app cree que la petición es HTTP (genera Location: http://
-// en redirects, lo que rompe el login vía CSP form-action).
+// el middleware descarta X-Forwarded-Proto porque Caddy no habla desde
+// loopback (es un contenedor propio en la red "edge", ver docker-compose.
+// produccion.yml), y la app cree que la petición es HTTP (genera
+// Location: http:// en redirects, lo que rompe el login vía CSP form-action).
 opcionesForwardedHeaders.KnownProxies.Clear();
 opcionesForwardedHeaders.KnownIPNetworks.Clear();
 app.UseForwardedHeaders(opcionesForwardedHeaders);
 
 using (var scope = app.Services.CreateScope())
 {
-    // Migraciones__AlArrancar=false (Railway) una vez que el
-    // preDeployCommand de railway.json esté aplicándolas de verdad — hasta
-    // entonces, por defecto (true), el arranque normal las aplica igual que
-    // siempre: con el pre-deploy sin adoptar, es la única vía que las
-    // ejecuta. Con las dos activas a la vez no hay riesgo de una sola
-    // réplica (las migraciones ya aplicadas no se repiten), pero si se
-    // escalase a varias réplicas simultáneas sí volvería la carrera que
-    // migrate-only existe para evitar — de ahí el apagador explícito en vez
-    // de dejarlo siempre encendido.
+    // Migraciones__AlArrancar=false, el día que un pre-deploy (--migrate-only
+    // de más arriba) se adopte de verdad en el pipeline — hasta entonces, por
+    // defecto (true), el arranque normal las aplica igual que siempre: con el
+    // pre-deploy sin adoptar, es la única vía que las ejecuta. Con las dos
+    // activas a la vez no hay riesgo de una sola réplica (las migraciones ya
+    // aplicadas no se repiten), pero si se escalase a varias réplicas
+    // simultáneas sí volvería la carrera que migrate-only existe para evitar
+    // — de ahí el apagador explícito en vez de dejarlo siempre encendido.
     if (app.Configuration.GetValue("Migraciones:AlArrancar", defaultValue: true))
     {
         await MigrarBaseDeDatosAsync(app.Configuration, scope.ServiceProvider);
