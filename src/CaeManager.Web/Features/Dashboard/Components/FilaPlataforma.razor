@@ -1,0 +1,27 @@
+@*
+    Una fila = un portal externo con acreditaciones pendientes o rechazadas
+    (P-04 de la auditoría de producto 2026-08-16, "Pendiente por
+    plataforma"). Sin botón de acción a propósito: la vista agrupada de
+    Documentos por plataforma (PROMPT 03/SCREEN 03 de la especificación) es
+    su propio rediseño, todavía sin construir — un botón "Ver pendientes"
+    sin destino real sería justo el botón muerto que el informe de
+    consistencia (§ 46.3) verificó que este producto NO tiene en ningún
+    sitio. Se añade cuando exista esa pantalla.
+*@
+@using CaeManager.Application.Dashboard.Queries
+
+<div class="fila-plataforma">
+    <span class="fila-plataforma-nombre">@Plataforma.ProveedorNombre</span>
+    <span class="fila-plataforma-detalle">
+        <span>@Plataforma.PendientesDeSubir @(Plataforma.PendientesDeSubir == 1 ? "pendiente" : "pendientes") de subir</span>
+        @if (Plataforma.Rechazadas > 0)
+        {
+            <span class="fila-plataforma-separador">·</span>
+            <span class="fila-plataforma-rechazadas">@Plataforma.Rechazadas @(Plataforma.Rechazadas == 1 ? "rechazado" : "rechazados")</span>
+        }
+    </span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PendientePorPlataformaDto Plataforma { get; set; } = default!;
+}

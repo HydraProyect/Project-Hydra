@@ -22,7 +22,9 @@ public record KpisDashboardDto(
     int VisitasProgramadas,
     int TasaCumplimientoDocumental,
     int VisitasUrgentes = 0,
-    bool SinCarteraAsignada = false);
+    bool SinCarteraAsignada = false,
+    /// <summary>Trabajadores dados de alta desde el día 1 del mes en curso (mockup Inicio TALVEG, pista del KPI "Trabajadores activos") — EntidadBase.CreadoEnUtc, sin campo nuevo.</summary>
+    int TrabajadoresNuevosEsteMes = 0);
 
 /// <summary>
 /// Los seis KPI del Dashboard (ver DATABASE.md, hoja "Dashboard" del Excel
@@ -51,6 +53,9 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         var trabajadoresQuery = trabajadoresContext.Trabajadores.AsQueryable();
         if (trabajadorIdsVisibles is not null) trabajadoresQuery = trabajadoresQuery.Where(t => trabajadorIdsVisibles.Contains(t.Id));
         var trabajadoresActivos = await trabajadoresQuery.CountAsync(cancellationToken);
+
+        var inicioDeMes = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var trabajadoresNuevosEsteMes = await trabajadoresQuery.CountAsync(t => t.CreadoEnUtc >= inicioDeMes, cancellationToken);
 
         var centrosQuery = centrosContext.Centros.AsQueryable();
         if (centroIdsVisibles is not null) centrosQuery = centrosQuery.Where(c => centroIdsVisibles.Contains(c.Id));
@@ -97,6 +102,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             VisitasProgramadas: visitasProgramadas,
             TasaCumplimientoDocumental: tasa,
             VisitasUrgentes: visitasUrgentes,
-            SinCarteraAsignada: sinCarteraAsignada);
+            SinCarteraAsignada: sinCarteraAsignada,
+            TrabajadoresNuevosEsteMes: trabajadoresNuevosEsteMes);
     }
 }

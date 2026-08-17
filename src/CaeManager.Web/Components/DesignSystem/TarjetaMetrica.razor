@@ -12,6 +12,10 @@
             }
             <span class="tarjeta-metrica-valor">@Valor</span>
         </span>
+        @if (!string.IsNullOrWhiteSpace(Pista))
+        {
+            <span class="tarjeta-metrica-pista">@Pista</span>
+        }
     </a>
 }
 else
@@ -25,6 +29,10 @@ else
             }
             <span class="tarjeta-metrica-valor">@Valor</span>
         </span>
+        @if (!string.IsNullOrWhiteSpace(Pista))
+        {
+            <span class="tarjeta-metrica-pista">@Pista</span>
+        }
     </div>
 }
 
@@ -50,6 +58,14 @@ else
     /// tiene sentido que sea clicable.
     /// </summary>
     [Parameter] public string? Enlace { get; set; }
+
+    /// <summary>
+    /// Tercera línea, opcional, en tono atenuado — contexto del valor
+    /// principal (p. ej. "12 nuevos este mes", "2 centros bloqueados").
+    /// Ausente cuando el llamador no tiene un dato real que ofrecer: no se
+    /// rellena con una frase vacía solo por completar la tarjeta.
+    /// </summary>
+    [Parameter] public string? Pista { get; set; }
 
     /// <summary>
     /// Variante de menor peso visual (sin degradado, sin borde de color, valor

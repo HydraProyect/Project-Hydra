@@ -1,8 +1,10 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
@@ -35,6 +37,19 @@ namespace CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 /// </summary>
 public record ObtenerAlertasQuery : IRequest<IReadOnlyList<AlertaDto>>;
 
+/// <param name="CentroId">
+/// Solo resuelto para alertas de "documento faltante" (exacto, viene del par
+/// Trabajador-Centro evaluado) y para alertas de vigencia vía el Centro
+/// "principal" del Trabajador (<see cref="IResolverClientePrincipalService"/>)
+/// — null si el Trabajador no tiene ninguna asignación activa.
+/// </param>
+/// <param name="ClienteId">
+/// Cliente del <see cref="CentroId"/> resuelto — alimenta la agrupación "por
+/// situación" del rediseño de Inicio (hallazgo P-03 de la auditoría de
+/// producto 2026-08-16). Ver el comentario de <see cref="IResolverClientePrincipalService"/>
+/// sobre por qué una alerta de vigencia (sin Centro propio) no tiene un
+/// Cliente canónico cuando el Trabajador tiene varias asignaciones activas.
+/// </param>
 public record AlertaDto(
     Guid? DocumentoId,
     Guid TrabajadorId,
@@ -44,7 +59,12 @@ public record AlertaDto(
     DateOnly? FechaVencimiento,
     EstadoDocumento Estado,
     string? ArchivoUrl,
-    string? CentroNombre);
+    string? CentroNombre,
+    Guid? CentroId = null,
+    Guid? ClienteId = null,
+    string? ClienteNombre = null,
+    Guid? EmpresaId = null,
+    string? EmpresaNombre = null);
 
 public class ObtenerAlertasQueryHandler(
     IConfiguracionQueryContext configuracionContext,
@@ -53,6 +73,9 @@ public class ObtenerAlertasQueryHandler(
     ITrabajadoresQueryContext trabajadoresContext,
     IAsignacionesQueryContext asignacionesContext,
     ICentrosQueryContext centrosContext,
+    IClientesQueryContext clientesContext,
+    IEmpresasQueryContext empresasContext,
+    IResolverClientePrincipalService resolverClientePrincipal,
     IAlcanceDatosService alcanceDatos,
     IDocumentosFaltantesService documentosFaltantesService)
     : IRequestHandler<ObtenerAlertasQuery, IReadOnlyList<AlertaDto>>
@@ -96,22 +119,32 @@ public class ObtenerAlertasQueryHandler(
                 TipoDocumentoId = tipoDocumento.Id,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaVencimiento,
-                documento.ArchivoUrl
+                documento.ArchivoUrl,
+                trabajador.EmpresaId
             })
             .ToListAsync(cancellationToken);
 
-        var alertasVigencia = vigenciaFilas
+        var alertasVigenciaSinCliente = vigenciaFilas
             .Select(f => new AlertaDto(
                 f.DocumentoId, f.TrabajadorId, f.TrabajadorNombre, f.TipoDocumentoId, f.TipoDocumentoNombre,
                 f.FechaVencimiento,
                 CalculadoraEstadoDocumento.Calcular(
                     f.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
-                f.ArchivoUrl, CentroNombre: null))
-            .Where(a => a.Estado is EstadoDocumento.Proximo or EstadoDocumento.Urgente or EstadoDocumento.Vencido);
+                f.ArchivoUrl, CentroNombre: null, EmpresaId: f.EmpresaId))
+            .Where(a => a.Estado is EstadoDocumento.Proximo or EstadoDocumento.Urgente or EstadoDocumento.Vencido)
+            .ToList();
+
+        var clientePrincipalPorTrabajador = await resolverClientePrincipal.ResolverPorTrabajadorAsync(
+            alertasVigenciaSinCliente.Select(a => a.TrabajadorId).Distinct().ToList(), cancellationToken);
+
+        var alertasVigencia = alertasVigenciaSinCliente.Select(a =>
+            clientePrincipalPorTrabajador.TryGetValue(a.TrabajadorId, out var principal)
+                ? a with { CentroId = principal.CentroId, ClienteId = principal.ClienteId, ClienteNombre = principal.ClienteNombre }
+                : a);
 
         var alertasFaltantes = await ObtenerFaltantesAsync(trabajadorIdsVisibles, centroIdsVisibles, cancellationToken);
 
-        return alertasVigencia
+        var combinadas = alertasVigencia
             .Concat(alertasFaltantes)
             .OrderBy(a => a.Estado switch
             {
@@ -121,6 +154,30 @@ public class ObtenerAlertasQueryHandler(
                 _ => 3
             })
             .ThenBy(a => a.FechaVencimiento)
+            .ToList();
+
+        return await ConEmpresaNombreAsync(combinadas, cancellationToken);
+    }
+
+    /// <summary>
+    /// Nombre de Empresa resuelto en un único lote al final (no por fila):
+    /// alimenta la agrupación Empresa→Trabajador de "Requiere atención" en
+    /// vocabulario Consultora (GrupoCola, ver también
+    /// ObtenerDocumentacionBloqueantePendienteQuery, mismo patrón).
+    /// </summary>
+    private async Task<List<AlertaDto>> ConEmpresaNombreAsync(List<AlertaDto> alertas, CancellationToken cancellationToken)
+    {
+        var empresaIds = alertas.Where(a => a.EmpresaId is not null).Select(a => a.EmpresaId!.Value).Distinct().ToList();
+        if (empresaIds.Count == 0) return alertas;
+
+        var nombresPorEmpresa = await empresasContext.Empresas
+            .Where(e => empresaIds.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
+
+        return alertas
+            .Select(a => a.EmpresaId is { } empresaId && nombresPorEmpresa.TryGetValue(empresaId, out var nombre)
+                ? a with { EmpresaNombre = nombre }
+                : a)
             .ToList();
     }
 
@@ -145,7 +202,8 @@ public class ObtenerAlertasQueryHandler(
                 TrabajadorId = trabajador.Id,
                 TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos,
                 CentroId = centro.Id,
-                centro.Nombre
+                centro.Nombre,
+                trabajador.EmpresaId
             })
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -153,23 +211,51 @@ public class ObtenerAlertasQueryHandler(
         if (asignacionesActivas.Count == 0)
             return [];
 
+        var empresaIdPorTrabajador = asignacionesActivas
+            .GroupBy(a => a.TrabajadorId)
+            .ToDictionary(g => g.Key, g => g.First().EmpresaId);
+
         var parejas = asignacionesActivas
             .Select(a => new ParejaTrabajadorCentro(a.TrabajadorId, a.TrabajadorNombre, a.CentroId, a.Nombre))
             .ToList();
 
         var faltantes = await documentosFaltantesService.CalcularAsync(parejas, cancellationToken);
+        if (faltantes.Count == 0)
+            return [];
+
+        // El par (Trabajador, Centro) ya viene exacto de documentosFaltantesService —
+        // a diferencia de las alertas de vigencia, aquí no hace falta "elegir uno
+        // entre varios", solo resolver el Cliente del Centro exacto que faltó.
+        var centroIds = faltantes.Select(f => f.CentroId).Distinct().ToList();
+        var clientePorCentro = await (
+            from centro in centrosContext.Centros
+            where centroIds.Contains(centro.Id)
+            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            select new { centro.Id, ClienteId = cliente.Id, cliente.RazonSocial })
+            .ToDictionaryAsync(x => x.Id, x => (x.ClienteId, x.RazonSocial), cancellationToken);
 
         return faltantes
-            .Select(f => new AlertaDto(
-                DocumentoId: null,
-                f.TrabajadorId,
-                f.TrabajadorNombre,
-                f.TipoDocumentoId,
-                f.TipoDocumentoNombre,
-                FechaVencimiento: null,
-                EstadoDocumento.Faltante,
-                ArchivoUrl: null,
-                f.CentroNombre))
+            .Select(f =>
+            {
+                var (clienteId, clienteNombre) = clientePorCentro.TryGetValue(f.CentroId, out var cliente)
+                    ? (cliente.ClienteId, cliente.RazonSocial)
+                    : ((Guid?)null, (string?)null);
+
+                return new AlertaDto(
+                    DocumentoId: null,
+                    f.TrabajadorId,
+                    f.TrabajadorNombre,
+                    f.TipoDocumentoId,
+                    f.TipoDocumentoNombre,
+                    FechaVencimiento: null,
+                    EstadoDocumento.Faltante,
+                    ArchivoUrl: null,
+                    f.CentroNombre,
+                    CentroId: f.CentroId,
+                    ClienteId: clienteId,
+                    ClienteNombre: clienteNombre,
+                    EmpresaId: empresaIdPorTrabajador.GetValueOrDefault(f.TrabajadorId));
+            })
             .ToList();
     }
 }
