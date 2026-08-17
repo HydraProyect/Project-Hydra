@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260816230513_AgregarEstadoAutomatizacion")]
+    partial class AgregarEstadoAutomatizacion
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3542,54 +3545,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("Gestiones", (string)null);
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Importacion.HistorialImportacion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("EjecutadaEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("EjecutadaPorUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("Exitosa")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("MensajeError")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("NombreArchivo")
-                        .IsRequired()
-                        .HasMaxLength(260)
-                        .HasColumnType("character varying(260)");
-
-                    b.Property<string>("Plantilla")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("TotalAdvertencias")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("TotalCreados")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("TotalOmitidos")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "EjecutadaEnUtc");
-
-                    b.ToTable("HistorialImportaciones", (string)null);
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Incidencias.Incidencia", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5043,40 +4998,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "DocumentoId");
 
                     b.ToTable("ReclamacionesDocumentalesDocumentos", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Reportes.HistorialInforme", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ClienteId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ClienteNombre")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("GeneradoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("GeneradoPorUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TipoInforme")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "GeneradoEnUtc");
-
-                    b.ToTable("HistorialInformes", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Retencion.SolicitudPurga", b =>

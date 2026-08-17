@@ -310,6 +310,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IVisitaTrabajadorRepository, VisitaTrabajadorRepository>();
         services.AddScoped<IVehiculoRepository, VehiculoRepository>();
         services.AddScoped<IParametroSistemaRepository, ParametroSistemaRepository>();
+        services.AddScoped<IEstadoAutomatizacionRepository, EstadoAutomatizacionRepository>();
+        services.AddScoped<CaeManager.Infrastructure.Configuracion.IRegistroAutomatizacionesService, CaeManager.Infrastructure.Configuracion.RegistroAutomatizacionesService>();
+        services.AddScoped<CaeManager.Domain.Importacion.IHistorialImportacionRepository, HistorialImportacionRepository>();
+        services.AddScoped<CaeManager.Domain.Reportes.IHistorialInformeRepository, HistorialInformeRepository>();
         services.AddScoped<ITarifaClienteRepository, TarifaClienteRepository>();
         services.AddScoped<IProyectoRepository, ProyectoRepository>();
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
@@ -373,6 +377,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Visitas.IVisitasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Vehiculos.IVehiculosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Configuracion.IConfiguracionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Importacion.IImportacionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Reportes.IReportesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Auditoria.IAuditoriaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Tenants.ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Facturacion.IFacturacionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());

@@ -269,7 +269,7 @@ public static class CicloDocumentalDatosPruebaSeeder
     /// plataforma de un centro, con historial de rechazos append-only en la
     /// rechazada — los documentos son de la empresa que opera ese centro.
     /// </summary>
-    private static async Task SembrarAcreditacionesAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken)
+    internal static async Task SembrarAcreditacionesAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken)
     {
         var canal = await dbContext.CanalesGestionDocumental
             .Where(c => c.Tipo == TipoCanalGestion.Plataforma)

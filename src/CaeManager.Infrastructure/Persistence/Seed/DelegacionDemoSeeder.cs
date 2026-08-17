@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Retencion;
@@ -101,7 +102,8 @@ public static class DelegacionDemoSeeder
         using (AmbitoTenantExplicito.Establecer(refrielectricId))
         {
             await DatosPruebaSeeder.SembrarSoloDatosCompletosAsync(dbContext, logger, cancellationToken);
-            await SembrarUsuariosRefrielectricAsync(dbContext, userManager, userStore, logger, cancellationToken);
+            var gestoresRefrielectric = await SembrarUsuariosRefrielectricAsync(dbContext, userManager, userStore, logger, cancellationToken);
+            await SembrarEscenariosDashboardRefrielectricAsync(dbContext, gestoresRefrielectric, logger, cancellationToken);
         }
         await CrearDelegacionAsync(
             dbContext, tenantConsultoraId, refrielectricId, administradorConsultora, logger, NombreTenantRefrielectric, cancellationToken);
@@ -212,7 +214,7 @@ public static class DelegacionDemoSeeder
     /// round-robin de los 9 Clientes) para que Refrielectric sea una
     /// referencia de "empresa final" tan completa como Laboratorios Dexter.
     /// </summary>
-    private static async Task SembrarUsuariosRefrielectricAsync(
+    private static async Task<List<ApplicationUser>> SembrarUsuariosRefrielectricAsync(
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
@@ -262,10 +264,16 @@ public static class DelegacionDemoSeeder
         await CrearAsync(Roles.DireccionCae, 1, "Direccion CAE");
         var coordinador = await CrearAsync(Roles.CoordinadorCae, 1, "Coordinador CAE");
 
+        // El fallback a FindByEmailAsync cubre el caso en que este seeder ya
+        // corrió antes: CrearAsync devuelve null si el usuario ya existe, pero
+        // el llamador (SeedAsync) necesita la lista de gestores en cualquier
+        // caso para sembrar los escenarios de "Pendiente por plataforma" y
+        // "Reclamado y sin respuesta" del rediseño de Inicio.
         var gestores = new List<ApplicationUser>();
         for (var i = 1; i <= 3; i++)
         {
-            var gestor = await CrearAsync(Roles.GestorCae, i, "Gestor CAE");
+            var gestor = await CrearAsync(Roles.GestorCae, i, "Gestor CAE")
+                ?? await userManager.FindByEmailAsync($"{PrefijoEmailRefrielectric}gestorcae{i}@caemanager.local");
             if (gestor is not null) gestores.Add(gestor);
         }
 
@@ -302,6 +310,80 @@ public static class DelegacionDemoSeeder
         logger.LogInformation(
             "Usuarios de Refrielectric sembrados (contraseña «{Contrasena}» para todos, email {Prefijo}<rol><n>@caemanager.local).",
             DatosPruebaSeeder.ContrasenaUsuariosPrueba, PrefijoEmailRefrielectric);
+
+        return gestores;
+    }
+
+    /// <summary>
+    /// "Pendiente por plataforma" y "Reclamado y sin respuesta" (rediseño de
+    /// Inicio, hallazgos P-04 y el seguimiento de reclamaciones) reutilizan
+    /// exactamente la misma lógica de dominio que <see cref="DatosPruebaSeeder"/>
+    /// y <see cref="CicloDocumentalDatosPruebaSeeder"/> ya siembran para
+    /// Laboratorios Dexter — pero esos dos métodos están pensados para "un
+    /// único tenant principal" y nunca se llaman en el bloque de Refrielectric
+    /// (ver el comentario de <see cref="SembrarUsuariosRefrielectricAsync"/>).
+    /// Con Refrielectric como referencia principal de "empresa final" (y el
+    /// tenant real que se usa para verificar el rediseño de Inicio en
+    /// vivo), esas dos secciones se quedaban permanentemente vacías —
+    /// no por falta de datos base (los CanalGestionDocumental de plataforma y
+    /// los Documento sí existen, vía SembrarSoloDatosCompletosAsync), sino
+    /// porque nadie derivaba las acreditaciones ni enviaba las reclamaciones
+    /// aquí. Guard idempotente propio (no el de los métodos que reutiliza,
+    /// pensados para su propio primer-run): sin él, cada reinicio de la app
+    /// repetiría el envío de reclamaciones.
+    /// </summary>
+    private static async Task SembrarEscenariosDashboardRefrielectricAsync(
+        CaeManagerDbContext dbContext, List<ApplicationUser> gestores, ILogger logger, CancellationToken cancellationToken)
+    {
+        if (!await dbContext.ReclamacionesDocumentales.AnyAsync(cancellationToken))
+        {
+            var clientes = await dbContext.Clientes.OrderBy(c => c.CreadoEnUtc).ToListAsync(cancellationToken);
+            await DatosPruebaSeeder.SembrarReclamacionesAsync(dbContext, clientes, gestores.FirstOrDefault()?.Id, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Reclamaciones de demo sembradas para Refrielectric (incluye la variante sin respuesta).");
+        }
+
+        // SembrarAcreditacionesAsync elige el primer canal de plataforma por
+        // CreadoEnUtc sin mirar de quién es cartera — correcto para
+        // Laboratorios Dexter (un único GestorCae de prueba visible). Con el
+        // reparto round-robin de Refrielectric entre 3 gestores, ese canal
+        // podía caer en la cartera de otro gestor y la sección quedaba vacía
+        // para quien la estuviera verificando. Reasignar el ejecutivo del
+        // Cliente dueño de ese canal al primer gestor es la misma operación
+        // de demo que ya hace el reparto round-robin de
+        // SembrarUsuariosRefrielectricAsync — y por eso, igual que él, tiene
+        // que repetirse en cada arranque, no solo la primera vez: ese reparto
+        // round-robin no tiene guard propio (corre siempre), así que en el
+        // siguiente arranque volvía a repartir este Cliente a otro gestor y
+        // deshacía la fijación de un guard "solo primera vez" (bug real
+        // encontrado en vivo — la sección desaparecía tras reiniciar).
+        if (gestores.Count > 0)
+        {
+            var clienteDelCanal = await (
+                from canal in dbContext.CanalesGestionDocumental
+                where canal.Tipo == TipoCanalGestion.Plataforma
+                orderby canal.CreadoEnUtc, canal.Id
+                join centro in dbContext.Centros on canal.CentroId equals centro.Id
+                select centro.ClienteId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (clienteDelCanal != Guid.Empty)
+            {
+                var cliente = await dbContext.Clientes.FirstAsync(c => c.Id == clienteDelCanal, cancellationToken);
+                if (cliente.EjecutivoUsuarioId != gestores[0].Id)
+                {
+                    cliente.AsignarEjecutivo(gestores[0].Id);
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                }
+            }
+        }
+
+        if (!await dbContext.AcreditacionesDocumentoPlataforma.AnyAsync(cancellationToken))
+        {
+            await CicloDocumentalDatosPruebaSeeder.SembrarAcreditacionesAsync(dbContext, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Acreditaciones de plataforma de demo sembradas para Refrielectric.");
+        }
     }
 
     /// <summary>
