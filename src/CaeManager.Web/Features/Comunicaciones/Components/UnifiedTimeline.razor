@@ -37,7 +37,7 @@
                     }
                     else if (evento.Tipo == TipoEventoConversacion.DocumentoActualizado)
                     {
-                        <a class="timeline-evento-enlace" href="/documentos">Ver documento</a>
+                        <a class="timeline-evento-enlace" href="/documentos?documentoId=@evento.ReferenciaId">Ver documento</a>
                     }
                     else if (evento.Tipo == TipoEventoConversacion.ReclamacionEnviada)
                     {
