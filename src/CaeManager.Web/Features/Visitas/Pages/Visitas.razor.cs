@@ -145,11 +145,17 @@ public partial class Visitas : ComponentBase
     // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
     protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
 
-    /// <summary>Abre el drawer prellenado si se llegó desde el botón "Crear visita" de una sugerencia de la Bandeja (?sugerenciaId=...).</summary>
+    /// <summary>
+    /// Abre el drawer prellenado si se llegó desde el botón "Crear visita" de
+    /// una sugerencia de la Bandeja (?sugerenciaId=...), o desde "Programar
+    /// visita" de Centro 360 (?centroId=...&centroNombre=..., sin sugerencia).
+    /// </summary>
     protected override async Task OnInitializedAsync()
     {
         if (Guid.TryParse(SugerenciaVisitaIdInicial, out var sugerenciaId))
             await AbrirCrearDesdeSugerenciaAsync(sugerenciaId);
+        else if (Guid.TryParse(CentroIdOverride, out var centroIdInicial))
+            await AbrirCrearParaCentroAsync(centroIdInicial);
     }
 
     /// <summary>
@@ -279,6 +285,13 @@ public partial class Visitas : ComponentBase
             _fechaFin = fechaFinCorregida.ToString("yyyy-MM-dd");
         else if (sugerencia.FechaFin is not null)
             _fechaFin = sugerencia.FechaFin.Value.ToString("yyyy-MM-dd");
+    }
+
+    /// <summary>Variante de AbrirCrearAsync para "Programar visita" desde Centro 360: mismo drawer, con el Centro ya elegido en el CampoSelect — el Gestor solo pone fechas y trabajadores.</summary>
+    private async Task AbrirCrearParaCentroAsync(Guid centroId)
+    {
+        await AbrirCrearAsync();
+        _centroId = centroId.ToString();
     }
 
     private async Task AbrirEditarAsync(Guid id)

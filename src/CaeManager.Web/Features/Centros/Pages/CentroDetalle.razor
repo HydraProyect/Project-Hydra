@@ -1,0 +1,174 @@
+@*
+    Centro 360 (Centro 360 TALVEG, Parte XVI PROMPT 13) — ver comentario de
+    cabecera en el .razor.cs para el porqué de lo que esta página NO
+    reimplementa.
+*@
+@page "/centros/{CentroId:guid}"
+@rendermode InteractiveServer
+@using CaeManager.Application.Centros
+@using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro
+@using CaeManager.Application.Centros.Queries.ObtenerCentros
+@using CaeManager.Application.Integraciones
+@using CaeManager.Domain.Centros
+@using CaeManager.Web.Features.Centros.Components
+
+<PageTitle>@(_detalle?.Nombre ?? "Centro") — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="Ruta de Centro 360" />
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar este centro" Descripcion="Puede que ya no exista o que no tengas acceso.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="5" />
+    }
+    else if (_detalle is not null)
+    {
+        <div class="centro360-cabecera">
+            <AnilloCumplimiento Porcentaje="_resumen?.CumplimientoPorcentaje" Tamano="TamanoAnillo.Cabecera"
+                                 Etiqueta="@($"{_resumen?.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />
+            <div class="centro360-identidad">
+                <h1 class="centro360-titulo">@_detalle.Nombre</h1>
+                <p class="centro360-meta">
+                    Cliente: <button type="button" class="enlace-nombre-fila" @onclick="AbrirCliente">@_detalle.ClienteRazonSocial</button>
+                    · Empresa: <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpresa">@_detalle.EmpresaRazonSocial</button>
+                    @if (_visitas.Count > 0)
+                    {
+                        var proxima = _visitas[0];
+                        <text> · Próxima visita: <b>@proxima.FechaInicio.ToString("dd/MM")–@proxima.FechaFin.ToString("dd/MM")</b></text>
+                    }
+                </p>
+                @if (_resumen is not null)
+                {
+                    <div class="centro360-indicadores">
+                        @if (_resumen.Estado == EstadoCentro.Bloqueado)
+                        {
+                            <Badge Tono="TonoBadge.Peligro">Acceso bloqueado</Badge>
+                        }
+                        @if (_resumen.Recuentos.TotalVencidas > 0)
+                        {
+                            <VentanaContexto Etiqueta="@DescribirRecuento(_resumen.Recuentos.Vencidas, "vencido")"
+                                             Titulo="@($"{_resumen.Recuentos.TotalVencidas} {(_resumen.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
+                                <Disparador>
+                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@_resumen.Recuentos.TotalVencidas vencido@(_resumen.Recuentos.TotalVencidas == 1 ? "" : "s")</Badge>
+                                </Disparador>
+                                <Detalle>
+                                    @foreach (var incidencia in _resumen.Recuentos.Vencidas)
+                                    {
+                                        <span class="ventana-linea">@incidencia.Descripcion</span>
+                                    }
+                                </Detalle>
+                            </VentanaContexto>
+                        }
+                        @if (_resumen.Recuentos.TotalProximas > 0)
+                        {
+                            <VentanaContexto Etiqueta="@DescribirRecuento(_resumen.Recuentos.Proximas, "próximo a vencer")"
+                                             Titulo="@($"{_resumen.Recuentos.TotalProximas} {(_resumen.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
+                                <Disparador>
+                                    <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@_resumen.Recuentos.TotalProximas próximo@(_resumen.Recuentos.TotalProximas == 1 ? "" : "s")</Badge>
+                                </Disparador>
+                                <Detalle>
+                                    @foreach (var incidencia in _resumen.Recuentos.Proximas)
+                                    {
+                                        <span class="ventana-linea">@incidencia.Descripcion</span>
+                                    }
+                                </Detalle>
+                            </VentanaContexto>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="centro360-acciones">
+                <Boton OnClick="ProgramarVisita">Programar visita</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirInformacion">Editar centro</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirInformacion">Reclamar documentación</Boton>
+            </div>
+        </div>
+
+        <div class="centro360-cuerpo">
+            <div class="centro360-principal">
+                <AcordeonAsignacionesCentro CentroId="_detalle.Id" CentroNombre="@_detalle.Nombre"
+                                              VisitaId="_visitas.Count > 0 ? _visitas[0].VisitaId : null"
+                                              VisitaFechaFin="_visitas.Count > 0 ? _visitas[0].FechaFin : null"
+                                              EmpresaId="_detalle.EmpresaId" EmpresaNombre="@_detalle.EmpresaRazonSocial"
+                                              IncidenciasEmpresa="IncidenciasEmpresaHeader"
+                                              SoloIncidencias="false"
+                                              OnCambio="CargarAsync" />
+            </div>
+
+            <aside class="centro360-lateral">
+                <div class="centro360-tarjeta-lateral">
+                    <div class="centro360-tarjeta-lateral-cabecera">
+                        <h2>Canales de gestión</h2>
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPlataforma">Gestionar →</Boton>
+                    </div>
+                    @if (_cargandoCanales)
+                    {
+                        <EstadoCargando Filas="2" />
+                    }
+                    else if (_canales.Count == 0)
+                    {
+                        <p class="texto-vacio-seccion">Sin canal de gestión registrado para este centro.</p>
+                    }
+                    else
+                    {
+                        <ul class="centro360-lista-canales">
+                            @foreach (var canal in _canales)
+                            {
+                                <li @key="canal.Id">
+                                    <span class="centro360-canal-etiqueta">
+                                        @canal.EtiquetaProposito
+                                        @if (canal.EsPrincipal)
+                                        {
+                                            <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">Principal</Badge>
+                                        }
+                                    </span>
+                                    <span class="centro360-canal-detalle">
+                                        @(canal.Tipo == TipoCanalGestion.Plataforma
+                                            ? (canal.ProveedorPlataformaCaeNombre ?? "Plataforma sin resolver")
+                                            : "Gestión por correo")
+                                        @if (canal.Tipo == TipoCanalGestion.Plataforma)
+                                        {
+                                            <Badge Tono="@(canal.TieneCredenciales ? TonoBadge.Exito : TonoBadge.Neutro)" Tamano="TamanoBadge.Pequeno">
+                                                @(canal.TieneCredenciales ? "Con credenciales" : "Sin credenciales")
+                                            </Badge>
+                                        }
+                                    </span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+
+                <div class="centro360-tarjeta-lateral">
+                    <div class="centro360-tarjeta-lateral-cabecera">
+                        <h2>Próxima visita</h2>
+                    </div>
+                    @if (_visitas.Count == 0)
+                    {
+                        <p class="texto-vacio-seccion">Sin visitas programadas.</p>
+                    }
+                    else
+                    {
+                        <ul class="centro360-lista-canales">
+                            @foreach (var visita in _visitas)
+                            {
+                                <li @key="visita.VisitaId">
+                                    <span class="centro360-canal-etiqueta">@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy")</span>
+                                    <span class="centro360-canal-detalle">@visita.TrabajadoresCount trabajador(es)</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </aside>
+        </div>
+    }
+</div>

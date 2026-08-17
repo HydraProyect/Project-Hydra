@@ -56,6 +56,21 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     /// </summary>
     [Parameter] public bool SeleccionMultiple { get; set; }
 
+    /// <summary>
+    /// Vista previa para la fila de /centros (hallazgo en vivo 2026-08-16):
+    /// con un centro de plantilla grande, desplegar TODOS los trabajadores
+    /// dentro de la lista convertía la fila en una lista interminable — peor
+    /// aún si además se abre la tabla de documentos de cada uno. Activo,
+    /// solo se listan los trabajadores con alguna incidencia (PeorEstado
+    /// distinto de Vigente); Centro 360 (la página propia, mockup "Centro
+    /// 360 TALVEG") sigue mostrando la lista completa de trabajadores con
+    /// actividad, incidencia o no — es la que conserva los tres niveles sin
+    /// recortar.
+    /// </summary>
+    [Parameter] public bool SoloIncidencias { get; set; }
+
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
     private bool _cargando = true;
     private bool _errorCarga;
     private IReadOnlyList<TrabajadorAsignacionDocumentacionDto> _trabajadores = [];
@@ -161,6 +176,14 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     /// <summary>"7/9" junto al nombre (PLAN-EJECUCION-UX.md § 0.5) — se deriva de los mismos <c>Documentos</c> ya cargados, sin consulta nueva.</summary>
     private static int DocumentosAlDia(TrabajadorAsignacionDocumentacionDto trabajador) =>
         trabajador.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
+
+    /// <summary>Lista realmente pintada — recortada a incidencias en la vista previa de /centros, completa en Centro 360.</summary>
+    private IReadOnlyList<TrabajadorAsignacionDocumentacionDto> TrabajadoresAMostrar =>
+        SoloIncidencias ? _trabajadores.Where(t => t.PeorEstado != EstadoDocumento.Vigente).ToList() : _trabajadores;
+
+    private int TrabajadoresOcultosAlDia => SoloIncidencias ? _trabajadores.Count - TrabajadoresAMostrar.Count : 0;
+
+    private void VerCentroCompleto() => NavigationManager.NavigateTo($"/centros/{CentroId}");
 
     private void AlternarExpansionTrabajador(Guid asignacionId)
     {
