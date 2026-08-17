@@ -1,0 +1,58 @@
+/*
+  Cabecera de entidad de Trabajador 360 (Parte XVI PROMPT 04): mismo
+  lenguaje que Centro 360 (CentroDetalle.razor.css) — anillo + identidad +
+  acciones en una fila.
+*/
+.trabajador360-cabecera {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-6);
+    padding-bottom: var(--space-6);
+    margin-bottom: var(--space-6);
+    border-bottom: var(--border-default);
+}
+
+.trabajador360-identidad {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.trabajador360-titulo {
+    font: var(--font-heading-lg);
+    color: var(--color-text);
+    margin: 0;
+}
+
+.trabajador360-alias {
+    font: var(--font-body-lg);
+    font-weight: 400;
+    color: var(--color-text-muted);
+    margin-left: var(--space-2);
+}
+
+.trabajador360-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.trabajador360-indicadores {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.trabajador360-acciones {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
