@@ -3,100 +3,255 @@
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @using CaeManager.Web.Features.Importacion
 
-<PageTitle>Importar desde Excel — @Marca.Nombre</PageTitle>
+<PageTitle>Importar datos — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <h1 class="titulo-pagina">Importar desde Excel</h1>
-    <p class="descripcion-importacion">
-        Sube el Cuadro de Control CAE (hojas Centros_Plataformas, Empleados, Extranjeros y Asignaciones).
-        Primero se analiza el archivo sin escribir nada — revisa qué se va a crear, qué se omite y por qué
-        antes de confirmar.
-    </p>
-    <p class="descripcion-importacion">
-        ¿No tienes el Cuadro de Control CAE? Esta pantalla no ofrece una plantilla en blanco porque procesa
-        un archivo ya existente. Para dar de alta clientes o trabajadores desde cero con una plantilla
-        descargable, usa <a href="/clientes/importar">Importar clientes</a> o
-        <a href="/clientes/importar-combinado">Importación combinada</a>.
-    </p>
+    <div>
+        <div class="eyebrow-importacion">Configuración</div>
+        <h1 class="titulo-pagina">Importar datos</h1>
+    </div>
 
-    @if (_resultado is null)
-    {
-        <Tarjeta Titulo="1. Selecciona el archivo" Class="tarjeta-importacion">
-            <InputFile OnChange="ManejarArchivoSeleccionadoAsync" accept=".xlsx" />
-            @if (_nombreArchivo is not null)
+    <nav class="pasos-importacion" aria-label="Progreso de la importación">
+        @for (var i = 0; i < NombresPasos.Count; i++)
+        {
+            var numero = i + 1;
+            var actual = numero == _step;
+            var completado = numero < _step;
+            var alcanzable = numero <= _pasoMaximoAlcanzado;
+            <button type="button" class="@($"paso-importacion {(actual ? "paso-importacion-actual" : "")} {(completado ? "paso-importacion-completado" : "")}")"
+                    disabled="@(!alcanzable)" @onclick="() => IrAPaso(numero)" aria-current="@(actual ? "step" : null)">
+                <span class="paso-importacion-marca">@(completado ? "✓" : numero.ToString())</span>
+                @NombresPasos[i]
+            </button>
+            @if (numero < NombresPasos.Count)
             {
-                <p class="nombre-archivo">@_nombreArchivo</p>
+                <span class="paso-importacion-flecha" aria-hidden="true">→</span>
             }
-        </Tarjeta>
-
-        @if (_mensajeError is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeError</div>
         }
+    </nav>
 
-        @if (_analizando)
-        {
-            <ProgresoConMensajes Visible="true" Mensajes="MensajesAnalizando" />
-        }
-        else if (_plan is not null)
-        {
-            <Tarjeta Titulo="2. Revisa el plan de importación" Class="tarjeta-importacion">
-                <div class="rejilla-resumen-importacion">
-                    <TarjetaMetrica Etiqueta="Clientes nuevos" Valor="@_plan.ClientesCentros.Count(c => !c.YaExisteCliente).ToString()" />
-                    <TarjetaMetrica Etiqueta="Centros nuevos" Valor="@_plan.ClientesCentros.Count(c => !c.YaExisteCentro).ToString()" />
-                    <TarjetaMetrica Etiqueta="Empresas nuevas" Valor="@_plan.Empresas.Count(e => !e.YaExiste).ToString()" />
-                    <TarjetaMetrica Etiqueta="Trabajadores nuevos" Valor="@_plan.Trabajadores.Count(t => !t.YaExiste).ToString()" />
-                    <TarjetaMetrica Etiqueta="Documentos nuevos" Valor="@_plan.Documentos.Count(d => !d.YaExiste).ToString()" />
-                    <TarjetaMetrica Etiqueta="Asignaciones nuevas" Valor="@_plan.Asignaciones.Count(a => !a.YaExiste).ToString()" />
+    @if (_step == 1)
+    {
+        <div class="rejilla-paso1">
+            <div class="columna-plantillas">
+                <h2 class="titulo-seccion-importacion">Elige una plantilla</h2>
+                <div class="rejilla-plantillas">
+                    @foreach (var plantilla in Plantillas)
+                    {
+                        var seleccionada = plantilla.Id == _plantillaId;
+                        <div role="button" tabindex="0" class="@($"tarjeta-plantilla {(seleccionada ? "tarjeta-plantilla-seleccionada" : "")}")"
+                             aria-pressed="@seleccionada" @onclick="() => SeleccionarPlantilla(plantilla.Id)">
+                            <div class="cabecera-tarjeta-plantilla">
+                                <span class="icono-tarjeta-plantilla">@plantilla.Icono</span>
+                                <span class="titulo-tarjeta-plantilla">@plantilla.Titulo</span>
+                            </div>
+                            <span class="descripcion-tarjeta-plantilla">@plantilla.Descripcion</span>
+                            @if (plantilla.RutaPlantillaBlanco is not null)
+                            {
+                                <a href="@plantilla.RutaPlantillaBlanco" class="enlace-plantilla-blanco" @onclick:stopPropagation="true">Descargar plantilla en blanco</a>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="acciones-formulario acciones-derecha">
+                    <Boton OnClick="ContinuarAAnalizar">Continuar con @PlantillaActual.Titulo</Boton>
+                </div>
+            </div>
+
+            <aside class="panel-historial-importacion">
+                <div class="cabecera-panel-historial">Historial de importaciones</div>
+                @if (_cargandoHistorial)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_historial.Count == 0)
+                {
+                    <p class="vacio-historial-importacion">Todavía no se ha ejecutado ninguna importación.</p>
+                }
+                else
+                {
+                    @foreach (var item in _historial)
+                    {
+                        <div class="item-historial-importacion">
+                            <div class="fila-item-historial">
+                                <span class="plantilla-item-historial">@item.Plantilla</span>
+                                <span class="fecha-item-historial">@item.EjecutadaEnUtc.ToLocalTime().ToString("dd/MM/yy HH:mm")</span>
+                            </div>
+                            <span class="detalle-item-historial">
+                                @NombreUsuario(item.EjecutadaPorUsuarioId) ·
+                                @if (item.Exitosa)
+                                {
+                                    <span class="resultado-exito-historial">@item.TotalCreados creados · @item.TotalAdvertencias avisos</span>
+                                }
+                                else
+                                {
+                                    <span class="resultado-fallo-historial">Fallida — @item.MensajeError</span>
+                                }
+                            </span>
+                        </div>
+                    }
+                }
+            </aside>
+        </div>
+    }
+    else if (_step == 2)
+    {
+        <div class="columna-paso-ancho">
+            <h2 class="titulo-seccion-importacion">Sube el archivo</h2>
+
+            <ZonaSoltarArchivo Titulo="@($"Arrastra el archivo de {PlantillaActual.Titulo}")"
+                                FormatosTexto="@($".xlsx · máx. {PlantillaActual.TamanoMaximoBytes / (1024 * 1024)} MB · el análisis no escribe nada")"
+                                Accept=".xlsx" Cargando="_analizando" NombreArchivoActual="@_nombreArchivo"
+                                OnChange="ManejarArchivoSeleccionadoAsync" />
+
+            @if (_mensajeError is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeError</div>
+            }
+
+            <ProgresoConMensajes Visible="_analizando" Mensajes="MensajesAnalizando" />
+
+            <div class="acciones-formulario acciones-entre">
+                <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(1)">← Cambiar plantilla</Boton>
+                <Boton Deshabilitado="!TienePlan" OnClick="ContinuarARevisarPlan">Ver plan de importación</Boton>
+            </div>
+        </div>
+    }
+    else if (_step == 3)
+    {
+        <div class="columna-paso-ancho">
+            <div class="cabecera-revision-plan">
+                <h2 class="titulo-seccion-importacion">Revisar plan</h2>
+                <span class="detalle-revision-plan">@_nombreArchivo · nada escrito todavía</span>
+            </div>
+
+            <div class="badges-resumen-plan">
+                <Badge Tono="TonoBadge.Exito">@TotalACrear se crearán</Badge>
+                <Badge Tono="TonoBadge.Advertencia">@TotalAdvertencias con aviso</Badge>
+                <Badge Tono="TonoBadge.Peligro">@TotalOmitidos se omitirán</Badge>
+            </div>
+
+            <div class="tabla-plan-importacion-envoltorio">
+                <table class="tabla-datos">
+                    <thead>
+                        <tr>
+                            <th>Entidad</th>
+                            <th>Acción</th>
+                            <th>Motivo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var fila in ProyectarFilas())
+                        {
+                            <tr>
+                                <td>@fila.Entidad</td>
+                                <td><Badge Tono="fila.Tono">@fila.Accion</Badge></td>
+                                <td>@fila.Motivo</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="acciones-formulario acciones-entre">
+                <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(2)">← Volver al archivo</Boton>
+                <Boton OnClick="ContinuarAConfirmar">Continuar a confirmar</Boton>
+            </div>
+        </div>
+    }
+    else if (_step == 4)
+    {
+        <div class="columna-paso-estrecho">
+            <h2 class="titulo-seccion-importacion">Confirmar importación</h2>
+
+            <div class="tarjeta-confirmacion-importacion">
+                <div class="aviso-confirmacion-importacion">
+                    <span class="punto-aviso-confirmacion"></span>
+                    <div>
+                        <p class="titulo-aviso-confirmacion">
+                            Se crearán @TotalACrear elementos. Esta acción escribe datos reales.
+                        </p>
+                        <p class="detalle-aviso-confirmacion">
+                            Punto de no retorno. Los @TotalOmitidos omitidos y @TotalAdvertencias avisos no se tocan.
+                        </p>
+                    </div>
                 </div>
 
-                @if (_plan.Advertencias.Count > 0)
+                @if (_planCombinada is not null)
                 {
-                    <h3 class="titulo-seccion-importacion">Advertencias (@_plan.Advertencias.Count) — se importan, pero revisa</h3>
-                    <TablaItemsImportacion Items="_plan.Advertencias" Tono="TonoBadge.Advertencia" />
+                    <label class="opcion-reemplazar-importacion">
+                        <input type="checkbox" @bind="_reemplazarExistentes" />
+                        Reemplazar los campos ya rellenados de los registros existentes (por defecto solo se completa lo vacío)
+                    </label>
                 }
 
-                @if (_plan.Omitidos.Count > 0)
-                {
-                    <h3 class="titulo-seccion-importacion">Omitidos (@_plan.Omitidos.Count) — no se importan</h3>
-                    <TablaItemsImportacion Items="_plan.Omitidos" Tono="TonoBadge.Peligro" />
+                <label class="casilla-confirmacion-importacion">
+                    <input type="checkbox" @bind="_confirmado" />
+                    He revisado el plan y quiero escribir estos datos
+                </label>
+            </div>
+
+            @if (_mensajeError is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeError</div>
+            }
+
+            <div class="acciones-formulario acciones-entre">
+                <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(3)">← Revisar el plan</Boton>
+                <Boton Deshabilitado="!_confirmado" Cargando="_importando" OnClick="ConfirmarImportacionAsync">Importar ahora</Boton>
+            </div>
+        </div>
+    }
+    else if (_step == 5)
+    {
+        <div class="columna-paso-estrecho">
+            <h2 class="titulo-seccion-importacion">Reporte</h2>
+
+            <div class="tarjeta-reporte-importacion">
+                <div class="cabecera-reporte-importacion">
+                    <span class="icono-exito-reporte">✓</span>
+                    <span class="titulo-reporte-importacion">Importación completada</span>
+                </div>
+
+                <div class="rejilla-reporte-importacion">
+                    @if (_resultadoSimple is { } rs)
+                    {
+                        <TarjetaMetrica Etiqueta="Creados" Valor="@((rs.ClientesCreados + rs.CentrosCreados + rs.EmpresasCreadas + rs.TrabajadoresCreados + rs.DocumentosCreados + rs.AsignacionesCreadas).ToString())" Tono="TonoBadge.Exito" />
+                        <TarjetaMetrica Etiqueta="Avisos" Valor="@rs.Advertencias.Count.ToString()" Tono="TonoBadge.Advertencia" />
+                        <TarjetaMetrica Etiqueta="Omitidos" Valor="@rs.Omitidos.Count.ToString()" Tono="TonoBadge.Peligro" />
+                    }
+                    else if (_resultadoCombinada is { } rc)
+                    {
+                        <TarjetaMetrica Etiqueta="Creados" Valor="@((rc.ClientesCreados + rc.EmpresasCreadas + rc.CentrosCreados + rc.TrabajadoresCreados).ToString())" Tono="TonoBadge.Exito" />
+                        <TarjetaMetrica Etiqueta="Actualizados" Valor="@((rc.ClientesActualizados + rc.EmpresasActualizadas + rc.CentrosActualizados + rc.TrabajadoresActualizados).ToString())" />
+                        <TarjetaMetrica Etiqueta="Avisos" Valor="@rc.Advertencias.Count.ToString()" Tono="TonoBadge.Advertencia" />
+                        <TarjetaMetrica Etiqueta="Omitidos" Valor="@rc.Omitidos.Count.ToString()" Tono="TonoBadge.Peligro" />
+                    }
+                </div>
+
+                @{
+                    var advertenciasReporte = _resultadoSimple?.Advertencias ?? _resultadoCombinada?.Advertencias ?? [];
+                    var omitidosReporte = _resultadoSimple?.Omitidos ?? _resultadoCombinada?.Omitidos ?? [];
                 }
+
+                @if (advertenciasReporte.Count > 0)
+                {
+                    <h3 class="titulo-seccion-importacion">Avisos (@advertenciasReporte.Count)</h3>
+                    <TablaItemsImportacion Items="advertenciasReporte" Tono="TonoBadge.Advertencia" />
+                }
+
+                @if (omitidosReporte.Count > 0)
+                {
+                    <h3 class="titulo-seccion-importacion">Omitidos (@omitidosReporte.Count)</h3>
+                    <TablaItemsImportacion Items="omitidosReporte" Tono="TonoBadge.Peligro" />
+                }
+
+                <span class="nota-reporte-importacion">Este reporte queda guardado en el historial de importaciones (paso 1).</span>
 
                 <div class="acciones-formulario">
-                    <Boton OnClick="ConfirmarImportacionAsync" Cargando="_importando">Confirmar importación</Boton>
+                    <Boton OnClick="EmpezarDeNuevo">Nueva importación</Boton>
                 </div>
-
-                <ProgresoConMensajes Visible="_importando" Mensajes="MensajesImportando" />
-            </Tarjeta>
-        }
-    }
-    else
-    {
-        <Tarjeta Titulo="Importación completada" Class="tarjeta-importacion">
-            <div class="rejilla-resumen-importacion">
-                <TarjetaMetrica Etiqueta="Clientes creados" Valor="@_resultado.ClientesCreados.ToString()" Tono="TonoBadge.Exito" />
-                <TarjetaMetrica Etiqueta="Centros creados" Valor="@_resultado.CentrosCreados.ToString()" Tono="TonoBadge.Exito" />
-                <TarjetaMetrica Etiqueta="Empresas creadas" Valor="@_resultado.EmpresasCreadas.ToString()" Tono="TonoBadge.Exito" />
-                <TarjetaMetrica Etiqueta="Trabajadores creados" Valor="@_resultado.TrabajadoresCreados.ToString()" Tono="TonoBadge.Exito" />
-                <TarjetaMetrica Etiqueta="Documentos creados" Valor="@_resultado.DocumentosCreados.ToString()" Tono="TonoBadge.Exito" />
-                <TarjetaMetrica Etiqueta="Asignaciones creadas" Valor="@_resultado.AsignacionesCreadas.ToString()" Tono="TonoBadge.Exito" />
             </div>
-
-            @if (_resultado.Advertencias.Count > 0)
-            {
-                <h3 class="titulo-seccion-importacion">Advertencias (@_resultado.Advertencias.Count)</h3>
-                <TablaItemsImportacion Items="_resultado.Advertencias" Tono="TonoBadge.Advertencia" />
-            }
-
-            @if (_resultado.Omitidos.Count > 0)
-            {
-                <h3 class="titulo-seccion-importacion">Omitidos (@_resultado.Omitidos.Count)</h3>
-                <TablaItemsImportacion Items="_resultado.Omitidos" Tono="TonoBadge.Peligro" />
-            }
-
-            <div class="acciones-formulario">
-                <Boton Variante="VarianteBoton.Secundario" OnClick="EmpezarDeNuevo">Nueva importación</Boton>
-            </div>
-        </Tarjeta>
+        </div>
     }
 </div>

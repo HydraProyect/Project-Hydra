@@ -55,7 +55,7 @@ public partial class Buzon : ComponentBase
     {
         try
         {
-            _conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery());
+            _conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(SoloPropiasYGenerales: true));
         }
         finally
         {

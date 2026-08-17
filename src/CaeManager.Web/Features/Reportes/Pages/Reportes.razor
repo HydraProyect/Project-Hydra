@@ -1,120 +1,180 @@
 @page "/reportes"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
-@using CaeManager.Application.Reportes.Queries
 @using CaeManager.Web.Features.Documentos
-@using MediatR
-@inject IMediator Mediator
 
 <PageTitle>Reportes — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
+    <div>
+        <div class="eyebrow-reportes">Análisis</div>
         <h1 class="titulo-pagina">Reportes</h1>
-        <div class="acciones-cabecera">
-            <a class="enlace-exportar" href="/reportes/documentos.xlsx">Exportar a Excel</a>
-            <a class="enlace-exportar" href="/reportes/documentos.pdf">Exportar a PDF</a>
-        </div>
     </div>
 
-    <p class="descripcion-reporte">
-        Reporte de vigencia documental: todos los documentos registrados con su estado actual,
-        incluidos los vigentes — el mismo cálculo de semáforo que usan Dashboard, Alertas y Calendario.
-    </p>
+    <div class="rejilla-reportes">
+        <div class="columna-reportes-filtros">
+            <div class="tarjeta-biblioteca">
+                <span class="titulo-biblioteca">Biblioteca</span>
+                <div class="lista-informes">
+                    @foreach (var informe in Informes)
+                    {
+                        var seleccionado = informe.Id == _tipoInforme;
+                        <button type="button" class="@("item-informe " + (seleccionado ? "item-informe-seleccionado" : ""))"
+                                aria-pressed="@seleccionado" @onclick="() => SeleccionarInforme(informe.Id)">
+                            <span class="radio-informe">
+                                @if (seleccionado)
+                                {
+                                    <span class="punto-radio-informe"></span>
+                                }
+                            </span>
+                            <span class="texto-item-informe">
+                                <span class="titulo-item-informe">@informe.Titulo</span>
+                                <span class="descripcion-item-informe">@informe.Descripcion</span>
+                            </span>
+                        </button>
+                    }
+                </div>
 
-    @if (_error)
-    {
-        <EstadoVacio Titulo="No pudimos cargar el reporte" Descripcion="Intenta nuevamente en unos segundos.">
-            <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
-            </Accion>
-        </EstadoVacio>
-    }
-    else if (_cargando)
-    {
-        <EstadoCargando Filas="6" />
-    }
-    else if (_filas.Count == 0)
-    {
-        <EstadoVacio Titulo="No hay documentos registrados todavía" Descripcion="Cuando se carguen documentos, aparecerán aquí." />
-    }
-    else
-    {
-        <table class="tabla-datos">
-            <thead>
-                <tr>
-                    <th>Estado</th>
-                    <th>Trabajador</th>
-                    <th>Empresa</th>
-                    <th>Tipo de documento</th>
-                    <th>Vencimiento</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var fila in FilasDePagina)
+                <div class="filtros-informe">
+                    <CampoBuscarSelect Etiqueta="Cliente" Valor="_clienteId" ValorChanged="CambiarClienteAsync" Opciones="OpcionesCliente" Marcador="Buscar cliente…" />
+
+                    <label class="campo-select-informe">
+                        <span>Alcance</span>
+                        <select value="@_centroId" @onchange="e => _centroId = e.Value?.ToString() ?? string.Empty" disabled="@SinCliente">
+                            <option value="">Todo el cliente</option>
+                            @foreach (var centro in _centrosDisponibles)
+                            {
+                                <option value="@centro.Id">Solo centro: @centro.Nombre</option>
+                            }
+                        </select>
+                    </label>
+
+                    @if (_tipoInforme == "vigencia")
+                    {
+                        <label class="opcion-checkbox-informe">
+                            <input type="checkbox" @bind="_incluirVigentes" />
+                            <span class="texto-opcion-checkbox-informe">
+                                <span>Incluir documentos vigentes</span>
+                                <span class="detalle-opcion-checkbox-informe">El informe es prueba de cobertura completa</span>
+                            </span>
+                        </label>
+                    }
+
+                    <Boton OnClick="GenerarVistaPreviaAsync" Cargando="_generando">Generar vista previa</Boton>
+
+                    <div class="acciones-exportar-informe">
+                        <a class="@("boton-exportar-informe " + (!TienePlan ? "boton-exportar-informe-deshabilitado" : ""))" href="@EnlaceExportar("pdf")">Descargar PDF</a>
+                        <a class="@("boton-exportar-informe " + (!TienePlan ? "boton-exportar-informe-deshabilitado" : ""))" href="@EnlaceExportar("xlsx")">Descargar Excel</a>
+                    </div>
+
+                    <button type="button" class="enlace-secundario-informe" disabled="@(!TienePlan)" @onclick="AbrirEnviarPorComunicaciones">
+                        Enviar por Comunicaciones…
+                    </button>
+                </div>
+            </div>
+
+            <div class="tarjeta-historial-informes">
+                <div class="cabecera-historial-informes">Historial</div>
+                @if (_cargandoHistorial)
                 {
-                    <tr>
-                        <td><Badge Tono="EstadoDocumentoUi.Tono(fila.Estado)">@EstadoDocumentoUi.Texto(fila.Estado)</Badge></td>
-                        <td>@fila.TrabajadorNombre</td>
-                        <td>@fila.EmpresaRazonSocial</td>
-                        <td>@fila.TipoDocumentoNombre</td>
-                        <td>@(fila.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
-                    </tr>
+                    <EstadoCargando Filas="3" />
                 }
-            </tbody>
-        </table>
+                else if (_historial.Count == 0)
+                {
+                    <p class="vacio-historial-informes">Todavía no se ha generado ningún informe.</p>
+                }
+                else
+                {
+                    @foreach (var item in _historial)
+                    {
+                        <div class="item-historial-informes">
+                            <div class="fila-item-historial-informes">
+                                <span class="nombre-item-historial-informes">@item.TipoInforme</span>
+                                <span class="fecha-item-historial-informes">@item.GeneradoEnUtc.ToLocalTime().ToString("dd/MM/yy HH:mm")</span>
+                            </div>
+                            <span class="detalle-item-historial-informes">@(item.ClienteNombre ?? "Toda la cartera") · @NombreUsuario(item.GeneradoPorUsuarioId)</span>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
 
-        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_filas.Count"
-                          Etiqueta="documento(s)" PaginaActualChanged="IrAPaginaAsync"
-                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-    }
+        <div class="columna-reportes-vista">
+            @if (SinCliente && !_generando)
+            {
+                <div class="aviso-sin-cliente-informe">
+                    <span class="punto-aviso-sin-cliente"></span>
+                    <span>Sin filtrar por cliente — la vista previa muestra toda la cartera</span>
+                </div>
+            }
+
+            <ProgresoConMensajes Visible="_generando" Mensajes="MensajesGenerando" />
+
+            @if (!_generando && _informeVigencia is { } iv)
+            {
+                <div class="documento-vista-previa-informe">
+                    <div class="cabecera-documento-informe">
+                        <span class="titulo-documento-informe">@(_incluirVigentes ? "Informe de vigencia documental" : "Informe de incidencias")</span>
+                        <span class="metadato-documento-informe">Alcance: @iv.Alcance</span>
+                        <span class="metadato-documento-informe">@iv.Filas.Count fila(s)</span>
+                    </div>
+                    <div class="tabla-vista-previa-envoltorio">
+                        <table class="tabla-datos">
+                            <thead>
+                                <tr><th>Estado</th><th>Trabajador</th><th>Empresa</th><th>Documento</th><th>Vence</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var fila in iv.Filas)
+                                {
+                                    <tr>
+                                        <td><Badge Tono="EstadoDocumentoUi.Tono(fila.Estado)">@EstadoDocumentoUi.Texto(fila.Estado)</Badge></td>
+                                        <td>@fila.TrabajadorNombre</td>
+                                        <td>@fila.EmpresaRazonSocial</td>
+                                        <td>@fila.TipoDocumentoNombre</td>
+                                        <td>@(fila.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <span class="nota-vista-previa-informe">Vista previa · el PDF final puede variar en la paginación</span>
+                </div>
+            }
+            else if (!_generando && _informeAsignaciones is { } ia)
+            {
+                <div class="documento-vista-previa-informe">
+                    <div class="cabecera-documento-informe">
+                        <span class="titulo-documento-informe">Informe de asignaciones activas</span>
+                        <span class="metadato-documento-informe">Alcance: @ia.Alcance</span>
+                        <span class="metadato-documento-informe">@ia.Filas.Count fila(s)</span>
+                    </div>
+                    <div class="tabla-vista-previa-envoltorio">
+                        <table class="tabla-datos">
+                            <thead>
+                                <tr><th>Trabajador</th><th>Centro</th><th>Asignado desde</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var fila in ia.Filas)
+                                {
+                                    <tr>
+                                        <td>@fila.TrabajadorNombre</td>
+                                        <td>@fila.CentroNombre</td>
+                                        <td>@fila.FechaAlta.ToString("dd/MM/yyyy")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <span class="nota-vista-previa-informe">Vista previa · el PDF final puede variar en la paginación</span>
+                </div>
+            }
+            else if (!_generando)
+            {
+                <EstadoVacio Titulo="Genera una vista previa" Descripcion="Elige una plantilla de informe y pulsa «Generar vista previa» para verlo aquí." />
+            }
+        </div>
+    </div>
 </div>
 
-@code {
-    private int _tamanoPagina = 20;
-
-    private IReadOnlyList<FilaReporteDocumentoDto> _filas = [];
-    private bool _cargando = true;
-    private bool _error;
-    private int _pagina = 1;
-
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_filas.Count / (double)_tamanoPagina));
-    private IReadOnlyList<FilaReporteDocumentoDto> FilasDePagina => _filas.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
-
-    protected override Task OnInitializedAsync() => CargarAsync();
-
-    private Task IrAPaginaAsync(int pagina)
-    {
-        _pagina = pagina;
-        return Task.CompletedTask;
-    }
-
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
-    private Task CambiarTamanoPaginaAsync(int tamano)
-    {
-        _tamanoPagina = tamano;
-        _pagina = 1;
-        return Task.CompletedTask;
-    }
-
-    private async Task CargarAsync()
-    {
-        _cargando = true;
-        _error = false;
-        StateHasChanged();
-
-        try
-        {
-            _filas = await Mediator.Send(new ObtenerReporteDocumentosQuery());
-            _pagina = 1;
-        }
-        catch (Exception)
-        {
-            _error = true;
-        }
-        finally
-        {
-            _cargando = false;
-        }
-    }
-}
+<RedactarMensajeDrawer Visible="_composerVisible" VisibleChanged="v => _composerVisible = v"
+                        AsuntoInicial="@InformeActual.Titulo" Adjunto="_adjuntoInforme" />

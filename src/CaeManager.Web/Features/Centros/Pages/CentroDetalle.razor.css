@@ -1,0 +1,149 @@
+/*
+  Cabecera de entidad de Centro 360 (Parte XVI PROMPT 13): anillo + identidad
+  + acciones en una fila, igual que el mockup — a diferencia de la fila de
+  /centros (lámina L3), aquí hay una sola entidad, así que el anillo puede
+  ser grande sin competir por espacio con una lista.
+*/
+.centro360-cabecera {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-6);
+    padding-bottom: var(--space-6);
+    margin-bottom: var(--space-6);
+    border-bottom: var(--border-default);
+}
+
+.centro360-identidad {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.centro360-titulo {
+    font: var(--font-heading-lg);
+    color: var(--color-text);
+    margin: 0;
+}
+
+.centro360-meta {
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.centro360-meta .enlace-nombre-fila {
+    font: inherit;
+}
+
+.centro360-indicadores {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.centro360-acciones {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+/* Cuerpo: dos ámbitos (principal) + barra lateral de contexto — máximo 3 niveles centro→sujeto→documento, el mismo límite que ya respeta AcordeonAsignacionesCentro. */
+.centro360-cuerpo {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: var(--space-8);
+    align-items: start;
+}
+
+.centro360-principal {
+    min-width: 0;
+}
+
+.centro360-lateral {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    position: sticky;
+    top: var(--space-6);
+}
+
+.centro360-tarjeta-lateral {
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.centro360-tarjeta-lateral-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.centro360-tarjeta-lateral-cabecera h2 {
+    font: var(--font-heading-sm);
+    margin: 0;
+}
+
+.centro360-lista-canales {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.centro360-lista-canales li {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-top: var(--space-3);
+    border-top: var(--border-default);
+}
+
+.centro360-lista-canales li:first-child {
+    padding-top: 0;
+    border-top: none;
+}
+
+.centro360-canal-etiqueta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+.centro360-canal-detalle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 900px) {
+    .centro360-cabecera {
+        flex-wrap: wrap;
+    }
+
+    .centro360-acciones {
+        align-items: flex-start;
+    }
+
+    .centro360-cuerpo {
+        grid-template-columns: 1fr;
+    }
+
+    .centro360-lateral {
+        position: static;
+    }
+}

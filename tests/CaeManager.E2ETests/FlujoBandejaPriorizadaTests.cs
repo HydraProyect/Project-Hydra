@@ -104,17 +104,26 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
 
         // Filtra por "Urgente" — la tarjeta debe seguir visible; filtrar por
         // otro tipo (Vencido) debe ocultarla, confirmando que el filtro de
-        // verdad reduce la lista y no solo decora. Por Value, no por Label:
-        // Bandeja.razor añade el contador a cada <option> ("Urgente (1)"),
-        // así que el texto visible no es estable entre ejecuciones, pero el
-        // value (nameof(TipoItemBandeja.X)) sí lo es.
-        await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Value = "Urgente" });
+        // verdad reduce la lista y no solo decora. Chips en vez de <select>
+        // desde el rediseño (mockup "Mi trabajo TALVEG"): cada chip es un
+        // <button> con su propio nombre accesible ("Urgente (N)"), único por
+        // texto exacto entre los ocho tipos — sustituye al SelectOptionAsync
+        // por Value que usaba el <select> anterior.
+        // Acotado a .bandeja-chip (no GetByRole a secas): la agrupación por
+        // cola (GrupoCola.razor) añade cabeceras de grupo cuyo nombre
+        // accesible puede contener "Vencido"/"Urgente" como sustring (p. ej.
+        // un recuento por tipo dentro del propio grupo), lo que rompía la
+        // coincidencia única que este chip sí garantiza por clase.
+        var chipUrgente = page.Locator("button.bandeja-chip", new PageLocatorOptions { HasText = "Urgente" });
+        var chipVencido = page.Locator("button.bandeja-chip", new PageLocatorOptions { HasText = "Vencido" });
+
+        await chipUrgente.ClickAsync();
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
-        await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Value = "Vencido" });
+        await chipVencido.ClickAsync();
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
-        await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Value = "Urgente" });
+        await chipUrgente.ClickAsync();
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         // --- Atajos de teclado ---
@@ -131,31 +140,55 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // "Urgente") -- con ambos tests en la misma suite, ItemsFiltrados
         // tiene 2 elementos, no 1. "j" SÍ enfoca algo desde la primera
         // pulsación (confirmado en CI con diagnóstico servidor: el interop
-        // llega bien), pero enfoca el primero de la lista según su orden
-        // real, que puede no ser el de este test. Se calcula el índice real
-        // de la tarjeta entre las visibles y se pulsa "j" esa cantidad de
-        // veces, en vez de asumir una sola pulsación.
-        var tarjetasVisibles = page.Locator(".panel-resolver-item");
-        var totalVisibles = await tarjetasVisibles.CountAsync();
-        var indiceTarjeta = -1;
-        for (var i = 0; i < totalVisibles; i++)
-        {
-            if ((await tarjetasVisibles.Nth(i).InnerTextAsync()).Contains(apellidosTrabajador))
-            {
-                indiceTarjeta = i;
-                break;
-            }
-        }
-        Assert.True(indiceTarjeta >= 0, "No se encontró la tarjeta de este test entre los ítems 'Urgente' filtrados.");
+        // llega bien), pero el orden real de "j"/"k" (Bandeja.razor.cs,
+        // Items = Grupos.SelectMany(g => g.Items) + SinGrupo) no tiene por
+        // qué coincidir con el orden VISUAL de ".panel-resolver-item" en el
+        // DOM (GruposOrdenados reagrupa ItemsFiltrados y puede reordenar los
+        // ítems dentro de cada grupo) desde que /bandeja se agrupa por cola
+        // (GrupoCola) en vez de ser una lista plana. En vez de calcular un
+        // índice visual y asumir que "j" lo respeta, se pulsa "j" de forma
+        // acotada hasta que la propia tarjeta reciba la clase — a prueba de
+        // cuál sea el orden real de navegación.
+        var totalVisibles = await page.Locator(".panel-resolver-item").CountAsync();
 
-        await tarjeta.GetByRole(AriaRole.Button).FocusAsync();
-        for (var i = 0; i <= indiceTarjeta; i++)
+        // Name = "Gestionar", no GetByRole a secas: PanelResolverItem.razor
+        // añadió un botón "Copiar fecha" junto al de acción — sin acotar por
+        // nombre, la tarjeta tiene dos botones y GetByRole es ambiguo.
+        await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).FocusAsync();
+
+        // Reintento con la espera propia de Playwright (ToHaveClassAsync) en
+        // vez de un WaitForTimeoutAsync fijo, para no depender de adivinar
+        // una duración — aun así, "j" puede agotar TODOS sus intentos sin
+        // que "panel-resolver-item-enfocado" llegue a aparecer en ningún
+        // ítem. Confirmado en vivo (fuera de este test, con un
+        // KeyboardEvent despachado a mano sobre /bandeja filtrada a
+        // Urgente): ManejarAtajoAsync sí calcula el _idEnfocado correcto en
+        // el servidor, pero el cliente nunca refleja la clase — un fallo
+        // real de re-renderizado tras agrupar por cola (GrupoCola), no un
+        // problema de tiempos del test. Sin diagnosticar más a fondo
+        // todavía (Blazor + @foreach sin @key en GruposOrdenados/
+        // GruposAnidados, ambos recalculados en cada render, es la hipótesis
+        // más probable) — este bucle deja constancia del fallo real en vez
+        // de esconderlo tras una espera insuficiente.
+        var claseEnfocado = new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado");
+        var enfocada = false;
+        for (var i = 0; i < totalVisibles && !enfocada; i++)
         {
             await page.Keyboard.PressAsync("j");
-            await page.WaitForTimeoutAsync(200);
+            try
+            {
+                // Expect(...).ToHaveClassAsync() lanza PlaywrightException al
+                // agotar su timeout, no System.TimeoutException (esa es la de
+                // Locator.WaitForAsync) — capturar el tipo equivocado dejaba
+                // pasar la excepción sin capturar en el primer intento fallido.
+                await Expect(tarjeta).ToHaveClassAsync(claseEnfocado, new LocatorAssertionsToHaveClassOptions { Timeout = 3_000 });
+                enfocada = true;
+            }
+            catch (PlaywrightException)
+            {
+            }
         }
-
-        await Expect(tarjeta).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado"));
+        Assert.True(enfocada, "\"j\" nunca llegó a enfocar la tarjeta de este test tras recorrer todos los ítems visibles.");
 
         // --- Resolver: la acción de la tarjeta abre el Documento subyacente ---
         // No es un ".workspace-panel": para un ítem "Urgente" (el caso por
@@ -167,7 +200,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // el Drawer muestra el nombre del propietario en modo solo lectura
         // (_propietarioNombreSoloLectura, ver DrawerGestionDocumento.razor.cs),
         // que contiene los apellidos del trabajador.
-        await tarjeta.GetByRole(AriaRole.Button).ClickAsync();
+        await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
         var drawerDocumento = page.Locator(".drawer-panel");
         await drawerDocumento.GetByText(apellidosTrabajador).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
     }

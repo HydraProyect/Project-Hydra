@@ -1,9 +1,11 @@
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Configuracion;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Identity;
 using MediatR;
@@ -88,6 +90,24 @@ public class VigilanciaVisitasUrgentesHostedService(
         using var ambito = ambitoFactory.CreateScope();
         using var _ = AmbitoTenantExplicito.Establecer(tenantId);
 
+        var registroAutomatizaciones = ambito.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>();
+        if (!await registroAutomatizaciones.EstaActivoAsync(CatalogoAutomatizaciones.VigilanciaVisitasUrgentes, stoppingToken))
+            return;
+
+        try
+        {
+            await AvisarTenantAsync(ambito, stoppingToken);
+            await registroAutomatizaciones.RegistrarEjecucionAsync(CatalogoAutomatizaciones.VigilanciaVisitasUrgentes, exitosa: true, stoppingToken);
+        }
+        catch
+        {
+            await registroAutomatizaciones.RegistrarEjecucionAsync(CatalogoAutomatizaciones.VigilanciaVisitasUrgentes, exitosa: false, stoppingToken);
+            throw;
+        }
+    }
+
+    private async Task AvisarTenantAsync(IServiceScope ambito, CancellationToken stoppingToken)
+    {
         var mediator = ambito.ServiceProvider.GetRequiredService<IMediator>();
         var items = await mediator.Send(new ObtenerBandejaGestorQuery(), stoppingToken);
 

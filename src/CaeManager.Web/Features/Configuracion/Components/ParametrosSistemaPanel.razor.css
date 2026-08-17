@@ -1,0 +1,13 @@
+.tarjeta-configuracion {
+    max-width: 480px;
+}
+
+.descripcion-configuracion {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    margin-bottom: var(--space-4);
+}
+
+.acciones-formulario {
+    margin-top: var(--space-4);
+}

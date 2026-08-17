@@ -78,30 +78,50 @@ public class ImportacionTests(WebAppFixture fixture)
             await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/importacion");
 
+            // Wizard de 5 pasos: "cae" ya viene preseleccionada en el paso 1
+            // (elegir plantilla), pero el input de archivo solo existe en el
+            // paso 2 — hay que confirmar la plantilla primero.
+            await page.GetByText("Continuar con Importación CAE completa").ClickAsync();
             await page.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaExcel);
 
-            // --- Paso 2: el plan promete las 6 altas, incluida la Asignación ---
-            await page.GetByText("2. Revisa el plan de importación").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Clientes nuevos"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Centros nuevos"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Empresas nuevas"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Trabajadores nuevos"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Documentos nuevos"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Asignaciones nuevas"));
+            var botonVerPlan = page.GetByText("Ver plan de importación");
+            await Expect(botonVerPlan).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 15_000 });
+            await botonVerPlan.ClickAsync();
 
-            await page.GetByText("Confirmar importación").ClickAsync();
+            // --- Paso 3 "Revisar plan": el plan promete las 6 altas, incluida la
+            // Asignación (Importacion.razor.cs, NombresPasos — el wizard
+            // unificado de 5 pasos que sustituyó a los 4 por plantilla, tarea
+            // #41, ya no usa el título "N. Revisa el plan de importación" de
+            // aquellos ni tarjetas TarjetaMetrica por entidad: aquí el plan es
+            // una única tabla ProyectarFilas con una fila "Crear X" por alta). ---
+            await page.GetByText("Revisar plan").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            var tablaPlan = page.Locator(".tabla-plan-importacion-envoltorio .tabla-datos");
+            await Expect(page.GetByText("6 se crearán")).ToBeVisibleAsync();
+            await Expect(tablaPlan).ToContainTextAsync("Crear cliente");
+            await Expect(tablaPlan).ToContainTextAsync("Crear centro");
+            await Expect(tablaPlan).ToContainTextAsync("Crear empresa");
+            await Expect(tablaPlan).ToContainTextAsync($"{nombreTrabajador} {apellidosTrabajador}");
+            await Expect(tablaPlan).ToContainTextAsync("Crear documento");
+            await Expect(tablaPlan).ToContainTextAsync("Crear asignación");
+
+            await page.GetByText("Continuar a confirmar").ClickAsync();
+            await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();
+            await page.GetByText("Importar ahora").ClickAsync();
 
             // --- Resultado: Empresa/Trabajador/Documento sí se crean; Cliente/Centro se omiten con motivo;
-            // Asignaciones queda en 0 SIN ningún Omitido que lo explique — la pérdida silenciosa. ---
-            // GetByText a secas ambigua con el toast "Importación completada." (con punto).
-            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Importación completada" })
+            // Asignaciones queda en 0 SIN ningún Omitido que lo explique — la pérdida silenciosa.
+            // El reporte del wizard unificado agrega "Creados" en un único
+            // número (Importacion.razor, paso 5) en vez de una tarjeta por
+            // entidad — 3 (empresa + trabajador + documento), no 6: Cliente y
+            // Centro se omiten y Asignación se pierde sin generar alta ni
+            // omitido. ".titulo-reporte-importacion" en vez de un rol Heading:
+            // es un <span>, no un <h#> — y a secas es ambiguo con el toast
+            // "Importación completada." (con punto). ---
+            await page.Locator(".titulo-reporte-importacion")
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Clientes creados"));
-            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Centros creados"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Empresas creadas"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Trabajadores creados"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Documentos creados"));
-            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Asignaciones creadas"));
+            Assert.Equal("3", await Ayudas.LeerMetricaAsync(page, "Creados"));
+            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Avisos"));
+            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Omitidos"));
 
             var filasOmitidas = page.Locator(".tabla-datos tbody tr");
             await filasOmitidas.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });

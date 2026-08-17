@@ -15,6 +15,7 @@
 @using FluentValidation
 @using MediatR
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Trabajadores.Components
 @using Microsoft.AspNetCore.Components.QuickGrid
 @inject IMediator Mediator
 @inject ToastService ToastService
@@ -94,12 +95,12 @@
                     </TemplateColumn>
                 }
                 <TemplateColumn Title="Apellidos" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Apellidos))">
-                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.Id, NombreCompleto(context), "informacion")'>
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => AbrirPreview(context.Id)'>
                         @context.Apellidos
                     </button>
                 </TemplateColumn>
                 <TemplateColumn Title="Nombre" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Nombre))">
-                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.Id, NombreCompleto(context), "informacion")'>
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => AbrirPreview(context.Id)'>
                         @context.Nombre
                     </button>
                 </TemplateColumn>
@@ -112,7 +113,7 @@
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <MenuAcciones>
-                        <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, context.Id, NombreCompleto(context), "informacion")'>
+                        <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>
                             Detalles
                         </ItemMenuAccion>
                         <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, NombreCompleto(context))">
@@ -236,6 +237,8 @@
     Mensaje="Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
+
+<TrabajadorPreviewDrawer TrabajadorId="_previewTrabajadorId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" />
 
 <Modal Visible="_asignarCentroVisible" VisibleChanged="v => _asignarCentroVisible = v" Titulo="@($"Asignar {_seleccionados.Count} trabajador(es) a un centro")" CerrarAlHacerClicFuera="!_asignandoLote">
     <ChildContent>

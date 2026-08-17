@@ -1,16 +1,100 @@
 @*
-    Acción preventiva, no reactiva (pedido explícito del usuario, 2026-08-08):
-    cuando a varios técnicos con Asignación activa al mismo Centro les falta
-    el mismo TipoDocumento exigido allí, agrupa el patrón en vez de dejar que
-    cada uno aparezca como una alerta suelta — para resolverlo de una vez
-    antes de que el siguiente técnico llegue al Centro sin el documento.
-    Misma pestaña de /documentos que Reclamaciones, mismo motivo: reutilizar
-    la pantalla en vez de sumar una entrada al menú lateral.
+    Pestaña "Preventivo" de /documentos (Parte XVI PROMPT 03). Dos secciones
+    con sujetos distintos, ambas reales — ninguna sustituye a la otra:
+
+    1. Ventanas de vencimiento (fiel al mockup real, WINDOWS del .dc.html):
+       TODOS los documentos —cualquier ámbito, no solo Trabajador— agrupados
+       en 3 franjas fijas de días hasta el vencimiento. La acción por fila es
+       "Gestionar" (abre DrawerGestionDocumento.AbrirEditarAsync, documento
+       ya existe) y NO el "Reclamar"/"Reclamar todo" que muestra el mockup:
+       EnviarReclamacionCommand solo reclama documentos de Trabajador
+       agrupados por un único Cliente, y una ventana mezcla ámbitos y
+       clientes distintos — ese fan-out (agrupar por Cliente dentro de cada
+       ventana y lanzar un EnviarReclamacionCommand por grupo) es una pieza
+       aparte, con su propio alcance, no se construye aquí con una semántica
+       que el backend actual no sostiene.
+
+    2. Patrones de falta (la que ya existía, ObtenerSugerenciasPreventivasQuery):
+       pregunta distinta — "a cuántos OTROS técnicos del mismo centro les
+       falta este mismo documento", sobre documentos que NUNCA existieron,
+       no sobre documentos que van a vencer. Se conserva tal cual.
 *@
 @using CaeManager.Application.Alertas.Queries.ObtenerSugerenciasPreventivas
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
 @using MediatR
 @inject IMediator Mediator
 
+<div class="separador-ambito">Ventanas de vencimiento</div>
+@if (_cargandoVentanas)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_errorVentanas)
+{
+    <EstadoVacio Titulo="No pudimos cargar los próximos vencimientos" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarVentanasAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (Ventanas.All(v => v.Documentos.Count == 0))
+{
+    <EstadoVacio Titulo="Nada próximo a vencer" Descripcion="Ningún documento vence en los próximos 90 días." />
+}
+else
+{
+    <div class="lista-trabajadores-acordeon">
+        @foreach (var ventana in Ventanas)
+        {
+            @if (ventana.Documentos.Count == 0) { continue; }
+
+            <div class="fila-trabajador-acordeon" @key="ventana.Etiqueta">
+                <div class="fila-trabajador-acordeon-cuerpo">
+                    <div class="fila-trabajador-rejilla">
+                        <span class="fila-trabajador-nombre">@ventana.Etiqueta</span>
+                        <Badge Tono="EstadoDocumentoUi.Tono(ventana.PeorEstado)" Tamano="TamanoBadge.Pequeno">
+                            @EstadoDocumentoUi.Texto(ventana.PeorEstado)
+                        </Badge>
+                        <span class="fila-trabajador-fraccion">
+                            @ventana.Documentos.Count documento@(ventana.Documentos.Count == 1 ? "" : "s") · @ventana.Propietarios.Count propietario@(ventana.Propietarios.Count == 1 ? "" : "s")
+                        </span>
+                    </div>
+                    <div class="tabla-documentos-requeridos" role="table" aria-label="@($"Documentos que {ventana.Etiqueta.ToLowerInvariant()}")">
+                        <div class="documentos-requeridos-cabecera" role="row">
+                            <span role="columnheader">Propietario</span>
+                            <span role="columnheader">Documento</span>
+                            <span role="columnheader">Vencimiento</span>
+                            <span role="columnheader" class="columna-accion">Acción</span>
+                        </div>
+                        @foreach (var documento in ventana.Documentos)
+                        {
+                            <div class="fila-documento-requerido" role="row" @key="documento.Id">
+                                <span class="celda-documento-nombre" role="cell">@documento.PropietarioNombre</span>
+                                <span role="cell">@documento.TipoDocumentoNombre</span>
+                                <span role="cell">
+                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">
+                                        @(documento.FechaVencimiento?.ToString("dd/MM/yyyy")) — @EstadoDocumentoUi.Texto(documento.Estado)
+                                    </Badge>
+                                </span>
+                                <span class="columna-accion" role="cell">
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                           OnClick="() => _drawerGestion.AbrirEditarAsync(documento.Id)">
+                                        Gestionar
+                                    </Boton>
+                                </span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<div class="separador-ambito">Patrones — mismo documento faltante en varios técnicos</div>
 @if (_cargando)
 {
     <EstadoCargando Filas="3" />
@@ -50,12 +134,81 @@ else
     }
 }
 
+<DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="CargarVentanasAsync" />
+
 @code {
+    private record VentanaVencimiento(string Etiqueta, int DiasHasta)
+    {
+        public List<DocumentoListaDto> Documentos { get; } = [];
+        public IReadOnlySet<string> Propietarios => Documentos.Select(d => d.PropietarioNombre).ToHashSet();
+        public EstadoDocumento PeorEstado => Documentos.Count == 0
+            ? EstadoDocumento.Vigente
+            : Documentos.OrderBy(d => OrdenSeveridad(d.Estado)).First().Estado;
+
+        private static int OrdenSeveridad(EstadoDocumento estado) => estado switch
+        {
+            EstadoDocumento.Vencido => 0,
+            EstadoDocumento.Urgente => 1,
+            EstadoDocumento.Proximo => 2,
+            EstadoDocumento.Vigente => 3,
+            _ => 4
+        };
+    }
+
+    private List<VentanaVencimiento> Ventanas { get; } =
+    [
+        new("Vence en 7 días", 7),
+        new("Vence en 8–30 días", 30),
+        new("Vence en 31–90 días", 90)
+    ];
+
+    private bool _cargandoVentanas = true;
+    private bool _errorVentanas;
+    private DrawerGestionDocumento _drawerGestion = default!;
+
     private bool _cargando = true;
     private bool _error;
     private IReadOnlyList<SugerenciaPreventivaDto> _sugerencias = [];
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarVentanasAsync();
+        await CargarAsync();
+    }
+
+    private async Task CargarVentanasAsync()
+    {
+        _cargandoVentanas = true;
+        _errorVentanas = false;
+        StateHasChanged();
+
+        try
+        {
+            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var resultado = await Mediator.Send(new ObtenerDocumentosQuery(
+                TrabajadorId: null, Ambito: null, Busqueda: null, Estado: null,
+                Pagina: 1, TamanoPagina: 500, FechaVencimientoHasta: hoy.AddDays(90),
+                OrdenarPor: nameof(DocumentoListaDto.FechaVencimiento)));
+
+            foreach (var ventana in Ventanas)
+                ventana.Documentos.Clear();
+
+            foreach (var documento in resultado.Elementos)
+            {
+                var diasHasta = documento.FechaVencimiento!.Value.DayNumber - hoy.DayNumber;
+                var ventana = Ventanas.First(v => diasHasta <= v.DiasHasta);
+                ventana.Documentos.Add(documento);
+            }
+        }
+        catch (Exception)
+        {
+            _errorVentanas = true;
+        }
+        finally
+        {
+            _cargandoVentanas = false;
+        }
+    }
 
     private async Task CargarAsync()
     {

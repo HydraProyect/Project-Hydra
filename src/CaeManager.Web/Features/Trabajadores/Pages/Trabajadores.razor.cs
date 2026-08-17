@@ -91,6 +91,17 @@ public partial class Trabajadores : ComponentBase
     private string _nombreAEliminar = string.Empty;
     private bool _eliminando;
 
+    // Drawer ligero (mismo patrón que ClientePreviewDrawer): nombre de fila
+    // y "Detalles" abren esto primero, no el Context Workspace directamente.
+    private Guid? _previewTrabajadorId;
+    private bool _previewVisible;
+
+    private void AbrirPreview(Guid id)
+    {
+        _previewTrabajadorId = id;
+        _previewVisible = true;
+    }
+
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
@@ -666,11 +677,7 @@ public partial class Trabajadores : ComponentBase
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
-                {
-                    var elemento = _elementosPagina.FirstOrDefault(e => e.Id == idAbrir);
-                    if (elemento is not null)
-                        await WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, elemento.Id, NombreCompleto(elemento), "informacion");
-                }
+                    AbrirPreview(idAbrir);
                 break;
         }
 

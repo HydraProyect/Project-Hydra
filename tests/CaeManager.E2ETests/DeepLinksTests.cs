@@ -47,8 +47,28 @@ public class DeepLinksTests(WebAppFixture fixture)
         // Abre el primer trabajador desde la propia interfaz (clic, no un
         // "ctx" escrito a mano) — así la URL que se prueba después es
         // exactamente la que ContextWorkspace.ActualizarUrlDesdeEstado genera
-        // de verdad, no una inventada por el test.
+        // de verdad, no una inventada por el test. El clic en el nombre de
+        // fila abre primero el drawer ligero de vista previa (TrabajadorPreviewDrawer);
+        // "Ver Trabajador 360 →" lleva a la ficha completa, y desde ahí
+        // "⋯ → Editar" es lo que de verdad abre el Context Workspace — el
+        // mismo camino que ya usa TrabajadorDetalle.razor.cs (AbrirInformacion).
         await page.Locator(".enlace-nombre-fila").First.ClickAsync();
+        await page.GetByText("Ver Trabajador 360 →").ClickAsync();
+        // Ni WaitForURLAsync ni RunAndWaitForNavigationAsync sirven de guarda
+        // aquí: confirmado en vivo (captura de pantalla en el momento exacto
+        // en que ambos ya daban la navegación por completa) que page.Url
+        // puede quedar en /trabajadores/{id} mientras el DOM todavía
+        // muestra la lista de /trabajadores con el drawer de vista previa
+        // abierto — la navegación mejorada de Blazor parchea el DOM de forma
+        // asíncrona y ese parcheo no coincide con ningún evento de
+        // navegación que Playwright pueda esperar. La única guarda fiable es
+        // esperar directamente el resultado en el DOM: que quede un único
+        // ".menu-acciones-disparador" en pantalla (el de la cabecera de
+        // Trabajador 360, ver TrabajadorDetalle.razor) en vez de los 20 de
+        // cada fila de la lista.
+        await Expect(page.Locator(".menu-acciones-disparador")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 60_000 });
+        await page.Locator(".menu-acciones-disparador").ClickAsync();
+        await page.Locator(".menu-acciones-panel").GetByText("Editar", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
         await page.Locator(".workspace-titulo-entidad").WaitForAsync();
         var tituloOriginal = (await page.Locator(".workspace-titulo-entidad").TextContentAsync())!.Trim();
 

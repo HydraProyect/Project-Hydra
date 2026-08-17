@@ -638,6 +638,24 @@
 }
 
 /*
+  Vista previa de /centros (hallazgo en vivo 2026-08-16, SoloIncidencias):
+  cierra la lista recortada indicando cuántos trabajadores al día se
+  ocultaron y ofrece el enlace a la página propia Centro 360, que es la
+  única vista que conserva la lista completa sin recortar.
+*/
+.nota-trabajadores-ocultos {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-top: var(--space-2);
+    margin-top: var(--space-2);
+    border-top: var(--border-default);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+}
+
+/*
   El checkbox de selección va como hermano de ancho fijo a la izquierda del
   cuerpo de la fila (mismo motivo que .tarjeta-fila-acordeon-cabecera con su
   propio checkbox): anidarlo dentro del <button> del chevron sería HTML

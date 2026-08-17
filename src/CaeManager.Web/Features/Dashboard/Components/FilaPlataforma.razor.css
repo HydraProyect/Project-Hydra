@@ -1,0 +1,31 @@
+.fila-plataforma {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.fila-plataforma-nombre {
+    font: var(--font-label);
+    color: var(--color-text);
+}
+
+.fila-plataforma-detalle {
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.fila-plataforma-separador {
+    margin: 0 var(--space-2);
+    color: var(--color-border-strong);
+}
+
+.fila-plataforma-rechazadas {
+    color: var(--color-danger-700);
+    font-weight: 600;
+}

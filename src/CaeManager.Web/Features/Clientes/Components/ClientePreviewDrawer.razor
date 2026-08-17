@@ -1,0 +1,94 @@
+@*
+    Drawer ligero de vista previa (Lista Clientes TALVEG.dc.html) — paso
+    intermedio antes de abrir el ClienteWorkspacePanel completo. 3 pestañas
+    fieles al mockup (Información/Documentación/Historial). Documentación e
+    Historial reutilizan PestanaDocumentacion/PestanaHistorial — los mismos
+    componentes de solo-lectura que ya usan los 7 paneles del Context
+    Workspace, en vez de reimplementar la carga — un clic en un documento de
+    la lista abre directamente su propio workspace (WorkspaceService.NavegarAAsync).
+    Dos exclusiones deliberadas frente al mockup: "Portal principal" (un
+    Cliente puede tener varios Centros, cada uno con su propio canal
+    "principal" — no hay un portal principal a nivel de Cliente sin
+    inventarlo) y el texto narrativo del Historial ("Centro Norte pasó a
+    bloqueo de acceso") — la auditoría real solo guarda Acción/Usuario/Fecha
+    por entidad, igual que ya muestra Auditoria.razor.
+*@
+@using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
+@using CaeManager.Domain.Documentos
+
+@if (Visible)
+{
+    <aside class="drawer-preview-cliente" role="complementary" aria-label="Vista previa del cliente">
+        <div class="cabecera-preview-cliente">
+            <div class="texto-cabecera-preview-cliente">
+                <span class="etiqueta-cabecera-preview-cliente">Consulta · Cliente</span>
+                @if (_resumen is not null)
+                {
+                    <span class="nombre-cabecera-preview-cliente">@_resumen.RazonSocial</span>
+                }
+                else
+                {
+                    <span class="nombre-cabecera-preview-cliente">Cargando…</span>
+                }
+            </div>
+            <button type="button" class="boton-cerrar-preview-cliente" aria-label="Cerrar" @onclick="Cerrar">✕</button>
+        </div>
+
+        <div class="cuerpo-preview-cliente">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Secciones del cliente">
+            @if (_cargandoResumen && _pestanaActiva == "informacion")
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (_pestanaActiva == "informacion" && _resumen is not null)
+            {
+                <div class="rejilla-info-preview-cliente">
+                    <div class="celda-info-preview-cliente"><span>CIF</span><strong>@_resumen.Cif</strong></div>
+                    <div class="celda-info-preview-cliente"><span>Ejecutivo</span><strong>@(_nombreEjecutivo ?? "—")</strong></div>
+                    <div class="celda-info-preview-cliente"><span>Centros</span><strong>@_resumen.TotalCentros</strong></div>
+                    <div class="celda-info-preview-cliente"><span>Trabajadores</span><strong>@_resumen.TotalTrabajadores</strong></div>
+                    <div class="celda-info-preview-cliente"><span>Alta</span><strong>@_resumen.CreadoEnUtc.ToLocalTime().ToString("MM/yyyy")</strong></div>
+                    <div class="celda-info-preview-cliente"><span>Crítico</span><strong>@(_resumen.EsCritico ? "Sí" : "No")</strong></div>
+                </div>
+
+                @if (_contactoPrincipal is not null)
+                {
+                    <div class="tarjeta-contacto-preview-cliente">
+                        <span class="titulo-tarjeta-contacto-preview-cliente">Contacto principal</span>
+                        <span>@_contactoPrincipal.Nombre@(_contactoPrincipal.Cargo is null ? "" : $" · {_contactoPrincipal.Cargo}")</span>
+                        <span class="detalle-contacto-preview-cliente">@_contactoPrincipal.Email@(_contactoPrincipal.Telefono is null ? "" : $" · {_contactoPrincipal.Telefono}")</span>
+                    </div>
+                }
+                else if (!_cargandoContacto)
+                {
+                    <span class="vacio-preview-cliente">Sin contacto en la agenda.</span>
+                }
+            }
+
+            @if (_pestanaActiva == "documentacion" && ClienteId is { } clienteIdDocs)
+            {
+                <PestanaDocumentacion Ambito="AmbitoAplicacion.Cliente" PropietarioId="clienteIdDocs" />
+                <button type="button" class="enlace-ver-todo-preview-cliente" @onclick='() => Operar("documentacion")'>
+                    Ver toda su documentación →
+                </button>
+            }
+
+            @if (_pestanaActiva == "historial" && ClienteId is { } clienteIdHist)
+            {
+                <PestanaHistorial EntidadTipo="Cliente" EntidadId="clienteIdHist" />
+            }
+        </Pestanas>
+        </div>
+
+        <div class="pie-preview-cliente">
+            <Boton OnClick='() => Operar("informacion")'>Operar →</Boton>
+            <span class="nota-pie-preview-cliente">Abre el workspace Cliente 360</span>
+        </div>
+    </aside>
+}
+
+@code {
+    private static readonly IReadOnlyList<PestanaDefinicion> Pestanas =
+        [new("informacion", "Información"), new("documentacion", "Documentación"), new("historial", "Historial")];
+}

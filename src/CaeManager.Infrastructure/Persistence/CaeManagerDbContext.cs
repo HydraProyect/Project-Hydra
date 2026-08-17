@@ -13,10 +13,12 @@ using CaeManager.Application.Empresas;
 using CaeManager.Application.Facturacion;
 using CaeManager.Application.Gestiones;
 using CaeManager.Application.Incidencias;
+using CaeManager.Application.Importacion;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Notificaciones;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.Reclamaciones;
+using CaeManager.Application.Reportes;
 using CaeManager.Application.Retencion;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Telemetria;
@@ -40,11 +42,13 @@ using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Gestiones;
+using CaeManager.Domain.Importacion;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Reclamaciones;
+using CaeManager.Domain.Reportes;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Telemetria;
 using CaeManager.Domain.Tenants;
@@ -74,7 +78,7 @@ public class CaeManagerDbContext(
         IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
         IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext,
         ITelemetriaQueryContext, CaeManager.Application.Contactos.IContactosAgendaQueryContext,
-        CaeManager.Application.Plantillas.IPlantillasQueryContext
+        CaeManager.Application.Plantillas.IPlantillasQueryContext, IImportacionQueryContext, IReportesQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -256,6 +260,12 @@ public class CaeManagerDbContext(
     IQueryable<PreferenciaDashboardUsuario> IConfiguracionQueryContext.PreferenciasDashboardUsuario => PreferenciasDashboardUsuario;
     public DbSet<FiltroGuardado> FiltrosGuardados => Set<FiltroGuardado>();
     IQueryable<FiltroGuardado> IConfiguracionQueryContext.FiltrosGuardados => FiltrosGuardados;
+    public DbSet<EstadoAutomatizacion> EstadosAutomatizacion => Set<EstadoAutomatizacion>();
+    IQueryable<EstadoAutomatizacion> IConfiguracionQueryContext.EstadosAutomatizacion => EstadosAutomatizacion;
+    public DbSet<HistorialImportacion> HistorialImportaciones => Set<HistorialImportacion>();
+    IQueryable<HistorialImportacion> IImportacionQueryContext.HistorialImportaciones => HistorialImportaciones;
+    public DbSet<HistorialInforme> HistorialInformes => Set<HistorialInforme>();
+    IQueryable<HistorialInforme> IReportesQueryContext.HistorialInformes => HistorialInformes;
     public DbSet<ConexionIntegracion> ConexionesIntegracion => Set<ConexionIntegracion>();
     IQueryable<ConexionIntegracion> IIntegracionesQueryContext.ConexionesIntegracion => ConexionesIntegracion;
     public DbSet<CredencialIntegracion> CredencialesIntegracion => Set<CredencialIntegracion>();

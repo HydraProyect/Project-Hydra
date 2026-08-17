@@ -70,7 +70,7 @@ public class ObtenerSugerenciasVisitaCorreoPendientesQueryTests : IAsyncLifetime
         await SembrarSugerenciaAsync(_centroVisibleId, resuelta: true);
 
         await using var lectura = CrearContexto();
-        var handler = new ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(lectura, lectura, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(lectura, lectura, lectura, new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new ObtenerSugerenciasVisitaCorreoPendientesQuery(), CancellationToken.None);
 
@@ -84,7 +84,7 @@ public class ObtenerSugerenciasVisitaCorreoPendientesQueryTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(
-            lectura, lectura, new AlcanceDatosServiceFalso(centroIds: [_centroVisibleId]));
+            lectura, lectura, lectura, new AlcanceDatosServiceFalso(centroIds: [_centroVisibleId]));
 
         var resultado = await handler.Handle(new ObtenerSugerenciasVisitaCorreoPendientesQuery(), CancellationToken.None);
 
@@ -97,7 +97,7 @@ public class ObtenerSugerenciasVisitaCorreoPendientesQueryTests : IAsyncLifetime
         var whatsappId = await SembrarSugerenciaAsync(_centroVisibleId, resuelta: false, canal: CanalConversacion.WhatsApp);
 
         await using var lectura = CrearContexto();
-        var handler = new ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(lectura, lectura, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(lectura, lectura, lectura, new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new ObtenerSugerenciasVisitaCorreoPendientesQuery(), CancellationToken.None);
 

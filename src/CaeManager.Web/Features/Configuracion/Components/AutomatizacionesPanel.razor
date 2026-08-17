@@ -1,0 +1,85 @@
+@*
+    Panel "Automatizaciones" del hub de Configuración (Parte XVI PROMPT 08).
+    A diferencia del mockup (4 trabajos ilustrativos con estado en memoria),
+    lista los 4 trabajos de fondo reales del sistema con su estado
+    persistido — CatalogoAutomatizaciones es la fuente de verdad de qué
+    trabajos existen. "Recálculo nocturno de semáforo" del mockup no tiene
+    contrapartida real (los estados se calculan en vivo, nunca en lote) y
+    por eso no aparece aquí; a cambio sí aparece "Vigilancia de gestiones
+    urgentes de visita", que no estaba en el mockup pero es un trabajo real.
+*@
+@using CaeManager.Application.Configuracion.Commands.ActualizarEstadoAutomatizacion
+@using CaeManager.Application.Configuracion.Queries.ObtenerEstadoAutomatizaciones
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+@if (_errorCarga)
+{
+    <EstadoVacio Titulo="No pudimos cargar las automatizaciones" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_cargando)
+{
+    <EstadoCargando Filas="4" />
+}
+else
+{
+    <div class="cabecera-automatizaciones">
+        <h2>Automatizaciones</h2>
+        <p>Trabajos del sistema que corren sin intervención. Apagar uno detiene su efecto en toda la cartera.</p>
+    </div>
+
+    <div class="tabla-automatizaciones" role="table">
+        <div class="fila-automatizaciones fila-cabecera" role="row">
+            <span role="columnheader">Nombre</span>
+            <span role="columnheader">Última ejecución</span>
+            <span role="columnheader">Resultado</span>
+            <span role="columnheader">Estado</span>
+        </div>
+
+        @foreach (var trabajo in _trabajos)
+        {
+            <div class="fila-automatizaciones" role="row">
+                <span class="celda-nombre" role="cell">
+                    <span class="nombre-trabajo">@trabajo.Nombre</span>
+                    <span class="descripcion-trabajo">@trabajo.Descripcion</span>
+                </span>
+                <span role="cell">@FormatearUltimaEjecucion(trabajo.UltimaEjecucionUtc)</span>
+                <span role="cell">
+                    @if (trabajo.UltimaEjecucionUtc is null)
+                    {
+                        <Badge Tono="TonoBadge.Neutro">Sin datos</Badge>
+                    }
+                    else if (trabajo.UltimoResultadoExitoso == true)
+                    {
+                        <Badge Tono="TonoBadge.Exito">Correcta</Badge>
+                    }
+                    else
+                    {
+                        <Badge Tono="TonoBadge.Peligro">Fallida</Badge>
+                    }
+                </span>
+                <span role="cell">
+                    @if (trabajo.Conmutable)
+                    {
+                        <button type="button" role="switch" aria-checked="@trabajo.Activo.ToString().ToLowerInvariant()"
+                                aria-label="Activar o desactivar @trabajo.Nombre" class="@($"interruptor {(trabajo.Activo ? "interruptor-activo" : "")}")"
+                                disabled="@(_actualizando.Contains(trabajo.Id))" @onclick="() => ConmutarAsync(trabajo)">
+                            <span class="interruptor-pomo"></span>
+                        </button>
+                    }
+                    else
+                    {
+                        <span class="siempre-activo">Siempre activo</span>
+                    }
+                </span>
+            </div>
+        }
+    </div>
+
+    <span class="nota-auditoria">Los trabajos conmutables dejan su última ejecución registrada arriba.</span>
+}

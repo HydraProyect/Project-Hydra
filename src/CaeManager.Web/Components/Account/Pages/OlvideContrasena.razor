@@ -1,0 +1,48 @@
+@page "/cuenta/olvide-contrasena"
+@layout CaeManager.Web.Components.Layout.AuthLayout
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>¿Olvidaste tu contraseña? — @Marca.Nombre</PageTitle>
+
+<div class="tarjeta-login">
+    <h1>@Marca.Nombre</h1>
+
+    @if (!_enviado)
+    {
+        <p class="subtitulo-login">¿Olvidaste tu contraseña?</p>
+        <p class="texto-explicativo-login">
+            Escribe la dirección con la que entras a @Marca.Nombre y te enviaremos un enlace para restablecerla.
+        </p>
+
+        @if (Entrada is not null)
+        {
+            <EditForm Model="Entrada" method="post" OnValidSubmit="EnviarAsync" FormName="olvide-contrasena">
+                <DataAnnotationsValidator />
+
+                <label for="email">Correo electrónico</label>
+                <InputText id="email" @bind-Value="Entrada.Email" type="email" placeholder="nombre@consultora.es" autocomplete="username" />
+                <ValidationMessage For="() => Entrada.Email" />
+
+                <button type="submit" class="boton-primario" disabled="@_enviando">@(_enviando ? "Enviando…" : "Enviarme el enlace")</button>
+            </EditForm>
+        }
+    }
+    else
+    {
+        <div class="confirmacion-envio-login">
+            <span class="icono-exito-login" aria-hidden="true">✓</span>
+            <p class="subtitulo-login">Revisa tu correo</p>
+            <p class="texto-explicativo-login">
+                Si la dirección existe, recibirás un enlace en unos minutos. El enlace caduca en @MinutosCaducidad minutos.
+            </p>
+            <p class="texto-reenvio-login">
+                ¿No llega nada? Revisa la carpeta de spam o
+                <button type="button" class="enlace-boton-login" @onclick="EnviarAsync" disabled="@_enviando">vuelve a enviarlo</button>.
+            </p>
+        </div>
+    }
+
+    <a class="enlace-volver-login" href="/cuenta/iniciar-sesion">Volver a iniciar sesión</a>
+</div>

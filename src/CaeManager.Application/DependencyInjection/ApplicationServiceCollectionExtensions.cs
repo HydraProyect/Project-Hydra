@@ -99,6 +99,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<ICalculoEstadoSubcontrataService, CalculoEstadoSubcontrataService>();
         services.AddScoped<ICalculoEstadoDocumentalService, CalculoEstadoDocumentalService>();
         services.AddScoped<IDocumentosFaltantesService, DocumentosFaltantesService>();
+        services.AddScoped<Asignaciones.IResolverClientePrincipalService, Asignaciones.ResolverClientePrincipalService>();
         services.AddScoped<IResolucionProveedorPlataformaCaeService, ResolucionProveedorPlataformaCaeService>();
 
         // Factory pura (Application) — cada IDocumentAIProvider real se

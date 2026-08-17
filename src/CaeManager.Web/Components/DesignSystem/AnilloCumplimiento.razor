@@ -14,7 +14,7 @@
 *@
 @if (Porcentaje is { } porcentaje)
 {
-    <span class="anillo-cumplimiento-envoltorio anillo-cumplimiento-@Tamano.ToString().ToLowerInvariant() anillo-cumplimiento-@ObtenerTono(porcentaje).ToString().ToLowerInvariant()"
+    <span class="@ClaseEnvoltorio(porcentaje)"
           role="img" aria-label="@(Etiqueta ?? $"{porcentaje}% de cumplimiento")">
         <svg class="anillo-cumplimiento" viewBox="0 0 36 36" aria-hidden="true">
             <title>@(Etiqueta ?? $"{porcentaje}% de cumplimiento")</title>
@@ -22,7 +22,13 @@
             <circle class="anillo-cumplimiento-progreso" cx="18" cy="18" r="@RadioSvg"
                     stroke-dasharray="@FormatearTrazo(porcentaje)" />
         </svg>
-        <span class="anillo-cumplimiento-texto" aria-hidden="true">@porcentaje%</span>
+        <span class="anillo-cumplimiento-texto" aria-hidden="true">
+            @porcentaje%
+            @if (!string.IsNullOrWhiteSpace(Leyenda))
+            {
+                <span class="anillo-cumplimiento-leyenda">@Leyenda</span>
+            }
+        </span>
     </span>
 }
 else
@@ -53,6 +59,9 @@ else
     /// <summary>Texto del tooltip/aria-label — por defecto "N% de cumplimiento"; pasar algo más específico (ej. "72% de cumplimiento de Empresa acumulado en 4 centros") cuando el contexto lo pida.</summary>
     [Parameter] public string? Etiqueta { get; set; }
 
+    /// <summary>Segunda línea dentro del aro, bajo el porcentaje (p. ej. "Cumplimiento") — solo tiene sitio real en TamanoAnillo.Grande; en Pequeno/Medio se ignora visualmente por el propio tamaño del contenedor.</summary>
+    [Parameter] public string? Leyenda { get; set; }
+
     /// <summary>
     /// Umbrales propios del anillo (100% = Exito, ≥50% = Advertencia, resto
     /// Peligro) — no reutiliza EstadoCentroUi/EstadoDocumentoUi a propósito:
@@ -65,6 +74,20 @@ else
         >= 50 => TonoBadge.Advertencia,
         _ => TonoBadge.Peligro
     };
+
+    /// <summary>
+    /// Grande es siempre azul de marca, no semántico por severidad (ver comentario
+    /// de ".dashboard-resumen-tarjeta-anillo .anillo-cumplimiento-progreso" en
+    /// dashboard.css, ahora movido aquí): es la única cifra de la pantalla, no
+    /// compite con otras filas, así que "marca" sustituye al tono en vez de
+    /// sumarse a él.
+    /// </summary>
+    private string ClaseEnvoltorio(int porcentaje)
+    {
+        var tamano = Tamano.ToString().ToLowerInvariant();
+        var tono = Tamano == TamanoAnillo.Grande ? "marca" : ObtenerTono(porcentaje).ToString().ToLowerInvariant();
+        return $"anillo-cumplimiento-envoltorio anillo-cumplimiento-{tamano} anillo-cumplimiento-{tono}";
+    }
 
     private static string FormatearTrazo(int porcentaje)
     {

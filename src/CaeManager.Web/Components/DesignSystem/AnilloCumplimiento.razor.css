@@ -21,6 +21,16 @@
     height: 32px;
 }
 
+.anillo-cumplimiento-grande {
+    width: 180px;
+    height: 180px;
+}
+
+.anillo-cumplimiento-cabecera {
+    width: 88px;
+    height: 88px;
+}
+
 .anillo-cumplimiento {
     width: 100%;
     height: 100%;
@@ -59,6 +69,27 @@
     font-size: 10px;
 }
 
+.anillo-cumplimiento-grande .anillo-cumplimiento-texto {
+    flex-direction: column;
+    gap: 2px;
+    font-size: 36px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+
+.anillo-cumplimiento-cabecera .anillo-cumplimiento-texto {
+    font-size: 20px;
+    letter-spacing: -0.01em;
+}
+
+.anillo-cumplimiento-leyenda {
+    font: var(--font-label-md);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+}
+
 /* *-700, no *-500 — mismo motivo que Badge.razor.css: contraste AA sobre fondo claro. */
 .anillo-cumplimiento-exito .anillo-cumplimiento-progreso,
 .anillo-cumplimiento-exito .anillo-cumplimiento-texto {
@@ -76,6 +107,12 @@
 .anillo-cumplimiento-peligro .anillo-cumplimiento-texto {
     stroke: var(--color-danger-700);
     color: var(--color-danger-700);
+}
+
+.anillo-cumplimiento-marca .anillo-cumplimiento-progreso,
+.anillo-cumplimiento-marca .anillo-cumplimiento-texto {
+    stroke: var(--color-primary-500);
+    color: var(--color-text);
 }
 
 /* Sin universo (Porcentaje null): "—" en muted, sin aro — nunca 0%/100%. */

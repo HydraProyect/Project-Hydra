@@ -3,9 +3,9 @@ using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using Microsoft.AspNetCore.Components;
 
-namespace CaeManager.Web.Features.Plantillas.Pages;
+namespace CaeManager.Web.Features.Plantillas.Components;
 
-public partial class DocumentosGenerados : ComponentBase
+public partial class DocumentosGeneradosPanel : ComponentBase
 {
     private IReadOnlyList<DocumentoGeneradoListaDto> _documentosGenerados = [];
     private IReadOnlyList<PlantillaDocumentoListaDto> _plantillasDisponibles = [];
@@ -15,6 +15,9 @@ public partial class DocumentosGenerados : ComponentBase
     private Guid? _trabajadorFiltro;
     private bool _cargando = true;
     private bool _errorCarga;
+
+    /// <summary>Notifica el total tras cada carga — lo usa Plantillas.razor para el contador de la pestaña "Generados", sin duplicar la consulta.</summary>
+    [Parameter] public EventCallback<int> TotalCambiado { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -33,6 +36,7 @@ public partial class DocumentosGenerados : ComponentBase
         try
         {
             _documentosGenerados = await Mediator.Send(new ObtenerDocumentosGeneradosQuery(_plantillaFiltro, _trabajadorFiltro));
+            await TotalCambiado.InvokeAsync(_documentosGenerados.Count);
         }
         catch (Exception)
         {

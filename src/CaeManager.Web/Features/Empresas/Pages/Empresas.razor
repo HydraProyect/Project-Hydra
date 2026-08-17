@@ -16,6 +16,7 @@
 @using FluentValidation
 @using MediatR
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Empresas.Components
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ContextWorkspaceService WorkspaceService
@@ -89,7 +90,7 @@
                                 @onclick="() => AlternarExpansionAsync(empresa.Id)">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
-                        <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, empresa.Id, empresa.RazonSocial, "informacion")'>
+                        <button type="button" class="enlace-nombre-fila" @onclick='() => AbrirPreview(empresa.Id)'>
                             @empresa.RazonSocial
                         </button>
                         <span class="tarjeta-fila-acordeon-meta">@(empresa.Cif ?? "—")</span>
@@ -106,7 +107,7 @@
                             </button>
                         }
                         <div class="tarjeta-fila-acordeon-acciones">
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, empresa.Id, empresa.RazonSocial, "informacion")'>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => AbrirPreview(empresa.Id)'>
                                 Detalles
                             </Boton>
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(empresa.Id, empresa.RazonSocial)">
@@ -204,3 +205,5 @@
     Mensaje="Se ocultarán de las listas activas. Podrás recuperarlas desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
+
+<EmpresaPreviewDrawer EmpresaId="_previewEmpresaId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" OnOperar="AbrirDesdePreviewAsync" />

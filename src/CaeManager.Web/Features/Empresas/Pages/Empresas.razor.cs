@@ -54,6 +54,23 @@ public partial class Empresas : ComponentBase
     private string _razonSocialAEliminar = string.Empty;
     private bool _eliminando;
 
+    // Drawer ligero (mismo patrón que ClientePreviewDrawer): nombre de fila
+    // y "Detalles" abren esto primero, no el Context Workspace directamente.
+    private Guid? _previewEmpresaId;
+    private bool _previewVisible;
+
+    private void AbrirPreview(Guid id)
+    {
+        _previewEmpresaId = id;
+        _previewVisible = true;
+    }
+
+    private Task AbrirDesdePreviewAsync((Guid Id, string Pestana) destino)
+    {
+        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == destino.Id)?.RazonSocial ?? string.Empty;
+        return WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, destino.Id, nombre, destino.Pestana);
+    }
+
     private readonly HashSet<Guid> _seleccionados = [];
 
     /// <summary>
@@ -520,11 +537,7 @@ public partial class Empresas : ComponentBase
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
-                {
-                    var elemento = _elementosPagina.FirstOrDefault(e => e.Id == idAbrir);
-                    if (elemento is not null)
-                        await WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, elemento.Id, elemento.RazonSocial, "informacion");
-                }
+                    AbrirPreview(idAbrir);
                 break;
         }
 

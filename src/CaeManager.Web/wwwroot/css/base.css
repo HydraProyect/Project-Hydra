@@ -70,6 +70,36 @@ button {
   margin-bottom: var(--space-6);
 }
 
+/*
+  Envoltorio compartido de campo de formulario (etiqueta + control + mensaje
+  de error) — CampoTexto, CampoSelect y CampoTextarea comparten el mismo
+  marcado ".campo" > label + control, pero cada uno es su propio componente
+  con su propio ámbito de aislamiento de CSS de Blazor: una regla ".campo"
+  dentro de CampoTexto.razor.css (donde vivía antes) nunca llega al
+  ".campo" que renderiza CampoSelect o CampoTextarea, aunque el HTML sea
+  idéntico — mismo motivo que el resto de estilos verdaderamente
+  compartidos de este archivo. Bug real encontrado en vivo (2026-08-16): la
+  etiqueta y el control de un CampoSelect/CampoTextarea con Etiqueta no
+  vacía se veían en línea en vez de apilados — invisible en las barras de
+  filtro (Etiqueta="" ahí) pero no en un Drawer o Modal con etiqueta de
+  verdad.
+*/
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.campo label {
+  font: var(--font-label-md);
+  color: var(--color-text);
+}
+
+.campo-mensaje-error {
+  font: var(--font-body-sm);
+  color: var(--color-danger-700);
+}
+
 .detalle-tecnico {
   text-align: center;
   color: var(--color-text-muted);

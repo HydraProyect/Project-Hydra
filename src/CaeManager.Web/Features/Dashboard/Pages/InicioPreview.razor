@@ -1,0 +1,207 @@
+@page "/inicio-preview"
+@rendermode InteractiveServer
+@using CaeManager.Web.Features.Bandeja.Components
+@using CaeManager.Web.Features.Dashboard.Components
+@using CaeManager.Web.Features.Visitas
+
+<PageTitle>Inicio (vista previa) — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <div class="dashboard-cabecera">
+        <span class="dashboard-kicker">Dashboard</span>
+        <h1 class="titulo-pagina">@Saludo</h1>
+    </div>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar el dashboard" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_kpis is null)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else if (_kpis.SinCarteraAsignada)
+    {
+        <EstadoVacio Titulo="Sin cartera asignada" Descripcion="Todavía no tienes ningún cliente asignado, así que no hay datos que mostrar. Pide a tu Coordinador o a un Administrador de la plataforma que te asigne cartera." />
+    }
+    else
+    {
+        @if (_queLlegoSinVer.Count > 0)
+        {
+            <h2 class="dashboard-subtitulo">Qué llegó sin ver</h2>
+            <div class="dashboard-lista-unificada">
+                @foreach (var item in _queLlegoSinVer)
+                {
+                    <PanelResolverItem Item="item" />
+                }
+            </div>
+        }
+
+        @if (_mostrarRequiereAtencion && _bandejaAgrupada is { } bandeja)
+        {
+            <h2 class="dashboard-subtitulo">Requiere atención</h2>
+            @if (bandeja.Grupos.Count == 0 && bandeja.SinGrupo.Count == 0)
+            {
+                @* Cierre verificado (DDL-071): "nada pendiente" solo tranquiliza si dice
+                   también qué viene después — el próximo vencimiento conocido. *@
+                <p class="texto-vacio-seccion">@TextoCierreAtencion</p>
+            }
+            else
+            {
+                <div class="lista-bandeja">
+                    @for (var i = 0; i < Math.Min(bandeja.Grupos.Count, MaximoGruposAtencion); i++)
+                    {
+                        <GrupoCola Grupo="bandeja.Grupos[i]" ExpandidaPorDefecto="@(i == 0 && bandeja.Grupos[i].BloqueaAcceso)" Compacto="true" AgruparPorEmpresa="AgruparPorEmpresa" />
+                    }
+                    @foreach (var item in bandeja.SinGrupo)
+                    {
+                        <PanelResolverItem Item="item" />
+                    }
+                </div>
+                @if (bandeja.Grupos.Count > MaximoGruposAtencion)
+                {
+                    <a class="enlace-ver-todas" href="/bandeja">Ver todo en Mi trabajo →</a>
+                }
+            }
+
+            @if (_pendientePorPlataforma.Count > 0)
+            {
+                <h2 class="dashboard-subtitulo">Pendiente por plataforma</h2>
+                <div class="dashboard-lista-unificada">
+                    @foreach (var plataforma in _pendientePorPlataforma)
+                    {
+                        <FilaPlataforma Plataforma="plataforma" />
+                    }
+                </div>
+            }
+
+            @if (_sinRespuesta.Count > 0)
+            {
+                <h2 class="dashboard-subtitulo">Reclamado y sin respuesta</h2>
+                <div class="dashboard-lista-unificada">
+                    @foreach (var reclamacion in _sinRespuesta)
+                    {
+                        <div class="dashboard-sin-respuesta-fila">
+                            <span class="dashboard-sin-respuesta-texto">
+                                <span class="dashboard-sin-respuesta-cliente">@reclamacion.RazonSocialCliente</span> —
+                                @reclamacion.TotalDocumentos documento@(reclamacion.TotalDocumentos == 1 ? "" : "s")
+                                reclamado@(reclamacion.TotalDocumentos == 1 ? "" : "s") hace @reclamacion.DiasTranscurridos días, sin respuesta.
+                            </span>
+                            <Badge Tono="TonoBadge.Advertencia">Sin respuesta</Badge>
+                            <a class="enlace-ver-todas" href="/documentos?pestana=reclamaciones">Revisar y reclamar →</a>
+                        </div>
+                    }
+                </div>
+            }
+        }
+
+        @* Cumplimiento + KPIs secundarios: DESPUÉS de "Reclamado y sin respuesta"
+           (mockup Inicio TALVEG — Parte XV SCREEN 01, § 5-11). La prioridad es
+           dar de primera vista lo que hay que GESTIONAR; una cifra de
+           cumplimiento no suma nada por sí sola y no compite por ese primer
+           vistazo (01 § 5.3: Action + Exception sobre Information). Visible
+           también para Cliente (fuera del bloque _mostrarRequiereAtencion),
+           que no tiene cola que gestionar pero sí su propio cumplimiento. *@
+        <div class="dashboard-resumen">
+            <div class="dashboard-resumen-tarjeta-anillo">
+                <AnilloCumplimiento Porcentaje="_kpis.TasaCumplimientoDocumental" Tamano="TamanoAnillo.Grande" Leyenda="Cumplimiento"
+                                     Etiqueta="@($"{_kpis.TasaCumplimientoDocumental}% de cumplimiento documental")" />
+                <div>
+                    <p class="dashboard-resumen-anillo-titulo">@_kpis.TasaCumplimientoDocumental% de cumplimiento documental</p>
+                    <p class="dashboard-resumen-anillo-detalle">@_kpis.DocumentosVigentes.ToString("N0") de @TotalDocumentosConVigencia.ToString("N0") documentos vigentes en cartera</p>
+                    @* "Desglosar por cliente" del mockup no tiene destino real todavía
+                       (no hay vista de cumplimiento agrupada por cliente para este rol —
+                       Visión de cartera exige Coordinador+; Reportes, P-14, es de todo el
+                       tenant sin filtro). Enlaza al informe más cercano que existe hoy en
+                       vez de a un enlace roto; construir el desglose real queda pendiente. *@
+                    <a class="dashboard-resumen-anillo-enlace" href="/reportes">Desglosar por cliente →</a>
+                </div>
+            </div>
+            <div class="rejilla-kpis-secundarios">
+                <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" Enlace="/trabajadores"
+                                 Pista="@(_kpis.TrabajadoresNuevosEsteMes > 0 ? $"{_kpis.TrabajadoresNuevosEsteMes} nuevos este mes" : null)" />
+                <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" Enlace="/centros"
+                                 Pista="@(CentrosBloqueados > 0 ? $"{CentrosBloqueados} centro{(CentrosBloqueados == 1 ? "" : "s")} bloqueado{(CentrosBloqueados == 1 ? "" : "s")}" : null)" />
+                <TarjetaMetrica Discreta="true" Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" NombreIcono="check" Enlace="/documentos?estado=Vigente"
+                                 Pista="@(DocumentosFueraDeVigencia > 0 ? $"{DocumentosFueraDeVigencia} fuera de vigencia" : null)" />
+                <TarjetaMetrica Discreta="true" Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" NombreIcono="visitas" Enlace="/visitas"
+                                 Pista="@(_proximamente.Count > 0 ? $"próxima el {_proximamente[0].FechaInicio:dd/MM}" : null)" />
+            </div>
+        </div>
+
+        <h2 class="dashboard-subtitulo">Próximamente</h2>
+        @if (_proximamente.Count == 0)
+        {
+            <p class="texto-vacio-seccion">No hay visitas programadas.</p>
+        }
+        else
+        {
+            <table class="tabla-datos">
+                <thead>
+                    <tr>
+                        <th>Centro</th>
+                        <th>Cliente</th>
+                        <th>Fechas</th>
+                        <th>Trabajadores</th>
+                        <th>Urgencia</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var visita in _proximamente)
+                    {
+                        <tr class="fila-clicable" @onclick="@(() => NavigationManager.NavigateTo("/visitas"))">
+                            <td class="dashboard-visita-centro">@visita.CentroNombre</td>
+                            <td>@visita.ClienteRazonSocial</td>
+                            <td>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy")</td>
+                            <td>@visita.TotalTrabajadores</td>
+                            <td><Badge Tono="NivelUrgenciaVisitaUi.Tono(visita.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(visita.NivelUrgencia)</Badge></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <a class="enlace-ver-todas" href="/visitas">Ver todas en Visitas →</a>
+        }
+
+        @* Pulso del equipo: al final de la pantalla (mockup Inicio TALVEG) —
+           es un insight de moral de equipo, no algo que gestionar, así que va
+           después de todo lo accionable. Visible solo si hay cartera con cola
+           que gestionar (_pulso solo se calcula dentro de _mostrarRequiereAtencion). *@
+        @if (_pulso is not null)
+        {
+            <div class="dashboard-pulso">
+                @if (_pulso.ResueltosEstaSemana == 0 && _pulso.MejorSemanaInicio is null)
+                {
+                    <div class="dashboard-pulso-eyebrow">
+                        <span class="dashboard-pulso-etiqueta">Pulso del equipo</span>
+                        <span class="dashboard-pulso-cifra">Todavía no hay documentos resueltos esta semana.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="dashboard-pulso-eyebrow">
+                        <span class="dashboard-pulso-etiqueta">Pulso del equipo</span>
+                        <span class="dashboard-pulso-cifra">@_pulso.ResueltosEstaSemana @(_pulso.ResueltosEstaSemana == 1 ? "documento resuelto" : "documentos resueltos") esta semana.</span>
+                    </div>
+                    <div class="dashboard-pulso-comparativa">
+                        <div class="dashboard-pulso-metrica">
+                            <span class="dashboard-pulso-metrica-etiqueta">Semana anterior</span>
+                            <span class="dashboard-pulso-metrica-valor">@_pulso.ResueltosSemanaAnterior</span>
+                        </div>
+                        @if (_pulso.MejorSemanaInicio is not null)
+                        {
+                            <div class="dashboard-pulso-metrica">
+                                <span class="dashboard-pulso-metrica-etiqueta">Mejor semana</span>
+                                <span class="dashboard-pulso-metrica-valor">@_pulso.MejorSemanaHistorica</span>
+                            </div>
+                        }
+                    </div>
+                }
+                <a class="dashboard-pulso-enlace" href="/auditoria">Ver actividad del equipo →</a>
+            </div>
+        }
+    }
+</div>

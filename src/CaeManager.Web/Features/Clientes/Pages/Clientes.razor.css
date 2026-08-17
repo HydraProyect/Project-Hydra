@@ -17,3 +17,42 @@
 .aviso-sin-agenda:hover {
     border-color: var(--color-warning-700);
 }
+
+/*
+  .barra-filtros (list-page.css, global) trae max-width:480px pensado para
+  buscador + un único filtro — con los cuatro controles del mockup "Lista
+  Clientes TALVEG" (búsqueda, Ejecutivo, Estado documental, Filtros
+  guardados) más "Solo críticos", 480px los recorta. Solo esta página lo
+  necesita más ancho — se sobreescribe aquí (aislamiento de CSS de Blazor:
+  esta regla lleva el atributo de ámbito, nunca toca list-page.css ni las
+  demás páginas que sí caben en 480px).
+*/
+.barra-filtros {
+    max-width: none;
+    flex-wrap: wrap;
+    row-gap: var(--space-3);
+}
+
+/*
+  Punto de "Crítico" (mockup "Lista Clientes TALVEG"): un indicador discreto
+  en vez de un Badge de texto — con "Estado documental" ya ocupando su
+  propio Badge en la fila, un segundo Badge para Crítico competía por la
+  misma atención visual sin aportar más que el color. El título (tooltip)
+  lleva el texto que el Badge daba antes, así que no se pierde para lectores
+  de pantalla ni al pasar el ratón.
+*/
+.punto-critico {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    background: var(--color-border);
+}
+
+.punto-critico-activo {
+    background: var(--color-danger-500);
+}
+
+.texto-vacio-celda {
+    color: var(--color-text-muted);
+}

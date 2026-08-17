@@ -1,6 +1,7 @@
 @page "/bandeja"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+@using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada
 @using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
 @using CaeManager.Web.Components.Workspace
 @using CaeManager.Web.Features.Bandeja.Components
@@ -9,24 +10,49 @@
 @inject ContextWorkspaceService WorkspaceService
 
 @* "Mi trabajo" en vez de "Bandeja" — ver el comentario de NavMenu.razor
-   (H3, decisión provisional 2026-08-13). La ruta sigue siendo /bandeja. *@
+   (H3, decisión provisional 2026-08-13). La ruta sigue siendo /bandeja.
+
+   Rediseño (mockup "Mi trabajo TALVEG"): agrupada "por situación" — misma
+   ObtenerBandejaAgrupadaQuery + GrupoCola que ya usa /inicio-preview, en vez
+   de la pared plana de PanelResolverItem de antes (hallazgo P-03). Filtro
+   por chips en vez de <select> y orden Impacto/Fecha son traducción directa
+   del mockup. Deliberadamente NO llevan todavía (mockup, sin construir aún
+   — quedan fuera de esta pasada, no se han fingido con datos falsos):
+   selección múltiple + acciones en lote, "Posponer" (no existe ningún
+   concepto de dominio para snooze-por-usuario todavía, hace falta entidad +
+   migración propias), acciones primaria/secundaria distintas por ítem (hoy
+   una sola, AccionesBandeja), paginación por grupo, y el toast de
+   deshacer. Cada uno es una pieza real de trabajo futuro, no un recorte. *@
 <PageTitle>Mi trabajo — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <h1 class="titulo-pagina">Mi trabajo</h1>
+    <div class="bandeja-cabecera">
+        <div>
+            <span class="dashboard-kicker">Cola priorizada</span>
+            <h1 class="titulo-pagina">Mi trabajo</h1>
+        </div>
+    </div>
 
-    <div class="barra-filtros">
-        <CampoSelect Etiqueta="Tipo" Valor="@_tipoFiltro" ValorChanged="CambiarFiltroAsync">
-            <option value="">Todos (@_items.Count)</option>
-            <option value="@nameof(TipoItemBandeja.SugerenciaVisitaUrgente)">Visita sorpresa (@Contador(TipoItemBandeja.SugerenciaVisitaUrgente))</option>
-            <option value="@nameof(TipoItemBandeja.Faltante)">Falta (@Contador(TipoItemBandeja.Faltante))</option>
-            <option value="@nameof(TipoItemBandeja.Vencido)">Vencido (@Contador(TipoItemBandeja.Vencido))</option>
-            <option value="@nameof(TipoItemBandeja.VisitaUrgente)">Visita próxima (@Contador(TipoItemBandeja.VisitaUrgente))</option>
-            <option value="@nameof(TipoItemBandeja.RequisitoPendiente)">Bloquea el centro (@Contador(TipoItemBandeja.RequisitoPendiente))</option>
-            <option value="@nameof(TipoItemBandeja.Urgente)">Urgente (@Contador(TipoItemBandeja.Urgente))</option>
-            <option value="@nameof(TipoItemBandeja.RevisionIa)">Revisión IA (@Contador(TipoItemBandeja.RevisionIa))</option>
-            <option value="@nameof(TipoItemBandeja.DeteccionPendiente)">Detección de personal (@Contador(TipoItemBandeja.DeteccionPendiente))</option>
-        </CampoSelect>
+    <div class="bandeja-barra">
+        <div class="bandeja-chips" role="group" aria-label="Filtrar por tipo">
+            @foreach (var chip in Chips)
+            {
+                <button type="button" class="@("bandeja-chip" + (chip.Tipo == _tipoFiltro ? " bandeja-chip-activo" : ""))"
+                        aria-pressed="@(chip.Tipo == _tipoFiltro ? "true" : "false")"
+                        @onclick="() => CambiarFiltroAsync(chip.Tipo)">
+                    @chip.Etiqueta <span class="bandeja-chip-cuenta">(@chip.Cantidad)</span>
+                </button>
+            }
+        </div>
+        <div class="bandeja-orden">
+            <span class="bandeja-orden-etiqueta">Orden</span>
+            <div class="bandeja-orden-grupo" role="group" aria-label="Ordenar por">
+                <button type="button" class="@("bandeja-orden-boton" + (_orden == OrdenBandeja.Impacto ? " bandeja-orden-boton-activo" : ""))"
+                        @onclick='() => CambiarOrdenAsync(OrdenBandeja.Impacto)'>Impacto</button>
+                <button type="button" class="@("bandeja-orden-boton" + (_orden == OrdenBandeja.Fecha ? " bandeja-orden-boton-activo" : ""))"
+                        @onclick='() => CambiarOrdenAsync(OrdenBandeja.Fecha)'>Fecha</button>
+            </div>
+        </div>
     </div>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -50,9 +76,13 @@
     else
     {
         <div class="lista-bandeja">
-            @foreach (var item in ItemsFiltrados)
+            @foreach (var grupo in GruposOrdenados)
             {
-                <PanelResolverItem Item="item" Enfocado="@(item.Id == _idEnfocado)" />
+                <GrupoCola @key="grupo.GrupoId" Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="@_idEnfocado" />
+            }
+            @foreach (var item in _bandeja!.SinGrupo.Where(i => CoincideFiltro(i, _tipoFiltro)))
+            {
+                <PanelResolverItem @key="item.Id" Item="item" Enfocado="@(item.Id == _idEnfocado)" />
             }
         </div>
     }

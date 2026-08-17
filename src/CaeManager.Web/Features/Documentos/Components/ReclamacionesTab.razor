@@ -1,20 +1,115 @@
 @*
-    Reclamación documental saliente por lote — vista previa + envío manual
-    (MVP1, decisión del usuario 2026-08-08: no hay job automático todavía).
-    Agrupa por Cliente los Documentos de sus Trabajadores que vencen en los
-    próximos 3 meses o ya vencieron, para reclamarlos en un único correo por
-    Cliente en vez de uno por Documento — pestaña dentro de /documentos para
-    reutilizar esta pantalla en vez de crear una entrada nueva en el menú.
+    Pestaña "Reclamaciones" de /documentos (Parte XVI PROMPT 03: "seguimiento",
+    tabla de lotes YA ENVIADOS). Por defecto muestra ese historial
+    (ObtenerReclamacionesEnviadasQuery); "+ Nueva reclamación" revela la
+    vista de COMPONER/ENVIAR que ya existía aquí (MVP1, decisión del usuario
+    2026-08-08: agrupa por Cliente los Documentos de sus Trabajadores que
+    vencen en los próximos 3 meses o ya vencieron, para reclamarlos en un
+    único correo por Cliente en vez de uno por Documento) — no se sustituye,
+    se reordena: el historial es lo que se consulta más a menudo, componer
+    es la excepción puntual.
+
+    La columna "Recordatorios" del mockup queda deliberadamente fuera: exige
+    una entidad nueva persistida (RecordatorioReclamacion, hija de
+    ReclamacionDocumental — que es append-only por diseño explícito, no
+    admite un contador mutable) más su migración y comando de envío. Es una
+    decisión de alcance aparte, no se inventa un contador falso.
 *@
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion
+@using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas
 @using CaeManager.Domain.Documentos
 @using MediatR
 @inject IMediator Mediator
 @inject ToastService ToastService
+@inject NavigationManager NavigationManager
 
-@if (_cargando)
+<div class="acordeon-asignaciones-cabecera">
+    <Boton Variante="@(_vista == "historial" ? VarianteBoton.Secundario : VarianteBoton.Fantasma)" Tamano="TamanoBoton.Pequeno"
+           OnClick='() => CambiarVistaAsync("historial")' aria-pressed="@(_vista == "historial" ? "true" : "false")">
+        Enviadas
+    </Boton>
+    <Boton Variante="@(_vista == "componer" ? VarianteBoton.Secundario : VarianteBoton.Fantasma)" Tamano="TamanoBoton.Pequeno"
+           OnClick='() => CambiarVistaAsync("componer")' aria-pressed="@(_vista == "componer" ? "true" : "false")">
+        + Nueva reclamación
+    </Boton>
+</div>
+
+@if (_vista == "historial")
+{
+    @if (_cargandoHistorial)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_errorHistorial)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las reclamaciones enviadas" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarHistorialAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_historial.Count == 0)
+    {
+        <EstadoVacio Titulo="Todavía no se ha enviado ninguna reclamación" Descripcion='Los lotes que envíes desde "+ Nueva reclamación" aparecerán aquí.' />
+    }
+    else
+    {
+        <div class="tabla-documentos-requeridos" role="table" aria-label="Reclamaciones enviadas">
+            <div class="documentos-requeridos-cabecera" role="row">
+                <span role="columnheader">Destinatario</span>
+                <span role="columnheader">Enviada</span>
+                <span role="columnheader">Documentos</span>
+                <span role="columnheader">Estado</span>
+                <span role="columnheader" class="columna-accion">Acción</span>
+            </div>
+            @foreach (var reclamacion in _historial)
+            {
+                <div class="fila-documento-requerido" role="row" @key="reclamacion.Id">
+                    <span class="celda-documento-nombre" role="cell">
+                        @reclamacion.ClienteRazonSocial
+                        <span class="fila-trabajador-fraccion">@reclamacion.DestinatarioEmail</span>
+                    </span>
+                    <span role="cell">@reclamacion.FechaEnvioUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                    <span role="cell">@reclamacion.TotalDocumentos</span>
+                    <span role="cell">
+                        @if (reclamacion.SinRespuesta is null)
+                        {
+                            <span class="detalle-tecnico">Sin buzón conectado</span>
+                        }
+                        else if (reclamacion.SinRespuesta.Value)
+                        {
+                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">Sin respuesta</Badge>
+                        }
+                        else
+                        {
+                            <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">Respondida</Badge>
+                        }
+                    </span>
+                    <span class="columna-accion" role="cell">
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                               Cargando="_reenviandoId == reclamacion.Id" OnClick="() => ReclamarDeNuevoAsync(reclamacion)">
+                            Reclamar de nuevo
+                        </Boton>
+                        @if (reclamacion.ConversacionId is not null)
+                        {
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                   OnClick='() => NavigationManager.NavigateTo($"/comunicaciones?conversacion={reclamacion.ConversacionId}")'>
+                                Ver hilo
+                            </Boton>
+                        }
+                    </span>
+                </div>
+            }
+        </div>
+
+        <PaginadorSimple PaginaActual="_paginaHistorial" TotalPaginas="TotalPaginasHistorial" TotalElementos="_totalHistorial"
+                          Etiqueta="reclamación(es)" PaginaActualChanged="CambiarPaginaHistorialAsync"
+                          TamanoPagina="_tamanoPaginaHistorial" TamanoPaginaChanged="CambiarTamanoPaginaHistorialAsync" />
+    }
+}
+else if (_cargando)
 {
     <EstadoCargando Filas="3" />
 }
@@ -135,6 +230,18 @@ else
                      PredeterminadoPorDefecto="true" OnGuardado="_ => CargarAsync()" />
 
 @code {
+    private string _vista = "historial";
+    private bool _cargandoHistorial = true;
+    private bool _errorHistorial;
+    private IReadOnlyList<ReclamacionEnviadaDto> _historial = [];
+    private int _paginaHistorial = 1;
+    private int _tamanoPaginaHistorial = 20;
+    private int _totalHistorial;
+    private Guid? _reenviandoId;
+    private bool _componerCargadoUnaVez;
+
+    private int TotalPaginasHistorial => Math.Max(1, (int)Math.Ceiling(_totalHistorial / (double)_tamanoPaginaHistorial));
+
     private bool _cargando = true;
     private bool _error;
     private IReadOnlyList<LoteReclamacionClienteDto> _lotes = [];
@@ -144,7 +251,75 @@ else
     private bool _altaContactoVisible;
     private Guid _clienteAltaContacto;
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    protected override Task OnInitializedAsync() => CargarHistorialAsync();
+
+    /// <summary>La vista de componer/enviar carga sus lotes (recorre todos los clientes del tenant) solo la primera vez que se entra a ella, no en cada carga de la pestaña.</summary>
+    private async Task CambiarVistaAsync(string vista)
+    {
+        _vista = vista;
+
+        if (vista == "componer" && !_componerCargadoUnaVez)
+        {
+            _componerCargadoUnaVez = true;
+            await CargarAsync();
+        }
+    }
+
+    private async Task CargarHistorialAsync()
+    {
+        _cargandoHistorial = true;
+        _errorHistorial = false;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerReclamacionesEnviadasQuery(_paginaHistorial, _tamanoPaginaHistorial));
+            _historial = resultado.Elementos;
+            _totalHistorial = resultado.TotalElementos;
+        }
+        catch (Exception)
+        {
+            _errorHistorial = true;
+        }
+        finally
+        {
+            _cargandoHistorial = false;
+        }
+    }
+
+    private Task CambiarPaginaHistorialAsync(int pagina)
+    {
+        _paginaHistorial = pagina;
+        return CargarHistorialAsync();
+    }
+
+    private Task CambiarTamanoPaginaHistorialAsync(int tamano)
+    {
+        _tamanoPaginaHistorial = tamano;
+        _paginaHistorial = 1;
+        return CargarHistorialAsync();
+    }
+
+    private async Task ReclamarDeNuevoAsync(ReclamacionEnviadaDto reclamacion)
+    {
+        _reenviandoId = reclamacion.Id;
+        try
+        {
+            var resultado = await Mediator.Send(new EnviarReclamacionCommand(reclamacion.ClienteId, reclamacion.DocumentoIds));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar($"Reclamación reenviada a {reclamacion.ClienteRazonSocial}.", TonoToast.Exito);
+            await CargarHistorialAsync();
+        }
+        finally
+        {
+            _reenviandoId = null;
+        }
+    }
 
     private async Task CargarAsync()
     {

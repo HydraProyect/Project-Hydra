@@ -106,3 +106,11 @@
     font: var(--font-body-sm);
     margin: var(--space-4) 0 0;
 }
+
+.enlace-olvide-contrasena {
+    display: block;
+    text-align: center;
+    font: var(--font-body-sm);
+    font-weight: 600;
+    margin-top: var(--space-4);
+}

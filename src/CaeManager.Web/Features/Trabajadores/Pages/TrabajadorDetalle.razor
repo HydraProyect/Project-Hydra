@@ -1,0 +1,298 @@
+@*
+    Trabajador 360 (Parte XVI PROMPT 04) — ver comentario de cabecera en el
+    .razor.cs para el porqué de lo que esta página NO reimplementa.
+*@
+@page "/trabajadores/{TrabajadorId:guid}"
+@rendermode InteractiveServer
+@using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
+@using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador
+@using CaeManager.Domain.Documentos
+@using CaeManager.Domain.Gestiones
+@using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
+
+<PageTitle>@(NombreCompleto ?? "Trabajador") — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="Ruta de Trabajador 360" />
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar este trabajador" Descripcion="Puede que ya no exista o que no tengas acceso.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="5" />
+    }
+    else if (_detalle is not null)
+    {
+        <div class="trabajador360-cabecera">
+            <AnilloCumplimiento Porcentaje="Cumplimiento" Tamano="TamanoAnillo.Cabecera"
+                                 Etiqueta="@($"{Cumplimiento}% de cumplimiento — documentos al día / exigidos entre todos los centros de este trabajador")" />
+            <div class="trabajador360-identidad">
+                <h1 class="trabajador360-titulo">
+                    @_detalle.Nombre @_detalle.Apellidos
+                    @if (!string.IsNullOrWhiteSpace(_detalle.Alias))
+                    {
+                        <span class="trabajador360-alias">(@_detalle.Alias)</span>
+                    }
+                </h1>
+                <p class="trabajador360-meta">
+                    DNI: <b>@_detalle.Dni</b>
+                    <BotonCopiar Valor="@_detalle.Dni" Etiqueta="el DNI" />
+                    · <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpleador">@_detalle.EmpleadorNombre</button>
+                </p>
+                <div class="trabajador360-indicadores">
+                    @if (PeorEstadoGlobal is { } peorEstado)
+                    {
+                        <Badge Tono="EstadoDocumentoUi.Tono(peorEstado)">@EstadoDocumentoUi.Texto(peorEstado)</Badge>
+                    }
+                    @if (CentroMasUrgente is { PeorEstado: not EstadoDocumento.Vigente } centroUrgente)
+                    {
+                        var incidenciasCentro = centroUrgente.Documentos.Count(d => d.Estado != EstadoDocumento.Vigente);
+                        <VentanaContexto Etiqueta="@($"{incidenciasCentro} {(incidenciasCentro == 1 ? "documento con incidencia" : "documentos con incidencia")} en {centroUrgente.CentroNombre}")"
+                                         Titulo="@($"Problema más urgente — {centroUrgente.CentroNombre}")">
+                            <Disparador>
+                                <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">
+                                    @incidenciasCentro @(incidenciasCentro == 1 ? "incidencia" : "incidencias") — @centroUrgente.CentroNombre
+                                </Badge>
+                            </Disparador>
+                            <Detalle>
+                                @foreach (var documento in centroUrgente.Documentos.Where(d => d.Estado != EstadoDocumento.Vigente))
+                                {
+                                    <span class="ventana-linea">@documento.TipoDocumentoNombre — @EstadoDocumentoUi.Texto(documento.Estado)</span>
+                                }
+                            </Detalle>
+                        </VentanaContexto>
+                    }
+                </div>
+            </div>
+            <div class="trabajador360-acciones">
+                <Boton Deshabilitado="DocumentoMasUrgente is null" OnClick="SubirDocumentoMasUrgenteAsync">Subir documento</Boton>
+                <MenuAcciones>
+                    <ItemMenuAccion OnClick="AbrirInformacion">Editar</ItemMenuAccion>
+                    <ItemMenuAccion OnClick="AbrirCrearGestionAsync">Crear gestión</ItemMenuAccion>
+                    <ItemMenuAccion Destructivo="true" OnClick="() => _confirmarBajaTrabajadorVisible = true">Dar de baja</ItemMenuAccion>
+                </MenuAcciones>
+            </div>
+        </div>
+
+        <Pestanas Definiciones="_pestanas" PestanaActiva="_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="Secciones de Trabajador 360">
+            @switch (_pestanaActiva)
+            {
+                case "operacion":
+                    @*
+                        Ámbito 1: Documentación por centro (completo — es lo que se
+                        opera aquí, a diferencia de la pestaña "Documentación" plana
+                        del Workspace Panel). Acordeón por centro, mismo lenguaje que
+                        AcordeonAsignacionesCentro pero con Centro como sujeto en vez
+                        de Trabajador.
+                    *@
+                    @if (_centros.Count == 0)
+                    {
+                        <EstadoVacio Titulo="Sin asignaciones activas" Descripcion="Este trabajador no tiene ninguna asignación activa a un centro." />
+                    }
+                    else
+                    {
+                        <div class="separador-ambito">Documentación por centro</div>
+                        <div class="lista-trabajadores-acordeon">
+                            @foreach (var centro in _centros)
+                            {
+                                var expandido = _expandidosCentro.Contains(centro.CentroId);
+                                var alDia = centro.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
+                                var incidencias = centro.Documentos.Count(d => d.Estado != EstadoDocumento.Vigente);
+                                <div class="fila-trabajador-acordeon" @key="centro.CentroId">
+                                    <div class="fila-trabajador-acordeon-cuerpo">
+                                        <div class="fila-trabajador-rejilla">
+                                            <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
+                                                    aria-expanded="@(expandido ? "true" : "false")"
+                                                    aria-label="@($"Documentos exigidos en {centro.CentroNombre}")"
+                                                    @onclick="() => AlternarExpansionCentro(centro.CentroId)">
+                                                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                                            </button>
+                                            <span class="fila-trabajador-nombre">
+                                                @centro.CentroNombre <span class="etiqueta-ambito">@centro.ClienteRazonSocial</span>
+                                            </span>
+                                            <span class="fila-trabajador-fraccion">
+                                                @(centro.Documentos.Count > 0 ? $"{alDia}/{centro.Documentos.Count}" : "—")
+                                            </span>
+                                            <span class="tarjeta-fila-acordeon-indicadores">
+                                                @if (incidencias > 0)
+                                                {
+                                                    <Badge Tono="EstadoDocumentoUi.Tono(centro.PeorEstado)" Tamano="TamanoBadge.Pequeno">
+                                                        @incidencias @(incidencias == 1 ? "incidencia" : "incidencias")
+                                                    </Badge>
+                                                }
+                                            </span>
+                                        </div>
+                                        @if (expandido)
+                                        {
+                                            @if (centro.Documentos.Count == 0)
+                                            {
+                                                <p class="texto-vacio-seccion">Este centro no exige documentación específica a este trabajador.</p>
+                                            }
+                                            else
+                                            {
+                                                <div class="tabla-documentos-requeridos" role="table" aria-label="@($"Documentación exigida en {centro.CentroNombre}")">
+                                                    <div class="documentos-requeridos-cabecera" role="row">
+                                                        <span role="columnheader">Documento</span>
+                                                        <span role="columnheader">Estado</span>
+                                                        <span role="columnheader">Vigencia</span>
+                                                        <span role="columnheader" class="columna-accion">Acción</span>
+                                                    </div>
+                                                    @foreach (var documento in centro.Documentos)
+                                                    {
+                                                        <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
+                                                            <span class="celda-documento-nombre" role="cell">
+                                                                <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarDocumentoAsync(documento)">
+                                                                    @documento.TipoDocumentoNombre
+                                                                </button>
+                                                            </span>
+                                                            <span role="cell">
+                                                                <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">
+                                                                    @EstadoDocumentoUi.Texto(documento.Estado)
+                                                                </Badge>
+                                                            </span>
+                                                            <span role="cell">
+                                                                <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="celda-documento-vigencia">
+                                                                    @(documento.FechaVencimiento is { } vence ? vence.ToString("dd/MM/yyyy") : "—")
+                                                                </TextoFechaCopiable>
+                                                            </span>
+                                                            <span class="columna-accion" role="cell">
+                                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                                       OnClick="() => GestionarDocumentoAsync(documento)">
+                                                                    @(documento.DocumentoId is null ? "Subir" : documento.Estado == EstadoDocumento.Vigente ? "Ver" : "Renovar")
+                                                                </Boton>
+                                                            </span>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        @*
+                            Ámbito 2: Asignaciones (compacto) — mismos centros de
+                            arriba, sin volver a consultar el servidor: es el mismo
+                            AsignacionId/CentroNombre/ClienteRazonSocial/FechaAlta ya
+                            cargado para la Documentación por centro.
+                        *@
+                        <div class="separador-ambito">Asignaciones</div>
+                        <div class="tabla-documentos-requeridos" role="table" aria-label="Asignaciones activas">
+                            <div class="documentos-requeridos-cabecera" role="row">
+                                <span role="columnheader">Centro</span>
+                                <span role="columnheader">Cliente</span>
+                                <span role="columnheader">Desde</span>
+                                <span role="columnheader" class="columna-accion">Acción</span>
+                            </div>
+                            @foreach (var centro in _centros)
+                            {
+                                <div class="fila-documento-requerido" role="row" @key="centro.AsignacionId">
+                                    <span class="celda-documento-nombre" role="cell">@centro.CentroNombre</span>
+                                    <span role="cell">@centro.ClienteRazonSocial</span>
+                                    <span role="cell">@centro.FechaAlta.ToString("dd/MM/yyyy")</span>
+                                    <span class="columna-accion" role="cell">
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                               OnClick="() => DarDeBajaAsignacionAsync(centro.AsignacionId)">
+                                            Dar de baja
+                                        </Boton>
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @*
+                        Ámbito 3: Gestiones pendientes (solo si hay, 04 § 6 — un
+                        vacío nunca se presenta como éxito, pero tampoco se muestra
+                        un bloque vacío sin motivo: si no hay ninguna, el bloque
+                        entero no aparece).
+                    *@
+                    @if (_cargandoGestiones)
+                    {
+                        <div class="separador-ambito">Gestiones pendientes</div>
+                        <EstadoCargando Filas="2" />
+                    }
+                    else if (_gestionesPendientes.Count > 0)
+                    {
+                        <div class="separador-ambito">Gestiones pendientes</div>
+                        <div class="tabla-documentos-requeridos" role="table" aria-label="Gestiones pendientes">
+                            <div class="documentos-requeridos-cabecera" role="row">
+                                <span role="columnheader">Gestión</span>
+                                <span role="columnheader">Centro</span>
+                                <span role="columnheader">Creada</span>
+                                <span role="columnheader" class="columna-accion">Acción</span>
+                            </div>
+                            @foreach (var gestion in _gestionesPendientes)
+                            {
+                                <div class="fila-documento-requerido" role="row" @key="gestion.Id">
+                                    <span class="celda-documento-nombre" role="cell">@gestion.TipoDocumentoNombre</span>
+                                    <span role="cell">@gestion.CentroNombre</span>
+                                    <span role="cell">@gestion.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</span>
+                                    <span class="columna-accion" role="cell">
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                               Cargando="_completandoGestion.Contains(gestion.Id)"
+                                               OnClick="() => CompletarGestionAsync(gestion.Id)">
+                                            Completar
+                                        </Boton>
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    break;
+
+                case "historial":
+                    <PestanaHistorial EntidadTipo="Trabajador" EntidadId="TrabajadorId" />
+                    break;
+
+                case "contactos":
+                    @if (_detalle.EmpresaId is { } empresaIdContactos)
+                    {
+                        <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Empresa" PropietarioId="empresaIdContactos" />
+                    }
+                    else if (_detalle.SubcontrataId is { } subcontrataIdContactos)
+                    {
+                        <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Subcontrata" PropietarioId="subcontrataIdContactos" />
+                    }
+                    break;
+            }
+        </Pestanas>
+    }
+</div>
+
+<DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
+
+<Modal Visible="_crearGestionVisible" VisibleChanged="v => _crearGestionVisible = v" Titulo="Crear gestión" CerrarAlHacerClicFuera="!_creandoGestion">
+    <ChildContent>
+        <p class="workspace-nota-contextual">Se creará una gestión pendiente en cada centro donde este trabajador tenga una asignación activa.</p>
+        <CampoSelect Etiqueta="Tipo de documento" Valor="@_tipoDocumentoParaGestion" ValorChanged="v => _tipoDocumentoParaGestion = v">
+            <option value="">Selecciona un tipo de documento…</option>
+            @foreach (var tipo in _tiposDocumentoDisponibles)
+            {
+                <option value="@tipo.Id">@tipo.Nombre</option>
+            }
+        </CampoSelect>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_creandoGestion" OnClick="() => _crearGestionVisible = false">Cancelar</Boton>
+        <Boton Cargando="_creandoGestion" Deshabilitado="string.IsNullOrEmpty(_tipoDocumentoParaGestion)" OnClick="ConfirmarCrearGestionAsync">Crear</Boton>
+    </Pie>
+</Modal>
+
+<DialogoConfirmacion
+    Visible="_confirmarBajaTrabajadorVisible"
+    VisibleChanged="v => _confirmarBajaTrabajadorVisible = v"
+    Titulo="@($"¿Dar de baja a {NombreCompleto}?")"
+    Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
+    EnProgreso="_dandoDeBajaTrabajador"
+    OnConfirmar="ConfirmarDarDeBajaTrabajadorAsync" />

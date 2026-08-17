@@ -45,7 +45,7 @@ public sealed class PuertaAccesoDatos : IDisposable
         finally
         {
             _flujoDentro.Value = false;
-            _puerta.Release();
+            LiberarSiSigueViva();
         }
     }
 
@@ -66,7 +66,29 @@ public sealed class PuertaAccesoDatos : IDisposable
         finally
         {
             _flujoDentro.Value = false;
+            LiberarSiSigueViva();
+        }
+    }
+
+    /// <summary>
+    /// El circuito de Blazor puede desconectarse (y con él, este scope y su
+    /// puerta) mientras <c>operacion</c> todavía está en vuelo — reproducido
+    /// en vivo con un deep-link en frío a Trabajador: la reconexión tira el
+    /// scope antes de que la consulta en curso termine, y el <c>Release()</c>
+    /// de este <c>finally</c> caía sobre un semáforo ya liberado por
+    /// <see cref="Dispose"/>, lanzando <see cref="ObjectDisposedException"/>
+    /// sin capturar — eso rompía el pipeline de MediatR y dejaba la página
+    /// sin terminar de cargar nunca. No hay nada que liberar si el circuito
+    /// ya se fue.
+    /// </summary>
+    private void LiberarSiSigueViva()
+    {
+        try
+        {
             _puerta.Release();
+        }
+        catch (ObjectDisposedException)
+        {
         }
     }
 

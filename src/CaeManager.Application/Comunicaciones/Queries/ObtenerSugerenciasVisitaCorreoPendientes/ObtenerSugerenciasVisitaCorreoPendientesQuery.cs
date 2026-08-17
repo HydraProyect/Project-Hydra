@@ -1,4 +1,5 @@
 using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
@@ -14,12 +15,14 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisita
 /// </summary>
 public record ObtenerSugerenciasVisitaCorreoPendientesQuery : IRequest<IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>>;
 
+/// <param name="ClienteId">Cliente del Centro detectado — null cuando la IA no pudo resolver un Centro. Alimenta la agrupación "por situación" del rediseño de Inicio (hallazgo P-03 de la auditoría de producto 2026-08-16).</param>
 public record SugerenciaVisitaCorreoPendienteDto(
     Guid Id, Guid? CentroId, string? CentroNombre, DateOnly? FechaInicioSugerida, string Resumen, CanalConversacion Canal,
-    DateTime CreadaEnUtc);
+    DateTime CreadaEnUtc, Guid? ClienteId = null, string? ClienteNombre = null);
 
 public class ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(
-    IComunicacionesQueryContext comunicacionesContext, ICentrosQueryContext centrosContext, IAlcanceDatosService alcanceDatos)
+    IComunicacionesQueryContext comunicacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext,
+    IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerSugerenciasVisitaCorreoPendientesQuery, IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>>
 {
     public async Task<IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>> Handle(
@@ -49,15 +52,30 @@ public class ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(
             .Select(c => new { c.Id, c.Nombre })
             .ToDictionaryAsync(c => c.Id, c => c.Nombre, cancellationToken);
 
+        var clientesPorCentro = await (
+            from centro in centrosContext.Centros
+            where centroIds.Contains(centro.Id)
+            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            select new { centro.Id, ClienteId = cliente.Id, cliente.RazonSocial })
+            .ToDictionaryAsync(x => x.Id, x => (x.ClienteId, x.RazonSocial), cancellationToken);
+
         return pendientes
-            .Select(p => new SugerenciaVisitaCorreoPendienteDto(
-                p.sugerencia.Id,
-                p.sugerencia.CentroId,
-                p.sugerencia.CentroId is { } centroId && nombresCentro.TryGetValue(centroId, out var nombre) ? nombre : null,
-                p.sugerencia.FechaInicioSugerida,
-                p.sugerencia.Resumen,
-                p.Canal,
-                p.sugerencia.CreadaEnUtc))
+            .Select(p =>
+            {
+                var cliente = p.sugerencia.CentroId is { } centroId && clientesPorCentro.TryGetValue(centroId, out var c)
+                    ? c : ((Guid?)null, (string?)null);
+
+                return new SugerenciaVisitaCorreoPendienteDto(
+                    p.sugerencia.Id,
+                    p.sugerencia.CentroId,
+                    p.sugerencia.CentroId is { } cid && nombresCentro.TryGetValue(cid, out var nombre) ? nombre : null,
+                    p.sugerencia.FechaInicioSugerida,
+                    p.sugerencia.Resumen,
+                    p.Canal,
+                    p.sugerencia.CreadaEnUtc,
+                    ClienteId: cliente.Item1,
+                    ClienteNombre: cliente.Item2);
+            })
             .ToList();
     }
 }

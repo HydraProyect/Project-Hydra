@@ -154,10 +154,20 @@ else
     {
         <EstadoVacio Titulo="Sin trabajadores asignados" Descripcion="Ningún trabajador tiene una asignación activa en este centro." />
     }
+    else if (TrabajadoresAMostrar.Count == 0)
+    {
+        <EstadoVacio Titulo="Todos al día" Descripcion="@($"Los {_trabajadores.Count} trabajadores de este centro tienen su documentación completa.")">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="VerCentroCompleto">
+                    Ver los @_trabajadores.Count en Centro 360
+                </Boton>
+            </Accion>
+        </EstadoVacio>
+    }
     else
     {
         <div class="lista-trabajadores-acordeon">
-            @foreach (var trabajador in _trabajadores)
+            @foreach (var trabajador in TrabajadoresAMostrar)
             {
                 var expandido = _expandidosTrabajador.Contains(trabajador.AsignacionId);
                 var vencidos = DocumentosVencidos(trabajador);
@@ -367,6 +377,15 @@ else
                 </div>
             }
         </div>
+        @if (TrabajadoresOcultosAlDia > 0)
+        {
+            <div class="nota-trabajadores-ocultos">
+                <span>@TrabajadoresOcultosAlDia @(TrabajadoresOcultosAlDia == 1 ? "trabajador al día no se muestra aquí" : "trabajadores al día no se muestran aquí")</span>
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick="VerCentroCompleto">
+                    Ver Centro 360 →
+                </Boton>
+            </div>
+        }
     }
 }
 

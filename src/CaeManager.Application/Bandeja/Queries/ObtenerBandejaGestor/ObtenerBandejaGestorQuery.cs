@@ -56,6 +56,27 @@ public enum TipoItemBandeja
 /// su estado cambia, así que no tiene un momento de creación que registrar. Alimenta el resumen
 /// de ausencia — null en el resto de tipos.
 /// </param>
+/// <param name="ClienteId">
+/// Cliente de la situación — agrupador "por situación" del rediseño de
+/// Inicio (GrupoCola, hallazgo P-03 de la auditoría de producto
+/// 2026-08-16). Resuelto por cada Query de origen (ver AlertaDto,
+/// RevisionIaDocumentoDto, DocumentacionBloqueantePendienteDto,
+/// VisitaListaDto, SugerenciaVisitaCorreoPendienteDto); null cuando no se
+/// pudo resolver un Centro/Cliente para el ítem (queda sin grupo de
+/// Cliente — mira <paramref name="EmpresaId"/> antes de darlo por huérfano).
+/// </param>
+/// <param name="EmpresaNombre">
+/// Solo para DeteccionPendiente y revisiones IA de Documento de Empresa: ahí
+/// no hay Cliente que resolver, la Empresa ya es el grupo natural (una
+/// detección de alta/baja de personal es un hecho de la Empresa, no de un
+/// Cliente concreto).
+/// </param>
+/// <param name="TrabajadorNombre">
+/// Solo cuando <paramref name="TrabajadorId"/> referencia un Trabajador real
+/// (no una detección sin resolver) — sub-agrupación Empresa→Trabajador de
+/// "Requiere atención" (GrupoCola): el nombre visible del segundo nivel, no
+/// solo la clave de agrupación.
+/// </param>
 public record ItemBandejaDto(
     string Id,
     TipoItemBandeja Tipo,
@@ -69,7 +90,11 @@ public record ItemBandejaDto(
     Guid? RequisitoId,
     Guid? SugerenciaVisitaId = null,
     Guid? EmpresaId = null,
-    DateTime? CreadaEnUtc = null);
+    DateTime? CreadaEnUtc = null,
+    Guid? ClienteId = null,
+    string? ClienteNombre = null,
+    string? EmpresaNombre = null,
+    string? TrabajadorNombre = null);
 
 public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracionQueryContext configuracionContext)
     : IRequestHandler<ObtenerBandejaGestorQuery, IReadOnlyList<ItemBandejaDto>>
@@ -123,10 +148,15 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 Subtitulo: a.CentroNombre is null ? a.TrabajadorNombre : $"{a.TrabajadorNombre} — {a.CentroNombre}",
                 Fecha: a.FechaVencimiento,
                 TrabajadorId: a.TrabajadorId,
-                CentroId: null,
+                CentroId: a.CentroId,
                 DocumentoId: a.DocumentoId,
                 TipoDocumentoId: a.TipoDocumentoId,
-                RequisitoId: null)));
+                RequisitoId: null,
+                ClienteId: a.ClienteId,
+                ClienteNombre: a.ClienteNombre,
+                EmpresaId: a.EmpresaId,
+                EmpresaNombre: a.EmpresaNombre,
+                TrabajadorNombre: a.TrabajadorNombre)));
 
         items.AddRange(revisiones.Select(r => new ItemBandejaDto(
             Id: $"revision-{r.Id}",
@@ -134,12 +164,20 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             Titulo: r.TipoDocumentoNombre,
             Subtitulo: $"{r.PropietarioNombre} — {r.Motivo}",
             Fecha: r.FechaEmisionDetectada,
-            TrabajadorId: null,
+            TrabajadorId: r.TrabajadorId,
             CentroId: null,
             DocumentoId: r.DocumentoId,
             TipoDocumentoId: null,
             RequisitoId: null,
-            CreadaEnUtc: r.CreadaEnUtc)));
+            CreadaEnUtc: r.CreadaEnUtc,
+            EmpresaId: r.EmpresaId,
+            ClienteId: r.ClienteId,
+            ClienteNombre: r.ClienteNombre,
+            EmpresaNombre: r.EmpresaNombre,
+            // Documento de Trabajador: PropietarioNombre YA es "Nombre
+            // Apellidos" (ver ObtenerRevisionesIaPendientesQueryHandler) —
+            // Documento de Empresa no tiene Trabajador, se queda sin este dato.
+            TrabajadorNombre: r.TrabajadorId is not null ? r.PropietarioNombre : null)));
 
         items.AddRange(requisitos.Select(rq => new ItemBandejaDto(
             Id: $"requisito-{rq.CentroId}-{rq.TrabajadorId}-{rq.TipoDocumentoId}",
@@ -151,7 +189,12 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             CentroId: rq.CentroId,
             DocumentoId: null,
             TipoDocumentoId: rq.TipoDocumentoId,
-            RequisitoId: null)));
+            RequisitoId: null,
+            ClienteId: rq.ClienteId,
+            ClienteNombre: rq.ClienteNombre,
+            EmpresaId: rq.EmpresaId,
+            EmpresaNombre: rq.EmpresaNombre,
+            TrabajadorNombre: rq.TrabajadorNombre)));
 
         items.AddRange(visitasUrgentes
             .Where(v => v.NivelUrgencia is NivelUrgenciaVisita.Urgente or NivelUrgenciaVisita.Critica)
@@ -165,7 +208,9 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 CentroId: v.CentroId,
                 DocumentoId: null,
                 TipoDocumentoId: null,
-                RequisitoId: null)));
+                RequisitoId: null,
+                ClienteId: v.ClienteId,
+                ClienteNombre: v.ClienteRazonSocial)));
 
         // Sin fecha detectada la IA no pudo precisar cuándo es — se trata
         // como "visita sorpresa" (mismo día, sin margen) en vez de
@@ -187,7 +232,9 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 TipoDocumentoId: null,
                 RequisitoId: null,
                 SugerenciaVisitaId: s.Id,
-                CreadaEnUtc: s.CreadaEnUtc)));
+                CreadaEnUtc: s.CreadaEnUtc,
+                ClienteId: s.ClienteId,
+                ClienteNombre: s.ClienteNombre)));
 
         items.AddRange(detecciones.Select(d => new ItemBandejaDto(
             Id: $"deteccion-{d.Id}",
@@ -201,7 +248,8 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             TipoDocumentoId: null,
             RequisitoId: null,
             EmpresaId: d.EmpresaId,
-            CreadaEnUtc: d.CreadaEnUtc)));
+            CreadaEnUtc: d.CreadaEnUtc,
+            EmpresaNombre: d.EmpresaRazonSocial)));
 
         // Una sugerencia sin confirmar pesa más que cualquier otra cosa: sin
         // confirmarla no hay ni Visita ni documentación que verificar. Entre

@@ -1,0 +1,87 @@
+@*
+    Drawer ligero de vista previa — mismo patrón que ClientePreviewDrawer
+    (Features/Clientes/Components/), extendido a Empresas por decisión
+    explícita del usuario (no hay mockup propio de "Lista Empresas"; se
+    generaliza el patrón real de "Lista Clientes TALVEG.dc.html"). Sin
+    Application nuevo: reutiliza ObtenerEmpresaPorIdQuery, ObtenerCumplimientoEmpresaQuery,
+    ObtenerTrabajadoresQuery (solo para el recuento, TamanoPagina=1) y
+    ObtenerAgendaContactosQuery — ya cubren todos los campos de Información.
+    Documentación/Historial reutilizan PestanaDocumentacion/PestanaHistorial,
+    igual que en Clientes.
+*@
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
+@using CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores
+@using CaeManager.Domain.Documentos
+
+@if (Visible)
+{
+    <aside class="drawer-preview-empresa" role="complementary" aria-label="Vista previa de la empresa">
+        <div class="cabecera-preview-empresa">
+            <div class="texto-cabecera-preview-empresa">
+                <span class="etiqueta-cabecera-preview-empresa">Consulta · Empresa</span>
+                <span class="nombre-cabecera-preview-empresa">@(_detalle?.RazonSocial ?? "Cargando…")</span>
+            </div>
+            <button type="button" class="boton-cerrar-preview-empresa" aria-label="Cerrar" @onclick="Cerrar">✕</button>
+        </div>
+
+        <div class="cuerpo-preview-empresa">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Secciones de la empresa">
+            @if (_cargando && _pestanaActiva == "informacion")
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (_pestanaActiva == "informacion" && _detalle is not null)
+            {
+                <div class="rejilla-info-preview-empresa">
+                    <div class="celda-info-preview-empresa"><span>CIF</span><strong>@(_detalle.Cif ?? "—")</strong></div>
+                    <div class="celda-info-preview-empresa"><span>CNAE</span><strong>@(_detalle.Cnae ?? "—")</strong></div>
+                    <div class="celda-info-preview-empresa"><span>Clientes</span><strong>@_detalle.ClienteIds.Count</strong></div>
+                    <div class="celda-info-preview-empresa"><span>Trabajadores</span><strong>@_totalTrabajadores</strong></div>
+                    <div class="celda-info-preview-empresa"><span>Cumplimiento</span><strong>@(_cumplimiento is { } c ? $"{c}%" : "—")</strong></div>
+                    <div class="celda-info-preview-empresa"><span>Anexo I RSP</span><strong>@(_detalle.EsActividadAnexoI ? "Sí" : "No")</strong></div>
+                    <div class="celda-info-preview-empresa"><span>Alta</span><strong>@_detalle.CreadoEnUtc.ToLocalTime().ToString("MM/yyyy")</strong></div>
+                    <div class="celda-info-preview-empresa"><span>Convenio</span><strong>@(_detalle.ConvenioAplicable ?? "—")</strong></div>
+                </div>
+
+                @if (_contactoPrincipal is not null)
+                {
+                    <div class="tarjeta-contacto-preview-empresa">
+                        <span class="titulo-tarjeta-contacto-preview-empresa">Contacto principal</span>
+                        <span>@_contactoPrincipal.Nombre@(_contactoPrincipal.Cargo is null ? "" : $" · {_contactoPrincipal.Cargo}")</span>
+                        <span class="detalle-contacto-preview-empresa">@_contactoPrincipal.Email@(_contactoPrincipal.Telefono is null ? "" : $" · {_contactoPrincipal.Telefono}")</span>
+                    </div>
+                }
+                else if (!_cargandoContacto)
+                {
+                    <span class="vacio-preview-empresa">Sin contacto en la agenda.</span>
+                }
+            }
+
+            @if (_pestanaActiva == "documentacion" && EmpresaId is { } empresaIdDocs)
+            {
+                <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="empresaIdDocs" />
+                <button type="button" class="enlace-ver-todo-preview-empresa" @onclick='() => Operar("documentacion")'>
+                    Ver toda su documentación →
+                </button>
+            }
+
+            @if (_pestanaActiva == "historial" && EmpresaId is { } empresaIdHist)
+            {
+                <PestanaHistorial EntidadTipo="Empresa" EntidadId="empresaIdHist" />
+            }
+        </Pestanas>
+        </div>
+
+        <div class="pie-preview-empresa">
+            <Boton OnClick='() => Operar("informacion")'>Operar →</Boton>
+            <span class="nota-pie-preview-empresa">Abre el workspace de la empresa</span>
+        </div>
+    </aside>
+}
+
+@code {
+    private static readonly IReadOnlyList<PestanaDefinicion> Pestanas =
+        [new("informacion", "Información"), new("documentacion", "Documentación"), new("historial", "Historial")];
+}

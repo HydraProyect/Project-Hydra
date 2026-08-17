@@ -1,11 +1,14 @@
 using System.Net;
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
+using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Configuracion;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
@@ -100,15 +103,34 @@ public class EnvioAlertasVencimientoHostedService(
         using var ambito = ambitoFactory.CreateScope();
         using var _ = AmbitoTenantExplicito.Establecer(tenantId);
 
+        var registroAutomatizaciones = ambito.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>();
+        if (!await registroAutomatizaciones.EstaActivoAsync(CatalogoAutomatizaciones.AlertasVencimientoDiarias, stoppingToken))
+            return;
+
+        try
+        {
+            await EjecutarEnvioAsync(ambito, tenantId, stoppingToken);
+            await registroAutomatizaciones.RegistrarEjecucionAsync(CatalogoAutomatizaciones.AlertasVencimientoDiarias, exitosa: true, stoppingToken);
+        }
+        catch
+        {
+            await registroAutomatizaciones.RegistrarEjecucionAsync(CatalogoAutomatizaciones.AlertasVencimientoDiarias, exitosa: false, stoppingToken);
+            throw;
+        }
+    }
+
+    private async Task EjecutarEnvioAsync(IServiceScope ambito, Guid tenantId, CancellationToken stoppingToken)
+    {
         var dbContext = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var alcanceDatos = ambito.ServiceProvider.GetRequiredService<IAlcanceDatosService>();
         var documentosFaltantesService = ambito.ServiceProvider.GetRequiredService<IDocumentosFaltantesService>();
+        var resolverClientePrincipal = ambito.ServiceProvider.GetRequiredService<IResolverClientePrincipalService>();
         // Instanciado directo, sin pasar por MediatR: CalcularAsync es el
         // punto de entrada explícito pensado exactamente para esto (ver su
         // comentario) — MediatR no garantiza que el tipo concreto del
         // handler sea resoluble por sí mismo desde el contenedor.
         var handler = new ObtenerAlertasQueryHandler(
-            dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, alcanceDatos, documentosFaltantesService);
+            dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, resolverClientePrincipal, alcanceDatos, documentosFaltantesService);
 
         var alertas = await handler.CalcularAsync(trabajadorIdsVisibles: null, centroIdsVisibles: null, stoppingToken);
         if (alertas.Count == 0) return;

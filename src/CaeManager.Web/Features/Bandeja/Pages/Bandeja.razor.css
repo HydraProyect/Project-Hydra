@@ -1,0 +1,98 @@
+/*
+  Cabecera + barra de chips/orden (mockup "Mi trabajo TALVEG"): reemplaza el
+  <select> de tipo por chips clicables con recuento inline, más el toggle
+  Impacto/Fecha — traducción 1:1 de los estilos inline del .dc.html.
+*/
+.bandeja-cabecera {
+    margin-bottom: var(--space-5);
+}
+
+.bandeja-barra {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-bottom: var(--space-5);
+}
+
+.bandeja-chips {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.bandeja-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    height: 32px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-sm);
+    border: var(--border-default);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-label-md);
+    font-size: 0.8125rem;
+    cursor: pointer;
+}
+
+.bandeja-chip:hover {
+    border-color: var(--color-border-strong);
+}
+
+.bandeja-chip-cuenta {
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.bandeja-chip-activo {
+    background: var(--color-primary-500);
+    border-color: var(--color-primary-500);
+    color: var(--color-surface);
+}
+
+.bandeja-chip-activo .bandeja-chip-cuenta {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.bandeja-orden {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.bandeja-orden-etiqueta {
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.bandeja-orden-grupo {
+    display: inline-flex;
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.bandeja-orden-boton {
+    height: 36px;
+    padding: 0 var(--space-4);
+    border: 0;
+    background: var(--color-surface);
+    color: var(--color-primary-500);
+    font: var(--font-label-md);
+    font-size: 0.8125rem;
+    cursor: pointer;
+}
+
+.bandeja-orden-boton + .bandeja-orden-boton {
+    border-left: var(--border-control);
+}
+
+.bandeja-orden-boton-activo {
+    background: var(--color-primary-500);
+    color: var(--color-surface);
+}

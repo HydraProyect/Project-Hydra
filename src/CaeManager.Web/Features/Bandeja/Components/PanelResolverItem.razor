@@ -17,7 +17,7 @@
         </div>
     </div>
     <div class="panel-resolver-item-fecha">
-        @(Item.Fecha?.ToString("dd/MM/yyyy") ?? "—")
+        <TextoFechaCopiable Fecha="Item.Fecha">@(Item.Fecha?.ToString("dd/MM/yyyy") ?? "—")</TextoFechaCopiable>
     </div>
     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirAsync">
         @TipoItemBandejaUi.TextoAccion(Item.Tipo)

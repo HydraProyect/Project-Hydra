@@ -1,0 +1,232 @@
+@*
+    Drill-down real de "Pendiente por plataforma" (cierra el hallazgo P-04 de
+    la auditoría de producto 2026-08-16 — mockup "Documentos TALVEG",
+    pestaña Plataforma): Inicio ya dice "Nalanda: 14 pendientes de subir · 3
+    rechazados", pero hasta ahora no había ningún sitio para ver CUÁLES son
+    esos 14 documentos ni marcarlos — solo el recuento existía.
+    Proveedor → Cliente → Documento, con las tres acciones reales del mockup.
+*@
+@using CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada
+@using CaeManager.Application.Documentos.Commands.MarcarAcreditacionRechazada
+@using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida
+@using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Components.DesignSystem
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="No pudimos cargar el estado por plataforma" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_proveedores.Count == 0)
+{
+    <EstadoVacio Titulo="Todo acreditado." Descripcion="No hay documentos pendientes de subir ni rechazados en ningún portal." />
+}
+else
+{
+    <div class="plataforma-tab">
+        @foreach (var proveedor in _proveedores)
+        {
+            <div class="plataforma-proveedor" @key="proveedor.ProveedorPlataformaCaeId">
+                <div class="plataforma-proveedor-cabecera">
+                    <span class="plataforma-proveedor-nombre">@proveedor.ProveedorNombre</span>
+                    <span class="plataforma-proveedor-resumen">
+                        @ContarPendientes(proveedor) pendiente@(ContarPendientes(proveedor) == 1 ? "" : "s") de subir
+                        <span class="plataforma-separador">·</span>
+                        <span class="plataforma-rechazados">@ContarRechazados(proveedor) rechazado@(ContarRechazados(proveedor) == 1 ? "" : "s")</span>
+                    </span>
+                </div>
+                @foreach (var cliente in proveedor.Clientes)
+                {
+                    <div class="plataforma-cliente" @key="cliente.ClienteId">
+                        <div class="plataforma-cliente-cabecera">@cliente.ClienteNombre</div>
+                        @foreach (var documento in cliente.Documentos)
+                        {
+                            <div class="plataforma-fila-documento" @key="documento.AcreditacionId">
+                                <span class="plataforma-documento-propietario">@documento.PropietarioNombre</span>
+                                <span class="plataforma-documento-tipo">@documento.TipoDocumentoNombre</span>
+                                <span class="plataforma-documento-estado">
+                                    <Badge Tono="@(documento.Estado == EstadoAcreditacion.Rechazada ? TonoBadge.Peligro : TonoBadge.Advertencia)">
+                                        @(documento.Estado == EstadoAcreditacion.Rechazada ? "Rechazado" : "Pendiente de subir")
+                                    </Badge>
+                                    @if (documento.UltimoMotivoRechazo is { Length: > 0 } motivo)
+                                    {
+                                        <VentanaContexto Etiqueta="@($"Motivo del rechazo: {motivo}")" Titulo="Motivo del rechazo">
+                                            <Disparador>
+                                                <span class="plataforma-motivo-rechazo" aria-hidden="true">?</span>
+                                            </Disparador>
+                                            <Detalle>
+                                                <span class="ventana-linea">@motivo</span>
+                                            </Detalle>
+                                        </VentanaContexto>
+                                    }
+                                </span>
+                                <span class="plataforma-documento-acciones">
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                           Cargando="@(_procesando == documento.AcreditacionId)"
+                                           OnClick="() => MarcarSubidoAsync(documento.AcreditacionId)">
+                                        Marcar subido
+                                    </Boton>
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                           Cargando="@(_procesando == documento.AcreditacionId)"
+                                           OnClick="() => MarcarAceptadoAsync(documento.AcreditacionId)">
+                                        Marcar aceptado
+                                    </Boton>
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRechazo(documento.AcreditacionId)">
+                                        Marcar rechazado…
+                                    </Boton>
+                                </span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<Modal Visible="_rechazoVisible" VisibleChanged="v => _rechazoVisible = v" Titulo="Marcar como rechazado" CerrarAlHacerClicFuera="!_rechazando">
+    <ChildContent>
+        <CampoSelect Etiqueta="Causa del rechazo" Valor="@_causaRechazo" ValorChanged="v => _causaRechazo = v">
+            @foreach (var causa in Enum.GetValues<CausaRechazoAcreditacion>())
+            {
+                <option value="@causa">@CausaRechazoAcreditacionUi.Texto(causa)</option>
+            }
+        </CampoSelect>
+        <CampoTextarea Etiqueta="Detalle" Valor="@_motivoRechazo" ValorChanged="v => _motivoRechazo = v"
+                        Placeholder="Texto literal del portal, si lo hay" Filas="3" MensajeError="@_errorMotivo" />
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_rechazando" OnClick="() => _rechazoVisible = false">Cancelar</Boton>
+        <Boton Cargando="_rechazando" OnClick="ConfirmarRechazoAsync">Marcar rechazado</Boton>
+    </Pie>
+</Modal>
+
+@code {
+    private bool _cargando = true;
+    private bool _error;
+    private IReadOnlyList<ProveedorAcreditacionesDto> _proveedores = [];
+    private Guid? _procesando;
+
+    private bool _rechazoVisible;
+    private bool _rechazando;
+    private Guid _acreditacionIdRechazo;
+    private string _causaRechazo = nameof(CausaRechazoAcreditacion.Ilegible);
+    private string _motivoRechazo = string.Empty;
+    private string? _errorMotivo;
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+        StateHasChanged();
+
+        try
+        {
+            _proveedores = await Mediator.Send(new ObtenerAcreditacionesPorProveedorQuery());
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private static int ContarPendientes(ProveedorAcreditacionesDto proveedor) =>
+        proveedor.Clientes.Sum(c => c.Documentos.Count(d => d.Estado == EstadoAcreditacion.PendienteDeSubir));
+
+    private static int ContarRechazados(ProveedorAcreditacionesDto proveedor) =>
+        proveedor.Clientes.Sum(c => c.Documentos.Count(d => d.Estado == EstadoAcreditacion.Rechazada));
+
+    private async Task MarcarSubidoAsync(Guid acreditacionId)
+    {
+        _procesando = acreditacionId;
+        StateHasChanged();
+
+        var resultado = await Mediator.Send(new MarcarAcreditacionSubidaCommand(acreditacionId));
+        _procesando = null;
+
+        if (resultado.EsFallido)
+        {
+            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            return;
+        }
+
+        ToastService.Mostrar("Marcado como subido.", TonoToast.Exito);
+        await CargarAsync();
+    }
+
+    private async Task MarcarAceptadoAsync(Guid acreditacionId)
+    {
+        _procesando = acreditacionId;
+        StateHasChanged();
+
+        var resultado = await Mediator.Send(new MarcarAcreditacionAceptadaCommand(acreditacionId));
+        _procesando = null;
+
+        if (resultado.EsFallido)
+        {
+            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            return;
+        }
+
+        ToastService.Mostrar("Marcado como aceptado.", TonoToast.Exito);
+        await CargarAsync();
+    }
+
+    private void AbrirRechazo(Guid acreditacionId)
+    {
+        _acreditacionIdRechazo = acreditacionId;
+        _causaRechazo = nameof(CausaRechazoAcreditacion.Ilegible);
+        _motivoRechazo = string.Empty;
+        _errorMotivo = null;
+        _rechazoVisible = true;
+    }
+
+    private async Task ConfirmarRechazoAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_motivoRechazo))
+        {
+            _errorMotivo = "Describe el motivo del rechazo.";
+            return;
+        }
+
+        _rechazando = true;
+        _errorMotivo = null;
+
+        try
+        {
+            var causa = Enum.Parse<CausaRechazoAcreditacion>(_causaRechazo);
+            var resultado = await Mediator.Send(new MarcarAcreditacionRechazadaCommand(_acreditacionIdRechazo, causa, _motivoRechazo));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar("Marcado como rechazado.", TonoToast.Exito);
+            _rechazoVisible = false;
+            await CargarAsync();
+        }
+        finally
+        {
+            _rechazando = false;
+        }
+    }
+}

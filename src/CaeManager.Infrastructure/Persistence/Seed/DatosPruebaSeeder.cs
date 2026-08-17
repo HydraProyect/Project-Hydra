@@ -1114,7 +1114,7 @@ public static class DatosPruebaSeeder
     /// Las conversaciones se crean sin <c>AsociarConexion</c>: sembradas a mano
     /// no tienen hilo de Graph que representar (ver <see cref="Conversacion"/>).
     /// </summary>
-    private static async Task SembrarReclamacionesAsync(
+    internal static async Task SembrarReclamacionesAsync(
         CaeManagerDbContext dbContext, List<Cliente> clientes, Guid? ejecutivoPrincipalId, CancellationToken cancellationToken)
     {
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);

@@ -25,85 +25,134 @@
                 {
                     <p class="buscador-mensaje">Buscando…</p>
                 }
-                else if (_resultado is not null && !_resultado.TieneResultados && Comandos.Count == 0)
+                else if (_resultado is not null && !_resultado.TieneResultados && IrA.Count == 0 && Acciones.Count == 0)
                 {
-                    <p class="buscador-mensaje">Sin resultados para «@_termino».</p>
+                    <p class="buscador-mensaje">Sin resultados para «@_termino» en tu cartera.</p>
                 }
                 else if (_resultado is not null)
                 {
                     var indice = 0;
-                    @if (Comandos.Count > 0)
+                    @if (_resultado.TieneResultados)
                     {
-                        <div class="buscador-categoria">
-                            <h3>Comandos</h3>
-                            @foreach (var item in Comandos)
+                        <div class="buscador-grupo">
+                            <h2 class="buscador-grupo-titulo">Entidades</h2>
+                            @if (_resultado.Clientes.Count > 0)
                             {
-                                var indiceItem = indice++;
-                                <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">@item.Titulo</a>
+                                <div class="buscador-categoria">
+                                    <h3>Clientes</h3>
+                                    @foreach (var item in _resultado.Clientes)
+                                    {
+                                        var indiceItem = indice++;
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                            <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" />@item.Titulo
+                                        </a>
+                                    }
+                                </div>
+                            }
+                            @if (_resultado.Empresas.Count > 0)
+                            {
+                                <div class="buscador-categoria">
+                                    <h3>Empresas</h3>
+                                    @foreach (var item in _resultado.Empresas)
+                                    {
+                                        var indiceItem = indice++;
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                            <Icono Nombre="empresas" Tamano="TamanoIcono.Pequeno" />@item.Titulo
+                                        </a>
+                                    }
+                                </div>
+                            }
+                            @if (_resultado.Subcontratas.Count > 0)
+                            {
+                                <div class="buscador-categoria">
+                                    <h3>Subcontratas</h3>
+                                    @foreach (var item in _resultado.Subcontratas)
+                                    {
+                                        var indiceItem = indice++;
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                            <Icono Nombre="subcontratas" Tamano="TamanoIcono.Pequeno" />@item.Titulo
+                                        </a>
+                                    }
+                                </div>
+                            }
+                            @if (_resultado.Centros.Count > 0)
+                            {
+                                <div class="buscador-categoria">
+                                    <h3>Centros</h3>
+                                    @foreach (var item in _resultado.Centros)
+                                    {
+                                        var indiceItem = indice++;
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                            <Icono Nombre="centros" Tamano="TamanoIcono.Pequeno" />@item.Titulo
+                                        </a>
+                                    }
+                                </div>
+                            }
+                            @if (_resultado.Trabajadores.Count > 0)
+                            {
+                                <div class="buscador-categoria">
+                                    <h3>Trabajadores</h3>
+                                    @foreach (var item in _resultado.Trabajadores)
+                                    {
+                                        var indiceItem = indice++;
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                            <Icono Nombre="trabajadores" Tamano="TamanoIcono.Pequeno" />@item.Titulo <span class="buscador-item-subtitulo">@item.Subtitulo</span>
+                                        </a>
+                                    }
+                                </div>
+                            }
+                            @if (_resultado.Documentos.Count > 0)
+                            {
+                                <div class="buscador-categoria">
+                                    <h3>Documentos</h3>
+                                    @foreach (var item in _resultado.Documentos)
+                                    {
+                                        var indiceItem = indice++;
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                            <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />@item.Titulo <span class="buscador-item-subtitulo">@item.Subtitulo</span>
+                                        </a>
+                                    }
+                                </div>
                             }
                         </div>
                     }
-                    @if (_resultado.Clientes.Count > 0)
+                    @if (IrA.Count > 0)
                     {
-                        <div class="buscador-categoria">
-                            <h3>Clientes</h3>
-                            @foreach (var item in _resultado.Clientes)
-                            {
-                                var indiceItem = indice++;
-                                <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">@item.Titulo</a>
-                            }
+                        <div class="buscador-grupo">
+                            <h2 class="buscador-grupo-titulo">Ir a</h2>
+                            <div class="buscador-categoria">
+                                @foreach (var item in IrA)
+                                {
+                                    var indiceItem = indice++;
+                                    <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                        <Icono Nombre="configuracion" Tamano="TamanoIcono.Pequeno" />@item.Titulo
+                                    </a>
+                                }
+                            </div>
                         </div>
                     }
-                    @if (_resultado.Empresas.Count > 0)
+                    @if (Acciones.Count > 0)
                     {
-                        <div class="buscador-categoria">
-                            <h3>Empresas</h3>
-                            @foreach (var item in _resultado.Empresas)
-                            {
-                                var indiceItem = indice++;
-                                <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">@item.Titulo</a>
-                            }
-                        </div>
-                    }
-                    @if (_resultado.Subcontratas.Count > 0)
-                    {
-                        <div class="buscador-categoria">
-                            <h3>Subcontratas</h3>
-                            @foreach (var item in _resultado.Subcontratas)
-                            {
-                                var indiceItem = indice++;
-                                <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">@item.Titulo</a>
-                            }
-                        </div>
-                    }
-                    @if (_resultado.Centros.Count > 0)
-                    {
-                        <div class="buscador-categoria">
-                            <h3>Centros</h3>
-                            @foreach (var item in _resultado.Centros)
-                            {
-                                var indiceItem = indice++;
-                                <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">@item.Titulo</a>
-                            }
-                        </div>
-                    }
-                    @if (_resultado.Trabajadores.Count > 0)
-                    {
-                        <div class="buscador-categoria">
-                            <h3>Trabajadores</h3>
-                            @foreach (var item in _resultado.Trabajadores)
-                            {
-                                var indiceItem = indice++;
-                                <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">@item.Titulo <span class="buscador-item-subtitulo">@item.Subtitulo</span></a>
-                            }
+                        <div class="buscador-grupo">
+                            <h2 class="buscador-grupo-titulo">Acciones</h2>
+                            <div class="buscador-categoria">
+                                @foreach (var item in Acciones)
+                                {
+                                    var indiceItem = indice++;
+                                    <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                        <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />@item.Titulo
+                                    </a>
+                                }
+                            </div>
                         </div>
                     }
                 }
             </div>
 
             <div class="buscador-pie">
-                <span><kbd>↑</kbd><kbd>↓</kbd> moverse</span>
-                <span><kbd>↵</kbd> ir</span>
+                <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
+                <span><kbd>Tab</kbd> grupo</span>
+                <span><kbd>↵</kbd> abrir</span>
                 <span><kbd>Esc</kbd> cerrar</span>
             </div>
         </div>

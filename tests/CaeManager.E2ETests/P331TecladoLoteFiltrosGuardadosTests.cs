@@ -104,8 +104,13 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("1 seleccionado");
         await page.WaitForTimeoutAsync(300);
 
-        // --- Enter abre el Workspace panel del Cliente enfocado ---
+        // --- Enter abre el drawer ligero de vista previa del Cliente enfocado;
+        // "Operar →" es lo que abre el Workspace panel completo (mismo
+        // patrón que el clic en el nombre de fila, ver ClientePreviewDrawer). ---
         await page.Keyboard.PressAsync("Enter");
+        var previewDrawer = page.Locator(".drawer-preview-cliente");
+        await previewDrawer.GetByText(razonSocialA).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await previewDrawer.GetByText("Operar →").ClickAsync();
         var workspacePanel = page.Locator(".workspace-panel");
         await workspacePanel.GetByText(razonSocialA).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await page.Keyboard.PressAsync("Escape");

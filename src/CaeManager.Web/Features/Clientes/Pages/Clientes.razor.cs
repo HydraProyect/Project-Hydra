@@ -10,10 +10,12 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
+using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Infrastructure.Autorizacion;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -61,6 +63,9 @@ public partial class Clientes : ComponentBase
 
     private string _busqueda = string.Empty;
     private bool _soloCriticos;
+    private string _ejecutivoFiltro = string.Empty;
+    private string _estadoDocumentalFiltro = string.Empty;
+    private IReadOnlyList<GestorCaeSelectorDto> _ejecutivosParaFiltro = [];
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -80,6 +85,24 @@ public partial class Clientes : ComponentBase
     private Guid _idAEliminar;
     private string _razonSocialAEliminar = string.Empty;
     private bool _eliminando;
+
+    // Drawer ligero (Lista Clientes TALVEG.dc.html): paso intermedio antes
+    // del Context Workspace completo — clic en el nombre de la fila y "Ver"
+    // del menú abren esto primero, no el workspace directamente.
+    private Guid? _previewClienteId;
+    private bool _previewVisible;
+
+    private void AbrirPreview(Guid id)
+    {
+        _previewClienteId = id;
+        _previewVisible = true;
+    }
+
+    private Task AbrirDesdePreviewAsync((Guid Id, string Pestana) destino)
+    {
+        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == destino.Id)?.RazonSocial ?? string.Empty;
+        return WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, destino.Id, nombre, destino.Pestana);
+    }
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
@@ -145,6 +168,16 @@ public partial class Clientes : ComponentBase
             AbrirCrear();
 
         _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Clientes));
+
+        // Mismo directorio que ya usa el selector de reasignación del Drawer
+        // (ver AbrirEditarAsync) — el filtro "Ejecutivo" del mockup ("Lista
+        // Clientes TALVEG") pregunta lo mismo, así que no hace falta una
+        // segunda consulta ni un query nuevo.
+        var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae);
+        _ejecutivosParaFiltro = gestores
+            .Select(u => new GestorCaeSelectorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty))
+            .OrderBy(g => g.NombreCompleto)
+            .ToList();
     }
 
     /// <summary>
@@ -192,6 +225,8 @@ public partial class Clientes : ComponentBase
             var resultado = await Mediator.Send(new ObtenerClientesQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 SoloCriticos: _soloCriticos ? true : null,
+                EjecutivoUsuarioId: Guid.TryParse(_ejecutivoFiltro, out var ejecutivoId) ? ejecutivoId : null,
+                EstadoDocumental: Enum.TryParse<EstadoDocumento>(_estadoDocumentalFiltro, out var estado) ? estado : null,
                 Pagina: pagina,
                 TamanoPagina: _paginacion.ItemsPerPage,
                 OrdenarPor: ordenarPor,
@@ -232,13 +267,46 @@ public partial class Clientes : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>Filtros "Ejecutivo" y "Estado documental" del mockup "Lista Clientes TALVEG" — mismo patrón que SoloCriticos: estado local + recarga, sin URL propia porque no forman parte de ningún enlace compartido todavía.</summary>
+    private async Task CambiarEjecutivoFiltroAsync(string valor)
+    {
+        _ejecutivoFiltro = valor;
+        await RecargarAsync();
+    }
+
+    private async Task CambiarEstadoDocumentalFiltroAsync(string valor)
+    {
+        _estadoDocumentalFiltro = valor;
+        await RecargarAsync();
+    }
+
     // --- H4 (docs/ux-audit/02-clientes.md): chips de filtros activos ---
 
-    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_busqueda) || _soloCriticos;
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || _soloCriticos
+        || !string.IsNullOrWhiteSpace(_ejecutivoFiltro) || !string.IsNullOrWhiteSpace(_estadoDocumentalFiltro);
 
     private Task QuitarFiltroBusquedaAsync() => BuscarAsync(string.Empty);
 
     private Task QuitarFiltroCriticosAsync() => CambiarSoloCriticosAsync(false);
+
+    private Task QuitarFiltroEjecutivoAsync() => CambiarEjecutivoFiltroAsync(string.Empty);
+
+    private Task QuitarFiltroEstadoDocumentalAsync() => CambiarEstadoDocumentalFiltroAsync(string.Empty);
+
+    private string EtiquetaFiltroEjecutivo =>
+        "Ejecutivo: " + (_ejecutivosParaFiltro.FirstOrDefault(g => g.Id.ToString() == _ejecutivoFiltro)?.NombreCompleto ?? "—");
+
+    /// <summary>Nombre a mostrar en la columna "Ejecutivo" de cada fila — mismo directorio que ya resuelve el filtro, sin consulta nueva por fila.</summary>
+    private string ObtenerNombreEjecutivo(Guid? ejecutivoUsuarioId) =>
+        ejecutivoUsuarioId is null
+            ? "—"
+            : _ejecutivosParaFiltro.FirstOrDefault(g => g.Id == ejecutivoUsuarioId)?.NombreCompleto ?? "—";
+
+    private string EtiquetaFiltroEstadoDocumental =>
+        "Estado: " + (Enum.TryParse<EstadoDocumento>(_estadoDocumentalFiltro, out var estado)
+            ? (estado == EstadoDocumento.Vigente ? "Al día" : EstadoDocumentoUi.Texto(estado))
+            : "—");
 
     private async Task RecargarAsync()
     {
@@ -538,11 +606,7 @@ public partial class Clientes : ComponentBase
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
-                {
-                    var elemento = _elementosPagina.FirstOrDefault(e => e.Id == idAbrir);
-                    if (elemento is not null)
-                        await WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, elemento.Id, elemento.RazonSocial, "informacion");
-                }
+                    AbrirPreview(idAbrir);
                 break;
         }
 

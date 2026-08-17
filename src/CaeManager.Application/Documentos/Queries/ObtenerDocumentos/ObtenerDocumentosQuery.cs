@@ -16,10 +16,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 
+/// <param name="FechaVencimientoHasta">
+/// Documentos TrabajadorId? Ambito? Busqueda? con vencimiento entre hoy y
+/// esta fecha (Preventivo, Parte XVI PROMPT 03) — a diferencia de
+/// <paramref name="Estado"/>, que usa los umbrales configurables del
+/// tenant (UmbralAmbarDias/UmbralRojoDias), esta es una ventana temporal
+/// fija elegida por quien llama (7/30/90 días); un Vencido no entra nunca
+/// aquí, "próximo a vencer" excluye "ya vencido" por diseño de esta vista.
+/// Se combina con <paramref name="Estado"/> si ambos llegan, aunque en la
+/// práctica se usan por separado.
+/// </param>
 public record ObtenerDocumentosQuery(
     Guid? TrabajadorId, AmbitoAplicacion? Ambito, string? Busqueda, EstadoDocumento? Estado = null,
     int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null,
-    string? OrdenarPor = null, bool Descendente = false)
+    string? OrdenarPor = null, bool Descendente = false, DateOnly? FechaVencimientoHasta = null)
     : IRequest<ResultadoPaginado<DocumentoListaDto>>;
 
 /// <summary>docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — una entrada por CanalGestionDocumental aplicable, no por ProveedorPlataformaCae (el mismo proveedor puede tener más de un acceso).</summary>
@@ -201,6 +211,9 @@ public class ObtenerDocumentosQueryHandler(IClientesQueryContext clientesContext
                 _ => consulta
             };
         }
+
+        if (request.FechaVencimientoHasta is { } hasta)
+            consulta = consulta.Where(x => x.FechaVencimiento != null && x.FechaVencimiento >= hoy && x.FechaVencimiento <= hasta);
 
         var total = await consulta.CountAsync(cancellationToken);
 

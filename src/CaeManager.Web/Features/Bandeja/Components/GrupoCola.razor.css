@@ -1,0 +1,133 @@
+.grupo-cola {
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-2);
+    overflow: hidden;
+}
+
+.grupo-cola-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    background: none;
+    border: 0;
+    text-align: left;
+    cursor: pointer;
+    font-family: var(--font-family);
+    color: inherit;
+}
+
+.grupo-cola-cabecera:hover {
+    background: var(--color-surface-hover);
+}
+
+.grupo-cola-chevron {
+    flex: none;
+    display: flex;
+    color: var(--color-text-muted);
+    transition: transform var(--motion-base) var(--ease-standard);
+}
+
+.grupo-cola-chevron-abierta {
+    transform: rotate(180deg);
+}
+
+.grupo-cola-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.grupo-cola-titulo {
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.grupo-cola-resumen {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.grupo-cola-badges {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.grupo-cola-contenido {
+    padding: 0 var(--space-4) var(--space-3);
+    display: flex;
+    flex-direction: column;
+    border-top: var(--border-default);
+    padding-top: var(--space-1);
+}
+
+/*
+  Segundo nivel de agrupación (Empresa contratista → Trabajador en
+  vocabulario Consultora; solo Trabajador en ClienteDirecto/"empresa final")
+  dentro del grupo por Cliente — ver el parámetro AgruparPorEmpresa del
+  .razor. Empresa marca más (es el eje de trabajo real del gestor de una
+  Consultora, DDL-072); Trabajador es un subtítulo más discreto, siempre
+  presente porque es el nivel que "empresa final" necesita solo.
+*/
+.grupo-cola-subcabecera {
+    padding: var(--space-3) 0 var(--space-1);
+}
+
+.grupo-cola-subcabecera-empresa {
+    padding-left: var(--space-4);
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.grupo-cola-subcabecera-empresa:first-child {
+    padding-top: var(--space-1);
+}
+
+.grupo-cola-subcabecera-trabajador {
+    padding-left: var(--space-6);
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+}
+
+/* Fila compacta (mockup Inicio TALVEG): título · fecha · badge · enlace, sin icono ni tarjeta propia — indentada bajo la subcabecera de trabajador. */
+.grupo-cola-fila-compacta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    min-height: 44px;
+    padding: var(--space-2) 0;
+    padding-left: var(--space-8);
+    border-bottom: var(--border-default);
+}
+
+.grupo-cola-fila-compacta:last-child {
+    border-bottom: 0;
+}
+
+.grupo-cola-fila-compacta-titulo {
+    flex: 1;
+    min-width: 0;
+    font: var(--font-body-md);
+}
+
+.grupo-cola-fila-compacta-fecha {
+    flex: none;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.grupo-cola-fila-compacta-accion {
+    flex: none;
+    font: var(--font-label-md);
+    font-size: 0.8125rem;
+}

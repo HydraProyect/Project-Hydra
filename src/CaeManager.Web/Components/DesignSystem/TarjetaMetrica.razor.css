@@ -36,6 +36,13 @@
     font: var(--font-heading-xl);
 }
 
+/* Tercera línea opcional: contexto del valor principal, mismo tono que la
+   etiqueta pero sin mayúsculas — no compite con el número ni con la etiqueta. */
+.tarjeta-metrica-pista {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
 .tarjeta-metrica-exito {
     border-left-color: var(--color-success-500);
 }
