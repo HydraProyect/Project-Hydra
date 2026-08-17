@@ -139,7 +139,7 @@ public class BuscarGlobalAlcanceTests : IAsyncLifetime
     private async Task<ResultadoBusquedaGlobalDto> BuscarAsync(AlcanceDatosServiceFalso alcance)
     {
         await using var contexto = CrearContexto();
-        var handler = new BuscarGlobalQueryHandler(contexto, contexto, contexto, contexto, contexto, alcance);
+        var handler = new BuscarGlobalQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, alcance);
 
         return await handler.Handle(new BuscarGlobalQuery(Termino), CancellationToken.None);
     }

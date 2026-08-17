@@ -21,12 +21,17 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
+using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
+using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
@@ -1011,5 +1016,166 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         return palabras.Length >= 2
             ? $"{palabras[0][0]}{palabras[1][0]}".ToUpperInvariant()
             : razonSocial.Length >= 2 ? razonSocial[..2].ToUpperInvariant() : razonSocial.ToUpperInvariant();
+    }
+
+    // --- Redactar (Parte XVI PROMPT 09) — ver comentario del Drawer en el .razor ---
+
+    private bool _redactarVisible;
+    private IReadOnlyList<ConexionIntegracionListaDto> _conexionesRedactar = [];
+    private Guid? _conexionRedactarId;
+    private string _redactarDestinatarios = string.Empty;
+    private string _redactarAsunto = string.Empty;
+    private string _redactarCuerpo = string.Empty;
+    private string? _redactarError;
+    private bool _enviandoRedaccion;
+
+    private async Task AbrirRedactarAsync()
+    {
+        _redactarDestinatarios = string.Empty;
+        _redactarAsunto = string.Empty;
+        _redactarCuerpo = string.Empty;
+        _redactarError = null;
+
+        var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery());
+        _conexionesRedactar = conexiones
+            .Where(c => c.Estado == EstadoConexionIntegracion.Habilitada && c.GestorPropietarioId == null)
+            .ToList();
+        _conexionRedactarId = _conexionesRedactar.Count == 1 ? _conexionesRedactar[0].Id : null;
+
+        if (_conexionesRedactar.Count == 0)
+        {
+            ToastService.Mostrar("No hay ningún buzón de Microsoft 365 conectado para enviar correo.", TonoToast.Error);
+            return;
+        }
+
+        _redactarVisible = true;
+    }
+
+    // --- Pedir prioridad (Parte XVI PROMPT 09) — mismo comando que CentroWorkspacePanel, aquí sobre _centroFormatosSeleccionado ---
+
+    private bool _drawerPrioridadVisible;
+    private bool _cargandoBorradorPrioridad;
+    private bool _enviandoPrioridad;
+    private string? _mensajeErrorPrioridad;
+    private BorradorPedirPrioridadDto? _borradorPrioridad;
+    private string _destinatarioPrioridad = string.Empty;
+    private string _asuntoPrioridad = string.Empty;
+    private string _cuerpoPrioridad = string.Empty;
+
+    private async Task AbrirPedirPrioridadAsync()
+    {
+        if (!Guid.TryParse(_centroFormatosSeleccionado, out var centroId)) return;
+
+        _drawerPrioridadVisible = true;
+        _cargandoBorradorPrioridad = true;
+        _mensajeErrorPrioridad = null;
+        _borradorPrioridad = null;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerBorradorPedirPrioridadQuery(centroId));
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorPrioridad = resultado.Error.Mensaje;
+                return;
+            }
+
+            _borradorPrioridad = resultado.Valor;
+            _destinatarioPrioridad = resultado.Valor.DestinatarioSugerido ?? string.Empty;
+            _asuntoPrioridad = resultado.Valor.Asunto;
+            _cuerpoPrioridad = resultado.Valor.CuerpoHtml;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al preparar el borrador de pedir prioridad para el centro {CentroId}.", centroId);
+            _mensajeErrorPrioridad = "No pudimos preparar el borrador. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            _cargandoBorradorPrioridad = false;
+        }
+    }
+
+    private async Task EnviarPrioridadAsync()
+    {
+        if (!Guid.TryParse(_centroFormatosSeleccionado, out var centroId)) return;
+
+        var destinatarios = _destinatarioPrioridad
+            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        if (destinatarios.Count == 0)
+        {
+            _mensajeErrorPrioridad = "Indica al menos un destinatario.";
+            return;
+        }
+
+        _enviandoPrioridad = true;
+        _mensajeErrorPrioridad = null;
+
+        try
+        {
+            var resultado = await Mediator.Send(
+                new PedirPrioridadValidacionCommand(centroId, destinatarios, _asuntoPrioridad, _cuerpoPrioridad));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeErrorPrioridad = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Solicitud de prioridad enviada.", TonoToast.Exito);
+            _drawerPrioridadVisible = false;
+        }
+        finally
+        {
+            _enviandoPrioridad = false;
+        }
+    }
+
+    private async Task EnviarMensajeNuevoDesdeRedactarAsync()
+    {
+        if (_conexionRedactarId is null)
+        {
+            _redactarError = "Selecciona desde qué buzón enviarlo.";
+            return;
+        }
+
+        var destinatarios = _redactarDestinatarios
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        if (destinatarios.Count == 0)
+        {
+            _redactarError = "Indica al menos un destinatario.";
+            return;
+        }
+
+        _enviandoRedaccion = true;
+        _redactarError = null;
+        try
+        {
+            var resultado = await Mediator.Send(new EnviarMensajeNuevoCommand(
+                _conexionRedactarId.Value, destinatarios, _redactarAsunto, _redactarCuerpo));
+
+            if (resultado.EsFallido)
+            {
+                _redactarError = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Mensaje enviado.", TonoToast.Exito);
+            _redactarVisible = false;
+            await AplicarFiltrosAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al enviar un mensaje nuevo desde la conexión {ConexionId}.", _conexionRedactarId);
+            _redactarError = "No pudimos enviar el mensaje. Intenta nuevamente.";
+        }
+        finally
+        {
+            _enviandoRedaccion = false;
+        }
     }
 }

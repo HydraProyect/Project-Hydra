@@ -1,20 +1,25 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Proyectos;
 using CaeManager.Application.Subcontratas;
+using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Vehiculos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 
 /// <summary>
-/// Alimenta el buscador global (Ctrl/Cmd+K, ver UX_PATTERNS.md, "Buscar") —
-/// el reemplazo directo de la hoja "Filtros" manual del Excel original.
-/// Cada resultado enlaza al listado del módulo correspondiente con el texto
-/// ya cargado en el filtro (?q=), no a una página de detalle — todavía no
-/// existen páginas de detalle por entidad.
+/// Alimenta el Command Palette (Ctrl/Cmd+K, Parte XVI PROMPT 05) — el
+/// reemplazo directo de la hoja "Filtros" manual del Excel original. Cada
+/// resultado enlaza a la ficha de la entidad (Trabajador 360, Centro 360)
+/// cuando existe; para Cliente/Empresa/Subcontrata/Documento, que todavía
+/// no tienen una página de detalle propia, enlaza al listado del módulo
+/// con el texto ya cargado en el filtro (?q=).
 /// </summary>
 public record BuscarGlobalQuery(string Termino) : IRequest<ResultadoBusquedaGlobalDto>;
 
@@ -25,15 +30,19 @@ public record ResultadoBusquedaGlobalDto(
     IReadOnlyList<ItemBusquedaDto> Empresas,
     IReadOnlyList<ItemBusquedaDto> Subcontratas,
     IReadOnlyList<ItemBusquedaDto> Centros,
-    IReadOnlyList<ItemBusquedaDto> Trabajadores)
+    IReadOnlyList<ItemBusquedaDto> Trabajadores,
+    IReadOnlyList<ItemBusquedaDto> Documentos)
 {
     public bool TieneResultados =>
-        Clientes.Count > 0 || Empresas.Count > 0 || Subcontratas.Count > 0 || Centros.Count > 0 || Trabajadores.Count > 0;
+        Clientes.Count > 0 || Empresas.Count > 0 || Subcontratas.Count > 0 || Centros.Count > 0 ||
+        Trabajadores.Count > 0 || Documentos.Count > 0;
 }
 
 public class BuscarGlobalQueryHandler(
     ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext,
     ISubcontratasQueryContext subcontratasContext, ITrabajadoresQueryContext trabajadoresContext,
+    IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext,
+    IVehiculosQueryContext vehiculosContext, IProyectosQueryContext proyectosContext,
     IAlcanceDatosService alcanceDatos) : IRequestHandler<BuscarGlobalQuery, ResultadoBusquedaGlobalDto>
 {
     private const int LimitePorCategoria = 5;
@@ -43,7 +52,7 @@ public class BuscarGlobalQueryHandler(
         var termino = request.Termino.Trim();
 
         if (termino.Length < 2)
-            return new ResultadoBusquedaGlobalDto([], [], [], [], []);
+            return new ResultadoBusquedaGlobalDto([], [], [], [], [], []);
 
         var terminoMayus = termino.ToUpper();
 
@@ -84,12 +93,15 @@ public class BuscarGlobalQueryHandler(
             .Select(s => new ItemBusquedaDto(s.Id, s.RazonSocial, "Subcontrata", $"/subcontratas?q={Uri.EscapeDataString(s.RazonSocial)}"))
             .ToListAsync(cancellationToken);
 
+        // Centro y Trabajador SÍ tienen ficha propia (Centro 360, Trabajador
+        // 360) — a diferencia de Cliente/Empresa/Subcontrata/Documento, que
+        // siguen enlazando al listado con filtro porque no la tienen todavía.
         var centros = await centrosContext.Centros
             .Where(c => centroIdsVisibles == null || centroIdsVisibles.Contains(c.Id))
             .Where(c => c.Nombre.ToUpper().Contains(terminoMayus))
             .OrderBy(c => c.Nombre)
             .Take(LimitePorCategoria)
-            .Select(c => new ItemBusquedaDto(c.Id, c.Nombre, "Centro", $"/centros?q={Uri.EscapeDataString(c.Nombre)}"))
+            .Select(c => new ItemBusquedaDto(c.Id, c.Nombre, "Centro", $"/centros/{c.Id}"))
             .ToListAsync(cancellationToken);
 
         var trabajadores = await trabajadoresContext.Trabajadores
@@ -100,10 +112,84 @@ public class BuscarGlobalQueryHandler(
                 t.Dni.ToUpper().Contains(terminoMayus))
             .OrderBy(t => t.Apellidos).ThenBy(t => t.Nombre)
             .Take(LimitePorCategoria)
-            .Select(t => new ItemBusquedaDto(
-                t.Id, t.Nombre + " " + t.Apellidos, t.Dni, $"/trabajadores?q={Uri.EscapeDataString(t.Dni)}"))
+            .Select(t => new ItemBusquedaDto(t.Id, t.Nombre + " " + t.Apellidos, t.Dni, $"/trabajadores/{t.Id}"))
             .ToListAsync(cancellationToken);
 
-        return new ResultadoBusquedaGlobalDto(clientes, empresas, subcontratas, centros, trabajadores);
+        var documentos = await BuscarDocumentosAsync(terminoMayus, cancellationToken);
+
+        return new ResultadoBusquedaGlobalDto(clientes, empresas, subcontratas, centros, trabajadores, documentos);
+    }
+
+    /// <summary>
+    /// Búsqueda por Tipo de Documento (ej. "Formación PRL" → todas las
+    /// instancias de ese tipo, de cualquier ámbito) — mismo patrón de unión
+    /// por ámbito que <c>ObtenerDocumentosQuery</c>, recortado a lo que
+    /// necesita el palette (sin Acreditaciones ni paginación completa).
+    /// </summary>
+    private async Task<IReadOnlyList<ItemBusquedaDto>> BuscarDocumentosAsync(string terminoMayus, CancellationToken cancellationToken)
+    {
+        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
+        var vehiculoIdsVisibles = await alcanceDatos.ObtenerVehiculoIdsVisiblesAsync(cancellationToken);
+
+        var deTrabajador =
+            from documento in documentosContext.Documentos
+            where documento.TrabajadorId != null
+            where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
+            join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            where tipoDocumento.Nombre.ToUpper().Contains(terminoMayus)
+            select new { documento.Id, TipoNombre = tipoDocumento.Nombre, PropietarioNombre = trabajador.Nombre + " " + trabajador.Apellidos };
+
+        var deCliente =
+            from documento in documentosContext.Documentos
+            where documento.ClienteId != null
+            where clienteIdsVisibles == null || clienteIdsVisibles.Contains(documento.ClienteId!.Value)
+            join cliente in clientesContext.Clientes on documento.ClienteId!.Value equals cliente.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            where tipoDocumento.Nombre.ToUpper().Contains(terminoMayus)
+            select new { documento.Id, TipoNombre = tipoDocumento.Nombre, PropietarioNombre = cliente.RazonSocial };
+
+        var deEmpresa =
+            from documento in documentosContext.Documentos
+            where documento.EmpresaId != null
+            where empresaIdsVisibles == null || empresaIdsVisibles.Contains(documento.EmpresaId!.Value)
+            join empresa in empresasContext.Empresas on documento.EmpresaId!.Value equals empresa.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            where tipoDocumento.Nombre.ToUpper().Contains(terminoMayus)
+            select new { documento.Id, TipoNombre = tipoDocumento.Nombre, PropietarioNombre = empresa.RazonSocial };
+
+        var deVehiculo =
+            from documento in documentosContext.Documentos
+            where documento.VehiculoId != null
+            where vehiculoIdsVisibles == null || vehiculoIdsVisibles.Contains(documento.VehiculoId!.Value)
+            join vehiculo in vehiculosContext.Vehiculos on documento.VehiculoId!.Value equals vehiculo.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            where tipoDocumento.Nombre.ToUpper().Contains(terminoMayus)
+            select new { documento.Id, TipoNombre = tipoDocumento.Nombre, PropietarioNombre = vehiculo.Nombre + " (" + vehiculo.NumeroPlaca + ")" };
+
+        var deProyecto =
+            from documento in documentosContext.Documentos
+            where documento.ProyectoId != null
+            join proyecto in proyectosContext.Proyectos on documento.ProyectoId!.Value equals proyecto.Id
+            where clienteIdsVisibles == null || clienteIdsVisibles.Contains(proyecto.ClienteId)
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            where tipoDocumento.Nombre.ToUpper().Contains(terminoMayus)
+            select new { documento.Id, TipoNombre = tipoDocumento.Nombre, PropietarioNombre = proyecto.Nombre };
+
+        var union = deTrabajador.Concat(deCliente).Concat(deEmpresa).Concat(deVehiculo).Concat(deProyecto);
+
+        var filas = await union
+            .OrderBy(x => x.TipoNombre)
+            .Take(LimitePorCategoria)
+            .ToListAsync(cancellationToken);
+
+        // Sin ficha propia: abre el listado de Documentos filtrado por el
+        // propietario, que es lo que de verdad distingue una fila de otra
+        // cuando varias comparten el mismo Tipo de Documento.
+        return filas
+            .Select(f => new ItemBusquedaDto(f.Id, f.TipoNombre, f.PropietarioNombre, $"/documentos?q={Uri.EscapeDataString(f.PropietarioNombre)}"))
+            .ToList();
     }
 }

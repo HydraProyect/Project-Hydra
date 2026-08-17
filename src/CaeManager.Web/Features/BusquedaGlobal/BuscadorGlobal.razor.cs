@@ -12,6 +12,7 @@ public partial class BuscadorGlobal : ComponentBase
 
     private IJSObjectReference? _modulo;
     private IJSObjectReference? _suscripcionAtajo;
+    private IJSObjectReference? _suscripcionTab;
     private DotNetObjectReference<BuscadorGlobal>? _referenciaDotNet;
     private ElementReference _inputElemento;
 
@@ -37,12 +38,12 @@ public partial class BuscadorGlobal : ComponentBase
     private int _indiceSeleccionado = -1;
 
     /// <summary>
-    /// Acciones fijas del palette (P3-31) — navegación rápida a las listas y
-    /// atajos de creación, mezcladas con los resultados de búsqueda. Filtro
-    /// simple por substring, sin Query: no son datos, son rutas fijas de la
-    /// propia app.
+    /// Grupo "Ir a" del palette (Parte XVI PROMPT 05) — navegación pura a
+    /// listados y a páginas de Configuración, nunca acciones que cambien
+    /// datos. Filtro simple por substring, sin Query: no son datos, son
+    /// rutas fijas de la propia app.
     /// </summary>
-    private static readonly IReadOnlyList<(string Nombre, string Ruta)> ComandosNavegacion =
+    private static readonly IReadOnlyList<(string Nombre, string Ruta)> DestinosNavegacion =
     [
         ("Ir a Clientes", "/clientes"),
         ("Ir a Empresas", "/empresas"),
@@ -51,26 +52,48 @@ public partial class BuscadorGlobal : ComponentBase
         ("Ir a Trabajadores", "/trabajadores"),
         ("Ir a Documentos", "/documentos"),
         ("Ir a Dashboard", "/"),
+        ("Ir a Configuración", "/configuracion"),
+        ("Ir a Claves API", "/configuracion/claves-api"),
+        ("Ir a Tipos de documento", "/tipos-documento"),
+    ];
+
+    /// <summary>Grupo "Acciones" del palette — verbos que crean algo, nunca navegación pura.</summary>
+    private static readonly IReadOnlyList<(string Nombre, string Ruta)> AccionesFijas =
+    [
         ("Crear cliente", "/clientes?accion=crear"),
         ("Alta guiada de cliente", "/clientes/alta-guiada"),
         ("Crear documento", "/documentos?accion=crear"),
     ];
 
-    /// <summary>
-    /// Comandos de navegación (filtrados por coincidencia de nombre) más,
-    /// cuando la búsqueda de una categoría no encontró nada, un atajo para
-    /// crearla con el término ya escrito precargado como nombre — pedido
-    /// explícito: "si introduce una empresa/centro/trabajador que no se
-    /// encuentre, dar la opción de crearlo con el nombre ya prellenado".
-    /// </summary>
-    private IReadOnlyList<ItemBusquedaDto> Comandos
+    private IReadOnlyList<ItemBusquedaDto> IrA
     {
         get
         {
             var termino = _termino.Trim();
             if (termino.Length < 2) return [];
 
-            var comandos = ComandosNavegacion
+            return DestinosNavegacion
+                .Where(c => c.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase))
+                .Select(c => new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta))
+                .ToList();
+        }
+    }
+
+    /// <summary>
+    /// Acciones fijas (filtradas por coincidencia de nombre) más, cuando la
+    /// búsqueda de una categoría no encontró nada, un atajo para crearla con
+    /// el término ya escrito precargado como nombre — pedido explícito: "si
+    /// introduce una empresa/centro/trabajador que no se encuentre, dar la
+    /// opción de crearlo con el nombre ya prellenado".
+    /// </summary>
+    private IReadOnlyList<ItemBusquedaDto> Acciones
+    {
+        get
+        {
+            var termino = _termino.Trim();
+            if (termino.Length < 2) return [];
+
+            var acciones = AccionesFijas
                 .Where(c => c.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase))
                 .Select(c => new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta))
                 .ToList();
@@ -80,21 +103,46 @@ public partial class BuscadorGlobal : ComponentBase
                 var terminoCodificado = Uri.EscapeDataString(termino);
 
                 if (_resultado.Empresas.Count == 0)
-                    comandos.Add(new ItemBusquedaDto(Guid.Empty, $"Crear empresa «{termino}»", null, $"/empresas?accion=crear&nombre={terminoCodificado}"));
+                    acciones.Add(new ItemBusquedaDto(Guid.Empty, $"Crear empresa «{termino}»", null, $"/empresas?accion=crear&nombre={terminoCodificado}"));
                 if (_resultado.Centros.Count == 0)
-                    comandos.Add(new ItemBusquedaDto(Guid.Empty, $"Crear centro «{termino}»", null, $"/centros?accion=crear&nombre={terminoCodificado}"));
+                    acciones.Add(new ItemBusquedaDto(Guid.Empty, $"Crear centro «{termino}»", null, $"/centros?accion=crear&nombre={terminoCodificado}"));
                 if (_resultado.Trabajadores.Count == 0)
-                    comandos.Add(new ItemBusquedaDto(Guid.Empty, $"Crear trabajador «{termino}»", null, $"/trabajadores?accion=crear&nombre={terminoCodificado}"));
+                    acciones.Add(new ItemBusquedaDto(Guid.Empty, $"Crear trabajador «{termino}»", null, $"/trabajadores?accion=crear&nombre={terminoCodificado}"));
             }
 
-            return comandos;
+            return acciones;
         }
     }
 
-    /// <summary>Todas las categorías en una sola lista, en el mismo orden en que se renderizan — para navegar con ↑↓ + Enter.</summary>
+    /// <summary>
+    /// Todos los grupos en el mismo orden en que se renderizan (Entidades →
+    /// Ir a → Acciones, Parte XVI PROMPT 05) — para navegar con ↑↓/Tab + Enter.
+    /// </summary>
     private IReadOnlyList<ItemBusquedaDto> ElementosPlanos => _resultado is null
-        ? Comandos
-        : [.. Comandos, .. _resultado.Clientes, .. _resultado.Empresas, .. _resultado.Subcontratas, .. _resultado.Centros, .. _resultado.Trabajadores];
+        ? [.. IrA, .. Acciones]
+        : [.. _resultado.Clientes, .. _resultado.Empresas, .. _resultado.Subcontratas, .. _resultado.Centros,
+           .. _resultado.Trabajadores, .. _resultado.Documentos, .. IrA, .. Acciones];
+
+    /// <summary>Índice (en ElementosPlanos) del primer elemento de cada grupo no vacío, en orden — usado por Tab para saltar de grupo en vez de elemento a elemento.</summary>
+    private IReadOnlyList<int> InicioDeGrupo
+    {
+        get
+        {
+            var grupos = _resultado is null
+                ? new[] { IrA, Acciones }
+                : new[] { _resultado.Clientes, _resultado.Empresas, _resultado.Subcontratas, _resultado.Centros, _resultado.Trabajadores, _resultado.Documentos, IrA, Acciones };
+
+            var inicios = new List<int>();
+            var acumulado = 0;
+            foreach (var grupo in grupos)
+            {
+                if (grupo.Count > 0) inicios.Add(acumulado);
+                acumulado += grupo.Count;
+            }
+
+            return inicios;
+        }
+    }
 
     protected override void OnInitialized()
     {
@@ -148,7 +196,35 @@ public partial class BuscadorGlobal : ComponentBase
             // Espera al siguiente render para que el <input> ya esté en el DOM antes de enfocarlo.
             await Task.Yield();
             await _modulo.InvokeVoidAsync("enfocarElemento", _inputElemento);
+
+            // Se re-registra en cada apertura: el <input> es un elemento del
+            // DOM nuevo cada vez (vive dentro del @if (_visible)), así que el
+            // listener de la apertura anterior ya se perdió con él.
+            if (_suscripcionTab is not null)
+                await _suscripcionTab.DisposeAsync();
+            _suscripcionTab = await _modulo.InvokeAsync<IJSObjectReference>("registrarSaltoDeGrupo", _inputElemento, _referenciaDotNet);
         }
+    }
+
+    /// <summary>Tab/Shift+Tab desde el input — mueve la selección al primer elemento del grupo siguiente/anterior (Parte XVI PROMPT 05, "Tab grupo").</summary>
+    [JSInvokable]
+    public void SaltarGrupoDesdeJs(bool retroceder)
+    {
+        var inicios = InicioDeGrupo;
+        if (inicios.Count == 0) return;
+
+        if (retroceder)
+        {
+            var anterior = inicios.LastOrDefault(i => i < _indiceSeleccionado, inicios[^1]);
+            _indiceSeleccionado = anterior;
+        }
+        else
+        {
+            var siguiente = inicios.FirstOrDefault(i => i > _indiceSeleccionado, inicios[0]);
+            _indiceSeleccionado = siguiente;
+        }
+
+        StateHasChanged();
     }
 
     private void Cerrar()
@@ -233,6 +309,12 @@ public partial class BuscadorGlobal : ComponentBase
             {
                 await _suscripcionAtajo.InvokeVoidAsync("dispose");
                 await _suscripcionAtajo.DisposeAsync();
+            }
+
+            if (_suscripcionTab is not null)
+            {
+                await _suscripcionTab.InvokeVoidAsync("dispose");
+                await _suscripcionTab.DisposeAsync();
             }
 
             if (_modulo is not null)

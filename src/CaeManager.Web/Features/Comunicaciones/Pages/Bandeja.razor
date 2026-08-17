@@ -27,6 +27,7 @@
             Comunicaciones
         </h1>
         <div class="bandeja-toolbar-acciones">
+            <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">Redactar</Boton>
             <a class="bandeja-toolbar-enlace" href="/comunicaciones/buzon">
                 <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" /> Buzón completo
             </a>
@@ -236,6 +237,25 @@
                              AdjuntosPendientes="_adjuntosPendientes" ErrorAdjuntos="@_errorAdjuntos"
                              OnArchivosSeleccionados="ManejarArchivosAdjuntosAsync" OnQuitarAdjunto="QuitarAdjuntoPendiente"
                              EmailFallback="@_emailFallback" EmailFallbackChanged="v => _emailFallback = v" OnEnviarFallbackCorreo="EnviarFallbackCorreoAsync" />
+
+                @*
+                    "Pedir prioridad" del mockup (Parte XVI PROMPT 09), a nivel
+                    conversación — el comando ya existía y funcionaba desde
+                    Centro 360 (CentroWorkspacePanel), aquí solo se cablea al
+                    mismo Centro que el gestor ya eligió arriba para
+                    "Compartir formatos de centro": la conversación es de un
+                    Cliente, que puede tener varios Centros, así que hace
+                    falta que el gestor haya elegido uno antes de poder pedir
+                    prioridad sobre él.
+                *@
+                @if (!string.IsNullOrEmpty(_centroFormatosSeleccionado))
+                {
+                    <div class="acordeon-asignaciones-cabecera">
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPedirPrioridadAsync">
+                            Pedir prioridad de validación
+                        </Boton>
+                    </div>
+                }
             }
         </section>
 
@@ -349,4 +369,80 @@
             <Boton Cargando="_aplicandoDocumento" Deshabilitado="_detectandoDocumento" OnClick="AplicarActualizacionDocumentoAsync">Aplicar y registrar</Boton>
         </Pie>
     </Modal>
+
+    @*
+        "Redactar" del toolbar (Parte XVI PROMPT 09) — inicia una conversación
+        SIN partir de un hilo existente, a diferencia de ResponderConversacionCommand.
+        Mismo EnviarMensajeNuevoCommand que ya usaba Buzon.razor, con la misma
+        resolución de conexión que EnviarReclamacionCommand (genérica del
+        tenant o específica del cliente si hay más de una) — si hay más de un
+        buzón candidato se pide explícitamente, nunca se manda "a ciegas"
+        desde el primero que aparezca.
+    *@
+    <Drawer Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviandoRedaccion">
+        <ChildContent>
+            @if (_redactarError is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_redactarError</div>
+            }
+
+            @if (_conexionesRedactar.Count > 1)
+            {
+                <CampoSelect Etiqueta="Enviar desde" Valor="@(_conexionRedactarId?.ToString() ?? string.Empty)" ValorChanged="v => _conexionRedactarId = Guid.TryParse(v, out var id) ? id : null">
+                    <option value="">Selecciona un buzón…</option>
+                    @foreach (var conexion in _conexionesRedactar)
+                    {
+                        <option value="@conexion.Id">@conexion.Nombre (@conexion.BuzonEmail)</option>
+                    }
+                </CampoSelect>
+            }
+
+            <CampoTexto Etiqueta="Para (separados por coma)" Valor="@_redactarDestinatarios" ValorChanged="v => _redactarDestinatarios = v" Placeholder="contacto@cliente.com" />
+            <CampoTexto Etiqueta="Asunto" Valor="@_redactarAsunto" ValorChanged="v => _redactarAsunto = v" />
+            <CampoTextarea Etiqueta="Mensaje" Valor="@_redactarCuerpo" ValorChanged="v => _redactarCuerpo = v" Filas="6" />
+        </ChildContent>
+        <Pie>
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoRedaccion" OnClick="() => _redactarVisible = false">Cancelar</Boton>
+            <Boton Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoDesdeRedactarAsync">Enviar</Boton>
+        </Pie>
+    </Drawer>
+
+    @* "Pedir prioridad" a nivel conversación — mismo Drawer que ya usa CentroWorkspacePanel, aquí sobre el Centro elegido en el composer. *@
+    <Drawer Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
+            Titulo="Pedir prioridad de validación"
+            CerrarAlHacerClicFuera="@(_mensajeErrorPrioridad is null && !_enviandoPrioridad)">
+        <ChildContent>
+            @if (_cargandoBorradorPrioridad)
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (_mensajeErrorPrioridad is not null && _borradorPrioridad is null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorPrioridad</div>
+            }
+            else if (_borradorPrioridad is not null)
+            {
+                @if (!_borradorPrioridad.HayConexionDisponible)
+                {
+                    <div class="alerta-formulario" role="alert">No hay ningún buzón de correo conectado — conecta uno de Microsoft 365 antes de enviar.</div>
+                }
+                @if (_borradorPrioridad.UltimaSolicitudEnviadaEnUtc is { } ultima)
+                {
+                    <p class="workspace-nota-contextual">Ya se pidió prioridad para este centro el @ultima.ToLocalTime().ToString("dd/MM/yyyy HH:mm").</p>
+                }
+                @if (_mensajeErrorPrioridad is not null)
+                {
+                    <div class="alerta-formulario" role="alert">@_mensajeErrorPrioridad</div>
+                }
+                <CampoTexto Etiqueta="Destinatarios (separados por coma)" Valor="@_destinatarioPrioridad" ValorChanged="v => _destinatarioPrioridad = v" />
+                <CampoTexto Etiqueta="Asunto" Valor="@_asuntoPrioridad" ValorChanged="v => _asuntoPrioridad = v" />
+                <CampoTextarea Etiqueta="Mensaje" Valor="@_cuerpoPrioridad" ValorChanged="v => _cuerpoPrioridad = v" Filas="10" />
+                <p class="workspace-nota-contextual">@_borradorPrioridad.TotalDocumentosPendientes documento(s) pendiente(s) incluido(s) en el mensaje. Revisa y adapta el texto antes de enviarlo — se envía desde el buzón conectado de la plataforma.</p>
+            }
+        </ChildContent>
+        <Pie>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerPrioridadVisible = false" Deshabilitado="_enviandoPrioridad">Cancelar</Boton>
+            <Boton OnClick="EnviarPrioridadAsync" Cargando="_enviandoPrioridad" Deshabilitado="_cargandoBorradorPrioridad || _borradorPrioridad is null">Enviar</Boton>
+        </Pie>
+    </Drawer>
 </div>
