@@ -1,0 +1,67 @@
+@*
+    Drawer ligero de vista previa — mismo patrón que ClientePreviewDrawer/
+    EmpresaPreviewDrawer, extendido a Trabajadores por decisión explícita del
+    usuario. Sin Application nuevo: ObtenerTrabajadorPorIdQuery ya cubre
+    todos los campos de Información. Sin "Contacto principal" (a diferencia
+    de Cliente/Empresa): TipoPropietarioAgenda no incluye Trabajador — la
+    persona ES el contacto, no tiene una agenda propia que mostrar.
+    Documentación/Historial reutilizan PestanaDocumentacion/PestanaHistorial.
+*@
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId
+@using CaeManager.Domain.Documentos
+
+@if (Visible)
+{
+    <aside class="drawer-preview-trabajador" role="complementary" aria-label="Vista previa del trabajador">
+        <div class="cabecera-preview-trabajador">
+            <div class="texto-cabecera-preview-trabajador">
+                <span class="etiqueta-cabecera-preview-trabajador">Consulta · Trabajador</span>
+                <span class="nombre-cabecera-preview-trabajador">@(_detalle is null ? "Cargando…" : $"{_detalle.Nombre} {_detalle.Apellidos}")</span>
+            </div>
+            <button type="button" class="boton-cerrar-preview-trabajador" aria-label="Cerrar" @onclick="Cerrar">✕</button>
+        </div>
+
+        <div class="cuerpo-preview-trabajador">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Secciones del trabajador">
+            @if (_cargando && _pestanaActiva == "informacion")
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (_pestanaActiva == "informacion" && _detalle is not null)
+            {
+                <div class="rejilla-info-preview-trabajador">
+                    <div class="celda-info-preview-trabajador"><span>DNI</span><strong>@_detalle.Dni</strong></div>
+                    <div class="celda-info-preview-trabajador"><span>Empleador</span><strong>@_detalle.EmpleadorNombre</strong></div>
+                    <div class="celda-info-preview-trabajador"><span>Puesto</span><strong>@(_detalle.Puesto ?? "—")</strong></div>
+                    <div class="celda-info-preview-trabajador"><span>Alias</span><strong>@(_detalle.Alias ?? "—")</strong></div>
+                    <div class="celda-info-preview-trabajador"><span>Email</span><strong>@(_detalle.Email ?? "—")</strong></div>
+                    <div class="celda-info-preview-trabajador"><span>Teléfono</span><strong>@(_detalle.Telefono ?? "—")</strong></div>
+                </div>
+            }
+
+            @if (_pestanaActiva == "documentacion" && TrabajadorId is { } trabajadorIdDocs)
+            {
+                <PestanaDocumentacion Ambito="AmbitoAplicacion.Trabajador" PropietarioId="trabajadorIdDocs" />
+                <button type="button" class="enlace-ver-todo-preview-trabajador" @onclick="AbrirTrabajador360">
+                    Ver Trabajador 360 →
+                </button>
+            }
+
+            @if (_pestanaActiva == "historial" && TrabajadorId is { } trabajadorIdHist)
+            {
+                <PestanaHistorial EntidadTipo="Trabajador" EntidadId="trabajadorIdHist" />
+            }
+        </Pestanas>
+        </div>
+
+        <div class="pie-preview-trabajador">
+            <Boton OnClick="AbrirTrabajador360">Ver Trabajador 360 →</Boton>
+            <span class="nota-pie-preview-trabajador">Ficha completa con cumplimiento por centro</span>
+        </div>
+    </aside>
+}
+
+@code {
+    private static readonly IReadOnlyList<PestanaDefinicion> Pestanas =
+        [new("informacion", "Información"), new("documentacion", "Documentación"), new("historial", "Historial")];
+}
