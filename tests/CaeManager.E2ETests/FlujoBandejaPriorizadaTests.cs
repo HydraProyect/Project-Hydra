@@ -156,17 +156,39 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // nombre, la tarjeta tiene dos botones y GetByRole es ambiguo.
         await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).FocusAsync();
 
+        // Reintento con la espera propia de Playwright (ToHaveClassAsync) en
+        // vez de un WaitForTimeoutAsync fijo, para no depender de adivinar
+        // una duración — aun así, "j" puede agotar TODOS sus intentos sin
+        // que "panel-resolver-item-enfocado" llegue a aparecer en ningún
+        // ítem. Confirmado en vivo (fuera de este test, con un
+        // KeyboardEvent despachado a mano sobre /bandeja filtrada a
+        // Urgente): ManejarAtajoAsync sí calcula el _idEnfocado correcto en
+        // el servidor, pero el cliente nunca refleja la clase — un fallo
+        // real de re-renderizado tras agrupar por cola (GrupoCola), no un
+        // problema de tiempos del test. Sin diagnosticar más a fondo
+        // todavía (Blazor + @foreach sin @key en GruposOrdenados/
+        // GruposAnidados, ambos recalculados en cada render, es la hipótesis
+        // más probable) — este bucle deja constancia del fallo real en vez
+        // de esconderlo tras una espera insuficiente.
         var claseEnfocado = new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado");
         var enfocada = false;
         for (var i = 0; i < totalVisibles && !enfocada; i++)
         {
             await page.Keyboard.PressAsync("j");
-            await page.WaitForTimeoutAsync(200);
-            enfocada = claseEnfocado.IsMatch(await tarjeta.GetAttributeAsync("class") ?? string.Empty);
+            try
+            {
+                // Expect(...).ToHaveClassAsync() lanza PlaywrightException al
+                // agotar su timeout, no System.TimeoutException (esa es la de
+                // Locator.WaitForAsync) — capturar el tipo equivocado dejaba
+                // pasar la excepción sin capturar en el primer intento fallido.
+                await Expect(tarjeta).ToHaveClassAsync(claseEnfocado, new LocatorAssertionsToHaveClassOptions { Timeout = 3_000 });
+                enfocada = true;
+            }
+            catch (PlaywrightException)
+            {
+            }
         }
         Assert.True(enfocada, "\"j\" nunca llegó a enfocar la tarjeta de este test tras recorrer todos los ítems visibles.");
-
-        await Expect(tarjeta).ToHaveClassAsync(claseEnfocado);
 
         // --- Resolver: la acción de la tarjeta abre el Documento subyacente ---
         // No es un ".workspace-panel": para un ítem "Urgente" (el caso por
