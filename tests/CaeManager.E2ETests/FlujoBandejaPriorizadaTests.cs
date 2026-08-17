@@ -140,34 +140,33 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // "Urgente") -- con ambos tests en la misma suite, ItemsFiltrados
         // tiene 2 elementos, no 1. "j" SÍ enfoca algo desde la primera
         // pulsación (confirmado en CI con diagnóstico servidor: el interop
-        // llega bien), pero enfoca el primero de la lista según su orden
-        // real, que puede no ser el de este test. Se calcula el índice real
-        // de la tarjeta entre las visibles y se pulsa "j" esa cantidad de
-        // veces, en vez de asumir una sola pulsación.
-        var tarjetasVisibles = page.Locator(".panel-resolver-item");
-        var totalVisibles = await tarjetasVisibles.CountAsync();
-        var indiceTarjeta = -1;
-        for (var i = 0; i < totalVisibles; i++)
-        {
-            if ((await tarjetasVisibles.Nth(i).InnerTextAsync()).Contains(apellidosTrabajador))
-            {
-                indiceTarjeta = i;
-                break;
-            }
-        }
-        Assert.True(indiceTarjeta >= 0, "No se encontró la tarjeta de este test entre los ítems 'Urgente' filtrados.");
+        // llega bien), pero el orden real de "j"/"k" (Bandeja.razor.cs,
+        // Items = Grupos.SelectMany(g => g.Items) + SinGrupo) no tiene por
+        // qué coincidir con el orden VISUAL de ".panel-resolver-item" en el
+        // DOM (GruposOrdenados reagrupa ItemsFiltrados y puede reordenar los
+        // ítems dentro de cada grupo) desde que /bandeja se agrupa por cola
+        // (GrupoCola) en vez de ser una lista plana. En vez de calcular un
+        // índice visual y asumir que "j" lo respeta, se pulsa "j" de forma
+        // acotada hasta que la propia tarjeta reciba la clase — a prueba de
+        // cuál sea el orden real de navegación.
+        var totalVisibles = await page.Locator(".panel-resolver-item").CountAsync();
 
         // Name = "Gestionar", no GetByRole a secas: PanelResolverItem.razor
         // añadió un botón "Copiar fecha" junto al de acción — sin acotar por
         // nombre, la tarjeta tiene dos botones y GetByRole es ambiguo.
         await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).FocusAsync();
-        for (var i = 0; i <= indiceTarjeta; i++)
+
+        var claseEnfocado = new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado");
+        var enfocada = false;
+        for (var i = 0; i < totalVisibles && !enfocada; i++)
         {
             await page.Keyboard.PressAsync("j");
             await page.WaitForTimeoutAsync(200);
+            enfocada = claseEnfocado.IsMatch(await tarjeta.GetAttributeAsync("class") ?? string.Empty);
         }
+        Assert.True(enfocada, "\"j\" nunca llegó a enfocar la tarjeta de este test tras recorrer todos los ítems visibles.");
 
-        await Expect(tarjeta).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado"));
+        await Expect(tarjeta).ToHaveClassAsync(claseEnfocado);
 
         // --- Resolver: la acción de la tarjeta abre el Documento subyacente ---
         // No es un ".workspace-panel": para un ítem "Urgente" (el caso por
