@@ -1,0 +1,134 @@
+using CaeManager.Application.Centros;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Integraciones;
+using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Centros;
+using CaeManager.Domain.Documentos;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
+
+namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor;
+
+/// <summary>
+/// Cierra el hallazgo P-04 de la auditoría de producto 2026-08-16 en su
+/// forma completa: <see cref="Dashboard.Queries.ObtenerPendientePorPlataformaQuery"/>
+/// ya dice "Nalanda: 14 pendientes de subir · 3 rechazados" en Inicio, pero
+/// no hay ningún sitio donde ver CUÁLES son esos 14 documentos ni marcarlos
+/// — esta query es el drill-down real: Proveedor → Cliente (del Centro del
+/// canal) → Documento, con el último motivo de rechazo si lo hay. Mismo
+/// alcance por Centro que ObtenerPendientePorPlataformaQuery (la unidad real
+/// de "dónde hay que subir esto" es el CanalGestionDocumental).
+/// </summary>
+public record ObtenerAcreditacionesPorProveedorQuery : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
+
+public record ProveedorAcreditacionesDto(
+    Guid ProveedorPlataformaCaeId, string ProveedorNombre, string ProveedorCodigo,
+    IReadOnlyList<ClienteAcreditacionesDto> Clientes);
+
+public record ClienteAcreditacionesDto(Guid ClienteId, string ClienteNombre, IReadOnlyList<AcreditacionDrillDownDto> Documentos);
+
+public record AcreditacionDrillDownDto(
+    Guid AcreditacionId, Guid DocumentoId, string PropietarioNombre, string TipoDocumentoNombre,
+    EstadoAcreditacion Estado, string? UltimoMotivoRechazo);
+
+public class ObtenerAcreditacionesPorProveedorQueryHandler(
+    IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
+    IClientesQueryContext clientesContext, IProveedoresPlataformaCaeQueryContext proveedoresContext,
+    ITrabajadoresQueryContext trabajadoresContext, IEmpresasQueryContext empresasContext,
+    ITiposDocumentoQueryContext tiposDocumentoContext, IAlcanceDatosService alcanceDatos)
+    : IRequestHandler<ObtenerAcreditacionesPorProveedorQuery, IReadOnlyList<ProveedorAcreditacionesDto>>
+{
+    public async Task<IReadOnlyList<ProveedorAcreditacionesDto>> Handle(
+        ObtenerAcreditacionesPorProveedorQuery request, CancellationToken cancellationToken)
+    {
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+
+        var canalesQuery = centrosContext.CanalesGestionDocumental
+            .Where(c => c.Tipo == TipoCanalGestion.Plataforma);
+        if (centroIdsVisibles is not null)
+            canalesQuery = canalesQuery.Where(c => centroIdsVisibles.Contains(c.CentroId));
+
+        var filas = await (
+            from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
+            where acreditacion.Estado == EstadoAcreditacion.PendienteDeSubir || acreditacion.Estado == EstadoAcreditacion.Rechazada
+            join canal in canalesQuery on acreditacion.CanalGestionDocumentalId equals canal.Id
+            join centro in centrosContext.Centros on canal.CentroId equals centro.Id
+            join documento in documentosContext.Documentos on acreditacion.DocumentoId equals documento.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            select new
+            {
+                acreditacion.Id,
+                acreditacion.DocumentoId,
+                acreditacion.Estado,
+                ProveedorId = canal.ProveedorPlataformaCaeId,
+                centro.ClienteId,
+                documento.TrabajadorId,
+                documento.EmpresaId,
+                TipoDocumentoNombre = tipoDocumento.Nombre
+            })
+            .ToListAsync(cancellationToken);
+
+        if (filas.Count == 0) return [];
+
+        var proveedorIds = filas.Where(f => f.ProveedorId is not null).Select(f => f.ProveedorId!.Value).Distinct().ToList();
+        var proveedores = await proveedoresContext.ProveedoresPlataformaCae
+            .Where(p => proveedorIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => (p.Nombre, p.Codigo), cancellationToken);
+
+        var clienteIds = filas.Select(f => f.ClienteId).Distinct().ToList();
+        var clientes = await clientesContext.Clientes
+            .Where(c => clienteIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.RazonSocial, cancellationToken);
+
+        var trabajadorIds = filas.Where(f => f.TrabajadorId is not null).Select(f => f.TrabajadorId!.Value).Distinct().ToList();
+        var trabajadores = await trabajadoresContext.Trabajadores
+            .Where(t => trabajadorIds.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, t => t.Nombre + " " + t.Apellidos, cancellationToken);
+
+        var empresaIds = filas.Where(f => f.EmpresaId is not null).Select(f => f.EmpresaId!.Value).Distinct().ToList();
+        var empresas = await empresasContext.Empresas
+            .Where(e => empresaIds.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
+
+        var acreditacionIds = filas.Select(f => f.Id).ToList();
+        var motivosPorAcreditacion = await documentosContext.RechazosAcreditacionDocumentoPlataforma
+            .Where(r => acreditacionIds.Contains(r.AcreditacionId))
+            .OrderByDescending(r => r.FechaUtc)
+            .GroupBy(r => r.AcreditacionId)
+            .Select(g => new { AcreditacionId = g.Key, Motivo = g.First().MotivoLiteral })
+            .ToDictionaryAsync(x => x.AcreditacionId, x => x.Motivo, cancellationToken);
+
+        string PropietarioNombre(Guid? trabajadorId, Guid? empresaId) =>
+            trabajadorId is { } tId && trabajadores.TryGetValue(tId, out var nombreTrabajador) ? nombreTrabajador
+            : empresaId is { } eId && empresas.TryGetValue(eId, out var nombreEmpresa) ? nombreEmpresa
+            : "—";
+
+        return filas
+            .Where(f => f.ProveedorId is not null)
+            .GroupBy(f => f.ProveedorId!.Value)
+            .Select(porProveedor =>
+            {
+                var (nombreProveedor, codigoProveedor) = proveedores.GetValueOrDefault(porProveedor.Key, ("Plataforma", ""));
+                var porCliente = porProveedor
+                    .GroupBy(f => f.ClienteId)
+                    .Select(g => new ClienteAcreditacionesDto(
+                        g.Key,
+                        clientes.GetValueOrDefault(g.Key, "—"),
+                        g.Select(f => new AcreditacionDrillDownDto(
+                                f.Id, f.DocumentoId, PropietarioNombre(f.TrabajadorId, f.EmpresaId), f.TipoDocumentoNombre,
+                                f.Estado, motivosPorAcreditacion.GetValueOrDefault(f.Id)))
+                            .OrderBy(d => d.PropietarioNombre)
+                            .ToList()))
+                    .OrderBy(c => c.ClienteNombre)
+                    .ToList();
+
+                return new ProveedorAcreditacionesDto(porProveedor.Key, nombreProveedor, codigoProveedor, porCliente);
+            })
+            .OrderByDescending(p => p.Clientes.Sum(c => c.Documentos.Count(d => d.Estado == EstadoAcreditacion.PendienteDeSubir)))
+            .ToList();
+    }
+}

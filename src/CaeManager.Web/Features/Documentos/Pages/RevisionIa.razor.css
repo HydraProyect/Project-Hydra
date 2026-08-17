@@ -1,0 +1,44 @@
+/*
+  Barra de confianza (mockup Documentos TALVEG, pestaña IA) en vez del Badge
+  de antes — pero con relleno por tono, no el teal neutro fijo del mockup:
+  UmbralConfianzaLote (RevisionIa.razor.cs) depende explícitamente de que el
+  verde siga significando "≥95%, seguro para confirmar en lote" (ver su
+  comentario — ya hubo un bug real por desalinear ese umbral del tono
+  visible). Perder el color habría roto esa referencia visual.
+*/
+.revision-ia-confianza {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 120px;
+}
+
+.revision-ia-confianza-texto {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.revision-ia-confianza-barra {
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-surface-hover);
+    border: var(--border-default);
+    overflow: hidden;
+}
+
+.revision-ia-confianza-relleno {
+    display: block;
+    height: 100%;
+}
+
+.revision-ia-confianza-relleno-exito {
+    background: var(--color-success-500);
+}
+
+.revision-ia-confianza-relleno-advertencia {
+    background: var(--color-warning-500);
+}
+
+.revision-ia-confianza-relleno-peligro {
+    background: var(--color-danger-500);
+}

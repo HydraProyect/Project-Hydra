@@ -64,7 +64,13 @@
                         <td>@revision.PropietarioNombre</td>
                         <td>@revision.TipoDocumentoNombre</td>
                         <td>
-                            <Badge Tono="@TonoConfianza(revision.ConfianzaGeneral)">@revision.ConfianzaGeneral%</Badge>
+                            <span class="revision-ia-confianza">
+                                <span class="revision-ia-confianza-texto">Confianza @revision.ConfianzaGeneral%</span>
+                                <span class="revision-ia-confianza-barra">
+                                    <span class="@("revision-ia-confianza-relleno revision-ia-confianza-relleno-" + TonoConfianza(revision.ConfianzaGeneral).ToString().ToLowerInvariant())"
+                                          style="width:@(revision.ConfianzaGeneral)%"></span>
+                                </span>
+                            </span>
                         </td>
                         <td>@(revision.TipoDetectado ?? "—")</td>
                         <td>@(revision.FechaEmisionDetectada?.ToString("dd/MM/yyyy") ?? "—")</td>

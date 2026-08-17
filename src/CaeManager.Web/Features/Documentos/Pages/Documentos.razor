@@ -33,7 +33,7 @@
         <h1 class="titulo-pagina">Documentos</h1>
         <div class="acciones-cabecera">
             <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
-                <a class="enlace-exportar" href="/documentos/importar">Importar documentos</a>
+                <a class="enlace-exportar" href="/importacion?plantilla=documentos">Importar documentos</a>
             </AuthorizeView>
             <a class="enlace-exportar" href="/documentos/subida-masiva">Subida múltiple</a>
             <Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton>
@@ -41,7 +41,11 @@
     </div>
 
     <Pestanas Definiciones="_pestanasDocumentos" PestanaActiva="_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="Secciones de documentos">
-        @if (_pestanaActiva == "reclamaciones")
+        @if (_pestanaActiva == "plataforma")
+        {
+            <PlataformaTab />
+        }
+        else if (_pestanaActiva == "reclamaciones")
         {
             <ReclamacionesTab />
         }
