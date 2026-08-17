@@ -1,7 +1,13 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Tenants;
 using CaeManager.Application.VigilanciaNormativa;
+using CaeManager.Domain.Tenants;
 using CaeManager.Domain.VigilanciaNormativa;
+using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Configuracion;
 using CaeManager.Infrastructure.Coordinacion;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -46,6 +52,7 @@ public class VigilanciaNormativaBoeHostedService(
         try
         {
             await eleccionLider.IntentarEjecutarComoLiderAsync("vigilancia-normativa-boe", ProcesarAsync, stoppingToken);
+            await RegistrarEjecucionEnTodosLosTenantsAsync(exitosa: true, stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -53,6 +60,34 @@ public class VigilanciaNormativaBoeHostedService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Falló un ciclo de vigilancia normativa del BOE.");
+            await RegistrarEjecucionEnTodosLosTenantsAsync(exitosa: false, stoppingToken);
+        }
+    }
+
+    /// <summary>
+    /// Este trabajo es global (mismo BOE para todos los tenants, ver
+    /// comentario de clase) — no tiene un Activo por tenant que comprobar,
+    /// pero la pantalla de Automatizaciones SÍ es por tenant, así que se
+    /// deja una marca de "última ejecución" en cada tenant activo para que
+    /// cada uno vea un dato real en vez de "—" permanente.
+    /// </summary>
+    private async Task RegistrarEjecucionEnTodosLosTenantsAsync(bool exitosa, CancellationToken stoppingToken)
+    {
+        List<Guid> tenantsActivos;
+        using (var ambito = ambitoFactory.CreateScope())
+        {
+            tenantsActivos = await ambito.ServiceProvider.GetRequiredService<ITenantsQueryContext>()
+                .Tenants.Where(t => t.Estado == EstadoTenant.Activo)
+                .Select(t => t.Id)
+                .ToListAsync(stoppingToken);
+        }
+
+        foreach (var tenantId in tenantsActivos)
+        {
+            using var ambito = ambitoFactory.CreateScope();
+            using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+            var registro = ambito.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>();
+            await registro.RegistrarEjecucionAsync(CatalogoAutomatizaciones.VigilanciaNormativaBoe, exitosa, stoppingToken);
         }
     }
 

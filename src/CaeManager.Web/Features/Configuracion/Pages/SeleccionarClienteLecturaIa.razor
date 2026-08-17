@@ -1,0 +1,40 @@
+@page "/configuracion/lectura-ia"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
+@using MediatR
+@inject IMediator Mediator
+@inject NavigationManager NavigationManager
+
+<PageTitle>Lectura IA por cliente — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <a href="/configuracion?entry=ia" class="enlace-volver-configuracion">← Configuración</a>
+
+    <h1 class="titulo-pagina">Lectura IA por cliente</h1>
+    <p class="descripcion-seleccion-cliente">
+        Qué se extrae y con qué umbral de confianza, por cliente. Elige un cliente para configurar su lectura IA.
+    </p>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_clientes.Count == 0)
+    {
+        <EstadoVacio Titulo="No hay clientes en tu cartera" Descripcion="Da de alta un cliente para poder configurar su lectura IA." />
+    }
+    else
+    {
+        <CampoTexto Etiqueta="Buscar cliente" Valor="@_filtro" ValorChanged="v => _filtro = v" Placeholder="Razón social…" />
+
+        <ul class="lista-seleccion-cliente">
+            @foreach (var cliente in ClientesFiltrados)
+            {
+                <li>
+                    <a href="@($"/clientes/{cliente.Id}/lectura-ia")" class="item-seleccion-cliente">@cliente.RazonSocial</a>
+                </li>
+            }
+        </ul>
+    }
+</div>

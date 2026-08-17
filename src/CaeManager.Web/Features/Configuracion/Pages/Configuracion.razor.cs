@@ -1,200 +1,67 @@
-using CaeManager.Application.Configuracion.Commands.ActualizarConfiguracionOperativa;
-using CaeManager.Application.Configuracion.Commands.ActualizarParametroSistema;
-using CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa;
-using CaeManager.Application.Configuracion.Queries;
-using CaeManager.Web.Components.DesignSystem;
-using FluentValidation;
-using MediatR;
 using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Configuracion.Pages;
 
 public partial class Configuracion : ComponentBase
 {
-    [Inject] private IMediator Mediator { get; set; } = default!;
-    [Inject] private ToastService ToastService { get; set; } = default!;
+    [SupplyParameterFromQuery(Name = "entry")]
+    private string? EntradaActual { get; set; }
 
-    private bool _cargando = true;
-    private bool _errorCarga;
-    private bool _guardando;
+    private string EntradaEfectiva => EntradaActual ?? "params";
 
-    private string _umbralAmbarDias = string.Empty;
-    private string _umbralRojoDias = string.Empty;
-    private string? _mensajeErrorFormulario;
-    private Dictionary<string, string> _erroresCampo = new();
+    private sealed record EntradaConfiguracion(string Id, string Icono, string Nombre, string Descripcion, string? Ruta);
 
-    private bool _guardandoOperativa;
-    private string _horaInicioJornada = string.Empty;
-    private string _horaFinJornada = string.Empty;
-    private string _horasJornadaMensualGestor = string.Empty;
-    private bool _medicionTiempoActiva;
-    private string _segundosInactividadPausa = string.Empty;
-    private bool _excluirFueraDeJornadaEnMetricas;
-    private string? _mensajeErrorOperativa;
-    private Dictionary<string, string> _erroresCampoOperativa = new();
+    private sealed record GrupoConfiguracion(string Titulo, IReadOnlyList<EntradaConfiguracion> Entradas);
 
-    private bool _guardandoPresupuestoIa;
-    private string _presupuestoMensualIaUsd = string.Empty;
-    private string? _mensajeErrorPresupuestoIa;
+    /// <summary>
+    /// Estructura y copy exactos del array GROUPS del mockup (Configuracion
+    /// TALVEG.dc.html). De las 14 entradas, el mockup solo especifica el
+    /// contenido de 2 ("params" y "automatizaciones" — showParams/showAutomations
+    /// en su script embebido); las otras 12 caen en su propia rama
+    /// showPlaceholder ("Pantalla pendiente de especificación en este
+    /// prototipo"). En vez de reproducir ese placeholder aquí — sería un
+    /// retroceso funcional, esas 12 pantallas ya existen y funcionan — cada
+    /// una enlaza a su página real (Ruta no nula). La única excepción es
+    /// "2fa": el mockup tampoco la especifica, y a diferencia de las otras
+    /// 12 no hay ninguna página real de política de doble factor a nivel de
+    /// administrador (solo existe el alta personal de cada usuario en
+    /// /cuenta/configurar-2fa, que no es lo mismo). Construir esa política
+    /// desde cero — qué métodos, cómo se fuerza en el login — no lo pide ni
+    /// el mockup ni ningún requisito existente, así que Ruta se deja en null
+    /// y esa entrada mantiene el propio placeholder del mockup.
+    /// </summary>
+    private static readonly IReadOnlyList<GrupoConfiguracion> Grupos =
+    [
+        new("Acceso e identidad",
+        [
+            new("usuarios", "US", "Usuarios", "Cuentas y carteras asignadas", "/usuarios"),
+            new("roles", "RL", "Roles", "Permisos por perfil", "/roles"),
+            new("2fa", "2F", "Verificación en dos pasos", "Obligatoriedad y métodos", null)
+        ]),
+        new("Plataforma y conexiones",
+        [
+            new("delegaciones", "DL", "Delegaciones", "Sedes de la consultora", "/delegaciones"),
+            new("api", "AP", "Claves API", "Acceso programático", "/configuracion/claves-api"),
+            new("comercial", "CM", "Estado comercial", "Plan y consumo", "/configuracion/comercial"),
+            new("integraciones", "IN", "Conexiones de integración", "M365, portales, webhooks", "/integraciones"),
+            new("importar", "IM", "Importar datos", "Cuadro de Control CAE (Excel)", "/importacion")
+        ]),
+        new("Catálogos y datos",
+        [
+            new("tipos", "TD", "Tipos de documento", "Catálogo y vigencias", "/tipos-documento"),
+            new("ia", "IA", "Lectura IA por cliente", "Qué se extrae y con qué umbral", "/configuracion/lectura-ia"),
+            new("macros", "MA", "Macros de respuesta", "Plantillas de comunicación", "/comunicaciones/macros"),
+            new("params", "PS", "Parámetros del sistema", "Umbrales del semáforo", null),
+            new("retencion", "RT", "Retención de datos", "Plazos de borrado", "/retencion")
+        ]),
+        new("Auditoría",
+        [
+            new("auditoria", "AU", "Auditoría", "Quién hizo qué y cuándo", "/auditoria"),
+            new("auditoria-ia", "AI", "Auditoría IA", "Lecturas y decisiones automáticas", "/auditoria-ia"),
+            new("automatizaciones", "AT", "Automatizaciones", "Trabajos del sistema", null)
+        ])
+    ];
 
-    protected override Task OnInitializedAsync() => CargarAsync();
-
-    private async Task CargarAsync()
-    {
-        _cargando = true;
-        _errorCarga = false;
-        StateHasChanged();
-
-        try
-        {
-            var parametros = await Mediator.Send(new ObtenerParametroSistemaQuery());
-            _umbralAmbarDias = parametros.UmbralAmbarDias.ToString();
-            _umbralRojoDias = parametros.UmbralRojoDias.ToString();
-            _horaInicioJornada = parametros.HoraInicioJornada.ToString("HH:mm");
-            _horaFinJornada = parametros.HoraFinJornada.ToString("HH:mm");
-            _horasJornadaMensualGestor = parametros.HorasJornadaMensualGestor.ToString();
-            _medicionTiempoActiva = parametros.MedicionTiempoActiva;
-            _segundosInactividadPausa = parametros.SegundosInactividadPausa.ToString();
-            _excluirFueraDeJornadaEnMetricas = parametros.ExcluirFueraDeJornadaEnMetricas;
-            _presupuestoMensualIaUsd = parametros.PresupuestoMensualIaUsd?.ToString("F2") ?? string.Empty;
-        }
-        catch (Exception)
-        {
-            _errorCarga = true;
-        }
-        finally
-        {
-            _cargando = false;
-        }
-    }
-
-    private async Task GuardarAsync()
-    {
-        _guardando = true;
-        _mensajeErrorFormulario = null;
-        _erroresCampo = new Dictionary<string, string>();
-        StateHasChanged();
-
-        try
-        {
-            var umbralAmbar = int.TryParse(_umbralAmbarDias, out var a) ? a : 0;
-            var umbralRojo = int.TryParse(_umbralRojoDias, out var r) ? r : 0;
-
-            var resultado = await Mediator.Send(new ActualizarParametroSistemaCommand(umbralAmbar, umbralRojo));
-
-            if (resultado.EsFallido)
-            {
-                _mensajeErrorFormulario = resultado.Error.Mensaje;
-                return;
-            }
-
-            ToastService.Mostrar("Umbrales de alerta actualizados correctamente.", TonoToast.Exito);
-        }
-        catch (ValidationException ex)
-        {
-            _erroresCampo = ex.Errors
-                .GroupBy(e => e.PropertyName)
-                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
-        }
-        catch (Exception)
-        {
-            _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
-        }
-        finally
-        {
-            _guardando = false;
-        }
-    }
-
-    private async Task GuardarOperativaAsync()
-    {
-        _guardandoOperativa = true;
-        _mensajeErrorOperativa = null;
-        _erroresCampoOperativa = new Dictionary<string, string>();
-        StateHasChanged();
-
-        try
-        {
-            if (!TimeOnly.TryParse(_horaInicioJornada, out var horaInicio) || !TimeOnly.TryParse(_horaFinJornada, out var horaFin))
-            {
-                _mensajeErrorOperativa = "Las horas de jornada deben tener formato HH:mm.";
-                return;
-            }
-
-            var resultado = await Mediator.Send(new ActualizarConfiguracionOperativaCommand(
-                horaInicio,
-                horaFin,
-                int.TryParse(_horasJornadaMensualGestor, out var horasMes) ? horasMes : 0,
-                _medicionTiempoActiva,
-                int.TryParse(_segundosInactividadPausa, out var segundos) ? segundos : 0,
-                _excluirFueraDeJornadaEnMetricas));
-
-            if (resultado.EsFallido)
-            {
-                _mensajeErrorOperativa = resultado.Error.Mensaje;
-                return;
-            }
-
-            ToastService.Mostrar("Configuración operativa actualizada correctamente.", TonoToast.Exito);
-        }
-        catch (ValidationException ex)
-        {
-            _erroresCampoOperativa = ex.Errors
-                .GroupBy(e => e.PropertyName)
-                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
-        }
-        catch (Exception)
-        {
-            _mensajeErrorOperativa = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
-        }
-        finally
-        {
-            _guardandoOperativa = false;
-        }
-    }
-
-    private async Task GuardarPresupuestoIaAsync()
-    {
-        _guardandoPresupuestoIa = true;
-        _mensajeErrorPresupuestoIa = null;
-        StateHasChanged();
-
-        try
-        {
-            // Campo vacío = sin presupuesto configurado (desactiva el aviso), no "0 USD".
-            decimal? presupuesto = null;
-            if (!string.IsNullOrWhiteSpace(_presupuestoMensualIaUsd))
-            {
-                if (!decimal.TryParse(_presupuestoMensualIaUsd, out var valor))
-                {
-                    _mensajeErrorPresupuestoIa = "El presupuesto debe ser un número.";
-                    return;
-                }
-
-                presupuesto = valor;
-            }
-
-            var resultado = await Mediator.Send(new ActualizarPresupuestoIaCommand(presupuesto));
-
-            if (resultado.EsFallido)
-            {
-                _mensajeErrorPresupuestoIa = resultado.Error.Mensaje;
-                return;
-            }
-
-            ToastService.Mostrar("Presupuesto de IA actualizado correctamente.", TonoToast.Exito);
-        }
-        catch (Exception)
-        {
-            _mensajeErrorPresupuestoIa = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
-        }
-        finally
-        {
-            _guardandoPresupuestoIa = false;
-        }
-    }
-
-    private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
-
-    private string? ObtenerErrorOperativa(string campo) => _erroresCampoOperativa.GetValueOrDefault(campo);
+    private static EntradaConfiguracion? Buscar(string id) =>
+        Grupos.SelectMany(g => g.Entradas).FirstOrDefault(e => e.Id == id);
 }

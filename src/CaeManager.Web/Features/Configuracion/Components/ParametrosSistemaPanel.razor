@@ -1,0 +1,115 @@
+@*
+    Panel "Parámetros del sistema" del hub de Configuración (Parte XVI
+    PROMPT 08) — contenido movido tal cual desde la antigua Configuracion.razor
+    de página única, sin tocar su lógica. El mockup solo especifica los dos
+    campos de Umbrales de alerta bajo este nombre; "Jornada y medición de
+    tiempo" y "Presupuesto de IA" se conservan aquí debajo porque conceptualmente
+    también son parámetros del sistema y ya existían — el mockup no dice que
+    esta pantalla deba tener SOLO esos dos campos, solo no llegó a mockear los
+    demás.
+*@
+@using CaeManager.Application.Configuracion.Commands.ActualizarConfiguracionOperativa
+@using CaeManager.Application.Configuracion.Commands.ActualizarParametroSistema
+@using CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa
+@using CaeManager.Application.Configuracion.Queries
+@using FluentValidation
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+@if (_errorCarga)
+{
+    <EstadoVacio Titulo="No pudimos cargar la configuración" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_cargando)
+{
+    <EstadoCargando Filas="2" />
+}
+else
+{
+    <Tarjeta Titulo="Umbrales de alerta" Class="tarjeta-configuracion">
+        <p class="descripcion-configuracion">
+            Días restantes hasta el vencimiento a partir de los cuales un documento pasa a "Próximo" o "Urgente".
+            Corresponde a la sección "Umbrales de alerta" de la hoja Parametros del Excel original.
+        </p>
+
+        @if (_mensajeErrorFormulario is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
+        }
+
+        <CampoTexto Etiqueta="Umbral próximo (días)" Type="number" Valor="@_umbralAmbarDias" ValorChanged="v => _umbralAmbarDias = v"
+                    MensajeError="@ObtenerError(nameof(ActualizarParametroSistemaCommand.UmbralAmbarDias))" />
+        <CampoTexto Etiqueta="Umbral urgente (días)" Type="number" Valor="@_umbralRojoDias" ValorChanged="v => _umbralRojoDias = v"
+                    MensajeError="@ObtenerError(nameof(ActualizarParametroSistemaCommand.UmbralRojoDias))" />
+
+        <div class="acciones-formulario">
+            <Boton OnClick="GuardarAsync" Cargando="_guardando">Guardar cambios</Boton>
+        </div>
+    </Tarjeta>
+
+    <Tarjeta Titulo="Jornada y medición de tiempo" Class="tarjeta-configuracion">
+        <p class="descripcion-configuracion">
+            La franja de jornada se usa para dos cosas: es la hora de entrada que se asume cuando una visita
+            no indica hora, y marca fuera de qué horas una entrada se considera exprés.
+        </p>
+
+        @if (_mensajeErrorOperativa is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorOperativa</div>
+        }
+
+        <CampoTexto Etiqueta="Inicio de jornada" Type="time" Valor="@_horaInicioJornada" ValorChanged="v => _horaInicioJornada = v"
+                    MensajeError="@ObtenerErrorOperativa(nameof(ActualizarConfiguracionOperativaCommand.HoraInicioJornada))" />
+        <CampoTexto Etiqueta="Fin de jornada" Type="time" Valor="@_horaFinJornada" ValorChanged="v => _horaFinJornada = v"
+                    MensajeError="@ObtenerErrorOperativa(nameof(ActualizarConfiguracionOperativaCommand.HoraFinJornada))" />
+        <CampoTexto Etiqueta="Horas de jornada al mes por gestor" Type="number" Valor="@_horasJornadaMensualGestor" ValorChanged="v => _horasJornadaMensualGestor = v"
+                    MensajeError="@ObtenerErrorOperativa(nameof(ActualizarConfiguracionOperativaCommand.HorasJornadaMensualGestor))" />
+
+        <p class="descripcion-configuracion">
+            La medición de tiempo registra cuánto tiempo permanece abierta y con el foco puesto cada gestión.
+            No se recogen pulsaciones de teclado, movimientos de ratón ni actividad fuera de esta aplicación.
+            Antes de activarla hay que informar a la plantilla y a su representación legal
+            (art. 87 LOPDGDD y art. 20.3 del Estatuto de los Trabajadores).
+        </p>
+
+        <label class="campo-checkbox">
+            <input type="checkbox" @bind="_medicionTiempoActiva" /> Activar la medición de tiempo de enfoque
+        </label>
+
+        <CampoTexto Etiqueta="Segundos sin foco antes de pausar" Type="number" Valor="@_segundosInactividadPausa" ValorChanged="v => _segundosInactividadPausa = v"
+                    MensajeError="@ObtenerErrorOperativa(nameof(ActualizarConfiguracionOperativaCommand.SegundosInactividadPausa))" />
+
+        <label class="campo-checkbox">
+            <input type="checkbox" @bind="_excluirFueraDeJornadaEnMetricas" /> Excluir de las métricas el tiempo registrado fuera de la jornada
+        </label>
+
+        <div class="acciones-formulario">
+            <Boton OnClick="GuardarOperativaAsync" Cargando="_guardandoOperativa">Guardar cambios</Boton>
+        </div>
+    </Tarjeta>
+
+    <Tarjeta Titulo="Presupuesto de IA" Class="tarjeta-configuracion">
+        <p class="descripcion-configuracion">
+            Límite blando (no bloqueante) de gasto estimado en IA documental por mes natural.
+            Superarlo no detiene ni degrada nada: solo enciende un aviso en el Dashboard Ejecutivo
+            para que el operador lo vea antes de que aparezca en la factura. Déjalo en blanco para
+            desactivar el aviso.
+        </p>
+
+        @if (_mensajeErrorPresupuestoIa is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorPresupuestoIa</div>
+        }
+
+        <CampoTexto Etiqueta="Presupuesto mensual (USD)" Type="number" Valor="@_presupuestoMensualIaUsd" ValorChanged="v => _presupuestoMensualIaUsd = v" />
+
+        <div class="acciones-formulario">
+            <Boton OnClick="GuardarPresupuestoIaAsync" Cargando="_guardandoPresupuestoIa">Guardar cambios</Boton>
+        </div>
+    </Tarjeta>
+}
