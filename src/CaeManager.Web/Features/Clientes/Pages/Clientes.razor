@@ -6,6 +6,9 @@
 @using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
 @using CaeManager.Application.Clientes.Queries.ObtenerClientes
 @using CaeManager.Application.Common
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Clientes.Components
+@using CaeManager.Web.Features.Documentos
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
@@ -22,8 +25,8 @@
         <div class="acciones-cabecera">
             <a class="enlace-exportar" href="/clientes/exportar.xlsx">Exportar a Excel</a>
             <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
-                <a class="enlace-exportar" href="/clientes/importar">Importar clientes</a>
-                <a class="enlace-exportar" href="/clientes/importar-combinado">Importación combinada</a>
+                <a class="enlace-exportar" href="/importacion?plantilla=clientes">Importar clientes</a>
+                <a class="enlace-exportar" href="/importacion?plantilla=combinada">Importación combinada</a>
             </AuthorizeView>
             <a class="enlace-exportar" href="/clientes/alta-guiada">Alta guiada</a>
             <Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton>
@@ -35,6 +38,19 @@
         <label class="filtro-critico">
             <input type="checkbox" checked="@_soloCriticos" @onchange="e => CambiarSoloCriticosAsync((bool)e.Value!)" /> Solo críticos
         </label>
+        <CampoSelect Etiqueta="" Valor="@_ejecutivoFiltro" ValorChanged="CambiarEjecutivoFiltroAsync">
+            <option value="">Ejecutivo: todos</option>
+            @foreach (var gestor in _ejecutivosParaFiltro)
+            {
+                <option value="@gestor.Id">@gestor.NombreCompleto</option>
+            }
+        </CampoSelect>
+        <CampoSelect Etiqueta="" Valor="@_estadoDocumentalFiltro" ValorChanged="CambiarEstadoDocumentalFiltroAsync">
+            <option value="">Estado: todos</option>
+            <option value="@nameof(EstadoDocumento.Vencido)">Con vencidos</option>
+            <option value="@nameof(EstadoDocumento.Urgente)">Con urgentes</option>
+            <option value="@nameof(EstadoDocumento.Vigente)">Al día</option>
+        </CampoSelect>
         @if (_filtrosGuardados.Count > 0)
         {
             <CampoSelect Etiqueta="" Valor="" ValorChanged="AplicarFiltroGuardadoAsync">
@@ -65,6 +81,20 @@
                 <span class="chip-filtro">
                     Solo críticos
                     <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroCriticosAsync" aria-label="Quitar filtro de críticos">×</button>
+                </span>
+            }
+            @if (!string.IsNullOrWhiteSpace(_ejecutivoFiltro))
+            {
+                <span class="chip-filtro">
+                    @EtiquetaFiltroEjecutivo
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEjecutivoAsync" aria-label="Quitar filtro de ejecutivo">×</button>
+                </span>
+            }
+            @if (!string.IsNullOrWhiteSpace(_estadoDocumentalFiltro))
+            {
+                <span class="chip-filtro">
+                    @EtiquetaFiltroEstadoDocumental
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoDocumentalAsync" aria-label="Quitar filtro de estado documental">×</button>
                 </span>
             }
         </div>
@@ -114,7 +144,7 @@
                     </TemplateColumn>
                 }
                 <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.RazonSocial))">
-                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "informacion")'>
+                    <button type="button" class="enlace-nombre-fila" @onclick='() => AbrirPreview(context.Id)'>
                         @context.RazonSocial
                     </button>
                     @* Perfil incompleto: sin agenda no hay a quién reclamarle.
@@ -129,19 +159,36 @@
                     }
                 </TemplateColumn>
                 <PropertyColumn Property="@(c => c.Cif)" Title="CIF" Sortable="true" />
-                <TemplateColumn Title="Crítico" Align="Align.Center" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EsCritico))">
-                    @if (context.EsCritico)
+                <TemplateColumn Title="Ejecutivo">
+                    @(ObtenerNombreEjecutivo(context.EjecutivoUsuarioId))
+                </TemplateColumn>
+                <TemplateColumn Title="Centros" Align="Align.Center">
+                    @if (context.Centros > 0)
                     {
-                        <Badge Tono="TonoBadge.Peligro">Crítico</Badge>
+                        <a href="/centros?clienteId=@context.Id">@context.Centros</a>
                     }
                     else
                     {
-                        <Badge>Normal</Badge>
+                        <span class="texto-vacio-celda">0</span>
                     }
+                </TemplateColumn>
+                <TemplateColumn Title="Estado documental">
+                    @if (context.EstadoDocumentalPeor is { } peor)
+                    {
+                        <Badge Tono="EstadoDocumentoUi.Tono(peor)">@context.EstadoDocumentalCantidad @EstadoDocumentoUi.Texto(peor).ToLowerInvariant()</Badge>
+                    }
+                    else
+                    {
+                        <Badge Tono="TonoBadge.Exito">Al día</Badge>
+                    }
+                </TemplateColumn>
+                <TemplateColumn Title="Crítico" Align="Align.Center" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EsCritico))">
+                    <span class="@("punto-critico" + (context.EsCritico ? " punto-critico-activo" : ""))"
+                          title="@(context.EsCritico ? "Crítico: bloquea acceso a un centro" : "Sin situación crítica")"></span>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <MenuAcciones>
-                        <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "informacion")'>
+                        <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>
                             Ver
                         </ItemMenuAccion>
                         <ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
@@ -245,3 +292,5 @@
         <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
     </Pie>
 </Modal>
+
+<ClientePreviewDrawer ClienteId="_previewClienteId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" OnOperar="AbrirDesdePreviewAsync" />
