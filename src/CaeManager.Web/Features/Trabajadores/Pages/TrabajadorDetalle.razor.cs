@@ -121,7 +121,20 @@ public partial class TrabajadorDetalle : ComponentBase
 
             _centros = await Mediator.Send(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(TrabajadorId));
 
-            _ = CargarGestionesAsync();
+            // RendererInfo.IsInteractive: OnParametersSetAsync (y por tanto
+            // CargarAsync) también corre durante el prerenderizado estático
+            // de una carga en frío — un "_ = " sin await ahí deja la tarea
+            // de gestiones en vuelo cuando ASP.NET Core ya dio por completada
+            // esa fase y libera el scope de DI, tirando el DbContext a mitad
+            // de consulta (reproducido en vivo: "Connection is not open",
+            // DbContext ya liberado, ObjectDisposedException en el semáforo
+            // de PuertaAccesoDatos — todo en cascada desde este único origen,
+            // solo visible en una carga en frío real como un deep-link con
+            // "ctx", nunca navegando ya con el circuito interactivo vivo).
+            // Esperar a la fase interactiva evita la carrera sin perder la
+            // carga en paralelo: sigue sin bloquear el resto de la página.
+            if (RendererInfo.IsInteractive)
+                _ = CargarGestionesAsync();
         }
         catch (Exception)
         {
