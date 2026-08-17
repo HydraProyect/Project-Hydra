@@ -1,0 +1,153 @@
+@*
+    Drawer "Redactar mensaje" reutilizable — mismo EnviarMensajeNuevoCommand
+    y misma resolución de buzón que ya usaba Bandeja.razor (Parte XVI
+    PROMPT 09), extraído para que otras pantallas (Reportes: "Enviar por
+    Comunicaciones…") puedan abrir el mismo compositor sin duplicar la
+    lógica de selección de buzón. Bandeja.razor conserva su propia copia
+    inline sin tocar — es pantalla ya verificada esta sesión, y refactorizarla
+    para consumir este componente no aporta nada que no fuera puramente
+    cosmético, así que no se ha arriesgado esa regresión.
+*@
+@using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo
+@using CaeManager.Application.Integraciones
+@using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion
+@using CaeManager.Domain.Integraciones
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<Drawer Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviando">
+    <ChildContent>
+        @if (_error is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_error</div>
+        }
+
+        @if (_conexiones.Count > 1)
+        {
+            <CampoSelect Etiqueta="Enviar desde" Valor="@(_conexionId?.ToString() ?? string.Empty)" ValorChanged="v => _conexionId = Guid.TryParse(v, out var id) ? id : null">
+                <option value="">Selecciona un buzón…</option>
+                @foreach (var conexion in _conexiones)
+                {
+                    <option value="@conexion.Id">@conexion.Nombre (@conexion.BuzonEmail)</option>
+                }
+            </CampoSelect>
+        }
+
+        <CampoTexto Etiqueta="Para (separados por coma)" Valor="@_destinatarios" ValorChanged="v => _destinatarios = v" Placeholder="contacto@cliente.com" />
+        <CampoTexto Etiqueta="Asunto" Valor="@_asunto" ValorChanged="v => _asunto = v" />
+        <CampoTextarea Etiqueta="Mensaje" Valor="@_cuerpo" ValorChanged="v => _cuerpo = v" Filas="6" />
+
+        @if (Adjunto is not null)
+        {
+            <span class="detalle-tecnico">📎 @Adjunto.NombreArchivo</span>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviando" OnClick="() => CerrarAsync(false)">Cancelar</Boton>
+        <Boton Cargando="_enviando" OnClick="EnviarAsync">Enviar</Boton>
+    </Pie>
+</Drawer>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public string? AsuntoInicial { get; set; }
+    [Parameter] public string? CuerpoInicial { get; set; }
+    [Parameter] public AdjuntoParaEnviarDto? Adjunto { get; set; }
+    [Parameter] public EventCallback OnEnviado { get; set; }
+
+    private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
+    private Guid? _conexionId;
+    private string _destinatarios = string.Empty;
+    private string _asunto = string.Empty;
+    private string _cuerpo = string.Empty;
+    private string? _error;
+    private bool _enviando;
+    private bool _preparado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Visible && !_preparado)
+        {
+            _preparado = true;
+            await PrepararAsync();
+        }
+        else if (!Visible)
+        {
+            _preparado = false;
+        }
+    }
+
+    private async Task PrepararAsync()
+    {
+        _destinatarios = string.Empty;
+        _asunto = AsuntoInicial ?? string.Empty;
+        _cuerpo = CuerpoInicial ?? string.Empty;
+        _error = null;
+
+        var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(SoloPropiasYGenerales: true));
+        _conexiones = conexiones.Where(c => c.Estado == EstadoConexionIntegracion.Habilitada).ToList();
+        _conexionId = _conexiones.Count == 1 ? _conexiones[0].Id : null;
+
+        if (_conexiones.Count == 0)
+        {
+            ToastService.Mostrar("No hay ningún buzón de Microsoft 365 conectado para enviar correo.", TonoToast.Error);
+            await CerrarAsync(false);
+        }
+    }
+
+    private Task CerrarAsync(bool visible)
+    {
+        if (visible) return Task.CompletedTask;
+        return VisibleChanged.InvokeAsync(false);
+    }
+
+    private async Task EnviarAsync()
+    {
+        if (_conexionId is null)
+        {
+            _error = "Selecciona desde qué buzón enviarlo.";
+            return;
+        }
+
+        var destinatarios = _destinatarios
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        if (destinatarios.Count == 0)
+        {
+            _error = "Indica al menos un destinatario.";
+            return;
+        }
+
+        _enviando = true;
+        _error = null;
+        StateHasChanged();
+
+        try
+        {
+            var adjuntos = Adjunto is null ? null : new List<AdjuntoParaEnviarDto> { Adjunto };
+            var resultado = await Mediator.Send(new EnviarMensajeNuevoCommand(
+                _conexionId.Value, destinatarios, _asunto, _cuerpo, Adjuntos: adjuntos));
+
+            if (resultado.EsFallido)
+            {
+                _error = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar("Mensaje enviado.", TonoToast.Exito);
+            await OnEnviado.InvokeAsync();
+            await CerrarAsync(false);
+        }
+        catch (Exception)
+        {
+            _error = "No pudimos enviar el mensaje. Intenta nuevamente.";
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+}

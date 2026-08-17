@@ -1,6 +1,4 @@
 using CaeManager.Application.Reportes.Queries;
-using CaeManager.Web.Features.Documentos;
-using ClosedXML.Excel;
 using MediatR;
 
 namespace CaeManager.Web.Reportes;
@@ -9,49 +7,36 @@ public static class ReportesEndpoints
 {
     public static IEndpointRouteBuilder MapReportesEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/reportes/documentos.xlsx", async (IMediator mediator, CancellationToken cancellationToken) =>
+        endpoints.MapGet("/reportes/vigencia.xlsx", async (
+            IMediator mediator, Guid? clienteId, Guid? centroId, bool incluirVigentes, CancellationToken cancellationToken) =>
         {
-            var filas = await mediator.Send(new ObtenerReporteDocumentosQuery(), cancellationToken);
-
-            using var libro = new XLWorkbook();
-            var hoja = libro.Worksheets.Add("Documentos");
-
-            hoja.Cell(1, 1).Value = "Estado";
-            hoja.Cell(1, 2).Value = "Trabajador";
-            hoja.Cell(1, 3).Value = "Empresa";
-            hoja.Cell(1, 4).Value = "Tipo de documento";
-            hoja.Cell(1, 5).Value = "Vencimiento";
-            hoja.Row(1).Style.Font.Bold = true;
-
-            var fila = 2;
-            foreach (var documento in filas)
-            {
-                hoja.Cell(fila, 1).Value = EstadoDocumentoUi.Texto(documento.Estado);
-                hoja.Cell(fila, 2).Value = documento.TrabajadorNombre;
-                hoja.Cell(fila, 3).Value = documento.EmpresaRazonSocial;
-                hoja.Cell(fila, 4).Value = documento.TipoDocumentoNombre;
-                if (documento.FechaVencimiento is not null)
-                    hoja.Cell(fila, 5).Value = documento.FechaVencimiento.Value.ToDateTime(TimeOnly.MinValue);
-                fila++;
-            }
-
-            hoja.Columns().AdjustToContents();
-
-            using var stream = new MemoryStream();
-            libro.SaveAs(stream);
-
-            return Results.File(
-                stream.ToArray(),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "reporte-documentos.xlsx");
+            var informe = await mediator.Send(new GenerarInformeVigenciaQuery(clienteId, centroId, incluirVigentes), cancellationToken);
+            var bytes = ConstructorInformeArchivos.ExcelVigencia(informe);
+            return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "informe.xlsx");
         });
 
-        endpoints.MapGet("/reportes/documentos.pdf", async (IMediator mediator, CancellationToken cancellationToken) =>
+        endpoints.MapGet("/reportes/vigencia.pdf", async (
+            IMediator mediator, Guid? clienteId, Guid? centroId, bool incluirVigentes, CancellationToken cancellationToken) =>
         {
-            var filas = await mediator.Send(new ObtenerReporteDocumentosQuery(), cancellationToken);
-            var bytes = GeneradorPdfReporteDocumentos.Generar(filas, DateTime.UtcNow);
+            var informe = await mediator.Send(new GenerarInformeVigenciaQuery(clienteId, centroId, incluirVigentes), cancellationToken);
+            var bytes = ConstructorInformeArchivos.PdfVigencia(informe, incluirVigentes);
+            return Results.File(bytes, "application/pdf", "informe.pdf");
+        });
 
-            return Results.File(bytes, "application/pdf", "reporte-documentos.pdf");
+        endpoints.MapGet("/reportes/asignaciones.xlsx", async (
+            IMediator mediator, Guid? clienteId, Guid? centroId, CancellationToken cancellationToken) =>
+        {
+            var informe = await mediator.Send(new GenerarInformeAsignacionesQuery(clienteId, centroId), cancellationToken);
+            var bytes = ConstructorInformeArchivos.ExcelAsignaciones(informe);
+            return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "informe.xlsx");
+        });
+
+        endpoints.MapGet("/reportes/asignaciones.pdf", async (
+            IMediator mediator, Guid? clienteId, Guid? centroId, CancellationToken cancellationToken) =>
+        {
+            var informe = await mediator.Send(new GenerarInformeAsignacionesQuery(clienteId, centroId), cancellationToken);
+            var bytes = ConstructorInformeArchivos.PdfAsignaciones(informe);
+            return Results.File(bytes, "application/pdf", "informe.pdf");
         });
 
         return endpoints;
