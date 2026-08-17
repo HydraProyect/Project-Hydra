@@ -1,0 +1,213 @@
+@*
+    Una tarjeta = un GRUPO de la Bandeja agrupada "por situación" (rediseño de
+    Inicio, hallazgo P-03 de la auditoría de producto 2026-08-16): en vez de
+    una pared de PanelResolverItem sueltos, una cabecera plegable por Cliente/
+    Empresa con los recuentos por severidad, y sus items dentro al expandir.
+    Colapsado por defecto — mismo criterio que SeccionColapsable, pero esta no
+    la reutiliza directamente porque necesita renderizar badges de recuento
+    junto al título, no solo un Encabezado libre.
+
+    Cada badge de recuento es una VentanaContexto (08 § 6, DDL-032/033): "12
+    vencidos" es un número que exige poder desglosarse sin tener que expandir
+    todo el grupo para leer sus 12 items uno a uno — mismo principio que ya
+    aplica AcordeonAsignacionesCentro sobre los recuentos por trabajador.
+*@
+@using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada
+@using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
+@using CaeManager.Web.Components.DesignSystem
+@inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
+@inject CaeManager.Web.Components.Workspace.ContextWorkspaceService WorkspaceService
+
+<div class="grupo-cola">
+    <button type="button"
+            class="grupo-cola-cabecera"
+            aria-expanded="@(_expandida ? "true" : "false")"
+            aria-controls="@_panelId"
+            @onclick="Alternar">
+        <span class="@("grupo-cola-chevron" + (_expandida ? " grupo-cola-chevron-abierta" : ""))">
+            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+        </span>
+        <span class="grupo-cola-info">
+            <span class="grupo-cola-titulo">@Grupo.Titulo</span>
+            <span class="grupo-cola-resumen">@Resumen</span>
+        </span>
+        <span class="grupo-cola-badges">
+            @if (Grupo.BloqueaAcceso)
+            {
+                <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
+            }
+            @foreach (var recuento in Recuentos)
+            {
+                <VentanaContexto Etiqueta="@DescribirRecuento(recuento)" Titulo="@($"{recuento.Cantidad} {recuento.Etiqueta}")">
+                    <Disparador>
+                        <Badge Tono="recuento.Tono">@recuento.Cantidad @recuento.Etiqueta</Badge>
+                    </Disparador>
+                    <Detalle>
+                        @foreach (var item in recuento.Items)
+                        {
+                            <span class="ventana-linea">@item.Titulo — @item.Subtitulo</span>
+                        }
+                    </Detalle>
+                </VentanaContexto>
+            }
+        </span>
+    </button>
+    @if (_expandida)
+    {
+        <div class="grupo-cola-contenido" id="@_panelId">
+            @foreach (var empresa in GruposAnidados)
+            {
+                @if (AgruparPorEmpresa && empresa.EmpresaNombre is not null)
+                {
+                    <div class="grupo-cola-subcabecera grupo-cola-subcabecera-empresa">@empresa.EmpresaNombre</div>
+                }
+                @foreach (var trabajador in empresa.Trabajadores)
+                {
+                    @if (trabajador.TrabajadorNombre is not null)
+                    {
+                        <div class="grupo-cola-subcabecera grupo-cola-subcabecera-trabajador">@trabajador.TrabajadorNombre</div>
+                    }
+                    @foreach (var item in trabajador.Items)
+                    {
+                        @if (Compacto)
+                        {
+                            <div class="grupo-cola-fila-compacta">
+                                <span class="grupo-cola-fila-compacta-titulo">@TituloBajoTrabajador(item)</span>
+                                <span class="grupo-cola-fila-compacta-fecha">@(item.Fecha?.ToString("dd/MM") is { } f ? $"Vence {f}" : "—")</span>
+                                <Badge Tono="TipoItemBandejaUi.Tono(item.Tipo)">@TipoItemBandejaUi.Texto(item.Tipo)</Badge>
+                                <a href="#" class="grupo-cola-fila-compacta-accion" @onclick="() => AbrirAsync(item)" @onclick:preventDefault>@TipoItemBandejaUi.TextoAccion(item.Tipo)</a>
+                            </div>
+                        }
+                        else
+                        {
+                            <PanelResolverItem Item="@(item with { Titulo = TituloBajoTrabajador(item) })" Enfocado="@(item.Id == IdEnfocado)" />
+                        }
+                    }
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private readonly string _panelId = $"grupo-cola-{Guid.NewGuid():N}";
+    private bool _expandida;
+
+    [Parameter, EditorRequired] public GrupoColaDto Grupo { get; set; } = default!;
+
+    /// <summary>Colapsado por defecto salvo que el llamador ya sepa que este es el primer grupo (ver Inicio.razor: el primero que bloquea acceso se abre solo).</summary>
+    [Parameter] public bool ExpandidaPorDefecto { get; set; }
+
+    /// <summary>
+    /// Fila simple (título · fecha · badge · enlace de texto) en vez del
+    /// PanelResolverItem completo — mockup Inicio TALVEG, donde el grupo es
+    /// un resumen, no el sitio principal de operar. Mi trabajo (la cola
+    /// completa) usará el valor por defecto (false) cuando le toque su
+    /// propio rediseño: ahí sí hace falta la acción rica de cada fila.
+    /// </summary>
+    [Parameter] public bool Compacto { get; set; }
+
+    /// <summary>
+    /// Segundo nivel de agrupación dentro del grupo (Cliente/Empresa titular)
+    /// — Empresa contratista → Trabajador en vocabulario Consultora (varias
+    /// Empresas trabajan para el mismo Cliente), o directo a Trabajador en
+    /// ClienteDirecto/"empresa final" (una única Empresa, la del propio
+    /// tenant — mostrar ese nivel sería redundante). Ver
+    /// PerfilVocabularioTenant y ObtenerPerfilVocabularioActualQuery: el
+    /// llamador (InicioPreview) resuelve el perfil una vez y lo pasa aquí en
+    /// vez de que cada GrupoCola vuelva a preguntarlo.
+    /// </summary>
+    [Parameter] public bool AgruparPorEmpresa { get; set; }
+
+    /// <summary>Id del item con foco de teclado (j/k, ver Bandeja.razor.cs) — solo relevante fuera de Compacto, donde cada item es un PanelResolverItem completo.</summary>
+    [Parameter] public string? IdEnfocado { get; set; }
+
+    protected override void OnInitialized() => _expandida = ExpandidaPorDefecto;
+
+    private void Alternar() => _expandida = !_expandida;
+
+    private Task AbrirAsync(ItemBandejaDto item) => AccionesBandeja.AbrirAsync(item, NavigationManager, WorkspaceService);
+
+    /// <summary>
+    /// Algunos orígenes (RequisitoPendiente: ver ObtenerBandejaGestorQuery.Fusionar)
+    /// componen el Titulo con "— NombreTrabajador" porque en otros consumidores
+    /// (PanelResolverItem en /bandeja, sin subcabecera propia) es la única
+    /// forma de decir de quién es la fila. Aquí ya lo dice la subcabecera de
+    /// trabajador — repetirlo leería como un error de copia, no como énfasis.
+    /// </summary>
+    private static string TituloBajoTrabajador(ItemBandejaDto item)
+    {
+        if (item.TrabajadorNombre is not { Length: > 0 } nombre) return item.Titulo;
+
+        var sufijo = $" — {nombre}";
+        return item.Titulo.EndsWith(sufijo, StringComparison.Ordinal)
+            ? item.Titulo[..^sufijo.Length]
+            : item.Titulo;
+    }
+
+    private sealed record GrupoTrabajadorItems(string? TrabajadorNombre, IReadOnlyList<ItemBandejaDto> Items);
+    private sealed record GrupoEmpresaItems(string? EmpresaNombre, IReadOnlyList<GrupoTrabajadorItems> Trabajadores);
+
+    /// <summary>
+    /// Items sin Trabajador identificable (VisitaUrgente, SugerenciaVisitaUrgente,
+    /// DeteccionPendiente — ver ObtenerBandejaGestorQuery.Fusionar) no tienen
+    /// nada real que encabezar: se listan sin subcabecera de trabajador en vez
+    /// de inventar un cubo "Otros" que no aporta información.
+    /// </summary>
+    private static IReadOnlyList<GrupoTrabajadorItems> AgruparPorTrabajador(IEnumerable<ItemBandejaDto> items) =>
+        items
+            .GroupBy(i => i.TrabajadorId)
+            .Select(g => new GrupoTrabajadorItems(g.First().TrabajadorNombre, (IReadOnlyList<ItemBandejaDto>)g.ToList()))
+            .OrderBy(g => g.TrabajadorNombre is null ? 1 : 0)
+            .ThenBy(g => g.TrabajadorNombre)
+            .ToList();
+
+    private IReadOnlyList<GrupoEmpresaItems> GruposAnidados
+    {
+        get
+        {
+            if (!AgruparPorEmpresa)
+                return [new GrupoEmpresaItems(null, AgruparPorTrabajador(Grupo.Items))];
+
+            return Grupo.Items
+                .GroupBy(i => i.EmpresaId)
+                .Select(g => new GrupoEmpresaItems(g.First().EmpresaNombre, AgruparPorTrabajador(g)))
+                .OrderBy(g => g.EmpresaNombre is null ? 1 : 0)
+                .ThenBy(g => g.EmpresaNombre)
+                .ToList();
+        }
+    }
+
+    private string Resumen
+    {
+        get
+        {
+            var trabajadores = Grupo.Items.Select(i => i.TrabajadorId).Where(id => id is not null).Distinct().Count();
+            var pendientes = Grupo.Items.Count == 1 ? "1 pendiente" : $"{Grupo.Items.Count} pendientes";
+            return trabajadores > 0
+                ? $"{pendientes} · {(trabajadores == 1 ? "1 trabajador" : $"{trabajadores} trabajadores")}"
+                : pendientes;
+        }
+    }
+
+    /// <summary>Un badge de recuento por cada tono de severidad presente en el grupo — reutiliza TipoItemBandejaUi, mismo vocabulario que cada PanelResolverItem individual. Conserva los items del tono para que la VentanaContexto pueda desglosarlos (DDL-033).</summary>
+    private IEnumerable<(TonoBadge Tono, string Etiqueta, int Cantidad, IReadOnlyList<ItemBandejaDto> Items)> Recuentos =>
+        Grupo.Items
+            .GroupBy(i => TipoItemBandejaUi.Tono(i.Tipo))
+            .Select(g => (Tono: g.Key, Etiqueta: EtiquetaTono(g.Key), Cantidad: g.Count(), Items: (IReadOnlyList<ItemBandejaDto>)g.ToList()))
+            .OrderByDescending(r => r.Tono == TonoBadge.Peligro)
+            .ThenByDescending(r => r.Cantidad);
+
+    private static string EtiquetaTono(TonoBadge tono) => tono switch
+    {
+        TonoBadge.Peligro => "vencidos",
+        TonoBadge.Advertencia => "próximos",
+        _ => "pendientes"
+    };
+
+    /// <summary>Nombre accesible de la ventana de contexto — lo único que oye un lector de pantalla, así que dice lo mismo que el Detalle en una frase (mismo criterio que DescribirRecuentoTrabajador en AcordeonAsignacionesCentro).</summary>
+    private static string DescribirRecuento((TonoBadge Tono, string Etiqueta, int Cantidad, IReadOnlyList<ItemBandejaDto> Items) recuento) =>
+        recuento.Cantidad == 1
+            ? $"1 {recuento.Etiqueta.TrimEnd('s')}: {recuento.Items[0].Titulo}"
+            : $"{recuento.Cantidad} {recuento.Etiqueta}: {string.Join(", ", recuento.Items.Select(i => i.Titulo))}";
+}

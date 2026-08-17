@@ -104,17 +104,21 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
 
         // Filtra por "Urgente" — la tarjeta debe seguir visible; filtrar por
         // otro tipo (Vencido) debe ocultarla, confirmando que el filtro de
-        // verdad reduce la lista y no solo decora. Por Value, no por Label:
-        // Bandeja.razor añade el contador a cada <option> ("Urgente (1)"),
-        // así que el texto visible no es estable entre ejecuciones, pero el
-        // value (nameof(TipoItemBandeja.X)) sí lo es.
-        await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Value = "Urgente" });
+        // verdad reduce la lista y no solo decora. Chips en vez de <select>
+        // desde el rediseño (mockup "Mi trabajo TALVEG"): cada chip es un
+        // <button> con su propio nombre accesible ("Urgente (N)"), único por
+        // texto exacto entre los ocho tipos — sustituye al SelectOptionAsync
+        // por Value que usaba el <select> anterior.
+        var chipUrgente = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Urgente", Exact = false });
+        var chipVencido = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Vencido", Exact = false });
+
+        await chipUrgente.ClickAsync();
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
-        await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Value = "Vencido" });
+        await chipVencido.ClickAsync();
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
-        await page.GetByLabel("Tipo").SelectOptionAsync(new SelectOptionValue { Value = "Urgente" });
+        await chipUrgente.ClickAsync();
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         // --- Atajos de teclado ---
