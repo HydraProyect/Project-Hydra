@@ -1,0 +1,76 @@
+@page "/cuenta/restablecer-contrasena"
+@layout CaeManager.Web.Components.Layout.AuthLayout
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>Nueva contraseña — @Marca.Nombre</PageTitle>
+
+<div class="tarjeta-login">
+    <h1>@Marca.Nombre</h1>
+
+    @if (_enlaceInvalido)
+    {
+        <p class="subtitulo-login">Enlace no válido</p>
+        <p class="texto-explicativo-login">
+            Este enlace para restablecer la contraseña no es válido o ya caducó. Pide uno nuevo.
+        </p>
+        <a class="boton-primario boton-enlace-login" href="/cuenta/olvide-contrasena">Pedir un enlace nuevo</a>
+    }
+    else if (_completado)
+    {
+        <div class="confirmacion-envio-login">
+            <span class="icono-exito-login" aria-hidden="true">✓</span>
+            <p class="subtitulo-login">Contraseña actualizada</p>
+            <p class="texto-explicativo-login">Ya puedes iniciar sesión con tu nueva contraseña.</p>
+        </div>
+        <a class="boton-primario boton-enlace-login" href="/cuenta/iniciar-sesion">Iniciar sesión</a>
+    }
+    else
+    {
+        <p class="subtitulo-login">Nueva contraseña</p>
+        @if (_correoCuenta is not null)
+        {
+            <p class="texto-explicativo-login">Para la cuenta @_correoCuenta.</p>
+        }
+
+        @if (_mensajeError is not null)
+        {
+            <div class="alerta-login" role="alert">@_mensajeError</div>
+        }
+
+        @if (Entrada is not null)
+        {
+            <EditForm Model="Entrada" method="post" OnValidSubmit="GuardarAsync" FormName="restablecer-contrasena">
+                <DataAnnotationsValidator />
+
+                <label for="password-nueva">Nueva contraseña</label>
+                <InputText id="password-nueva" type="password" @bind-Value="Entrada.ContrasenaNueva" @bind-Value:after="ActualizarRequisitos" autocomplete="new-password" />
+
+                @if (Entrada.ContrasenaNueva.Length > 0)
+                {
+                    <div class="requisitos-contrasena">
+                        @foreach (var requisito in _requisitos)
+                        {
+                            <span class="@("requisito-contrasena " + (requisito.Cumplido ? "requisito-contrasena-ok" : ""))">
+                                <span class="marca-requisito-contrasena" aria-hidden="true">@(requisito.Cumplido ? "✓" : "·")</span>
+                                @requisito.Etiqueta
+                            </span>
+                        }
+                    </div>
+                }
+
+                <label for="password-confirmar">Repite la contraseña</label>
+                <InputText id="password-confirmar" type="password" @bind-Value="Entrada.ConfirmarContrasenaNueva" autocomplete="new-password" />
+                @if (_mostrarDesajuste)
+                {
+                    <span class="mensaje-error-campo-login">Las dos contraseñas no coinciden.</span>
+                }
+
+                <button type="submit" class="boton-primario" disabled="@(!PuedeGuardar || _guardando)">
+                    @(_guardando ? "Guardando…" : "Guardar y entrar")
+                </button>
+            </EditForm>
+        }
+    }
+</div>

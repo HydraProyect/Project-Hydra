@@ -1,24 +1,31 @@
 .tarjeta-login {
     width: 100%;
-    max-width: 380px;
+    max-width: 420px;
     background-color: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-lg);
     padding: var(--space-8);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
 }
 
 .tarjeta-login h1 {
     font: var(--font-heading-lg);
     color: var(--color-primary-500);
     text-align: center;
+    margin: 0 0 var(--space-4);
 }
 
 .subtitulo-login {
-    text-align: center;
+    font: var(--font-heading-sm);
+    margin: 0;
+}
+
+.texto-explicativo-login {
     color: var(--color-text-muted);
-    font: var(--font-body-sm);
-    margin-top: var(--space-1);
-    margin-bottom: var(--space-6);
+    font: var(--font-body-md);
+    margin: 0 0 var(--space-2);
 }
 
 .tarjeta-login label {
@@ -28,14 +35,6 @@
     margin-bottom: var(--space-1);
 }
 
-/*
-  ::deep es obligatorio aquí: <InputText> es un componente hijo de Blazor,
-  no una etiqueta escrita directamente en este archivo — el <input> que
-  renderiza internamente no recibe el atributo de scope de CSS isolation de
-  Login.razor. Sin ::deep este selector nunca matchea (bug real encontrado
-  al verificar el rediseño: los inputs de login llevaban toda la vida del
-  proyecto sin ningún estilo aplicado, con el tamaño nativo del navegador).
-*/
 .tarjeta-login ::deep input {
     width: 100%;
     min-height: 48px;
@@ -45,7 +44,6 @@
     background-color: var(--color-surface);
     color: var(--color-text);
     font: var(--font-body-md);
-    transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
 }
 
 .tarjeta-login ::deep input:focus {
@@ -61,15 +59,6 @@
     margin-top: var(--space-1);
 }
 
-.alerta-login {
-    background-color: var(--color-danger-50);
-    color: var(--color-danger-700);
-    border-radius: var(--radius-sm);
-    padding: var(--space-3);
-    font: var(--font-body-sm);
-    margin-bottom: var(--space-2);
-}
-
 .boton-primario {
     width: 100%;
     min-height: 48px;
@@ -81,33 +70,61 @@
     font: var(--font-label-md);
     font-weight: 600;
     cursor: pointer;
-    transition: background-color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
 
-.boton-primario:hover {
+.boton-primario:hover:not(:disabled) {
     background-color: var(--color-primary-600);
-    transform: translateY(-1px);
 }
 
-/* .boton-primario ya da tamaño/color — aquí solo lo necesario para que un
-   <a> (no un <button>) se comporte igual: sin esto, "width: 100%" e "inline"
-   (el display por defecto de <a>) dejan el enlace encogido al texto. */
-.boton-microsoft {
+.boton-primario:disabled {
+    opacity: .7;
+    cursor: not-allowed;
+}
+
+.confirmacion-envio-login {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+}
+
+.icono-exito-login {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-success-50);
+    border: 1px solid var(--color-success-500);
+    color: var(--color-success-700);
     display: flex;
     align-items: center;
     justify-content: center;
-    text-decoration: none;
-    margin-top: 0;
+    font-size: 16px;
 }
 
-.separador-login {
-    text-align: center;
+.texto-reenvio-login {
     color: var(--color-text-muted);
     font: var(--font-body-sm);
-    margin: var(--space-4) 0 0;
+    margin: 0;
 }
 
-.enlace-olvide-contrasena {
+.enlace-boton-login {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--color-primary-500);
+    font: var(--font-body-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.enlace-boton-login:disabled {
+    cursor: not-allowed;
+    opacity: .6;
+}
+
+.enlace-volver-login {
     display: block;
     text-align: center;
     font: var(--font-body-sm);
