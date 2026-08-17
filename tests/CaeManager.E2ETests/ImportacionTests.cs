@@ -78,7 +78,15 @@ public class ImportacionTests(WebAppFixture fixture)
             await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/importacion");
 
+            // Wizard de 5 pasos: "cae" ya viene preseleccionada en el paso 1
+            // (elegir plantilla), pero el input de archivo solo existe en el
+            // paso 2 — hay que confirmar la plantilla primero.
+            await page.GetByText("Continuar con Importación CAE completa").ClickAsync();
             await page.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaExcel);
+
+            var botonVerPlan = page.GetByText("Ver plan de importación");
+            await Expect(botonVerPlan).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 15_000 });
+            await botonVerPlan.ClickAsync();
 
             // --- Paso 2: el plan promete las 6 altas, incluida la Asignación ---
             await page.GetByText("2. Revisa el plan de importación").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });

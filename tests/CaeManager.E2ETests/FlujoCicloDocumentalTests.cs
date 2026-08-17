@@ -218,6 +218,13 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.Locator(".modal-pie").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?pestana=reclamaciones");
+        // La pestaña abre por defecto en "Enviadas" (historial) — "+ Nueva
+        // reclamación" revela la vista de componer/enviar donde vive
+        // .tarjeta-reclamacion (ver ReclamacionesTab.razor). GetByRole, no
+        // GetByText: el propio texto del historial vacío menciona
+        // "+ Nueva reclamación" entre comillas, así que GetByText a secas es
+        // ambiguo entre el botón y ese párrafo.
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nueva reclamación" }).ClickAsync();
         var tarjetaCliente = page.Locator(".tarjeta-reclamacion", new PageLocatorOptions { HasText = razonSocialCliente });
         await tarjetaCliente.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 

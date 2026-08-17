@@ -109,8 +109,13 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // <button> con su propio nombre accesible ("Urgente (N)"), único por
         // texto exacto entre los ocho tipos — sustituye al SelectOptionAsync
         // por Value que usaba el <select> anterior.
-        var chipUrgente = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Urgente", Exact = false });
-        var chipVencido = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Vencido", Exact = false });
+        // Acotado a .bandeja-chip (no GetByRole a secas): la agrupación por
+        // cola (GrupoCola.razor) añade cabeceras de grupo cuyo nombre
+        // accesible puede contener "Vencido"/"Urgente" como sustring (p. ej.
+        // un recuento por tipo dentro del propio grupo), lo que rompía la
+        // coincidencia única que este chip sí garantiza por clase.
+        var chipUrgente = page.Locator("button.bandeja-chip", new PageLocatorOptions { HasText = "Urgente" });
+        var chipVencido = page.Locator("button.bandeja-chip", new PageLocatorOptions { HasText = "Vencido" });
 
         await chipUrgente.ClickAsync();
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
@@ -152,7 +157,10 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         }
         Assert.True(indiceTarjeta >= 0, "No se encontró la tarjeta de este test entre los ítems 'Urgente' filtrados.");
 
-        await tarjeta.GetByRole(AriaRole.Button).FocusAsync();
+        // Name = "Gestionar", no GetByRole a secas: PanelResolverItem.razor
+        // añadió un botón "Copiar fecha" junto al de acción — sin acotar por
+        // nombre, la tarjeta tiene dos botones y GetByRole es ambiguo.
+        await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).FocusAsync();
         for (var i = 0; i <= indiceTarjeta; i++)
         {
             await page.Keyboard.PressAsync("j");
@@ -171,7 +179,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // el Drawer muestra el nombre del propietario en modo solo lectura
         // (_propietarioNombreSoloLectura, ver DrawerGestionDocumento.razor.cs),
         // que contiene los apellidos del trabajador.
-        await tarjeta.GetByRole(AriaRole.Button).ClickAsync();
+        await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
         var drawerDocumento = page.Locator(".drawer-panel");
         await drawerDocumento.GetByText(apellidosTrabajador).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
     }
