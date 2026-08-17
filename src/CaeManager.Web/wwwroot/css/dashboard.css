@@ -69,6 +69,254 @@
   la decoración se rechaza por defecto (07 § 1).
 */
 
+/*
+  Resumen de cumplimiento (anillo + KPIs secundarios) — mockup Inicio TALVEG
+  (Parte XV SCREEN 01 de la auditoría de producto 2026-08-16), traducido 1:1
+  desde el .dc.html: grid de dos columnas (340px fija + resto), la tarjeta
+  del anillo con su propio marco en vez de flotar sobre el fondo, y la
+  rejilla de KPIs secundarios en 2x2 fijo (no auto-fit: con dos columnas de
+  340px+resto ya no hay sitio para que la rejilla decida su propio número de
+  columnas). Vive aquí, global, por el mismo motivo que el resto de este
+  archivo: InicioPreview y Dashboard son componentes distintos y el
+  aislamiento de CSS de Blazor no cruza entre ellos.
+*/
+/*
+  margin-top, no un <h2 class="dashboard-subtitulo"> antes (que ya aporta su
+  propio space-8 vía margin): este bloque no lleva encabezado propio (mockup
+  Inicio TALVEG — va directo tras "Reclamado y sin respuesta"/"Requiere
+  atención"), así que sin este margen quedaba pegado al bloque anterior
+  (encontrado en vivo: 1px de separación con la tarjeta de "Reclamado y sin
+  respuesta" justo encima).
+*/
+.dashboard-resumen {
+    display: grid;
+    grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: stretch;
+    margin-top: var(--space-8);
+}
+
+.dashboard-resumen-tarjeta-anillo {
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    text-align: center;
+}
+
+.dashboard-resumen-anillo-titulo {
+    margin: 0;
+    font: var(--font-heading-sm);
+    color: var(--color-text);
+}
+
+.dashboard-resumen-anillo-detalle {
+    margin: calc(var(--space-1) * -1) 0 0;
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.dashboard-resumen-anillo-enlace {
+    font: var(--font-label-md);
+    font-size: 0.8125rem;
+}
+
+.dashboard-resumen .rejilla-kpis-secundarios {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    align-content: start;
+}
+
+/*
+  Las 4 tarjetas de KPI secundario del mockup son informativas, no una señal
+  de estado — fondo blanco liso (no el gris de --color-surface-hover que usa
+  .tarjeta-metrica-discreta en el resto de la app), valor en texto neutro
+  (no el tono semántico verde/ámbar/rojo, que aquí no aporta nada porque
+  estos 4 números no tienen "buen" o "mal" valor), y la etiqueta en frase
+  normal en vez de mayúsculas — deliberadamente distinto del resto de usos
+  de TarjetaMetrica Discreta (Dashboard.razor, VisionCartera.razor), que
+  conservan su estilo actual sin cambios.
+*/
+.dashboard-resumen .rejilla-kpis-secundarios .tarjeta-metrica {
+    background: var(--color-surface);
+}
+
+.dashboard-resumen .rejilla-kpis-secundarios .tarjeta-metrica-etiqueta {
+    text-transform: none;
+    letter-spacing: normal;
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+/*
+  Selector con .tarjeta-metrica-discreta encadenado a propósito: sin él, esta
+  regla empata en especificidad (3 clases) con
+  ".tarjeta-metrica-discreta .tarjeta-metrica-valor" del propio componente
+  (2 clases + el atributo [b-xxxx] del aislamiento de Blazor = también 3), y
+  el desempate por orden de carga entre stylesheets es frágil — mejor ganar
+  por especificidad real (4 clases) que depender de qué <link> se resuelve
+  después.
+*/
+.dashboard-resumen .rejilla-kpis-secundarios .tarjeta-metrica-discreta .tarjeta-metrica-valor {
+    font-size: 1.75rem;
+    line-height: 2.25rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--color-text);
+}
+
+@media (max-width: 640px) {
+    .dashboard-resumen {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/*
+  "Qué llegó sin ver": una sola tarjeta con filas separadas por borde, no
+  una pila de tarjetas individuales con hueco entre ellas — mismo criterio
+  que "Requiere atención" (GrupoCola) y que el propio mockup aplica en las
+  dos secciones. Acotado a este contenedor: /bandeja y /alertas conservan
+  por ahora el tratamiento de tarjeta individual hasta que les toque su
+  propio rediseño (Parte XIV, paso 1).
+*/
+.dashboard-lista-unificada {
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.dashboard-lista-unificada .panel-resolver-item {
+    border: 0;
+    border-radius: 0;
+    margin-bottom: 0;
+    border-top: var(--border-default);
+}
+
+.dashboard-lista-unificada .panel-resolver-item:first-child {
+    border-top: 0;
+}
+
+.dashboard-lista-unificada .panel-resolver-item-enfocado {
+    box-shadow: inset 0 0 0 1px var(--color-primary-500);
+}
+
+.dashboard-lista-unificada .fila-plataforma,
+.dashboard-lista-unificada .dashboard-sin-respuesta-fila {
+    border: 0;
+    border-radius: 0;
+    border-top: var(--border-default);
+}
+
+.dashboard-lista-unificada .fila-plataforma:first-child,
+.dashboard-lista-unificada .dashboard-sin-respuesta-fila:first-child {
+    border-top: 0;
+}
+
+/*
+  Base de "Reclamado y sin respuesta" (mockup Inicio TALVEG): una sola línea
+  — nombre de cliente en negrita seguido del detalle, badge "Sin respuesta" y
+  enlace, mismo ritmo de fila que .fila-plataforma. Vive aquí, global, por el
+  mismo motivo que el resto del archivo: la versión con etiqueta/detalle
+  apiladas en dos líneas (Dashboard.razor.css) es del Dashboard antiguo, no
+  de este rediseño — InicioPreview nunca la heredó porque el aislamiento de
+  CSS de Blazor no cruza entre componentes.
+*/
+.dashboard-sin-respuesta-fila {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    padding: var(--space-3) var(--space-5);
+    min-height: 44px;
+}
+
+.dashboard-sin-respuesta-texto {
+    flex: 1;
+    min-width: 0;
+    font: var(--font-body-lg);
+    color: var(--color-text);
+}
+
+.dashboard-sin-respuesta-cliente {
+    font-weight: 600;
+}
+
+/* Primera columna de "Próximamente" — el centro es lo que se reconoce primero. */
+.dashboard-visita-centro {
+    font-weight: 600;
+}
+
+/*
+  Pulso del equipo, variante horizontal (mockup Inicio TALVEG): eyebrow+cifra
+  a la izquierda, comparativa con divisor a la derecha, enlace empujado al
+  final — una sola fila, no una tarjeta apilada.
+*/
+/* margin-top: mismo motivo que .dashboard-resumen — tampoco lleva <h2> propio delante. */
+.dashboard-pulso {
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5) var(--space-6);
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    flex-wrap: wrap;
+    margin-top: var(--space-8);
+}
+
+.dashboard-pulso-eyebrow {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.dashboard-pulso-etiqueta {
+    font: var(--font-label-md);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+}
+
+.dashboard-pulso-cifra {
+    font: var(--font-heading-sm);
+    color: var(--color-text);
+}
+
+.dashboard-pulso-comparativa {
+    display: flex;
+    gap: var(--space-6);
+    padding-left: var(--space-8);
+    border-left: var(--border-default);
+}
+
+.dashboard-pulso-metrica {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.dashboard-pulso-metrica-etiqueta {
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.dashboard-pulso-metrica-valor {
+    font: var(--font-heading-sm);
+    color: var(--color-text);
+}
+
+.dashboard-pulso-enlace {
+    margin-left: auto;
+    font: var(--font-label-md);
+    font-size: 0.8125rem;
+}
+
 .rejilla-desglose {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
