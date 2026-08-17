@@ -14,6 +14,12 @@ public partial class Plantillas : ComponentBase
     private bool _cargando = true;
     private bool _errorCarga;
 
+    private string _pestanaActiva = "catalogo";
+    private int _totalGenerados;
+
+    private IReadOnlyList<PestanaDefinicion> PestanasConContador =>
+        [new("catalogo", $"Catálogo ({_plantillas.Count})"), new("generados", $"Generados ({_totalGenerados})")];
+
     // Subir nueva versión (PR10) — el gestor decide manualmente que este PDF
     // sustituye al de una plantilla ya existente (ADR-010 § 4, § 6).
     private Guid? _plantillaParaNuevaVersionId;
@@ -45,6 +51,10 @@ public partial class Plantillas : ComponentBase
             _cargando = false;
         }
     }
+
+    private void CambiarTotalGenerados(int total) => _totalGenerados = total;
+
+    private void IrAConfigurar(Guid versionId) => Navigation.NavigateTo($"/plantillas/{versionId}/editar");
 
     private void AbrirModalNuevaVersion(Guid plantillaId, string nombre)
     {
