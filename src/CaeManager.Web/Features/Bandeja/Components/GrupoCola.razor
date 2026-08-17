@@ -80,7 +80,7 @@
                         }
                         else
                         {
-                            <PanelResolverItem Item="@(item with { Titulo = TituloBajoTrabajador(item) })" Enfocado="@(item.Id == IdEnfocado)" />
+                            <PanelResolverItem @key="item.Id" Item="@(item with { Titulo = TituloBajoTrabajador(item) })" Enfocado="@(item.Id == IdEnfocado)" />
                         }
                     }
                 }

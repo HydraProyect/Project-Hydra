@@ -78,11 +78,11 @@
         <div class="lista-bandeja">
             @foreach (var grupo in GruposOrdenados)
             {
-                <GrupoCola Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="_idEnfocado" />
+                <GrupoCola @key="grupo.GrupoId" Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="@_idEnfocado" />
             }
             @foreach (var item in _bandeja!.SinGrupo.Where(i => CoincideFiltro(i, _tipoFiltro)))
             {
-                <PanelResolverItem Item="item" Enfocado="@(item.Id == _idEnfocado)" />
+                <PanelResolverItem @key="item.Id" Item="item" Enfocado="@(item.Id == _idEnfocado)" />
             }
         </div>
     }
