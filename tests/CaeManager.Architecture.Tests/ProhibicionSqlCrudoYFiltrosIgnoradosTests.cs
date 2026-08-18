@@ -52,6 +52,15 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Application/Trabajadores/Commands/RestaurarTrabajador/RestaurarTrabajadorCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 1,
 
+        // Backfill de asignaciones operativas (F1): recorre los Clientes de
+        // TODOS los tenants en un solo barrido, al arrancar y sin sesión, para
+        // trasladar el reparto que ya existe (Cliente.EjecutivoUsuarioId) a las
+        // tablas de asignación. Es la única lectura del sistema que cruza la
+        // frontera de tenant a propósito, y solo escribe autorización que ya
+        // estaba concedida por la vía antigua — no concede nada nuevo. Los
+        // eliminados quedan fuera con un Where explícito.
+        [("src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs", ".IgnoreQueryFilters()")] = 1,
+
         // Retención (purga de datos vencidos): tiene que alcanzar también los
         // registros ya borrados lógicamente, así que el filtro global se
         // salta a propósito con el TenantId explícito. Dos apariciones en

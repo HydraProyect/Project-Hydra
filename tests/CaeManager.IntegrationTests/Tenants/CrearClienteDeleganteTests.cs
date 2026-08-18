@@ -1,12 +1,16 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
 using CaeManager.Domain.Tenants;
+using CaeManager.Domain.Operaciones;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Operaciones;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Tenants;
@@ -51,7 +55,7 @@ public class CrearClienteDeleganteTests : IAsyncLifetime
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
     }
 
-    private static CrearClienteDeleganteCommandHandler CrearHandler(CaeManagerDbContext contexto, Guid? tenantOrigenId, Guid? usuarioId) =>
+    private CrearClienteDeleganteCommandHandler CrearHandler(CaeManagerDbContext contexto, Guid? tenantOrigenId, Guid? usuarioId) =>
         new(
             new TenantRepository(contexto),
             new DelegacionTenantRepository(contexto),
@@ -59,6 +63,11 @@ public class CrearClienteDeleganteTests : IAsyncLifetime
             new ParametroSistemaRepository(contexto),
             contexto,
             new CurrentUserServiceFalso(tenantOrigenId, usuarioId),
+            // El writer real, no un doble: así el test cubre también que el
+            // alta escribe la raíz del tenant nuevo, su operación delegada y la
+            // cartera del operador — la doble escritura de este camino.
+            new AsignacionesOperativasWriter(
+                contexto, _tenantActual, new CurrentUserServiceFalso(tenantOrigenId, usuarioId)),
             contexto);
 
     [Fact]
@@ -96,6 +105,64 @@ public class CrearClienteDeleganteTests : IAsyncLifetime
 
         var asignacion = await contexto.AsignacionesOperadorDelegado.SingleAsync(a => a.DelegacionTenantId == delegacion.Id);
         asignacion.UsuarioId.Should().Be(usuarioId);
+
+        // --- La otra mitad de la doble escritura ---
+        //
+        // La operación externa se escribe con el propietario y el operador en
+        // el orden correcto: los datos son del tenant nuevo, quien opera es la
+        // plataforma. Es lo que encarna "delegación de acceso, no de propiedad".
+        var operacion = await contexto.AsignacionesOperacion
+            .SingleAsync(o => !o.EsRaiz && o.PropietarioTenantId == tenantClienteId);
+        operacion.OperadorTenantId.Should().Be(tenantPlataforma.Id);
+        operacion.Estado.Should().Be(EstadoAsignacion.Vigente);
+        operacion.Ambito.EsUniversal.Should().BeTrue();
+
+        // Y su raíz: el derecho del tenant nuevo a operarse a sí mismo el día
+        // que internalice.
+        (await contexto.AsignacionesOperacion.AnyAsync(o => o.EsRaiz && o.PropietarioTenantId == tenantClienteId))
+            .Should().BeTrue();
+
+        // La cartera del operador inicial NO se escribe, y es lo correcto: su
+        // rol es GestorCae, un rol de cartera, y darle una cartera universal le
+        // entregaría todos los clientes del tenant delegado. Como el tenant
+        // acaba de nacer y no tiene ninguno, su alcance real es exactamente el
+        // mismo. Sus carteras nacerán cliente a cliente al asignárselos.
+        (await contexto.AsignacionesCartera.AnyAsync(c => c.AsignacionOperacionId == operacion.Id))
+            .Should().BeFalse("un rol de cartera no recibe cartera universal");
+    }
+
+    [Fact]
+    public async Task El_operador_inicial_con_rol_de_alcance_total_si_recibe_cartera_sobre_la_operacion_recien_creada()
+    {
+        // Prueba directa del defecto que tenía la doble escritura de este
+        // camino: la operación se añadía al contexto sin guardar y la cartera
+        // se resolvía con una consulta, que va a SQL y no ve entidades Added.
+        // Resultado: operación creada y cartera perdida en silencio.
+        await using var contexto = CrearContexto();
+
+        var tenantPlataforma = new Tenant("Hydra Plataforma cartera", esPlataforma: true);
+        contexto.Tenants.Add(tenantPlataforma);
+        await contexto.SaveChangesAsync();
+
+        var usuarioId = Guid.NewGuid();
+        var writer = new AsignacionesOperativasWriter(
+            contexto, _tenantActual, new CurrentUserServiceFalso(tenantPlataforma.Id, usuarioId));
+
+        var tenantCliente = new Tenant("Cliente delegante cartera", PerfilVocabularioTenant.ClienteDirecto);
+        contexto.Tenants.Add(tenantCliente);
+
+        var operacion = await writer.AbrirOperacionDelegadaAsync(
+            tenantCliente.Id, tenantPlataforma.Id, DateTime.UtcNow, vigenciaHasta: null);
+
+        // La operación está solo en el ChangeTracker, todavía sin guardar.
+        await writer.AbrirCarteraOperadorAsync(operacion, usuarioId, Roles.Consulta);
+
+        await contexto.SaveChangesAsync();
+
+        var cartera = await contexto.AsignacionesCartera.SingleAsync(c => c.AsignacionOperacionId == operacion.Id);
+        cartera.UsuarioId.Should().Be(usuarioId);
+        cartera.Rol.Should().Be(Roles.Consulta);
+        cartera.Estado.Should().Be(EstadoAsignacion.Vigente);
     }
 
     [Fact]

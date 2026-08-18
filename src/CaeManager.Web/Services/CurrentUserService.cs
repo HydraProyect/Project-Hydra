@@ -1,6 +1,8 @@
 using CaeManager.Application.Common;
 using System.Security.Claims;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -66,6 +68,43 @@ public class CurrentUserService(
         var usuarioId = await ObtenerUsuarioActualIdAsync();
         if (usuarioId is null) return null;
 
+        // Vía nueva: el token identifica la operación exacta, así que el rol
+        // sale de la cartera de ESE contexto — un lookup por clave, no una
+        // búsqueda por tenant con FirstOrDefault, que elegía de forma no
+        // determinista cuando un usuario tenía dos autorizaciones vivas sobre
+        // el mismo tenant.
+        if (clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is { } asignacionOperacionId)
+        {
+            var operaciones = serviceProvider.GetRequiredService<IOperacionesQueryContext>();
+            var ahora = DateTime.UtcNow;
+
+            // El par (operación, usuario) NO es único: los índices admiten una
+            // cartera universal y varias por cliente del mismo usuario bajo la
+            // misma operación, y el backfill genera esa combinación. Sin un
+            // orden explícito, FirstOrDefault elegiría el rol de una de ellas
+            // arbitrariamente — el mismo no determinismo que este cambio venía a
+            // corregir. Se ordena por ámbito universal primero y luego por Id:
+            // la universal es la que describe el rol en el workspace, y el Id
+            // desempata de forma estable.
+            return await (
+                from cartera in operaciones.AsignacionesCartera
+                join operacion in operaciones.AsignacionesOperacion
+                    on cartera.AsignacionOperacionId equals operacion.Id
+                where cartera.AsignacionOperacionId == asignacionOperacionId
+                      && cartera.UsuarioId == usuarioId.Value
+                      && cartera.Estado == EstadoAsignacion.Vigente
+                      && cartera.VigenciaDesde <= ahora
+                      && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
+                      && operacion.Estado == EstadoAsignacion.Vigente
+                      && operacion.PropietarioTenantId == tenantSeleccionado
+                      && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+                orderby cartera.AmbitoRelacionClienteId == null ? 0 : 1, cartera.Id
+                select cartera.Rol)
+                .FirstOrDefaultAsync();
+        }
+
+        // Vía heredada: el acceso de soporte sigue montado sobre delegaciones
+        // hasta su propia fase (plano 3), así que conserva su resolución.
         // Se comprueba contra la delegación viva, no contra lo que dijera el
         // token al emitirse — una revocación tiene que notarse aquí.
         var dbContext = serviceProvider.GetRequiredService<ITenantsQueryContext>();

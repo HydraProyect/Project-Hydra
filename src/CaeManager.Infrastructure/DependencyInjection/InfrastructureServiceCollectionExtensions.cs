@@ -393,6 +393,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Integraciones.IProveedoresPlataformaCaeQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Plantillas.IPlantillasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
+        services.AddScoped<CaeManager.Application.Operaciones.IOperacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        // Escribe en el mismo DbContext scoped que el comando que lo invoca:
+        // así la doble escritura entra en el SaveChanges del comando y es
+        // transaccional sin transacción explícita (F1 del plan de migración).
+        services.AddScoped<CaeManager.Application.Operaciones.IAsignacionesOperativasWriter,
+            CaeManager.Infrastructure.Operaciones.AsignacionesOperativasWriter>();
         services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         // Sin estado propio (abre una conexión Npgsql nueva por llamada) — una sola instancia sirve.
         services.AddSingleton<IEleccionLiderService, EleccionLiderPostgresService>();
@@ -474,6 +480,11 @@ public static class InfrastructureServiceCollectionExtensions
         // sin interruptor de configuración propio (a diferencia del resumen
         // de alertas por correo, no manda nada fuera de la aplicación).
         services.AddHostedService<Visitas.VigilanciaVisitasUrgentesHostedService>();
+        // Mueve el estado de las asignaciones operativas según su vigencia. Es
+        // requisito del esquema, no comodidad: los índices únicos parciales
+        // filtran por Estado, así que una vigente caducada bloquearía el alta
+        // de su sustituta (F1 del plan de migración).
+        services.AddHostedService<Operaciones.ExpiracionAsignacionesHostedService>();
 
         // Tramo 1 bis del MVP-1 de formatos (corte mínimo, 2026-08-14):
         // sondeo del sumario diario del BOE. El cliente HTTP se registra

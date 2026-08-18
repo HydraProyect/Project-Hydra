@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
@@ -29,7 +30,8 @@ public class CrearDelegacionTenantCommandValidator : AbstractValidator<CrearDele
 }
 
 public class CrearDelegacionTenantCommandHandler(
-    IDelegacionTenantRepository repositorio, ITenantsQueryContext tenantsContext, IUnitOfWork unitOfWork)
+    IDelegacionTenantRepository repositorio, ITenantsQueryContext tenantsContext,
+    IAsignacionesOperativasWriter asignacionesWriter, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearDelegacionTenantCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDelegacionTenantCommand request, CancellationToken cancellationToken)
@@ -50,6 +52,13 @@ public class CrearDelegacionTenantCommandHandler(
 
         var delegacion = new DelegacionTenant(request.TenantConsultoraId, request.TenantClienteId);
         repositorio.Agregar(delegacion);
+
+        // Doble escritura. El propietario de los datos es el Cliente Delegante
+        // y el operador es la Consultora — el orden importa y es justo el que
+        // encarna "delegación de acceso, no de propiedad".
+        await asignacionesWriter.AbrirOperacionDelegadaAsync(
+            request.TenantClienteId, request.TenantConsultoraId, delegacion.CreadoEnUtc, vigenciaHasta: null, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(delegacion.Id);

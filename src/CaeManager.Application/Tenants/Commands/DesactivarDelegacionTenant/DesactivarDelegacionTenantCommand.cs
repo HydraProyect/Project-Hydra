@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
@@ -30,7 +32,8 @@ public class DesactivarDelegacionTenantCommandValidator : AbstractValidator<Desa
 }
 
 public class DesactivarDelegacionTenantCommandHandler(
-    IDelegacionTenantRepository repositorio, ICurrentUserService currentUserService, IUnitOfWork unitOfWork)
+    IDelegacionTenantRepository repositorio, ICurrentUserService currentUserService,
+    IAsignacionesOperativasWriter asignacionesWriter, IUnitOfWork unitOfWork)
     : IRequestHandler<DesactivarDelegacionTenantCommand, Result>
 {
     public async Task<Result> Handle(DesactivarDelegacionTenantCommand request, CancellationToken cancellationToken)
@@ -44,6 +47,15 @@ public class DesactivarDelegacionTenantCommandHandler(
             return Result.Fallo(Error.Crear("DelegacionTenant.YaInactiva", "Esta delegación ya estaba revocada."));
 
         delegacion.Desactivar();
+
+        // Solo las comerciales tienen operación que cerrar: las de Soporte son
+        // plano 3 y conservan su mecánica propia hasta su fase (ADR-011 § 8.6).
+        // Cerrar la operación arrastra sus carteras.
+        if (delegacion.Proposito == PropositoDelegacion.Comercial)
+            await asignacionesWriter.CerrarOperacionDelegadaAsync(
+                delegacion.TenantClienteId, delegacion.TenantConsultoraId,
+                MotivoCierreAsignacion.Revocada, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

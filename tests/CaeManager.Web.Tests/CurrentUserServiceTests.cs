@@ -61,6 +61,7 @@ public class CurrentUserServiceTests
     private sealed class ClienteActivoSeleccionadoFalso : IClienteActivoSeleccionado
     {
         public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
     }
 
     private static ClaimsPrincipal UsuarioAutenticadoCon(Guid usuarioId, string rol)

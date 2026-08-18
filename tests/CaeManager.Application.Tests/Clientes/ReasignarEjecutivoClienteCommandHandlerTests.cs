@@ -1,5 +1,6 @@
 using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 using CaeManager.Application.Tests.Notificaciones;
+using CaeManager.Application.Tests.Operaciones;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Domain.Clientes;
 using FluentAssertions;
@@ -15,7 +16,8 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         NotificacionUsuarioRepositorioFalso notificacionRepositorio,
         UnitOfWorkFalso unitOfWork,
         string? rol) =>
-        new(clienteRepositorio, configuracionIaRepositorio, notificacionRepositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid(), rol));
+        new(clienteRepositorio, configuracionIaRepositorio, notificacionRepositorio, unitOfWork,
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), new AsignacionesOperativasWriterFalso());
 
     [Fact]
     public async Task Reasigna_y_avisa_al_gestor_anterior_y_al_nuevo()

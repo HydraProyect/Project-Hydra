@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
@@ -41,6 +42,7 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
     IAsignacionOperadorDelegadoRepository repositorio,
     IDelegacionTenantRepository delegacionRepositorio,
     IDirectorioUsuariosService directorioUsuarios,
+    IAsignacionesOperativasWriter asignacionesWriter,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearAsignacionOperadorDelegadoCommand, Result<Guid>>
 {
@@ -59,12 +61,29 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
         if (!await directorioUsuarios.EsVisibleEnTenantActualAsync(request.UsuarioId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("AsignacionOperadorDelegado.UsuarioNoEncontrado", "No encontramos ese usuario."));
 
+        // El invariante de la cadena de autorización: quien opera pertenece al
+        // tenant operador. La comprobación de visibilidad de arriba NO basta —
+        // da por buenos también a los usuarios del tenant propietario, y
+        // concederle a uno de ellos una cartera externa le daría, dentro de su
+        // PROPIO workspace, el alcance de esa cartera.
+        var tenantDelUsuario = await directorioUsuarios.ObtenerTenantDeUsuarioAsync(request.UsuarioId, cancellationToken);
+        if (tenantDelUsuario != delegacion.TenantConsultoraId)
+            return Result.Fallo<Guid>(Error.Crear(
+                "AsignacionOperadorDelegado.UsuarioDeOtroTenant",
+                "Ese usuario no pertenece a la organización que opera esta delegación."));
+
         if (await repositorio.ExisteAsync(request.DelegacionTenantId, request.UsuarioId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "AsignacionOperadorDelegado.YaAsignado", "Este usuario ya está autorizado en esta delegación."));
 
         var asignacion = new AsignacionOperadorDelegado(request.DelegacionTenantId, request.UsuarioId, request.Rol);
         repositorio.Agregar(asignacion);
+
+        if (delegacion.Proposito == PropositoDelegacion.Comercial)
+            await asignacionesWriter.AbrirCarteraOperadorAsync(
+                delegacion.TenantClienteId, delegacion.TenantConsultoraId,
+                request.UsuarioId, request.Rol, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(asignacion.Id);

@@ -41,6 +41,20 @@ public class DirectorioUsuariosTenant(
     /// inicialización de los componentes del layout sobre el mismo DbContext
     /// scoped.
     /// </summary>
+    /// <summary>
+    /// Sin filtro de visibilidad a propósito: la pregunta que responde es "¿de
+    /// qué tenant es este usuario?", y quien la hace la necesita justamente
+    /// para decidir si ese usuario es aceptable — filtrarla por el tenant
+    /// activo la volvería circular. No revela nada: devuelve un Guid de tenant
+    /// a partir de un Guid de usuario que el llamante ya tenía.
+    /// </summary>
+    public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(async () =>
+            await userManager.Users
+                .Where(u => u.Id == usuarioId)
+                .Select(u => (Guid?)u.TenantId)
+                .FirstOrDefaultAsync(cancellationToken));
+
     public Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesAsync(CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ApplicationUser>>(async () =>
         {

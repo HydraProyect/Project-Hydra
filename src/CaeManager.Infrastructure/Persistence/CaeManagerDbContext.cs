@@ -16,6 +16,7 @@ using CaeManager.Application.Incidencias;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Notificaciones;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reportes;
@@ -46,6 +47,7 @@ using CaeManager.Domain.Importacion;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.Reportes;
@@ -78,7 +80,8 @@ public class CaeManagerDbContext(
         IIncidenciasQueryContext, IComunicacionesQueryContext, IApiKeysQueryContext, IIntegracionesQueryContext,
         IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext,
         ITelemetriaQueryContext, CaeManager.Application.Contactos.IContactosAgendaQueryContext,
-        CaeManager.Application.Plantillas.IPlantillasQueryContext, IImportacionQueryContext, IReportesQueryContext
+        CaeManager.Application.Plantillas.IPlantillasQueryContext, IImportacionQueryContext, IReportesQueryContext,
+        IOperacionesQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -221,6 +224,10 @@ public class CaeManagerDbContext(
     IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
     public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();
     IQueryable<AsignacionOperadorDelegado> ITenantsQueryContext.AsignacionesOperadorDelegado => AsignacionesOperadorDelegado;
+    public DbSet<AsignacionOperacion> AsignacionesOperacion => Set<AsignacionOperacion>();
+    IQueryable<AsignacionOperacion> IOperacionesQueryContext.AsignacionesOperacion => AsignacionesOperacion;
+    public DbSet<AsignacionCartera> AsignacionesCartera => Set<AsignacionCartera>();
+    IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
     public DbSet<Incidencia> Incidencias => Set<Incidencia>();
     IQueryable<Incidencia> IIncidenciasQueryContext.Incidencias => Incidencias;
     public DbSet<Conversacion> Conversaciones => Set<Conversacion>();
@@ -393,14 +400,23 @@ public class CaeManagerDbContext(
         // justo lo contrario de lo que pasó con los filtros globales, donde
         // olvidar una línea costó el hallazgo A-1.
         //
+        // El criterio es IVersionable y no EntidadBase desde que existen los
+        // catálogos globales de asignación operativa: esos no pueden heredar de
+        // EntidadBase (no pertenecen a un tenant) pero sí necesitan el token —
+        // sus transiciones de estado las hacen a la vez administradores y el job
+        // de expiración de vigencias, y los índices únicos parciales solo cubren
+        // las altas, no los UPDATE. EntidadBase implementa IVersionable, así que
+        // el conjunto cubierto es un superconjunto del anterior: ninguna entidad
+        // pierde protección con este cambio.
+        //
         // El valor lo renueva ConcurrenciaOptimistaInterceptor en cada
         // modificación; marcar la propiedad aquí es lo que hace que EF la
         // incluya en el WHERE del UPDATE.
         foreach (var tipoEntidad in builder.Model.GetEntityTypes()
-                     .Where(t => typeof(EntidadBase).IsAssignableFrom(t.ClrType)))
+                     .Where(t => typeof(IVersionable).IsAssignableFrom(t.ClrType)))
         {
             builder.Entity(tipoEntidad.ClrType)
-                .Property(nameof(EntidadBase.Version))
+                .Property(nameof(IVersionable.Version))
                 .IsConcurrencyToken();
         }
     }

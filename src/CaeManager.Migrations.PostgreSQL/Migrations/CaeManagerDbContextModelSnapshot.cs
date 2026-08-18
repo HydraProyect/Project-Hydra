@@ -4325,6 +4325,178 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("NotificacionesUsuario", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Operaciones.AsignacionCartera", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AmbitoCentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AmbitoProyectoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AmbitoRelacionClienteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AmbitoTrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AsignacionOperacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("MotivoCierre")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("OperadorTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PropietarioTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Rol")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("VigenciaDesde")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("VigenciaHasta")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AsignacionOperacionId", "PropietarioTenantId");
+
+                    b.HasIndex("PropietarioTenantId", "AmbitoCentroId");
+
+                    b.HasIndex("PropietarioTenantId", "AmbitoProyectoId");
+
+                    b.HasIndex("PropietarioTenantId", "AmbitoRelacionClienteId");
+
+                    b.HasIndex("PropietarioTenantId", "AmbitoTrabajadorId");
+
+                    b.HasIndex("UsuarioId", "Estado");
+
+                    b.HasIndex(new[] { "AsignacionOperacionId", "AmbitoRelacionClienteId" }, "IX_AsignacionesCartera_ResponsableRelacionVigente")
+                        .IsUnique()
+                        .HasFilter("\"Estado\" = 'Vigente' AND \"AmbitoRelacionClienteId\" IS NOT NULL AND \"AmbitoCentroId\" IS NULL AND \"AmbitoTrabajadorId\" IS NULL AND \"AmbitoProyectoId\" IS NULL");
+
+                    b.HasIndex(new[] { "AsignacionOperacionId", "UsuarioId" }, "IX_AsignacionesCartera_UsuarioUniversalVigente")
+                        .IsUnique()
+                        .HasFilter("\"Estado\" = 'Vigente' AND \"AmbitoRelacionClienteId\" IS NULL AND \"AmbitoCentroId\" IS NULL AND \"AmbitoTrabajadorId\" IS NULL AND \"AmbitoProyectoId\" IS NULL");
+
+                    b.ToTable("AsignacionesCartera", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Operaciones.AsignacionOperacion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AmbitoCentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AmbitoProyectoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AmbitoRelacionClienteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AmbitoTrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EsRaiz")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("MotivoCierre")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("OperadorTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PropietarioTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Servicio")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("VigenciaDesde")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("VigenciaHasta")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperadorTenantId", "Estado");
+
+                    b.HasIndex("PropietarioTenantId", "AmbitoCentroId");
+
+                    b.HasIndex("PropietarioTenantId", "AmbitoProyectoId");
+
+                    b.HasIndex("PropietarioTenantId", "AmbitoRelacionClienteId")
+                        .HasDatabaseName("IX_AsignacionesOperacion_AmbitoRelacionCliente")
+                        .HasFilter("\"AmbitoRelacionClienteId\" IS NOT NULL");
+
+                    b.HasIndex("PropietarioTenantId", "AmbitoTrabajadorId");
+
+                    b.HasIndex("PropietarioTenantId", "Servicio", "Estado");
+
+                    b.HasIndex(new[] { "PropietarioTenantId", "Servicio" }, "IX_AsignacionesOperacion_DelegacionTotalVigente")
+                        .IsUnique()
+                        .HasFilter("NOT \"EsRaiz\" AND \"Estado\" = 'Vigente' AND \"AmbitoRelacionClienteId\" IS NULL AND \"AmbitoCentroId\" IS NULL AND \"AmbitoTrabajadorId\" IS NULL AND \"AmbitoProyectoId\" IS NULL");
+
+                    b.HasIndex(new[] { "PropietarioTenantId", "Servicio" }, "IX_AsignacionesOperacion_RaizVigente")
+                        .IsUnique()
+                        .HasFilter("\"EsRaiz\" AND \"Estado\" = 'Vigente'");
+
+                    b.HasIndex(new[] { "PropietarioTenantId", "Servicio", "AmbitoRelacionClienteId" }, "IX_AsignacionesOperacion_ResponsableRelacionVigente")
+                        .IsUnique()
+                        .HasFilter("\"Estado\" = 'Vigente' AND \"AmbitoRelacionClienteId\" IS NOT NULL AND \"AmbitoCentroId\" IS NULL AND \"AmbitoTrabajadorId\" IS NULL AND \"AmbitoProyectoId\" IS NULL");
+
+                    b.ToTable("AsignacionesOperacion", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Plantillas.ConocimientoDeteccionCampo", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6541,6 +6713,67 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("LineaWhatsAppId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Operaciones.AsignacionCartera", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Operaciones.AsignacionOperacion", null)
+                        .WithMany()
+                        .HasForeignKey("AsignacionOperacionId", "PropietarioTenantId")
+                        .HasPrincipalKey("Id", "PropietarioTenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("PropietarioTenantId", "AmbitoCentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Proyectos.Proyecto", null)
+                        .WithMany()
+                        .HasForeignKey("PropietarioTenantId", "AmbitoProyectoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("PropietarioTenantId", "AmbitoRelacionClienteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
+                        .WithMany()
+                        .HasForeignKey("PropietarioTenantId", "AmbitoTrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Operaciones.AsignacionOperacion", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("PropietarioTenantId", "AmbitoCentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Proyectos.Proyecto", null)
+                        .WithMany()
+                        .HasForeignKey("PropietarioTenantId", "AmbitoProyectoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("PropietarioTenantId", "AmbitoRelacionClienteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
+                        .WithMany()
+                        .HasForeignKey("PropietarioTenantId", "AmbitoTrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Plantillas.DocumentoGenerado", b =>
