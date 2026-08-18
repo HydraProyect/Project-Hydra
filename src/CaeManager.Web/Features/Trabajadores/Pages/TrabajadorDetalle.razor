@@ -83,7 +83,7 @@
             </div>
         </div>
 
-        <Pestanas Definiciones="_pestanas" PestanaActiva="_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="Secciones de Trabajador 360">
+        <Pestanas Definiciones="_pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="Secciones de Trabajador 360">
             @switch (_pestanaActiva)
             {
                 case "operacion":

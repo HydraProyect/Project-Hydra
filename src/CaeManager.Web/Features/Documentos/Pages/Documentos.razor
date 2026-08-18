@@ -40,7 +40,7 @@
         </div>
     </div>
 
-    <Pestanas Definiciones="_pestanasDocumentos" PestanaActiva="_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="Secciones de documentos">
+    <Pestanas Definiciones="_pestanasDocumentos" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="Secciones de documentos">
         @if (_pestanaActiva == "plataforma")
         {
             <PlataformaTab />

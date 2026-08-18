@@ -27,7 +27,7 @@
         </div>
 
         <div class="cuerpo-preview-empresa">
-        <Pestanas Definiciones="Pestanas" PestanaActiva="_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Secciones de la empresa">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Secciones de la empresa">
             @if (_cargando && _pestanaActiva == "informacion")
             {
                 <EstadoCargando Filas="3" />

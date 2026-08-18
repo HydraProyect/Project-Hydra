@@ -78,7 +78,16 @@
         <div class="lista-bandeja">
             @foreach (var grupo in GruposOrdenados)
             {
-                <GrupoCola Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="_idEnfocado" />
+                @* "@_idEnfocado", con arroba: IdEnfocado es string, y Razor
+                   pasa el valor de un atributo SIN arroba como literal a los
+                   parámetros de tipo string (a diferencia de los de tipo
+                   bool/int, donde no hay literal válido y lo compila como
+                   expresión). Sin la arroba, GrupoCola recibía siempre la
+                   cadena "_idEnfocado", que no coincide con el Id de ningún
+                   ítem — j/k movían el foco de verdad en el servidor (Enter
+                   abría el ítem correcto) pero ninguna tarjeta se pintaba
+                   como enfocada. *@
+                <GrupoCola Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="@_idEnfocado" />
             }
             @foreach (var item in _bandeja!.SinGrupo.Where(i => CoincideFiltro(i, _tipoFiltro)))
             {
