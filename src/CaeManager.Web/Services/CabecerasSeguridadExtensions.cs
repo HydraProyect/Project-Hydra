@@ -29,7 +29,7 @@ public static class CabecerasSeguridadExtensions
     // la señal de que hay que recalcularlo.
     private const string PoliticaSeguridadContenido =
         "default-src 'self'; " +
-        "script-src 'self' 'sha256-DrLXAMNvj/4Fwhv8YWHGxtNgNMz+MtjuFL2xo4B/uJw='; " +
+        "script-src 'self' 'sha256-QGm8WYBGPLZFJDgw7y+COnKm9Lrusl5LogX6lNPAXAw='; " +
         "style-src 'self' 'unsafe-inline'; " +
         "img-src 'self' data:; " +
         "font-src 'self'; " +

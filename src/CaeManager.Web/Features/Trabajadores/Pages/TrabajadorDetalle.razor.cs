@@ -6,6 +6,7 @@ using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 using CaeManager.Application.Gestiones.Commands.CompletarGestion;
 using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
@@ -29,13 +30,16 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 /// (a diferencia de la pestaña "Documentación" del panel, que es plana) y
 /// las gestiones pendientes.
 ///
-/// "Reclamar faltantes" del menú ⋯ del mockup queda deliberadamente fuera:
-/// <c>EnviarReclamacionCommand</c> opera a grano Cliente/Centro, no
-/// Trabajador — reclamar "todo lo que le falta a este trabajador" cuando
-/// tiene asignaciones en varios centros/clientes es una decisión de
-/// producto sin resolver (¿todos los centros? ¿solo el de la próxima
-/// visita?), no un hueco de composición. Se documenta como pendiente real,
-/// no se construye con una semántica inventada.
+/// "Reclamar faltantes" del menú ⋯ del mockup: <c>EnviarReclamacionCommand</c>
+/// opera a grano Cliente (reclama todo lo pendiente de ese Cliente, no hace
+/// falta acotar por Centro), así que el único caso ambiguo es un trabajador
+/// con asignaciones activas en Centros de Clientes distintos a la vez —
+/// escenario común, no raro (ver <c>DatosPruebaSeeder</c>). Decisión del
+/// usuario 2026-08-18: el gestor elige a qué Cliente(s) reclamar
+/// (<see cref="ReclamarFaltantesAsync"/> salta directo si solo hay uno,
+/// abre selector si hay varios) — nunca se reclama sin que el gestor lo
+/// confirme, y nunca se inventa un criterio automático (próxima visita,
+/// "el más urgente"...) que el usuario no pidió.
 /// </summary>
 public partial class TrabajadorDetalle : ComponentBase
 {
@@ -80,6 +84,13 @@ public partial class TrabajadorDetalle : ComponentBase
 
     private bool _confirmarBajaTrabajadorVisible;
     private bool _dandoDeBajaTrabajador;
+
+    private bool _reclamarFaltantesVisible;
+    private bool _reclamandoFaltantes;
+    private IReadOnlyList<ClienteReclamableDto> _clientesReclamables = [];
+    private readonly HashSet<Guid> _clientesSeleccionadosReclamar = [];
+
+    private record ClienteReclamableDto(Guid ClienteId, string ClienteRazonSocial, IReadOnlyList<Guid> DocumentoIds);
 
     private IReadOnlyList<GestionListaDto> _gestionesPendientes = [];
     private bool _cargandoGestiones = true;
@@ -212,6 +223,95 @@ public partial class TrabajadorDetalle : ComponentBase
 
         ToastService.Mostrar("Asignación dada de baja.", TonoToast.Exito);
         await CargarAsync();
+    }
+
+    /// <summary>
+    /// Solo cuentan documentos que existen (<c>DocumentoId != null</c>) y no
+    /// están vigentes — un Faltante no tiene fila de Documento que reclamar,
+    /// igual que en <c>ObtenerLoteReclamacionQuery</c>: "reclamar" pide una
+    /// renovación, no puede pedir la creación de algo que nunca existió.
+    /// </summary>
+    private async Task ReclamarFaltantesAsync()
+    {
+        var clientes = _centros
+            .SelectMany(c => c.Documentos
+                .Where(d => d.DocumentoId is not null && d.Estado != EstadoDocumento.Vigente)
+                .Select(d => (c.ClienteId, c.ClienteRazonSocial, DocumentoId: d.DocumentoId!.Value)))
+            .GroupBy(x => (x.ClienteId, x.ClienteRazonSocial))
+            .Select(g => new ClienteReclamableDto(g.Key.ClienteId, g.Key.ClienteRazonSocial, g.Select(x => x.DocumentoId).Distinct().ToList()))
+            .ToList();
+
+        if (clientes.Count == 0)
+        {
+            ToastService.Mostrar("No hay documentos pendientes que reclamar.", TonoToast.Info);
+            return;
+        }
+
+        if (clientes.Count == 1)
+        {
+            await EnviarReclamacionAClientesAsync(clientes);
+            return;
+        }
+
+        _clientesReclamables = clientes;
+        _clientesSeleccionadosReclamar.Clear();
+        foreach (var cliente in clientes)
+            _clientesSeleccionadosReclamar.Add(cliente.ClienteId);
+        _reclamarFaltantesVisible = true;
+    }
+
+    private void AlternarClienteReclamar(Guid clienteId, bool marcado)
+    {
+        if (marcado) _clientesSeleccionadosReclamar.Add(clienteId);
+        else _clientesSeleccionadosReclamar.Remove(clienteId);
+    }
+
+    private async Task ConfirmarReclamarFaltantesAsync()
+    {
+        var seleccionados = _clientesReclamables.Where(c => _clientesSeleccionadosReclamar.Contains(c.ClienteId)).ToList();
+        if (seleccionados.Count == 0) return;
+
+        _reclamarFaltantesVisible = false;
+        await EnviarReclamacionAClientesAsync(seleccionados);
+    }
+
+    /// <summary>
+    /// Reutiliza EnviarReclamacionCommand tal cual, un envío por Cliente —
+    /// secuencial (no Task.WhenAll) porque el DbContext de la petición Blazor
+    /// Server es scoped y no admite uso concurrente.
+    /// </summary>
+    private async Task EnviarReclamacionAClientesAsync(IReadOnlyList<ClienteReclamableDto> clientes)
+    {
+        _reclamandoFaltantes = true;
+        try
+        {
+            var enviadosA = new List<string>();
+            var fallidos = new List<string>();
+
+            foreach (var cliente in clientes)
+            {
+                var resultado = await Mediator.Send(new EnviarReclamacionCommand(cliente.ClienteId, cliente.DocumentoIds));
+                if (resultado.EsFallido)
+                    fallidos.Add($"{cliente.ClienteRazonSocial}: {resultado.Error.Mensaje}");
+                else
+                    enviadosA.Add(cliente.ClienteRazonSocial);
+            }
+
+            if (enviadosA.Count == 1)
+                ToastService.Mostrar($"Reclamación enviada a {enviadosA[0]}.", TonoToast.Exito);
+            else if (enviadosA.Count > 1)
+                ToastService.Mostrar($"Reclamación enviada a {enviadosA.Count} clientes: {string.Join(", ", enviadosA)}.", TonoToast.Exito);
+
+            foreach (var mensaje in fallidos)
+                ToastService.Mostrar(mensaje, TonoToast.Error);
+
+            if (enviadosA.Count > 0)
+                await CargarAsync();
+        }
+        finally
+        {
+            _reclamandoFaltantes = false;
+        }
     }
 
     private async Task AbrirCrearGestionAsync()
