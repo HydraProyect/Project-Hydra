@@ -104,8 +104,21 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("1 seleccionado");
         await page.WaitForTimeoutAsync(300);
 
-        // --- Enter abre el Workspace panel del Cliente enfocado ---
+        // --- Enter abre el drawer ligero de vista previa del Cliente
+        // enfocado, y "Operar →" desde ahí abre el Workspace panel ---
+        // Desde el drawer de vista previa (ClientePreviewDrawer, mockup
+        // "Lista Clientes TALVEG") el Workspace panel dejó de ser el destino
+        // directo de Enter: la vista previa es el paso intermedio, y el
+        // panel completo se abre desde su pie ("Operar →", ver
+        // ClientePreviewDrawer.Operar, que cierra el drawer antes de
+        // invocar OnOperar). Se recorren los dos saltos en vez de acortar
+        // por el ctx= de la URL — lo que este test cubre es el camino de
+        // teclado real, no el deep-link (eso es DeepLinksTests).
         await page.Keyboard.PressAsync("Enter");
+        var previewCliente = page.Locator(".drawer-preview-cliente");
+        await previewCliente.GetByText(razonSocialA).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+
+        await previewCliente.Locator(".pie-preview-cliente").GetByRole(AriaRole.Button).ClickAsync();
         var workspacePanel = page.Locator(".workspace-panel");
         await workspacePanel.GetByText(razonSocialA).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await page.Keyboard.PressAsync("Escape");

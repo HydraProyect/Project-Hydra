@@ -109,8 +109,17 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // <button> con su propio nombre accesible ("Urgente (N)"), único por
         // texto exacto entre los ocho tipos — sustituye al SelectOptionAsync
         // por Value que usaba el <select> anterior.
-        var chipUrgente = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Urgente", Exact = false });
-        var chipVencido = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Vencido", Exact = false });
+        //
+        // Acotado a ".bandeja-chips": desde el rediseño la cola se pinta
+        // agrupada (GrupoCola) y la cabecera plegable de cada grupo es
+        // también un <button>, cuyo nombre accesible arrastra los badges de
+        // recuento ("… 1 vencidos"). Sin acotar, GetByRole(Button,
+        // Name="Vencido") resolvía a 2 elementos — el chip y la cabecera de
+        // un grupo de OTRO test de la misma colección — y fallaba por
+        // strict mode, no por que el filtro estuviera roto.
+        var chips = page.Locator(".bandeja-chips");
+        var chipUrgente = chips.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Urgente", Exact = false });
+        var chipVencido = chips.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Vencido", Exact = false });
 
         await chipUrgente.ClickAsync();
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
@@ -136,30 +145,47 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // tiene 2 elementos, no 1. "j" SÍ enfoca algo desde la primera
         // pulsación (confirmado en CI con diagnóstico servidor: el interop
         // llega bien), pero enfoca el primero de la lista según su orden
-        // real, que puede no ser el de este test. Se calcula el índice real
-        // de la tarjeta entre las visibles y se pulsa "j" esa cantidad de
-        // veces, en vez de asumir una sola pulsación.
+        // real, que puede no ser el de este test.
+        //
+        // Tampoco vale ya calcular el índice de la tarjeta en el DOM y
+        // pulsar "j" esa cantidad de veces: desde el rediseño agrupado, el
+        // orden que recorre ManejarAtajoAsync (ItemsFiltrados, la lista
+        // plana) no es el del DOM (GruposOrdenados reagrupa por situación y
+        // GrupoCola vuelve a anidar por empresa/trabajador). Se pulsa "j"
+        // hasta que la tarjeta de ESTE test queda enfocada, con tope en el
+        // número de ítems visibles: si se agotan sin alcanzarla, "j" de
+        // verdad no la recorre y el test debe fallar diciéndolo.
         var tarjetasVisibles = page.Locator(".panel-resolver-item");
         var totalVisibles = await tarjetasVisibles.CountAsync();
-        var indiceTarjeta = -1;
-        for (var i = 0; i < totalVisibles; i++)
-        {
-            if ((await tarjetasVisibles.Nth(i).InnerTextAsync()).Contains(apellidosTrabajador))
-            {
-                indiceTarjeta = i;
-                break;
-            }
-        }
-        Assert.True(indiceTarjeta >= 0, "No se encontró la tarjeta de este test entre los ítems 'Urgente' filtrados.");
+        var estaEntreLosFiltrados = false;
+        for (var i = 0; i < totalVisibles && !estaEntreLosFiltrados; i++)
+            estaEntreLosFiltrados = (await tarjetasVisibles.Nth(i).InnerTextAsync()).Contains(apellidosTrabajador);
 
-        await tarjeta.GetByRole(AriaRole.Button).FocusAsync();
-        for (var i = 0; i <= indiceTarjeta; i++)
+        Assert.True(estaEntreLosFiltrados, "No se encontró la tarjeta de este test entre los ítems 'Urgente' filtrados.");
+
+        // "Gestionar" por nombre, no "el único botón de la tarjeta": cada
+        // PanelResolverItem lleva también el botón "Copiar fecha" de
+        // TextoFechaCopiable, así que GetByRole(Button) a secas resuelve a 2
+        // y falla por strict mode. "Gestionar" es el TextoAccion del tipo
+        // Urgente (ver TipoItemBandejaUi), que es el caso de este test.
+        var accionTarjeta = tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" });
+        await accionTarjeta.FocusAsync();
+
+        // Tope = ítems visibles + 2: uno de margen porque la primera "j"
+        // puede perderse (el interop registra el atajo en OnAfterRenderAsync
+        // y el clic previo en el chip acaba de rehacer la lista), y otro
+        // porque ManejarAtajoAsync CLAMPA en el último elemento
+        // (Math.Min(indice + 1, Count - 1)) — pulsar de más nunca se pasa de
+        // largo, así que el margen no puede falsear el resultado.
+        var enfocada = false;
+        for (var i = 0; i < totalVisibles + 2 && !enfocada; i++)
         {
             await page.Keyboard.PressAsync("j");
-            await page.WaitForTimeoutAsync(200);
+            await page.WaitForTimeoutAsync(300);
+            enfocada = (await tarjeta.GetAttributeAsync("class"))?.Contains("panel-resolver-item-enfocado", StringComparison.Ordinal) == true;
         }
 
-        await Expect(tarjeta).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado"));
+        Assert.True(enfocada, $"\"j\" no llegó a enfocar la tarjeta de este test tras {totalVisibles + 2} pulsaciones.");
 
         // --- Resolver: la acción de la tarjeta abre el Documento subyacente ---
         // No es un ".workspace-panel": para un ítem "Urgente" (el caso por
@@ -171,7 +197,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // el Drawer muestra el nombre del propietario en modo solo lectura
         // (_propietarioNombreSoloLectura, ver DrawerGestionDocumento.razor.cs),
         // que contiene los apellidos del trabajador.
-        await tarjeta.GetByRole(AriaRole.Button).ClickAsync();
+        await accionTarjeta.ClickAsync();
         var drawerDocumento = page.Locator(".drawer-panel");
         await drawerDocumento.GetByText(apellidosTrabajador).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
     }

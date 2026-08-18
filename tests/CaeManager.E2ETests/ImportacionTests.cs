@@ -20,10 +20,11 @@ namespace CaeManager.E2ETests;
 /// Asignaciones que no encuentra el Centro hace <c>continue</c> sin más — a
 /// diferencia del resto del handler, esta rama nunca añade nada a
 /// <see cref="CaeManager.Application.Importacion.ItemImportacionDto"/>
-/// Omitidos. El resultado: el paso 2 promete "Asignaciones nuevas: 1", la
-/// pantalla final confirma "Asignaciones creadas: 0" y en ningún sitio se
-/// explica por qué — a diferencia de la fila de Cliente/Centro, que sí
-/// aparece en Omitidos con motivo explícito. Es justo la clase de pérdida
+/// Omitidos. El resultado: el paso "Revisar plan" del asistente promete una
+/// fila "Crear asignación" y 6 altas en total, el Reporte final confirma 3
+/// creados, y en ningún sitio se explica qué pasó con la Asignación — a
+/// diferencia de la fila de Cliente/Centro, que sí aparece en Omitidos con
+/// motivo explícito. Es justo la clase de pérdida
 /// silenciosa de datos que esta ronda de tests E2E se propuso encontrar
 /// (ver el hallazgo en el informe de la tarea) — Asignaciones es la
 /// relación Trabajador↔Centro que decide qué acceso CAE tiene cada
@@ -76,40 +77,54 @@ public class ImportacionTests(WebAppFixture fixture)
         try
         {
             await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
-            await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/importacion");
+            await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/importacion?plantilla=cae");
 
+            // --- Paso 1 (Elegir plantilla): "cae" ya viene preseleccionada
+            // por la query, igual que desde los enlaces de /clientes ---
+            await page.GetByText("Continuar con").ClickAsync();
+
+            // --- Paso 2 (Analizar): el archivo se sube aquí, no en la
+            // portada; "Ver plan de importación" solo se habilita cuando el
+            // análisis ya devolvió un plan (Deshabilitado="!TienePlan") ---
             await page.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaExcel);
+            await page.GetByText("Ver plan de importación").ClickAsync();
 
-            // --- Paso 2: el plan promete las 6 altas, incluida la Asignación ---
-            await page.GetByText("2. Revisa el plan de importación").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Clientes nuevos"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Centros nuevos"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Empresas nuevas"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Trabajadores nuevos"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Documentos nuevos"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Asignaciones nuevas"));
-
-            await page.GetByText("Confirmar importación").ClickAsync();
-
-            // --- Resultado: Empresa/Trabajador/Documento sí se crean; Cliente/Centro se omiten con motivo;
-            // Asignaciones queda en 0 SIN ningún Omitido que lo explique — la pérdida silenciosa. ---
-            // GetByText a secas ambigua con el toast "Importación completada." (con punto).
-            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Importación completada" })
+            // --- Paso 3 (Revisar plan): promete las 6 altas, incluida la Asignación ---
+            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Revisar plan" })
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Clientes creados"));
-            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Centros creados"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Empresas creadas"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Trabajadores creados"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Documentos creados"));
-            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Asignaciones creadas"));
+            await Expect(page.GetByText("6 se crearán")).ToBeVisibleAsync();
 
-            var filasOmitidas = page.Locator(".tabla-datos tbody tr");
+            var filasPlan = page.Locator(".tabla-plan-importacion-envoltorio tbody tr");
+            var filaAsignacionPlan = filasPlan.Filter(new LocatorFilterOptions { HasText = "Crear asignación" });
+            await Expect(filaAsignacionPlan).ToHaveCountAsync(1);
+            await Expect(filaAsignacionPlan).ToContainTextAsync(dniTrabajador);
+            await Expect(filaAsignacionPlan).ToContainTextAsync(nombreCentro);
+
+            await page.GetByText("Continuar a confirmar").ClickAsync();
+
+            // --- Paso 4 (Confirmar): el punto de no retorno pide marcar la casilla ---
+            await page.Locator(".casilla-confirmacion-importacion input[type=\"checkbox\"]").CheckAsync();
+            await page.GetByText("Importar ahora").ClickAsync();
+
+            // --- Paso 5 (Reporte): Empresa/Trabajador/Documento sí se crean; Cliente/Centro se omiten
+            // con motivo; la Asignación se pierde SIN ningún Omitido que lo explique — la pérdida
+            // silenciosa. El reporte del wizard agrega los creados en un único número (3 de los 6
+            // prometidos) en vez de desglosarlos por entidad, así que el desglose de qué se perdió
+            // sale de la tabla de Omitidos, que es justo donde la Asignación no aparece. ---
+            // GetByText a secas ambigua con el toast "Importación completada." (con punto).
+            await page.GetByText("Importación completada", new PageGetByTextOptions { Exact = true })
+                .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            Assert.Equal("3", await Ayudas.LeerMetricaAsync(page, "Creados"));
+            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Avisos"));
+            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Omitidos"));
+
+            var filasOmitidas = page.Locator(".tarjeta-reporte-importacion tbody tr");
             await filasOmitidas.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
             // Un único Omitido — el de Cliente/Centro. La Asignación perdida no deja rastro aquí.
             await Expect(filasOmitidas).ToHaveCountAsync(1);
             await Expect(filasOmitidas.First).ToContainTextAsync(nombreCentro);
             await Expect(filasOmitidas.First).ToContainTextAsync("CIF");
-            await Expect(page.Locator(".tabla-datos")).Not.ToContainTextAsync("Asignaciones");
+            await Expect(page.Locator(".tarjeta-reporte-importacion")).Not.ToContainTextAsync("signación");
         }
         finally
         {

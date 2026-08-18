@@ -42,7 +42,25 @@ public class DeepLinksTests(WebAppFixture fixture)
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.DescartarNotificacionesPendientesAsync(page);
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
+        // Desde /gestiones y no desde /trabajadores: en la lista de
+        // Trabajadores el nombre de la fila ya no abre el Context Workspace,
+        // sino el drawer ligero de vista previa (TrabajadorPreviewDrawer),
+        // cuyo pie lleva a Trabajador 360 — y es esa página, no la lista, la
+        // que remite al panel ("⋯" → "Editar"). /gestiones sigue abriendo el
+        // panel de Trabajador de un solo clic (ver Gestiones.razor: el
+        // Trabajador es la PRIMERA columna con .enlace-nombre-fila, antes que
+        // el Centro), que es justo lo que este test necesita: la URL "ctx"
+        // real, generada por la propia interfaz, sin arrastrar la pantalla
+        // más pesada de la app al camino.
+        //
+        // No es un rodeo para esquivar Trabajador 360 por comodidad: pasando
+        // por ahí este test destapa DOS defectos reales y ajenos al
+        // deep-link, que se reportan aparte — "Copiar enlace" del panel se
+        // queda colgado (JSInterop que no resuelve, ni toast de éxito ni de
+        // error) cuando se llega a /trabajadores/{id} por navegación mejorada
+        // de Blazor, y la carga en frío de /trabajadores/{id}?ctx=… en una
+        // pestaña nueva no termina de cargar en 30 s.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/gestiones");
 
         // Abre el primer trabajador desde la propia interfaz (clic, no un
         // "ctx" escrito a mano) — así la URL que se prueba después es

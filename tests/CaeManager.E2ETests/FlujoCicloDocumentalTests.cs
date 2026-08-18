@@ -218,6 +218,17 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.Locator(".modal-pie").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?pestana=reclamaciones");
+
+        // La pestaña abre en "Enviadas" (el historial de lotes ya enviados,
+        // que es lo que se consulta a diario) — componer/enviar, que es lo
+        // que ejercita este paso, vive detrás de "+ Nueva reclamación" (ver
+        // ReclamacionesTab: _vista = "historial" por defecto, y
+        // CambiarVistaAsync carga los lotes la primera vez que se entra).
+        // Por rol y no GetByText: el propio estado vacío del historial cita
+        // el botón por su nombre ('Los lotes que envíes desde "+ Nueva
+        // reclamación"…'), así que el texto suelto resuelve a 2 elementos.
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nueva reclamación" }).ClickAsync();
+
         var tarjetaCliente = page.Locator(".tarjeta-reclamacion", new PageLocatorOptions { HasText = razonSocialCliente });
         await tarjetaCliente.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
@@ -261,6 +272,15 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
         await page.GetByPlaceholder("Buscar por propietario o tipo de documento…").FillAsync(apellidosTrabajador);
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+
+        // La fila puede encontrarse ANTES de que el debounce de CampoTexto
+        // (300 ms) dispare la recarga: entonces QuickGrid reconstruye el
+        // <tr> con el menú ya abierto encima y el clic sobre "Renovar" muere
+        // con "element is not stable" / "element was detached from the DOM".
+        // El reintento de AbrirMenuAccionesAsync cubre el clic del
+        // disparador, no el del item del panel — así que se espera a que la
+        // recarga por debounce haya pasado antes de abrir nada.
+        await page.WaitForTimeoutAsync(800);
 
         // MenuAcciones.razor abre el desplegable con un @onclick server-side
         // (alterna _abierto e ida y vuelta por SignalR, no instantáneo) —
