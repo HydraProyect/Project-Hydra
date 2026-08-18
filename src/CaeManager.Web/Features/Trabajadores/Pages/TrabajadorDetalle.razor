@@ -77,6 +77,7 @@
                 <Boton Deshabilitado="DocumentoMasUrgente is null" OnClick="SubirDocumentoMasUrgenteAsync">Subir documento</Boton>
                 <MenuAcciones>
                     <ItemMenuAccion OnClick="AbrirInformacion">Editar</ItemMenuAccion>
+                    <ItemMenuAccion OnClick="ReclamarFaltantesAsync">Reclamar faltantes</ItemMenuAccion>
                     <ItemMenuAccion OnClick="AbrirCrearGestionAsync">Crear gestión</ItemMenuAccion>
                     <ItemMenuAccion Destructivo="true" OnClick="() => _confirmarBajaTrabajadorVisible = true">Dar de baja</ItemMenuAccion>
                 </MenuAcciones>
@@ -296,3 +297,31 @@
     Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
     EnProgreso="_dandoDeBajaTrabajador"
     OnConfirmar="ConfirmarDarDeBajaTrabajadorAsync" />
+
+@* Solo aparece cuando el trabajador tiene asignaciones activas en más de un
+   Cliente a la vez — con uno solo, ReclamarFaltantesAsync envía directo. *@
+<Modal Visible="_reclamarFaltantesVisible" VisibleChanged="v => _reclamarFaltantesVisible = v"
+       Titulo="Reclamar documentación pendiente" CerrarAlHacerClicFuera="!_reclamandoFaltantes">
+    <ChildContent>
+        <p class="workspace-nota-contextual">
+            @NombreCompleto tiene documentación pendiente en varios clientes a la vez. Elige a cuáles reclamar.
+        </p>
+        <fieldset class="reclamacion-destinatarios">
+            <legend>Clientes</legend>
+            @foreach (var cliente in _clientesReclamables)
+            {
+                <label class="campo-checkbox" @key="cliente.ClienteId">
+                    <input type="checkbox"
+                           checked="@_clientesSeleccionadosReclamar.Contains(cliente.ClienteId)"
+                           @onchange="e => AlternarClienteReclamar(cliente.ClienteId, (bool)e.Value!)" />
+                    <span>@cliente.ClienteRazonSocial</span>
+                    <span class="reclamacion-motivo">@cliente.DocumentoIds.Count documento@(cliente.DocumentoIds.Count == 1 ? "" : "s") pendiente@(cliente.DocumentoIds.Count == 1 ? "" : "s")</span>
+                </label>
+            }
+        </fieldset>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_reclamandoFaltantes" OnClick="() => _reclamarFaltantesVisible = false">Cancelar</Boton>
+        <Boton Cargando="_reclamandoFaltantes" Deshabilitado="_clientesSeleccionadosReclamar.Count == 0" OnClick="ConfirmarReclamarFaltantesAsync">Reclamar</Boton>
+    </Pie>
+</Modal>
