@@ -156,6 +156,73 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         (await ContarClientesAsync(conexion)).Should().Be(0);
     }
 
+    /// <summary>
+    /// Fuga por reasignación: la vía que no necesita <i>ver</i> nada ajeno.
+    ///
+    /// El resto de estos tests comprueba el <c>USING</c> de la política, que es
+    /// lo que decide qué filas se ven. Pero un operador legítimo del tenant A ve
+    /// sus propias filas, y si pudiera cambiarles el <c>TenantId</c> las
+    /// empujaría al tenant B sin haber leído jamás un dato ajeno. Ninguna
+    /// comprobación de lectura lo detendría: lo detiene el <c>WITH CHECK</c>,
+    /// que evalúa la política sobre la fila <b>resultante</b>.
+    ///
+    /// Se prueba el comportamiento y no solo la configuración. Que la política
+    /// declare un <c>WITH CHECK</c> con las columnas correctas —lo que exige
+    /// <c>CoberturaRlsDelModeloTests</c>— dice que está escrito, no que Postgres
+    /// lo aplique donde importa. Son dos afirmaciones distintas y hacen falta las
+    /// dos.
+    /// </summary>
+    [Fact]
+    public async Task Un_update_que_mueve_la_fila_a_otro_tenant_lo_rechaza_el_with_check()
+    {
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "UPDATE \"Clientes\" SET \"TenantId\" = @destino;";
+        comando.Parameters.AddWithValue("destino", _tenantB);
+
+        var accion = async () => await comando.ExecuteNonQueryAsync();
+
+        (await accion.Should().ThrowAsync<PostgresException>(
+            "sin WITH CHECK, quien ve una fila podría regalársela a otro tenant sin leer nada ajeno"))
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Fact]
+    public async Task Un_update_que_deja_la_fila_en_su_tenant_si_se_permite()
+    {
+        // Control positivo del de arriba: lo que rechaza el WITH CHECK es el
+        // cambio de dueño, no la escritura. Sin esto, aquel test pasaría igual
+        // si la política prohibiera todo UPDATE, que sería otra cosa.
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "UPDATE \"Clientes\" SET \"RazonSocial\" = 'RENDELSUR (editada)';";
+
+        (await comando.ExecuteNonQueryAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_insert_de_una_fila_de_otro_tenant_lo_rechaza_el_with_check()
+    {
+        // La otra mitad del WITH CHECK: tampoco se puede sembrar en tenant ajeno.
+        await using var conexion = await AbrirComoRolRestringidoAsync();
+        await FijarTenantDeSesionAsync(conexion, _tenantA);
+
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText =
+            "INSERT INTO \"Clientes\" (\"Id\", \"TenantId\", \"RazonSocial\", \"Cif\") " +
+            "VALUES (gen_random_uuid(), @destino, 'Sembrado en ajeno S.L.', 'B00000000');";
+        comando.Parameters.AddWithValue("destino", _tenantB);
+
+        var accion = async () => await comando.ExecuteNonQueryAsync();
+
+        (await accion.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
     [Fact]
     public async Task El_rol_propietario_de_las_tablas_no_esta_restringido_por_rls()
     {

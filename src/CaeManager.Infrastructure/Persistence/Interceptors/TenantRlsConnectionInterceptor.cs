@@ -31,6 +31,41 @@ namespace CaeManager.Infrastructure.Persistence.Interceptors;
 /// <c>SET app.tenant_id = '...'</c> interpolado) para no construir SQL a
 /// partir de un valor variable, aunque hoy ese valor sea siempre un
 /// <see cref="Guid"/> generado por el propio sistema.
+///
+/// <para>
+/// <b>Este interceptor aplica DOS garantías distintas, y conviene no
+/// confundirlas.</b> Comparten el sitio —la apertura de la conexión— y nada
+/// más:
+/// </para>
+/// <list type="table">
+/// <item>
+/// <term>A — aislamiento entre tenants</term>
+/// <description>
+/// <c>app.tenant_id</c> + las políticas RLS. Responde "¿de quién son estas
+/// filas?". Aplica a <b>todas</b> las conexiones, siempre, con sesión
+/// privilegiada o sin ella.
+/// </description>
+/// </item>
+/// <item>
+/// <term>B — restricción de capacidad de la sesión de soporte</term>
+/// <description>
+/// <c>SET ROLE cae_app_soporte</c>. Responde "¿esta conexión puede escribir?".
+/// Aplica solo cuando la petición viene por una sesión privilegiada de
+/// plataforma.
+/// </description>
+/// </list>
+/// <para>
+/// <b>Ninguna sustituye a la otra, en ninguna dirección.</b> RLS no distingue
+/// leer de escribir: un operador legítimo del tenant escribe en sus propias
+/// filas y eso es correcto, así que RLS no puede ser el solo-lectura del
+/// soporte. Y el rol de soporte no aísla nada por sí mismo: si se hubiera
+/// creado sin <c>NOBYPASSRLS</c>, sería un rol de solo lectura capaz de leer
+/// <i>todos</i> los tenants — la garantía B habría comprado una fuga de la
+/// garantía A mucho peor que la escritura que impide. Por eso
+/// <c>NOBYPASSRLS</c> no es una opción de endurecimiento entre otras: es lo que
+/// mantiene la segunda garantía subordinada a la primera en vez de enfrentada
+/// a ella.
+/// </para>
 /// </summary>
 public class TenantRlsConnectionInterceptor(
     ITenantActual tenantActual,
