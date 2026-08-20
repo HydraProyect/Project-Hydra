@@ -5,7 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
 
-public record ObtenerCredencialAccesoSubcontrataQuery(Guid SubcontrataId) : IRequest<CredencialAccesoSubcontrataDto?>;
+public record ObtenerCredencialAccesoSubcontrataQuery(Guid SubcontrataId)
+    : IRequest<CredencialAccesoSubcontrataDto?>, IConsultaDeSecretosDeTenant;
 
 public record CredencialAccesoSubcontrataDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas);
 

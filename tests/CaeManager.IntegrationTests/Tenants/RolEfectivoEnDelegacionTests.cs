@@ -142,6 +142,9 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         // null = vía heredada, que es la que estos tests ejercitan: el rol
         // efectivo resuelto contra DelegacionTenant/AsignacionOperadorDelegado.
         public Guid? AsignacionOperacionIdSeleccionada => asignacionOperacionId;
+
+        // Estos tests son de plano 2: ninguno abre una sesión privilegiada.
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 
     private sealed class AuthenticationStateProviderFalso(ClaimsPrincipal usuario) : AuthenticationStateProvider

@@ -551,6 +551,12 @@ app.UseRequestLocalization(new RequestLocalizationOptions()
 
 app.UseAuthentication();
 
+// Inmediatamente después de UseAuthentication y ANTES de UseAuthorization: una
+// sesión privilegiada de plataforma no lleva rol de negocio, y las puertas
+// [Authorize(Roles = …)] preguntan al principal, no a CurrentUserService (ver
+// SesionPrivilegiadaSinRolDeNegocioMiddleware).
+app.UseSesionPrivilegiadaSinRolDeNegocio();
+
 // Tras UseAuthentication (el límite distingue anónimo/autenticado) y antes
 // de que ningún endpoint procese la petición.
 app.UseRateLimiter();

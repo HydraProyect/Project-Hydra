@@ -1,4 +1,5 @@
 ﻿using CaeManager.Domain.Centros;
+using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
@@ -56,7 +57,7 @@ public class MemoizacionAlcanceDatosTests : IAsyncLifetime
         // null es "sin restricción" y no debe confundirse nunca con "todavía
         // sin resolver": esa confusión sería un caché que abre el alcance.
         await using var contexto = CrearContexto();
-        var servicio = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"), new TenantActualAmbiental { TenantId = _tenant });
+        var servicio = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"), new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());
 
         for (var intento = 0; intento < 2; intento++)
         {
@@ -75,7 +76,7 @@ public class MemoizacionAlcanceDatosTests : IAsyncLifetime
         // El caso que más importa: [] es "no ve nada". Si el caché lo
         // devolviera como null, ese usuario pasaría a verlo todo.
         await using var contexto = CrearContexto();
-        var servicio = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae", tenantOrigenId: _tenant), new TenantActualAmbiental { TenantId = _tenant });
+        var servicio = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae", tenantOrigenId: _tenant), new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());
 
         for (var intento = 0; intento < 2; intento++)
         {
@@ -111,7 +112,7 @@ public class MemoizacionAlcanceDatosTests : IAsyncLifetime
         await contextoAsignacion.SaveChangesAsync();
 
         await using var contexto = CrearContexto();
-        var servicio = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(usuarioId, "GestorCae", tenantOrigenId: _tenant), new TenantActualAmbiental { TenantId = _tenant });
+        var servicio = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(usuarioId, "GestorCae", tenantOrigenId: _tenant), new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());
 
         var clientesPrimera = await servicio.ObtenerClienteIdsVisiblesAsync();
         var centrosPrimera = await servicio.ObtenerCentroIdsVisiblesAsync();

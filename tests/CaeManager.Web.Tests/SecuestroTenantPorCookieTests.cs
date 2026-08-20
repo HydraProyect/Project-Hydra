@@ -135,6 +135,58 @@ public class SecuestroTenantPorCookieTests
         tenantActual.TenantId.Should().Be(TenantVictima);
     }
 
+
+    [Fact]
+    public void Un_token_con_sesion_privilegiada_selecciona_el_tenant_y_expone_la_sesion()
+    {
+        // Contrapeso del plano 3: abrir el tenant de un cliente por soporte
+        // pasa por la MISMA vía que cualquier otra selección (ADR-011 § 4bis.3
+        // — el privilegio cambia por qué se autoriza abrir el contexto, nunca
+        // si los filtros aplican). Un canal paralelo sería la puerta lateral
+        // que ese apartado prohíbe.
+        var protector = ProtectorDePruebas();
+        var sesionId = Guid.NewGuid();
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, UsuarioAtacante, TenantVictima, asignacionOperacionId: null, sesionPrivilegiadaId: sesionId);
+
+        var httpContext = ContextoCon(UsuarioAtacante, TenantAtacante, token);
+        var accessor = new HttpContextAccessorFijo(httpContext);
+        var seleccion = new ClienteActivoSeleccionado(accessor, protector);
+
+        seleccion.TenantIdSeleccionado.Should().Be(TenantVictima);
+        seleccion.SesionPrivilegiadaIdSeleccionada.Should().Be(sesionId);
+        seleccion.AsignacionOperacionIdSeleccionada.Should().BeNull();
+
+        // Y que mencione una sesión no la valida: eso lo hace
+        // ISesionPrivilegiadaActual contra la base, en cada petición.
+        new TenantActual(new SinCircuitoDeBlazor(), accessor, seleccion).TenantId.Should().Be(TenantVictima);
+    }
+
+    [Fact]
+    public void Un_token_que_nombra_a_la_vez_operacion_y_sesion_privilegiada_se_descarta_entero()
+    {
+        // Las capacidades no se acumulan entre planos (ADR-011 § 4bis.5): por
+        // sesión-contexto el acceso llega por exactamente una vía. Un token con
+        // las dos no describe ningún contexto legítimo, y preferir una de ellas
+        // sería elegir por el atacante. Se descarta entero — incluido el
+        // tenant, que es lo que hace que el resultado sea "sin selección" y no
+        // "selección a medias".
+        var protector = ProtectorDePruebas();
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, UsuarioAtacante, TenantVictima,
+            asignacionOperacionId: Guid.NewGuid(), sesionPrivilegiadaId: Guid.NewGuid());
+
+        var httpContext = ContextoCon(UsuarioAtacante, TenantAtacante, token);
+        var seleccion = new ClienteActivoSeleccionado(new HttpContextAccessorFijo(httpContext), protector);
+
+        seleccion.TenantIdSeleccionado.Should().BeNull();
+        seleccion.AsignacionOperacionIdSeleccionada.Should().BeNull();
+        seleccion.SesionPrivilegiadaIdSeleccionada.Should().BeNull();
+
+        // Y el tenant cae al claim de sesión del propio usuario, no al de la
+        // víctima: fallo cerrado.
+        CrearTenantActual(httpContext, protector).TenantId.Should().Be(TenantAtacante);
+    }
     private static TenantActual CrearTenantActual(HttpContext httpContext, IDataProtectionProvider? protector = null)
     {
         var accessor = new HttpContextAccessorFijo(httpContext);

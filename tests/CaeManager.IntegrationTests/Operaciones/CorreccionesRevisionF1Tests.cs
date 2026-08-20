@@ -1,3 +1,4 @@
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Domain.Clientes;
@@ -103,7 +104,8 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         var alcance = new AlcanceDatosService(
             contexto,
             new CurrentUserServiceFalso(_gestorConsultora, Roles.GestorCae, tenantOrigenId: _consultora),
-            new TenantActualAmbiental { TenantId = _propietario });
+            new TenantActualAmbiental { TenantId = _propietario },
+            new SesionPrivilegiadaAusente());
 
         var visibles = await alcance.ObtenerClienteIdsVisiblesAsync();
 
@@ -348,7 +350,8 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         var alcance = new AlcanceDatosService(
             contexto,
             new CurrentUserServiceFalso(_gestorConsultora, Roles.GestorCae, tenantOrigenId: _consultora),
-            new TenantActualAmbiental { TenantId = _propietario });
+            new TenantActualAmbiental { TenantId = _propietario },
+            new SesionPrivilegiadaAusente());
 
         return await alcance.ObtenerClienteIdsVisiblesAsync();
     }

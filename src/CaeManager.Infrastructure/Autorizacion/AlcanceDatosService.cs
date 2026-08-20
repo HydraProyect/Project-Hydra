@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +24,10 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// Empresas tres veces.
 /// </summary>
 public class AlcanceDatosService(
-    CaeManagerDbContext dbContext, ICurrentUserService currentUserService, ITenantActual tenantActual)
+    CaeManagerDbContext dbContext,
+    ICurrentUserService currentUserService,
+    ITenantActual tenantActual,
+    ISesionPrivilegiadaActual sesionPrivilegiadaActual)
     : IAlcanceDatosService
 {
     private bool? _accesoTotal;
@@ -46,6 +51,37 @@ public class AlcanceDatosService(
     public async Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default)
     {
         if (_accesoTotal is not null) return _accesoTotal.Value;
+
+        // Plano 3 antes que el rol, porque una sesión privilegiada NO tiene rol
+        // de negocio: <c>ObtenerRolActualAsync</c> devuelve null a propósito
+        // (ADR-011 § 4bis.3 — el técnico de soporte no es miembro del workspace
+        // que visita). Sin esta rama, SoporteLectura abriría el contexto del
+        // tenant y no vería ni una fila, que es la inspección de soporte
+        // convertida en pantalla vacía.
+        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is { } sesion)
+        {
+            // "Total" es total DENTRO del tenant objetivo, nunca más allá: el
+            // filtro global de tenant sigue puesto y es el que acota (§ 4bis.3
+            // — el privilegio cambia por qué se autoriza abrir el contexto,
+            // nunca si los filtros aplican).
+            //
+            // Y solo estas dos capacidades. AdminPlataforma queda fuera a
+            // propósito: administrar tenants, facturación y configuración
+            // global no incluye leer el contenido documental de nadie, y
+            // meterlo aquí reintroduciría el rol monolítico que la matriz por
+            // capacidades elimina (§ 4bis.2). Impersonacion también queda
+            // fuera: su alcance es el del usuario simulado, no un alcance
+            // total, y resolverlo es trabajo de su propia fase.
+            //
+            // Las dos acaban igual: sin acceso total, y con el reparto por
+            // cliente saliendo de la rama de rol, que sin rol devuelve lista
+            // vacía. Fallo cerrado.
+            _accesoTotal = sesion.Capacidad
+                is CapacidadPrivilegio.SoporteLectura
+                or CapacidadPrivilegio.BreakGlass;
+
+            return _accesoTotal.Value;
+        }
 
         var rol = await currentUserService.ObtenerRolActualAsync();
         _accesoTotal = rol is Roles.Administrador or Roles.DireccionCae or Roles.Consulta;

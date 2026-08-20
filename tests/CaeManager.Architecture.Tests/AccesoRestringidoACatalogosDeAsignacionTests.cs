@@ -89,6 +89,16 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // Revalidación por petición: comprueba la coherencia token↔operación y
         // exige cartera vigente del usuario.
         "src/CaeManager.Web/Services/RevalidacionClienteActivoMiddleware.cs",
+
+        // Contrato de lectura del plano 3 y su único consumidor: la resolución
+        // de la sesión privilegiada de esta petición, acotada por construcción
+        // a la sesión que el token nombra Y al usuario de plataforma que la
+        // abrió. No existe ni debe existir un "listar sesiones".
+        "src/CaeManager.Application/Plataforma/IPlataformaQueryContext.cs",
+        "src/CaeManager.Infrastructure/Plataforma/SesionPrivilegiadaActual.cs",
+
+        // Registro del contrato en el contenedor.
+        "src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs",
     ];
 
     [Fact]

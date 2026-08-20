@@ -46,6 +46,13 @@ public static class ApplicationServiceCollectionExtensions
         // pipeline de MediatR (incluidos los fixtures mínimos de
         // CaeManager.IntegrationTests) registre uno explícito.
         services.TryAddSingleton<IAlertaOperativa, AlertaOperativaInerte>();
+        // Mismo motivo y mismo mecanismo: AutorizacionEscrituraBehavior necesita
+        // resolver la sesión privilegiada, y MediatR construye todos los
+        // behaviors para cualquier request. Web registra la implementación real
+        // después, vía AddInfrastructure(). Ver SesionPrivilegiadaAusente para
+        // por qué este valor por defecto no debilita la autorización.
+        services.TryAddScoped<CaeManager.Application.Plataforma.ISesionPrivilegiadaActual,
+            CaeManager.Application.Plataforma.SesionPrivilegiadaAusente>();
         // Orden importa. LoggingBehavior va el primero de todos: mide lo que
         // el usuario espera de verdad, incluido el tiempo en la cola de
         // acceso a datos, y su ámbito de log correlaciona todo lo que
@@ -68,6 +75,10 @@ public static class ApplicationServiceCollectionExtensions
         // bloqueado por rol ni siquiera necesita la consulta a Tenants que
         // hace este behavior (Horizonte 1.7, "Billing mínimo viable").
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(GateComercialTenantBehavior<,>));
+        // Aparte de AutorizacionEscritura porque responde a otra pregunta: no
+        // "¿puede escribir?" sino "¿puede ver ESTE recurso?" — y se aplica a
+        // Queries, que aquel deja pasar por definición.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionSecretosDeTenantBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
         // Orquestador puro (solo depende de contratos de Application, ver
