@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
@@ -51,6 +52,7 @@ public class CrearClienteDeleganteCommandHandler(
     IParametroSistemaRepository parametroSistemaRepositorio,
     ITenantsQueryContext tenantsContext,
     ICurrentUserService currentUserService,
+    IAsignacionesOperativasWriter asignacionesWriter,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearClienteDeleganteCommand, Result<Guid>>
 {
@@ -111,6 +113,14 @@ public class CrearClienteDeleganteCommandHandler(
         {
             tenantRepositorio.Agregar(tenantCliente);
             parametroSistemaRepositorio.Agregar(new ParametroSistema(UmbralAmbarDiasPorDefecto, UmbralRojoDiasPorDefecto));
+
+            // Todo tenant nace con su operación raíz: es su derecho a operarse
+            // a sí mismo y el ancla de sus carteras internas. Sin ella, el día
+            // que este cliente internalice su gestión no habría dónde colgar la
+            // cartera de su propio equipo.
+            await asignacionesWriter.AsegurarOperacionRaizAsync(
+                tenantCliente.Id, tenantCliente.CreadoEnUtc, cancellationToken);
+
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
@@ -125,6 +135,19 @@ public class CrearClienteDeleganteCommandHandler(
         // podría operarla hasta un segundo paso manual que además hoy no
         // tiene UI propia (Delegaciones.razor solo revoca/reactiva).
         asignacionRepositorio.Agregar(new AsignacionOperadorDelegado(delegacion.Id, usuarioId.Value, RolInicialOperadorDelegado));
+
+        // Doble escritura de la delegación y de su primer operador. Este
+        // comando escribe por repositorios directos, sin pasar por los comandos
+        // que sirven de fachada, así que necesita su propia llamada — es
+        // justamente el camino que un inventario superficial habría dejado
+        // fuera.
+        // La operación se usa por instancia, no se vuelve a buscar: acaba de
+        // añadirse al contexto y todavía no está guardada, así que una consulta
+        // no la encontraría y la cartera se perdería en silencio.
+        var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
+            tenantCliente.Id, tenantOrigenId.Value, delegacion.CreadoEnUtc, vigenciaHasta: null, cancellationToken);
+        await asignacionesWriter.AbrirCarteraOperadorAsync(
+            operacion, usuarioId.Value, RolInicialOperadorDelegado, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

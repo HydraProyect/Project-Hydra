@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -33,7 +34,8 @@ public class CrearClienteCommandValidator : AbstractValidator<CrearClienteComman
 }
 
 public class CrearClienteCommandHandler(
-    IClienteRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService currentUserService)
+    IClienteRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService currentUserService,
+    IAsignacionesOperativasWriter asignacionesWriter)
     : IRequestHandler<CrearClienteCommand, Result<Guid>>
 {
     // Application no puede referenciar Infrastructure.Identity.Roles — mismo
@@ -57,6 +59,16 @@ public class CrearClienteCommandHandler(
 
         var cliente = new Cliente(request.RazonSocial, request.Cif, request.EsCritico, request.Notas, ejecutivoUsuarioId);
         repositorio.Agregar(cliente);
+
+        // Doble escritura también aquí, y no solo al reasignar: sin esto, el
+        // Gestor CAE que crea un cliente se quedaría con la proyección puesta
+        // pero sin cartera, y al conmutar la autorización perdería de vista el
+        // cliente que acaba de crear. El Cliente todavía no tiene TenantId
+        // (lo sella el interceptor al guardar), así que el propietario se
+        // resuelve del contexto, no de la entidad.
+        if (ejecutivoUsuarioId is not null)
+            await asignacionesWriter.ReasignarCarteraClienteAsync(cliente.Id, ejecutivoUsuarioId, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(cliente.Id);

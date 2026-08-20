@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -140,7 +141,8 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         });
 
         await middleware.InvokeAsync(
-            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario), dbContext: null!);
+            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
+            dbContext: null!, operacionesContext: null!);
 
         siguienteFueLlamado.Should().BeTrue();
     }
@@ -159,7 +161,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     /// </summary>
     private (DefaultHttpContext, ClienteActivoSeleccionado) PrepararPeticionConTokenValido()
     {
-        var token = ClienteActivoSeleccionado.Proteger(_protector, _usuario, _clienteDelegante);
+        var token = ClienteActivoSeleccionado.Proteger(_protector, _usuario, _clienteDelegante, null);
 
         var httpContext = new DefaultHttpContext { User = UsuarioAutenticado(_usuario) };
         httpContext.Request.Headers.Cookie = $"{ClienteActivoSeleccionado.NombreCookie}={token}";
@@ -171,8 +173,12 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         DefaultHttpContext httpContext, IClienteActivoSeleccionado seleccion, ITenantsQueryContext contexto)
     {
         var middleware = new RevalidacionClienteActivoMiddleware(_ => Task.CompletedTask);
+        // Estos tests ejercitan la vía heredada (el token no lleva operación),
+        // así que el contexto de operaciones no llega a consultarse. Se pasa el
+        // mismo DbContext, que implementa las dos interfaces.
         await middleware.InvokeAsync(
-            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario), contexto);
+            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
+            contexto, (IOperacionesQueryContext)contexto);
     }
 
     private static string? CabeceraDeBorradoDeCookie(DefaultHttpContext httpContext) =>

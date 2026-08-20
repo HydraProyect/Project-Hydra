@@ -1,6 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
@@ -28,6 +30,7 @@ public class RevocarAsignacionOperadorDelegadoCommandHandler(
     IAsignacionOperadorDelegadoRepository repositorio,
     IDelegacionTenantRepository delegacionRepositorio,
     ICurrentUserService currentUserService,
+    IAsignacionesOperativasWriter asignacionesWriter,
     IUnitOfWork unitOfWork)
     : IRequestHandler<RevocarAsignacionOperadorDelegadoCommand, Result>
 {
@@ -46,6 +49,15 @@ public class RevocarAsignacionOperadorDelegadoCommandHandler(
             return Result.Fallo(Error.Crear("AsignacionOperadorDelegado.NoEncontrada", "No encontramos esa asignación."));
 
         repositorio.Eliminar(asignacion);
+
+        // La fila antigua se borra; la cartera se CIERRA. La diferencia es
+        // deliberada: el modelo nuevo conserva el rastro de quién operó qué y
+        // hasta cuándo, y borrarla perdería exactamente eso.
+        if (delegacion.Proposito == PropositoDelegacion.Comercial)
+            await asignacionesWriter.CerrarCarteraOperadorAsync(
+                delegacion.TenantClienteId, delegacion.TenantConsultoraId,
+                asignacion.UsuarioId, MotivoCierreAsignacion.Revocada, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

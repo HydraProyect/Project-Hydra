@@ -7,7 +7,7 @@ namespace CaeManager.Domain.Common;
 /// todo agregado raíz de negocio pertenece a un tenant (ver
 /// docs/MULTITENANCY.md).
 /// </summary>
-public abstract class EntidadBase : EntidadConTenant
+public abstract class EntidadBase : EntidadConTenant, IVersionable
 {
     /// <summary>
     /// Token de concurrencia optimista. Dos usuarios editando el mismo

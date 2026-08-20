@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +21,9 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// listado de Documentos —que pide cuatro alcances— repetía la consulta de
 /// Empresas tres veces.
 /// </summary>
-public class AlcanceDatosService(CaeManagerDbContext dbContext, ICurrentUserService currentUserService) : IAlcanceDatosService
+public class AlcanceDatosService(
+    CaeManagerDbContext dbContext, ICurrentUserService currentUserService, ITenantActual tenantActual)
+    : IAlcanceDatosService
 {
     private bool? _accesoTotal;
     private IReadOnlyList<Guid>? _clienteIds;
@@ -67,10 +70,7 @@ public class AlcanceDatosService(CaeManagerDbContext dbContext, ICurrentUserServ
         _clienteIds = (rol, usuarioId) switch
         {
             (Roles.Cliente, { } id) => await ObtenerClienteIdsParaRolClienteAsync(id, cancellationToken),
-            (Roles.GestorCae, { } id) => await dbContext.Clientes
-                .Where(c => c.EjecutivoUsuarioId == id)
-                .Select(c => c.Id)
-                .ToListAsync(cancellationToken),
+            (Roles.GestorCae, { } id) => await ObtenerClienteIdsDeCarteraAsync([id], cancellationToken),
             (Roles.CoordinadorCae, { } id) => await ObtenerClienteIdsParaCoordinadorAsync(id, cancellationToken),
             _ => []
         };
@@ -98,10 +98,71 @@ public class AlcanceDatosService(CaeManagerDbContext dbContext, ICurrentUserServ
 
         if (gestorIds.Count == 0) return [];
 
-        return await dbContext.Clientes
-            .Where(c => c.EjecutivoUsuarioId != null && gestorIds.Contains(c.EjecutivoUsuarioId!.Value))
-            .Select(c => c.Id)
+        return await ObtenerClienteIdsDeCarteraAsync(gestorIds, cancellationToken);
+    }
+
+    /// <summary>
+    /// La cartera de uno o varios usuarios, leída de las asignaciones
+    /// operativas (F1 del plan de migración). Sustituye a la consulta directa
+    /// sobre <c>Cliente.EjecutivoUsuarioId</c>, que queda como proyección de
+    /// compatibilidad para los lectores informativos.
+    ///
+    /// Dos condiciones que no estaban en el modelo anterior y que ahora hay que
+    /// imponer explícitamente:
+    /// <list type="bullet">
+    /// <item>la cartera debe pertenecer al <b>tenant en el que se está
+    /// operando</b>. Un usuario puede tener carteras en varios tenants (el suyo
+    /// y los que opera por delegación), y sin este filtro los clientes de un
+    /// workspace se colarían en otro;</item>
+    /// <item>su operación debe estar <b>vigente</b>. Una cartera bajo una
+    /// operación cerrada o suspendida no concede nada, y el cierre en cascada
+    /// puede no haber corrido todavía si la operación caducó por fecha.</item>
+    /// </list>
+    /// Una cartera de ámbito universal sobre este tenant (el caso de un
+    /// operador delegado sin reparto interno) da acceso a todos sus clientes.
+    /// </summary>
+    private async Task<IReadOnlyList<Guid>> ObtenerClienteIdsDeCarteraAsync(
+        IReadOnlyList<Guid> usuarioIds, CancellationToken cancellationToken)
+    {
+        if (tenantActual.TenantId is not { } propietarioTenantId) return [];
+
+        // La otra mitad de la política de posición: además de que la cartera
+        // sea del tenant en el que se opera, la operación que la ampara tiene
+        // que estar operada por el tenant de ORIGEN del usuario. Sin esto, una
+        // cartera mal formada cuyo PropietarioTenantId casara con el tenant
+        // activo entraría en el alcance aunque perteneciera a otra posición.
+        // Es el tenant del claim de sesión, nunca el activo: dentro de un
+        // workspace delegado el activo es el del propietario.
+        var operadorTenantId = await currentUserService.ObtenerTenantOrigenIdAsync();
+        if (operadorTenantId is null) return [];
+
+        var ahora = DateTime.UtcNow;
+
+        var carteras = await dbContext.AsignacionesCartera
+            .Where(c => usuarioIds.Contains(c.UsuarioId)
+                        && c.PropietarioTenantId == propietarioTenantId
+                        && c.Estado == EstadoAsignacion.Vigente
+                        && c.VigenciaDesde <= ahora
+                        && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
+            .Join(dbContext.AsignacionesOperacion.Where(o =>
+                    o.Estado == EstadoAsignacion.Vigente
+                    && o.OperadorTenantId == operadorTenantId.Value
+                    && o.VigenciaDesde <= ahora
+                    && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)),
+                c => c.AsignacionOperacionId, o => o.Id, (c, o) => c.AmbitoRelacionClienteId)
+            .Distinct()
             .ToListAsync(cancellationToken);
+
+        if (carteras.Count == 0) return [];
+
+        // Ámbito universal: todos los clientes del tenant. Solo llega aquí un
+        // rol de alcance total, y esos ya salieron por TieneAccesoTotalAsync
+        // sin consultar carteras — a un rol de cartera no se le emite nunca una
+        // universal, justamente para no ensanchar su alcance.
+        if (carteras.Any(id => id is null))
+            return await dbContext.Clientes.Select(c => c.Id).ToListAsync(cancellationToken);
+
+        return carteras.Where(id => id is not null).Select(id => id!.Value).ToList();
     }
 
     public async Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default)

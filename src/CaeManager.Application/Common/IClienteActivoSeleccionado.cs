@@ -24,4 +24,18 @@ namespace CaeManager.Application.Common;
 public interface IClienteActivoSeleccionado
 {
     Guid? TenantIdSeleccionado { get; }
+
+    /// <summary>
+    /// La <c>AsignacionOperacion</c> por la que se abrió este workspace.
+    /// <c>null</c> significa que se abrió por la vía heredada
+    /// (<c>DelegacionTenant</c> + <c>AsignacionOperadorDelegado</c>), que es la
+    /// que sigue usando el acceso de soporte hasta su propia fase.
+    ///
+    /// Existe porque el par (usuario, tenant) dejó de identificar el contexto
+    /// sin ambigüedad: un mismo usuario puede tener varias autorizaciones
+    /// vivas sobre el mismo tenant, y resolver el rol efectivo "por tenant"
+    /// elegía una de ellas de forma no determinista. La fila de la operación sí
+    /// identifica el contexto exactamente.
+    /// </summary>
+    Guid? AsignacionOperacionIdSeleccionada { get; }
 }

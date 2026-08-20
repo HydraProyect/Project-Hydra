@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Operaciones;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Web.Services;
@@ -35,7 +37,8 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         HttpContext contexto,
         IClienteActivoSeleccionado clienteActivoSeleccionado,
         ICurrentUserService currentUserService,
-        ITenantsQueryContext dbContext)
+        ITenantsQueryContext dbContext,
+        IOperacionesQueryContext operacionesContext)
     {
         // Sin cookie no hay nada que revalidar: cero coste para el usuario
         // normal, que es la inmensa mayoría.
@@ -51,19 +54,17 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         {
             var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
-            var sigueAutorizado = usuarioId is not null && await (
-                from asignacion in dbContext.AsignacionesOperadorDelegado
-                join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
-                where asignacion.UsuarioId == usuarioId.Value
-                      // Activa y no caducada: es lo que hace que una ventana
-                      // de soporte vencida corte el acceso en la siguiente
-                      // petición, sin que nadie tenga que revocarla a mano
-                      // (ver DelegacionTenant.EstaVigente).
-                      && delegacion.Activa
-                      && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
-                      && delegacion.TenantClienteId == tenantSeleccionado
-                select delegacion.Id)
-                .AnyAsync(contexto.RequestAborted);
+            // Dos caminos porque conviven dos mecanismos: la vía nueva (una
+            // AsignacionOperacion en el token) y la heredada, que es la del
+            // acceso de soporte hasta su propia fase. Conmutar el middleware
+            // entero a la vía nueva habría dejado al soporte sin acceso durante
+            // toda la transición.
+            var sigueAutorizado = usuarioId is not null && (
+                clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is { } asignacionOperacionId
+                    ? await SigueAutorizadoPorAsignacionAsync(
+                        operacionesContext, usuarioId.Value, tenantSeleccionado, asignacionOperacionId, contexto.RequestAborted)
+                    : await SigueAutorizadoPorDelegacionAsync(
+                        dbContext, usuarioId.Value, tenantSeleccionado, contexto.RequestAborted));
 
             if (!sigueAutorizado)
             {
@@ -83,6 +84,64 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
 
         await siguiente(contexto);
     }
+
+    /// <summary>
+    /// Vía nueva. Comprueba tres cosas, y las tres hacen falta:
+    /// <list type="number">
+    /// <item>la <b>coherencia</b> entre los dos campos del token — la operación
+    /// referenciada tiene que pertenecer al tenant que el token dice, o un
+    /// token con un tenant de aquí y una operación de allá abriría un contexto
+    /// que nadie autorizó;</item>
+    /// <item>que la <b>operación</b> siga vigente;</item>
+    /// <item>que el <b>usuario</b> tenga cartera vigente bajo ella. Sin esto,
+    /// retirar a un usuario de la cartera no le cortaría el acceso hasta que
+    /// caducara su token — hasta 8 horas después. Es exactamente el agujero que
+    /// esta revalidación cerró en su día, y comprobar solo la operación lo
+    /// habría reabierto.</item>
+    /// </list>
+    /// </summary>
+    private static async Task<bool> SigueAutorizadoPorAsignacionAsync(
+        IOperacionesQueryContext operacionesContext,
+        Guid usuarioId, Guid tenantSeleccionado, Guid asignacionOperacionId, CancellationToken cancellationToken)
+    {
+        var ahora = DateTime.UtcNow;
+
+        return await (
+            from cartera in operacionesContext.AsignacionesCartera
+            join operacion in operacionesContext.AsignacionesOperacion
+                on cartera.AsignacionOperacionId equals operacion.Id
+            where cartera.AsignacionOperacionId == asignacionOperacionId
+                  && cartera.UsuarioId == usuarioId
+                  && cartera.Estado == EstadoAsignacion.Vigente
+                  && cartera.VigenciaDesde <= ahora
+                  && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
+                  && operacion.PropietarioTenantId == tenantSeleccionado
+                  && operacion.Estado == EstadoAsignacion.Vigente
+                  && operacion.VigenciaDesde <= ahora
+                  && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+            select cartera.Id)
+            .AnyAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Vía heredada, la del acceso de soporte. Se conserva intacta: su
+    /// reclasificación al plano de privilegio de plataforma es una fase
+    /// posterior, y tocarla aquí habría mezclado dos migraciones.
+    /// </summary>
+    private static Task<bool> SigueAutorizadoPorDelegacionAsync(
+        ITenantsQueryContext dbContext, Guid usuarioId, Guid tenantSeleccionado, CancellationToken cancellationToken) =>
+        (from asignacion in dbContext.AsignacionesOperadorDelegado
+         join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
+         where asignacion.UsuarioId == usuarioId
+               // Activa y no caducada: es lo que hace que una ventana
+               // de soporte vencida corte el acceso en la siguiente
+               // petición, sin que nadie tenga que revocarla a mano
+               // (ver DelegacionTenant.EstaVigente).
+               && delegacion.Activa
+               && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
+               && delegacion.TenantClienteId == tenantSeleccionado
+         select delegacion.Id)
+        .AnyAsync(cancellationToken);
 }
 
 public static class RevalidacionClienteActivoMiddlewareExtensions

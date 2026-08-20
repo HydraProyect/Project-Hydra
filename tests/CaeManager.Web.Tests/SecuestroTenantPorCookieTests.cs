@@ -68,7 +68,7 @@ public class SecuestroTenantPorCookieTests
         // apuntar a otro. La manipulación debe invalidar el valor entero, no
         // degradar a "confío en lo que ponga".
         var protector = ProtectorDePruebas();
-        var tokenLegitimo = ClienteActivoSeleccionado.Proteger(protector, UsuarioAtacante, TenantAtacante);
+        var tokenLegitimo = ClienteActivoSeleccionado.Proteger(protector, UsuarioAtacante, TenantAtacante, null);
         var tokenManipulado = tokenLegitimo[..^4] + "AAAA";
 
         var tenantActual = CrearTenantActual(
@@ -83,7 +83,7 @@ public class SecuestroTenantPorCookieTests
         // El token va ligado al usuario para el que se emitió: copiarlo a la
         // sesión de otro no debe transferirle el acceso al workspace.
         var protector = ProtectorDePruebas();
-        var tokenDeOtro = ClienteActivoSeleccionado.Proteger(protector, UsuarioLegitimo, TenantVictima);
+        var tokenDeOtro = ClienteActivoSeleccionado.Proteger(protector, UsuarioLegitimo, TenantVictima, null);
 
         var tenantActual = CrearTenantActual(
             ContextoCon(UsuarioAtacante, TenantAtacante, tokenDeOtro), protector);
@@ -98,7 +98,7 @@ public class SecuestroTenantPorCookieTests
         // Un atacante que fabricara su propio token con Data Protection no
         // consigue nada: sin las claves del sistema, no descifra aquí.
         var tokenAjeno = ClienteActivoSeleccionado.Proteger(
-            DataProtectionProvider.Create("llavero-del-atacante"), UsuarioAtacante, TenantVictima);
+            DataProtectionProvider.Create("llavero-del-atacante"), UsuarioAtacante, TenantVictima, null);
 
         var tenantActual = CrearTenantActual(
             ContextoCon(UsuarioAtacante, TenantAtacante, tokenAjeno), ProtectorDePruebas());
@@ -112,7 +112,7 @@ public class SecuestroTenantPorCookieTests
         // Fallo cerrado: la selección puede cambiar el tenant de un usuario ya
         // autenticado, nunca crear un contexto donde no había ninguno.
         var protector = ProtectorDePruebas();
-        var tokenValido = ClienteActivoSeleccionado.Proteger(protector, UsuarioAtacante, TenantVictima);
+        var tokenValido = ClienteActivoSeleccionado.Proteger(protector, UsuarioAtacante, TenantVictima, null);
 
         var httpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity()) };
         httpContext.Request.Headers.Cookie = $"{ClienteActivoSeleccionado.NombreCookie}={tokenValido}";
@@ -127,7 +127,7 @@ public class SecuestroTenantPorCookieTests
         // emitido por el endpoint (que sí validó la delegación contra base de
         // datos) debe seguir seleccionando el Delegated Workspace.
         var protector = ProtectorDePruebas();
-        var tokenValido = ClienteActivoSeleccionado.Proteger(protector, UsuarioAtacante, TenantVictima);
+        var tokenValido = ClienteActivoSeleccionado.Proteger(protector, UsuarioAtacante, TenantVictima, null);
 
         var tenantActual = CrearTenantActual(
             ContextoCon(UsuarioAtacante, TenantAtacante, tokenValido), protector);

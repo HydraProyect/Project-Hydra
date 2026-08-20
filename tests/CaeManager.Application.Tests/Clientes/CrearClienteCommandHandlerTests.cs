@@ -1,4 +1,5 @@
 using CaeManager.Application.Clientes.Commands.CrearCliente;
+using CaeManager.Application.Tests.Operaciones;
 using CaeManager.Domain.Clientes;
 using FluentAssertions;
 using Xunit;
@@ -15,7 +16,7 @@ public class CrearClienteCommandHandlerTests
     {
         var repositorio = new ClienteRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso());
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso());
 
         var resultado = await handler.Handle(
             new CrearClienteCommand("Cadena Industrial Iberia S.A.", CifValido, true, "Notas"), CancellationToken.None);
@@ -31,7 +32,7 @@ public class CrearClienteCommandHandlerTests
         var repositorio = new ClienteRepositorioFalso();
         repositorio.Agregar(new Cliente("RENDELSUR", CifValido, false));
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso());
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso());
 
         var resultado = await handler.Handle(new CrearClienteCommand("RENDELSUR", OtroCifValido, false, null), CancellationToken.None);
 
@@ -46,7 +47,7 @@ public class CrearClienteCommandHandlerTests
         var repositorio = new ClienteRepositorioFalso();
         repositorio.Agregar(new Cliente("RENDELSUR", CifValido, false));
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso());
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso());
 
         var resultado = await handler.Handle(new CrearClienteCommand("Otra razón social", CifValido, false, null), CancellationToken.None);
 
@@ -61,7 +62,7 @@ public class CrearClienteCommandHandlerTests
         var repositorio = new ClienteRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var gestorId = Guid.NewGuid();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(gestorId, "GestorCae"));
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(gestorId, "GestorCae"), new AsignacionesOperativasWriterFalso());
 
         var resultado = await handler.Handle(new CrearClienteCommand("RENDELSUR", CifValido, false, null), CancellationToken.None);
 
@@ -75,7 +76,7 @@ public class CrearClienteCommandHandlerTests
         var repositorio = new ClienteRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var administradorId = Guid.NewGuid();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(administradorId, "Administrador"));
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(administradorId, "Administrador"), new AsignacionesOperativasWriterFalso());
 
         var resultado = await handler.Handle(new CrearClienteCommand("RENDELSUR", CifValido, false, null), CancellationToken.None);
 

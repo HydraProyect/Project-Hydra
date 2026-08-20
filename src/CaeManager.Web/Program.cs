@@ -495,6 +495,13 @@ using (var scope = app.Services.CreateScope())
     // anteriores. Aprovisionar no concede acceso: abrirlo exige motivo y
     // ventana (ver DelegacionesSoporteSeeder).
     await DelegacionesSoporteSeeder.SeedAsync(dbContext, app.Configuration, logger);
+
+    // Después de todo lo anterior: traslada el reparto de responsabilidad
+    // operativa (delegaciones comerciales y ejecutivos de cliente) a las tablas
+    // de asignación, incluyendo los tenants que se acaben de sembrar. Es
+    // idempotente y reconciliador, así que se ejecuta en cada arranque hasta
+    // que la doble escritura quede establecida (F1 del plan de migración).
+    await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContext, logger);
 }
 
 // Registrado antes del manejo de excepciones para envolverlo por completo:

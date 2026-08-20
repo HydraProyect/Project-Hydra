@@ -2,6 +2,7 @@ using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDelegado;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Operaciones;
 using CaeManager.Domain.Tenants;
 using FluentAssertions;
 using Xunit;
@@ -28,7 +29,7 @@ public class RevocacionDelegacionTests
     {
         var (delegacion, repositorio, unitOfWork) = Preparar();
         var handler = new DesactivarDelegacionTenantCommandHandler(
-            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Consultora), unitOfWork);
+            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Consultora), new AsignacionesOperativasWriterFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
@@ -43,7 +44,7 @@ public class RevocacionDelegacionTests
         // poder cortar sin depender de la buena voluntad de quien los trata.
         var (delegacion, repositorio, unitOfWork) = Preparar();
         var handler = new DesactivarDelegacionTenantCommandHandler(
-            repositorio, new CurrentUserServiceFalso(tenantOrigenId: ClienteDelegante), unitOfWork);
+            repositorio, new CurrentUserServiceFalso(tenantOrigenId: ClienteDelegante), new AsignacionesOperativasWriterFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
@@ -56,7 +57,7 @@ public class RevocacionDelegacionTests
     {
         var (delegacion, repositorio, unitOfWork) = Preparar();
         var handler = new DesactivarDelegacionTenantCommandHandler(
-            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Guid.NewGuid()), unitOfWork);
+            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Guid.NewGuid()), new AsignacionesOperativasWriterFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
@@ -76,7 +77,7 @@ public class RevocacionDelegacionTests
         // (ADR-004 § 6): fuera de un circuito autenticado no hay origen.
         var (delegacion, repositorio, unitOfWork) = Preparar();
         var handler = new DesactivarDelegacionTenantCommandHandler(
-            repositorio, new CurrentUserServiceFalso(), unitOfWork);
+            repositorio, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
@@ -90,7 +91,7 @@ public class RevocacionDelegacionTests
         var (delegacion, repositorio, unitOfWork) = Preparar();
         delegacion.Desactivar();
         var handler = new DesactivarDelegacionTenantCommandHandler(
-            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Consultora), unitOfWork);
+            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Consultora), new AsignacionesOperativasWriterFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
@@ -104,7 +105,7 @@ public class RevocacionDelegacionTests
         var (delegacion, repositorio, unitOfWork) = Preparar();
         delegacion.Desactivar();
         var handler = new ReactivarDelegacionTenantCommandHandler(
-            repositorio, new CurrentUserServiceFalso(tenantOrigenId: ClienteDelegante), unitOfWork);
+            repositorio, new CurrentUserServiceFalso(tenantOrigenId: ClienteDelegante), new AsignacionesOperativasWriterFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
@@ -122,7 +123,7 @@ public class RevocacionDelegacionTests
 
         var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
             asignacionRepositorio, delegacionRepositorio,
-            new CurrentUserServiceFalso(tenantOrigenId: Consultora), unitOfWork);
+            new CurrentUserServiceFalso(tenantOrigenId: Consultora), new AsignacionesOperativasWriterFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
@@ -142,7 +143,7 @@ public class RevocacionDelegacionTests
 
         var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
             asignacionRepositorio, delegacionRepositorio,
-            new CurrentUserServiceFalso(tenantOrigenId: Guid.NewGuid()), unitOfWork);
+            new CurrentUserServiceFalso(tenantOrigenId: Guid.NewGuid()), new AsignacionesOperativasWriterFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);

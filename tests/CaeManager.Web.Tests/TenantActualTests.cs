@@ -89,5 +89,6 @@ public class TenantActualTests
     private sealed class ClienteActivoSeleccionadoFalso : IClienteActivoSeleccionado
     {
         public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
     }
 }

@@ -134,9 +134,14 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
     }
 
-    private sealed class ClienteActivoSeleccionadoFalso(Guid? tenantId) : IClienteActivoSeleccionado
+    private sealed class ClienteActivoSeleccionadoFalso(Guid? tenantId, Guid? asignacionOperacionId = null)
+        : IClienteActivoSeleccionado
     {
         public Guid? TenantIdSeleccionado => tenantId;
+
+        // null = vía heredada, que es la que estos tests ejercitan: el rol
+        // efectivo resuelto contra DelegacionTenant/AsignacionOperadorDelegado.
+        public Guid? AsignacionOperacionIdSeleccionada => asignacionOperacionId;
     }
 
     private sealed class AuthenticationStateProviderFalso(ClaimsPrincipal usuario) : AuthenticationStateProvider

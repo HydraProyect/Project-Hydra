@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.DataProtection;
@@ -30,6 +32,7 @@ public static class ClienteActivoEndpoints
         endpoints.MapPost("/cuenta/cliente-activo", async (
             [FromForm] Guid tenantId, [FromForm] string? returnUrl, HttpContext httpContext,
             ITenantsQueryContext dbContext, ICurrentUserService currentUserService,
+            IOperacionesQueryContext operacionesContext,
             IDataProtectionProvider dataProtectionProvider,
             CancellationToken cancellationToken) =>
         {
@@ -39,9 +42,38 @@ public static class ClienteActivoEndpoints
             if (usuarioId is null || tenantOrigenId is null)
                 return Results.Unauthorized();
 
+            var ahora = DateTime.UtcNow;
+
+            // La operación por la que este usuario puede abrir ese workspace.
+            // Se resuelve exigiendo cartera vigente, así que encontrarla ya es
+            // autorización suficiente por sí sola — no es un dato decorativo
+            // que se añada al token después de autorizar por otra vía.
+            //
+            // Se excluye la raíz: es el fallback del propietario sobre sí
+            // mismo, no un workspace que se seleccione. La entrada del tenant
+            // propio sale del claim de sesión, como siempre.
+            var asignacionOperacionId = await (
+                from cartera in operacionesContext.AsignacionesCartera
+                join operacion in operacionesContext.AsignacionesOperacion
+                    on cartera.AsignacionOperacionId equals operacion.Id
+                where cartera.UsuarioId == usuarioId.Value
+                      && cartera.Estado == EstadoAsignacion.Vigente
+                      && cartera.VigenciaDesde <= ahora
+                      && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
+                      && !operacion.EsRaiz
+                      && operacion.PropietarioTenantId == tenantId
+                      && operacion.OperadorTenantId == tenantOrigenId.Value
+                      && operacion.Estado == EstadoAsignacion.Vigente
+                      && operacion.VigenciaDesde <= ahora
+                      && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+                select (Guid?)operacion.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
             // El tenant de origen del usuario siempre está autorizado sobre
             // sí mismo — mismo criterio que ObtenerClientesAutorizadosQuery.
-            var autorizado = tenantId == tenantOrigenId.Value || await (
+            // La vía heredada se conserva porque es la del acceso de soporte,
+            // que todavía no tiene operación propia.
+            var autorizado = tenantId == tenantOrigenId.Value || asignacionOperacionId is not null || await (
                 from asignacion in dbContext.AsignacionesOperadorDelegado
                 join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
                 // Activa y no caducada — ver DelegacionTenant.EstaVigente.
@@ -68,7 +100,8 @@ public static class ClienteActivoEndpoints
                 // sellado criptográfico es lo que hace que siga valiendo al
                 // leer. Sin él, la comprobación de arriba era trivialmente
                 // esquivable escribiendo la cookie a mano (C-1).
-                var token = ClienteActivoSeleccionado.Proteger(dataProtectionProvider, usuarioId.Value, tenantId);
+                var token = ClienteActivoSeleccionado.Proteger(
+                    dataProtectionProvider, usuarioId.Value, tenantId, asignacionOperacionId);
 
                 httpContext.Response.Cookies.Append(ClienteActivoSeleccionado.NombreCookie, token, new CookieOptions
                 {

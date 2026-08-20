@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Notificaciones;
 using MediatR;
@@ -23,7 +24,8 @@ public class ReasignarEjecutivoClienteCommandHandler(
     IConfiguracionIaDocumentoClienteRepository configuracionIaRepositorio,
     INotificacionUsuarioRepository notificacionRepositorio,
     IUnitOfWork unitOfWork,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService,
+    IAsignacionesOperativasWriter asignacionesWriter)
     : IRequestHandler<ReasignarEjecutivoClienteCommand, Result>
 {
     // Application no puede referenciar Infrastructure.Identity.Roles — mismo motivo que en AutorizacionEscrituraBehavior.
@@ -67,6 +69,12 @@ public class ReasignarEjecutivoClienteCommandHandler(
                     urlAccion: $"/clientes/{cliente.Id}/lectura-ia",
                     textoAccion: "Gestionar"));
         }
+
+        // Doble escritura: la cartera nueva entra en el mismo SaveChanges que
+        // la proyección Cliente.EjecutivoUsuarioId, así que o se guardan las
+        // dos o ninguna. La proyección sigue siendo la autoritativa durante F1.
+        await asignacionesWriter.ReasignarCarteraClienteAsync(
+            cliente.Id, request.NuevoEjecutivoUsuarioId, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();

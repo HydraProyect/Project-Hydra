@@ -46,6 +46,9 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
         public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(
             IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+
+        public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<Guid?>(null);
     }
     private Guid _tenantConsultora;
     private Guid _tenantCliente;

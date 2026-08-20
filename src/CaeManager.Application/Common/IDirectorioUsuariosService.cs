@@ -30,4 +30,17 @@ public interface IDirectorioUsuariosService
     /// </summary>
     Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(
         IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// El tenant al que pertenece un usuario, o <c>null</c> si no existe.
+    ///
+    /// Existe para poder imponer el invariante de la cadena de autorización —
+    /// el usuario de una cartera pertenece al tenant que opera — que
+    /// <see cref="EsVisibleEnTenantActualAsync"/> <b>no</b> puede imponer:
+    /// ese predicado da por buenos también a los usuarios del tenant
+    /// propietario, así que aceptaría como operador delegado a alguien de la
+    /// casa. Concederle entonces una cartera externa le daría, dentro de su
+    /// PROPIO workspace, el alcance de esa cartera.
+    /// </summary>
+    Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default);
 }

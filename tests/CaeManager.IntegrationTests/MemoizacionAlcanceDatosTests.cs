@@ -1,6 +1,7 @@
 ﻿using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -55,7 +56,7 @@ public class MemoizacionAlcanceDatosTests : IAsyncLifetime
         // null es "sin restricción" y no debe confundirse nunca con "todavía
         // sin resolver": esa confusión sería un caché que abre el alcance.
         await using var contexto = CrearContexto();
-        var servicio = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"));
+        var servicio = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"), new TenantActualAmbiental { TenantId = _tenant });
 
         for (var intento = 0; intento < 2; intento++)
         {
@@ -74,7 +75,7 @@ public class MemoizacionAlcanceDatosTests : IAsyncLifetime
         // El caso que más importa: [] es "no ve nada". Si el caché lo
         // devolviera como null, ese usuario pasaría a verlo todo.
         await using var contexto = CrearContexto();
-        var servicio = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"));
+        var servicio = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae", tenantOrigenId: _tenant), new TenantActualAmbiental { TenantId = _tenant });
 
         for (var intento = 0; intento < 2; intento++)
         {
@@ -93,11 +94,24 @@ public class MemoizacionAlcanceDatosTests : IAsyncLifetime
         await using var contextoAsignacion = CrearContexto();
         var cliente = await contextoAsignacion.Clientes.FirstAsync(c => c.Id == _clienteId);
         var usuarioId = Guid.NewGuid();
+
+        // Las dos escrituras que hace el sistema al asignar cartera: la
+        // proyección de compatibilidad y la asignación real, que es de donde
+        // el alcance lee desde la conmutación de autorización (F1). Escribir
+        // solo la proyección dejaría al gestor sin alcance, que es
+        // precisamente lo que la doble escritura evita.
         cliente.AsignarEjecutivo(usuarioId);
+
+        var ahora = DateTime.UtcNow;
+        var raiz = AsignacionOperacion.Raiz(_tenant, ServicioCae.Outbound, ahora, ahora);
+        contextoAsignacion.AsignacionesOperacion.Add(raiz);
+        contextoAsignacion.AsignacionesCartera.Add(AsignacionCartera.Interna(
+            raiz, usuarioId, AmbitoAsignacion.DeRelacionCliente(_clienteId), ahora, null, ahora));
+
         await contextoAsignacion.SaveChangesAsync();
 
         await using var contexto = CrearContexto();
-        var servicio = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(usuarioId, "GestorCae"));
+        var servicio = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(usuarioId, "GestorCae", tenantOrigenId: _tenant), new TenantActualAmbiental { TenantId = _tenant });
 
         var clientesPrimera = await servicio.ObtenerClienteIdsVisiblesAsync();
         var centrosPrimera = await servicio.ObtenerCentroIdsVisiblesAsync();
