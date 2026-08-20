@@ -186,6 +186,10 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+// Identidad de AUDITORIA, separada de la de autorizacion (ADR-011 § 8.5): hoy
+// resuelven al mismo usuario, pero solo la primera sera simulable el dia que
+// exista la impersonacion.
+builder.Services.AddScoped<IActorAuditoria, ActorAuditoriaDesdeSesion>();
 builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.ClienteActivoSeleccionado>();
 builder.Services.AddScoped<CaeManager.Application.Tenants.IVistaVocabularioPreviewService, CaeManager.Web.Services.VistaVocabularioPreviewCookie>();
 builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>();

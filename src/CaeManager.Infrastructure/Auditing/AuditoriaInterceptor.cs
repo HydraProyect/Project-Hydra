@@ -17,7 +17,7 @@ namespace CaeManager.Infrastructure.Auditing;
 /// CredencialAccesoEmpresa y CredencialAccesoSubcontrata: nunca deben quedar
 /// en texto plano en el historial (ver DATABASE.md).
 /// </summary>
-public class AuditoriaInterceptor(ICurrentUserService currentUserService) : SaveChangesInterceptor
+public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
     private static readonly Dictionary<Type, HashSet<string>> PropiedadesSensiblesPorTipo = new()
     {
@@ -33,8 +33,8 @@ public class AuditoriaInterceptor(ICurrentUserService currentUserService) : Save
     {
         if (eventData.Context is DbContext context)
         {
-            var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
-            var registros = ConstruirRegistros(context, usuarioId);
+            var actor = await actorAuditoria.ObtenerAsync();
+            var registros = ConstruirRegistros(context, actor);
 
             if (registros.Count > 0)
                 context.Set<RegistroAuditoria>().AddRange(registros);
@@ -55,6 +55,12 @@ public class AuditoriaInterceptor(ICurrentUserService currentUserService) : Save
     /// los claims están cacheados) y si no, se audita sin autoría — un
     /// registro sin usuario es mejor que ningún registro, y es lo mismo que
     /// ya ocurre con los jobs de fondo.
+    ///
+    /// Lo que sí cambió: ese registro sin autoría se marca ahora con vía
+    /// <c>Desconocida</c> en vez de pasar por un acceso normal anónimo. La
+    /// diferencia importa cuando exista la impersonación — ADR-011 § 8.5
+    /// exige que una sesión privilegiada no pueda auditarse sin actor, y para
+    /// prohibirlo primero hay que poder distinguir "no lo sé" de "fue normal".
     /// </summary>
     public override InterceptionResult<int> SavingChanges(
         DbContextEventData eventData,
@@ -62,9 +68,8 @@ public class AuditoriaInterceptor(ICurrentUserService currentUserService) : Save
     {
         if (eventData.Context is DbContext context)
         {
-            var tareaUsuario = currentUserService.ObtenerUsuarioActualIdAsync();
-            var usuarioId = tareaUsuario.IsCompletedSuccessfully ? tareaUsuario.Result : null;
-            var registros = ConstruirRegistros(context, usuarioId);
+            var actor = actorAuditoria.ObtenerSiYaEstaResuelto() ?? ActorAuditoria.SinResolver;
+            var registros = ConstruirRegistros(context, actor);
 
             if (registros.Count > 0)
                 context.Set<RegistroAuditoria>().AddRange(registros);
@@ -73,9 +78,10 @@ public class AuditoriaInterceptor(ICurrentUserService currentUserService) : Save
         return base.SavingChanges(eventData, result);
     }
 
-    private static List<RegistroAuditoria> ConstruirRegistros(DbContext context, Guid? usuarioId)
+    private static List<RegistroAuditoria> ConstruirRegistros(DbContext context, ActorAuditoria actor)
     {
         var registros = new List<RegistroAuditoria>();
+        var via = (TipoViaAccesoAuditoria)actor.Via;
 
         foreach (var entrada in context.ChangeTracker.Entries())
         {
@@ -102,11 +108,27 @@ public class AuditoriaInterceptor(ICurrentUserService currentUserService) : Save
                 : null;
 
             registros.Add(new RegistroAuditoria(
-                entrada.Entity.GetType().Name, entidadId, accion, datosAntes, datosDespues, usuarioId));
+                entrada.Entity.GetType().Name, entidadId, accion, datosAntes, datosDespues,
+                actor.UsuarioSimuladoId ?? actor.ActorRealUsuarioId,
+                actor.ActorRealUsuarioId, via, actor.ViaAccesoId));
         }
 
         return registros;
     }
+
+    // DEUDA CONOCIDA, no olvido: los actos sobre los catálogos globales de
+    // asignación operativa (Domain.Operaciones) se auditan aquí contra el
+    // tenant que ITenantActual tenga resuelto, que en cuatro de los cinco
+    // caminos NO es el del propietario de los datos — crear o revocar una
+    // delegación se hace desde el tenant de la consultora o el de plataforma.
+    // El resultado es que el cliente cuyo reparto se está tocando no ve el
+    // acto en su propia auditoría, y ADR-011 § 5 dice que debería.
+    //
+    // No se arregla excluyéndolos de aquí: eso solo quita la fila del sitio
+    // equivocado y deja el hueco igual. Hace falta escribirla contra el tenant
+    // propietario con su propio ámbito explícito, y eso es un SaveChanges
+    // aparte — el patrón de RegistroActividadSoporte. Va en su propio cambio,
+    // con la pérdida de transaccionalidad que implica decidida a la vista.
 
     private static string SerializarValores(
         IEnumerable<PropertyEntry> propiedades, HashSet<string>? propiedadesSensibles, bool usarValorOriginal)
