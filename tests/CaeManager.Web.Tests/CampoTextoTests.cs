@@ -108,13 +108,25 @@ public class CampoTextoTests : BunitContext
     /// antigua (cuyo Task.Delay ya estaba en curso) se aplicara *después*
     /// del settle de una pulsación más reciente y pisara el valor completo
     /// con uno más corto. Cancel() en ManejarCambioAsync es síncrono y se
-    /// ejecuta antes de crear el CTS de la pulsación siguiente, así que el
-    /// Task.Delay de toda pulsación salvo la última se cancela antes de
-    /// poder resolverse — no hay ventana para que un valor viejo gane. Este
-    /// test dispara 195 pulsaciones reales y solapadas (sin esperar a que
-    /// cada una notifique) y comprueba que ninguna notificación intermedia
-    /// llega recortada y que la única notificación final es la cadena
-    /// completa.
+    /// ejecuta antes de crear el CTS de la pulsación siguiente, y la
+    /// notificación lee _ultimoValor en el momento de vencer el debounce
+    /// (no el valor capturado al pulsar la tecla), así que no hay ventana
+    /// para que un valor viejo gane. Este test dispara 195 pulsaciones
+    /// reales y solapadas (sin esperar a que cada una notifique) y
+    /// comprueba esa invariante.
+    ///
+    /// Las aserciones son deliberadamente independientes del reloj. La
+    /// versión anterior exigía que NINGUNA notificación intermedia llegase
+    /// durante la ráfaga, lo que asume que cada Task.Delay(5) tarda 5ms:
+    /// basta con que una sola de esas 195 esperas se estire por encima de
+    /// los 300ms del debounce (JIT del primer render, arranque del thread
+    /// pool, GC en un runner con contención) para que el debounce venza
+    /// legítimamente a mitad de ráfaga y el test falle sin que el
+    /// componente haya hecho nada mal — falló así en CI notificando "A", el
+    /// primer carácter, es decir en la primera iteración. La invariante que
+    /// sí importa se cumple con cualquier reparto de tiempos: toda
+    /// notificación es un prefijo de lo tecleado, ninguna retrocede
+    /// respecto a la anterior, y la última es la cadena completa.
     /// </summary>
     [Fact]
     public async Task Rafaga_de_pulsaciones_sin_esperar_el_debounce_no_pierde_los_ultimos_caracteres()
@@ -139,10 +151,37 @@ public class CampoTextoTests : BunitContext
             await Task.Delay(5);
         }
 
+        // Cada InputAsync devuelve la tarea del propio manejador, así que
+        // esto espera al Task.Delay(300) de la última pulsación y a su
+        // notificación — la notificación final ya está en la lista aquí, sin
+        // depender de cuánto haya tardado la ráfaga.
         await Task.WhenAll(tareas);
 
-        valoresRecibidos.Should().OnlyContain(v => v == textoCompleto,
-            "ninguna notificación (ni siquiera una intermedia) debería llegar con menos caracteres que los ya tecleados en ese momento");
-        valoresRecibidos.Should().ContainSingle().Which.Should().Be(textoCompleto);
+        valoresRecibidos.Should().NotBeEmpty("la última pulsación siempre acaba notificando");
+
+        valoresRecibidos.Should().OnlyContain(v => v.Length > 0 && textoCompleto.StartsWith(v, StringComparison.Ordinal),
+            "toda notificación debe ser un prefijo de lo tecleado, nunca un valor recortado por el medio o corrompido");
+
+        // El núcleo del reporte de campo: una notificación no puede llegar
+        // con menos caracteres que otra anterior. Si el settle de una
+        // pulsación vieja pudiera aplicarse después del de una más reciente,
+        // la longitud retrocedería justo aquí. No importa cuántas
+        // notificaciones intermedias haya provocado el reloj del runner.
+        valoresRecibidos.Select(v => v.Length).Should().BeInAscendingOrder(
+            "ninguna notificación puede pisar a una anterior con un valor más corto");
+
+        valoresRecibidos[^1].Should().Be(textoCompleto,
+            "la escritura sostenida no puede perder los últimos caracteres");
+
+        // Tolerancia explícita en vez de "exactamente una": lo normal es que
+        // una ráfaga de ~975ms con debounce de 300ms notifique una sola vez,
+        // pero cada espera de 5ms que un runner cargado estire por encima de
+        // 300ms añade una notificación intermedia legítima. El umbral (una
+        // notificación por cada diez pulsaciones) sigue detectando la
+        // regresión que importa —que el debounce desaparezca y se notifique
+        // tecla a tecla— y haría falta que veinte esperas distintas se
+        // pasaran de 300ms para que fallara por jitter.
+        valoresRecibidos.Count.Should().BeLessThan(textoCompleto.Length / 10,
+            "el debounce debe seguir colapsando la ráfaga, no notificar tecla a tecla");
     }
 }
