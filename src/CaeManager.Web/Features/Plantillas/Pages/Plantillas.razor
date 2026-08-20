@@ -21,7 +21,7 @@
         rellenarse automáticamente con los datos ya conocidos de cada Trabajador o Empresa.
     </p>
 
-    <Pestanas Definiciones="PestanasConContador" PestanaActiva="_pestanaActiva" PestanaActivaChanged="p => _pestanaActiva = p" EtiquetaGrupo="Plantillas">
+    <Pestanas Definiciones="PestanasConContador" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="p => _pestanaActiva = p" EtiquetaGrupo="Plantillas">
         @if (_pestanaActiva == "catalogo")
         {
             @if (_errorCarga)
