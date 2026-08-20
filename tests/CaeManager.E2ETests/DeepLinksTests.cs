@@ -67,8 +67,14 @@ public class DeepLinksTests(WebAppFixture fixture)
         // Trabajador 360, ver TrabajadorDetalle.razor) en vez de los 20 de
         // cada fila de la lista.
         await Expect(page.Locator(".menu-acciones-disparador")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 60_000 });
-        await page.Locator(".menu-acciones-disparador").ClickAsync();
-        await page.Locator(".menu-acciones-panel").GetByText("Editar", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+        // Esa cuenta confirma que el DOM ya es el de Trabajador 360, pero NO
+        // que el componente sea interactivo: el botón llega con el
+        // prerenderizado estático de @rendermode InteractiveServer y un clic
+        // dado en esa ventana se pierde en silencio. AbrirMenuAccionesAsync
+        // espera a aria-expanded antes de dar el menú por abierto — ver su
+        // documentación en Ayudas.
+        var menuTrabajador = await Ayudas.AbrirMenuAccionesAsync(page.Locator(".menu-acciones-disparador"));
+        await menuTrabajador.GetByText("Editar", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
         await page.Locator(".workspace-titulo-entidad").WaitForAsync();
         var tituloOriginal = (await page.Locator(".workspace-titulo-entidad").TextContentAsync())!.Trim();
 
@@ -135,8 +141,8 @@ public class DeepLinksTests(WebAppFixture fixture)
 
         // Documentos abre el panel desde el menú "⋯" de la fila (MenuAcciones),
         // no de un enlace directo como Trabajadores/Centros.
-        await page.Locator(".menu-acciones-disparador").First.ClickAsync();
-        await page.Locator(".menu-acciones-panel").GetByText("Ver", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+        var menuDocumento = await Ayudas.AbrirMenuAccionesAsync(page.Locator(".menu-acciones-disparador").First);
+        await menuDocumento.GetByText("Ver", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
 
         await page.Locator(".workspace-titulo-entidad").WaitForAsync();
         var tituloOriginal = (await page.Locator(".workspace-titulo-entidad").TextContentAsync())!.Trim();
