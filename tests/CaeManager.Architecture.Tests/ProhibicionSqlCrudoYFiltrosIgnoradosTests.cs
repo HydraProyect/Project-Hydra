@@ -84,7 +84,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // la variable de sesión de Postgres app.tenant_id en cada apertura de
         // conexión con un comando parametrizado (set_config(...)), no SQL
         // interpolado — es el mecanismo en sí, no un atajo alrededor de EF.
-        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = connection.CreateCommand();")] = 1,
+        //
+        // Sube de 1 a 3 con el enforcement de solo lectura del plano 3
+        // (ADR-011 § 4bis.7.4): los otros dos son el SET ROLE al rol
+        // cae_app_soporte cuando la petición viene por una sesión privilegiada,
+        // y su RESET ROLE al cerrar. Los tres son sentencias fijas del código
+        // sobre la sesión de Postgres — no consultan ni modifican datos, y
+        // ninguna concatena valores de entrada. Es lo contrario de lo que este
+        // ratchet vigila: no rodean a EF, configuran la conexión por debajo para
+        // que EF quede MÁS restringido, no menos.
+        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = connection.CreateCommand();")] = 3,
 
         // Elección de líder entre réplicas con pg_try_advisory_lock/
         // pg_advisory_unlock: no existe equivalente en EF Core, así que va
