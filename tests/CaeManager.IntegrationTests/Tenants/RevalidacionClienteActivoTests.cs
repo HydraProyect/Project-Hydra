@@ -1,6 +1,7 @@
 ﻿using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -142,9 +143,19 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
 
         await middleware.InvokeAsync(
             httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
-            dbContext: null!, operacionesContext: null!);
+            dbContext: null!, operacionesContext: null!, SinSesionPrivilegiada);
 
         siguienteFueLlamado.Should().BeTrue();
+    }
+
+    // Estos tests son de plano 2 y de la vía heredada: ninguno abre una sesión
+    // privilegiada, así que el resolutor de plano 3 devuelve null sin consultar.
+    private static readonly ISesionPrivilegiadaActual SinSesionPrivilegiada = new SesionPrivilegiadaActualFalsa();
+
+    private sealed class SesionPrivilegiadaActualFalsa : ISesionPrivilegiadaActual
+    {
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
     }
 
     private async Task RevocarDelegacionAsync()
@@ -178,7 +189,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         // mismo DbContext, que implementa las dos interfaces.
         await middleware.InvokeAsync(
             httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
-            contexto, (IOperacionesQueryContext)contexto);
+            contexto, (IOperacionesQueryContext)contexto, SinSesionPrivilegiada);
     }
 
     private static string? CabeceraDeBorradoDeCookie(DefaultHttpContext httpContext) =>

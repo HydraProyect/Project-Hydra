@@ -60,6 +60,21 @@ public class CurrentUserService(
         var usuario = await ObtenerUsuarioAsync();
         var rolDeSesion = usuario?.FindFirst(ClaimTypes.Role)?.Value;
 
+        // Una sesión privilegiada de plataforma no tiene rol de negocio, y
+        // decirlo aquí explícitamente es justamente el punto (ADR-011 § 4bis.3):
+        // las tres capas de autorización son distintas, y un técnico de soporte
+        // entra por la del privilegio de plataforma sin ser jamás miembro del
+        // workspace que visita — sin rol CAE y sin cartera. Devolver el claim de
+        // su tenant de plataforma le daría dentro del tenant visitado el rol que
+        // tiene en el suyo: el hallazgo N-5 en su versión más grave.
+        //
+        // Se decide con el token, sin consultar la base: negar de más siempre es
+        // seguro, y quien decide si la sesión vale de verdad es
+        // ISesionPrivilegiadaActual, que sí revalida. Aquí basta con saber que
+        // este contexto no es de negocio.
+        if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
+            return null;
+
         // Sin selección no hay delegación en juego: el caso de todo usuario
         // que no es Operador Delegado de nadie, sin ninguna consulta extra.
         if (clienteActivoSeleccionado.TenantIdSeleccionado is not { } tenantSeleccionado)

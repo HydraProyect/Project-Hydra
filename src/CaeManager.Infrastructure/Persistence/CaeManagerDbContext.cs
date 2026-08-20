@@ -81,7 +81,7 @@ public class CaeManagerDbContext(
         IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext,
         ITelemetriaQueryContext, CaeManager.Application.Contactos.IContactosAgendaQueryContext,
         CaeManager.Application.Plantillas.IPlantillasQueryContext, IImportacionQueryContext, IReportesQueryContext,
-        IOperacionesQueryContext
+        IOperacionesQueryContext, CaeManager.Application.Plataforma.IPlataformaQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -229,8 +229,11 @@ public class CaeManagerDbContext(
     public DbSet<AsignacionCartera> AsignacionesCartera => Set<AsignacionCartera>();
     IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
     public DbSet<CaeManager.Domain.Plataforma.ConcesionPrivilegio> ConcesionesPrivilegio => Set<CaeManager.Domain.Plataforma.ConcesionPrivilegio>();
+    IQueryable<CaeManager.Domain.Plataforma.ConcesionPrivilegio> CaeManager.Application.Plataforma.IPlataformaQueryContext.ConcesionesPrivilegio => ConcesionesPrivilegio;
     public DbSet<CaeManager.Domain.Plataforma.SesionPrivilegiada> SesionesPrivilegiadas => Set<CaeManager.Domain.Plataforma.SesionPrivilegiada>();
+    IQueryable<CaeManager.Domain.Plataforma.SesionPrivilegiada> CaeManager.Application.Plataforma.IPlataformaQueryContext.SesionesPrivilegiadas => SesionesPrivilegiadas;
     public DbSet<CaeManager.Domain.Plataforma.TenantAlcanzadoPorConcesion> TenantsAlcanzadosPorConcesion => Set<CaeManager.Domain.Plataforma.TenantAlcanzadoPorConcesion>();
+    IQueryable<CaeManager.Domain.Plataforma.TenantAlcanzadoPorConcesion> CaeManager.Application.Plataforma.IPlataformaQueryContext.TenantsAlcanzadosPorConcesion => TenantsAlcanzadosPorConcesion;
     public DbSet<Incidencia> Incidencias => Set<Incidencia>();
     IQueryable<Incidencia> IIncidenciasQueryContext.Incidencias => Incidencias;
     public DbSet<Conversacion> Conversaciones => Set<Conversacion>();

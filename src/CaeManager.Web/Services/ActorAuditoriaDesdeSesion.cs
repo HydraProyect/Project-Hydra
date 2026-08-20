@@ -48,6 +48,28 @@ public class ActorAuditoriaDesdeSesion(
     {
         if (usuarioId is null) return ActorAuditoria.SinResolver;
 
+        // El plano 3 va primero porque es exclusivo: el token no admite las dos
+        // vías a la vez —ClienteActivoSeleccionado descarta entero uno que
+        // nombre operación y sesión— pero el orden lo deja escrito.
+        //
+        // Se lee del token, no de la base, por el mismo motivo que el resto de
+        // este servicio: se audita en cada SaveChanges. Y no es "confiar en el
+        // token": un acto que llega hasta aquí ya pasó por
+        // RevalidacionClienteActivoMiddleware, que invalida la selección entera
+        // cuando la sesión no vale, y por AutorizacionEscrituraBehavior, que
+        // deniega toda escritura bajo sesión privilegiada revalidándola contra
+        // la base en cada Command.
+        //
+        // El "actuando como" va en null y eso es correcto hoy, no un olvido:
+        // ninguna sesión puede simular a nadie mientras no exista la fase de
+        // impersonación, y con null el interceptor registra como autor al actor
+        // real — lo conservador. Cuando esa fase llegue tendrá que traer el
+        // usuario simulado hasta aquí, y tendrá que hacerlo sin consultar la
+        // base (este servicio corre en cada SaveChanges): el sitio natural es un
+        // quinto campo del token, con la sesión ya revalidada por el middleware.
+        if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is { } sesionId)
+            return new ActorAuditoria(usuarioId, null, TipoViaAcceso.SesionPrivilegiada, sesionId);
+
         // Operar un workspace delegado es una vía distinta de operar el
         // propio, y la auditoría del tenant visitado tiene derecho a
         // distinguirlas: es su dato el que se está tocando.

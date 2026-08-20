@@ -1,3 +1,4 @@
+using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
@@ -237,7 +238,8 @@ public class EsquemaAsignacionesOperativasTests : IAsyncLifetime
         var alcance = new AlcanceDatosService(
             contextoAlcance,
             new CurrentUserServiceFalso(gestorId, Roles.GestorCae, tenantOrigenId: _tenant),
-            new TenantActualAmbiental { TenantId = _tenant });
+            new TenantActualAmbiental { TenantId = _tenant },
+            new SesionPrivilegiadaAusente());
 
         var visibles = await alcance.ObtenerClienteIdsVisiblesAsync();
 
@@ -279,7 +281,8 @@ public class EsquemaAsignacionesOperativasTests : IAsyncLifetime
         var alcance = new AlcanceDatosService(
             contextoAlcance,
             new CurrentUserServiceFalso(gestorId, Roles.GestorCae, tenantOrigenId: _tenant),
-            new TenantActualAmbiental { TenantId = _tenant });
+            new TenantActualAmbiental { TenantId = _tenant },
+            new SesionPrivilegiadaAusente());
 
         (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeEmpty();
     }

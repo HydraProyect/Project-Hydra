@@ -64,7 +64,12 @@ public class ClienteActivoSeleccionado(
     /// propietario a partir del Id de la operación exigiría una consulta que ese
     /// contrato no admite. La coherencia entre los dos campos la comprueba
     /// <see cref="RevalidacionClienteActivoMiddleware"/>.
-    private const string PropositoProtector = "CaeManager.Web.ClienteActivoSeleccionado.v2";
+    ///
+    /// v3: añade un cuarto campo con la sesión privilegiada. Se serializa
+    /// siempre, vacío incluido, para que el parseo siga siendo posicional y no
+    /// dependa de contar separadores. El purpose sube otra vez porque un token
+    /// v2 no se puede reinterpretar sin inventar ese campo.
+    private const string PropositoProtector = "CaeManager.Web.ClienteActivoSeleccionado.v3";
 
     /// <summary>
     /// Vigencia del token en servidor. Coincide con el <c>MaxAge</c> de la
@@ -85,6 +90,7 @@ public class ClienteActivoSeleccionado(
 
     private Guid? _tenantIdSeleccionado;
     private Guid? _asignacionOperacionIdSeleccionada;
+    private Guid? _sesionPrivilegiadaIdSeleccionada;
     private bool _leidoDeCookie;
 
     /// <summary>
@@ -96,13 +102,20 @@ public class ClienteActivoSeleccionado(
     /// <param name="asignacionOperacionId">
     /// La operación por la que se abre el workspace, o <c>null</c> para la vía
     /// heredada (delegación de soporte), que todavía no tiene operación propia.
-    /// Se serializa como Guid vacío para que la carga útil tenga siempre tres
-    /// campos y el parseo no dependa de contar separadores.
+    /// Se serializa como Guid vacío para que la carga útil tenga siempre sus
+    /// cuatro campos y el parseo no dependa de contar separadores.
+    /// </param>
+    /// <param name="sesionPrivilegiadaId">
+    /// La sesión privilegiada por la que se abre el contexto, o <c>null</c> —
+    /// lo normal. Mencionarla en el token <b>no</b> la valida: quien la consume
+    /// revalida contra la base la sesión, su concesión y el alcance.
     /// </param>
     public static string Proteger(
-        IDataProtectionProvider dataProtectionProvider, Guid usuarioId, Guid tenantId, Guid? asignacionOperacionId) =>
+        IDataProtectionProvider dataProtectionProvider, Guid usuarioId, Guid tenantId,
+        Guid? asignacionOperacionId, Guid? sesionPrivilegiadaId = null) =>
         CrearProtector(dataProtectionProvider).Protect(
-            $"{usuarioId:N}|{tenantId:N}|{asignacionOperacionId ?? Guid.Empty:N}", Vigencia);
+            $"{usuarioId:N}|{tenantId:N}|{asignacionOperacionId ?? Guid.Empty:N}|{sesionPrivilegiadaId ?? Guid.Empty:N}",
+            Vigencia);
 
     public Guid? TenantIdSeleccionado
     {
@@ -122,13 +135,24 @@ public class ClienteActivoSeleccionado(
         }
     }
 
+    /// <inheritdoc cref="IClienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada" />
+    public Guid? SesionPrivilegiadaIdSeleccionada
+    {
+        get
+        {
+            AsegurarLeidoDeCookie();
+            return _sesionPrivilegiadaIdSeleccionada;
+        }
+    }
+
     private void AsegurarLeidoDeCookie()
     {
         if (_leidoDeCookie) return;
 
-        var (tenantId, asignacionOperacionId) = LeerDeCookie();
-        _tenantIdSeleccionado = tenantId;
-        _asignacionOperacionIdSeleccionada = asignacionOperacionId;
+        var leido = LeerDeCookie();
+        _tenantIdSeleccionado = leido.TenantId;
+        _asignacionOperacionIdSeleccionada = leido.AsignacionOperacionId;
+        _sesionPrivilegiadaIdSeleccionada = leido.SesionPrivilegiadaId;
         _leidoDeCookie = true;
     }
 
@@ -144,21 +168,43 @@ public class ClienteActivoSeleccionado(
     {
         _tenantIdSeleccionado = null;
         _asignacionOperacionIdSeleccionada = null;
+        _sesionPrivilegiadaIdSeleccionada = null;
         _leidoDeCookie = true;
     }
 
-    private (Guid? TenantId, Guid? AsignacionOperacionId) LeerDeCookie()
+    private (Guid? TenantId, Guid? AsignacionOperacionId, Guid? SesionPrivilegiadaId) LeerDeCookie()
     {
         var httpContext = httpContextAccessor.HttpContext;
-        var valorCookie = httpContext?.Request.Cookies[NombreCookie];
+        if (httpContext is null) return (null, null, null);
+
+        return LeerCargaUtil(
+            dataProtectionProvider,
+            httpContext.Request.Cookies[NombreCookie],
+            LeerUsuarioActual(httpContext.User));
+    }
+
+    /// <summary>
+    /// Interpreta el token: única definición del formato de la carga útil y de
+    /// las reglas que lo invalidan.
+    ///
+    /// Es público y estático porque hay un segundo consumidor legítimo fuera de
+    /// esta instancia —<see cref="SesionPrivilegiadaSinRolDeNegocioMiddleware"/>,
+    /// que corre antes de <c>UseAuthorization</c> y no puede depender del
+    /// servicio scoped porque necesita el principal que se le pasa, no el que
+    /// todavía no está en <c>HttpContext.User</c>. Duplicar el parseo habría
+    /// sido peor: dos sitios donde decidir qué token es válido son dos sitios
+    /// donde pueden dejar de coincidir.
+    /// </summary>
+    public static (Guid? TenantId, Guid? AsignacionOperacionId, Guid? SesionPrivilegiadaId) LeerCargaUtil(
+        IDataProtectionProvider dataProtectionProvider, string? valorCookie, Guid? usuarioActual)
+    {
         if (string.IsNullOrEmpty(valorCookie))
-            return (null, null);
+            return (null, null, null);
 
         // Sin usuario autenticado no hay a quién ligar el token: una cookie
         // suelta nunca debe abrir un contexto de tenant por sí sola.
-        var usuarioActual = LeerUsuarioActual(httpContext!.User);
         if (usuarioActual is null)
-            return (null, null);
+            return (null, null, null);
 
         string cargaUtil;
         try
@@ -171,27 +217,44 @@ public class ClienteActivoSeleccionado(
             // ya no existe. No es un caso excepcional que haya que registrar
             // como error: es exactamente lo que se espera de un valor no
             // válido, y la respuesta correcta es ignorarlo.
-            return (null, null);
+            return (null, null, null);
         }
 
         var partes = cargaUtil.Split('|');
-        if (partes.Length != 3
+        if (partes.Length != 4
             || !Guid.TryParseExact(partes[0], "N", out var usuarioDelToken)
             || !Guid.TryParseExact(partes[1], "N", out var tenantId)
-            || !Guid.TryParseExact(partes[2], "N", out var asignacionOperacionId))
-            return (null, null);
+            || !Guid.TryParseExact(partes[2], "N", out var asignacionOperacionId)
+            || !Guid.TryParseExact(partes[3], "N", out var sesionPrivilegiadaId))
+            return (null, null, null);
 
         // Ligado al usuario: un token legítimo copiado a la sesión de otro no
         // le transfiere el acceso al workspace.
         if (usuarioDelToken != usuarioActual.Value)
-            return (null, null);
+            return (null, null, null);
 
         // Guid vacío = vía heredada (soporte). Se distingue de "no hay
         // operación" para que quien lo consume sepa por qué camino validar.
-        return (tenantId, asignacionOperacionId == Guid.Empty ? null : asignacionOperacionId);
+        var operacion = asignacionOperacionId == Guid.Empty ? null : (Guid?)asignacionOperacionId;
+        var sesion = sesionPrivilegiadaId == Guid.Empty ? null : (Guid?)sesionPrivilegiadaId;
+
+        // Una vía y solo una (ADR-011 § 4bis.5): las capacidades no se acumulan
+        // entre planos. Un token que nombrara a la vez una operación de plano 2
+        // y una sesión de plano 3 no describe ningún contexto legítimo — quien
+        // lo consumiera tendría que elegir cuál manda, y elegir mal es
+        // exactamente la puerta lateral que el plano 3 prohíbe. Se descarta
+        // entero, no se prefiere una de las dos.
+        if (operacion is not null && sesion is not null)
+            return (null, null, null);
+
+        return (tenantId, operacion, sesion);
     }
 
-    private static Guid? LeerUsuarioActual(ClaimsPrincipal usuario)
+    /// <summary>
+    /// El usuario al que va ligado el token, leído del principal. Público por
+    /// el mismo motivo que <see cref="LeerCargaUtil"/>.
+    /// </summary>
+    public static Guid? LeerUsuarioActual(ClaimsPrincipal usuario)
     {
         if (usuario.Identity?.IsAuthenticated != true)
             return null;

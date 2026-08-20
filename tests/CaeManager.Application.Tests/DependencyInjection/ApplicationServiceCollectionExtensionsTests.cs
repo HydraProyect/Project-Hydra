@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
+using CaeManager.Application.Plataforma;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -43,6 +44,47 @@ public class ApplicationServiceCollectionExtensionsTests
         using var proveedor = servicios.BuildServiceProvider();
 
         proveedor.GetRequiredService<IAlertaOperativa>().Should().BeOfType<AlertaOperativaFalsaDePrueba>();
+    }
+
+    [Fact]
+    public void AddApplication_por_si_sola_resuelve_ISesionPrivilegiadaActual_sin_Infrastructure()
+    {
+        // Mismo fallo de forma que el de IAlertaOperativa: MediatR construye
+        // TODOS los behaviors para cualquier request, Queries incluidas, asi que
+        // AutorizacionEscrituraBehavior tiene que poder resolverse en un
+        // contenedor minimo.
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        using var proveedor = servicios.BuildServiceProvider();
+
+        proveedor.GetRequiredService<ISesionPrivilegiadaActual>()
+            .Should().BeOfType<SesionPrivilegiadaAusente>();
+    }
+
+    [Fact]
+    public async Task El_valor_por_defecto_de_sesion_privilegiada_no_concede_nada()
+    {
+        // Un default de una pieza de autorizacion tiene que decir "no" — si
+        // alguna vez devolviera una sesion, este test lo veria.
+        (await new SesionPrivilegiadaAusente().ObtenerAsync()).Should().BeNull();
+    }
+
+    [Fact]
+    public void Una_implementacion_de_sesion_privilegiada_registrada_despues_sustituye_al_valor_por_defecto()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        servicios.AddScoped<ISesionPrivilegiadaActual, SesionPrivilegiadaFalsaDePrueba>();
+        using var proveedor = servicios.BuildServiceProvider();
+
+        proveedor.GetRequiredService<ISesionPrivilegiadaActual>()
+            .Should().BeOfType<SesionPrivilegiadaFalsaDePrueba>();
+    }
+
+    private sealed class SesionPrivilegiadaFalsaDePrueba : ISesionPrivilegiadaActual
+    {
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
     }
 
     private sealed class AlertaOperativaFalsaDePrueba : IAlertaOperativa

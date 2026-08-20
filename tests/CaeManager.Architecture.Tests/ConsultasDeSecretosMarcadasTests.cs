@@ -1,0 +1,117 @@
+using System.Text.RegularExpressions;
+using CaeManager.Application.Common;
+using CaeManager.Architecture.Tests.Soporte;
+using FluentAssertions;
+
+namespace CaeManager.Architecture.Tests;
+
+/// <summary>
+/// <c>IConsultaDeSecretosDeTenant</c> es una lista, y las listas se quedan
+/// obsoletas solas. Estos dos tests son su ratchet: uno por reflexión sobre lo
+/// que las Queries devuelven, otro por texto sobre lo que leen.
+///
+/// Lo que protegen: una sesión de <c>SoporteLectura</c> ve el tenant entero, y
+/// la única razón por la que no ve sus contraseñas de plataformas externas es
+/// que esas dos Queries están marcadas. Una Query nueva de credenciales sin
+/// marcar no rompería nada visible — simplemente entregaría las llaves, en
+/// silencio, el día que exista el camino que abre sesiones.
+/// </summary>
+public class ConsultasDeSecretosMarcadasTests
+{
+    /// <summary>
+    /// Propiedades que solo existen descifradas: son las que el
+    /// <c>CaeManagerDbContext</c> convierte con un protector de Data
+    /// Protection. Si se añade otro secreto cifrado en reposo, se añade aquí.
+    /// </summary>
+    private static readonly Regex PatronLecturaDeSecreto = new(
+        @"\.Contrasena\b|\.TokenAcceso\b|\.RefreshToken\b|\.ClientState\b",
+        RegexOptions.Compiled);
+
+    [Fact]
+    public void Toda_Query_que_devuelve_credenciales_esta_marcada_como_consulta_de_secretos()
+    {
+        var application = ReflexionArquitecturaHelper.CargarAssembly("CaeManager.Application");
+
+        // El DTO de una credencial se reconoce por lo que expone, no por cómo
+        // se llame: si tiene a la vez Usuario y Contrasena, es una credencial.
+        var sinMarcar = application.GetTypes()
+            .Where(t => t.Name.EndsWith("Query", StringComparison.Ordinal))
+            .Where(t => !typeof(IConsultaDeSecretosDeTenant).IsAssignableFrom(t))
+            .Where(DevuelveUnDtoConContrasena)
+            .Select(t => t.FullName!)
+            .OrderBy(x => x)
+            .ToList();
+
+        string.Join("\n", sinMarcar).Should().BeEmpty(
+            "una Query que devuelve una contraseña descifrada tiene que implementar IConsultaDeSecretosDeTenant; " +
+            "si no, una sesión privilegiada de plataforma se la lleva junto con el resto del tenant");
+    }
+
+    [Fact]
+    public void Ninguna_Query_lee_un_secreto_cifrado_sin_estar_en_la_lista_conocida()
+    {
+        // Red de seguridad del test de arriba: cubre el caso en el que la
+        // credencial no viaje en un DTO con forma reconocible (se aplane en un
+        // string, se meta en un diccionario, se concatene). Lista corta y
+        // revisada a mano; añadir una entrada es una decisión de diseño que se
+        // revisa en el mismo commit.
+        var conocidas = new HashSet<string>
+        {
+            "src/CaeManager.Application/Empresas/Queries/ObtenerCredencialAccesoEmpresa/ObtenerCredencialAccesoEmpresaQuery.cs",
+            "src/CaeManager.Application/Subcontratas/Queries/ObtenerCredencialAccesoSubcontrata/ObtenerCredencialAccesoSubcontrataQuery.cs",
+        };
+
+        var raiz = RaizDelRepositorio();
+        var directorio = Path.Combine(raiz, "src", "CaeManager.Application");
+
+        var infractores = Directory
+            .EnumerateFiles(directorio, "*Query.cs", SearchOption.AllDirectories)
+            .Select(archivo => (Ruta: Path.GetRelativePath(raiz, archivo).Replace(Path.DirectorySeparatorChar, '/'), archivo))
+            .Where(x => !conocidas.Contains(x.Ruta))
+            .Where(x => File.ReadLines(x.archivo).Any(linea => PatronLecturaDeSecreto.IsMatch(linea)))
+            .Select(x => x.Ruta)
+            .OrderBy(x => x)
+            .ToList();
+
+        string.Join("\n", infractores).Should().BeEmpty(
+            "estas Queries leen un valor que el DbContext descifra; o no deben proyectarlo, o deben implementar " +
+            "IConsultaDeSecretosDeTenant y entrar en la lista de este test explicando por qué");
+
+        // Guarda del propio test: si la lista dejara de corresponderse con el
+        // código, estaría vigilando archivos que ya no existen.
+        conocidas.Should().OnlyContain(ruta => File.Exists(Path.Combine(raiz, ruta.Replace('/', Path.DirectorySeparatorChar))));
+    }
+
+    private static bool DevuelveUnDtoConContrasena(Type query)
+    {
+        var respuesta = query.GetInterfaces()
+            .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(MediatR.IRequest<>))
+            .Select(i => i.GetGenericArguments()[0])
+            .FirstOrDefault();
+
+        if (respuesta is null) return false;
+
+        // El DTO puede venir suelto o dentro de una colección.
+        var candidatos = respuesta.IsGenericType
+            ? new[] { respuesta }.Concat(respuesta.GetGenericArguments())
+            : [respuesta];
+
+        return candidatos.Any(t =>
+            t.GetProperty("Contrasena") is not null && t.GetProperty("Usuario") is not null);
+    }
+
+    private static string RaizDelRepositorio()
+    {
+        var actual = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (actual is not null && !File.Exists(Path.Combine(actual.FullName, "CaeManager.slnx")))
+            actual = actual.Parent;
+
+        if (actual is null)
+            throw new InvalidOperationException(
+                "No se encontró CaeManager.slnx subiendo desde " + AppContext.BaseDirectory +
+                " — este test necesita el árbol fuente del repositorio, no solo los ensamblados compilados.");
+
+        return actual.FullName;
+    }
+}

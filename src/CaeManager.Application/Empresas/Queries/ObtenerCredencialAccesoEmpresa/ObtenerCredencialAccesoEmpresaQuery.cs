@@ -5,7 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
 
-public record ObtenerCredencialAccesoEmpresaQuery(Guid EmpresaId) : IRequest<CredencialAccesoEmpresaDto?>;
+public record ObtenerCredencialAccesoEmpresaQuery(Guid EmpresaId)
+    : IRequest<CredencialAccesoEmpresaDto?>, IConsultaDeSecretosDeTenant;
 
 public record CredencialAccesoEmpresaDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas);
 

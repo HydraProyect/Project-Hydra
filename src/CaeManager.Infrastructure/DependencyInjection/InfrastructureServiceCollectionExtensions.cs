@@ -394,6 +394,13 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Plantillas.IPlantillasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
         services.AddScoped<CaeManager.Application.Operaciones.IOperacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Plataforma.IPlataformaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        // Revalida contra la base la sesión privilegiada que el token nombre —
+        // sesión abierta y en ventana, concesión vigente, tenant en alcance —
+        // y la memoiza por petición. Scoped y no singleton porque su respuesta
+        // depende de la sesión: es del alcance del usuario, no del proceso.
+        services.AddScoped<CaeManager.Application.Plataforma.ISesionPrivilegiadaActual,
+            CaeManager.Infrastructure.Plataforma.SesionPrivilegiadaActual>();
         // Escribe en el mismo DbContext scoped que el comando que lo invoca:
         // así la doble escritura entra en el SaveChanges del comando y es
         // transaccional sin transacción explícita (F1 del plan de migración).

@@ -46,6 +46,29 @@ public class CurrentUserServiceTests
         (await servicio.ObtenerRolActualAsync()).Should().BeNull();
     }
 
+    [Fact]
+    public async Task Bajo_una_sesion_privilegiada_no_hay_rol_de_negocio_aunque_el_claim_diga_Administrador()
+    {
+        // El peor caso real: un tecnico de TALVEG que es Administrador en SU
+        // tenant abre el de un cliente por el plano 3. Devolver el claim le
+        // daria dentro del tenant visitado el rol que tiene en el suyo — el
+        // hallazgo N-5 en su version mas grave. Una sesion privilegiada no es
+        // miembro del workspace que visita: ni rol CAE ni cartera
+        // (ADR-011 § 4bis.3).
+        var authStateProvider = new AuthenticationStateProviderFalso(
+            UsuarioAutenticadoCon(UsuarioIdDeEjemplo, "Administrador"));
+
+        var servicio = new CurrentUserService(
+            authStateProvider, new HttpContextAccessorFalso(null),
+            new ClienteActivoSeleccionadoConSesionPrivilegiadaFalso(),
+            new ServiceCollection().BuildServiceProvider());
+
+        // El usuario sigue siendo el mismo — la auditoria necesita saber quien
+        // es. Lo que desaparece es el rol.
+        (await servicio.ObtenerUsuarioActualIdAsync()).Should().Be(UsuarioIdDeEjemplo);
+        (await servicio.ObtenerRolActualAsync()).Should().BeNull();
+    }
+
     /// <summary>
     /// Sin Delegated Workspace seleccionado, que es el caso de todo usuario
     /// que no es Operador Delegado: <c>ObtenerRolActualAsync</c> devuelve el
@@ -62,6 +85,19 @@ public class CurrentUserServiceTests
     {
         public Guid? TenantIdSeleccionado => null;
         public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
+    }
+
+    /// <summary>
+    /// Selección de plano 3: el token nombra una sesión privilegiada. Que
+    /// aquí no se revalide es deliberado — negar de más siempre es seguro, y
+    /// quien decide si la sesión vale es ISesionPrivilegiadaActual.
+    /// </summary>
+    private sealed class ClienteActivoSeleccionadoConSesionPrivilegiadaFalso : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => Guid.Parse("33333333-3333-3333-3333-333333333333");
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => Guid.Parse("44444444-4444-4444-4444-444444444444");
     }
 
     private static ClaimsPrincipal UsuarioAutenticadoCon(Guid usuarioId, string rol)

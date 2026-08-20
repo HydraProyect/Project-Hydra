@@ -38,4 +38,22 @@ public interface IClienteActivoSeleccionado
     /// identifica el contexto exactamente.
     /// </summary>
     Guid? AsignacionOperacionIdSeleccionada { get; }
+
+    /// <summary>
+    /// La <c>SesionPrivilegiada</c> por la que se abrió este contexto, o
+    /// <c>null</c> — que es lo normal: una sesión privilegiada es excepcional
+    /// por definición.
+    ///
+    /// Viaja por el mismo token protegido, ligado al usuario y revalidado en
+    /// cada petición, que el resto de vías. Es deliberado: el acceso
+    /// privilegiado cambia <b>cómo se autoriza abrir</b> el contexto de un
+    /// tenant, nunca <b>si los filtros aplican</b>, y un canal paralelo sería
+    /// justamente el bypass que ADR-011 § 8.3 prohíbe.
+    ///
+    /// Que el token la mencione no significa que valga: quien la consume
+    /// revalida contra la base — la sesión abierta y en ventana, su concesión
+    /// vigente, y el tenant todavía en su alcance (ver
+    /// <c>ISesionPrivilegiadaActual</c>).
+    /// </summary>
+    Guid? SesionPrivilegiadaIdSeleccionada { get; }
 }
