@@ -29,8 +29,15 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class AccesoRestringidoACatalogosDeAsignacionTests
 {
+    /// <summary>
+    /// Cubre los dos planos que viven fuera del filtro de tenant: el de
+    /// operación (asignaciones) y el de privilegio de plataforma (concesiones y
+    /// sesiones). Las filas del segundo son, si cabe, más sensibles: dicen qué
+    /// usuario de TALVEG puede abrir los datos de qué cliente y hasta cuándo.
+    /// </summary>
     private static readonly Regex PatronAcceso = new(
-        @"\bAsignacionesOperacion\b|\bAsignacionesCartera\b",
+        @"\bAsignacionesOperacion\b|\bAsignacionesCartera\b" +
+        @"|\bConcesionesPrivilegio\b|\bSesionesPrivilegiadas\b|\bTenantsAlcanzadosPorConcesion\b",
         RegexOptions.Compiled);
 
     /// <summary>
@@ -62,6 +69,13 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // Configuraciones EF de las dos tablas.
         "src/CaeManager.Infrastructure/Persistence/Configurations/AsignacionOperacionConfiguration.cs",
         "src/CaeManager.Infrastructure/Persistence/Configurations/AsignacionCarteraConfiguration.cs",
+
+        // Configuraciones EF de las tres tablas del plano de privilegio de
+        // plataforma. Mismo motivo que las de asignación: definen la tabla, no
+        // la consultan.
+        "src/CaeManager.Infrastructure/Persistence/Configurations/ConcesionPrivilegioConfiguration.cs",
+        "src/CaeManager.Infrastructure/Persistence/Configurations/SesionPrivilegiadaConfiguration.cs",
+        "src/CaeManager.Infrastructure/Persistence/Configurations/TenantAlcanzadoPorConcesionConfiguration.cs",
 
         // Selección de workspace: filtra por PropietarioTenantId = el tenant
         // que se quiere abrir Y por OperadorTenantId = tenant de origen del

@@ -228,6 +228,9 @@ public class CaeManagerDbContext(
     IQueryable<AsignacionOperacion> IOperacionesQueryContext.AsignacionesOperacion => AsignacionesOperacion;
     public DbSet<AsignacionCartera> AsignacionesCartera => Set<AsignacionCartera>();
     IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
+    public DbSet<CaeManager.Domain.Plataforma.ConcesionPrivilegio> ConcesionesPrivilegio => Set<CaeManager.Domain.Plataforma.ConcesionPrivilegio>();
+    public DbSet<CaeManager.Domain.Plataforma.SesionPrivilegiada> SesionesPrivilegiadas => Set<CaeManager.Domain.Plataforma.SesionPrivilegiada>();
+    public DbSet<CaeManager.Domain.Plataforma.TenantAlcanzadoPorConcesion> TenantsAlcanzadosPorConcesion => Set<CaeManager.Domain.Plataforma.TenantAlcanzadoPorConcesion>();
     public DbSet<Incidencia> Incidencias => Set<Incidencia>();
     IQueryable<Incidencia> IIncidenciasQueryContext.Incidencias => Incidencias;
     public DbSet<Conversacion> Conversaciones => Set<Conversacion>();
@@ -361,10 +364,12 @@ public class CaeManagerDbContext(
         // EntidadConTenant) — el login necesita poder resolver el usuario
         // (y por tanto su tenant) antes de conocerlo, ver
         // TenantClaimsPrincipalFactory. Tenant, DelegacionTenant,
-        // AsignacionOperadorDelegado, ProveedorPlataformaCae y
-        // DominioProveedorPlataformaCae tampoco heredan de EntidadConTenant:
-        // son catálogos globales por diseño (docs/MULTITENANCY.md § 7-8),
-        // no un olvido.
+        // AsignacionOperadorDelegado, ProveedorPlataformaCae,
+        // DominioProveedorPlataformaCae y las tres tablas del plano de
+        // privilegio de plataforma (ConcesionPrivilegio, SesionPrivilegiada,
+        // TenantAlcanzadoPorConcesion) tampoco heredan de EntidadConTenant: son
+        // catálogos globales por diseño (docs/MULTITENANCY.md § 7-8 y ADR-011
+        // § 8), no un olvido.
         //
         // El filtro de cada entidad se construye con un método genérico real
         // (AplicarFiltroTenant/ConSoftDelete), invocado por reflexión — nunca
