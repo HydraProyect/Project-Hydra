@@ -269,14 +269,15 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.GetByPlaceholder("Buscar por propietario o tipo de documento…").FillAsync(apellidosTrabajador);
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-        // MenuAcciones.razor abre el desplegable con un @onclick server-side
-        // (alterna _abierto e ida y vuelta por SignalR, no instantáneo) —
-        // visto en CI: el primer clic puede perderse si QuickGrid todavía
-        // está reconstruyendo la fila justo en ese instante (la búsqueda de
-        // más arriba acaba de refiltrar el grid), así que se reintenta en
-        // vez de asumir que un único clic siempre llega.
-        await AbrirMenuAccionesAsync(filaDocumento);
-        await filaDocumento.Locator(".menu-acciones-panel").GetByText("Renovar").ClickAsync();
+        // MenuAcciones.razor abre el desplegable con un @onclick server-side,
+        // y la búsqueda de más arriba acaba de refiltrar el QuickGrid: el
+        // clic puede llegar mientras la fila se reconstruye y perderse sin
+        // que Playwright lo reporte. AbrirMenuAccionesAsync reintenta solo
+        // tras confirmar por aria-expanded que el menú sigue cerrado — ver su
+        // documentación en Ayudas.
+        var menuDocumento = await Ayudas.AbrirMenuAccionesAsync(
+            filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Más acciones" }));
+        await menuDocumento.GetByText("Renovar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         // Fecha de emisión sin tocar (sigue siendo hoy — evita el diálogo de
@@ -360,36 +361,6 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await boton.ClickAsync();
         await page.Locator(".modal-superposicion").WaitForAsync(
             new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
-    }
-
-    /// <summary>
-    /// Abre el desplegable "⋯" de <c>MenuAcciones.razor</c> (alterna
-    /// <c>_abierto</c> con un @onclick server-side, ida y vuelta por
-    /// SignalR) — reintenta el clic hasta 3 veces si el panel no aparece a
-    /// tiempo, visto en CI justo después de refiltrar un QuickGrid: el
-    /// primer clic puede llegar mientras la fila todavía se está
-    /// reconstruyendo y perderse sin que Playwright lo reporte como error
-    /// (el botón sigue ahí, solo que ese clic en concreto no le llegó al
-    /// circuito).
-    /// </summary>
-    private static async Task AbrirMenuAccionesAsync(ILocator fila)
-    {
-        var boton = fila.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Más acciones" });
-        var panel = fila.Locator(".menu-acciones-panel");
-
-        for (var intento = 1; intento <= 3; intento++)
-        {
-            await boton.ClickAsync();
-            try
-            {
-                await panel.WaitForAsync(new LocatorWaitForOptions { Timeout = 5_000 });
-                return;
-            }
-            catch (TimeoutException) when (intento < 3)
-            {
-                // Reintento — ver el comentario del método.
-            }
-        }
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

@@ -129,6 +129,107 @@ public static class Ayudas
         }
     }
 
+    /// <summary>
+    /// Abre el desplegable "⋯" de <c>MenuAcciones.razor</c> a partir de su
+    /// botón disparador y devuelve el panel ya abierto, listo para localizar
+    /// dentro de él la acción que toque.
+    ///
+    /// El flake crónico del job E2E (siempre "Timeout 30000ms exceeded"
+    /// esperando algo dentro de <c>.menu-acciones-panel</c>, cambiando de test
+    /// entre ejecuciones del mismo commit) sale de que abrir el menú depende
+    /// de un <c>@onclick</c> server-side: MenuAcciones vive en páginas
+    /// <c>@rendermode InteractiveServer</c>, que se prerenderizan estáticas
+    /// primero. El botón está en el DOM —visible, habilitado y perfectamente
+    /// clicable— desde ese prerenderizado, pero su controlador no existe hasta
+    /// que el componente se vuelve interactivo por el circuito; y un re-render
+    /// simultáneo (QuickGrid reconstruyendo la fila tras refiltrar) puede
+    /// invalidar el id del controlador de un clic ya en vuelo. En ambos casos
+    /// el clic se pierde EN SILENCIO: Playwright lo da por entregado, el panel
+    /// nunca llega a abrirse, y el fallo aparece 30s después en la espera
+    /// siguiente. Por eso el arreglo no es subir el timeout — el clic no llega
+    /// tarde, no llega.
+    ///
+    /// La única señal fiable de que el clic sí llegó al circuito es el
+    /// <c>aria-expanded</c> del propio disparador, que Blazor renderiza desde
+    /// <c>_abierto</c>. Y como <c>Alternar()</c> es un interruptor, reintentar
+    /// a ciegas es peor que no reintentar: un segundo clic sobre un menú que
+    /// SÍ había abierto lo vuelve a cerrar, y la espera posterior se come los
+    /// 30s enteros contra un panel cerrado. De ahí las dos reglas de este
+    /// helper: solo se clica tras confirmar que el menú sigue cerrado, y el
+    /// método es idempotente (si ya está abierto, no lo toca).
+    ///
+    /// <paramref name="disparador"/> debe resolver a un único botón
+    /// <c>.menu-acciones-disparador</c>; el panel se busca dentro del mismo
+    /// <c>.menu-acciones</c> que ese botón, no en toda la página, así que
+    /// nunca se confunde con el de otra fila.
+    /// </summary>
+    public static async Task<ILocator> AbrirMenuAccionesAsync(ILocator disparador)
+    {
+        var panel = disparador.Locator("xpath=..").Locator(".menu-acciones-panel");
+
+        // El disparador tiene que existir y ser clicable antes de contar
+        // intentos: si todavía no está en pantalla, el problema es otro y
+        // debe reportarse como tal, no gastarse los reintentos.
+        await disparador.WaitForAsync(
+            new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 30_000 });
+
+        for (var intento = 1; intento <= IntentosAbrirMenuAcciones; intento++)
+        {
+            if (await MenuAccionesSigueCerradoAsync(disparador))
+                await disparador.ClickAsync(new LocatorClickOptions { Timeout = 15_000 });
+
+            // 5s es enorme para una ida y vuelta de SignalR contra la app en
+            // el mismo runner — si aria-expanded no ha cambiado en ese
+            // tiempo, el clic no llegó al circuito y hay que repetirlo.
+            if (!await EsperarMenuAccionesAbiertoAsync(disparador, TimeSpan.FromSeconds(5)))
+                continue;
+
+            // A partir de aquí el servidor ya sabe que el menú está abierto,
+            // así que el panel es cuestión de que Blazor termine de parchear
+            // el DOM — esperarlo (y no volver a clicar) es lo correcto.
+            await panel.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+            return panel;
+        }
+
+        throw new TimeoutException(
+            $"El menú \"⋯\" (MenuAcciones.razor) no llegó a abrirse tras {IntentosAbrirMenuAcciones} clics: " +
+            "aria-expanded se quedó en \"false\" cada vez, así que ningún clic llegó al circuito de Blazor " +
+            "(componente aún no interactivo tras el prerenderizado, o controlador @onclick invalidado por un " +
+            "re-render simultáneo).");
+    }
+
+    private const int IntentosAbrirMenuAcciones = 4;
+
+    /// <summary>
+    /// Confirma que el menú sigue cerrado antes de (re)clicar. Lee
+    /// <c>aria-expanded</c> dos veces separadas por un margen holgado frente a
+    /// una ida y vuelta de SignalR: así un clic anterior que estuviera llegando
+    /// justo en ese instante se ve aquí, en vez de que el clic nuevo lo anule
+    /// cerrando un menú recién abierto.
+    /// </summary>
+    private static async Task<bool> MenuAccionesSigueCerradoAsync(ILocator disparador)
+    {
+        if (await disparador.GetAttributeAsync("aria-expanded") == "true")
+            return false;
+
+        await Task.Delay(250);
+        return await disparador.GetAttributeAsync("aria-expanded") != "true";
+    }
+
+    private static async Task<bool> EsperarMenuAccionesAbiertoAsync(ILocator disparador, TimeSpan limite)
+    {
+        var vencimiento = DateTime.UtcNow + limite;
+        while (DateTime.UtcNow < vencimiento)
+        {
+            if (await disparador.GetAttributeAsync("aria-expanded") == "true")
+                return true;
+
+            await Task.Delay(100);
+        }
+
+        return false;
+    }
+
     public static async Task IniciarSesionAsync(IPage page, string baseUrl, string email, string password)
     {
         await page.GotoAsync($"{baseUrl}/cuenta/iniciar-sesion");
