@@ -22,7 +22,7 @@
         </div>
 
         <div class="cuerpo-preview-trabajador">
-        <Pestanas Definiciones="Pestanas" PestanaActiva="_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Secciones del trabajador">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Secciones del trabajador">
             @if (_cargando && _pestanaActiva == "informacion")
             {
                 <EstadoCargando Filas="3" />

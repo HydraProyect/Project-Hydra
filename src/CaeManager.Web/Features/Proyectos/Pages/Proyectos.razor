@@ -111,7 +111,7 @@
                     }
                     else
                     {
-                        <Pestanas Definiciones="_pestanasDetalle" PestanaActiva="_pestanaDetalle" PestanaActivaChanged="CambiarPestanaDetalleAsync" EtiquetaGrupo="Secciones del proyecto">
+                        <Pestanas Definiciones="_pestanasDetalle" PestanaActiva="@_pestanaDetalle" PestanaActivaChanged="CambiarPestanaDetalleAsync" EtiquetaGrupo="Secciones del proyecto">
                             @if (_pestanaDetalle == "informacion")
                             {
                                 @if (!_editandoInfo)
