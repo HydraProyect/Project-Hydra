@@ -31,10 +31,46 @@ namespace CaeManager.Infrastructure.Persistence.Interceptors;
 /// <c>SET app.tenant_id = '...'</c> interpolado) para no construir SQL a
 /// partir de un valor variable, aunque hoy ese valor sea siempre un
 /// <see cref="Guid"/> generado por el propio sistema.
+///
+/// <para>
+/// <b>Este interceptor aplica DOS garantías distintas, y conviene no
+/// confundirlas.</b> Comparten el sitio —la apertura de la conexión— y nada
+/// más:
+/// </para>
+/// <list type="table">
+/// <item>
+/// <term>A — aislamiento entre tenants</term>
+/// <description>
+/// <c>app.tenant_id</c> + las políticas RLS. Responde "¿de quién son estas
+/// filas?". Aplica a <b>todas</b> las conexiones, siempre, con sesión
+/// privilegiada o sin ella.
+/// </description>
+/// </item>
+/// <item>
+/// <term>B — restricción de capacidad de la sesión de soporte</term>
+/// <description>
+/// <c>SET ROLE cae_app_soporte</c>. Responde "¿esta conexión puede escribir?".
+/// Aplica solo cuando la petición viene por una sesión privilegiada de
+/// plataforma.
+/// </description>
+/// </list>
+/// <para>
+/// <b>Ninguna sustituye a la otra, en ninguna dirección.</b> RLS no distingue
+/// leer de escribir: un operador legítimo del tenant escribe en sus propias
+/// filas y eso es correcto, así que RLS no puede ser el solo-lectura del
+/// soporte. Y el rol de soporte no aísla nada por sí mismo: si se hubiera
+/// creado sin <c>NOBYPASSRLS</c>, sería un rol de solo lectura capaz de leer
+/// <i>todos</i> los tenants — la garantía B habría comprado una fuga de la
+/// garantía A mucho peor que la escritura que impide. Por eso
+/// <c>NOBYPASSRLS</c> no es una opción de endurecimiento entre otras: es lo que
+/// mantiene la segunda garantía subordinada a la primera en vez de enfrentada
+/// a ella.
+/// </para>
 /// </summary>
 public class TenantRlsConnectionInterceptor(
     ITenantActual tenantActual,
-    IClienteActivoSeleccionado clienteActivoSeleccionado) : DbConnectionInterceptor
+    IClienteActivoSeleccionado clienteActivoSeleccionado,
+    ICurrentUserService currentUserService) : DbConnectionInterceptor
 {
     /// <summary>
     /// Rol de solo lectura del plano 3 (ver la migración
@@ -72,9 +108,39 @@ public class TenantRlsConnectionInterceptor(
     private async Task PrepararSesionAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
     {
         await FijarTenantDeSesionAsync(connection, cancellationToken);
+        await FijarTenantOrigenDeSesionAsync(connection, cancellationToken);
 
         if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
             await AdoptarRolDeSoporteAsync(connection, cancellationToken);
+    }
+
+    /// <summary>
+    /// Segunda variable de sesión, para los catálogos globales de asignación.
+    ///
+    /// <c>app.tenant_id</c> no sirve para ellos: refleja el workspace <b>activo</b>,
+    /// que dentro de un workspace delegado es el del propietario. Un operador que
+    /// quisiera ver "mis workspaces" —las asignaciones donde él es el operador—
+    /// no encontraría ninguna, porque su propio tenant no es el que está fijado.
+    /// Por eso hacen falta las dos: una dice desde dónde se opera, la otra qué se
+    /// está operando.
+    ///
+    /// Sale del claim de sesión (<c>ObtenerTenantOrigenIdAsync</c>), que es el
+    /// tenant al que el usuario pertenece y lo único que la selección de
+    /// workspace no puede cambiar. Leer el claim no toca la base de datos, así
+    /// que no hay reentrancia con la conexión que se está abriendo.
+    ///
+    /// Cadena vacía cuando no hay usuario, igual que la otra:
+    /// <c>NULLIF(..., '')::uuid</c> da <c>NULL</c> y <c>NULL</c> no iguala a
+    /// ningún tenant real. Fallo cerrado.
+    /// </summary>
+    private async Task FijarTenantOrigenDeSesionAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
+
+        await using var comando = connection.CreateCommand();
+        comando.CommandText = "SELECT set_config('app.tenant_origen_id', @valor, false);";
+        comando.Parameters.AddWithValue("valor", tenantOrigenId?.ToString() ?? string.Empty);
+        await comando.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public override async ValueTask<InterceptionResult> ConnectionClosingAsync(
