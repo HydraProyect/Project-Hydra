@@ -21,6 +21,27 @@ public class SesionPrivilegiada : Entity, IVersionable
     public const int LongitudMaximaMotivo = 500;
     public const int LongitudMaximaTicket = 100;
 
+    /// <summary>
+    /// Techo de la ventana de acceso. Viene de la ceremonia que la vía heredada
+    /// ya aplicaba en producción (<c>AbrirAccesoSoporteCommand</c>, 1–30 días), y
+    /// sube aquí a propósito: allí vivía en un validador de FluentValidation, así
+    /// que cualquier camino que no pasara por ese comando podía construir una
+    /// sesión de la duración que quisiera.
+    ///
+    /// <b>La regla se enuncia sobre la operación, no sobre la sesión.</b> No es
+    /// "una sesión no puede durar más de 30 días" sino:
+    /// <code>
+    /// ninguna apertura ni extensión individual puede fijar una expiración
+    /// posterior a 30 días desde el instante de esa operación
+    /// </code>
+    /// La diferencia importa para lo que todavía no existe: el día que haya un
+    /// <c>Extender</c> o <c>Renovar</c> queda sometido al mismo techo por
+    /// construcción, y no habrá forma de fabricar noventa días encadenando
+    /// extensiones. Un tope sobre la duración total sí habría dejado esa puerta
+    /// abierta.
+    /// </summary>
+    public static readonly TimeSpan VentanaMaxima = TimeSpan.FromDays(30);
+
     public Guid ConcesionPrivilegioId { get; private set; }
 
     /// <summary>El tenant cuyos datos se abren. Uno, y elegido al abrir la sesión.</summary>
@@ -120,6 +141,10 @@ public class SesionPrivilegiada : Entity, IVersionable
 
         if (ventana <= TimeSpan.Zero)
             throw new ArgumentException("La ventana debe ser positiva.", nameof(ventana));
+
+        if (ventana > VentanaMaxima)
+            throw new ArgumentException(
+                $"La ventana no puede superar {VentanaMaxima.TotalDays:0} días.", nameof(ventana));
 
         return new SesionPrivilegiada(
             concesion.Id, tenantObjetivoId, usuarioSimuladoId, motivo, ticket, ahora, ahora + ventana);

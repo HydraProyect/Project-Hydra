@@ -135,6 +135,40 @@ public class PrivilegioDePlataformaTests
         abrir.Should().Throw<ArgumentException>();
     }
 
+    [Fact]
+    public void Una_sesion_no_puede_superar_la_ventana_maxima()
+    {
+        // El techo de 30 días ya existía en producción, pero en un validador de
+        // FluentValidation del comando heredado: cualquier camino que no pasara
+        // por ese comando podía construir la ventana que quisiera. Sube al
+        // dominio para que una sesión más larga sea IRREPRESENTABLE, no solo
+        // rechazada en un formulario.
+        var concesion = ConcesionPrivilegio.SobreTenants(
+            Tecnico, CapacidadPrivilegio.SoporteLectura, [TenantCliente], Ahora, null);
+
+        var abrir = () => SesionPrivilegiada.Abrir(
+            concesion, TenantCliente, "INC-1234", Ahora,
+            SesionPrivilegiada.VentanaMaxima + TimeSpan.FromSeconds(1));
+
+        abrir.Should().Throw<ArgumentException>(
+            "una ventana de treinta días y un segundo no debería poder existir, la cree quien la cree");
+    }
+
+    [Fact]
+    public void La_ventana_maxima_exacta_si_se_admite()
+    {
+        // Control positivo del límite: el techo es inclusivo. Sin esto, el test
+        // de arriba pasaría igual si el dominio rechazara toda ventana larga,
+        // incluida la que sí debe permitirse.
+        var concesion = ConcesionPrivilegio.SobreTenants(
+            Tecnico, CapacidadPrivilegio.SoporteLectura, [TenantCliente], Ahora, null);
+
+        var sesion = SesionPrivilegiada.Abrir(
+            concesion, TenantCliente, "INC-1234", Ahora, SesionPrivilegiada.VentanaMaxima);
+
+        sesion.ExpiraEnUtc.Should().Be(Ahora + SesionPrivilegiada.VentanaMaxima);
+    }
+
     // ---------- impersonación ----------
 
     [Fact]
