@@ -20,10 +20,18 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// pone rojo el test de 2FA y solo ese; con una condición única, los demás
 /// seguirían verdes y el agregado parecería sano.
 ///
-/// El <b>orden</b> también se comprueba, y no por rendimiento: la consulta de
-/// concesiones se hace la última, después de la autorización y del 2FA, para que
-/// un actor no autorizado no obtenga señales sobre la existencia de concesiones
-/// privilegiadas que no debería poder observar.
+// El <b>orden</b> también se comprueba, y no por rendimiento: 2FA y "el objetivo
+/// es ajeno" dependen solo de quién pide y sobre qué, así que van delante; la
+/// consulta de concesiones viene después, para que quien no supera esas dos no
+/// obtenga señales sobre qué concesiones existen.
+///
+/// <para>
+/// Desde A0 <b>la concesión es la fuente de la autoridad</b>, no un requisito
+/// más de la lista: pertenecer al tenant marcado como plataforma dejó de ser
+/// suficiente y dejó de ser necesario para abrir. Eso tiene aquí dos tests
+/// dedicados — el que demuestra que la pertenencia no basta, y el que demuestra
+/// que no hace falta.
+/// </para>
 /// </summary>
 public class AbrirSesionPrivilegiadaTests : IAsyncLifetime
 {
@@ -75,19 +83,44 @@ public class AbrirSesionPrivilegiadaTests : IAsyncLifetime
 
     // ── Precondición 1: autoridad para abrir ───────────────────────────────
 
+    /// <summary>
+    /// <b>El test decisivo de A0.</b> Es el que distingue haber convertido
+    /// <c>EsPlataforma</c> en raíz de bootstrap de haberle cambiado el nombre.
+    ///
+    /// <para>
+    /// Las dos ejecuciones comparten usuario, tenant de origen —el de
+    /// plataforma— y doble factor. Lo <b>único</b> que cambia entre ellas es si
+    /// existe una concesión, y el resultado se invierte: la autoridad efectiva
+    /// es la concesión y no la pertenencia.
+    /// </para>
+    /// </summary>
     [Fact]
-    public async Task Sin_autoridad_de_apertura_no_se_abre_y_no_se_consulta_ninguna_concesion()
+    public async Task Pertenecer_al_tenant_de_plataforma_no_basta_para_abrir_sin_concesion()
     {
-        // El técnico ya no pertenece al tenant de plataforma. La autorización es
-        // lo PRIMERO que se comprueba, así que el comando no llega a mirar
-        // concesiones — el error lo dice: NoAutorizado, no ConcesionNoEncontrada.
+        var sinConcesion = await EjecutarAsync(_tenantVisitado, concesionId: Guid.NewGuid());
+        var conConcesion = await EjecutarAsync(_tenantVisitado);
+
+        sinConcesion.EsFallido.Should().BeTrue(
+            "pertenecer al tenant de plataforma dejó de ser suficiente para iniciar la ceremonia");
+        conConcesion.EsExitoso.Should().BeTrue(
+            "y lo que la habilita es la concesión: mismo usuario, misma casa, mismo 2FA");
+    }
+
+    /// <summary>
+    /// La otra mitad: la pertenencia tampoco es <b>necesaria</b>. Lo que este
+    /// test demuestra es que el comando no la exige — no que exista hoy un
+    /// camino productivo por el que alguien de fuera de la plataforma llegue a
+    /// tener una concesión. No lo hay: el único emisor es la auto-concesión, y
+    /// su puerta es la raíz de bootstrap. La autoridad se decide al CONCEDER, y
+    /// por eso la ceremonia no vuelve a preguntarla.
+    /// </summary>
+    [Fact]
+    public async Task Un_usuario_de_fuera_de_la_plataforma_con_concesion_valida_abre()
+    {
         var resultado = await EjecutarAsync(_tenantVisitado, tenantOrigen: _otroTenant);
 
-        resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be("SesionPrivilegiada.NoAutorizado",
-            "un actor no autorizado no debe obtener señales sobre qué concesiones existen");
-
-        await NoHayNingunaSesionAsync();
+        resultado.EsExitoso.Should().BeTrue(
+            "la autoridad la porta la concesión; el comando no pregunta de qué tenant es quien la esgrime");
     }
 
     [Fact]
@@ -99,7 +132,11 @@ public class AbrirSesionPrivilegiadaTests : IAsyncLifetime
         // organización.
         var resultado = await EjecutarAsync(_tenantPlataforma);
 
-        resultado.Error.Codigo.Should().Be("SesionPrivilegiada.NoAutorizado");
+        // Código propio desde A0. La regla vivía dentro de la autorización de
+        // apertura que el incremento retira; si se hubiera dado por incluida en
+        // la nueva política de capacidad, habría desaparecido sin que ningún
+        // test lo notara — el resto de la batería habría seguido en verde.
+        resultado.Error.Codigo.Should().Be("SesionPrivilegiada.TenantPropio");
         await NoHayNingunaSesionAsync();
     }
 
@@ -171,6 +208,38 @@ public class AbrirSesionPrivilegiadaTests : IAsyncLifetime
         await NoHayNingunaSesionAsync();
     }
 
+    // ── Precondición 4: la capacidad concedida habilita la ceremonia ───────
+
+    /// <summary>
+    /// Una concesión vigente, del usuario correcto y que cubre el tenant
+    /// objetivo, pero de una capacidad que no está en la lista de apertura.
+    /// Si esto abriera, <c>SoporteLectura</c> —y cualquier capacidad futura—
+    /// se convertiría en llave de la ceremonia por el mero hecho de existir.
+    /// </summary>
+    [Fact]
+    public async Task Una_capacidad_que_no_habilita_la_apertura_no_abre_nada()
+    {
+        Guid concesionDeOtraCapacidad;
+        await using (var contexto = CrearContexto())
+        {
+            var ahora = DateTime.UtcNow;
+            var otraCapacidad = ConcesionPrivilegio.SobreTenants(
+                _tecnico, CapacidadPrivilegio.Impersonacion, [_tenantVisitado],
+                vigenciaDesde: ahora.AddMinutes(-10), vigenciaHasta: ahora.AddHours(4));
+
+            contexto.ConcesionesPrivilegio.Add(otraCapacidad);
+            await contexto.SaveChangesAsync();
+            concesionDeOtraCapacidad = otraCapacidad.Id;
+        }
+
+        var resultado = await EjecutarAsync(_tenantVisitado, concesionId: concesionDeOtraCapacidad);
+
+        resultado.Error.Codigo.Should().Be("SesionPrivilegiada.CapacidadNoAbreSesion",
+            "la capacidad DE la sesión no es la capacidad para ABRIRLA");
+
+        await NoHayNingunaSesionAsync();
+    }
+
     // ── El cruce: concesión de A, objetivo B ───────────────────────────────
 
     [Fact]
@@ -209,7 +278,6 @@ public class AbrirSesionPrivilegiadaTests : IAsyncLifetime
         var handler = new AbrirSesionPrivilegiadaCommandHandler(
             contexto,
             new PlataformaWriter(contexto),
-            new AutorizacionAperturaSesionPorTenantDePlataforma(contexto, currentUser),
             currentUser,
             contexto);
 
