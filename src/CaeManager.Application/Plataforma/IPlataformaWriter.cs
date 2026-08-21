@@ -31,4 +31,17 @@ public interface IPlataformaWriter
     /// que haberse evaluado antes de llegar aquí.
     /// </summary>
     void AnadirSesion(SesionPrivilegiada sesion);
+
+    /// <summary>
+    /// Añade una concesión ya construida. Igual que arriba: recibe el agregado,
+    /// no sus campos.
+    ///
+    /// El único invocante legítimo es la auto-concesión, y un test de
+    /// arquitectura mantiene esa lista en uno. No existe aquí una operación
+    /// genérica de conceder a terceros: eso exige un contrato propio —quién
+    /// concede, a quién, qué capacidad, sobre qué tenants, cómo se revoca y cómo
+    /// se audita— y relajar el <c>WITH CHECK</c> de RLS, que hoy solo admite
+    /// filas que nombren al propio usuario de la sesión.
+    /// </summary>
+    void AnadirConcesion(ConcesionPrivilegio concesion);
 }

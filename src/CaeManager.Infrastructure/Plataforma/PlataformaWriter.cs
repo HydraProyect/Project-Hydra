@@ -17,4 +17,13 @@ public class PlataformaWriter(CaeManagerDbContext dbContext) : IPlataformaWriter
         ArgumentNullException.ThrowIfNull(sesion);
         dbContext.SesionesPrivilegiadas.Add(sesion);
     }
+
+    public void AnadirConcesion(ConcesionPrivilegio concesion)
+    {
+        ArgumentNullException.ThrowIfNull(concesion);
+        // Las filas de alcance cuelgan del agregado y viajan con él: la
+        // concesión y los tenants que cubre entran en el mismo SaveChanges, así
+        // que no puede quedar una concesión sin alcance ni al revés.
+        dbContext.ConcesionesPrivilegio.Add(concesion);
+    }
 }
