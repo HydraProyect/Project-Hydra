@@ -37,7 +37,8 @@ public class InvarianteUsuarioOperadorTests
         var handler = new CrearAsignacionOperadorDelegadoCommandHandler(
             asignaciones, delegaciones,
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Propietario),
-            new AsignacionesOperativasWriterFalso(), unitOfWork);
+            new AsignacionesOperativasWriterFalso(),
+            new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork);
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
@@ -58,7 +59,8 @@ public class InvarianteUsuarioOperadorTests
         var handler = new CrearAsignacionOperadorDelegadoCommandHandler(
             asignaciones, delegaciones,
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
-            writer, unitOfWork);
+            writer,
+            new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork);
 
         var usuarioId = Guid.NewGuid();
         var resultado = await handler.Handle(
@@ -81,7 +83,8 @@ public class InvarianteUsuarioOperadorTests
         var handler = new CrearAsignacionOperadorDelegadoCommandHandler(
             asignaciones, delegaciones,
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: null),
-            new AsignacionesOperativasWriterFalso(), unitOfWork);
+            new AsignacionesOperativasWriterFalso(),
+            new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork);
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),

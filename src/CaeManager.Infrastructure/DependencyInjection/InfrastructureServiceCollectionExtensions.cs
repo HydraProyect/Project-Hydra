@@ -426,6 +426,11 @@ public static class InfrastructureServiceCollectionExtensions
         // comprobación de IDirectorioUsuariosService.
         services.AddScoped<DirectorioUsuariosTenant>();
         services.AddScoped<IDirectorioUsuariosService>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
+        // Autoridad para vincular tenants: Administrador DEL CLIENTE DELEGANTE
+        // (ADR-004 § 12.2). No consulta EsPlataforma a propósito — Hydra nunca
+        // inicia una delegación (§ 11.1).
+        services.AddScoped<CaeManager.Application.Tenants.IAutorizacionDelegacionTenant,
+            AutorizacionDelegacionPorAdministradorDelCliente>();
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
 

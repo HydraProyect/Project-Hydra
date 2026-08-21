@@ -43,6 +43,7 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
     IDelegacionTenantRepository delegacionRepositorio,
     IDirectorioUsuariosService directorioUsuarios,
     IAsignacionesOperativasWriter asignacionesWriter,
+    IAutorizacionDelegacionTenant autorizacion, ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearAsignacionOperadorDelegadoCommand, Result<Guid>>
 {
@@ -51,6 +52,26 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
         var delegacion = await delegacionRepositorio.ObtenerPorIdAsync(request.DelegacionTenantId, cancellationToken);
         if (delegacion is null)
             return Result.Fallo<Guid>(Error.Crear("AsignacionOperadorDelegado.DelegacionNoEncontrada", "No encontramos esa delegación."));
+
+        // La misma autoridad que crear la delegación, y por el mismo motivo:
+        // esta operación decide QUÉ PERSONA concreta va a poder entrar en los
+        // datos del Cliente Delegante, y con qué rol. Que la delegación ya
+        // exista autoriza a la Consultora como organización, no a cualquiera a
+        // repartir accesos dentro de ella.
+        //
+        // Se comprueba contra delegacion.TenantClienteId —el dueño de los
+        // datos— y no contra TenantConsultoraId: la autoridad es de quien
+        // concede, no de quien recibe (ADR-004 § 12.2).
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo<Guid>(Error.Crear(
+                "AsignacionOperadorDelegado.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
+
+        if (!await autorizacion.PuedeGestionarDelegacionesAsync(
+                usuarioId.Value, delegacion.TenantClienteId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "AsignacionOperadorDelegado.NoAutorizado",
+                "Solo un administrador del Cliente Delegante puede autorizar a un operador sobre sus datos."));
 
         if (!delegacion.Activa)
             return Result.Fallo<Guid>(Error.Crear("AsignacionOperadorDelegado.DelegacionInactiva", "Esta delegación está desactivada."));

@@ -105,7 +105,8 @@ public class RevocacionDelegacionTests
         var (delegacion, repositorio, unitOfWork) = Preparar();
         delegacion.Desactivar();
         var handler = new ReactivarDelegacionTenantCommandHandler(
-            repositorio, new CurrentUserServiceFalso(tenantOrigenId: ClienteDelegante), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            repositorio, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
+            new CurrentUserServiceFalso(Guid.NewGuid()), new AsignacionesOperativasWriterFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 

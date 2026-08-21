@@ -31,11 +31,32 @@ public class CrearDelegacionTenantCommandValidator : AbstractValidator<CrearDele
 
 public class CrearDelegacionTenantCommandHandler(
     IDelegacionTenantRepository repositorio, ITenantsQueryContext tenantsContext,
-    IAsignacionesOperativasWriter asignacionesWriter, IUnitOfWork unitOfWork)
+    IAsignacionesOperativasWriter asignacionesWriter,
+    IAutorizacionDelegacionTenant autorizacion, ICurrentUserService currentUserService,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<CrearDelegacionTenantCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDelegacionTenantCommand request, CancellationToken cancellationToken)
     {
+        // La autoridad va primero, antes incluso de comprobar que los tenants
+        // existan: quien no puede gestionar estas delegaciones tampoco debería
+        // poder averiguar, por la diferencia entre dos mensajes de error, qué
+        // identificadores de tenant corresponden a organizaciones reales.
+        //
+        // Y la autoridad es del CLIENTE DELEGANTE, no de la Consultora ni de la
+        // plataforma (ADR-004 § 12.2): quien concede acceso a unos datos es su
+        // dueño. Que Hydra no pueda iniciar una delegación por su cuenta es § 11.1.
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo<Guid>(Error.Crear(
+                "DelegacionTenant.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
+
+        if (!await autorizacion.PuedeGestionarDelegacionesAsync(
+                usuarioId.Value, request.TenantClienteId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "DelegacionTenant.NoAutorizado",
+                "Solo un administrador del Cliente Delegante puede autorizar el acceso a sus datos."));
+
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
         // Tenant es catálogo global (Entity, no EntidadConTenant): la consulta
         // no lleva filtro de tenant a propósito, un Id de Tenant es válido
