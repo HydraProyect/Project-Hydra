@@ -109,6 +109,7 @@ public class TenantRlsConnectionInterceptor(
     {
         await FijarTenantDeSesionAsync(connection, cancellationToken);
         await FijarTenantOrigenDeSesionAsync(connection, cancellationToken);
+        await FijarUsuarioDeSesionAsync(connection, cancellationToken);
 
         if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
             await AdoptarRolDeSoporteAsync(connection, cancellationToken);
@@ -186,6 +187,39 @@ public class TenantRlsConnectionInterceptor(
         await using var comando = connection.CreateCommand();
         comando.CommandText = "SELECT set_config('app.tenant_id', @valor, false);";
         comando.Parameters.AddWithValue("valor", tenantActual.TenantId?.ToString() ?? string.Empty);
+        await comando.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Tercera coordenada de sesión: <b>quién</b>. La usan las políticas del
+    /// plano de privilegio de plataforma para acotar cada fila a quien la
+    /// nombra.
+    ///
+    /// <b>Es una coordenada, no una capacidad</b>, y el nombre lo dice: es la
+    /// identidad autenticada, igual que <c>app.tenant_id</c> es el tenant activo.
+    /// No existe —ni debe existir— una variable <c>app.usuario_plataforma_id</c>:
+    /// eso incrustaría en la sesión una afirmación de privilegio que la sesión no
+    /// está en posición de hacer. Ser usuario de plataforma no se declara al
+    /// abrir la conexión; se deriva de que existan filas de concesión que te
+    /// nombren. Si no las hay, las políticas no devuelven nada, sin que nadie
+    /// haya tenido que comprobar nada.
+    ///
+    /// Esa asimetría es la que evita una dependencia circular: para saber si el
+    /// usuario es de plataforma habría que consultar <c>Tenants</c> — sobre la
+    /// conexión que se está abriendo en este preciso instante. El claim
+    /// <c>NameIdentifier</c>, en cambio, ya está en memoria.
+    ///
+    /// Cadena vacía sin usuario (jobs de fondo, siembra al arrancar): las
+    /// políticas del plano 3 no encuentran ninguna fila, que es lo correcto —
+    /// ninguno de esos procesos necesita nada de ahí.
+    /// </summary>
+    private async Task FijarUsuarioDeSesionAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+
+        await using var comando = connection.CreateCommand();
+        comando.CommandText = "SELECT set_config('app.usuario_id', @valor, false);";
+        comando.Parameters.AddWithValue("valor", usuarioId?.ToString() ?? string.Empty);
         await comando.ExecuteNonQueryAsync(cancellationToken);
     }
 

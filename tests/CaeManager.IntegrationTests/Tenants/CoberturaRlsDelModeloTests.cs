@@ -116,19 +116,26 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         "AsignacionesOperacion", "AsignacionesCartera",
     ];
 
+    /// <summary>Política del plano de privilegio de plataforma.</summary>
+    private const string PoliticaPrivilegio = "privilegio_del_usuario";
+
     /// <summary>
-    /// Categoría 3: RLS <b>pendiente por dependencia arquitectónica</b>, no
-    /// exento. Su política necesita una variable de sesión con el usuario de
-    /// plataforma actual, que todavía no existe. Lista aparte de las otras dos a
-    /// propósito: mezclarla con las excepciones haría que un hueco temporal se
-    /// leyera como una decisión cerrada.
+    /// Categoría 3: <b>catálogo de privilegio</b>. Sin <c>TenantId</c> —una
+    /// concesión cruza tenants por definición— pero, al contrario que los
+    /// catálogos de asignación, <b>con FORCE</b>. La misma pregunta sobre roles
+    /// da respuestas contrarias en los dos casos: allí había lectores sistémicos
+    /// legítimos que eximir (backfill, expiración); aquí hay un solo lector,
+    /// siempre bajo sesión de usuario, y ningún escritor.
+    ///
+    /// Esta categoría era, hasta F2b-5, la lista de "RLS pendiente por
+    /// dependencia arquitectónica". Dejó de serlo cuando quedó claro que la
+    /// política no necesitaba una identidad de plataforma —que habría sido una
+    /// afirmación de privilegio en la sesión— sino la coordenada de usuario.
     /// </summary>
-    private static readonly Dictionary<string, string> PlanoTresPendienteDeRls = new()
-    {
-        ["ConcesionesPrivilegio"] = "necesita app.usuario_plataforma_id, que llega con la apertura de sesiones",
-        ["SesionesPrivilegiadas"] = "ídem: la política depende de identificar al usuario de plataforma de la sesión",
-        ["TenantsAlcanzadosPorConcesion"] = "ídem: su alcance solo es evaluable junto al de su concesión",
-    };
+    private static readonly string[] CatalogosDePrivilegio =
+    [
+        "ConcesionesPrivilegio", "SesionesPrivilegiadas", "TenantsAlcanzadosPorConcesion",
+    ];
 
     [Fact]
     public async Task Toda_entidad_con_TenantId_del_modelo_tiene_RLS_activo_forzado_y_con_la_politica_de_aislamiento()
@@ -268,29 +275,87 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Categoría 3. Afirma el hueco en vez de esconderlo: estas tablas todavía
-    /// no tienen RLS, y el test lo dice con su motivo. El día que se implemente,
-    /// este test se pondrá rojo y obligará a moverlas de categoría — que es la
-    /// forma correcta de que un pendiente no se quede pendiente para siempre.
+    /// Categoría 3. Hasta F2b-5 esta lista afirmaba un hueco —"todavía sin RLS,
+    /// y este es el motivo"— para que un pendiente no se quedara pendiente para
+    /// siempre. Ese test cumplió su función: al implementarse la política se
+    /// puso rojo y obligó a mover las tablas de categoría, que es exactamente lo
+    /// que tenía que pasar. Ahora afirma la forma nueva.
+    ///
+    /// Con <c>FORCE</c>, al contrario que los catálogos de asignación. No es
+    /// incoherencia: es la misma pregunta sobre roles con respuesta contraria
+    /// porque la población de lectores es otra.
     /// </summary>
     [Fact]
-    public async Task Las_tablas_del_plano_3_siguen_pendientes_de_RLS_y_el_motivo_esta_escrito()
+    public async Task Los_catalogos_de_privilegio_tienen_RLS_forzado_y_su_politica_propia()
     {
-        PlanoTresPendienteDeRls.Should().NotContain(
-            e => string.IsNullOrWhiteSpace(e.Value),
-            "un pendiente sin motivo escrito es indistinguible de un olvido");
+        var estado = await LeerEstadoRlsAsync(CatalogosDePrivilegio);
 
-        var estado = await LeerEstadoRlsAsync(PlanoTresPendienteDeRls.Keys.ToList());
+        using var _ = new AssertionScope();
 
-        foreach (var (tabla, motivo) in PlanoTresPendienteDeRls)
+        foreach (var tabla in CatalogosDePrivilegio)
         {
-            estado.Should().ContainKey(tabla, $"{tabla} tiene que existir en el esquema");
+            estado.Should().ContainKey(tabla);
             if (!estado.TryGetValue(tabla, out var e)) continue;
 
-            e.Habilitado.Should().BeFalse(
-                $"si {tabla} ya tiene RLS, este pendiente dejó de serlo ({motivo}): muévela a la categoría que " +
-                "corresponda y descríbela allí, en vez de dejarla declarada como hueco");
+            e.Habilitado.Should().BeTrue(
+                $"{tabla} dice qué usuario de TALVEG puede abrir los datos de qué cliente y hasta cuándo");
+
+            e.Forzado.Should().BeTrue(
+                $"{tabla} SÍ lleva FORCE: no hay ningún lector sistémico que eximir — un solo lector, siempre " +
+                "bajo sesión de usuario, y ningún escritor. Sin FORCE la política no ataría al propietario, que " +
+                "es el rol con el que la aplicación conecta hoy");
+
+            e.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo([PoliticaPrivilegio],
+                $"{tabla} tiene que llevar exactamente '{PoliticaPrivilegio}' y ninguna otra");
+
+            var politica = e.Politicas.FirstOrDefault(p => p.Nombre == PoliticaPrivilegio);
+            if (politica is null) continue;
+
+            politica.Using.Should().NotBeNull()
+                .And.Subject.As<string>().Should().Contain("app.usuario_id",
+                    "la autoridad vive en la fila: se ven las que te nombran. Y la coordenada es la identidad " +
+                    "autenticada — no existe ni debe existir app.usuario_plataforma_id, que incrustaría una " +
+                    "afirmación de privilegio en la sesión");
+
+            politica.WithCheck.Should().NotBeNull()
+                .And.Subject.As<string>().Should().Contain("app.usuario_id",
+                    "sin WITH CHECK se podría crear o reasignar una concesión a nombre de otro usuario");
         }
+    }
+
+    [Fact]
+    public void No_existe_ninguna_variable_de_sesion_que_afirme_privilegio_de_plataforma()
+    {
+        // Guarda del contrato, por texto sobre el interceptor: las coordenadas
+        // de sesión describen QUIÉN y DÓNDE, nunca QUÉ PUEDE. Una variable
+        // llamada app.usuario_plataforma_id sería una afirmación de privilegio
+        // hecha por el proceso que abre la conexión, en vez de una consecuencia
+        // de las filas de concesión — y quien la introdujera probablemente no
+        // vería que está cambiando el modelo, no solo añadiendo un dato.
+        var raiz = RaizDelRepositorio();
+        var interceptor = Path.Combine(
+            raiz, "src", "CaeManager.Infrastructure", "Persistence", "Interceptors",
+            "TenantRlsConnectionInterceptor.cs");
+
+        var texto = File.ReadAllText(interceptor);
+
+        texto.Should().Contain("app.usuario_id", "la coordenada de identidad tiene que seguir fijándose");
+        texto.Should().NotContain("set_config('app.usuario_plataforma_id",
+            "la pertenencia a plataforma se deriva de las filas de concesión, no se declara en la sesión");
+    }
+
+    private static string RaizDelRepositorio()
+    {
+        var actual = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (actual is not null && !File.Exists(Path.Combine(actual.FullName, "CaeManager.slnx")))
+            actual = actual.Parent;
+
+        if (actual is null)
+            throw new InvalidOperationException(
+                "No se encontró CaeManager.slnx subiendo desde " + AppContext.BaseDirectory);
+
+        return actual.FullName;
     }
 
     private static bool MencionaElAislamiento(string? expresion) =>

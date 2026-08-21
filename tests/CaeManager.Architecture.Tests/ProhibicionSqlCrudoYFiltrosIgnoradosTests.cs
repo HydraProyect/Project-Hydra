@@ -101,7 +101,14 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // el del propietario — con ella sola, un operador no encontraría nunca
         // las asignaciones que opera. Mismo carácter que las otras tres:
         // sentencia fija, parametrizada, sin tocar datos.
-        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = connection.CreateCommand();")] = 4,
+        //
+        // Sube de 4 a 5 con las políticas RLS del plano de privilegio: la quinta
+        // fija app.usuario_id, la identidad autenticada. Es una COORDENADA, no
+        // una capacidad — deliberadamente no se llama app.usuario_plataforma_id,
+        // porque ese nombre incrustaría en la sesión una afirmación de
+        // privilegio. Ser de plataforma se deriva de que existan filas de
+        // concesión que te nombren, no de lo que la conexión declare al abrirse.
+        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = connection.CreateCommand();")] = 5,
 
         // Elección de líder entre réplicas con pg_try_advisory_lock/
         // pg_advisory_unlock: no existe equivalente en EF Core, así que va
