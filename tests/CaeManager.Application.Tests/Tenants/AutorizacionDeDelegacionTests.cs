@@ -1,4 +1,5 @@
 using CaeManager.Application.Tenants.Commands.CrearAsignacionOperadorDelegado;
+using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Operaciones;
 using CaeManager.Domain.Tenants;
@@ -24,6 +25,16 @@ namespace CaeManager.Application.Tests.Tenants;
 /// La autoridad la fija ADR-004 § 12.2 y no es de Hydra: <b>solo un
 /// <c>Administrador</c> del tenant del Cliente Delegante</b>. Y § 11.1 lo cierra
 /// por el otro lado — Hydra nunca inicia una delegación.
+///
+/// <para>
+/// Se añadió después un tercer comando, <c>ReactivarDelegacionTenant</c>, que sí
+/// tenía política — pero la de revocar. La equivalencia
+/// <c>revocar ↔ reactivar</c> es falsa desde seguridad: una reduce capacidad y
+/// la otra la devuelve. Compartirla dejaba que la parte que RECIBE el acceso
+/// deshiciera la decisión de la parte que lo CONCEDE. Es la misma propiedad que
+/// los otros dos, por eso vive en la misma batería: <b>las mutaciones de la
+/// relación de delegación respetan la autoridad del lado correcto</b>.
+/// </para>
 /// </summary>
 public class AutorizacionDeDelegacionTests
 {
@@ -223,6 +234,7 @@ public class AutorizacionDeDelegacionTests
         {
             typeof(Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler),
             typeof(CrearAsignacionOperadorDelegadoCommandHandler),
+            typeof(ReactivarDelegacionTenantCommandHandler),
         };
 
         foreach (var handler in handlers)
@@ -235,6 +247,145 @@ public class AutorizacionDeDelegacionTests
                 "activo: dentro de un workspace delegado ITenantActual es el del propietario y daría la " +
                 "respuesta correcta por casualidad");
         }
+    }
+
+    // ── ReactivarDelegacionTenant: restaurar autoridad no es revocarla ────
+
+    [Fact]
+    public async Task El_administrador_del_cliente_delegante_puede_reactivar()
+    {
+        var (delegacion, delegaciones, _, unitOfWork) = Preparar();
+        delegacion.Desactivar();
+
+        var handler = new ReactivarDelegacionTenantCommandHandler(
+            delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
+            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(
+            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        delegacion.Activa.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// El caso que motiva el cambio, y el que un doble booleano no distinguiría:
+    /// los dos usuarios tienen rol <c>Administrador</c>. Lo que los separa es de
+    /// qué tenant lo son.
+    /// </summary>
+    [Fact]
+    public async Task El_administrador_de_la_consultora_no_puede_deshacer_la_revocacion_del_cliente()
+    {
+        var (delegacion, delegaciones, _, unitOfWork) = Preparar();
+        delegacion.Desactivar();
+
+        var handler = new ReactivarDelegacionTenantCommandHandler(
+            delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(Consultora),
+            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(
+            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        delegacion.Activa.Should().BeFalse("la parte que recibe el acceso no revierte la decisión de la que lo concede");
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_administrador_de_otro_tenant_no_reactiva_nada()
+    {
+        var (delegacion, delegaciones, _, unitOfWork) = Preparar();
+        delegacion.Desactivar();
+
+        var handler = new ReactivarDelegacionTenantCommandHandler(
+            delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(Guid.NewGuid()),
+            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(
+            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("tener el rol correcto en el tenant equivocado no es tenerlo");
+        delegacion.Activa.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Sin_usuario_identificado_no_se_reactiva_nada()
+    {
+        var (delegacion, delegaciones, _, unitOfWork) = Preparar();
+        delegacion.Desactivar();
+
+        var handler = new ReactivarDelegacionTenantCommandHandler(
+            delegaciones, new AutorizacionDelegacionFalsa(autoriza: true),
+            new CurrentUserServiceFalso(usuarioId: null), new AsignacionesOperativasWriterFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(
+            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.SinUsuario");
+        delegacion.Activa.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// La política anterior colgaba del <b>tenant de origen</b>. Este test fija
+    /// que ya no: la decisión sale de quién es el usuario y de qué tenant nombra
+    /// la delegación, y el workspace desde el que se pulse el botón no la mueve
+    /// ni en un sentido ni en el otro.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task El_workspace_activo_no_altera_la_decision_de_reactivar(bool autorizado)
+    {
+        var decisiones = new List<bool>();
+
+        foreach (var origen in new Guid?[] { Consultora, ClienteDelegante, Guid.NewGuid(), null })
+        {
+            var (delegacion, delegaciones, _, unitOfWork) = Preparar();
+            delegacion.Desactivar();
+
+            var handler = new ReactivarDelegacionTenantCommandHandler(
+                delegaciones,
+                AutorizacionDelegacionFalsa.AdministradorDe(autorizado ? ClienteDelegante : Consultora),
+                new CurrentUserServiceFalso(Usuario, tenantOrigenId: origen),
+                new AsignacionesOperativasWriterFalso(), unitOfWork);
+
+            var resultado = await handler.Handle(
+                new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+            decisiones.Add(resultado.EsExitoso);
+        }
+
+        decisiones.Should().AllBeEquivalentTo(autorizado,
+            "el tenant de origen refleja el workspace desde el que se opera, no la autoridad de quien opera");
+    }
+
+    /// <summary>
+    /// Sin esto, la diferencia entre "ya estaba activa" y "no encontrada" le
+    /// contaría a un tercero si una delegación concreta está revocada ahora
+    /// mismo — sobre un catálogo global que además dice qué Consultora opera
+    /// sobre qué Cliente.
+    /// </summary>
+    [Fact]
+    public async Task La_autorizacion_de_reactivar_corre_antes_que_el_estado_de_la_delegacion()
+    {
+        var (delegacion, delegaciones, _, unitOfWork) = Preparar();   // nace activa
+
+        var ajeno = new ReactivarDelegacionTenantCommandHandler(
+            delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(Guid.NewGuid()),
+            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork);
+
+        var sinAutoridad = await ajeno.Handle(
+            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        var conAutoridad = await new ReactivarDelegacionTenantCommandHandler(
+                delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
+                new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork)
+            .Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        // Misma delegación, mismo estado, dos respuestas — y la diferencia la
+        // causa la autoridad, no el estado. Es lo que prueba el orden.
+        sinAutoridad.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
+        conAutoridad.Error.Codigo.Should().Be("DelegacionTenant.YaActiva");
     }
 
     private static (DelegacionTenant, DelegacionTenantRepositorioFalso,

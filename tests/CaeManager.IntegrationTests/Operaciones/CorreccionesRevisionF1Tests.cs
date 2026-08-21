@@ -1,4 +1,5 @@
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Domain.Clientes;
@@ -233,9 +234,14 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         // la operación: el operador entraba al workspace y no veía un dato.
         await using (var contexto = CrearContexto(_propietario))
         {
+            // Reactivar exige ser Administrador del Cliente Delegante, no de la
+            // Consultora: restaurar acceso es potestad de quien lo concede.
+            // Lo que este test comprueba es otra cosa —que reactivar devuelva
+            // también las carteras—, así que entra con la autoridad correcta.
             var handler = new ReactivarDelegacionTenantCommandHandler(
                 new DelegacionTenantRepository(contexto),
-                new CurrentUserServiceFalso(tenantOrigenId: _consultora),
+                new AutorizacionAdministradorDe(_propietario),
+                new CurrentUserServiceFalso(Guid.NewGuid()),
                 CrearWriter(contexto), contexto);
 
             var resultado = await handler.Handle(
@@ -383,5 +389,17 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    /// <summary>
+    /// Doble de <see cref="IAutorizacionDelegacionTenant"/> que responde como un
+    /// <c>Administrador</c> del tenant indicado: la implementación real exige rol
+    /// y pertenencia, así que solo autoriza cuando le preguntan por su tenant.
+    /// </summary>
+    private sealed class AutorizacionAdministradorDe(Guid tenant) : IAutorizacionDelegacionTenant
+    {
+        public Task<bool> PuedeGestionarDelegacionesAsync(
+            Guid usuarioId, Guid tenantClienteDeleganteId, CancellationToken cancellationToken = default)
+            => Task.FromResult(tenantClienteDeleganteId == tenant);
     }
 }

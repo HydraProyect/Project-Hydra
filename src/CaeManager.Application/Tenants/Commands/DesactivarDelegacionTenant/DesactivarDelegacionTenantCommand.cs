@@ -65,9 +65,17 @@ public class DesactivarDelegacionTenantCommandHandler(
     /// Ambas partes pueden revocar: la Consultora que presta el servicio y el
     /// Cliente Delegante dueño de los datos. Cortar el acceso es la acción
     /// protectora — dejarla solo en manos de quien recibe el acceso es
-    /// precisamente el defecto que se está cerrando. Crear la delegación es
-    /// otra cosa y sigue sin flujo de producto: el ADR-004 § 12.2 deja abierto
-    /// a propósito quién puede iniciarla, por sus implicaciones comerciales.
+    /// precisamente el defecto que se está cerrando.
+    ///
+    /// <para>
+    /// <b>Esta política vale para revocar y solo para revocar.</b> Las
+    /// operaciones que crean o restauran autoridad —crear la delegación,
+    /// asignar un operador, reactivar— exigen ser <c>Administrador</c> del
+    /// Cliente Delegante (<see cref="IAutorizacionDelegacionTenant"/>,
+    /// ADR-004 § 12.2). La simetría revocar/reactivar es falsa desde
+    /// seguridad: una reduce capacidad y la otra la devuelve. La comparte
+    /// <c>RevocarAsignacionOperadorDelegadoCommand</c>, que también corta.
+    /// </para>
     ///
     /// Se decide con el tenant de <b>origen</b>, nunca con
     /// <c>ITenantActual.TenantId</c>: ese refleja el Delegated Workspace
