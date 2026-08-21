@@ -206,7 +206,9 @@ public class SoloLecturaEnLaCapaDeDatosTests : IAsyncLifetime
             .AddInterceptors(
                 new TenantSelladoInterceptor(tenantActual),
                 new TenantRlsConnectionInterceptor(
-                    tenantActual, new ClienteActivoSeleccionadoFalso(tenantId, sesionPrivilegiadaId)))
+                    tenantActual,
+                    new ClienteActivoSeleccionadoFalso(tenantId, sesionPrivilegiadaId),
+                    new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: tenantId)))
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);

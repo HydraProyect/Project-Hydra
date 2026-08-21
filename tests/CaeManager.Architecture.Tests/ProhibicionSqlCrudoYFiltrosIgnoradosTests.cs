@@ -93,7 +93,15 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // ninguna concatena valores de entrada. Es lo contrario de lo que este
         // ratchet vigila: no rodean a EF, configuran la conexión por debajo para
         // que EF quede MÁS restringido, no menos.
-        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = connection.CreateCommand();")] = 3,
+        //
+        // Sube de 3 a 4 con las políticas RLS de los catálogos globales de
+        // asignación: la cuarta fija app.tenant_origen_id, la variable que dice
+        // desde qué tenant se opera. Hace falta aparte de app.tenant_id porque
+        // esa refleja el workspace ACTIVO, que dentro de un workspace delegado es
+        // el del propietario — con ella sola, un operador no encontraría nunca
+        // las asignaciones que opera. Mismo carácter que las otras tres:
+        // sentencia fija, parametrizada, sin tocar datos.
+        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = connection.CreateCommand();")] = 4,
 
         // Elección de líder entre réplicas con pg_try_advisory_lock/
         // pg_advisory_unlock: no existe equivalente en EF Core, así que va

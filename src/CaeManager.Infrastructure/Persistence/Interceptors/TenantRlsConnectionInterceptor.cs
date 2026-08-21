@@ -69,7 +69,8 @@ namespace CaeManager.Infrastructure.Persistence.Interceptors;
 /// </summary>
 public class TenantRlsConnectionInterceptor(
     ITenantActual tenantActual,
-    IClienteActivoSeleccionado clienteActivoSeleccionado) : DbConnectionInterceptor
+    IClienteActivoSeleccionado clienteActivoSeleccionado,
+    ICurrentUserService currentUserService) : DbConnectionInterceptor
 {
     /// <summary>
     /// Rol de solo lectura del plano 3 (ver la migración
@@ -107,9 +108,39 @@ public class TenantRlsConnectionInterceptor(
     private async Task PrepararSesionAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
     {
         await FijarTenantDeSesionAsync(connection, cancellationToken);
+        await FijarTenantOrigenDeSesionAsync(connection, cancellationToken);
 
         if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
             await AdoptarRolDeSoporteAsync(connection, cancellationToken);
+    }
+
+    /// <summary>
+    /// Segunda variable de sesión, para los catálogos globales de asignación.
+    ///
+    /// <c>app.tenant_id</c> no sirve para ellos: refleja el workspace <b>activo</b>,
+    /// que dentro de un workspace delegado es el del propietario. Un operador que
+    /// quisiera ver "mis workspaces" —las asignaciones donde él es el operador—
+    /// no encontraría ninguna, porque su propio tenant no es el que está fijado.
+    /// Por eso hacen falta las dos: una dice desde dónde se opera, la otra qué se
+    /// está operando.
+    ///
+    /// Sale del claim de sesión (<c>ObtenerTenantOrigenIdAsync</c>), que es el
+    /// tenant al que el usuario pertenece y lo único que la selección de
+    /// workspace no puede cambiar. Leer el claim no toca la base de datos, así
+    /// que no hay reentrancia con la conexión que se está abriendo.
+    ///
+    /// Cadena vacía cuando no hay usuario, igual que la otra:
+    /// <c>NULLIF(..., '')::uuid</c> da <c>NULL</c> y <c>NULL</c> no iguala a
+    /// ningún tenant real. Fallo cerrado.
+    /// </summary>
+    private async Task FijarTenantOrigenDeSesionAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
+
+        await using var comando = connection.CreateCommand();
+        comando.CommandText = "SELECT set_config('app.tenant_origen_id', @valor, false);";
+        comando.Parameters.AddWithValue("valor", tenantOrigenId?.ToString() ?? string.Empty);
+        await comando.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public override async ValueTask<InterceptionResult> ConnectionClosingAsync(
