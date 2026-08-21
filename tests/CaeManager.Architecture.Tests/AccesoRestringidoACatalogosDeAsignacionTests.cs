@@ -99,6 +99,20 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
 
         // Registro del contrato en el contenedor.
         "src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs",
+
+        // Ceremonia de apertura y cierre de sesiones privilegiadas (F2b-6), y
+        // el único escritor del plano 3.
+        //
+        // Desde F2b-5 estos tres accesos tienen una acotación que los de
+        // asignación no tienen: RLS con FORCE sobre las tres tablas, con la
+        // política privilegio_del_usuario. Aunque un comando pidiera una
+        // concesión ajena por Id, la base no la devuelve — la política solo
+        // entrega las filas que nombran a app.usuario_id. Por eso ninguno de
+        // los tres lleva un "y además comprueba que es tuya" a mano: sería una
+        // segunda regla que mantener sincronizada con la primera.
+        "src/CaeManager.Application/Plataforma/Commands/AbrirSesionPrivilegiada/AbrirSesionPrivilegiadaCommand.cs",
+        "src/CaeManager.Application/Plataforma/Commands/CerrarSesionPrivilegiada/CerrarSesionPrivilegiadaCommand.cs",
+        "src/CaeManager.Infrastructure/Plataforma/PlataformaWriter.cs",
     ];
 
     [Fact]

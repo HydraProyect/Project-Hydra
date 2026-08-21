@@ -401,6 +401,14 @@ public static class InfrastructureServiceCollectionExtensions
         // depende de la sesión: es del alcance del usuario, no del proceso.
         services.AddScoped<CaeManager.Application.Plataforma.ISesionPrivilegiadaActual,
             CaeManager.Infrastructure.Plataforma.SesionPrivilegiadaActual>();
+        // Autoridad para ABRIR una sesión, distinta de la capacidad DE la
+        // sesión. Implementación heredada (tenant de plataforma) tras un
+        // contrato con forma de capacidad: cuando llegue la matriz, se cambia
+        // esta línea y la ceremonia no se entera.
+        services.AddScoped<CaeManager.Application.Plataforma.IAutorizacionAperturaSesion,
+            CaeManager.Infrastructure.Plataforma.AutorizacionAperturaSesionPorTenantDePlataforma>();
+        services.AddScoped<CaeManager.Application.Plataforma.IPlataformaWriter,
+            CaeManager.Infrastructure.Plataforma.PlataformaWriter>();
         // Escribe en el mismo DbContext scoped que el comando que lo invoca:
         // así la doble escritura entra en el SaveChanges del comando y es
         // transaccional sin transacción explícita (F1 del plan de migración).
