@@ -49,19 +49,19 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             migrationBuilder.Sql(@"
 DO $$
 BEGIN
-    -- Mismo BEGIN/EXCEPTION que HabilitarRlsPostgres, y por el mismo motivo:
-    -- los roles son objetos de CLUSTER, no de base de datos. Con una base
-    -- efímera por clase de test, dos migraciones concurrentes pueden pasar las
-    -- dos el IF NOT EXISTS antes de que ninguna confirme, y la perdedora
-    -- reventaría con un duplicate key sobre pg_authid_rolname_index en vez de
-    -- un error legible.
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cae_app_soporte') THEN
-            CREATE ROLE cae_app_soporte NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
-        END IF;
-    EXCEPTION WHEN duplicate_object OR unique_violation THEN
-        NULL;
-    END;
+    -- El rol lo provee el BOOTSTRAP DE CLÚSTER
+    -- (deploy/bootstrap/roles-de-cluster.sql), no esta migración.
+    --
+    -- pg_authid es un catálogo compartido: crear un rol desde la migración de
+    -- UNA base es un error de nivel, y no era teórico. Seis migradores
+    -- entraban aquí a la vez y tres fallaban con 42704 dentro de este mismo
+    -- bloque, en la sentencia siguiente a la creación protegida: tragarse el
+    -- duplicate_object no garantiza que el rol sea utilizable a continuación.
+    --
+    -- Lo que queda abajo son privilegios sobre objetos de ESTA base, que sí le
+    -- corresponden. Si el bootstrap no se ejecutó, esto falla con un 42704
+    -- inmediato e idéntico en todos los migradores: un contrato incumplido
+    -- debe romper siempre, no a veces.
 
     GRANT USAGE ON SCHEMA public TO cae_app_soporte;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO cae_app_soporte;
@@ -84,11 +84,7 @@ BEGIN
         ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE SELECT ON TABLES FROM cae_app_soporte;
         REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM cae_app_soporte;
         REVOKE USAGE ON SCHEMA public FROM cae_app_soporte;
-        -- Si el entorno concedió la membresía a un rol de login real
-        -- (GRANT cae_app_soporte TO ...), hay que revocarla a mano antes de que
-        -- DROP ROLE pueda completarse: ese rol de login no existe en el código
-        -- fuente y no se puede adivinar desde aquí.
-        DROP ROLE cae_app_soporte;
+        -- El rol NO se borra aquí: es objeto de clúster (ver el Up).
     END IF;
 END $$;
 ");
