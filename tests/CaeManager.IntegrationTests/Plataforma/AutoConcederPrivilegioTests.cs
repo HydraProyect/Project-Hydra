@@ -129,7 +129,10 @@ public class AutoConcederPrivilegioTests : IAsyncLifetime
     {
         var resultado = await EjecutarAsync(tenantObjetivo: _tenantPlataforma);
 
-        resultado.Error.Codigo.Should().Be("ConcesionPrivilegio.NoAutorizado");
+        // Código propio desde A0, por lo mismo que al abrir: la regla venía
+        // dentro de la autorización de apertura retirada y necesita test que la
+        // distinga de "no eres la raíz".
+        resultado.Error.Codigo.Should().Be("ConcesionPrivilegio.TenantPropio");
         await NoHayNingunaConcesionAsync();
     }
 
@@ -145,7 +148,7 @@ public class AutoConcederPrivilegioTests : IAsyncLifetime
 
         var handler = new AutoConcederPrivilegioCommandHandler(
             new PlataformaWriter(contexto),
-            new AutorizacionAperturaSesionPorTenantDePlataforma(contexto, currentUser),
+            new RaizBootstrapPorTenantDePlataforma(contexto, currentUser),
             currentUser,
             contexto);
 
