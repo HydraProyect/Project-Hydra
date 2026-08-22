@@ -1,5 +1,6 @@
 using CaeManager.Infrastructure.Persistence.Seed;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -70,8 +71,18 @@ public static class IdentitySeeder
         var email = emailConfigurado ?? EmailAdministradorInicial;
         var contrasena = contrasenaConfigurada ?? ContrasenaAdministradorInicial;
 
-        if (await userManager.FindByEmailAsync(email) is not null)
+        // NO se retorna sin pasar por la designación de la raíz. Antes de A2
+        // este return era el final del camino cuando el usuario ya existía, y
+        // eso habría dejado sin raíz a TODO despliegue en marcha: producción ya
+        // tiene su administrador creado, así que la designación no habría
+        // ocurrido nunca y el bootstrap de plataforma sería inalcanzable.
+        var administradorExistente = await userManager.FindByEmailAsync(email);
+        if (administradorExistente is not null)
+        {
+            await DesignarRaizDePlataformaAsync(
+                administradorExistente, dbContext, userManager, logger, cancellationToken);
             return;
+        }
 
         var administrador = new ApplicationUser
         {
@@ -109,6 +120,9 @@ public static class IdentitySeeder
 
         await userManager.SetTwoFactorEnabledAsync(administrador, true);
 
+        await DesignarRaizDePlataformaAsync(
+            administrador, dbContext, userManager, logger, cancellationToken);
+
         // Solo fuera de producción: el admin real de producción debe ver el
         // modal de AceptacionTerminosGate igual que cualquier usuario, pero
         // el admin de desarrollo/E2E/CI no debe quedar bloqueado por un
@@ -119,5 +133,67 @@ public static class IdentitySeeder
             await Persistence.Seed.AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(
                 dbContext, administrador.Id, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Fija la identidad raíz de plataforma <b>una sola vez</b>, y solo eso.
+    ///
+    /// <para>
+    /// <b>No crea ninguna concesión.</b> El seeder designa quién puede ejecutar
+    /// el acto fundacional; la autoridad sigue naciendo exclusivamente de
+    /// <c>AutoConcederPrivilegioCommand</c>, que es el único punto de creación
+    /// que vigila el ratchet de concesiones.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>La configuración designa, no gobierna.</b> <c>AdministradorInicial:Email</c>
+    /// sirve para resolver la identidad mientras la raíz está sin fijar. Una vez
+    /// fijada, cambiar ese correo no la reasigna <i>ni tumba el arranque</i>:
+    /// hacer que una variable de despliegue mutable controle la disponibilidad de
+    /// una identidad que hemos hecho deliberadamente inmutable sería una mala
+    /// dependencia. Se registra como deriva y se sigue.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Lo que sí tumba el arranque</b> es que la raíz persistida ya no
+    /// exista: ahí no hay deriva de configuración sino un estado imposible, y
+    /// arrancar con él dejaría una plataforma cuya autoridad fundacional apunta
+    /// a nadie.
+    /// </para>
+    /// </summary>
+    private static async Task DesignarRaizDePlataformaAsync(
+        ApplicationUser candidato,
+        Persistence.CaeManagerDbContext dbContext,
+        UserManager<ApplicationUser> userManager,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var estado = await dbContext.EstadoBootstrapPlataforma
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (estado is null)
+        {
+            dbContext.EstadoBootstrapPlataforma.Add(
+                Domain.Plataforma.EstadoBootstrapPlataforma.Designar(candidato.Id, DateTime.UtcNow));
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            logger.LogInformation(
+                "Identidad raíz de plataforma designada: {UsuarioId}. A partir de aquí la configuración " +
+                "AdministradorInicial:Email deja de determinarla.", candidato.Id);
+            return;
+        }
+
+        if (await userManager.FindByIdAsync(estado.UsuarioRaizId.ToString()) is null)
+            throw new InvalidOperationException(
+                $"La identidad raíz de plataforma persistida ({estado.UsuarioRaizId}) ya no existe. " +
+                "El bootstrap no se reasigna automáticamente: recuperarla es un procedimiento " +
+                "administrativo explícito, fuera de la aplicación.");
+
+        if (estado.UsuarioRaizId != candidato.Id)
+            logger.LogWarning(
+                "AdministradorInicial:Email apunta a {UsuarioConfigurado}, pero la identidad raíz de " +
+                "plataforma es {UsuarioRaiz} y no se reasigna. La configuración solo designa la raíz " +
+                "mientras está sin fijar.", candidato.Id, estado.UsuarioRaizId);
     }
 }
