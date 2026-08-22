@@ -16,6 +16,20 @@ services:
       - "5432:5432"
     volumes:
       - caemanager-postgres-data:/var/lib/postgresql/data
+      # Bootstrap de roles de clúster. La especificación normativa está en ese
+      # fichero y aquí solo se monta: initdb.d lo ejecuta al INICIALIZAR el
+      # directorio de datos.
+      #
+      # OJO con el límite: si tu volumen ya existe, este hook NO vuelve a
+      # correr. Para un clúster de desarrollo ya creado hay que ejecutarlo a
+      # mano una vez:
+      #
+      #   docker compose exec -T postgres psql -U postgres -d postgres \
+      #       -v ON_ERROR_STOP=1 < deploy/bootstrap/roles-de-cluster.sql
+      #
+      # Sin los roles, la primera migración falla con 42704 — de forma
+      # inmediata y clara, que es la mitad buena del cambio.
+      - ./deploy/bootstrap/roles-de-cluster.sql:/docker-entrypoint-initdb.d/10-roles-de-cluster.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

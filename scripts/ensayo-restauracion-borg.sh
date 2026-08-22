@@ -47,6 +47,12 @@ echo "==> 4/5 Restaurando el dump con pg_restore (dentro del contenedor)..."
 # con set -e aborta el script antes de llegar a las verificaciones de la
 # sección 5. El ensayo verifica recuperabilidad de datos, no ACLs — replicar
 # permisos exactos es un paso aparte si algún día se activa RLS de verdad.
+# Bootstrap de roles de clúster ANTES de restaurar. pg_dump no puede incluir
+# el CREATE ROLE —es objeto de clúster, no de base—, y desde la reparación del
+# 42704 tampoco lo crea ninguna migración. Sin este paso, un clúster restaurado
+# no tendría los principales y la aplicación fallaría al migrar.
+docker exec -i ensayo-restauracion-pg psql --username=postgres --dbname=postgres     -v ON_ERROR_STOP=1 < "$(dirname "$0")/../deploy/bootstrap/roles-de-cluster.sql"
+
 docker exec -i ensayo-restauracion-pg pg_restore --clean --if-exists --no-owner --no-privileges \
     --username=postgres --dbname=caemanager < "$DIR_TRABAJO/CaeManager.dump"
 
