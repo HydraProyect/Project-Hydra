@@ -26,6 +26,28 @@
 # a propósito: solo app y caddy salen a ella, así que el stack de staging
 # nunca puede alcanzar el Postgres/Seq de producción por red aunque compartan
 # máquina — el aislamiento real sigue siendo el volumen de datos separado.
+# ─────────────────────────────────────────────────────────────────────────
+# PRERREQUISITO DE ARRANQUE — bootstrap de roles de clúster
+#
+# Antes del primer `up` contra un clúster NUEVO (o restaurado), hay que
+# ejecutar una vez:
+#
+#     docker compose -f docker-compose.produccion.yml up -d db
+#     docker compose -f docker-compose.produccion.yml exec -T db #         psql -U postgres -d postgres -v ON_ERROR_STOP=1 #         < ../../deploy/bootstrap/roles-de-cluster.sql
+#
+# Los roles son objetos de clúster y ninguna migración los crea: crearlos
+# desde la migración de una base ponía a seis migradores a competir y tres
+# de seis fallaban con 42704. Si este paso se olvida, la aplicación falla al
+# migrar con un 42704 inmediato y claro — no en silencio.
+#
+# En un clúster ya en marcha los roles ya existen; el guion es idempotente y
+# volver a ejecutarlo no cambia nada.
+#
+# DEUDA CONOCIDA: este es el único de los cinco adaptadores que no está
+# automatizado, porque el despliegue del VPS es hoy un comando manual. Es una
+# debilidad del sistema de despliegue, no una propiedad deseable.
+# ─────────────────────────────────────────────────────────────────────────
+
 services:
   app:
     build:

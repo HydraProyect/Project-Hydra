@@ -36,6 +36,12 @@ docker run -d --name ensayo-restauracion-pg -e POSTGRES_PASSWORD=ensayo \
     -e POSTGRES_DB=caemanager -p "$PUERTO_LOCAL:5432" postgres:17 >/dev/null
 until docker exec ensayo-restauracion-pg pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
 
+# Bootstrap de roles de clúster ANTES de restaurar. pg_dump no puede incluir el
+# CREATE ROLE —es objeto de clúster, no de base— y desde la reparación del 42704
+# tampoco lo crea ninguna migración. Sin este paso, un clúster restaurado no
+# tendría los principales y la aplicación fallaría al migrar.
+PGPASSWORD=ensayo psql -h localhost -p "$PUERTO_LOCAL" -U postgres -d postgres     -v ON_ERROR_STOP=1 -f "$(dirname "$0")/../deploy/bootstrap/roles-de-cluster.sql"
+
 echo "==> 4/5 Restaurando el dump con pg_restore..."
 # --no-privileges: mismo motivo que en ensayo-restauracion-borg.sh — el dump
 # referencia el rol cae_app_runtime (RLS, RUNBOOK-RLS.md), que no existe en
