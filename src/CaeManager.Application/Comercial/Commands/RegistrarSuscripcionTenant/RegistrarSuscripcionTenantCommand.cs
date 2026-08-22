@@ -1,5 +1,6 @@
 using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -42,19 +43,24 @@ public class RegistrarSuscripcionTenantCommandValidator : AbstractValidator<Regi
 public class RegistrarSuscripcionTenantCommandHandler(
     ITenantsQueryContext dbContext,
     IPaymentProvider paymentProvider,
+    IAutorizacionAdminPlataforma autorizacion,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<RegistrarSuscripcionTenantCommand, Result>
 {
     public async Task<Result> Handle(RegistrarSuscripcionTenantCommand request, CancellationToken cancellationToken)
     {
-        var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
-        var esPlataforma = tenantOrigenId is not null && await dbContext.Tenants
-            .AnyAsync(t => t.Id == tenantOrigenId.Value && t.EsPlataforma, cancellationToken);
-
-        if (!esPlataforma)
+        // La autoridad es la CONCESIÓN, no la pertenencia a un tenant. Y acotada
+        // al tenant sobre el que se actúa: una AdminPlataforma sobre el cliente A
+        // no autoriza a tocar la suscripción del cliente B.
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
             return Result.Fallo(Error.Crear(
-                "Comercial.NoAutorizado", "Solo el administrador de la plataforma puede gestionar suscripciones."));
+                "Comercial.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
+
+        if (!await autorizacion.PuedeSobreTenantAsync(usuarioId.Value, request.TenantId, cancellationToken))
+            return Result.Fallo(Error.Crear(
+                "Comercial.NoAutorizado", "No tienes autorización de plataforma sobre ese cliente."));
 
         var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, cancellationToken);
         if (tenant is null)

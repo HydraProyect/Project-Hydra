@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,14 +15,20 @@ namespace CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 /// </summary>
 public record EsAdministradorPlataformaQuery : IRequest<bool>;
 
-public class EsAdministradorPlataformaQueryHandler(ITenantsQueryContext tenantsContext, ICurrentUserService currentUserService)
+public class EsAdministradorPlataformaQueryHandler(IAutorizacionAdminPlataforma autorizacion, ICurrentUserService currentUserService)
     : IRequestHandler<EsAdministradorPlataformaQuery, bool>
 {
     public async Task<bool> Handle(EsAdministradorPlataformaQuery request, CancellationToken cancellationToken)
     {
-        var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
-        if (tenantOrigenId is null) return false;
+        // EXACTAMENTE el mismo predicado que CrearClienteDeleganteCommand. Si
+        // divergieran, el botón diría una cosa y el comando otra: o aparece para
+        // quien no puede usarlo, o se esconde a quien sí.
+        //
+        // Es UX, no enforcement. La seguridad vive en el comando; que alguien
+        // vea la ruta y el comando la rechace no es una vulnerabilidad.
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null) return false;
 
-        return await tenantsContext.Tenants.AnyAsync(t => t.Id == tenantOrigenId.Value && t.EsPlataforma, cancellationToken);
+        return await autorizacion.PuedeGlobalmenteAsync(usuarioId.Value, cancellationToken);
     }
 }

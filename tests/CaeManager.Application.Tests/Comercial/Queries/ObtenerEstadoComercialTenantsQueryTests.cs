@@ -1,5 +1,6 @@
 using CaeManager.Application.Comercial.Queries.ObtenerEstadoComercialTenants;
 using CaeManager.Domain.Tenants;
+using CaeManager.Application.Tests.Plataforma;
 using FluentAssertions;
 using Xunit;
 
@@ -18,7 +19,7 @@ public class ObtenerEstadoComercialTenantsQueryTests
         dbContext.ListaTenants.Add(cliente);
 
         var handler = new ObtenerEstadoComercialTenantsQueryHandler(
-            dbContext, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", Guid.NewGuid()));
+            dbContext, AutorizacionAdminPlataformaFalsa.SinNada(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", Guid.NewGuid()));
 
         var resultado = await handler.Handle(new ObtenerEstadoComercialTenantsQuery(), CancellationToken.None);
 
@@ -40,7 +41,7 @@ public class ObtenerEstadoComercialTenantsQueryTests
         dbContext.ListaTenants.Add(clienteB);
 
         var handler = new ObtenerEstadoComercialTenantsQueryHandler(
-            dbContext, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id));
+            dbContext, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id));
 
         var resultado = await handler.Handle(new ObtenerEstadoComercialTenantsQuery(), CancellationToken.None);
 
