@@ -38,6 +38,11 @@ public class PaginasDePlataformaSinGateDeRolTests
     [
         "src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor",
         "src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor",
+
+        // A3-5: la puerta del acto fundacional. Su autoridad es la identidad
+        // raíz designada por el despliegue, que no es el rol Administrador ni la
+        // capacidad AdminPlataforma —esa es lo que se obtiene al cruzarla—.
+        "src/CaeManager.Web/Features/Plataforma/Pages/Plataforma.razor",
     ];
 
     private static readonly Regex GatePorRol = new(
