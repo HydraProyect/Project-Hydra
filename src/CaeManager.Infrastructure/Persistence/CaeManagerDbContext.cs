@@ -229,7 +229,18 @@ public class CaeManagerDbContext(
     public DbSet<AsignacionCartera> AsignacionesCartera => Set<AsignacionCartera>();
     IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
     public DbSet<CaeManager.Domain.Plataforma.ConcesionPrivilegio> ConcesionesPrivilegio => Set<CaeManager.Domain.Plataforma.ConcesionPrivilegio>();
+    IQueryable<CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma> CaeManager.Application.Plataforma.IPlataformaQueryContext.EstadoBootstrapPlataforma => EstadoBootstrapPlataforma;
+
     IQueryable<CaeManager.Domain.Plataforma.ConcesionPrivilegio> CaeManager.Application.Plataforma.IPlataformaQueryContext.ConcesionesPrivilegio => ConcesionesPrivilegio;
+    /// <summary>
+    /// Estado del bootstrap de plataforma: una única fila con la identidad raíz
+    /// designada por el despliegue y si el acto fundacional ya se consumió. No es
+    /// fuente de autoridad —esa vive en las concesiones—, solo dice quién fue
+    /// designado y si queda bootstrap.
+    /// </summary>
+    public DbSet<CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma> EstadoBootstrapPlataforma
+        => Set<CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma>();
+
     public DbSet<CaeManager.Domain.Plataforma.SesionPrivilegiada> SesionesPrivilegiadas => Set<CaeManager.Domain.Plataforma.SesionPrivilegiada>();
     IQueryable<CaeManager.Domain.Plataforma.SesionPrivilegiada> CaeManager.Application.Plataforma.IPlataformaQueryContext.SesionesPrivilegiadas => SesionesPrivilegiadas;
     public DbSet<CaeManager.Domain.Plataforma.TenantAlcanzadoPorConcesion> TenantsAlcanzadosPorConcesion => Set<CaeManager.Domain.Plataforma.TenantAlcanzadoPorConcesion>();
