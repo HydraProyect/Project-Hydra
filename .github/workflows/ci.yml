@@ -89,10 +89,47 @@ jobs:
       - name: Tests de arquitectura
         run: dotnet test tests/CaeManager.Architecture.Tests --no-restore --logger "console;verbosity=normal"
 
+      # CAEMANAGER_TRAZA_MIGRACIONES: instrumento de diagnóstico temporal para
+      # el 42704 de cae_app_soporte (tres apariciones en CI, sin reproducción
+      # local ni con N=2 ni con N=6 sobre la cadena real). Su valor es la ruta
+      # del fichero de traza; ausente, el suscriptor no se activa y la suite
+      # corre exactamente igual — que es como corre en local.
+      #
+      # A fichero y no por consola porque `dotnet test` se traga la salida que
+      # no pertenece a un test, comprobado: un Console.WriteLine desde el
+      # inicializador de módulo se pierde entero.
       - name: Tests de integración
+        env:
+          CAEMANAGER_TRAZA_MIGRACIONES: ${{ github.workspace }}/traza-migraciones.log
         run: >
           dotnet test tests/CaeManager.IntegrationTests --no-restore --logger "console;verbosity=normal"
           --collect "XPlat Code Coverage" --results-directory ./coverage/integration
+
+      # if: always() — el volcado solo sirve cuando los tests FALLAN, que es
+      # justo cuando el paso anterior corta el job. Sin esto, el único caso que
+      # importa es el único que no dejaría rastro.
+      - name: Traza de migraciones (diagnóstico del 42704)
+        if: always()
+        run: |
+          TRAZA="${{ github.workspace }}/traza-migraciones.log"
+          if [ ! -f "$TRAZA" ]; then echo "sin fichero de traza"; exit 0; fi
+
+          # Volcado ACOTADO. La traza completa ronda los 3 MB / 44.000 líneas
+          # (medido en local: 458 cadenas completas de 97 migraciones, porque
+          # xUnit instancia la clase de test por CADA método y cada instancia
+          # crea y migra su propia base). Verterla entera taparía el resto del
+          # log, que es lo que se lee cuando algo falla.
+          echo "líneas de traza: $(wc -l < "$TRAZA")"
+          echo
+          echo "== errores de comando =="
+          grep " ERROR " "$TRAZA" || echo "(ninguno)"
+          echo
+          # Contexto inmediatamente anterior a cada error: qué migraciones
+          # estaban en vuelo. Con la línea de ERROR basta para identificar la
+          # sentencia —lleva el SQL—, pero el contexto dice quién más iba por
+          # ahí, que es lo que distingue una carrera de un fallo aislado.
+          echo "== 60 líneas previas a cada error =="
+          grep -B 60 " ERROR " "$TRAZA" || echo "(ninguno)"
 
       # MarkdownSummaryGithub: pensado por ReportGenerator específicamente
       # para $GITHUB_STEP_SUMMARY — aparece en la pestaña Summary del run,
