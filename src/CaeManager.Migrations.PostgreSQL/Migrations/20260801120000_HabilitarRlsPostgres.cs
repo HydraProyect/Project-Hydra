@@ -52,34 +52,19 @@ DO $$
 DECLARE
     tabla text;
 BEGIN
-    -- NOLOGIN: sin contraseña, no se puede usar para conectar tal cual. Es
-    -- deliberado — RUNBOOK-RLS.md documenta cómo GRANT-earlo a un rol de
-    -- login real (o convertirlo en uno) sin que ningún secreto viva en el
-    -- código fuente. NOBYPASSRLS es la propiedad que de verdad importa: sin
-    -- ella, este rol (como cualquier rol con BYPASSRLS o un superusuario)
-    -- ignoraría las políticas de más abajo igual que hoy las ignora el rol
-    -- propietario.
+    -- El rol lo provee el BOOTSTRAP DE CLÚSTER
+    -- (deploy/bootstrap/roles-de-cluster.sql), no esta migración.
     --
-    -- El IF NOT EXISTS por sí solo no basta: cae_app_runtime es un rol de
-    -- CLUSTER (pg_roles/pg_authid es catálogo compartido por todo el
-    -- cluster, no por base de datos), así que si esta migración se aplica
-    -- en paralelo contra varias bases de datos de test del mismo cluster
-    -- (patrón habitual: una base efímera por clase de test), dos
-    -- transacciones pueden pasar el NOT EXISTS a la vez antes de que
-    -- ninguna confirme el CREATE ROLE, y la segunda revienta con un
-    -- duplicate key value violates unique constraint pg_authid_rolname_index
-    -- en vez de un error legible — visto reproducido en CI de PR #49
-    -- (E2E con exit 134 y 70+ tests de AislamientoPorAgregadoTests caídos
-    -- porque la app no arrancaba). BEGIN/EXCEPTION aquí sí es atómico
-    -- frente a esa carrera: si otra transacción ganó la carrera, esta
-    -- captura el duplicado y sigue sin fallar.
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cae_app_runtime') THEN
-            CREATE ROLE cae_app_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
-        END IF;
-    EXCEPTION WHEN duplicate_object OR unique_violation THEN
-        NULL;
-    END;
+    -- pg_authid es un catálogo compartido: crear un rol desde la migración de
+    -- UNA base es un error de nivel, y no era teórico. Seis migradores
+    -- entraban aquí a la vez y tres fallaban con 42704 dentro de este mismo
+    -- bloque, en la sentencia siguiente a la creación protegida: tragarse el
+    -- duplicate_object no garantiza que el rol sea utilizable a continuación.
+    --
+    -- Lo que queda abajo son privilegios sobre objetos de ESTA base, que sí le
+    -- corresponden. Si el bootstrap no se ejecutó, esto falla con un 42704
+    -- inmediato e idéntico en todos los migradores: un contrato incumplido
+    -- debe romper siempre, no a veces.
 
     FOREACH tabla IN ARRAY ARRAY[{arrayTablas}]
     LOOP
@@ -140,12 +125,10 @@ BEGIN
         REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM cae_app_runtime;
         REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM cae_app_runtime;
         REVOKE USAGE ON SCHEMA public FROM cae_app_runtime;
-        -- Si RUNBOOK-RLS.md se siguió en este entorno, un rol de login real
-        -- es miembro de cae_app_runtime (GRANT cae_app_runtime TO ...) — hay
-        -- que revocar esa membresía a mano antes de que DROP ROLE pueda
-        -- completarse; no se automatiza aquí porque ese rol de login no
-        -- existe en el código fuente (RUNBOOK-RLS.md § provisión).
-        DROP ROLE cae_app_runtime;
+        -- El rol NO se borra aquí. Es un objeto de clúster: destruirlo desde
+        -- el Down de UNA base se lo quitaría a todas las demás del mismo
+        -- clúster. Si crear es responsabilidad del bootstrap, destruir
+        -- tampoco puede pertenecer a la migración de una base.
     END IF;
 END $$;
 ");
