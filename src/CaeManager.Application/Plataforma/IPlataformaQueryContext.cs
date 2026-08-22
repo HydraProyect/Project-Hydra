@@ -15,6 +15,13 @@ namespace CaeManager.Application.Plataforma;
 /// </summary>
 public interface IPlataformaQueryContext
 {
+    /// <summary>
+    /// La fila única de estado de bootstrap. No es fuente de autoridad: dice
+    /// quién fue designado raíz por el despliegue y si el acto fundacional ya se
+    /// consumió.
+    /// </summary>
+    IQueryable<EstadoBootstrapPlataforma> EstadoBootstrapPlataforma { get; }
+
     IQueryable<ConcesionPrivilegio> ConcesionesPrivilegio { get; }
     IQueryable<SesionPrivilegiada> SesionesPrivilegiadas { get; }
     IQueryable<TenantAlcanzadoPorConcesion> TenantsAlcanzadosPorConcesion { get; }

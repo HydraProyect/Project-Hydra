@@ -54,9 +54,14 @@ public class ConcesionesSoloPorActoExplicitoTests
     private static readonly Dictionary<string, string> PuntosDeCreacionAutorizados = new()
     {
         ["src/CaeManager.Application/Plataforma/Commands/AutoConcederPrivilegio/AutoConcederPrivilegioCommand.cs"] =
-            "auto-concesión: el beneficiario no es un parámetro, sale de la sesión, así que solo puede crear " +
-            "concesiones a nombre de quien ejecuta. Autorizada por la misma puerta de plataforma que la apertura " +
-            "y con 2FA. ADR-011 § 4bis.7.7 la admite mientras el equipo sea unipersonal.",
+            "el ÚNICO punto de creación de concesiones, y sigue sin admitir beneficiario: sale de la " +
+            "sesión, así que solo puede crear concesiones a nombre de quien ejecuta. Tiene dos variantes " +
+            "del mismo acto — la fundacional (OrigenConcesion.BootstrapPlataforma: identidad raíz " +
+            "designada por el despliegue, bootstrap sin consumir, AdminPlataforma global, una sola vez) " +
+            "y la ordinaria (SoporteLectura, que exige AdminPlataforma vigente). Qué capacidad puede " +
+            "darse cada quien lo decide una matriz cerrada, no una regla general: ver " +
+            "IAutorizacionAutoConcesion. 2FA en ambas. Conceder a un TERCERO sigue sin existir, así que " +
+            "la segregación de funciones de ADR-011 § 4bis.7.7 no queda adelantada.",
 
         // El escritor recibe el agregado ya construido: no puede fabricar una
         // concesión, solo persistir la que le den.
