@@ -51,7 +51,6 @@ public class CrearClienteDeleganteCommandHandler(
     IDelegacionTenantRepository delegacionRepositorio,
     IAsignacionOperadorDelegadoRepository asignacionRepositorio,
     IParametroSistemaRepository parametroSistemaRepositorio,
-    ITenantsQueryContext tenantsContext,
     IAutorizacionAdminPlataforma autorizacion,
     ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter,

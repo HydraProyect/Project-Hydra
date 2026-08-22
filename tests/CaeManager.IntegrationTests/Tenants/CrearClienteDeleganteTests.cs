@@ -78,7 +78,6 @@ public class CrearClienteDeleganteTests : IAsyncLifetime
             new DelegacionTenantRepository(contexto),
             new AsignacionOperadorDelegadoRepository(contexto),
             new ParametroSistemaRepository(contexto),
-            contexto,
             // La implementación REAL contra las concesiones de la base: en un
             // test de integración un doble ocultaría justo lo que interesa, que
             // es si el alcance de la concesión autoriza esta operación.
