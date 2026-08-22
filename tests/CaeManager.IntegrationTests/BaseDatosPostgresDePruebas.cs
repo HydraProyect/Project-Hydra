@@ -55,6 +55,14 @@ internal static class BaseDatosPostgresDePruebas
     private const string LimitesDePool =
         "Maximum Pool Size=10;Minimum Pool Size=0;Connection Idle Lifetime=15;Connection Pruning Interval=5";
 
+    /// <summary>
+    /// Para el bootstrap de clúster: base de mantenimiento y sin pool. Corre una
+    /// sola vez por proceso y no debe dejar conexiones vivas compitiendo con las
+    /// de la suite, que ya vive al límite de <c>max_connections</c>.
+    /// </summary>
+    internal static string CadenaDeMantenimientoSinPool() =>
+        $"{Servidor};Database=postgres;Pooling=false";
+
     internal static string CadenaConexionUnica() =>
         $"{Servidor};Database=caemanager_tests_{Guid.NewGuid():N};{LimitesDePool}";
 
