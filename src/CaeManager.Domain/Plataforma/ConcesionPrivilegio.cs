@@ -66,6 +66,15 @@ public class ConcesionPrivilegio : Entity, IVersionable
 
     public string? MotivoConcesion { get; private set; }
 
+    /// <summary>
+    /// Por qué esta concesión es la que es. <see cref="OrigenConcesion.Ordinaria"/>
+    /// salvo la fundacional, y esa solo puede nacer de <see cref="RaizDeBootstrap"/>:
+    /// el setter es privado y las otras dos fábricas no lo tocan, así que
+    /// <see cref="OrigenConcesion.BootstrapPlataforma"/> es irrepresentable por
+    /// cualquier otro camino.
+    /// </summary>
+    public OrigenConcesion Origen { get; private set; } = OrigenConcesion.Ordinaria;
+
     public Guid Version { get; private set; } = Guid.NewGuid();
     public DateTime CreadoEnUtc { get; private set; } = DateTime.UtcNow;
 
@@ -136,6 +145,42 @@ public class ConcesionPrivilegio : Entity, IVersionable
     /// lectura sería precisamente la cuenta de soporte omnipotente que el
     /// principio de mínimo privilegio prohíbe (ADR-011 § 8.8).
     /// </summary>
+    /// <summary>
+    /// La concesión fundacional: la que existe antes de que exista ninguna
+    /// autoridad de la que derivarla.
+    ///
+    /// <para>
+    /// Los cuatro rasgos van juntos y ninguno es parámetro: <b>siempre</b>
+    /// <c>AdminPlataforma</c>, <b>siempre</b> global, <b>siempre</b> a nombre de
+    /// la identidad raíz, y concedida por ella misma. No hay forma de usar esta
+    /// puerta para beneficiar a un tercero ni para acuñar otra capacidad — la
+    /// firma no lo permite, igual que <c>AutoConcederPrivilegioCommand</c> no
+    /// admite beneficiario.
+    /// </para>
+    ///
+    /// <para>
+    /// Que solo pueda ocurrir <b>una vez</b> no lo impone el agregado, sino
+    /// <see cref="EstadoBootstrapPlataforma"/>: es estado del despliegue, no de
+    /// esta fila, y su transición a consumido se guarda junto con esta concesión.
+    /// </para>
+    /// </summary>
+    public static ConcesionPrivilegio RaizDeBootstrap(
+        Guid usuarioRaizId, DateTime vigenciaDesde, DateTime? vigenciaHasta)
+    {
+        if (usuarioRaizId == Guid.Empty)
+            throw new ArgumentException("La identidad raíz no puede ser vacía.", nameof(usuarioRaizId));
+
+        return new ConcesionPrivilegio(
+            usuarioRaizId, CapacidadPrivilegio.AdminPlataforma, esAlcanceGlobal: true,
+            vigenciaDesde, vigenciaHasta,
+            concedidaPorUsuarioId: usuarioRaizId,
+            motivoConcesion: "Concesión fundacional de la plataforma (A2): la identidad raíz designada " +
+                             "por el despliegue arranca la autoridad que después vive en las concesiones.")
+        {
+            Origen = OrigenConcesion.BootstrapPlataforma,
+        };
+    }
+
     public static ConcesionPrivilegio Global(
         Guid usuarioPlataformaId,
         DateTime vigenciaDesde,

@@ -47,6 +47,14 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
     /// </summary>
     private static readonly HashSet<string> ArchivosAutorizados =
     [
+        // Matriz de auto-concesión (A2): consulta si el usuario tiene una
+        // concesión AdminPlataforma VIGENTE para decidir si puede darse
+        // SoporteLectura. Consulta acotada al propio usuario —el filtro de
+        // posición es UsuarioPlataformaId== el de la sesión—, que es
+        // exactamente lo que este ratchet exige, y además coincide con el
+        // predicado de la política RLS del plano de privilegio.
+        "src/CaeManager.Infrastructure/Plataforma/AutorizacionAutoConcesionPorMatriz.cs",
+
         // El contrato mismo y su implementación: el único escritor.
         "src/CaeManager.Application/Operaciones/IOperacionesQueryContext.cs",
         "src/CaeManager.Application/Operaciones/IAsignacionesOperativasWriter.cs",
