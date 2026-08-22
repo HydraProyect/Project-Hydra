@@ -81,7 +81,7 @@ public class AutoConcederPrivilegioCommandValidator : AbstractValidator<AutoConc
 
 public class AutoConcederPrivilegioCommandHandler(
     IPlataformaWriter writer,
-    IAutorizacionAperturaSesion autorizacion,
+    IRaizBootstrapPlataforma raizBootstrap,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<AutoConcederPrivilegioCommand, Result<Guid>>
@@ -93,16 +93,36 @@ public class AutoConcederPrivilegioCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "ConcesionPrivilegio.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
 
-        // Se reutiliza la autoridad de apertura a propósito, y no porque sea
-        // "parecida": con auto-concesión, la concesión no añade autoridad
-        // ninguna — es el registro de una autoridad que el usuario ya tiene por
-        // la puerta de plataforma. Si puede abrir una sesión sobre ese tenant,
-        // puede dejar constancia de que va a hacerlo. Conceder a un tercero sí
-        // sería autoridad nueva, y por eso no está aquí.
-        if (!await autorizacion.PuedeAbrirAsync(usuarioId.Value, request.TenantObjetivoId, cancellationToken))
+        // Este es el ACTO FUNDACIONAL de la autoridad, no el registro de una
+        // autoridad previa.
+        //
+        // Antes de A0 esta comprobación reutilizaba la autorización de apertura,
+        // con el argumento de que quien ya podía abrir una sesión podía dejar
+        // constancia de que iba a hacerlo. Ese argumento murió: desde A0 abrir
+        // exige una concesión, así que no hay ninguna autoridad previa de la que
+        // esta fila sea mero reflejo. Mantener aquel razonamiento sería
+        // circular — conceder exigiría poder abrir, y abrir exigiría la
+        // concesión que se está creando.
+        //
+        //     EsPlataforma  →  primera concesión  →  abrir sesión
+        //
+        // La raíz de bootstrap existe exactamente para romper ese ciclo, y es
+        // la única superficie que le queda a EsPlataforma como autoridad.
+        // Conceder a un TERCERO sí sería autoridad nueva y sigue sin existir:
+        // este comando solo concede a quien lo invoca.
+        if (!await raizBootstrap.EsRaizDeConfianzaAsync(usuarioId.Value, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "ConcesionPrivilegio.NoAutorizado",
                 "No tienes autorización para concederte acceso de soporte sobre este cliente."));
+
+        // Y el objetivo tiene que ser ajeno, por lo mismo que al abrir: emitir
+        // una concesión sobre la propia casa deja preparada esa vuelta. La regla
+        // venía incluida en la autorización de apertura que A0 retira; se
+        // repone explícita para que no se pierda con ella.
+        if (!await ReglaTenantObjetivoAjeno.SeCumpleAsync(currentUserService, request.TenantObjetivoId))
+            return Result.Fallo<Guid>(Error.Crear(
+                "ConcesionPrivilegio.TenantPropio",
+                "No se concede acceso de soporte sobre tu propia organización."));
 
         // 2FA también aquí: si no, quedaría un camino para dejar la concesión
         // preparada sin segundo factor y activarla después. La ceremonia se

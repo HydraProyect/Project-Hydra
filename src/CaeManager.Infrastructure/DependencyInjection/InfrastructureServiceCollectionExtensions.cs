@@ -401,12 +401,11 @@ public static class InfrastructureServiceCollectionExtensions
         // depende de la sesión: es del alcance del usuario, no del proceso.
         services.AddScoped<CaeManager.Application.Plataforma.ISesionPrivilegiadaActual,
             CaeManager.Infrastructure.Plataforma.SesionPrivilegiadaActual>();
-        // Autoridad para ABRIR una sesión, distinta de la capacidad DE la
-        // sesión. Implementación heredada (tenant de plataforma) tras un
-        // contrato con forma de capacidad: cuando llegue la matriz, se cambia
-        // esta línea y la ceremonia no se entera.
-        services.AddScoped<CaeManager.Application.Plataforma.IAutorizacionAperturaSesion,
-            CaeManager.Infrastructure.Plataforma.AutorizacionAperturaSesionPorTenantDePlataforma>();
+        // Raíz de confianza de bootstrap, y nada más: crear la PRIMERA
+        // concesión, cuando todavía no hay ninguna de la que derivar autoridad.
+        // Abrir una sesión ya no pasa por aquí — lo autoriza la concesión.
+        services.AddScoped<CaeManager.Application.Plataforma.IRaizBootstrapPlataforma,
+            CaeManager.Infrastructure.Plataforma.RaizBootstrapPorTenantDePlataforma>();
         services.AddScoped<CaeManager.Application.Plataforma.IPlataformaWriter,
             CaeManager.Infrastructure.Plataforma.PlataformaWriter>();
         // Escribe en el mismo DbContext scoped que el comando que lo invoca:
