@@ -3,9 +3,16 @@ using FluentAssertions;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// <b><c>EsPlataforma</c> solo en bootstrap.</b> La raíz de confianza autoriza
-/// una cosa —crear la primera concesión— y su contrato tiene exactamente un
-/// consumidor.
+/// <b>La raíz de bootstrap autoriza una sola cosa y tiene un solo consumidor:</b>
+/// crear la concesión fundacional.
+///
+/// <para>
+/// A2 cambió de qué está hecha esa raíz. Ya <b>no</b> consulta
+/// <c>EsPlataforma</c>: ese tenant es también el operativo de la empresa, así
+/// que cualquiera de sus miembros podía acuñarse autoridad — una carrera de
+/// privilegios, no un bootstrap. Ahora la raíz es una <b>persona designada por
+/// el despliegue</b> y el acto se consume una sola vez.
+/// </para>
 ///
 /// <para>
 /// Antes de A0, <c>IAutorizacionAperturaSesion</c> servía a dos comandos y por
@@ -18,6 +25,9 @@ namespace CaeManager.Architecture.Tests;
 ///                       └─→ AbrirSesionPrivilegiada     ← la segunda vía
 ///
 /// A0:     EsPlataforma ──→ AutoConcederPrivilegio ──→ concesión ──→ abrir
+///
+/// A2:     identidad raíz designada ──→ política de auto-concesión
+///                                  ──→ concesión fundacional (una vez)
 /// </code>
 ///
 /// <para>
@@ -40,11 +50,20 @@ public class RaizDeBootstrapConUnSoloConsumidorTests
     /// <summary>
     /// El único consumidor legítimo, con su motivo. Cuando todavía no existe
     /// ninguna concesión, no hay autoridad de la que derivar la primera: esa es
-    /// la única circunstancia que justifica preguntar por <c>EsPlataforma</c>.
+    /// la única circunstancia que justifica una autoridad que no venga de una
+    /// concesión.
     /// </summary>
     private static readonly string[] ConsumidoresAutorizados =
     [
-        "src/CaeManager.Application/Plataforma/Commands/AutoConcederPrivilegio/AutoConcederPrivilegioCommand.cs",
+        // A2 movió el consumo del handler a la política de auto-concesión, y es
+        // el sitio correcto: el comando pregunta "¿puede este usuario darse esta
+        // capacidad?" y no debe conocer la implementación concreta de la raíz.
+        //
+        // La propiedad que se vigila NO es "la interfaz aparece dentro del
+        // handler" —eso ataba el ratchet a un límite de abstracción concreto—
+        // sino "la autorización de bootstrap se consume desde un único sitio, y
+        // ese sitio es la política de auto-concesión".
+        "src/CaeManager.Infrastructure/Plataforma/AutorizacionAutoConcesionPorMatriz.cs",
     ];
 
     /// <summary>
@@ -63,7 +82,7 @@ public class RaizDeBootstrapConUnSoloConsumidorTests
     {
         ["src/CaeManager.Application/Plataforma/IRaizBootstrapPlataforma.cs"] =
             "el contrato: es la pieza, no quien la usa",
-        ["src/CaeManager.Infrastructure/Plataforma/RaizBootstrapPorTenantDePlataforma.cs"] =
+        ["src/CaeManager.Infrastructure/Plataforma/RaizBootstrapPorIdentidadDesignada.cs"] =
             "la implementación: ídem",
         ["src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs"] =
             "raíz de composición, no consumidor operativo",
@@ -84,7 +103,7 @@ public class RaizDeBootstrapConUnSoloConsumidorTests
     /// </para>
     /// </summary>
     [Fact]
-    public void La_raiz_de_bootstrap_solo_la_consume_la_auto_concesion()
+    public void La_raiz_de_bootstrap_solo_la_consume_la_politica_de_auto_concesion()
     {
         var raiz = RaizDelRepositorio();
         var origen = Path.Combine(raiz, "src");
@@ -99,7 +118,7 @@ public class RaizDeBootstrapConUnSoloConsumidorTests
                 Texto = File.ReadAllText(a),
             })
             .Where(a => a.Texto.Contains("IRaizBootstrapPlataforma")
-                        || a.Texto.Contains("RaizBootstrapPorTenantDePlataforma"))
+                        || a.Texto.Contains("RaizBootstrapPorIdentidadDesignada"))
             .Select(a => a.Ruta)
             .Where(r => !NoSonConsumidores.ContainsKey(r))
             .OrderBy(r => r)
@@ -144,7 +163,7 @@ public class RaizDeBootstrapConUnSoloConsumidorTests
 
         texto.Should().NotContain("IRaizBootstrapPlataforma",
             "quien abre lo hace porque una concesión lo nombra, no porque pertenezca a la plataforma");
-        texto.Should().NotContain("RaizBootstrapPorTenantDePlataforma",
+        texto.Should().NotContain("RaizBootstrapPorIdentidadDesignada",
             "tampoco por la clase concreta: los dos nombres son disjuntos como texto, así que comprobar " +
             "solo el de la interfaz dejaba pasar la dependencia directa sobre la implementación");
         texto.Should().NotContain("EsPlataforma",

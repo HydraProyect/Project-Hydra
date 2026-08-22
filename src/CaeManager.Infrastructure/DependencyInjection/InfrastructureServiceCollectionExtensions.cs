@@ -404,8 +404,17 @@ public static class InfrastructureServiceCollectionExtensions
         // Raíz de confianza de bootstrap, y nada más: crear la PRIMERA
         // concesión, cuando todavía no hay ninguna de la que derivar autoridad.
         // Abrir una sesión ya no pasa por aquí — lo autoriza la concesión.
+        //
+        // Desde A2 la raíz es una PERSONA designada por el despliegue, no el
+        // tenant de plataforma: ese tenant es también el operativo de la empresa,
+        // así que cualquiera de sus miembros podía acuñarse autoridad.
+        // Matriz de auto-concesión: qué capacidad puede darse cada quien a sí
+        // mismo. La raíz solo interviene en el acto fundacional; después, quien
+        // tiene AdminPlataforma vigente puede darse SoporteLectura.
+        services.AddScoped<CaeManager.Application.Plataforma.IAutorizacionAutoConcesion,
+            CaeManager.Infrastructure.Plataforma.AutorizacionAutoConcesionPorMatriz>();
         services.AddScoped<CaeManager.Application.Plataforma.IRaizBootstrapPlataforma,
-            CaeManager.Infrastructure.Plataforma.RaizBootstrapPorTenantDePlataforma>();
+            CaeManager.Infrastructure.Plataforma.RaizBootstrapPorIdentidadDesignada>();
         services.AddScoped<CaeManager.Application.Plataforma.IPlataformaWriter,
             CaeManager.Infrastructure.Plataforma.PlataformaWriter>();
         // Escribe en el mismo DbContext scoped que el comando que lo invoca:
