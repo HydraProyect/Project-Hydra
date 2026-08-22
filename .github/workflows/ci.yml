@@ -76,6 +76,24 @@ jobs:
       # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
       # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
       # después de él es el gate real (ratchet, ver su comentario).
+      # BOOTSTRAP DE CLÚSTER — prerrequisito de cualquier MigrateAsync.
+      #
+      # Los roles son objetos de clúster (pg_authid es catálogo compartido) y
+      # desde este incremento NINGUNA migración los crea: crearlos desde la
+      # migración de una base ponía a seis migradores a competir y tres de seis
+      # fallaban con 42704. deploy/bootstrap/roles-de-cluster.sql es la
+      # especificación normativa y este paso es su adaptador de CI; el guion
+      # trae dentro su propia verificación post-bootstrap.
+      #
+      # ON_ERROR_STOP=1: sin esto psql seguiría adelante tras un error y el job
+      # arrancaría contra un clúster fuera de contrato.
+      - name: Bootstrap de roles de clúster
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -f deploy/bootstrap/roles-de-cluster.sql
+
       - name: Tests de Domain
         run: >
           dotnet test tests/CaeManager.Domain.Tests --no-restore --logger "console;verbosity=normal"
@@ -289,6 +307,31 @@ jobs:
       # del proyecto que lo referencia — se usa ese, no una instalación
       # global, para no acoplar la versión de los navegadores a nada fuera
       # del propio csproj (ver CaeManager.E2ETests.csproj).
+      # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
+      # en los tres proyectos de test) escribe un coverage.cobertura.xml por
+      # suite bajo ./coverage — P1-19 de docs/business/MATURITY_REVIEW.md:
+      # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
+      # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
+      # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
+      # después de él es el gate real (ratchet, ver su comentario).
+      # BOOTSTRAP DE CLÚSTER — prerrequisito de cualquier MigrateAsync.
+      #
+      # Los roles son objetos de clúster (pg_authid es catálogo compartido) y
+      # desde este incremento NINGUNA migración los crea: crearlos desde la
+      # migración de una base ponía a seis migradores a competir y tres de seis
+      # fallaban con 42704. deploy/bootstrap/roles-de-cluster.sql es la
+      # especificación normativa y este paso es su adaptador de CI; el guion
+      # trae dentro su propia verificación post-bootstrap.
+      #
+      # ON_ERROR_STOP=1: sin esto psql seguiría adelante tras un error y el job
+      # arrancaría contra un clúster fuera de contrato.
+      - name: Bootstrap de roles de clúster
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -f deploy/bootstrap/roles-de-cluster.sql
+
       - name: Instalar navegadores de Playwright
         run: pwsh tests/CaeManager.E2ETests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
 
@@ -343,6 +386,31 @@ jobs:
       # contra el Postgres del job — mismo patrón que WebAppFixture en los
       # tests E2E (ver esa clase), pero como proceso de shell porque este
       # job no es un proyecto de test .NET.
+      # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
+      # en los tres proyectos de test) escribe un coverage.cobertura.xml por
+      # suite bajo ./coverage — P1-19 de docs/business/MATURITY_REVIEW.md:
+      # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
+      # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
+      # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
+      # después de él es el gate real (ratchet, ver su comentario).
+      # BOOTSTRAP DE CLÚSTER — prerrequisito de cualquier MigrateAsync.
+      #
+      # Los roles son objetos de clúster (pg_authid es catálogo compartido) y
+      # desde este incremento NINGUNA migración los crea: crearlos desde la
+      # migración de una base ponía a seis migradores a competir y tres de seis
+      # fallaban con 42704. deploy/bootstrap/roles-de-cluster.sql es la
+      # especificación normativa y este paso es su adaptador de CI; el guion
+      # trae dentro su propia verificación post-bootstrap.
+      #
+      # ON_ERROR_STOP=1: sin esto psql seguiría adelante tras un error y el job
+      # arrancaría contra un clúster fuera de contrato.
+      - name: Bootstrap de roles de clúster
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -f deploy/bootstrap/roles-de-cluster.sql
+
       - name: Arrancar la app
         run: |
           ASPNETCORE_ENVIRONMENT=Development \

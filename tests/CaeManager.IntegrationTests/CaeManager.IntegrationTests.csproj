@@ -25,6 +25,13 @@
          sigue siendo el de por defecto (un hilo por núcleo) — que es lo que
          agotaba las conexiones de PostgreSQL, ver BaseDatosPostgresDePruebas. -->
     <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- La especificación normativa de los roles de clúster vive fuera del
+         ensamblado de migraciones a propósito: allí el ratchet prohíbe crear
+         roles sin excepciones. El arnés la ejecuta como adaptador, sin
+         redefinir ni un atributo (ver BootstrapDeClusterEnTests). -->
+    <None Include="../../deploy/bootstrap/roles-de-cluster.sql"
+          Link="roles-de-cluster.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
