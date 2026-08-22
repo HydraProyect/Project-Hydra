@@ -70,7 +70,6 @@ public class AbrirSesionPrivilegiadaCommandValidator : AbstractValidator<AbrirSe
 public class AbrirSesionPrivilegiadaCommandHandler(
     IPlataformaQueryContext plataformaContext,
     IPlataformaWriter writer,
-    IAutorizacionAperturaSesion autorizacion,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<AbrirSesionPrivilegiadaCommand, Result<Guid>>
@@ -82,14 +81,7 @@ public class AbrirSesionPrivilegiadaCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "SesionPrivilegiada.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
 
-        // Precondición 1 — autoridad para abrir. Pregunta de negocio, no
-        // comprobación de rol: ver IAutorizacionAperturaSesion.
-        if (!await autorizacion.PuedeAbrirAsync(usuarioId.Value, request.TenantObjetivoId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear(
-                "SesionPrivilegiada.NoAutorizado",
-                "No tienes autorización para abrir un acceso de soporte sobre este cliente."));
-
-        // Precondición 2 — 2FA. Se conserva de la ceremonia heredada porque
+        // Precondición 1 — 2FA. Se conserva de la ceremonia heredada porque
         // quien entra en datos de un cliente ajeno con una cuenta comprometida
         // por contraseña sola es exactamente el escenario que este acceso
         // existe para poder rastrear y contener.
@@ -98,7 +90,24 @@ public class AbrirSesionPrivilegiadaCommandHandler(
                 "SesionPrivilegiada.SinDobleFactor",
                 "Activa la autenticación en dos pasos en tu cuenta antes de abrir un acceso de soporte."));
 
+        // Precondición 2 — el objetivo es ajeno. Regla independiente de la
+        // capacidad: aquella dice QUÉ puede hacerse, esta SOBRE QUÉ tenant.
+        // Vivía dentro de la autorización de apertura que este incremento
+        // retira, así que se repone con nombre propio para que no se pierda en
+        // silencio (ver ReglaTenantObjetivoAjeno).
+        if (!await ReglaTenantObjetivoAjeno.SeCumpleAsync(currentUserService, request.TenantObjetivoId))
+            return Result.Fallo<Guid>(Error.Crear(
+                "SesionPrivilegiada.TenantPropio",
+                "No se abre un acceso de soporte sobre tu propia organización."));
+
         // Precondición 3 — la concesión existe, es tuya y viene con su alcance.
+        //
+        // Y desde A0 es además la FUENTE de la autoridad para abrir, no un
+        // requisito más. Pertenecer al tenant marcado como plataforma dejó de
+        // ser suficiente —y dejó de ser necesario—: lo que autoriza es tener una
+        // concesión que lo diga. Que hoy solo puedan tenerla usuarios de
+        // plataforma es una propiedad del único camino de creación que existe
+        // (la auto-concesión, con su raíz de bootstrap), no de esta ceremonia.
         //
         // Que sea TUYA se comprueba dos veces, con el mismo predicado y una sola
         // fuente de identidad:
@@ -130,6 +139,18 @@ public class AbrirSesionPrivilegiadaCommandHandler(
         if (concesion is null || concesion.UsuarioPlataformaId != usuarioId.Value)
             return Result.Fallo<Guid>(Error.Crear(
                 "SesionPrivilegiada.ConcesionNoEncontrada", "No encontramos esa concesión de privilegio."));
+
+        // Precondición 4 — la capacidad concedida autoriza, además, a abrir.
+        //
+        //     capacidad DE la sesión   ≠   capacidad para ABRIRLA
+        //
+        // Sin esta línea, "tener una concesión vigente" bastaría para iniciar la
+        // ceremonia y cualquier capacidad futura se convertiría en llave el día
+        // que alguien la añadiera al enum, sin que nadie tomara esa decisión.
+        if (!CapacidadesQuePuedenAbrirSesion.Admite(concesion.Capacidad))
+            return Result.Fallo<Guid>(Error.Crear(
+                "SesionPrivilegiada.CapacidadNoAbreSesion",
+                "Esa concesión no habilita abrir un acceso de soporte."));
 
         // Y a partir de aquí manda el dominio. CubreEn comprueba las tres cosas
         // juntas —estado, ventana y alcance— así que una concesión revocada,
