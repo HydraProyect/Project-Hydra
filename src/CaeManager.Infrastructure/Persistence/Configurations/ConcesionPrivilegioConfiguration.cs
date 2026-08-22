@@ -22,6 +22,11 @@ public class ConcesionPrivilegioConfiguration : IEntityTypeConfiguration<Concesi
         builder.Property(c => c.Capacidad).IsRequired().HasConversion<string>().HasMaxLength(30);
         builder.Property(c => c.Estado).IsRequired().HasConversion<string>().HasMaxLength(20);
 
+        // Como texto y no como entero, igual que capacidad y estado: una fila de
+        // privilegio se lee a menudo desde psql en una investigación, y "1" no
+        // dice si es la fundacional.
+        builder.Property(c => c.Origen).IsRequired().HasConversion<string>().HasMaxLength(25);
+
         // "¿Qué puede hacer hoy este usuario de plataforma?" — la consulta que
         // precede a cada apertura de sesión.
         builder.HasIndex(c => new { c.UsuarioPlataformaId, c.Estado });
