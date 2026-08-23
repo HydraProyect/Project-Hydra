@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using CaeManager.Application.Common;
 using CaeManager.Architecture.Tests.Soporte;
 using FluentAssertions;
@@ -82,6 +82,68 @@ public class ConsultasDeSecretosMarcadasTests
         conocidas.Should().OnlyContain(ruta => File.Exists(Path.Combine(raiz, ruta.Replace('/', Path.DirectorySeparatorChar))));
     }
 
+
+    /// <summary>
+    /// Una consulta de secretos tambien tiene que acotar por CARTERA, no solo
+    /// estar marcada.
+    ///
+    /// <para>
+    /// El marcador <see cref="IConsultaDeSecretosDeTenant"/> y su behavior
+    /// resuelven una cosa muy concreta: que una sesion privilegiada de
+    /// plataforma no se lleve el secreto. No dicen nada del usuario normal del
+    /// tenant, y las dos consultas de credenciales que existen filtraban solo
+    /// por el Id del agregado.
+    /// </para>
+    ///
+    /// <para>
+    /// Es exactamente el fallo del Issue #18 --"un Gestor CAE podia leer
+    /// cualquier fila fuera de su cartera con solo conocer el Guid"-- sobre las
+    /// filas mas sensibles del tenant: la URL, el usuario y la contrasena de
+    /// acceso al portal del cliente. Se descubrio auditando por mutacion el
+    /// ratchet de escritura, que no mira Queries; sin esta regla, el camino de
+    /// lectura se quedaba sin vigilancia de ningun tipo.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Toda_consulta_de_secretos_acota_por_cartera()
+    {
+        var application = ReflexionArquitecturaHelper.CargarAssembly("CaeManager.Application");
+        var tipos = application.GetTypes();
+
+        var consultas = tipos
+            .Where(t => typeof(IConsultaDeSecretosDeTenant).IsAssignableFrom(t) && !t.IsInterface)
+            .ToList();
+
+        var sinAlcance = consultas
+            .Where(consulta => tipos
+                .Where(t => !t.IsAbstract && !t.IsInterface)
+                .Where(t => t.GetInterfaces().Any(i =>
+                    i.IsGenericType
+                    && i.GetGenericTypeDefinition() == typeof(MediatR.IRequestHandler<,>)
+                    && i.GetGenericArguments()[0] == consulta))
+                .Any(handler => !handler.GetConstructors()
+                    .SelectMany(c => c.GetParameters())
+                    .Any(p => p.ParameterType == typeof(IAlcanceDatosService))))
+            .Select(t => t.Name)
+            .OrderBy(x => x)
+            .ToList();
+
+        string.Join(Environment.NewLine, sinAlcance).Should().BeEmpty(
+            "una consulta que devuelve una credencial descifrada tiene que comprobar ademas que el agregado esta " +
+            "en la cartera del usuario; estar marcada como IConsultaDeSecretosDeTenant solo la protege de una " +
+            "sesion privilegiada de plataforma, no de un Gestor CAE que conozca el Id");
+    }
+
+    /// <summary>Guarda: si no hubiera ninguna consulta marcada, el test anterior pasaria en vacio.</summary>
+    [Fact]
+    public void Hay_consultas_de_secretos_que_inspeccionar()
+    {
+        var application = ReflexionArquitecturaHelper.CargarAssembly("CaeManager.Application");
+
+        application.GetTypes()
+            .Count(t => typeof(IConsultaDeSecretosDeTenant).IsAssignableFrom(t) && !t.IsInterface)
+            .Should().BeGreaterThan(0, "sin consultas marcadas, la regla de arriba no observa nada");
+    }
     private static bool DevuelveUnDtoConContrasena(Type query)
     {
         var respuesta = query.GetInterfaces()
