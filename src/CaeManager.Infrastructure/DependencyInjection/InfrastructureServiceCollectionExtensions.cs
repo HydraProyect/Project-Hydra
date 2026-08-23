@@ -72,6 +72,10 @@ public static class InfrastructureServiceCollectionExtensions
         // Sin estado y sin dependencias: una sola instancia sirve.
         services.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 
+        // La identidad administrativa del arranque, distinta de la del trafico
+        // normal (ver FabricaContextoDeBootstrap).
+        services.AddScoped<Persistence.FabricaContextoDeBootstrap>();
+
         services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
         {
             // CaeManagerDbRuntime es opcional y, ausente (el caso de hoy en
@@ -86,23 +90,7 @@ public static class InfrastructureServiceCollectionExtensions
             var cadena = configuration.GetConnectionString("CaeManagerDbRuntime")
                 ?? configuration.GetConnectionString("CaeManagerDb");
 
-            options.UseNpgsql(cadena, npgsql =>
-            {
-                // Las migraciones viven en su propio ensamblado, separado de
-                // Infrastructure — EF Core descubre las migraciones escaneando
-                // el ensamblado entero, así que conviene que sea uno dedicado.
-                npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL");
-
-                // Contra un servidor de red hay errores transitorios que con
-                // un archivo local sencillamente no existían.
-                npgsql.EnableRetryOnFailure();
-            });
-
-            options.AddInterceptors(
-                serviceProvider.GetRequiredService<AuditoriaInterceptor>(),
-                serviceProvider.GetRequiredService<TenantSelladoInterceptor>(),
-                serviceProvider.GetRequiredService<TenantRlsConnectionInterceptor>(),
-                serviceProvider.GetRequiredService<ConcurrenciaOptimistaInterceptor>());
+            Persistence.ConfiguracionDeContexto.Aplicar(options, serviceProvider, cadena);
         });
 
         services
