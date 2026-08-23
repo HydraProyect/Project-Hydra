@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Tenants;
 using MediatR;
@@ -31,17 +32,21 @@ public record EstadoComercialTenantDto(
     string? StripeSubscriptionId,
     DateTime? EstadoComercialActualizadoEnUtc);
 
-public class ObtenerEstadoComercialTenantsQueryHandler(ITenantsQueryContext dbContext, ICurrentUserService currentUserService)
+public class ObtenerEstadoComercialTenantsQueryHandler(ITenantsQueryContext dbContext, IAutorizacionAdminPlataforma autorizacion,
+    ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerEstadoComercialTenantsQuery, IReadOnlyList<EstadoComercialTenantDto>>
 {
     public async Task<IReadOnlyList<EstadoComercialTenantDto>> Handle(
         ObtenerEstadoComercialTenantsQuery request, CancellationToken cancellationToken)
     {
-        var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
-        var esPlataforma = tenantOrigenId is not null && await dbContext.Tenants
-            .AnyAsync(t => t.Id == tenantOrigenId.Value && t.EsPlataforma, cancellationToken);
+        // Global, y no acotada: listar el estado comercial de TODOS los tenants es
+        // transversal por naturaleza. Una concesión acotada no lo satisface por
+        // muchos tenants que enumere — si lo hiciera, "AdminPlataforma sobre un
+        // cliente" se convertiría en autoridad universal de lectura.
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null) return [];
 
-        if (!esPlataforma)
+        if (!await autorizacion.PuedeGlobalmenteAsync(usuarioId.Value, cancellationToken))
             return [];
 
         return await dbContext.Tenants
