@@ -1,4 +1,4 @@
-using CaeManager.Application.Comunicaciones;
+﻿using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentAssertions;
@@ -34,13 +34,27 @@ namespace CaeManager.Architecture.Tests;
 /// resultado correcto) sigue siendo responsabilidad del revisor — esto solo
 /// evita que el olvido total de la dependencia pase desapercibido.
 ///
-/// Deliberadamente acotado a <c>ConversacionId</c>/<c>MensajeId</c>: otras
-/// propiedades de Id en este namespace (p. ej. <c>SugerenciaVisitaCorreoId</c>
-/// en <c>CrearVisitaCommand</c>, o <c>LineaId</c> en los Commands de líneas de
-/// WhatsApp — administrador-only por diseño, mismo criterio que
-/// <c>ObtenerConexionesIntegracionQueryHandler</c>) no son Conversacion/Mensaje
-/// directamente y no son el patrón que #190 encontró — extenderlo a ellas es
-/// una decisión de alcance todavía sin tomar, no un olvido de este mecanismo.
+/// El identificador se reconoce como <c>Id</c>, <c>ConversacionId</c> o
+/// <c>MensajeId</c>. La primera versión miraba solo las dos últimas, y eso
+/// dejaba fuera del análisis —no "sin comprobar", sino <b>sin evaluar</b>—
+/// justo uno de los puntos de contacto que este test cita: el detalle,
+/// <c>ObtenerConversacionPorIdQuery(Guid Id)</c>. Demostrado por mutación: una
+/// consulta nueva que cargue una Conversacion por <c>Guid Id</c> sin
+/// <c>IAlcanceDatosService</c> compilaba y pasaba en verde. Reconocer <c>Id</c>
+/// no añadió ni un infractor —todos los handlers existentes con esa forma ya
+/// comprueban— así que el hueco era gratis de cerrar y llevaba abierto desde el
+/// principio.
+///
+/// El emparejamiento sigue exigiendo que el handler dependa de
+/// <see cref="IConversacionRepository"/> o <see cref="IComunicacionesQueryContext"/>:
+/// sin eso, <c>Guid Id</c> a secas barrería comandos de otros agregados de la
+/// misma feature que no cargan ninguna Conversacion.
+///
+/// Otras propiedades de Id de este namespace (p. ej.
+/// <c>SugerenciaVisitaCorreoId</c> en <c>CrearVisitaCommand</c>, o
+/// <c>LineaId</c> en los Commands de líneas de WhatsApp — administrador-only
+/// por diseño) siguen fuera: no son Conversacion/Mensaje y extenderlo a ellas
+/// es una decisión de alcance todavía sin tomar.
 /// </summary>
 public class AlcanceDeConversacionesYBuzonesTests
 {
@@ -54,9 +68,8 @@ public class AlcanceDeConversacionesYBuzonesTests
             .SelectMany(t => t.GetInterfaces()
                 .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>))
                 .Select(i => new { Handler = t, Request = i.GetGenericArguments()[0] }))
-            .Where(x =>
-                x.Request.GetProperty("ConversacionId")?.PropertyType == typeof(Guid) ||
-                x.Request.GetProperty("MensajeId")?.PropertyType == typeof(Guid))
+            .Where(x => new[] { "Id", "ConversacionId", "MensajeId" }
+                .Any(nombre => x.Request.GetProperty(nombre)?.PropertyType == typeof(Guid)))
             .ToList();
 
         var infractores = new List<string>();

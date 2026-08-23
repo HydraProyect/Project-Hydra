@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;
@@ -55,7 +55,7 @@ public class RolesDeClusterFueraDeLasMigracionesTests
     public void Ninguna_migracion_crea_ni_destruye_roles_de_cluster()
     {
         var infractoras = ArchivosDeMigraciones()
-            .Where(a => Prohibido.IsMatch(SinComentarios(a.Texto)))
+            .Where(a => Prohibido.IsMatch(ConLiteralesUnidos(SinComentarios(a.Texto))))
             .Select(a => a.Ruta)
             .OrderBy(r => r)
             .ToList();
@@ -70,7 +70,7 @@ public class RolesDeClusterFueraDeLasMigracionesTests
     public void Ninguna_migracion_ejecuta_SQL_por_su_cuenta()
     {
         var infractoras = ArchivosDeMigraciones()
-            .Where(a => EjecucionProgramatica.IsMatch(SinComentarios(a.Texto)))
+            .Where(a => EjecucionProgramatica.IsMatch(ConLiteralesUnidos(SinComentarios(a.Texto))))
             .Select(a => a.Ruta)
             .OrderBy(r => r)
             .ToList();
@@ -81,9 +81,54 @@ public class RolesDeClusterFueraDeLasMigracionesTests
     }
 
     /// <summary>
+    /// <b>El guion no construye DDL dinámicamente</b>, que es la condición sin la
+    /// cual enumerar sus principales leyendo el texto no significa nada.
+    ///
+    /// <para>
+    /// Demostrado por mutación: un tercer rol añadido dentro de un bloque
+    /// <c>DO</c> con
+    /// </para>
+    /// <code>
+    /// EXECUTE format('CREATE ROLE %I NOLOGIN NOSUPERUSER', 'cae_app_mutacion');
+    /// </code>
+    /// <para>
+    /// no lo ve el patrón de enumeración —tras <c>ROLE</c> viene <c>%I</c>, que
+    /// no casa con <c>\w+</c>—, así que el rol no entraba en la lista de
+    /// declarados y el test seguía afirmando que hay exactamente dos. Y esto no
+    /// es un fichero cualquiera: es el <b>contrato normativo</b> de qué
+    /// principales existen en el clúster.
+    /// </para>
+    ///
+    /// <para>
+    /// La reparación no es perseguir formas de SQL dinámico una por una, sino
+    /// prohibirlas: el guion no las necesita —hoy no tiene ni una— y sin ellas
+    /// la enumeración estática vuelve a ser una lectura fiel de lo que el guion
+    /// hace.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void El_bootstrap_no_construye_DDL_dinamicamente()
+    {
+        var guion = SinComentarios(File.ReadAllText(
+            Path.Combine(RaizDelRepositorio(), "deploy", "bootstrap", "roles-de-cluster.sql")));
+
+        new Regex(@"\bEXECUTE\b|\bformat\s*\(", RegexOptions.IgnoreCase).IsMatch(guion)
+            .Should().BeFalse(
+                "un CREATE ROLE construido en tiempo de ejecución no aparece en la enumeración de este " +
+                "test, así que el contrato de 'exactamente dos principales' dejaría de estar comprobado " +
+                "justo en el fichero que lo define");
+    }
+
+    /// <summary>
     /// El fichero de bootstrap no es un cajón de "roles varios". No congela la
     /// lista para siempre: congela que ampliarla sea un acto deliberado que pasa
     /// por este test y por su revisión.
+    ///
+    /// <para>
+    /// Enumerar por texto solo vale mientras el texto sea estático, y eso lo
+    /// sostiene <see cref="El_bootstrap_no_construye_DDL_dinamicamente"/>: los
+    /// dos tests son una sola propiedad partida en dos aserciones.
+    /// </para>
     /// </summary>
     [Fact]
     public void El_bootstrap_declara_exactamente_los_dos_principales_del_contrato()
@@ -159,6 +204,38 @@ public class RolesDeClusterFueraDeLasMigracionesTests
             atributos.Should().Contain("NOBYPASSRLS", $"{rol} nunca debe poder saltarse las políticas de aislamiento");
         }
     }
+
+
+    /// <summary>
+    /// Vuelve a unir los literales que C# parte con <c>+</c>.
+    ///
+    /// <para>
+    /// Sin esto el ratchet se esquivaba escribiendo lo prohibido en dos trozos,
+    /// y no es una hipótesis: la mutación
+    /// </para>
+    /// <code>
+    /// migrationBuilder.Sql("CREATE " + "ROLE cae_app_mutacion NOLOGIN;");
+    /// </code>
+    /// <para>
+    /// compila, crea un rol de clúster desde la migración de UNA base —el 42704
+    /// intermitente que este test existe para impedir— y pasaba en verde,
+    /// mientras la misma sentencia escrita de una pieza sí caía. El patrón
+    /// vigilaba una forma de escribir, no la sentencia.
+    /// </para>
+    ///
+    /// <para>
+    /// Unir de más es el lado seguro, por el mismo motivo que se declara al
+    /// tratar los comentarios: esto es una prohibición, y equivocarse hacia
+    /// detectar de más obliga a mirar. Se contemplan los prefijos verbatim e
+    /// interpolado, que pueden aparecer en cualquiera de los dos lados del
+    /// <c>+</c>.
+    /// </para>
+    /// </summary>
+    private static readonly Regex UnionDeLiterales = new(
+        @"""\s*\+\s*[@$]*""", RegexOptions.Compiled);
+
+    private static string ConLiteralesUnidos(string texto) =>
+        UnionDeLiterales.Replace(texto, string.Empty);
 
     /// <summary>
     /// Se descartan las líneas que son íntegramente comentario —SQL con
