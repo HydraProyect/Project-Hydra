@@ -1,6 +1,14 @@
 @page "/delegaciones"
 @rendermode InteractiveServer
-@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@attribute [Authorize]
+@* El alta de Cliente Delegante la autoriza AdminPlataforma (A3), no el rol Administrador de Identity.
+   Mantener el rol crearía un AND que no forma parte del contrato de la
+   capacidad — y desde F2b-2 el claim de rol se retira bajo sesión
+   privilegiada, así que la UI dependería de una autoridad que el plano 3
+   deliberadamente no conserva.
+
+   La página no es el enforcement: ese vive en el comando. Que alguien vea
+   la ruta y el comando la rechace no es una vulnerabilidad. *@
 
 <PageTitle>Delegaciones — @Marca.Nombre</PageTitle>
 

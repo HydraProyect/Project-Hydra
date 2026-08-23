@@ -64,6 +64,14 @@ public class RaizDeBootstrapConUnSoloConsumidorTests
         // sino "la autorización de bootstrap se consume desde un único sitio, y
         // ese sitio es la política de auto-concesión".
         "src/CaeManager.Infrastructure/Plataforma/AutorizacionAutoConcesionPorMatriz.cs",
+
+        // A3-5: el lector de descubrimiento de la puerta del acto fundacional.
+        // NO autoriza nada — responde "¿enseño el botón?" y comparte la fuente de
+        // verdad a propósito, para que la superficie no pueda decir una cosa y el
+        // comando otra. Que se quede desfasada por una carrera no es un bypass:
+        // AutoConcederPrivilegio vuelve a comprobar la condición y tiene el token
+        // de concurrencia del estado.
+        "src/CaeManager.Application/Plataforma/Queries/PuedeInicializarPlataforma/PuedeInicializarPlataformaQuery.cs",
     ];
 
     /// <summary>
