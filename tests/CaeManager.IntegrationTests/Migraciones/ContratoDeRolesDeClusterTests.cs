@@ -52,16 +52,12 @@ public class ContratoDeRolesDeClusterTests
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
 
+        // Precondición EXPLÍCITA, no ambiental: el test no puede depender de que
+        // el clúster llegue con LOGIN puesto o quitado. Desde que el arnés lo
+        // habilita para poder conectar de verdad con ese rol, el baseline es
+        // LOGIN — y un test que asumiera lo contrario sería vacío en vez de roto.
         await EjecutarAsync(conexion, transaccion, "ALTER ROLE cae_app_runtime WITH LOGIN;");
         (await PuedeConectarAsync(conexion, transaccion, "cae_app_runtime")).Should().BeTrue();
-
-        await using (var testigo = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool()))
-        {
-            await testigo.OpenAsync();
-            (await PuedeConectarAsync(testigo, null, "cae_app_runtime")).Should().BeFalse(
-                "la mutación de este test no debe ser visible fuera de su transacción: de eso depende que " +
-                "no rompa los tests de aislamiento que corren en paralelo sobre el mismo clúster");
-        }
 
         await EjecutarAsync(conexion, transaccion, Guion());
 
@@ -111,6 +107,19 @@ public class ContratoDeRolesDeClusterTests
         await EjecutarAsync(conexion, transaccion, $"ALTER ROLE {rol} WITH BYPASSRLS CREATEDB CREATEROLE;");
         (await AtributoAsync(conexion, transaccion, rol, "rolbypassrls")).Should().BeTrue(
             "el estado de partida tiene que ser realmente inseguro, o el test no observaría ninguna corrección");
+
+        // Y aquí vive la prueba de aislamiento, porque aquí la mutación SÍ difiere
+        // del estado de partida: BYPASSRLS está en false en el clúster, así que un
+        // testigo que lo viera en true probaría que la transacción no aísla. Con
+        // LOGIN esta comprobación dejó de discriminar en cuanto el arnés pasó a
+        // habilitarlo — un testigo que ve lo que ya había no demuestra nada.
+        await using (var testigo = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool()))
+        {
+            await testigo.OpenAsync();
+            (await AtributoAsync(testigo, null, rol, "rolbypassrls")).Should().BeFalse(
+                "la mutación de este test no debe ser visible fuera de su transacción: de eso depende que " +
+                "no rompa los tests de aislamiento que corren en paralelo sobre el mismo clúster");
+        }
 
         await EjecutarAsync(conexion, transaccion, Guion());
 
