@@ -242,6 +242,21 @@ public class AutorizacionDeDelegacionTests
             var dependencias = handler.GetConstructors().Single()
                 .GetParameters().Select(p => p.ParameterType.Name).ToList();
 
+            // A3: y tampoco por AdminPlataforma. El alta de un Cliente Delegante
+            // SÍ la autoriza esa capacidad —ahí el cliente todavía no existe y
+            // nadie puede consentir (ADR-004 § 11.1)—, pero eso no le concede
+            // capacidad GENÉRICA de gestionar delegaciones sobre tenants que ya
+            // existen: eso sigue siendo del Administrador del Cliente Delegante.
+            //
+            // Se congela por la forma porque unificar ambas autoridades sería un
+            // cambio de una línea en el constructor, y ningún test de
+            // comportamiento de estos comandos lo detectaría: seguirían
+            // denegando a quien no tiene ninguna de las dos.
+            dependencias.Should().NotContain("IAutorizacionAdminPlataforma",
+                $"{handler.Name} responde ante el dueño de los datos, no ante la administración de " +
+                "la plataforma: ADR-004 § 12.2 pone 'aprueba, modifica y revoca' del lado del Cliente " +
+                "Delegante");
+
             dependencias.Should().NotContain("ITenantActual",
                 $"{handler.Name} debe autorizar contra el tenant que el comando nombra, no contra el workspace " +
                 "activo: dentro de un workspace delegado ITenantActual es el del propietario y daría la " +

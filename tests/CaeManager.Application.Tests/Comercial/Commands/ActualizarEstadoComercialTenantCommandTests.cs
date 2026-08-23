@@ -2,6 +2,7 @@ using CaeManager.Application.Comercial.Commands.ActualizarEstadoComercialTenant;
 using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Tenants;
+using CaeManager.Application.Tests.Plataforma;
 using FluentAssertions;
 using Xunit;
 
@@ -26,7 +27,7 @@ public class ActualizarEstadoComercialTenantCommandTests
         dbContext.ListaTenants.Add(cliente);
 
         var handler = new ActualizarEstadoComercialTenantCommandHandler(
-            dbContext, new PaymentProviderFalso(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
+            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(cliente.Id), CancellationToken.None);
 
@@ -51,7 +52,7 @@ public class ActualizarEstadoComercialTenantCommandTests
         var unitOfWork = new UnitOfWorkFalso();
 
         var handler = new ActualizarEstadoComercialTenantCommandHandler(
-            dbContext, paymentProvider, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork);
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork);
 
         var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(cliente.Id), CancellationToken.None);
 

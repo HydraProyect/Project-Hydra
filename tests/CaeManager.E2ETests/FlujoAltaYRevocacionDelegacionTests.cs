@@ -24,6 +24,35 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         var page = await contexto.NewPageAsync();
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+
+        // --- Acto fundacional: sin cruzarlo, "Nueva delegación" no existe ---
+        // Desde A3 el alta de Cliente Delegante la autoriza AdminPlataforma, y
+        // esa capacidad no la siembra ningún seeder: la única forma de obtenerla
+        // es que la identidad raíz designada por el despliegue cruce esta puerta.
+        // Este test hace lo que haría un operador en el primer arranque real;
+        // insertar la concesión directamente en la base de datos daría el mismo
+        // verde sin ejercitar el único camino que la produce.
+        //
+        // Tolera encontrarla ya cruzada (una segunda ejecución contra la misma
+        // base de datos): el acto es de un solo uso y no se reabre. No enmascara
+        // nada — si la puerta dejara de producir la capacidad, la espera de
+        // "Nueva delegación" seguiría fallando igual unas líneas más abajo.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/configuracion/plataforma");
+        var puerta = page.GetByText("Inicializar administración de plataforma");
+        var yaInicializada = page.GetByText("No hay nada que inicializar aquí");
+        await puerta.Or(yaInicializada).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+
+        if (await puerta.CountAsync() > 0)
+        {
+            await puerta.ClickAsync();
+
+            // Aserción positiva, no "el botón desapareció": si el comando
+            // fallara, la página conserva el botón y pinta el error, y esto lo
+            // delata en vez de dejarlo pasar.
+            await Expect(yaInicializada).ToBeVisibleAsync(
+                new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        }
+
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
 
         // --- Alta: crea el tenant + delegación activa + operador en un solo paso ---

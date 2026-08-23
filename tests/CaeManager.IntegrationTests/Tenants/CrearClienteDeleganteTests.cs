@@ -5,7 +5,9 @@ using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Operaciones;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Plataforma;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
@@ -55,13 +57,31 @@ public class CrearClienteDeleganteTests : IAsyncLifetime
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
     }
 
+    /// <summary>
+    /// Desde A3 el alta la autoriza una concesión <b>global</b> de
+    /// <c>AdminPlataforma</c>, no la pertenencia al tenant de plataforma. Global y
+    /// no acotada porque el tenant objetivo todavía no existe: no hay nada a lo
+    /// que acotar.
+    /// </summary>
+    private static async Task SembrarAdminPlataformaGlobalAsync(CaeManagerDbContext contexto, Guid usuarioId)
+    {
+        var ahora = DateTime.UtcNow;
+        contexto.ConcesionesPrivilegio.Add(ConcesionPrivilegio.Global(
+            usuarioId, vigenciaDesde: ahora.AddMinutes(-5), vigenciaHasta: null));
+
+        await contexto.SaveChangesAsync();
+    }
+
     private CrearClienteDeleganteCommandHandler CrearHandler(CaeManagerDbContext contexto, Guid? tenantOrigenId, Guid? usuarioId) =>
         new(
             new TenantRepository(contexto),
             new DelegacionTenantRepository(contexto),
             new AsignacionOperadorDelegadoRepository(contexto),
             new ParametroSistemaRepository(contexto),
-            contexto,
+            // La implementación REAL contra las concesiones de la base: en un
+            // test de integración un doble ocultaría justo lo que interesa, que
+            // es si el alcance de la concesión autoriza esta operación.
+            new AutorizacionAdminPlataformaPorConcesion(contexto),
             new CurrentUserServiceFalso(tenantOrigenId, usuarioId),
             // El writer real, no un doble: así el test cubre también que el
             // alta escribe la raíz del tenant nuevo, su operación delegada y la
@@ -80,6 +100,7 @@ public class CrearClienteDeleganteTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var usuarioId = Guid.NewGuid();
+        await SembrarAdminPlataformaGlobalAsync(contexto, usuarioId);
         var handler = CrearHandler(contexto, tenantPlataforma.Id, usuarioId);
 
         var resultado = await handler.Handle(
@@ -174,6 +195,8 @@ public class CrearClienteDeleganteTests : IAsyncLifetime
         contexto.Tenants.Add(tenantNoPlataforma);
         await contexto.SaveChangesAsync();
 
+        // SIN sembrar concesión: desde A3 lo que deniega es no tener
+        // AdminPlataforma, no operar desde un tenant que no sea el de plataforma.
         var handler = CrearHandler(contexto, tenantNoPlataforma.Id, Guid.NewGuid());
 
         var resultado = await handler.Handle(
@@ -199,7 +222,9 @@ public class CrearClienteDeleganteTests : IAsyncLifetime
         contexto.Tenants.AddRange(tenantPlataforma, tenantExistente);
         await contexto.SaveChangesAsync();
 
-        var handler = CrearHandler(contexto, tenantPlataforma.Id, Guid.NewGuid());
+        var usuarioAutorizado = Guid.NewGuid();
+        await SembrarAdminPlataformaGlobalAsync(contexto, usuarioAutorizado);
+        var handler = CrearHandler(contexto, tenantPlataforma.Id, usuarioAutorizado);
 
         var resultado = await handler.Handle(new CrearClienteDeleganteCommand(nombreDuplicado), CancellationToken.None);
 

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
@@ -50,7 +51,7 @@ public class CrearClienteDeleganteCommandHandler(
     IDelegacionTenantRepository delegacionRepositorio,
     IAsignacionOperadorDelegadoRepository asignacionRepositorio,
     IParametroSistemaRepository parametroSistemaRepositorio,
-    ITenantsQueryContext tenantsContext,
+    IAutorizacionAdminPlataforma autorizacion,
     ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter,
     IUnitOfWork unitOfWork)
@@ -79,21 +80,27 @@ public class CrearClienteDeleganteCommandHandler(
 
     public async Task<Result<Guid>> Handle(CrearClienteDeleganteCommand request, CancellationToken cancellationToken)
     {
-        // Solo desde el tenant marcado como plataforma, comprobado contra el
-        // tenant de ORIGEN — nunca contra ITenantActual, que reflejaría un
-        // Delegated Workspace ya activo (mismo criterio que
-        // AbrirAccesoSoporteCommand).
-        var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
-        var esPlataforma = tenantOrigenId is not null && await tenantsContext.Tenants
-            .AnyAsync(t => t.Id == tenantOrigenId.Value && t.EsPlataforma, cancellationToken);
-
-        if (!esPlataforma)
-            return Result.Fallo<Guid>(Error.Crear(
-                "ClienteDelegante.SinPermiso", "Solo el administrador de la plataforma puede dar de alta un Cliente Delegante."));
-
+        // GLOBAL, y no acotada, porque el tenant objetivo TODAVÍA NO EXISTE: no
+        // hay nada a lo que acotar la autoridad. Es la asimetría que el
+        // inventario de A1 dejó fijada y que no debe diluirse.
+        //
+        // El tenant de origen sigue siendo la Consultora operadora —eso no
+        // cambia—, pero ya no es la fuente de la autoridad. Y esto NO concede
+        // capacidad genérica sobre DelegacionTenant: crear una delegación
+        // arbitraria sobre un tenant existente sigue exigiendo ser Administrador
+        // del Cliente Delegante (Incremento H, ADR-004 § 12.2).
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null)
             return Result.Fallo<Guid>(Error.Crear("ClienteDelegante.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
+
+        if (!await autorizacion.PuedeGlobalmenteAsync(usuarioId.Value, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "ClienteDelegante.SinPermiso", "Solo la administración de plataforma puede dar de alta un Cliente Delegante."));
+
+        var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
+        if (tenantOrigenId is null)
+            return Result.Fallo<Guid>(Error.Crear(
+                "ClienteDelegante.SinTenantDeOrigen", "No pudimos determinar desde qué organización operas."));
 
         if (await tenantRepositorio.ExisteConNombreAsync(request.NombreTenantCliente, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("ClienteDelegante.NombreDuplicado", "Ya existe un tenant con este nombre."));
