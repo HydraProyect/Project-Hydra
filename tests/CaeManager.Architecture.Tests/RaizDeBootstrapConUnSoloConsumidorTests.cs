@@ -1,3 +1,4 @@
+﻿using System.Text.RegularExpressions;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;
@@ -177,6 +178,52 @@ public class RaizDeBootstrapConUnSoloConsumidorTests
         texto.Should().NotContain("EsPlataforma",
             "la pertenencia dejó de ser suficiente y dejó de ser necesaria para abrir");
     }
+
+    /// <summary>
+    /// La exclusión de la raíz de composición es <b>solo para no contarla como
+    /// consumidor</b>, y este test la acota: ahí dentro la raíz de bootstrap se
+    /// registra una vez, bajo su propio contrato, y nada más.
+    ///
+    /// <para>
+    /// Existe por un falso negativo demostrado por mutación. Un consumidor que
+    /// recibiera <c>Func&lt;Guid, CancellationToken, Task&lt;bool&gt;&gt;</c>
+    /// —cableado en la raíz de composición contra la raíz de bootstrap— depende
+    /// de esa autoridad <b>sin nombrarla</b>, así que no entra en el conjunto
+    /// escaneado por el test de arriba y el ratchet pasaba en verde con dos
+    /// consumidores. La mutación compilaba y era exactamente la clase de
+    /// regresión que este ratchet promete impedir.
+    /// </para>
+    ///
+    /// <para>
+    /// Por qué se cuentan menciones y no se compara con un texto de registro
+    /// concreto: contar es robusto al formato —cualificar o no los nombres,
+    /// cambiar <c>AddScoped</c> por <c>TryAddScoped</c>— y sigue siendo exacto,
+    /// porque <b>cualquier</b> re-exportación tiene que resolver la raíz, y
+    /// resolverla es nombrarla otra vez. Lo que se vigila es que la autoridad
+    /// salga de este fichero por un solo contrato, no cómo se escriba.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void La_raiz_de_composicion_no_reexporta_la_raiz_bajo_otro_tipo()
+    {
+        var raiz = RaizDelRepositorio();
+        const string composicion =
+            "src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs";
+
+        var texto = File.ReadAllText(
+            Path.Combine(raiz, composicion.Replace('/', Path.DirectorySeparatorChar)));
+
+        Menciones(texto, "IRaizBootstrapPlataforma").Should().Be(1,
+            "el contrato se registra una sola vez; una segunda mención es una resolución, y resolver la " +
+            "raíz aquí para envolverla en otro tipo la saca de este fichero sin que ningún consumidor la nombre");
+
+        Menciones(texto, "RaizBootstrapPorIdentidadDesignada").Should().Be(1,
+            "la implementación aparece como destino del registro y nada más: registrarla bajo un segundo " +
+            "contrato reparte la misma autoridad por dos nombres");
+    }
+
+    private static int Menciones(string texto, string nombre) =>
+        Regex.Matches(texto, Regex.Escape(nombre)).Count;
 
     private static string RaizDelRepositorio()
     {
