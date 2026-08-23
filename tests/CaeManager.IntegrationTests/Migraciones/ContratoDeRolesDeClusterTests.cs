@@ -149,6 +149,99 @@ public class ContratoDeRolesDeClusterTests
         }
     }
 
+    /// <summary>
+    /// <b>La membresía que hace utilizable todo lo demás.</b>
+    ///
+    /// <para>
+    /// Faltaba, y ningún test lo delataba: los que ejercitan el
+    /// <c>SET ROLE cae_app_soporte</c> lo hacen desde la conexión propietaria,
+    /// que puede adoptar cualquier rol <b>sin ser miembro de nada</b>. El
+    /// enforcement de solo lectura del plano 3 estaba probado por un camino que
+    /// producción no recorre: allí la identidad de conexión es
+    /// <c>cae_app_runtime</c>, y sin membresía el <c>SET ROLE</c> del
+    /// interceptor falla.
+    /// </para>
+    ///
+    /// <para>
+    /// Es el caso en el que un bootstrap "correcto" deja el sistema roto: los
+    /// dos roles existen, cumplen todos sus atributos de seguridad, y el soporte
+    /// no funciona.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Tras_el_bootstrap_runtime_puede_adoptar_el_rol_de_soporte()
+    {
+        await using var conexion = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool());
+        await conexion.OpenAsync();
+
+        var (esMiembro, hereda) = await MembresiaAsync(conexion, null);
+
+        esMiembro.Should().BeTrue(
+            "sin la membresía, el SET ROLE del interceptor falla y ninguna sesión de soporte puede abrirse");
+
+        hereda.Should().BeFalse(
+            "la membresía se concede WITH INHERIT FALSE: cae_app_runtime debe poder ADOPTAR el rol de " +
+            "soporte, no heredar sus privilegios de forma pasiva. Si algún día cae_app_soporte recibiera " +
+            "un privilegio que runtime no debe tener, la herencia se lo daría en silencio");
+    }
+
+    /// <summary>
+    /// Convergencia: el guion no solo concede la membresía la primera vez, la
+    /// restablece si alguien la retiró. Mismo criterio que el resto del fichero
+    /// —se parte de un estado deliberadamente roto— y misma disciplina de
+    /// transacción, porque <c>pg_auth_members</c> también es catálogo compartido.
+    /// </summary>
+    [Fact]
+    public async Task El_bootstrap_restablece_la_membresia_si_alguien_la_retiro()
+    {
+        await using var conexion = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool());
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+
+        await EjecutarAsync(conexion, transaccion, "REVOKE cae_app_soporte FROM cae_app_runtime;");
+        (await MembresiaAsync(conexion, transaccion)).EsMiembro.Should().BeFalse(
+            "el estado de partida tiene que estar realmente roto, o el test no observaría ninguna corrección");
+
+        await using (var testigo = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool()))
+        {
+            await testigo.OpenAsync();
+            (await MembresiaAsync(testigo, null)).EsMiembro.Should().BeTrue(
+                "la retirada de este test no debe ser visible fuera de su transacción: de eso depende que no " +
+                "rompa las sesiones de soporte de los tests que corren en paralelo sobre el mismo clúster");
+        }
+
+        await EjecutarAsync(conexion, transaccion, Guion());
+
+        var (esMiembro, hereda) = await MembresiaAsync(conexion, transaccion);
+        esMiembro.Should().BeTrue("el bootstrap converge la membresía, no solo la crea la primera vez");
+        hereda.Should().BeFalse("y la converge con la misma opción: adoptar sí, heredar no");
+
+        await transaccion.RollbackAsync();
+    }
+
+    /// <summary>
+    /// <c>pg_auth_members</c>, con la opción de herencia que PostgreSQL 16
+    /// introdujo — CI usa 17 y el despliegue 18.
+    /// </summary>
+    private static async Task<(bool EsMiembro, bool Hereda)> MembresiaAsync(
+        NpgsqlConnection conexion, NpgsqlTransaction? transaccion)
+    {
+        await using var comando = new NpgsqlCommand(
+            """
+            SELECT m.inherit_option
+            FROM pg_auth_members m
+            JOIN pg_roles concedido ON concedido.oid = m.roleid
+            JOIN pg_roles miembro   ON miembro.oid = m.member
+            WHERE concedido.rolname = 'cae_app_soporte'
+              AND miembro.rolname = 'cae_app_runtime';
+            """,
+            conexion, transaccion);
+
+        var valor = await comando.ExecuteScalarAsync();
+
+        return valor is null ? (false, false) : (true, (bool)valor);
+    }
+
     private static async Task EjecutarAsync(NpgsqlConnection conexion, NpgsqlTransaction? transaccion, string sql)
     {
         await using var comando = new NpgsqlCommand(sql, conexion, transaccion);
