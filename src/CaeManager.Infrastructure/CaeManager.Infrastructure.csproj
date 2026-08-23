@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\CaeManager.Domain\CaeManager.Domain.csproj" />
@@ -43,5 +43,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <!-- El arnes de tests de arranque monta un DbContext con la MISMA cadena de
+       interceptores que produccion, y para eso necesita ConfiguracionDeContexto.
+       Se abre por aqui y no haciendo publica la clase: es cableado interno, no
+       API de Infrastructure. Montar esa lista a mano en el arnes ya produjo un
+       42501 identico al sintoma de un defecto de RLS, con la causa dos capas mas
+       arriba. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="CaeManager.IntegrationTests" />
+  </ItemGroup>
 
 </Project>

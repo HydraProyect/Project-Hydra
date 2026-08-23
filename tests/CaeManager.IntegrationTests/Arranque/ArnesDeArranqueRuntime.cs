@@ -1,6 +1,8 @@
 using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Auditing;
+using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence.Interceptors;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -56,7 +58,6 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
     {
         var cadenaPropietario = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
-        await using (var opciones = new ServiceCollection().BuildServiceProvider())
         {
             var construccion = new DbContextOptionsBuilder<CaeManagerDbContext>()
                 .UseNpgsql(cadenaPropietario, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
@@ -73,7 +74,13 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
         var servicios = new ServiceCollection();
 
         servicios.AddLogging();
-        servicios.AddDataProtection();
+        // Proveedor efimero en vez de AddDataProtection(): el real arrastra
+        // almacenamiento de claves y logging propios, y su ciclo de vida no
+        // sobrevive al del contenedor de un test. Los campos cifrados del dominio
+        // se protegen igual; lo que no se ejercita es la persistencia de claves,
+        // que no es lo que este arnes mide.
+        servicios.AddSingleton<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(
+            new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider());
         servicios.AddSingleton<IConfiguration>(new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -86,17 +93,26 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
         servicios.AddSingleton<ITenantActual, TenantActualDeArranque>();
         servicios.AddSingleton<IClienteActivoSeleccionado>(new SinClienteActivo());
         servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso());
+        // LOS CUATRO interceptores de produccion, no solo el de sesion. Montar
+        // solo TenantRlsConnectionInterceptor dejaba las filas SIN TenantId
+        // —lo sella TenantSelladoInterceptor— y cualquier escritura tenantizada
+        // moria con 42501 contra su propia politica. El sintoma apuntaba a RLS y
+        // la causa era el arnes: exactamente el fallo que la regla "el arnes debe
+        // reproducir el cableado de produccion" existe para evitar.
+        servicios.AddSingleton<IActorAuditoria>(new ActorDeArranque());
+        servicios.AddScoped<AuditoriaInterceptor>();
+        servicios.AddScoped<TenantSelladoInterceptor>();
         servicios.AddScoped<TenantRlsConnectionInterceptor>();
+        servicios.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 
         servicios.AddDbContext<CaeManagerDbContext>((sp, opciones) =>
         {
-            opciones.UseNpgsql(
-                BaseDatosPostgresDePruebas.CadenaComoRuntime(cadenaPropietario),
-                npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"));
-
-            // Es el que fija app.tenant_id en cada apertura. Omitirlo haría que
-            // RLS no viera ninguna coordenada y todo devolviera cero filas.
-            opciones.AddInterceptors(sp.GetRequiredService<TenantRlsConnectionInterceptor>());
+            // Se reutiliza el cableado de produccion en vez de reconstruirlo:
+            // ConfiguracionDeContexto existe justamente para que los dos contextos
+            // no divergan, y montar la lista a mano aqui ya costo un 42501 cuya
+            // causa estaba dos capas por encima de RLS.
+            ConfiguracionDeContexto.Aplicar(
+                opciones, sp, BaseDatosPostgresDePruebas.CadenaComoRuntime(cadenaPropietario));
         });
 
         servicios.AddIdentityCore<ApplicationUser>()
@@ -120,6 +136,17 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
     private sealed class TenantActualDeArranque : ITenantActual
     {
         public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
+    }
+
+    /// <summary>
+    /// El arranque no tiene sesión, así que la autoría queda sin resolver — que es
+    /// lo que devuelve el <c>IActorAuditoria</c> real en ese momento.
+    /// </summary>
+    private sealed class ActorDeArranque : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(ActorAuditoria.SinResolver);
+
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => ActorAuditoria.SinResolver;
     }
 
     /// <summary>Sin workspace ni sesión privilegiada: el arranque no tiene ninguno.</summary>
