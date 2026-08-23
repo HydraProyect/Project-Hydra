@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
@@ -27,13 +27,16 @@ public class GuardarCredencialAccesoSubcontrataCommandValidator : AbstractValida
 }
 
 public class GuardarCredencialAccesoSubcontrataCommandHandler(
-    ISubcontrataRepository subcontrataRepositorio, ICredencialAccesoSubcontrataRepository credencialRepositorio, IUnitOfWork unitOfWork)
+    ISubcontrataRepository subcontrataRepositorio,
+    ICredencialAccesoSubcontrataRepository credencialRepositorio,
+    IAlcanceDatosService alcanceDatos,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<GuardarCredencialAccesoSubcontrataCommand, Result>
 {
     public async Task<Result> Handle(GuardarCredencialAccesoSubcontrataCommand request, CancellationToken cancellationToken)
     {
         var subcontrata = await subcontrataRepositorio.ObtenerPorIdAsync(request.SubcontrataId, cancellationToken);
-        if (subcontrata is null)
+        if (subcontrata is null || !await alcanceDatos.SubcontrataVisibleAsync(subcontrata.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 
         var credencial = await credencialRepositorio.ObtenerPorSubcontrataAsync(request.SubcontrataId, cancellationToken);
