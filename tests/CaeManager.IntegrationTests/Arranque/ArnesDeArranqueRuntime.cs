@@ -54,7 +54,8 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
     /// restringido no tiene, igual que en producción— y devuelve el contenedor ya
     /// apuntando a la identidad de tráfico.
     /// </summary>
-    internal static async Task<ArnesDeArranqueRuntime> CrearAsync(bool datosDePruebaActivos)
+    internal static async Task<ArnesDeArranqueRuntime> CrearAsync(
+        bool datosDePruebaActivos, bool segundoTenantActivo = false)
     {
         var cadenaPropietario = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
@@ -85,6 +86,7 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["DatosPrueba:Activo"] = datosDePruebaActivos ? "true" : "false",
+                ["SegundoTenant:Activo"] = segundoTenantActivo ? "true" : "false",
             })
             .Build());
 
