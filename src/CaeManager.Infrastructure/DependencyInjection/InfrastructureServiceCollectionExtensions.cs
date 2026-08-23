@@ -408,6 +408,13 @@ public static class InfrastructureServiceCollectionExtensions
         // Desde A2 la raíz es una PERSONA designada por el despliegue, no el
         // tenant de plataforma: ese tenant es también el operativo de la empresa,
         // así que cualquiera de sus miembros podía acuñarse autoridad.
+        // Autoridad para EJERCER AdminPlataforma, distinta de la de adquirirla.
+        // Dos preguntas separadas —sobre un tenant y globalmente— para que el
+        // llamante declare qué alcance necesita en vez de recibir el más amplio
+        // por omisión.
+        services.AddScoped<CaeManager.Application.Plataforma.IAutorizacionAdminPlataforma,
+            CaeManager.Infrastructure.Plataforma.AutorizacionAdminPlataformaPorConcesion>();
+
         // Matriz de auto-concesión: qué capacidad puede darse cada quien a sí
         // mismo. La raíz solo interviene en el acto fundacional; después, quien
         // tiene AdminPlataforma vigente puede darse SoporteLectura.

@@ -3,6 +3,7 @@ using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
+using CaeManager.Application.Tests.Plataforma;
 using FluentAssertions;
 using Xunit;
 
@@ -17,20 +18,57 @@ public class RegistrarSuscripcionTenantCommandTests
         return tenant;
     }
 
+    /// <summary>
+    /// Sustituye a <c>Bloquea_si_quien_llama_no_opera_desde_el_tenant_de_plataforma</c>,
+    /// cuya premisa A3 elimina: pertenecer al tenant de plataforma dejó de ser la
+    /// autoridad. Lo que bloquea ahora es no tener la capacidad.
+    /// </summary>
     [Fact]
-    public async Task Bloquea_si_quien_llama_no_opera_desde_el_tenant_de_plataforma()
+    public async Task Sin_AdminPlataforma_no_se_vincula_ninguna_suscripcion()
     {
         var cliente = new Tenant("Ibertec");
         var dbContext = new TenantsQueryContextFalso();
         dbContext.ListaTenants.Add(cliente);
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
-            dbContext, new PaymentProviderFalso(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", Guid.NewGuid()), new UnitOfWorkFalso());
+            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.SinNada(),
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", Guid.NewGuid()), new UnitOfWorkFalso());
 
-        var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_123"), CancellationToken.None);
+        var resultado = await handler.Handle(
+            new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_123"), CancellationToken.None);
 
-        resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Comercial.NoAutorizado");
+    }
+
+    /// <summary>
+    /// La distinción que A1 fijó y que no debe diluirse: esta operación es
+    /// <b>acotada</b>. Una concesión sobre otro cliente no vale, aunque exista y
+    /// esté vigente.
+    /// </summary>
+    [Fact]
+    public async Task Una_concesion_acotada_a_otro_cliente_no_autoriza_sobre_este()
+    {
+        var cliente = new Tenant("Ibertec");
+        var otroCliente = new Tenant("Arcos");
+        var dbContext = new TenantsQueryContextFalso();
+        dbContext.ListaTenants.Add(cliente);
+        dbContext.ListaTenants.Add(otroCliente);
+
+        var autorizacion = AutorizacionAdminPlataformaFalsa.AcotadaA(otroCliente.Id);
+
+        var handler = new RegistrarSuscripcionTenantCommandHandler(
+            dbContext, new PaymentProviderFalso(), autorizacion,
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", Guid.NewGuid()), new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(
+            new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_123"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Comercial.NoAutorizado");
+
+        // Y se preguntó por el tenant del COMANDO, no por otro: si el handler
+        // consultara el tenant de origen del invocante, el resultado seguiría
+        // siendo "denegado" y un test que mirase solo el código pasaría igual.
+        autorizacion.UltimoTenantConsultado.Should().Be(cliente.Id);
     }
 
     [Fact]
@@ -41,7 +79,7 @@ public class RegistrarSuscripcionTenantCommandTests
         dbContext.ListaTenants.Add(plataforma);
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
-            dbContext, new PaymentProviderFalso(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
+            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(Guid.NewGuid(), "sub_123"), CancellationToken.None);
 
@@ -57,7 +95,7 @@ public class RegistrarSuscripcionTenantCommandTests
         dbContext.ListaTenants.Add(plataforma);
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
-            dbContext, new PaymentProviderFalso(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
+            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(plataforma.Id, "sub_123"), CancellationToken.None);
 
@@ -78,7 +116,7 @@ public class RegistrarSuscripcionTenantCommandTests
             Result.Fallo<SuscripcionProveedorDto>(Error.Crear("PaymentProvider.ErrorApi", "no encontrada")));
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
-            dbContext, paymentProvider, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_inexistente"), CancellationToken.None);
 
@@ -104,7 +142,7 @@ public class RegistrarSuscripcionTenantCommandTests
         var unitOfWork = new UnitOfWorkFalso();
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
-            dbContext, paymentProvider, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork);
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork);
 
         var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_123"), CancellationToken.None);
 
@@ -128,7 +166,7 @@ public class RegistrarSuscripcionTenantCommandTests
             Result.Exito(new SuscripcionProveedorDto("sub_123", "cus_999", EstadoSuscripcionProveedor.Desconocida)));
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
-            dbContext, paymentProvider, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_123"), CancellationToken.None);
 
