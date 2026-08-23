@@ -73,20 +73,36 @@ public class MigracionesConcurrentesTrasBootstrapTests : IAsyncLifetime
 
         await using var comando = new NpgsqlCommand(
             """
-            SELECT rolname FROM pg_roles
+            SELECT rolname, rolcanlogin FROM pg_roles
             WHERE rolname IN ('cae_app_runtime', 'cae_app_soporte')
-              AND NOT rolcanlogin AND NOT rolsuper AND NOT rolcreatedb
+              AND NOT rolsuper AND NOT rolcreatedb
               AND NOT rolcreaterole AND NOT rolbypassrls
             ORDER BY rolname
             """, conexion);
 
-        var encontrados = new List<string>();
-        await using var lector = await comando.ExecuteReaderAsync();
-        while (await lector.ReadAsync()) encontrados.Add(lector.GetString(0));
+        var encontrados = new Dictionary<string, bool>();
+        await using (var lector = await comando.ExecuteReaderAsync())
+        {
+            while (await lector.ReadAsync()) encontrados[lector.GetString(0)] = lector.GetBoolean(1);
+        }
 
-        encontrados.Should().BeEquivalentTo(["cae_app_runtime", "cae_app_soporte"],
+        encontrados.Keys.Should().BeEquivalentTo(["cae_app_runtime", "cae_app_soporte"],
             "el bootstrap corre una vez por proceso antes de cualquier fixture; si esto falla, " +
             "las migraciones de toda la suite están operando sobre un clúster fuera de contrato");
+
+        // LOGIN es ASIMÉTRICO y deliberadamente NO forma parte de los invariantes
+        // comunes de seguridad, que son los cuatro que filtra la consulta de
+        // arriba. Esta comprobación estuvo hasta #256 dentro de ese filtro, y era
+        // un contrato obsoleto: seguía en verde solo porque nada concedía LOGIN
+        // en el clúster de pruebas.
+        encontrados["cae_app_soporte"].Should().BeFalse(
+            "en cae_app_soporte NOLOGIN SÍ es un atributo de seguridad: ese rol solo se adopta con " +
+            "SET ROLE desde una sesión ya autenticada, nunca se conecta");
+
+        // Sobre cae_app_runtime no se afirma nada respecto a LOGIN, y la ausencia
+        // es la afirmación: lo concede el despliegue —producción lo tiene—, el
+        // bootstrap no puede otorgarlo ni retirarlo, y el arnés de estos tests lo
+        // habilita para poder conectar de verdad con ese rol.
     }
 
     [Fact]
