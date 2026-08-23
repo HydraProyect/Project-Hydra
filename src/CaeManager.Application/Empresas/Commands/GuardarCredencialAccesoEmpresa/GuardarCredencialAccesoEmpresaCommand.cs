@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
@@ -29,13 +29,16 @@ public class GuardarCredencialAccesoEmpresaCommandValidator : AbstractValidator<
 }
 
 public class GuardarCredencialAccesoEmpresaCommandHandler(
-    IEmpresaRepository empresaRepositorio, ICredencialAccesoEmpresaRepository credencialRepositorio, IUnitOfWork unitOfWork)
+    IEmpresaRepository empresaRepositorio,
+    ICredencialAccesoEmpresaRepository credencialRepositorio,
+    IAlcanceDatosService alcanceDatos,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<GuardarCredencialAccesoEmpresaCommand, Result>
 {
     public async Task<Result> Handle(GuardarCredencialAccesoEmpresaCommand request, CancellationToken cancellationToken)
     {
         var empresa = await empresaRepositorio.ObtenerPorIdAsync(request.EmpresaId, cancellationToken);
-        if (empresa is null)
+        if (empresa is null || !await alcanceDatos.EmpresaVisibleAsync(empresa.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa."));
 
         var credencial = await credencialRepositorio.ObtenerPorEmpresaAsync(request.EmpresaId, cancellationToken);

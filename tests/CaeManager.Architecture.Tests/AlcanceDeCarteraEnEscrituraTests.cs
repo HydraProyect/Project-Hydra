@@ -1,4 +1,4 @@
-using CaeManager.Application.Centros;
+﻿using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
@@ -53,6 +53,36 @@ public class AlcanceDeCarteraEnEscrituraTests
         [typeof(IDocumentoRepository)] = nameof(IDocumentoRepository),
     };
 
+    /// <summary>
+    /// Handlers que cargan un agregado con cartera y NO comprueban el alcance,
+    /// con el motivo por el que eso es correcto. Uno por entrada, revisada.
+    ///
+    /// <para>
+    /// La lista nace al ampliar el filtro de identificadores: hasta entonces
+    /// estos handlers no se evaluaban siquiera, asi que "no habia excepciones"
+    /// significaba "no se miraban", no "no existen".
+    /// </para>
+    /// </summary>
+    private static readonly Dictionary<string, string> HandlersExentos = new()
+    {
+        // Reasignar la cartera de un cliente es, por definicion, una operacion
+        // SOBRE el reparto, no DENTRO de el: acotarla a la cartera de quien la
+        // ejecuta seria pedir que un administrador solo pueda repartir lo que
+        // ya tiene asignado. Va con gate de rol explicito en el propio handler
+        // --Administrador, DireccionCae, CoordinadorCae--, roles por encima de
+        // Gestor CAE, para los que ObtenerClienteIdsVisiblesAsync devuelve null
+        // (sin restriccion).
+        //
+        // PREGUNTA ABIERTA, no resuelta aqui: CoordinadorCae es el unico de los
+        // tres cuyo alcance SI esta acotado, porque deriva de la jerarquia de
+        // usuarios. Tal como esta, un coordinador puede reasignar el ejecutivo
+        // de cualquier cliente del tenant, incluidos los que no supervisa. Si
+        // eso no es lo querido, el arreglo es acotar por jerarquia --no por
+        // cartera-- y es una decision de producto, no una correccion mecanica.
+        ["ReasignarEjecutivoClienteCommandHandler"] =
+            "opera sobre el reparto, no dentro de el; gate de rol propio a roles por encima de Gestor CAE",
+    };
+
     [Fact]
     public void Todo_handler_de_escritura_que_carga_un_agregado_con_cartera_comprueba_IAlcanceDatosService()
     {
@@ -64,11 +94,6 @@ public class AlcanceDeCarteraEnEscrituraTests
                 .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>))
                 .Select(i => new { Handler = t, Command = i.GetGenericArguments()[0] }))
             .Where(x => typeof(ICommandBase).IsAssignableFrom(x.Command))
-            // Solo Commands que operan sobre una entidad ya existente (Id de
-            // tipo Guid, no Guid?) — un CrearXCommand puede depender del
-            // mismo repositorio (p. ej. para comprobar duplicados) sin que
-            // eso implique cargar una fila ajena por Id.
-            .Where(x => x.Command.GetProperty("Id")?.PropertyType == typeof(Guid))
             .ToList();
 
         var infractores = new List<string>();
@@ -80,15 +105,30 @@ public class AlcanceDeCarteraEnEscrituraTests
                 .Select(p => p.ParameterType)
                 .ToHashSet();
 
-            var repositorioConAlcance = parametros
+            var repositoriosConAlcance = parametros
                 .Where(RepositoriosConAlcance.ContainsKey)
                 .ToList();
 
-            if (repositorioConAlcance.Count == 0) continue;
+            if (repositoriosConAlcance.Count == 0) continue;
+
+            // El emparejamiento es POR REPOSITORIO: el comando tiene que cargar
+            // el agregado de ESE repositorio, por "Id" o por "<Agregado>Id".
+            //
+            // Comparar contra cualquier propiedad acabada en "Id" seria
+            // demasiado laxo y lo demostro CrearCentroCommand: depende de
+            // ICentroRepository --para dar de alta uno nuevo-- y lleva
+            // ClienteId y EmpresaId, que son las coordenadas donde colocarlo, no
+            // una fila existente que se cargue por Id.
+            var cargadosPorId = repositoriosConAlcance
+                .Where(r => ElComandoCargaElAgregado(handlerInfo.Command, NombreDelAgregado(r)))
+                .ToList();
+
+            if (cargadosPorId.Count == 0) continue;
             if (parametros.Contains(typeof(IAlcanceDatosService))) continue;
+            if (HandlersExentos.ContainsKey(handlerInfo.Handler.Name)) continue;
 
             infractores.Add(
-                $"{handlerInfo.Handler.Name} (depende de {string.Join(", ", repositorioConAlcance.Select(r => RepositoriosConAlcance[r]))})");
+                $"{handlerInfo.Handler.Name} (depende de {string.Join(", ", cargadosPorId.Select(r => RepositoriosConAlcance[r]))})");
         }
 
         infractores.Should().BeEmpty(
@@ -97,4 +137,26 @@ public class AlcanceDeCarteraEnEscrituraTests
             "— si esto falla, el handler listado puede estar dejando editar/borrar una fila fuera de la cartera " +
             "del usuario con solo conocer su Id (ver EliminarClienteCommand como plantilla del fix)");
     }
+
+
+    /// <summary>
+    /// El comando carga ese agregado si lo identifica por <c>Id</c> o por
+    /// <c>&lt;Agregado&gt;Id</c>.
+    ///
+    /// <para>
+    /// La segunda forma se anadio tras demostrar por mutacion que su ausencia
+    /// dejaba comandos enteros fuera del analisis: mirando solo "Id",
+    /// GuardarCredencialAccesoSubcontrataCommand --identificado por
+    /// SubcontrataId-- ni siquiera se evaluaba. No era hipotetico: ese handler
+    /// escribia credenciales de acceso sin comprobar la cartera, y se arreglo
+    /// en este mismo commit.
+    /// </para>
+    /// </summary>
+    private static bool ElComandoCargaElAgregado(Type comando, string agregado) =>
+        comando.GetProperties().Any(p => p.PropertyType == typeof(Guid)
+                                         && (p.Name == "Id" || p.Name == agregado + "Id"));
+
+    /// <summary>IClienteRepository -> Cliente.</summary>
+    private static string NombreDelAgregado(Type repositorio) =>
+        repositorio.Name[1..^"Repository".Length];
 }
