@@ -1,3 +1,4 @@
+using Npgsql;
 namespace CaeManager.IntegrationTests;
 
 /// <summary>
@@ -65,6 +66,42 @@ internal static class BaseDatosPostgresDePruebas
 
     internal static string CadenaConexionUnica() =>
         $"{Servidor};Database=caemanager_tests_{Guid.NewGuid():N};{LimitesDePool}";
+
+    /// <summary>
+    /// Contraseña de <c>cae_app_runtime</c> en el clúster de pruebas. Fija y en
+    /// claro a propósito: no protege nada —el clúster de tests ya usa
+    /// <c>postgres/postgres</c>— y su único fin es permitir una conexión de LOGIN
+    /// real con ese rol.
+    /// </summary>
+    internal const string ContrasenaRuntimeDePruebas = "runtime-de-pruebas";
+
+    /// <summary>
+    /// La misma base, pero <b>autenticando como <c>cae_app_runtime</c></b> en vez
+    /// de adoptarlo con <c>SET ROLE</c> desde el propietario.
+    ///
+    /// <para>
+    /// La diferencia importa: <c>SET ROLE</c> demuestra que las políticas se
+    /// aplican, pero parte de una sesión que ya entró como superusuario. Una
+    /// conexión de login reproduce además la autenticación y los privilegios
+    /// efectivos del rol, que es lo que hace producción.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Esta vía solo existe desde #256.</b> Antes, el bootstrap de clúster
+    /// convergía ese rol a <c>NOLOGIN</c> en cada ejecución, así que el arnés le
+    /// habría retirado el LOGIN justo después de concedérselo.
+    /// </para>
+    /// </summary>
+    internal static string CadenaComoRuntime(string cadenaDeLaBase)
+    {
+        var constructor = new NpgsqlConnectionStringBuilder(cadenaDeLaBase)
+        {
+            Username = "cae_app_runtime",
+            Password = ContrasenaRuntimeDePruebas,
+        };
+
+        return constructor.ConnectionString;
+    }
 
     /// <summary>
     /// Borra la base de datos del test sin pasar por un DbContext — los tests
