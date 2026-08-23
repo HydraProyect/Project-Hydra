@@ -46,18 +46,90 @@ public class FronteraDeSeedersDeBootstrapTests
             "por cada tenant en un solo SaveChanges",
     };
 
-    [Fact]
-    public void Solo_los_dos_seeders_administrativos_usan_el_contexto_de_bootstrap()
+    /// <summary>
+    /// Toda invocación de un seeder desde el arranque, con el texto de sus
+    /// argumentos: la unidad sobre la que se decide la identidad.
+    /// </summary>
+    private static readonly Regex Invocacion = new(
+        @"await\s+(\w+Seeder)\.\w+\(([^;]*)\)", RegexOptions.Compiled);
+
+    private sealed record Llamada(string Seeder, string Argumentos);
+
+    private static List<Llamada> LlamadasDelArranque()
     {
         var programa = File.ReadAllText(Path.Combine(
             RaizDelRepositorio(), "src", "CaeManager.Web", "Program.cs"));
 
-        var conBootstrap = new Regex(@"await (\w+Seeder)\.SeedAsync\([^;]*dbContextBootstrap", RegexOptions.Compiled)
-            .Matches(programa).Select(m => m.Groups[1].Value).Distinct().OrderBy(n => n).ToList();
+        return Invocacion.Matches(programa)
+            .Select(m => new Llamada(m.Groups[1].Value, m.Groups[2].Value))
+            .ToList();
+    }
 
-        var conInyectado = new Regex(@"await (\w+Seeder)\.SeedAsync\((?![^;]*dbContextBootstrap)[^;]*dbContext",
-                RegexOptions.Compiled)
-            .Matches(programa).Select(m => m.Groups[1].Value).Distinct().OrderBy(n => n).ToList();
+    private static bool UsaBootstrap(Llamada llamada) =>
+        Regex.IsMatch(llamada.Argumentos, @"\bdbContextBootstrap\b");
+
+    private static bool UsaInyectado(Llamada llamada) =>
+        !UsaBootstrap(llamada) && Regex.IsMatch(llamada.Argumentos, @"\bdbContext\b");
+
+    /// <summary>
+    /// <b>Cada llamada declara su identidad en el propio sitio de llamada.</b>
+    ///
+    /// <para>
+    /// Repara un falso negativo demostrado por mutación, y de la clase de
+    /// regresión más grave que este ratchet dice impedir. Bastaba un alias para
+    /// que un seeder tenant-scoped pasara al rol propietario sin que nada lo
+    /// notara:
+    /// </para>
+    /// <code>
+    /// var contextoAdministrativo = dbContextBootstrap;
+    /// await DelegacionesSoporteSeeder.SeedAsync(contextoAdministrativo, …);
+    /// </code>
+    /// <para>
+    /// Esa llamada no contiene <c>dbContextBootstrap</c> —así que no entraba en
+    /// la lista administrativa— ni <c>dbContext</c> —así que tampoco en la de
+    /// tráfico normal—. Caía <b>fuera de las dos listas</b>, y las tres
+    /// aserciones de abajo seguían pasando: la equivalencia porque la lista
+    /// administrativa no cambiaba, la de no vacío porque quedaban otros seeders
+    /// inyectados, y la de intersección porque no había ninguna. El seeder
+    /// sembraba fuera de RLS con el ratchet en verde.
+    /// </para>
+    ///
+    /// <para>
+    /// La propiedad no es "estas dos listas contienen lo que deben": es que
+    /// <b>toda</b> llamada pertenezca a una de las dos. Una llamada que no se
+    /// pueda clasificar leyendo su sitio de llamada es, por sí sola, el defecto
+    /// —da igual a qué contexto acabe apuntando el alias—, porque la frontera de
+    /// identidad deja de ser legible justo donde se cruza.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Toda_llamada_a_un_seeder_declara_su_identidad_en_el_sitio_de_llamada()
+    {
+        var llamadas = LlamadasDelArranque();
+
+        llamadas.Should().NotBeEmpty(
+            "el arranque siembra; una lista vacía significaría que el patrón ya no reconoce las " +
+            "invocaciones que este test dice vigilar");
+
+        var sinClasificar = llamadas
+            .Where(l => !UsaBootstrap(l) && !UsaInyectado(l))
+            .Select(l => $"{l.Seeder}({l.Argumentos.Trim()})")
+            .OrderBy(x => x)
+            .ToList();
+
+        string.Join(Environment.NewLine, sinClasificar).Should().BeEmpty(
+            "cada seeder tiene que recibir dbContextBootstrap o dbContext de forma visible en su propia " +
+            "llamada; pasarlo por un alias esconde qué identidad —y por tanto qué régimen de RLS— usa esa " +
+            "siembra, que es justo lo que este ratchet existe para mantener a la vista");
+    }
+
+    [Fact]
+    public void Solo_los_dos_seeders_administrativos_usan_el_contexto_de_bootstrap()
+    {
+        var llamadas = LlamadasDelArranque();
+
+        var conBootstrap = llamadas.Where(UsaBootstrap).Select(l => l.Seeder).Distinct().OrderBy(n => n).ToList();
+        var conInyectado = llamadas.Where(UsaInyectado).Select(l => l.Seeder).Distinct().OrderBy(n => n).ToList();
 
         // Guarda del instrumento: si el patrón dejara de reconocer las llamadas,
         // las dos listas saldrían vacías y el test pasaría sin observar nada.
