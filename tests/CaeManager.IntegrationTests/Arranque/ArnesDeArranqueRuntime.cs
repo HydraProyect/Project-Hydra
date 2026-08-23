@@ -1,0 +1,132 @@
+using CaeManager.Application.Common;
+using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Interceptors;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace CaeManager.IntegrationTests.Arranque;
+
+/// <summary>
+/// <b>El arranque tal como corre en producción, pero contra una base de pruebas.</b>
+/// Un contenedor mínimo con el <c>DbContext</c> conectado <b>autenticando como
+/// <c>cae_app_runtime</c></b>, su interceptor de sesión, e Identity encima.
+///
+/// <para>
+/// Existe para responder una sola pregunta: ¿el arranque que queda funciona bajo
+/// RLS efectiva sin que Identity ni los seeders tenant-scoped se rompan? Todo lo
+/// anterior —que la conexión autentique y que RLS filtre— está demostrado aparte
+/// (#259) y aquí se da por bueno.
+/// </para>
+///
+/// <para>
+/// <b>Fidelidad, no comodidad.</b> El <c>ITenantActual</c> de este arnés lee
+/// <c>AmbitoTenantExplicito</c> y nada más, y eso <b>reproduce producción</b> en
+/// vez de simplificarla: el <c>TenantActual</c> real devuelve el ámbito ambiental
+/// <i>antes</i> de consultar claims o <c>HttpContext</c>, y en el arranque no hay
+/// ninguna de las dos cosas. Sin esta pieza, el interceptor no fijaría
+/// <c>app.tenant_id</c> al ámbito que establecen los seeders y todo fallaría
+/// cerrado — que es el modo de fallo más fácil de confundir con "el dato no
+/// existe".
+/// </para>
+/// </summary>
+internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
+{
+    private readonly ServiceProvider _servicios;
+
+    private ArnesDeArranqueRuntime(ServiceProvider servicios, string cadenaPropietario)
+    {
+        _servicios = servicios;
+        CadenaPropietario = cadenaPropietario;
+    }
+
+    /// <summary>La cadena del propietario, para migrar y para los controles negativos.</summary>
+    internal string CadenaPropietario { get; }
+
+    internal IServiceProvider Servicios => _servicios;
+
+    /// <summary>
+    /// Migra como propietario —las migraciones necesitan DDL que el rol
+    /// restringido no tiene, igual que en producción— y devuelve el contenedor ya
+    /// apuntando a la identidad de tráfico.
+    /// </summary>
+    internal static async Task<ArnesDeArranqueRuntime> CrearAsync(bool datosDePruebaActivos)
+    {
+        var cadenaPropietario = BaseDatosPostgresDePruebas.CadenaConexionUnica();
+
+        await using (var opciones = new ServiceCollection().BuildServiceProvider())
+        {
+            var construccion = new DbContextOptionsBuilder<CaeManagerDbContext>()
+                .UseNpgsql(cadenaPropietario, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+                .Options;
+
+            await using var contexto = new CaeManagerDbContext(
+                construccion,
+                new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(),
+                new TenantActualDeArranque());
+
+            await contexto.Database.MigrateAsync();
+        }
+
+        var servicios = new ServiceCollection();
+
+        servicios.AddLogging();
+        servicios.AddDataProtection();
+        servicios.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DatosPrueba:Activo"] = datosDePruebaActivos ? "true" : "false",
+            })
+            .Build());
+
+        // Las tres dependencias del interceptor. Sin sesión de usuario ni
+        // workspace: es el arranque, no una petición.
+        servicios.AddSingleton<ITenantActual, TenantActualDeArranque>();
+        servicios.AddSingleton<IClienteActivoSeleccionado>(new SinClienteActivo());
+        servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso());
+        servicios.AddScoped<TenantRlsConnectionInterceptor>();
+
+        servicios.AddDbContext<CaeManagerDbContext>((sp, opciones) =>
+        {
+            opciones.UseNpgsql(
+                BaseDatosPostgresDePruebas.CadenaComoRuntime(cadenaPropietario),
+                npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"));
+
+            // Es el que fija app.tenant_id en cada apertura. Omitirlo haría que
+            // RLS no viera ninguna coordenada y todo devolviera cero filas.
+            opciones.AddInterceptors(sp.GetRequiredService<TenantRlsConnectionInterceptor>());
+        });
+
+        servicios.AddIdentityCore<ApplicationUser>()
+            .AddRoles<IdentityRole<Guid>>()
+            .AddEntityFrameworkStores<CaeManagerDbContext>();
+
+        return new ArnesDeArranqueRuntime(servicios.BuildServiceProvider(), cadenaPropietario);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _servicios.DisposeAsync();
+        await BaseDatosPostgresDePruebas.EliminarAsync(CadenaPropietario);
+    }
+
+    /// <summary>
+    /// Reproduce la resolución de tenant del arranque: el ámbito ambiental y nada
+    /// más. Es lo que hace el <c>TenantActual</c> real cuando no hay claim ni
+    /// <c>HttpContext</c>, que es exactamente la situación del arranque.
+    /// </summary>
+    private sealed class TenantActualDeArranque : ITenantActual
+    {
+        public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
+    }
+
+    /// <summary>Sin workspace ni sesión privilegiada: el arranque no tiene ninguno.</summary>
+    private sealed class SinClienteActivo : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
+    }
+}
