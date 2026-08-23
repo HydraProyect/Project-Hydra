@@ -59,5 +59,25 @@ internal static class BootstrapDeClusterEnTests
         conexion.Open();
         using var comando = new NpgsqlCommand(File.ReadAllText(guion), conexion);
         comando.ExecuteNonQuery();
+
+        // Y, SOLO en el clúster de pruebas, se habilita el LOGIN de
+        // cae_app_runtime. Sirve para que los tests puedan conectar realmente
+        // como ese rol en vez de adoptarlo con SET ROLE desde el propietario:
+        // SET ROLE demuestra que las políticas se aplican, pero parte de una
+        // sesión que ya entró como superusuario; una conexión de login reproduce
+        // además la autenticación y los privilegios efectivos, que es lo que
+        // hace producción.
+        //
+        // Va DESPUÉS del guion a propósito. Antes de #256 daba igual el orden y
+        // el resultado era el mismo: el bootstrap convergía ese rol a NOLOGIN en
+        // cada ejecución y le habría retirado el LOGIN de todas formas. Que esto
+        // funcione hoy es una consecuencia directa de aquella corrección.
+        //
+        // La contraseña es fija y está en claro porque no protege nada: este
+        // clúster ya usa postgres/postgres y no contiene datos reales.
+        using var habilitarLogin = new NpgsqlCommand(
+            $"ALTER ROLE cae_app_runtime LOGIN PASSWORD '{BaseDatosPostgresDePruebas.ContrasenaRuntimeDePruebas}';",
+            conexion);
+        habilitarLogin.ExecuteNonQuery();
     }
 }
