@@ -38,14 +38,57 @@ namespace CaeManager.Architecture.Tests;
 public class ConcesionesSoloPorActoExplicitoTests
 {
     /// <summary>
-    /// Las dos formas de crear una concesión. El constructor es privado, así que
+    /// Las tres formas de crear una concesión. El constructor es privado, así que
     /// las fábricas son la única puerta del dominio; y <c>Add</c> sobre el DbSet
     /// es la única de persistencia.
+    ///
+    /// <para>
+    /// <b>Las TRES fábricas, no dos.</b> Este patrón perseguía solo
+    /// <c>SobreTenants</c> y <c>Global</c>, y dejaba fuera
+    /// <c>RaizDeBootstrap</c> — precisamente la que crea la concesión
+    /// <i>fundacional</i>, la más sensible de las tres. Un segundo punto de
+    /// creación que la usara pasaba en verde: demostrado por mutación el
+    /// 2026-08-23 antes de corregirlo. Si mañana aparece una cuarta fábrica,
+    /// tiene que entrar aquí en el mismo commit, y el test de abajo lo obliga.
+    /// </para>
     /// </summary>
     private static readonly Regex PatronCreacion = new(
         @"ConcesionPrivilegio\.SobreTenants\(|ConcesionPrivilegio\.Global\(" +
+        @"|ConcesionPrivilegio\.RaizDeBootstrap\(" +
         @"|ConcesionesPrivilegio\.Add(Range|Async)?\(",
         RegexOptions.Compiled);
+
+    /// <summary>
+    /// <b>Guarda del propio patrón</b>: el conjunto de fábricas públicas del
+    /// agregado tiene que coincidir con el que persigue el regex. Sin esto, una
+    /// fábrica nueva nace invisible para el ratchet y nadie se entera — que es
+    /// exactamente lo que pasó con <c>RaizDeBootstrap</c>.
+    /// </summary>
+    [Fact]
+    public void El_patron_persigue_todas_las_fabricas_del_agregado()
+    {
+        var agregado = File.ReadAllText(Path.Combine(
+            RaizDelRepositorio(), "src", "CaeManager.Domain", "Plataforma", "ConcesionPrivilegio.cs"));
+
+        var fabricas = new Regex(@"public static ConcesionPrivilegio (\w+)\(", RegexOptions.Compiled)
+            .Matches(agregado)
+            .Select(m => m.Groups[1].Value)
+            .OrderBy(n => n)
+            .ToList();
+
+        fabricas.Should().NotBeEmpty(
+            "si el patrón dejara de encontrar las fábricas, la comparación de abajo pasaría sobre dos " +
+            "listas vacías y este test afirmaría algo que no ha observado");
+
+        var perseguidas = fabricas
+            .Where(f => PatronCreacion.IsMatch($"ConcesionPrivilegio.{f}("))
+            .OrderBy(n => n)
+            .ToList();
+
+        perseguidas.Should().BeEquivalentTo(fabricas,
+            "toda fábrica pública del agregado es una vía de creación, y una vía que el ratchet no " +
+            "persigue es una vía sin vigilar: RaizDeBootstrap estuvo así hasta 2026-08-23");
+    }
 
     /// <summary>
     /// Puntos de creación autorizados. <b>Exactamente uno</b>, y el nombre del
