@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;
@@ -13,9 +13,8 @@ namespace CaeManager.Architecture.Tests;
 /// soporte que llegara por ahí escribiría, y además vería todos los tenants.
 ///
 /// La premisa se comprobó a mano al construir F2b-3 y era cierta. Este test la
-/// mantiene cierta: un <c>new NpgsqlConnection</c> nuevo, o un
-/// <c>GetDbConnection()</c> para abrirla por fuera, hacen fallar el build en vez
-/// de desarmar el control en silencio.
+/// mantiene cierta: una conexión nueva abierta por fuera hace fallar el build en
+/// vez de desarmar el control en silencio.
 ///
 /// Mismo mecanismo de ratchet por texto que
 /// <see cref="AccesoRestringidoACatalogosDeAsignacionTests"/>: son llamadas, no
@@ -23,13 +22,37 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class ConexionesFueraDelInterceptorTests
 {
+    /// <summary>
+    /// Las formas de conseguir una conexión sin pasar por EF.
+    ///
+    /// <para>
+    /// La primera versión de este patrón vigilaba un constructor concreto y dos
+    /// nombres de tipo. Dos formas triviales la esquivaban compilando,
+    /// demostradas por mutación: el constructor <b>cualificado</b> (que no casa
+    /// con un patrón escrito sin el prefijo del espacio de nombres) y la
+    /// <b>fábrica estática</b> de la fuente de datos (que no es el Builder).
+    /// Las dos abren una conexión real, sin <c>app.tenant_id</c> y sin el
+    /// <c>SET ROLE</c> de solo lectura.
+    /// </para>
+    ///
+    /// <para>
+    /// Vigilar un constructor medía una propiedad más estrecha que la que este
+    /// ratchet promete, que es <b>que no haya otra forma de llegar a la base de
+    /// datos</b>. Ahora se vigila el tipo entero de la fuente de datos —cubre el
+    /// Builder, la fábrica estática y una fuente inyectada—, el constructor con
+    /// o sin cualificar, y los dos verbos que devuelven una conexión viva, que
+    /// es por donde se escaparía una fuente que llegara por inyección sin que
+    /// su tipo se nombre nunca en el fichero.
+    /// </para>
+    /// </summary>
     private static readonly Regex PatronConexionCruda = new(
-        @"new NpgsqlConnection\b|\bGetDbConnection\s*\(|NpgsqlDataSourceBuilder\b",
+        @"new\s+(?:Npgsql\.)?NpgsqlConnection\b|\bNpgsqlDataSource\b|\bGetDbConnection\s*\("
+        + @"|\bOpenConnectionAsync\s*\(|\bCreateConnection\s*\(",
         RegexOptions.Compiled);
 
     /// <summary>
-    /// Los dos únicos sitios que abren una conexión por su cuenta, con lo que
-    /// hace cada uno y por qué no rompe la premisa.
+    /// Los únicos sitios que abren una conexión por su cuenta, con lo que hace
+    /// cada uno y por qué no rompe la premisa.
     /// </summary>
     private static readonly HashSet<string> ArchivosAutorizados =
     [
@@ -52,7 +75,17 @@ public class ConexionesFueraDelInterceptorTests
         {
             var directorio = Path.Combine(raiz, carpeta.Replace('/', Path.DirectorySeparatorChar));
 
-            foreach (var archivo in Directory.EnumerateFiles(directorio, "*.cs", SearchOption.AllDirectories))
+            // Los .razor entran igual que los code-behind: un bloque @code es C#.
+            // obj/ y bin/ quedan fuera para no contar el C# que el compilador genera
+            // a partir de cada .razor como si fuera un acceso más.
+            var archivos = Directory
+                .EnumerateFiles(directorio, "*", SearchOption.AllDirectories)
+                .Where(a => a.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+                            || a.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))
+                .Where(a => !a.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                            && !a.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
+
+            foreach (var archivo in archivos)
             {
                 var rutaRelativa = Path.GetRelativePath(raiz, archivo).Replace(Path.DirectorySeparatorChar, '/');
                 if (ArchivosAutorizados.Contains(rutaRelativa)) continue;
@@ -62,7 +95,7 @@ public class ConexionesFueraDelInterceptorTests
             }
         }
 
-        string.Join("\n", infractores.OrderBy(x => x)).Should().BeEmpty(
+        string.Join(Environment.NewLine, infractores.OrderBy(x => x)).Should().BeEmpty(
             "una conexión abierta fuera de EF no pasa por TenantRlsConnectionInterceptor, así que no lleva " +
             "app.tenant_id (y RLS no la filtra) ni el SET ROLE de solo lectura (y una sesión de soporte podría " +
             "escribir por ahí); si el acceso está justificado, añádelo a ArchivosAutorizados en este mismo commit " +

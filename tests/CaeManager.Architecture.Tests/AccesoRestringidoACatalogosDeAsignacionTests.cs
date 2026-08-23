@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;
@@ -34,11 +34,41 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
     /// operación (asignaciones) y el de privilegio de plataforma (concesiones y
     /// sesiones). Las filas del segundo son, si cabe, más sensibles: dicen qué
     /// usuario de TALVEG puede abrir los datos de qué cliente y hasta cuándo.
+    ///
+    /// <para>
+    /// Los nombres de los <c>DbSet</c> no son la única forma de llegar a esas
+    /// tablas, y la primera versión de este patrón solo vigilaba esos. Un
+    /// <c>Set&lt;AsignacionOperacion&gt;()</c> —el tipo de entidad, en
+    /// singular— devuelve el catálogo global entero, de todos los tenants, sin
+    /// filtro de posición, y pasaba en verde. Demostrado por mutación.
+    /// </para>
+    ///
+    /// <para>
+    /// Se vigila la <b>forma de acceso</b> y no el nombre del tipo a secas, y
+    /// es deliberado: los cinco tipos se mencionan en sitios que no son
+    /// accesos —<c>TipoViaAcceso.SesionPrivilegiada</c> es un valor de enum, no
+    /// una consulta—, y meterlos pelados obligaría a justificar seis ficheros
+    /// que no tocan ninguna tabla. Una lista de excepciones llena de entradas
+    /// que no son accesos deja de servir para revisar la política, que es justo
+    /// para lo que existe.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Límite conocido</b>: un alias de <c>using</c> sobre el tipo permitiría
+    /// escribir <c>Set&lt;AO&gt;()</c>. Se cubre vigilando también la línea del
+    /// alias, que sí tiene que nombrar el tipo completo.
+    /// </para>
     /// </summary>
     private static readonly Regex PatronAcceso = new(
-        @"\bAsignacionesOperacion\b|\bAsignacionesCartera\b" +
-        @"|\bConcesionesPrivilegio\b|\bSesionesPrivilegiadas\b|\bTenantsAlcanzadosPorConcesion\b",
+        @"\bAsignacionesOperacion\b|\bAsignacionesCartera\b"
+        + @"|\bConcesionesPrivilegio\b|\bSesionesPrivilegiadas\b|\bTenantsAlcanzadosPorConcesion\b"
+        + @"|\bSet<\s*(?:[\w.]*\.)?" + NombresDeEntidad + @"\s*>"
+        + @"|^\s*using\s+\w+\s*=\s*[\w.]*" + NombresDeEntidad + @"\s*;",
         RegexOptions.Compiled);
+
+    /// <summary>Los tipos de entidad de los dos planos, para las formas de acceso que no usan el DbSet.</summary>
+    private const string NombresDeEntidad =
+        @"(?:AsignacionOperacion|AsignacionCartera|ConcesionPrivilegio|SesionPrivilegiada|TenantAlcanzadoPorConcesion)";
 
     /// <summary>
     /// Los puntos autorizados, con el papel que cumple cada uno. Añadir uno
@@ -62,9 +92,11 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // predicado de la política RLS del plano de privilegio.
         "src/CaeManager.Infrastructure/Plataforma/AutorizacionAutoConcesionPorMatriz.cs",
 
-        // El contrato mismo y su implementación: el único escritor.
+        // El contrato de consulta (expone el DbSet) y el unico escritor. El
+        // contrato de ESCRITURA no esta aqui: declara firmas sobre los tipos de
+        // entidad, no toca ninguna tabla. Era otra entrada muerta, destapada por
+        // la guarda por igualdad.
         "src/CaeManager.Application/Operaciones/IOperacionesQueryContext.cs",
-        "src/CaeManager.Application/Operaciones/IAsignacionesOperativasWriter.cs",
         "src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs",
 
         // Job de expiración de vigencias: catálogo global por naturaleza, sin
@@ -112,8 +144,12 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         "src/CaeManager.Application/Plataforma/IPlataformaQueryContext.cs",
         "src/CaeManager.Infrastructure/Plataforma/SesionPrivilegiadaActual.cs",
 
-        // Registro del contrato en el contenedor.
-        "src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs",
+        // NOTA: aqui vivia InfrastructureServiceCollectionExtensions.cs, justificado
+        // como "registro del contrato en el contenedor". Nunca caso con el patron:
+        // registra IOperacionesQueryContext e IPlataformaQueryContext por el nombre de
+        // la interfaz, sin nombrar ninguna tabla. Era una entrada muerta desde el
+        // origen, y una entrada muerta afirma una revision que no corresponde con el
+        // codigo. La destapo la guarda por igualdad, no una lectura a ojo.
 
         // Ceremonia de apertura y cierre de sesiones privilegiadas (F2b-6), y
         // el único escritor del plano 3.
@@ -145,7 +181,17 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         {
             var directorio = Path.Combine(raiz, carpeta.Replace('/', Path.DirectorySeparatorChar));
 
-            foreach (var archivo in Directory.EnumerateFiles(directorio, "*.cs", SearchOption.AllDirectories))
+            // Los .razor entran igual que los code-behind: un bloque @code es C#.
+            // obj/ y bin/ quedan fuera para no contar el C# que el compilador genera
+            // a partir de cada .razor como si fuera un acceso más.
+            var archivos = Directory
+                .EnumerateFiles(directorio, "*", SearchOption.AllDirectories)
+                .Where(a => a.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+                            || a.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))
+                .Where(a => !a.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                            && !a.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
+
+            foreach (var archivo in archivos)
             {
                 var rutaRelativa = Path.GetRelativePath(raiz, archivo).Replace(Path.DirectorySeparatorChar, '/');
                 if (ArchivosAutorizados.Contains(rutaRelativa)) continue;
@@ -164,24 +210,35 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
     }
 
     /// <summary>
-    /// Guarda del propio test: si el escaneo dejara de encontrar los accesos ya
-    /// conocidos (carpeta movida, tipos renombrados, regex roto), lo notaría en
-    /// vez de pasar en falso vacío.
+    /// Guarda del propio test: cada archivo de la lista tiene que seguir
+    /// <b>observándose</b>, no un número cualquiera por encima de un umbral.
+    ///
+    /// <para>
+    /// Antes exigía "más de cinco de los autorizados casan". Con dos docenas en
+    /// la lista, eso deja pasar que la mayoría se quedaran obsoletos —carpeta
+    /// movida, tipo renombrado, línea reformateada— sin que nada lo dijera, y
+    /// cada entrada muerta es un fichero que dejó de estar vigilado mientras
+    /// la lista sigue afirmando que se revisó.
+    /// </para>
     /// </summary>
     [Fact]
-    public void Hay_accesos_autorizados_que_inspeccionar()
+    public void Cada_acceso_autorizado_sigue_observandose()
     {
         var raiz = RaizDelRepositorio();
 
-        var encontrados = ArchivosAutorizados.Count(ruta =>
-        {
-            var archivo = Path.Combine(raiz, ruta.Replace('/', Path.DirectorySeparatorChar));
-            return File.Exists(archivo) && File.ReadLines(archivo).Any(l => PatronAcceso.IsMatch(l));
-        });
+        var desaparecidos = ArchivosAutorizados
+            .Where(ruta =>
+            {
+                var archivo = Path.Combine(raiz, ruta.Replace('/', Path.DirectorySeparatorChar));
+                return !File.Exists(archivo) || !File.ReadLines(archivo).Any(l => PatronAcceso.IsMatch(l));
+            })
+            .OrderBy(x => x)
+            .ToList();
 
-        encontrados.Should().BeGreaterThan(5,
-            "si la lista de autorizados dejara de corresponderse con el código, este test estaría vigilando un " +
-            "patrón que ya no existe y no detectaría nada");
+        string.Join(Environment.NewLine, desaparecidos).Should().BeEmpty(
+            "un autorizado que ya no casa con el patrón es una entrada muerta: o el escaneo dejó de mirar donde " +
+            "cree que mira, o el acceso se retiró sin actualizar la lista; en ambos casos la lista afirma una " +
+            "revisión que ya no corresponde con el código");
     }
 
     private static string RaizDelRepositorio()
