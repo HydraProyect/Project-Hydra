@@ -35,8 +35,8 @@ public class RegistroDelResolutorDeSesionPrivilegiadaTests
     [Fact]
     public void Infrastructure_registra_el_resolutor_que_revalida_contra_la_base()
     {
-        var texto = File.ReadAllText(Path.Combine(
-            RaizDelRepositorio(), ArchivoDeRegistro.Replace('/', Path.DirectorySeparatorChar)));
+        var texto = SinComentarios(File.ReadAllText(Path.Combine(
+            RaizDelRepositorio(), ArchivoDeRegistro.Replace('/', Path.DirectorySeparatorChar))));
 
         texto.Should().Contain("ISesionPrivilegiadaActual",
             "sin esta registración el TryAdd de AddApplication deja en pie el valor inerte, que dice que no " +
@@ -46,6 +46,24 @@ public class RegistroDelResolutorDeSesionPrivilegiadaTests
             "la implementación registrada tiene que ser la de Infrastructure, la que consulta la sesión, su " +
             "concesión y el alcance; cualquier otra convierte el plano 3 en decoración");
     }
+
+    /// <summary>
+    /// <b>Se descartan las líneas que son íntegramente comentario</b>, y no es
+    /// cosmética: sin esto, <b>comentar</b> la registración dejaba las dos cadenas
+    /// en su sitio y el ratchet seguía en verde. Demostrado por mutación el
+    /// 2026-08-23 — compilaba, arrancaba, y desactivaba en silencio exactamente la
+    /// comprobación que este test existe para vigilar.
+    ///
+    /// <para>
+    /// Un comentario al final de una línea con código sí cuenta: para una
+    /// comprobación de presencia, equivocarse hacia detectar de más obliga a
+    /// mirar, que es el lado seguro.
+    /// </para>
+    /// </summary>
+    private static string SinComentarios(string texto) =>
+        string.Join('\n', texto
+            .Split('\n')
+            .Where(linea => !linea.TrimStart().StartsWith("//", StringComparison.Ordinal)));
 
     private static string RaizDelRepositorio()
     {
