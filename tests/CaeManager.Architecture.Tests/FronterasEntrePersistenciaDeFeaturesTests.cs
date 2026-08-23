@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.RegularExpressions;
 using CaeManager.Application.Common;
 using FluentAssertions;
@@ -32,8 +32,21 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class FronterasEntrePersistenciaDeFeaturesTests
 {
+    /// <summary>
+    /// Los nombres con los que esta base llama a una interfaz de persistencia.
+    ///
+    /// <para>
+    /// <c>Writer</c> se añadió tras comprobar que su ausencia no era teórica:
+    /// <c>IAsignacionesOperativasWriter</c> es la persistencia de la feature
+    /// <c>Operaciones</c> y <b>ocho</b> handlers de <c>Clientes</c> y
+    /// <c>Tenants</c> ya dependían de ella. Eran referencias cruzadas reales,
+    /// sin entrada en la lista blanca y sin que el ratchet las viera, solo
+    /// porque el nombre no terminaba en <c>Repository</c> ni en
+    /// <c>QueryContext</c>.
+    /// </para>
+    /// </summary>
     private static readonly Regex NombreInterfazDePersistencia =
-        new(@"^I.*(Repository|QueryContext)$", RegexOptions.Compiled);
+        new(@"^I.*(Repository|QueryContext|Writer)$", RegexOptions.Compiled);
 
     // Congelado desde el inventario real a 2026-08-14 (Horizonte 2.5). Cada
     // tupla es (feature del handler + nombre del handler, nombre de la
@@ -476,6 +489,29 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.ObtenerVisitasQueryHandler", "IDocumentosQueryContext"),
         ("Visitas.ObtenerVisitasQueryHandler", "IEmpresasQueryContext"),
         ("Visitas.ObtenerVisitasQueryHandler", "ITiposDocumentoQueryContext"),
+
+        // ── Doble escritura de F1 ──────────────────────────────────────────
+        //
+        // Aparecieron al ampliar el patrón de nombres a los *Writer, y son
+        // legítimas: mientras dure la transición, todo comando que cambie el
+        // reparto por el modelo antiguo (DelegacionTenant, Cliente.Ejecutivo…)
+        // tiene que escribir también las tablas de asignación, en la misma
+        // transacción. Esa es la razón de que la feature Operaciones exponga un
+        // escritor y no un repositorio: es una operación de mantenimiento de la
+        // proyección, no la persistencia de un agregado ajeno.
+        //
+        // Se retiran cuando se retire la proyección EjecutivoUsuarioId. Hasta
+        // entonces, ocho entradas explícitas valen más que un patrón que no las
+        // veía: durante meses fueron referencias cruzadas reales, sin lista y
+        // sin ratchet, porque el nombre no acababa en Repository ni QueryContext.
+        ("Clientes.CrearClienteCommandHandler", "IAsignacionesOperativasWriter"),
+        ("Clientes.ReasignarEjecutivoClienteCommandHandler", "IAsignacionesOperativasWriter"),
+        ("Tenants.CrearAsignacionOperadorDelegadoCommandHandler", "IAsignacionesOperativasWriter"),
+        ("Tenants.CrearClienteDeleganteCommandHandler", "IAsignacionesOperativasWriter"),
+        ("Tenants.CrearDelegacionTenantCommandHandler", "IAsignacionesOperativasWriter"),
+        ("Tenants.DesactivarDelegacionTenantCommandHandler", "IAsignacionesOperativasWriter"),
+        ("Tenants.ReactivarDelegacionTenantCommandHandler", "IAsignacionesOperativasWriter"),
+        ("Tenants.RevocarAsignacionOperadorDelegadoCommandHandler", "IAsignacionesOperativasWriter"),
     };
 
     [Fact]
