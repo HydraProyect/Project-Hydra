@@ -275,6 +275,80 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Categoría 4: <b>el estado de bootstrap</b>. Es la única tabla del modelo
+    /// cuya forma no cabe en las tres anteriores, y por eso se quedó sin vigilar
+    /// hasta 2026-08-23: las tres categorías exigen <i>exactamente una</i>
+    /// política, y esta tiene <b>tres</b> —una por verbo—. No era un olvido: era
+    /// una categoría que el instrumento no podía representar.
+    ///
+    /// <para>
+    /// Que quedara fuera importa más que en cualquier otra tabla: es la que decide
+    /// <b>quién puede acuñar la autoridad fundacional de la plataforma</b>. Sin
+    /// esto, una migración que retirase una de sus tres políticas no habría puesto
+    /// nada en rojo.
+    /// </para>
+    /// </summary>
+    private static readonly string[] PoliticasDelBootstrap =
+    [
+        "estado_bootstrap_consumo_por_la_raiz",
+        "estado_bootstrap_designacion_al_arrancar",
+        "estado_bootstrap_lectura_de_la_raiz",
+    ];
+
+    /// <summary>
+    /// La forma de la categoría 4, afirmada verbo a verbo.
+    ///
+    /// <para>
+    /// <b>La ausencia de política de DELETE es una aserción</b>, no un descuido del
+    /// test: sin política permisiva, ningún rol sujeto a RLS puede borrar la fila,
+    /// y así la monotonía del bootstrap no depende solo del dominio. Añadir una
+    /// política de borrado "por simetría" tiene que ponerse rojo.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task El_estado_de_bootstrap_tiene_sus_tres_politicas_y_ninguna_de_borrado()
+    {
+        var estado = await LeerEstadoRlsAsync(["EstadoBootstrapPlataforma"]);
+
+        estado.Should().ContainKey("EstadoBootstrapPlataforma");
+        var e = estado["EstadoBootstrapPlataforma"];
+
+        using var _ = new AssertionScope();
+
+        e.Habilitado.Should().BeTrue("decide quién puede acuñar la autoridad fundacional de la plataforma");
+        e.Forzado.Should().BeTrue(
+            "SÍ lleva FORCE: sin él la política no ataría al propietario de la tabla, que es el rol con el " +
+            "que migran todos los entornos");
+
+        e.Politicas.Select(p => p.Nombre).OrderBy(n => n).Should().BeEquivalentTo(PoliticasDelBootstrap,
+            "tres políticas, una por verbo, y NINGUNA de DELETE: sin política permisiva de borrado ningún " +
+            "rol sujeto a RLS puede eliminar la fila, y la monotonía del bootstrap deja de depender solo " +
+            "del dominio");
+
+        var lectura = e.Politicas.FirstOrDefault(p => p.Nombre == "estado_bootstrap_lectura_de_la_raiz");
+        lectura.Should().NotBeNull();
+        lectura!.Using.Should().NotBeNull()
+            .And.Subject.As<string>().Should().Contain("UsuarioRaizId").And.Contain("app.usuario_id",
+                "solo la identidad raíz ve la fila: para cualquier otro usuario la tabla está vacía");
+
+        var designacion = e.Politicas.FirstOrDefault(p => p.Nombre == "estado_bootstrap_designacion_al_arrancar");
+        designacion.Should().NotBeNull();
+        designacion!.WithCheck.Should().NotBeNull()
+            .And.Subject.As<string>().Should().Contain("app.usuario_id",
+                "la designación la escribe el ARRANQUE, que no es una sesión de usuario: la ausencia de " +
+                "app.usuario_id es el discriminante, y es una coordenada del modelo, no una propiedad del rol");
+
+        var consumo = e.Politicas.FirstOrDefault(p => p.Nombre == "estado_bootstrap_consumo_por_la_raiz");
+        consumo.Should().NotBeNull();
+        consumo!.Using.Should().NotBeNull()
+            .And.Subject.As<string>().Should().Contain("app.usuario_id");
+        consumo.WithCheck.Should().NotBeNull()
+            .And.Subject.As<string>().Should().Contain("UsuarioRaizId",
+                "el WITH CHECK repite el predicado a propósito: sin él, la fila podría actualizarse para " +
+                "apuntar a otro usuario raíz y saldría del alcance de quien la está tocando");
+    }
+
+    /// <summary>
     /// Categoría 3. Hasta F2b-5 esta lista afirmaba un hueco —"todavía sin RLS,
     /// y este es el motivo"— para que un pendiente no se quedara pendiente para
     /// siempre. Ese test cumplió su función: al implementarse la política se
