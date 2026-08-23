@@ -473,12 +473,23 @@ using (var scope = app.Services.CreateScope())
     var userStore = scope.ServiceProvider.GetRequiredService<IUserStore<ApplicationUser>>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
+    // Identidad ADMINISTRATIVA para los dos seeders que no son trafico de
+    // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
+    // usuario, y el backfill de asignaciones es cross-tenant por diseno.
+    // Ninguno de los dos puede ejecutarse bajo un rol sometido a RLS por-tenant
+    // — ver FabricaContextoDeBootstrap, que explica los dos fallos concretos.
+    // Los demas seeders siguen con el contexto inyectado a proposito: operan
+    // dentro de un AmbitoTenantExplicito, que es lo que las politicas piden.
+    await using var dbContextBootstrap = scope.ServiceProvider
+        .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>()
+        .Crear();
+
     // Sin sesión de usuario en el arranque no hay tenant que resolver por
     // claim — la siembra del Administrador inicial se ejecuta explícitamente
     // como tenant #1 (ver AmbitoTenantExplicito, docs/MULTITENANCY.md § 8.4).
     using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
     {
-        await IdentitySeeder.SeedAsync(userManager, roleManager, userStore, logger, app.Configuration, app.Environment, dbContext);
+        await IdentitySeeder.SeedAsync(userManager, roleManager, userStore, logger, app.Configuration, app.Environment, dbContextBootstrap);
     }
 
     // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
@@ -505,7 +516,7 @@ using (var scope = app.Services.CreateScope())
     // de asignación, incluyendo los tenants que se acaben de sembrar. Es
     // idempotente y reconciliador, así que se ejecuta en cada arranque hasta
     // que la doble escritura quede establecida (F1 del plan de migración).
-    await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContext, logger);
+    await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
 }
 
 // Registrado antes del manejo de excepciones para envolverlo por completo:
