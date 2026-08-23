@@ -7,11 +7,20 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 
 /// <summary>
-/// Expone al Web si el tenant de <b>origen</b> del usuario actual es el
-/// tenant marcado como plataforma — mismo criterio de autorización que
-/// <c>CrearClienteDeleganteCommand</c> y <c>AbrirAccesoSoporteCommand</c>,
-/// aquí solo para decidir si Delegaciones.razor muestra el botón
-/// "Nueva delegación" (v1 de ADR-004 § 12.2: solo administrador de plataforma).
+/// Expone al Web si el usuario actual tiene una concesión <b>global</b> de
+/// <c>AdminPlataforma</c> vigente — mismo criterio de autorización que
+/// <c>CrearClienteDeleganteCommand</c>, que es lo que decide si
+/// Delegaciones.razor muestra el botón "Nueva delegación"
+/// (v1 de ADR-004 § 12.2: solo administrador de plataforma).
+///
+/// <para>
+/// Hasta A3 el criterio era pertenecer al tenant marcado como plataforma, y
+/// <c>AbrirAccesoSoporteCommand</c> lo compartía. Ya no: la autoridad salió
+/// del rasgo del tenant y pasó a la capacidad concedida, pero solo para las
+/// operaciones que A3 migró. El acceso de soporte sigue resolviéndose con
+/// <c>Tenant.EsPlataforma</c> hasta el bloque que lo traslade, así que
+/// <b>ya no hay paridad con él</b> y no debe citarse aquí como equivalente.
+/// </para>
 /// </summary>
 public record EsAdministradorPlataformaQuery : IRequest<bool>;
 
