@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;
@@ -118,19 +118,56 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs", "await using var comandoUnlock = new NpgsqlCommand(")] = 1,
     };
 
-    [Fact]
-    public void Ningun_uso_nuevo_de_IgnoreQueryFilters_o_sql_crudo_sin_lista_blanca()
+    /// <summary>
+    /// Las tres capas que pueden hablar con la base de datos.
+    ///
+    /// <para>
+    /// <c>CaeManager.Web</c> se añadió tras demostrar por mutación que su
+    /// ausencia era un hueco real y no una acotación: cuatro ficheros de esa
+    /// capa usan <c>CaeManagerDbContext</c> directamente, y uno de ellos es
+    /// <c>CurrentUserService</c> —el que resuelve el rol efectivo dentro de un
+    /// workspace—. Un <c>.IgnoreQueryFilters()</c> ahí es un bypass de
+    /// aislamiento en el camino de autorización; compilaba y el ratchet pasaba
+    /// en verde. Que hoy Web tenga cero usos no era una garantía: era una
+    /// coincidencia no vigilada.
+    /// </para>
+    /// </summary>
+    private static readonly string[] CarpetasEscaneadas =
+    [
+        "src/CaeManager.Application",
+        "src/CaeManager.Infrastructure",
+        "src/CaeManager.Web",
+    ];
+
+    /// <summary>
+    /// El escaneo, compartido por los dos tests a propósito: el que vigila usos
+    /// nuevos y el que comprueba que el escaneo sigue vivo tienen que mirar
+    /// exactamente lo mismo, o el segundo dejaría de respaldar al primero.
+    ///
+    /// <para>
+    /// Se incluyen los <c>.razor</c> —un bloque <c>@code</c> es C# igual que un
+    /// code-behind— y se excluyen <c>obj/</c> y <c>bin/</c>, sin lo cual el C#
+    /// que el compilador genera a partir de cada <c>.razor</c> contaría cada
+    /// línea por duplicado.
+    /// </para>
+    /// </summary>
+    private static Dictionary<(string Ruta, string Linea), int> EscanearUsos()
     {
         var raiz = RaizDelRepositorio();
-        var carpetas = new[] { "src/CaeManager.Application", "src/CaeManager.Infrastructure" };
-
         var apariciones = new Dictionary<(string Ruta, string Linea), int>();
 
-        foreach (var carpeta in carpetas)
+        foreach (var carpeta in CarpetasEscaneadas)
         {
             var directorio = Path.Combine(raiz, carpeta.Replace('/', Path.DirectorySeparatorChar));
 
-            foreach (var archivo in Directory.EnumerateFiles(directorio, "*.cs", SearchOption.AllDirectories))
+            var archivos = Directory
+                .EnumerateFiles(directorio, "*", SearchOption.AllDirectories)
+                .Where(a => a.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+                            || a.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))
+                .Where(a => !a.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                            && !a.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
+
+            foreach (var archivo in archivos)
             {
                 var rutaRelativa = Path.GetRelativePath(raiz, archivo).Replace(Path.DirectorySeparatorChar, '/');
 
@@ -145,7 +182,13 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
             }
         }
 
-        var infractores = apariciones
+        return apariciones;
+    }
+
+    [Fact]
+    public void Ningun_uso_nuevo_de_IgnoreQueryFilters_o_sql_crudo_sin_lista_blanca()
+    {
+        var infractores = EscanearUsos()
             .Where(kv => kv.Value > UsosPermitidos.GetValueOrDefault(kv.Key))
             .Select(kv => $"{kv.Key.Ruta}: \"{kv.Key.Linea}\" ({kv.Value} apariciones, {UsosPermitidos.GetValueOrDefault(kv.Key)} permitidas)")
             .OrderBy(x => x)
@@ -158,13 +201,45 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
             "UsosPermitidos en este mismo commit explicando por qué");
     }
 
-    // Guarda del propio test: si el escaneo dejara de encontrar ninguna de
-    // las líneas ya congeladas (carpeta movida, extensión de archivo distinta,
-    // regex roto), este test lo notaría en vez de pasar en falso vacío.
+    /// <summary>
+    /// Guarda del propio ratchet: cada uso congelado tiene que seguir
+    /// <b>observándose</b> donde la lista dice y las veces que dice.
+    ///
+    /// <para>
+    /// Sustituye a una guarda que solo sumaba las entradas de la lista blanca y
+    /// comprobaba que pasaban de diez. Prometía en su comentario detectar
+    /// "carpeta movida, extensión de archivo distinta, regex roto" — y ninguna
+    /// de esas tres cosas toca el diccionario, porque el diccionario es una
+    /// constante del test. Demostrado por mutación: cambiar el patrón de
+    /// búsqueda de <c>*.cs</c> a <c>*.csx</c> deja el escaneo sin un solo
+    /// fichero, el test principal pasa en verde sobre un conjunto vacío y la
+    /// guarda pasa también. Es el "falso vacío" exacto que decía impedir.
+    /// </para>
+    ///
+    /// <para>
+    /// La comprobación es de igualdad, no de mínimo, y eso congela el contrato
+    /// en las dos direcciones: un uso que <i>desaparece</i> también cambia la
+    /// lista de mecanismos que rodean a EF, y merece pasar por esta lista igual
+    /// que uno que aparece. De paso hace imposible la entrada muerta —fichero
+    /// renombrado, línea reformateada— que abriría un hueco en silencio.
+    /// </para>
+    /// </summary>
     [Fact]
-    public void Hay_usos_que_inspeccionar()
+    public void Cada_uso_congelado_sigue_observandose_donde_dice_la_lista()
     {
-        UsosPermitidos.Values.Sum().Should().BeGreaterThan(10);
+        var observado = EscanearUsos();
+
+        var discrepancias = UsosPermitidos
+            .Where(kv => observado.GetValueOrDefault(kv.Key) != kv.Value)
+            .Select(kv => $"{kv.Key.Ruta}: \"{kv.Key.Linea}\" " +
+                          $"(lista: {kv.Value}, observadas: {observado.GetValueOrDefault(kv.Key)})")
+            .OrderBy(x => x)
+            .ToList();
+
+        string.Join(Environment.NewLine, discrepancias).Should().BeEmpty(
+            "si una línea congelada ya no se observa, el escaneo dejó de mirar donde cree que mira —o el uso " +
+            "se retiró sin actualizar la lista—; en ambos casos el ratchet principal estaría dando verde sobre " +
+            "un conjunto más pequeño del que cree");
     }
 
     private static string RaizDelRepositorio()
