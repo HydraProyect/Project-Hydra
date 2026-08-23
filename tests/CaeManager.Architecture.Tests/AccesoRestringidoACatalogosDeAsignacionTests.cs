@@ -47,6 +47,13 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
     /// </summary>
     private static readonly HashSet<string> ArchivosAutorizados =
     [
+        // Autoridad de AdminPlataforma (A3): decide si el usuario puede ejercer
+        // la capacidad sobre un tenant o globalmente. Consulta acotada al propio
+        // usuario —UsuarioPlataformaId == el de la sesión—, el mismo predicado
+        // que la política RLS del plano de privilegio, así que no introduce una
+        // segunda definición de "sus concesiones".
+        "src/CaeManager.Infrastructure/Plataforma/AutorizacionAdminPlataformaPorConcesion.cs",
+
         // Matriz de auto-concesión (A2): consulta si el usuario tiene una
         // concesión AdminPlataforma VIGENTE para decidir si puede darse
         // SoporteLectura. Consulta acotada al propio usuario —el filtro de
