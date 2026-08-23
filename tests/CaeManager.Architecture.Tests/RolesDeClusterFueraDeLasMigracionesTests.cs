@@ -102,6 +102,65 @@ public class RolesDeClusterFueraDeLasMigracionesTests
     }
 
     /// <summary>
+    /// <b>El bootstrap converge LOGIN solo donde es una propiedad de seguridad.</b>
+    ///
+    /// <para>
+    /// Es la regresión concreta que este test existe para impedir, y no es
+    /// hipotética: la primera versión del guion (2026-08-22) convergía
+    /// <c>cae_app_runtime</c> a <c>NOLOGIN</c>, mientras producción llevaba
+    /// desde el 2026-08-14 con <c>LOGIN</c> habilitado —que es lo que hace que
+    /// RLS restrinja de verdad allí—. Ejecutarlo contra producción habría
+    /// retirado ese <c>LOGIN</c> y dejado a la aplicación sin poder abrir su
+    /// conexión restringida.
+    /// </para>
+    ///
+    /// <para>
+    /// La asimetría se afirma en <b>las dos direcciones</b>: en
+    /// <c>cae_app_soporte</c>, <c>NOLOGIN</c> sí es un atributo de seguridad
+    /// —ese rol solo se adopta con <c>SET ROLE</c> desde una sesión ya
+    /// autenticada—, así que quitarlo "por coherencia" con el otro también pone
+    /// esto rojo.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void El_bootstrap_converge_LOGIN_solo_donde_es_una_propiedad_de_seguridad()
+    {
+        var guion = SinComentarios(File.ReadAllText(
+            Path.Combine(RaizDelRepositorio(), "deploy", "bootstrap", "roles-de-cluster.sql")));
+
+        var convergencias = new Regex(@"ALTER\s+ROLE\s+(\w+)\s+WITH\s+([^;]*);", RegexOptions.IgnoreCase)
+            .Matches(guion)
+            .Select(m => (Rol: m.Groups[1].Value, Atributos: m.Groups[2].Value.ToUpperInvariant()))
+            .ToList();
+
+        // Guarda del propio instrumento: sin esto, un patrón que dejara de
+        // encontrar las convergencias haría que todo lo de abajo pasara sobre un
+        // conjunto vacío, y el test afirmaría algo que no ha observado.
+        convergencias.Select(c => c.Rol).Should().BeEquivalentTo(
+            ["cae_app_runtime", "cae_app_soporte"],
+            "el guion converge exactamente los dos principales del contrato; si esto cambia, las " +
+            "aserciones siguientes dejan de medir lo que dicen medir");
+
+        convergencias.Single(c => c.Rol == "cae_app_runtime").Atributos
+            .Should().NotContain("LOGIN",
+                "LOGIN en cae_app_runtime es configuración de DESPLIEGUE, no un atributo de seguridad: " +
+                "depende de si ese entorno provisiona una contraseña, y este guion no puede provisionarla " +
+                "sin contener un secreto. Lo que no puede otorgar, tampoco debe destruir — producción " +
+                "conecta con ese rol");
+
+        convergencias.Single(c => c.Rol == "cae_app_soporte").Atributos
+            .Should().Contain("NOLOGIN",
+                "en cae_app_soporte NOLOGIN sí es un atributo de seguridad: nunca debe ser una identidad " +
+                "de conexión, solo se adopta con SET ROLE desde una sesión ya autenticada");
+
+        foreach (var (rol, atributos) in convergencias)
+        {
+            atributos.Should().Contain("NOSUPERUSER", $"{rol} nunca debe ignorar RLS por ser superusuario");
+            atributos.Should().Contain("NOBYPASSRLS", $"{rol} nunca debe poder saltarse las políticas de aislamiento");
+        }
+    }
+
+    /// <summary>
     /// Se descartan las líneas que son íntegramente comentario —SQL con
     /// <c>--</c>, C# con <c>//</c>—, porque las migraciones explican en prosa
     /// justamente lo que este ratchet prohíbe y sin esto se denunciarían a sí

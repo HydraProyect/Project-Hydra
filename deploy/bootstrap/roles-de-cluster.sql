@@ -63,26 +63,46 @@
 -- =====================================================================
 
 
--- cae_app_runtime — el rol con el que la aplicación conectará cuando se
--- complete la rotación pendiente. NOBYPASSRLS es lo que mantiene la
--- garantía de aislamiento por encima de cualquier otra: un rol que
--- pudiera saltarse RLS haría inútiles las políticas.
+-- cae_app_runtime — la identidad de CONEXIÓN de la aplicación. NOBYPASSRLS es
+-- lo que mantiene la garantía de aislamiento por encima de cualquier otra: un
+-- rol que pudiera saltarse RLS haría inútiles las políticas.
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cae_app_runtime') THEN
+        -- Nace NOLOGIN a propósito: un rol recién creado no tiene contraseña,
+        -- así que LOGIN no le serviría para conectar y solo anunciaría una
+        -- capacidad que no tiene. Habilitarlo es cosa del despliegue, que es
+        -- quien posee el secreto (ver RUNBOOK-RLS.md).
         CREATE ROLE cae_app_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
     END IF;
 END $$;
 
--- Converge los atributos si el rol ya existía mal configurado. Sin esto,
--- un clúster con un cae_app_runtime heredado y con LOGIN o BYPASSRLS
--- quedaría fuera de contrato sin que nadie lo notara.
-ALTER ROLE cae_app_runtime WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+-- Converge SOLO los invariantes de seguridad, y deliberadamente NO toca LOGIN.
+--
+-- Esta línea llegó a decir NOLOGIN, y era un defecto real con consecuencia
+-- operativa: producción llevaba desde el 2026-08-14 con
+-- `ALTER ROLE cae_app_runtime LOGIN PASSWORD '…'` (RUNBOOK-RLS.md), que es
+-- justamente lo que hace que RLS restrinja de verdad allí. Este guion se
+-- escribió ocho días después codificando el estado ANTERIOR a esa activación,
+-- así que ejecutarlo contra producción habría retirado el LOGIN y dejado a la
+-- aplicación sin poder abrir su conexión restringida.
+--
+-- La distinción que lo evita: LOGIN es configuración de DESPLIEGUE —depende de
+-- si ese entorno provisiona una contraseña— y este guion no puede
+-- provisionarla sin contener un secreto. Lo que no puede otorgar, tampoco debe
+-- destruir. Los cuatro atributos de abajo sí son innegociables y por eso
+-- siguen convergiendo.
+ALTER ROLE cae_app_runtime WITH NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
 
 
 -- cae_app_soporte — solo lectura, para las sesiones privilegiadas del
 -- plano 3 (ADR-011). El interceptor hace SET ROLE hacia él; la
 -- restricción de escritura la impone la base, no la aplicación.
+--
+-- Aquí NOLOGIN SÍ es un atributo de seguridad, al contrario que en
+-- cae_app_runtime: este rol no debe ser nunca una identidad de conexión, solo
+-- se adopta desde una sesión ya autenticada. Por eso se fuerza, y por eso la
+-- verificación de abajo lo comprueba solo para él.
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cae_app_soporte') THEN
@@ -103,7 +123,12 @@ ALTER ROLE cae_app_soporte WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBY
 DO $$
 DECLARE
     incumplen text;
+    soporte_conecta boolean;
 BEGIN
+    -- Invariantes de SEGURIDAD, exigidos a los dos por igual. rolcanlogin ya
+    -- no está aquí: dejó de ser simétrico el día que producción habilitó
+    -- cae_app_runtime para conectar, que es el estado correcto y no una
+    -- desviación que haya que corregir.
     SELECT string_agg(esperado.rol, ', ' ORDER BY esperado.rol)
     INTO incumplen
     FROM (VALUES ('cae_app_runtime'), ('cae_app_soporte')) AS esperado(rol)
@@ -111,7 +136,6 @@ BEGIN
         SELECT 1
         FROM pg_roles r
         WHERE r.rolname = esperado.rol
-          AND NOT r.rolcanlogin
           AND NOT r.rolsuper
           AND NOT r.rolcreatedb
           AND NOT r.rolcreaterole
@@ -119,6 +143,16 @@ BEGIN
 
     IF incumplen IS NOT NULL THEN
         RAISE EXCEPTION
-            'Bootstrap de clúster incompleto: % no existe o no tiene los atributos requeridos', incumplen;
+            'Bootstrap de clúster incompleto: % no existe o no tiene los atributos de seguridad requeridos', incumplen;
+    END IF;
+
+    -- Y el invariante que NO es simétrico. cae_app_runtime queda fuera de esta
+    -- comprobación a propósito: su LOGIN lo decide el despliegue.
+    SELECT r.rolcanlogin INTO soporte_conecta
+    FROM pg_roles r WHERE r.rolname = 'cae_app_soporte';
+
+    IF soporte_conecta THEN
+        RAISE EXCEPTION
+            'cae_app_soporte tiene LOGIN: solo debe adoptarse con SET ROLE desde una sesión ya autenticada, nunca conectarse';
     END IF;
 END $$;
