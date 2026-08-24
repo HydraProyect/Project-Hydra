@@ -72,6 +72,9 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         servicios.AddSingleton<CaeManager.Application.Configuracion.IConfiguracionQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Visitas.IVisitasQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(_dbContext);
+        // ObtenerBandejaGestorQuery hace fan-out también a
+        // ObtenerAcreditacionesPorProveedorQuery ("Subir a [Plataforma]").
+        servicios.AddSingleton<CaeManager.Application.Integraciones.IProveedoresPlataformaCaeQueryContext>(_dbContext);
         servicios.AddSingleton<IAlcanceDatosService>(new AlcanceDatosServiceFalso());
         servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: _tenant));
         _servicios = servicios.BuildServiceProvider();
