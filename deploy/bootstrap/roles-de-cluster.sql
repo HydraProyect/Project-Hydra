@@ -55,7 +55,13 @@
 -- Los privilegios sobre objetos de una base —GRANT sobre esquemas,
 -- tablas y secuencias, y ALTER DEFAULT PRIVILEGES— siguen siendo
 -- responsabilidad de las migraciones de cada base, porque esos objetos
--- sí son por base. Aquí solo van los principales y sus atributos.
+-- sí son por base. Aquí van los principales, sus atributos y la
+-- MEMBRESÍA entre ellos.
+--
+-- La membresía entra por el mismo criterio que todo lo demás, no por
+-- comodidad: pg_auth_members es un catálogo de clúster igual que
+-- pg_authid. El criterio no es "¿es un GRANT?" sino "¿dónde vive el
+-- objeto que se toca?".
 --
 -- Tampoco es un cajón de "roles varios": un test de arquitectura fija
 -- que este fichero contiene exactamente los dos principales del contrato
@@ -113,6 +119,28 @@ END $$;
 ALTER ROLE cae_app_soporte WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
 
 
+-- La MEMBRESÍA que hace utilizable todo lo anterior.
+--
+-- Sin ella, el SET ROLE del interceptor falla: cae_app_runtime no puede adoptar
+-- un rol del que no es miembro. Faltaba, y no lo delataba ningún test porque
+-- todos ejercitaban el SET ROLE desde la conexión PROPIETARIA —que puede
+-- adoptar cualquier rol sin ser miembro de nada—. El enforcement de solo
+-- lectura del plano 3 estaba probado por un camino que producción no recorre.
+--
+-- Va aquí y no en una migración porque pg_auth_members es un catálogo de
+-- CLÚSTER, igual que pg_authid: es exactamente el criterio que separa lo de
+-- este fichero de lo de las migraciones por base.
+--
+-- WITH INHERIT FALSE (PostgreSQL 16+; CI usa 17 y el despliegue 18) es
+-- deliberado: cae_app_runtime podrá ADOPTAR el rol de soporte, pero no hereda
+-- sus privilegios de forma pasiva. La diferencia importa hacia el futuro — si
+-- algún día cae_app_soporte recibiera un privilegio que runtime no debe tener,
+-- la herencia se lo daría en silencio. Adoptar es un acto; heredar, un efecto.
+--
+-- Idempotente: repetir el GRANT no falla, solo reafirma la opción.
+GRANT cae_app_soporte TO cae_app_runtime WITH INHERIT FALSE;
+
+
 -- ---------------------------------------------------------------------
 -- VERIFICACIÓN POST-BOOTSTRAP
 -- ---------------------------------------------------------------------
@@ -154,5 +182,21 @@ BEGIN
     IF soporte_conecta THEN
         RAISE EXCEPTION
             'cae_app_soporte tiene LOGIN: solo debe adoptarse con SET ROLE desde una sesión ya autenticada, nunca conectarse';
+    END IF;
+
+    -- La membresía. Sin ella los dos roles existen, cumplen todos sus atributos
+    -- de seguridad, y el soporte no funciona: cae_app_runtime no puede adoptar
+    -- un rol del que no es miembro. Es el caso exacto en el que un bootstrap
+    -- "correcto" deja el sistema roto, así que se comprueba en vez de suponerse.
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_auth_members m
+        JOIN pg_roles concedido ON concedido.oid = m.roleid
+        JOIN pg_roles miembro   ON miembro.oid = m.member
+        WHERE concedido.rolname = 'cae_app_soporte'
+          AND miembro.rolname = 'cae_app_runtime')
+    THEN
+        RAISE EXCEPTION
+            'cae_app_runtime no es miembro de cae_app_soporte: el SET ROLE del interceptor fallaría y las sesiones de soporte no podrían abrirse';
     END IF;
 END $$;
