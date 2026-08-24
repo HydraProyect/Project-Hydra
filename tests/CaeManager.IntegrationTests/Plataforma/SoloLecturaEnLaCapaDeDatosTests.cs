@@ -196,13 +196,61 @@ public class SoloLecturaEnLaCapaDeDatosTests : IAsyncLifetime
         (await contexto.Clientes.CountAsync()).Should().Be(2);
     }
 
+    /// <summary>
+    /// <b>El mismo circuito, bajo la identidad de conexión de PRODUCCIÓN.</b>
+    ///
+    /// <para>
+    /// Todo lo de arriba adopta <c>cae_app_soporte</c> desde la conexión
+    /// PROPIETARIA, y un propietario puede adoptar cualquier rol <b>sin ser
+    /// miembro de nada</b>. Eso hacía que el enforcement de solo lectura del
+    /// plano 3 estuviera demostrado por un camino que producción no recorre:
+    /// allí la identidad de conexión es <c>cae_app_runtime</c>, y el
+    /// <c>SET ROLE</c> exige una membresía que nadie concedía. La comprobación
+    /// que faltaba no era del producto: era del instrumento.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>La lectura va primero, y no es adorno.</b> Sin membresía, el propio
+    /// <c>SET ROLE</c> falla con <c>42501</c> — el mismo código que una
+    /// escritura denegada—, así que un test que solo mirara el código de error
+    /// pasaría en verde por el motivo contrario al que dice comprobar: no
+    /// porque la base impida escribir, sino porque la sesión de soporte nunca
+    /// llegó a abrirse. Leer primero separa las dos causas.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Bajo_la_identidad_de_conexion_de_produccion_el_soporte_lee_pero_no_escribe()
+    {
+        var comoRuntime = BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion);
+
+        await using var contexto = CrearContexto(
+            _tenantVisitado, sesionPrivilegiadaId: Guid.NewGuid(), cadenaConexion: comoRuntime);
+
+        var clientes = await contexto.Clientes.ToListAsync();
+
+        clientes.Should().ContainSingle().Which.RazonSocial.Should().Be("Cliente Visitado S.L.",
+            "si esto falla, la sesión de soporte no llegó a abrirse —falta la membresía— y la aserción de " +
+            "escritura de abajo mediría otra cosa");
+
+        contexto.Clientes.Add(new Cliente("Escrito por soporte S.L.", "B66666678", esCritico: false));
+
+        var accion = async () => await contexto.SaveChangesAsync();
+
+        (await accion.Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                "el rol restringido ya está adoptado —la lectura lo demuestra—, así que la denegación solo " +
+                "puede venir de los privilegios de tabla");
+    }
+
     // ── Andamiaje ──────────────────────────────────────────────────────────
 
-    private CaeManagerDbContext CrearContexto(Guid tenantId, Guid? sesionPrivilegiadaId = null)
+    private CaeManagerDbContext CrearContexto(
+        Guid tenantId, Guid? sesionPrivilegiadaId = null, string? cadenaConexion = null)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .UseNpgsql(cadenaConexion ?? _cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(
                 new TenantSelladoInterceptor(tenantActual),
                 new TenantRlsConnectionInterceptor(
