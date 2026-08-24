@@ -81,19 +81,24 @@ public partial class MainLayout
                     Navigation.NavigateTo("/cuenta/configurar-2fa", forceLoad: true);
             });
         }
-        catch (ObjectDisposedException)
+        catch (Exception ex) when (ex is ObjectDisposedException or ArgumentOutOfRangeException)
         {
             // El circuito de Blazor puede desconectarse (y con él el
             // CaeManagerDbContext scoped que UserManager usa por debajo)
             // mientras este guard todavía está en vuelo — reproducido en
-            // producción (2026-08-24, primer despliegue real, ver
+            // producción dos veces, en el mismo sitio (Sentry DOTNET-6:
+            // ObjectDisposedException sobre CaeManagerDbContext; DOTNET-3:
+            // ArgumentOutOfRangeException dentro de NpgsqlDataReader — misma
+            // carrera, forma distinta según en qué punto exacto del socket
+            // la sorprenda la desconexión; ver
             // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md). No es un
             // PuertaAccesoDatos.EjecutarAsync — la puerta ya se defiende de
-            // eso en su propio Dispose (LiberarSiSigueViva); esto es el paso
-            // anterior: el propio DbContext muere DENTRO de la operación
-            // envuelta. No queda nadie al otro lado esperando una redirección
-            // — el circuito ya se fue — así que no hay nada que hacer salvo
-            // no dejar que la excepción quede sin observar.
+            // su propio semáforo en Dispose (LiberarSiSigueViva); esto es el
+            // paso anterior: la propia conexión/DbContext muere DENTRO de la
+            // operación envuelta, no en el cleanup. No queda nadie al otro
+            // lado esperando una redirección — el circuito ya se fue — así
+            // que no hay nada que hacer salvo no dejar la excepción sin
+            // observar.
         }
     }
 }

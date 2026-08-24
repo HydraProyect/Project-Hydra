@@ -34,7 +34,23 @@ public partial class SelectorClienteActivo : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
-        _clientes = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+        try
+        {
+            _clientes = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+        }
+        catch (ObjectDisposedException)
+        {
+            // El circuito de Blazor puede desconectarse (y con él el
+            // IServiceProvider del scope, del que el pipeline de MediatR
+            // resuelve sus propios behaviors) mientras este despacho
+            // sigue en vuelo — reproducido en producción (2026-08-17,
+            // mismo evento que MainLayout/SelectorTema, ver
+            // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md). Sin
+            // lista de clientes no hay nada más que calcular aquí, y no
+            // hay nadie al otro lado esperando el resultado de todos
+            // modos.
+            return;
+        }
 
         var activo = _clientes.FirstOrDefault(c => c.TenantId == ClienteActivoSeleccionado.TenantIdSeleccionado)
             ?? _clientes.FirstOrDefault(c => c.EsOrigen);
