@@ -1,5 +1,6 @@
 @page "/gestiones"
 @rendermode InteractiveServer
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Gestiones.Commands.CompletarGestion
 @using CaeManager.Application.Gestiones.Commands.EliminarGestion
 @using CaeManager.Application.Gestiones.Queries.ObtenerGestiones

@@ -115,15 +115,37 @@ public class SubidaMasivaTests(WebAppFixture fixture)
 
     /// <summary>
     /// SubidaMasiva.razor no restringe por rol (a diferencia de "Importar
-    /// documentos", Administrador-only) — un usuario Cliente, el rol de
-    /// menor alcance de los 6 (ver Roles.cs), llega igualmente a la
-    /// pantalla y no un /acceso-denegado. No afirma que esto esté mal (puede
-    /// ser deliberado: autoservicio de subida de sus propios documentos),
-    /// solo dónde está la frontera real hoy — dato que la auditoría de
-    /// cobertura pidió confirmar, no asumir.
+    /// documentos", Administrador-only) pero tampoco es Cliente-only: sigue
+    /// alcanzable por cualquiera de los cuatro roles internos con capacidad
+    /// de escritura más Consulta — este test comprueba GestorCae como
+    /// representante de "no Administrador-only", no el único caso posible.
     /// </summary>
     [Fact]
-    public async Task Subida_multiple_es_alcanzable_por_un_rol_que_no_es_Administrador()
+    public async Task Subida_multiple_es_alcanzable_por_un_rol_interno_que_no_es_Administrador()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos/subida-masiva");
+
+        Assert.DoesNotContain("/acceso-denegado", page.Url);
+        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Subida múltiple de documentos" })
+            .WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+    }
+
+    /// <summary>
+    /// Frontera corregida (reconciliación de ramas, 2026-08-24): hasta ahora
+    /// el rol Cliente —pensado para ver únicamente su propio Cliente en solo
+    /// lectura, ver Roles.cs— llegaba igual que cualquier otro rol porque la
+    /// página no filtraba por rol. Esto no era una fuga de datos (la capa de
+    /// alcance y AutorizacionEscrituraBehavior ya lo contenían) pero sí un
+    /// hueco de mínimo privilegio: exponía el shell de una herramienta
+    /// interna a un rol que nunca navega hasta ella (NavMenu no le ofrece
+    /// enlace). Ver PaginasInternasExcluyenAlRolClienteTests.
+    /// </summary>
+    [Fact]
+    public async Task Subida_multiple_no_es_alcanzable_por_el_rol_Cliente()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -131,9 +153,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("cliente", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos/subida-masiva");
 
-        Assert.DoesNotContain("/acceso-denegado", page.Url);
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Subida múltiple de documentos" })
-            .WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        Assert.Contains("/acceso-denegado", page.Url);
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
