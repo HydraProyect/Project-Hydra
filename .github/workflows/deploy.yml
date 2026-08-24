@@ -6,11 +6,17 @@ name: Desplegar
 # volver a esperar aquí. Esto recupera el "cada push queda visible en un
 # entorno real" que antes daba Railway automáticamente.
 #
-# Producción NO es automática a propósito: un solo push a main puede traer
-# cambios con impacto en clientes reales (facturación de Stripe, migraciones,
-# etc.) — el despliegue a producción queda como un botón manual
-# (workflow_dispatch) para decidir el momento después de probar en staging,
-# no algo que se dispare solo.
+# Producción SÍ se dispara en cuanto algo llega a main (2026-08-24, antes era
+# workflow_dispatch puro) — pero el job usa `environment: produccion`, que en
+# la configuración del repo exige aprobación manual de un revisor antes de
+# ejecutar un solo paso (ver Settings → Environments → produccion). Es el
+# mismo principio que antes ("decidir el momento después de probar en
+# staging"), con menos fricción: un click de aprobar en vez de recordar el
+# comando workflow_dispatch y la cadena de confirmación. El job queda en
+# pausa ("Waiting") hasta que se aprueba o se rechaza — nunca corre solo.
+#
+# workflow_dispatch se conserva como vía alternativa (por ejemplo para forzar
+# un redeploy sin un push nuevo) — pasa por el mismo gate del entorno.
 #
 # La clave SSH (secrets.VPS_SSH_KEY) es de un par dedicado, restringido en el
 # propio VPS (ver /root/.ssh/authorized_keys, entrada con "command=") a solo
@@ -22,10 +28,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      confirmar:
-        description: 'Escribe DEPLOY para confirmar el despliegue a producción'
-        required: true
 
 env:
   VPS_HOST: 2.29.9.79
@@ -46,9 +48,9 @@ jobs:
         run: ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" staging
 
   produccion:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirmar == 'DEPLOY'
     name: Desplegar a producción
     runs-on: ubuntu-latest
+    environment: produccion
     steps:
       - name: Preparar clave SSH
         run: |
