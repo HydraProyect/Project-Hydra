@@ -63,25 +63,17 @@ public class AlcanceDeCarteraEnEscrituraTests
     /// significaba "no se miraban", no "no existen".
     /// </para>
     /// </summary>
-    private static readonly Dictionary<string, string> HandlersExentos = new()
-    {
-        // Reasignar la cartera de un cliente es, por definicion, una operacion
-        // SOBRE el reparto, no DENTRO de el: acotarla a la cartera de quien la
-        // ejecuta seria pedir que un administrador solo pueda repartir lo que
-        // ya tiene asignado. Va con gate de rol explicito en el propio handler
-        // --Administrador, DireccionCae, CoordinadorCae--, roles por encima de
-        // Gestor CAE, para los que ObtenerClienteIdsVisiblesAsync devuelve null
-        // (sin restriccion).
-        //
-        // PREGUNTA ABIERTA, no resuelta aqui: CoordinadorCae es el unico de los
-        // tres cuyo alcance SI esta acotado, porque deriva de la jerarquia de
-        // usuarios. Tal como esta, un coordinador puede reasignar el ejecutivo
-        // de cualquier cliente del tenant, incluidos los que no supervisa. Si
-        // eso no es lo querido, el arreglo es acotar por jerarquia --no por
-        // cartera-- y es una decision de producto, no una correccion mecanica.
-        ["ReasignarEjecutivoClienteCommandHandler"] =
-            "opera sobre el reparto, no dentro de el; gate de rol propio a roles por encima de Gestor CAE",
-    };
+    private static readonly Dictionary<string, string> HandlersExentos = new();
+
+    // ReasignarEjecutivoClienteCommandHandler vivio aqui hasta la decision de
+    // dominio D-001 (2026-08-24): la pregunta abierta que dejaba esta entrada
+    // --CoordinadorCae era el unico de sus tres roles admitidos cuyo alcance SI
+    // estaba acotado por jerarquia, y aqui podia saltarsela-- se resolvio a
+    // favor de acotarlo tambien en escritura, reutilizando la misma
+    // IAlcanceDatosService que ya lo acotaba en lectura. El handler ya no esta
+    // exento: pasa el ratchet principal por la via normal (linea
+    // "if (parametros.Contains(typeof(IAlcanceDatosService))) continue;"), no
+    // por esta lista.
 
     [Fact]
     public void Todo_handler_de_escritura_que_carga_un_agregado_con_cartera_comprueba_IAlcanceDatosService()
