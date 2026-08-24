@@ -238,6 +238,48 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
             .Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Dos_delegaciones_comerciales_activas_del_mismo_cliente_no_crashean_la_mas_nueva_queda_como_incidencia()
+    {
+        // Reproduce el incidente de producción del 2026-08-24 (ver
+        // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md): el modelo antiguo
+        // nunca impidió que un cliente tuviera dos delegaciones comerciales
+        // activas simultáneas hacia operadores distintos; el índice único
+        // IX_AsignacionesOperacion_DelegacionTotalVigente sí lo impide, y sin
+        // este chequeo el backfill intentaba crear las dos y crasheaba con
+        // 23505 en el arranque de la aplicación real.
+        Guid segundaConsultora;
+        await using (var contextoPreparacion = CrearContexto(_clienteDelegante))
+        {
+            var consultora2 = new Tenant("Segunda consultora", PerfilVocabularioTenant.Consultora);
+            contextoPreparacion.Tenants.Add(consultora2);
+            await contextoPreparacion.SaveChangesAsync();
+            segundaConsultora = consultora2.Id;
+
+            // Más nueva que la delegación creada en InitializeAsync — el orden
+            // determinista del backfill exige que sea la que quede como
+            // incidencia, nunca la que se migre.
+            contextoPreparacion.DelegacionesTenant.Add(new DelegacionTenant(segundaConsultora, _clienteDelegante));
+            await contextoPreparacion.SaveChangesAsync();
+        }
+
+        var ejecutar = async () => await EjecutarBackfillAsync();
+        await ejecutar.Should().NotThrowAsync(
+            "un cliente con dos delegaciones activas es un dato del modelo antiguo que hay que reportar, no una " +
+            "razón para que el arranque real de la aplicación crashee");
+
+        await using var contexto = CrearContexto(_clienteDelegante);
+        var externas = await contexto.AsignacionesOperacion
+            .Where(o => !o.EsRaiz && o.PropietarioTenantId == _clienteDelegante)
+            .ToListAsync();
+
+        // Solo la más antigua (la de InitializeAsync, hacia _consultora) se
+        // migra; la de segundaConsultora no debe existir como operación.
+        externas.Should().ContainSingle();
+        externas[0].OperadorTenantId.Should().Be(_consultora);
+        externas.Should().NotContain(o => o.OperadorTenantId == segundaConsultora);
+    }
+
     private async Task EjecutarBackfillAsync()
     {
         await using var contexto = CrearContexto(_clienteDelegante);
