@@ -83,13 +83,20 @@ public static class AsignacionesOperativasBackfillSeeder
         }
 
         // --- 2. Las delegaciones comerciales, como operaciones externas ---
+        //
+        // Orden determinista por antigüedad: si dos delegaciones activas del
+        // MISMO cliente compiten (ver más abajo), la más antigua es la que se
+        // migra y la más nueva queda como incidencia — nunca al revés, o el
+        // resultado del backfill dependería del orden en que Postgres
+        // devuelva las filas.
         var delegacionesComerciales = await dbContext.DelegacionesTenant
             .Where(d => d.Proposito == PropositoDelegacion.Comercial)
+            .OrderBy(d => d.CreadoEnUtc)
             .ToListAsync(cancellationToken);
 
         foreach (var delegacion in delegacionesComerciales)
         {
-            var operacion = operaciones.FirstOrDefault(o =>
+            var operacionDeEsteOperador = operaciones.FirstOrDefault(o =>
                 !o.EsRaiz
                 && o.PropietarioTenantId == delegacion.TenantClienteId
                 && o.OperadorTenantId == delegacion.TenantConsultoraId
@@ -97,27 +104,61 @@ public static class AsignacionesOperativasBackfillSeeder
                 && o.Ambito.EsUniversal
                 && o.Estado != EstadoAsignacion.Cerrada);
 
-            if (delegacion.Activa && operacion is null)
+            if (!delegacion.Activa)
             {
-                var nueva = AsignacionOperacion.Externa(
-                    delegacion.TenantClienteId, delegacion.TenantConsultoraId, ServicioCae.Outbound,
-                    AmbitoAsignacion.Universal,
-                    delegacion.ActivadaEnUtc ?? delegacion.CreadoEnUtc,
-                    delegacion.ExpiraEnUtc, ahora);
+                if (operacionDeEsteOperador is not null)
+                {
+                    // Reconciliación: la delegación se desactivó después de que
+                    // el backfill creara la operación. El modelo antiguo no
+                    // guardó cuándo, así que se marca como tal en vez de
+                    // inventar una fecha — la etapa quedó con vigencia real
+                    // desconocida.
+                    operacionDeEsteOperador.Cerrar(MotivoCierreAsignacion.MigradaSinFecha, ahora);
+                    cerradas++;
+                }
 
-                dbContext.AsignacionesOperacion.Add(nueva);
-                operaciones.Add(nueva);
-                creadas++;
+                continue;
             }
-            else if (!delegacion.Activa && operacion is not null)
+
+            if (operacionDeEsteOperador is not null) continue; // ya migrada para este operador
+
+            // El invariante real es POR CLIENTE, no por (cliente, operador):
+            // IX_AsignacionesOperacion_DelegacionTotalVigente exige como mucho
+            // una delegación total vigente por cliente, sea quien sea el
+            // operador — comparar también por operador aquí (como hacía antes
+            // este chequeo) dejaba pasar dos delegaciones activas simultáneas
+            // del mismo cliente hacia operadores distintos, un estado que el
+            // modelo antiguo nunca impidió y que el índice único rechaza con
+            // 23505. Encontrado en producción el 2026-08-24 (ver
+            // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md).
+            var operacionDeOtroOperador = operaciones.FirstOrDefault(o =>
+                !o.EsRaiz
+                && o.PropietarioTenantId == delegacion.TenantClienteId
+                && o.OperadorTenantId != delegacion.TenantConsultoraId
+                && o.Servicio == ServicioCae.Outbound
+                && o.Ambito.EsUniversal
+                && o.Estado == EstadoAsignacion.Vigente);
+
+            if (operacionDeOtroOperador is not null)
             {
-                // Reconciliación: la delegación se desactivó después de que el
-                // backfill creara la operación. El modelo antiguo no guardó
-                // cuándo, así que se marca como tal en vez de inventar una
-                // fecha — la etapa quedó con vigencia real desconocida.
-                operacion.Cerrar(MotivoCierreAsignacion.MigradaSinFecha, ahora);
-                cerradas++;
+                incidencias.Add(
+                    $"Delegación {delegacion.Id} (cliente {delegacion.TenantClienteId} → consultora " +
+                    $"{delegacion.TenantConsultoraId}): el cliente ya tiene una delegación total vigente hacia " +
+                    $"otro operador ({operacionDeOtroOperador.OperadorTenantId}). El modelo nuevo exige una sola " +
+                    "delegación total vigente por cliente — no adivinar cuál es la vigente. No migrada, requiere " +
+                    "decisión humana.");
+                continue;
             }
+
+            var nueva = AsignacionOperacion.Externa(
+                delegacion.TenantClienteId, delegacion.TenantConsultoraId, ServicioCae.Outbound,
+                AmbitoAsignacion.Universal,
+                delegacion.ActivadaEnUtc ?? delegacion.CreadoEnUtc,
+                delegacion.ExpiraEnUtc, ahora);
+
+            dbContext.AsignacionesOperacion.Add(nueva);
+            operaciones.Add(nueva);
+            creadas++;
         }
 
         // --- 3. Los operadores delegados, como carteras externas ---
