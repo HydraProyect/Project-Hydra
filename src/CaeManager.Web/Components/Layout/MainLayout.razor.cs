@@ -47,36 +47,53 @@ public partial class MainLayout
         // Por la puerta: este guard corre en paralelo con la inicialización
         // de los demás componentes del layout y de la página, todos sobre el
         // mismo DbContext scoped (ver PuertaAccesoDatos).
-        await PuertaAccesoDatos.EjecutarAsync(async () =>
+        try
         {
-            var usuario = await UserManager.FindByIdAsync(id.ToString());
-            if (usuario is null) return;
-
-            if (usuario.DebeCambiarContrasena)
+            await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
-                Navigation.NavigateTo("/cuenta/cambiar-contrasena", forceLoad: true);
-                return;
-            }
+                var usuario = await UserManager.FindByIdAsync(id.ToString());
+                if (usuario is null) return;
 
-            // Mismo motivo que el guard de arriba: sin esto, un usuario
-            // auto-provisionado por SSO sin rol asignado (ver
-            // IdentityEndpointsExtensions) podría saltarse la sala de espera
-            // escribiendo cualquier otra URL a mano.
-            var roles = await UserManager.GetRolesAsync(usuario);
-            if (roles.Count == 0)
-            {
-                Navigation.NavigateTo("/cuenta/pendiente-de-rol", forceLoad: true);
-                return;
-            }
+                if (usuario.DebeCambiarContrasena)
+                {
+                    Navigation.NavigateTo("/cuenta/cambiar-contrasena", forceLoad: true);
+                    return;
+                }
 
-            // 2FA obligatoria para Administrador (P1-13 de
-            // docs/business/MATURITY_REVIEW.md): es el rol con más alcance
-            // del sistema, y hoy activar la autenticación en dos pasos era
-            // opt-in — nadie la exigía. ConfigurarAutenticadorDosFactores.razor
-            // usa AuthLayout, no este Layout, así que no vuelve a pasar por
-            // aquí y no hay bucle de redirección.
-            if (roles.Contains(Roles.Administrador) && !await UserManager.GetTwoFactorEnabledAsync(usuario))
-                Navigation.NavigateTo("/cuenta/configurar-2fa", forceLoad: true);
-        });
+                // Mismo motivo que el guard de arriba: sin esto, un usuario
+                // auto-provisionado por SSO sin rol asignado (ver
+                // IdentityEndpointsExtensions) podría saltarse la sala de espera
+                // escribiendo cualquier otra URL a mano.
+                var roles = await UserManager.GetRolesAsync(usuario);
+                if (roles.Count == 0)
+                {
+                    Navigation.NavigateTo("/cuenta/pendiente-de-rol", forceLoad: true);
+                    return;
+                }
+
+                // 2FA obligatoria para Administrador (P1-13 de
+                // docs/business/MATURITY_REVIEW.md): es el rol con más alcance
+                // del sistema, y hoy activar la autenticación en dos pasos era
+                // opt-in — nadie la exigía. ConfigurarAutenticadorDosFactores.razor
+                // usa AuthLayout, no este Layout, así que no vuelve a pasar por
+                // aquí y no hay bucle de redirección.
+                if (roles.Contains(Roles.Administrador) && !await UserManager.GetTwoFactorEnabledAsync(usuario))
+                    Navigation.NavigateTo("/cuenta/configurar-2fa", forceLoad: true);
+            });
+        }
+        catch (ObjectDisposedException)
+        {
+            // El circuito de Blazor puede desconectarse (y con él el
+            // CaeManagerDbContext scoped que UserManager usa por debajo)
+            // mientras este guard todavía está en vuelo — reproducido en
+            // producción (2026-08-24, primer despliegue real, ver
+            // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md). No es un
+            // PuertaAccesoDatos.EjecutarAsync — la puerta ya se defiende de
+            // eso en su propio Dispose (LiberarSiSigueViva); esto es el paso
+            // anterior: el propio DbContext muere DENTRO de la operación
+            // envuelta. No queda nadie al otro lado esperando una redirección
+            // — el circuito ya se fue — así que no hay nada que hacer salvo
+            // no dejar que la excepción quede sin observar.
+        }
     }
 }
