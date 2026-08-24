@@ -16,6 +16,13 @@ namespace CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 /// desactivada — un aviso aparte al nuevo Gestor con enlace a la pantalla
 /// de configuración, porque la configuración de IA se conserva tal cual al
 /// reasignar (ver ConfiguracionIaDocumentoCliente).
+///
+/// <b>CoordinadorCae queda acotado a su ámbito de supervisión</b> (decisión de
+/// dominio D-001, 2026-08-24): solo puede reasignar Clientes de la cartera
+/// derivada de los Gestores que le reportan — la misma jerarquía que ya
+/// acotaba su lectura (<see cref="IAlcanceDatosService"/>), que hasta esta
+/// decisión no se comprobaba aquí. Administrador y DireccionCae conservan
+/// alcance total, coherente con su rol.
 /// </summary>
 public record ReasignarEjecutivoClienteCommand(Guid ClienteId, Guid? NuevoEjecutivoUsuarioId) : ICommand;
 
@@ -25,6 +32,7 @@ public class ReasignarEjecutivoClienteCommandHandler(
     INotificacionUsuarioRepository notificacionRepositorio,
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUserService,
+    IAlcanceDatosService alcanceDatos,
     IAsignacionesOperativasWriter asignacionesWriter)
     : IRequestHandler<ReasignarEjecutivoClienteCommand, Result>
 {
@@ -38,7 +46,7 @@ public class ReasignarEjecutivoClienteCommandHandler(
             return Result.Fallo(Error.Crear("Cliente.SinPermisoReasignar", "Tu rol no puede reasignar la cartera de un cliente."));
 
         var cliente = await clienteRepositorio.ObtenerPorIdAsync(request.ClienteId, cancellationToken);
-        if (cliente is null)
+        if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
 
         var ejecutivoAnteriorId = cliente.EjecutivoUsuarioId;
