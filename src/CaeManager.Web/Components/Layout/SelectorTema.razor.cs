@@ -34,8 +34,23 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
 
         // Por la puerta: se inicializa en paralelo con el resto del layout
         // sobre el mismo DbContext scoped (ver PuertaAccesoDatos).
-        _usuario = await PuertaAccesoDatos.EjecutarAsync(
-            () => UserManager.FindByIdAsync(usuarioId.ToString()));
+        try
+        {
+            _usuario = await PuertaAccesoDatos.EjecutarAsync(
+                () => UserManager.FindByIdAsync(usuarioId.ToString()));
+        }
+        catch (ObjectDisposedException)
+        {
+            // El circuito de Blazor puede desconectarse (y con él el
+            // CaeManagerDbContext scoped) mientras esta consulta sigue en
+            // vuelo — reproducido en producción (2026-08-17, mismo evento
+            // que MainLayout/SelectorClienteActivo, ver
+            // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md). _usuario
+            // se queda en null, que ya es el valor que la línea de abajo
+            // trata como "sin tema guardado" — no hay nadie al otro lado
+            // esperando el resultado de todos modos.
+        }
+
         _temaActual = TemaATexto(_usuario?.Tema ?? TemaPreferido.Sistema);
     }
 
