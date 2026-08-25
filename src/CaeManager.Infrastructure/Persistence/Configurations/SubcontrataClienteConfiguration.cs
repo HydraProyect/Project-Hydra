@@ -1,4 +1,4 @@
-using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Subcontratas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -15,23 +15,15 @@ public class SubcontrataClienteConfiguration : IEntityTypeConfiguration<Subcontr
         builder.HasIndex(sc => new { sc.TenantId, sc.SubcontrataId, sc.ClienteId }).IsUnique();
         builder.HasIndex(sc => sc.ClienteId);
 
-        // F3 (verificación del modelo real) — SubcontrataId y ClienteId
-        // apuntan ahora ambas a la Empresas unificada. FKs reales — ver
-        // P0-1 de docs/business/MATURITY_REVIEW.md.
-        builder.HasOne<Empresa>().WithMany()
+        // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        builder.HasOne<Subcontrata>().WithMany()
             .HasForeignKey(sc => new { sc.TenantId, sc.SubcontrataId })
-            .HasPrincipalKey(e => new { e.TenantId, e.Id })
+            .HasPrincipalKey(s => new { s.TenantId, s.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne<Empresa>().WithMany()
+        builder.HasOne<Cliente>().WithMany()
             .HasForeignKey(sc => new { sc.TenantId, sc.ClienteId })
-            .HasPrincipalKey(e => new { e.TenantId, e.Id })
+            .HasPrincipalKey(c => new { c.TenantId, c.Id })
             .OnDelete(DeleteBehavior.Restrict);
-
-        // Bloqueante de f3-revision-adversaria-2026-08-25.md punto 6 — ver
-        // EmpresaClienteConfiguration para la justificación completa.
-        builder.ToTable(t => t.HasCheckConstraint(
-            "CK_SubcontratasClientes_NoAutorreferencia",
-            @"""SubcontrataId"" <> ""ClienteId"""));
     }
 }

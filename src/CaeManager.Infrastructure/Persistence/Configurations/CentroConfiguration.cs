@@ -1,4 +1,5 @@
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -28,15 +29,9 @@ public class CentroConfiguration : IEntityTypeConfiguration<Centro>
         builder.HasIndex(c => c.ClienteId);
         builder.HasIndex(c => c.EmpresaId);
 
-        // F3 (verificación del modelo real) — ClienteId (titular) y EmpresaId
-        // (operadora) apuntan ahora a la misma tabla Empresas unificada. Dos
-        // HasOne<Empresa>() independientes, sin navigation property en
-        // ninguno de los dos lados: es exactamente lo que evita la
-        // ambigüedad de fixup que EF Core tendría si hubiera navegación que
-        // desambiguar (ver f3-revision-adversaria-2026-08-25.md, punto 3).
-        builder.HasOne<Empresa>().WithMany()
+        builder.HasOne<Cliente>().WithMany()
             .HasForeignKey(c => new { c.TenantId, c.ClienteId })
-            .HasPrincipalKey(e => new { e.TenantId, e.Id })
+            .HasPrincipalKey(cl => new { cl.TenantId, cl.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<Empresa>().WithMany()

@@ -3467,10 +3467,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "EmpresaId", "ClienteId")
                         .IsUnique();
 
-                    b.ToTable("EmpresasClientes", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_EmpresasClientes_NoAutorreferencia", "\"EmpresaId\" <> \"ClienteId\"");
-                        });
+                    b.ToTable("EmpresasClientes", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Facturacion.TarifaCliente", b =>
@@ -5645,10 +5642,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "SubcontrataId", "ClienteId")
                         .IsUnique();
 
-                    b.ToTable("SubcontratasClientes", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_SubcontratasClientes_NoAutorreferencia", "\"SubcontrataId\" <> \"ClienteId\"");
-                        });
+                    b.ToTable("SubcontratasClientes", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Subcontratas.SubcontrataEmpresa", b =>
@@ -5675,10 +5669,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "SubcontrataId", "EmpresaId")
                         .IsUnique();
 
-                    b.ToTable("SubcontratasEmpresas", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_SubcontratasEmpresas_NoAutorreferencia", "\"SubcontrataId\" <> \"EmpresaId\"");
-                        });
+                    b.ToTable("SubcontratasEmpresas", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Subcontratas.VerificacionExternaSubcontrata", b =>
@@ -6615,7 +6606,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Centros.Centro", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ClienteId")
                         .HasPrincipalKey("TenantId", "Id")
@@ -6673,7 +6664,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("CentroId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
                         .WithMany()
                         .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -6683,7 +6674,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("EmpresaId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                    b.HasOne("CaeManager.Domain.Subcontratas.Subcontrata", null)
                         .WithMany()
                         .HasForeignKey("SubcontrataId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -6732,7 +6723,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.Documento", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ClienteId")
                         .HasPrincipalKey("TenantId", "Id")
@@ -6832,19 +6823,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Empresas.CredencialAccesoEmpresa", b =>
-                {
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "EmpresaId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Empresas.EmpresaCliente", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ClienteId")
                         .HasPrincipalKey("TenantId", "Id")
@@ -7124,26 +7105,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Subcontratas.CredencialAccesoSubcontrata", b =>
-                {
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "SubcontrataId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Subcontratas.SubcontrataCliente", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ClienteId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                    b.HasOne("CaeManager.Domain.Subcontratas.Subcontrata", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "SubcontrataId")
                         .HasPrincipalKey("TenantId", "Id")
@@ -7160,7 +7131,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                    b.HasOne("CaeManager.Domain.Subcontratas.Subcontrata", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "SubcontrataId")
                         .HasPrincipalKey("TenantId", "Id")

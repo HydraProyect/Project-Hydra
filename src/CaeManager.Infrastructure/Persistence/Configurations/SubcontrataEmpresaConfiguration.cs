@@ -15,23 +15,15 @@ public class SubcontrataEmpresaConfiguration : IEntityTypeConfiguration<Subcontr
         builder.HasIndex(se => new { se.TenantId, se.SubcontrataId, se.EmpresaId }).IsUnique();
         builder.HasIndex(se => se.EmpresaId);
 
-        // F3 (verificación del modelo real) — SubcontrataId y EmpresaId
-        // apuntan ahora ambas a la Empresas unificada. FKs reales — ver
-        // P0-1 de docs/business/MATURITY_REVIEW.md.
-        builder.HasOne<Empresa>().WithMany()
+        // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        builder.HasOne<Subcontrata>().WithMany()
             .HasForeignKey(se => new { se.TenantId, se.SubcontrataId })
-            .HasPrincipalKey(e => new { e.TenantId, e.Id })
+            .HasPrincipalKey(s => new { s.TenantId, s.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(se => new { se.TenantId, se.EmpresaId })
             .HasPrincipalKey(e => new { e.TenantId, e.Id })
             .OnDelete(DeleteBehavior.Restrict);
-
-        // Bloqueante de f3-revision-adversaria-2026-08-25.md punto 6 — ver
-        // EmpresaClienteConfiguration para la justificación completa.
-        builder.ToTable(t => t.HasCheckConstraint(
-            "CK_SubcontratasEmpresas_NoAutorreferencia",
-            @"""SubcontrataId"" <> ""EmpresaId"""));
     }
 }

@@ -1,7 +1,9 @@
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Subcontratas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -30,17 +32,9 @@ public class ContactoAgendaConfiguration : IEntityTypeConfiguration<ContactoAgen
         // Restrict como el resto de referencias entre agregados de este
         // repositorio: borrar un Cliente con agenda debe fallar de forma
         // visible, no llevarse los contactos por delante en silencio.
-        //
-        // F3 (verificación del modelo real) — a diferencia de Centro/Documento,
-        // estas tres FKs NO eran compuestas (TenantId, Id) antes de F3 —
-        // apuntaban solo a Id (PK simple). Se conserva ese estilo al
-        // repuntear (cambio mecánico, no se introduce el patrón compuesto
-        // aquí — corrige la caracterización de
-        // f3-revision-adversaria-2026-08-25.md punto 3, que asumía FK
-        // compuesta uniforme en las 4 entidades).
-        builder.HasOne<Empresa>().WithMany().HasForeignKey(c => c.ClienteId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Cliente>().WithMany().HasForeignKey(c => c.ClienteId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Empresa>().WithMany().HasForeignKey(c => c.EmpresaId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne<Empresa>().WithMany().HasForeignKey(c => c.SubcontrataId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Subcontrata>().WithMany().HasForeignKey(c => c.SubcontrataId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Centro>().WithMany().HasForeignKey(c => c.CentroId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(c => c.TiposDocumento)
