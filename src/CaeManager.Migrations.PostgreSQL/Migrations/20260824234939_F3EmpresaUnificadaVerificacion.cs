@@ -269,12 +269,24 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 name: "FK_SubcontratasEmpresas_Empresas_TenantId_SubcontrataId",
                 table: "SubcontratasEmpresas");
 
-            // Reverso de los pasos 3-4: las filas copiadas desde
-            // Clientes/Subcontratas ya no tienen ningún FK apuntándolas
-            // (las de arriba se acaban de revertir a Clientes/Subcontratas),
-            // así que se pueden retirar sin violar ninguna referencia.
-            migrationBuilder.Sql("""DELETE FROM "Empresas" WHERE "EsPropia" = false;""");
-
+            // A propósito NO hay ningún DELETE aquí. Contrato de F3
+            // (f3-analisis-pipeline-y-rollback-2026-08-25.md, decisión D):
+            // el rollback soportado de F3 es únicamente transaccional —
+            // si Up() falla, PostgreSQL revierte TODO el Up() de una vez
+            // (columnas, copia de datos, constraints) antes de que la app
+            // llegue a arrancar. Una vez Up() termina con éxito, la
+            // unificación se considera aplicada y no hay Down() capaz de
+            // reconstruir el estado anterior sin riesgo de borrar datos
+            // reales: un DELETE FROM "Empresas" WHERE "EsPropia" = false
+            // no puede distinguir una fila copiada por la migración de una
+            // fila creada legítimamente después del corte (misma condición,
+            // sin marcador de origen) — probado como un riesgo real, no
+            // teórico, antes de escribir este Down(). Este método revierte
+            // el ESQUEMA (columnas, constraints, FKs) y deja los DATOS tal
+            // como estén en el momento de ejecutarlo. Una separación
+            // posterior de Empresas es su propio incremento de ingeniería,
+            // con su propio diseño de datos — no algo que este Down() deba
+            // resolver.
             migrationBuilder.DropCheckConstraint(
                 name: "CK_SubcontratasEmpresas_NoAutorreferencia",
                 table: "SubcontratasEmpresas");
