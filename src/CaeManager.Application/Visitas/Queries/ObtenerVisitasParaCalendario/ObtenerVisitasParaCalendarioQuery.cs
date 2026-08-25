@@ -1,6 +1,6 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Visitas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +24,7 @@ public record VisitaCalendarioDto(
     int TotalTrabajadores,
     bool NotificadoCliente);
 
-public class ObtenerVisitasParaCalendarioQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVisitasParaCalendarioQueryHandler(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVisitasParaCalendarioQuery, IReadOnlyList<VisitaCalendarioDto>>
 {
     public async Task<IReadOnlyList<VisitaCalendarioDto>> Handle(ObtenerVisitasParaCalendarioQuery request, CancellationToken cancellationToken)
@@ -36,7 +36,8 @@ public class ObtenerVisitasParaCalendarioQueryHandler(ICentrosQueryContext centr
         var visitas = await (
             from visita in visitasContext.Visitas
             join centro in centrosContext.Centros on visita.CentroId equals centro.Id
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            // F3b — ClienteId ahora repunta contra Empresas.
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             where visita.FechaInicio <= ultimoDia && visita.FechaFin >= primerDia
             where centroIdsVisibles == null || centroIdsVisibles.Contains(centro.Id)
             select new

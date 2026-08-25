@@ -14,6 +14,9 @@ public class Empresa : EntidadBase
     public const int LongitudMaximaCnae = 10;
     public const int LongitudMaximaConvenioAplicable = 300;
 
+    /// <summary>Deuda transitoria de F3 — mismo límite que tenía Cliente.Notas.</summary>
+    public const int LongitudMaximaNotas = 2000;
+
     public string RazonSocial { get; private set; } = string.Empty;
 
     /// <summary>
@@ -92,6 +95,20 @@ public class Empresa : EntidadBase
         EsPropia = true;
     }
 
+    /// <summary>
+    /// F3b — alta de la contraparte antes llamada Cliente. <c>cif</c> exige
+    /// formato válido de NIF de empresa, igual que exigía
+    /// <c>Cliente.EstablecerCif</c> (a diferencia del constructor de arriba,
+    /// donde el CIF es opcional). <c>EsCritico</c>/<c>Notas</c>/
+    /// <c>EjecutivoUsuarioId</c> son deuda transitoria de F3 (§2 del diseño
+    /// físico) — se retiran a <c>RelacionEmpresarial</c> en F4, no antes.
+    /// </summary>
+    public static Empresa CrearComoCliente(string razonSocial, string cif, bool esCritico, string? notas, Guid? ejecutivoUsuarioId)
+    {
+        var empresa = new Empresa(razonSocial, cif) { EsPropia = false, EsCritico = esCritico, Notas = notas, EjecutivoUsuarioId = ejecutivoUsuarioId };
+        return empresa;
+    }
+
     public void Actualizar(string razonSocial, string? cif, string? cnae = null, string? convenioAplicable = null, bool esActividadAnexoI = false)
     {
         EstablecerRazonSocial(razonSocial);
@@ -100,6 +117,18 @@ public class Empresa : EntidadBase
         EstablecerConvenioAplicable(convenioAplicable);
         EsActividadAnexoI = esActividadAnexoI;
     }
+
+    /// <summary>F3b — reemplaza a <c>Cliente.Actualizar</c>: mismos cuatro campos, ahora sobre Empresa.</summary>
+    public void ActualizarComoCliente(string razonSocial, string cif, bool esCritico, string? notas)
+    {
+        EstablecerRazonSocial(razonSocial);
+        EstablecerCif(cif);
+        EsCritico = esCritico;
+        Notas = notas;
+    }
+
+    /// <summary>F3b — reemplaza a <c>Cliente.AsignarEjecutivo</c>.</summary>
+    public void AsignarEjecutivo(Guid? ejecutivoUsuarioId) => EjecutivoUsuarioId = ejecutivoUsuarioId;
 
     private void EstablecerRazonSocial(string razonSocial)
     {

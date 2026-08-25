@@ -1,6 +1,5 @@
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Visitas;
@@ -35,9 +34,9 @@ public class ObtenerVisitasQueryUrgenciaTests : IAsyncLifetime
 
         contexto.ParametrosSistema.Add(new ParametroSistema(30, 15, horasAvisoVisita: 48, horasCriticasVisita: 24));
 
-        var cliente = new Cliente("Cliente Urgencia Visita S.L.", "B12345674", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Cliente Urgencia Visita S.L.", "B12345674", false, null, null);
         var empresa = new Empresa("Empresa Urgencia Visita S.L.", "B87654323");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 
@@ -122,7 +121,7 @@ public class ObtenerVisitasQueryUrgenciaTests : IAsyncLifetime
     }
 
     private static ObtenerVisitasQueryHandler CrearHandler(CaeManagerDbContext contexto) =>
-        new(contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
+        new(contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
 
     private CaeManagerDbContext CrearContexto()
     {

@@ -1,6 +1,6 @@
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRespuesta;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Reclamaciones;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -72,8 +72,8 @@ public class ReclamacionesSinRespuestaTests : IAsyncLifetime
         // así que afirmar "sin respuesta" sería inventárselo.
         await using (var contexto = CrearContexto())
         {
-            var cliente = new Cliente("Sin Conversación S.L.", "B87654323", esCritico: false);
-            contexto.Clientes.Add(cliente);
+            var cliente = Empresa.CrearComoCliente("Sin Conversación S.L.", "B87654323", false, null, null);
+            contexto.Empresas.Add(cliente);
             await contexto.SaveChangesAsync();
 
             contexto.ReclamacionesDocumentales.Add(new ReclamacionDocumental(
@@ -91,8 +91,8 @@ public class ReclamacionesSinRespuestaTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
 
-        var cliente = new Cliente(razonSocial, cif, esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente(razonSocial, cif, false, null, null);
+        contexto.Empresas.Add(cliente);
         await contexto.SaveChangesAsync();
 
         var fechaEnvio = DateTime.UtcNow.AddDays(-diasAtras);

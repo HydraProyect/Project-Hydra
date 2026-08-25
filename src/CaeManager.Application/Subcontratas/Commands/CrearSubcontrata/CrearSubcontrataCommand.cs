@@ -1,4 +1,3 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Domain.Common;
@@ -37,7 +36,6 @@ public class CrearSubcontrataCommandHandler(
     ISubcontrataRepository repositorio,
     ISubcontrataClienteRepository subcontrataClienteRepositorio,
     ISubcontrataEmpresaRepository subcontrataEmpresaRepositorio,
-    IClientesQueryContext clientesContext,
     IEmpresasQueryContext empresasContext,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearSubcontrataCommand, Result<Guid>>
@@ -54,7 +52,7 @@ public class CrearSubcontrataCommandHandler(
         var clienteIds = request.ClienteIds.Distinct().ToList();
         var empresaIds = request.EmpresaIds.Distinct().ToList();
 
-        if (await clientesContext.Clientes.Where(c => clienteIds.Contains(c.Id)).CountAsync(cancellationToken) != clienteIds.Count)
+        if (await empresasContext.Empresas.Where(e => clienteIds.Contains(e.Id)).CountAsync(cancellationToken) != clienteIds.Count)
             return Result.Fallo<Guid>(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));
 
         if (await empresasContext.Empresas.Where(e => empresaIds.Contains(e.Id)).CountAsync(cancellationToken) != empresaIds.Count)

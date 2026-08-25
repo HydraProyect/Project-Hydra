@@ -1,6 +1,5 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
@@ -73,7 +72,6 @@ public class ObtenerAlertasQueryHandler(
     ITrabajadoresQueryContext trabajadoresContext,
     IAsignacionesQueryContext asignacionesContext,
     ICentrosQueryContext centrosContext,
-    IClientesQueryContext clientesContext,
     IEmpresasQueryContext empresasContext,
     IResolverClientePrincipalService resolverClientePrincipal,
     IAlcanceDatosService alcanceDatos,
@@ -230,7 +228,8 @@ public class ObtenerAlertasQueryHandler(
         var clientePorCentro = await (
             from centro in centrosContext.Centros
             where centroIds.Contains(centro.Id)
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            // F3b — ClienteId ahora repunta contra Empresas.
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new { centro.Id, ClienteId = cliente.Id, cliente.RazonSocial })
             .ToDictionaryAsync(x => x.Id, x => (x.ClienteId, x.RazonSocial), cancellationToken);
 

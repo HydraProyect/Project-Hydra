@@ -1,4 +1,3 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
@@ -47,7 +46,7 @@ public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaComman
 
 public class CrearEmpresaCommandHandler(
     IEmpresaRepository repositorio, IEmpresaClienteRepository empresaClienteRepositorio,
-    IClientesQueryContext clientesContext, IUnitOfWork unitOfWork)
+    IEmpresasQueryContext empresasContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearEmpresaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearEmpresaCommand request, CancellationToken cancellationToken)
@@ -59,9 +58,11 @@ public class CrearEmpresaCommandHandler(
             return Result.Fallo<Guid>(Error.Crear("Empresa.CifDuplicado", "Ya existe una empresa con este CIF."));
 
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // EmpresaCliente.ClienteId ya apunta a Empresas (F3): el "cliente" que se
+        // vincula aquí es un registro de Empresas, no de la tabla Clientes congelada.
         var clienteIds = request.ClienteIds.Distinct().ToList();
-        var clientesEncontrados = await clientesContext.Clientes
-            .Where(c => clienteIds.Contains(c.Id))
+        var clientesEncontrados = await empresasContext.Empresas
+            .Where(e => clienteIds.Contains(e.Id))
             .CountAsync(cancellationToken);
 
         if (clientesEncontrados != clienteIds.Count)

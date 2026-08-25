@@ -1,4 +1,4 @@
-using CaeManager.Application.Clientes;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Integraciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +26,7 @@ public record LineaWhatsAppListaDto(
     string? UltimoError);
 
 public class ObtenerLineasWhatsAppQueryHandler(
-    IIntegracionesQueryContext integracionesContext, IClientesQueryContext clientesContext)
+    IIntegracionesQueryContext integracionesContext, IEmpresasQueryContext empresasContext)
     : IRequestHandler<ObtenerLineasWhatsAppQuery, IReadOnlyList<LineaWhatsAppListaDto>>
 {
     public async Task<IReadOnlyList<LineaWhatsAppListaDto>> Handle(
@@ -35,7 +35,7 @@ public class ObtenerLineasWhatsAppQueryHandler(
         var filas = await (
             from linea in integracionesContext.LineasWhatsApp
             join conexion in integracionesContext.ConexionesIntegracion on linea.ConexionIntegracionId equals conexion.Id
-            join cliente in clientesContext.Clientes on conexion.ClienteId equals cliente.Id into clientesUnidos
+            join cliente in empresasContext.Empresas on conexion.ClienteId equals cliente.Id into clientesUnidos
             from cliente in clientesUnidos.DefaultIfEmpty()
             orderby conexion.FechaConectadaUtc descending
             select new

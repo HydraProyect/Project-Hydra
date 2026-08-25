@@ -1,5 +1,4 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Matching;
@@ -97,7 +96,7 @@ public record ConversacionDetalleDto(
     string? ResumenRelevanciaCae = null);
 
 public class ObtenerConversacionPorIdQueryHandler(
-    IClientesQueryContext clientesContext, ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
+    ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
     ITrabajadoresQueryContext trabajadoresContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     IVisitasQueryContext visitasContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext,
     IReclamacionesQueryContext reclamacionesContext,
@@ -110,9 +109,11 @@ public class ObtenerConversacionPorIdQueryHandler(
 
     public async Task<ConversacionDetalleDto?> Handle(ObtenerConversacionPorIdQuery request, CancellationToken cancellationToken)
     {
+        // Conversacion.ClienteId es un Empresa.Id desde F3b (AsignarClienteConversacionCommand
+        // resuelve el Cliente vía IEmpresaRepository): "Cliente" es una Empresa contraparte.
         var conversacion = await (
             from c in comunicacionesContext.Conversaciones
-            join cliente in clientesContext.Clientes on c.ClienteId equals cliente.Id into clientesUnidos
+            join cliente in empresasContext.Empresas on c.ClienteId equals cliente.Id into clientesUnidos
             from cliente in clientesUnidos.DefaultIfEmpty()
             where c.Id == request.Id
             select new

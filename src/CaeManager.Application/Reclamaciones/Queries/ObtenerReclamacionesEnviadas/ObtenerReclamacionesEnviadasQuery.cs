@@ -1,6 +1,6 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -32,7 +32,7 @@ public record ReclamacionEnviadaDto(
 
 public class ObtenerReclamacionesEnviadasQueryHandler(
     IReclamacionesQueryContext reclamacionesContext,
-    IClientesQueryContext clientesContext,
+    IEmpresasQueryContext empresasContext,
     IComunicacionesQueryContext comunicacionesContext,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerReclamacionesEnviadasQuery, ResultadoPaginado<ReclamacionEnviadaDto>>
@@ -45,7 +45,7 @@ public class ObtenerReclamacionesEnviadasQueryHandler(
         var consulta =
             from reclamacion in reclamacionesContext.ReclamacionesDocumentales
             where clienteIdsVisibles == null || clienteIdsVisibles.Contains(reclamacion.ClienteId)
-            join cliente in clientesContext.Clientes on reclamacion.ClienteId equals cliente.Id
+            join cliente in empresasContext.Empresas on reclamacion.ClienteId equals cliente.Id
             select new { reclamacion, cliente.RazonSocial };
 
         var total = await consulta.CountAsync(cancellationToken);

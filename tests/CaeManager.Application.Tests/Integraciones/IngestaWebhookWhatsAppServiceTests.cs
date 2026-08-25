@@ -2,7 +2,7 @@ using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Comunicaciones;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
@@ -20,7 +20,7 @@ public class IngestaWebhookWhatsAppServiceTests
     private readonly LineaWhatsAppRepositorioFalso _lineas = new();
     private readonly ConversacionRepositorioFalso _conversaciones = new();
     private readonly ContactoWhatsAppRepositorioFalso _contactos = new();
-    private readonly ClienteRepositorioFalso _clientes = new();
+    private readonly EmpresaRepositorioFalso _clientes = new();
     private readonly WhatsAppCloudApiClientFalso _whatsApp = new();
 
     private IngestaWebhookWhatsAppService CrearServicio() =>
@@ -52,8 +52,8 @@ public class IngestaWebhookWhatsAppServiceTests
     public async Task Contacto_conocido_enruta_al_gestor_de_cartera_con_su_cliente()
     {
         var gestorCartera = Guid.NewGuid();
-        var cliente = new Cliente("Acme SL", "B12345674", esCritico: false, ejecutivoUsuarioId: gestorCartera);
-        _clientes.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Acme SL", "B12345674", false, null, gestorCartera);
+        _clientes.Empresas.Add(cliente);
         _contactos.Agregar(new ContactoWhatsApp(Telefono, cliente.Id));
         var conexion = CrearLinea(ModoAsignacionLinea.PoolInbound, pool: [Guid.NewGuid()]);
         ConfigurarNotificacion([MensajeTexto("wamid.1")]);

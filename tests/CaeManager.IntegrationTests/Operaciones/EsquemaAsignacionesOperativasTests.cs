@@ -1,5 +1,5 @@
 using CaeManager.Application.Plataforma;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
@@ -44,16 +44,16 @@ public class EsquemaAsignacionesOperativasTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto(_tenant))
         {
-            var cliente = new Cliente("Cliente propio", "B12345674", false);
-            contexto.Clientes.Add(cliente);
+            var cliente = Empresa.CrearComoCliente("Cliente propio", "B12345674", false, null, null);
+            contexto.Empresas.Add(cliente);
             await contexto.SaveChangesAsync();
             _clienteId = cliente.Id;
         }
 
         await using (var contextoAjeno = CrearContexto(_otroTenant))
         {
-            var cliente = new Cliente("Cliente ajeno", "B58818501", false);
-            contextoAjeno.Clientes.Add(cliente);
+            var cliente = Empresa.CrearComoCliente("Cliente ajeno", "B58818501", false, null, null);
+            contextoAjeno.Empresas.Add(cliente);
             await contextoAjeno.SaveChangesAsync();
             _clienteDeOtroTenantId = cliente.Id;
         }

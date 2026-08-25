@@ -1,6 +1,6 @@
 using CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
 using CaeManager.Application.Tests.Clientes;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Comunicaciones;
 using FluentAssertions;
 using Xunit;
@@ -12,8 +12,8 @@ public class AsignarClienteConversacionCommandHandlerTests
     [Fact]
     public async Task Asigna_el_cliente_a_una_conversacion_de_triage()
     {
-        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false);
-        var clienteRepositorio = new ClienteRepositorioFalso();
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, null);
+        var clienteRepositorio = new EmpresaRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
 
         var conversacion = new Conversacion("Correo sin cliente identificado");
@@ -34,8 +34,8 @@ public class AsignarClienteConversacionCommandHandlerTests
     [Fact]
     public async Task Asignar_cliente_a_una_conversacion_whatsapp_memoriza_el_telefono_en_el_catalogo()
     {
-        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false);
-        var clienteRepositorio = new ClienteRepositorioFalso();
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, null);
+        var clienteRepositorio = new EmpresaRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
 
         var conversacion = Conversacion.CrearWhatsApp("+34600111222", Guid.NewGuid(), null, Guid.NewGuid());
@@ -60,7 +60,7 @@ public class AsignarClienteConversacionCommandHandlerTests
         var conversacionRepositorio = new ConversacionRepositorioFalso();
         conversacionRepositorio.Agregar(conversacion);
 
-        var clienteRepositorio = new ClienteRepositorioFalso();
+        var clienteRepositorio = new EmpresaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new AsignarClienteConversacionCommandHandler(conversacionRepositorio, clienteRepositorio, new ContactoWhatsAppRepositorioFalso(), new AlcanceDatosServiceFalso(), unitOfWork);
 

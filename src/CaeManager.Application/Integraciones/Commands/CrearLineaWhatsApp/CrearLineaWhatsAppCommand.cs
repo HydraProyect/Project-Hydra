@@ -1,5 +1,5 @@
 using CaeManager.Application.Common;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
@@ -54,7 +54,7 @@ public class CrearLineaWhatsAppCommandHandler(
     IConexionIntegracionRepository conexionRepositorio,
     ILineaWhatsAppRepository lineaRepositorio,
     IIntegracionesQueryContext integracionesContext,
-    IClienteRepository clienteRepositorio,
+    IEmpresaRepository empresaRepositorio,
     IAlcanceDatosService alcanceDatos,
     IDirectorioUsuariosService directorioUsuarios,
     ICurrentUserService currentUserService,
@@ -79,7 +79,7 @@ public class CrearLineaWhatsAppCommandHandler(
 
         if (request.ClienteId is { } clienteId)
         {
-            var cliente = await clienteRepositorio.ObtenerPorIdAsync(clienteId, cancellationToken);
+            var cliente = await empresaRepositorio.ObtenerPorIdAsync(clienteId, cancellationToken);
             if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
                 return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
         }

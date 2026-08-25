@@ -1,5 +1,5 @@
 using CaeManager.Application.Common;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -22,7 +22,7 @@ public class EditarMacroCommandValidator : AbstractValidator<EditarMacroCommand>
 }
 
 public class EditarMacroCommandHandler(
-    IMacroRespuestaRepository repositorio, IClienteRepository clienteRepositorio,
+    IMacroRespuestaRepository repositorio, IEmpresaRepository empresaRepositorio,
     IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarMacroCommand, Result>
 {
@@ -40,7 +40,7 @@ public class EditarMacroCommandHandler(
 
         if (request.ClienteId is not null)
         {
-            var cliente = await clienteRepositorio.ObtenerPorIdAsync(request.ClienteId.Value, cancellationToken);
+            var cliente = await empresaRepositorio.ObtenerPorIdAsync(request.ClienteId.Value, cancellationToken);
             if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
                 return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
         }

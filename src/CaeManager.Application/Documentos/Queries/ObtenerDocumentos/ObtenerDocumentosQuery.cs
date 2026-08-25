@@ -1,5 +1,4 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
@@ -56,7 +55,7 @@ public record DocumentoListaDto(
 /// usan el Dashboard y RenovarDocumentoCommand — para que nunca haya dos
 /// sitios de la aplicación mostrando vigencias distintas (ver DATABASE.md).
 /// </summary>
-public class ObtenerDocumentosQueryHandler(IClientesQueryContext clientesContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos, ICentrosQueryContext centrosContext, IProveedoresPlataformaCaeQueryContext proveedoresContext)
+public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos, ICentrosQueryContext centrosContext, IProveedoresPlataformaCaeQueryContext proveedoresContext)
     : IRequestHandler<ObtenerDocumentosQuery, ResultadoPaginado<DocumentoListaDto>>
 {
     public async Task<ResultadoPaginado<DocumentoListaDto>> Handle(ObtenerDocumentosQuery request, CancellationToken cancellationToken)
@@ -89,7 +88,9 @@ public class ObtenerDocumentosQueryHandler(IClientesQueryContext clientesContext
             from documento in documentosContext.Documentos
             where documento.ClienteId != null
             where clienteIdsVisibles == null || clienteIdsVisibles.Contains(documento.ClienteId!.Value)
-            join cliente in clientesContext.Clientes on documento.ClienteId!.Value equals cliente.Id
+            // Documento.ClienteId ya apunta a Empresas (F3): el propietario "Cliente"
+            // de un Documento se resuelve contra Empresas, no contra Clientes (congelada).
+            join cliente in empresasContext.Empresas on documento.ClienteId!.Value equals cliente.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new
             {

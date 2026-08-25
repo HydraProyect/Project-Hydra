@@ -14,7 +14,6 @@ using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
@@ -59,9 +58,9 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         if (await contexto.ParametrosSistema.SingleOrDefaultAsync() is null)
             contexto.ParametrosSistema.Add(new ParametroSistema(30, 15));
 
-        var cliente = new Cliente("Reclamación Test S.L.", "B12345674", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Reclamación Test S.L.", "B12345674", false, null, null);
         var empresa = new Empresa("Contratista de Prueba S.L.", "B87654323");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 
@@ -119,7 +118,9 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         Guid centroId, otroCentroId;
         await using (var contexto = CrearContexto())
         {
-            var empresa = await contexto.Empresas.SingleAsync();
+            // La consultora "cliente" también vive en Empresas desde F3b: hay que
+            // excluirla para quedarnos con la contratista real sembrada en InitializeAsync.
+            var empresa = await contexto.Empresas.SingleAsync(e => e.Id != _clienteId);
             var centro = new Centro(_clienteId, empresa.Id, "Centro A");
             var otroCentro = new Centro(_clienteId, empresa.Id, "Centro B");
             contexto.Centros.AddRange(centro, otroCentro);
@@ -382,9 +383,9 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
 
                 for (var i = 0; i < numeroClientes; i++)
                 {
-                    var cliente = new Cliente($"Reclamación Bulk {i} S.L.", GenerarCifValido(i * 2), esCritico: false);
+                    var cliente = Empresa.CrearComoCliente($"Reclamación Bulk {i} S.L.", GenerarCifValido(i * 2), false, null, null);
                     var empresa = new Empresa($"Contratista Bulk {i} S.L.", GenerarCifValido(i * 2 + 1));
-                    setup.Clientes.Add(cliente);
+                    setup.Empresas.Add(cliente);
                     setup.Empresas.Add(empresa);
                     await setup.SaveChangesAsync();
 

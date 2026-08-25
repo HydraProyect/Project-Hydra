@@ -1,5 +1,5 @@
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using FluentAssertions;
 using Xunit;
 
@@ -10,9 +10,9 @@ public class EliminarClientesCommandHandlerTests
     [Fact]
     public async Task Elimina_todos_los_clientes_sin_centros_activos()
     {
-        var uno = new Cliente("Uno S.A.", "B12345674", false);
-        var dos = new Cliente("Dos S.A.", "B12345674", false);
-        var repositorio = new ClienteRepositorioFalso { TieneCentrosActivos = false };
+        var uno = Empresa.CrearComoCliente("Uno S.A.", "B12345674", false, null, null);
+        var dos = Empresa.CrearComoCliente("Dos S.A.", "B12345674", false, null, null);
+        var repositorio = new EmpresaRepositorioFalso { TieneCentrosActivos = false };
         repositorio.Agregar(uno);
         repositorio.Agregar(dos);
         var unitOfWork = new UnitOfWorkFalso();
@@ -31,9 +31,9 @@ public class EliminarClientesCommandHandlerTests
     [Fact]
     public async Task Reporta_exito_parcial_cuando_alguno_tiene_centros_activos()
     {
-        var sinCentros = new Cliente("Sin centros", "B12345674", false);
-        var conCentros = new Cliente("Con centros", "B12345674", false);
-        var repositorio = new ClienteRepositorioFalso();
+        var sinCentros = Empresa.CrearComoCliente("Sin centros", "B12345674", false, null, null);
+        var conCentros = Empresa.CrearComoCliente("Con centros", "B12345674", false, null, null);
+        var repositorio = new EmpresaRepositorioFalso();
         repositorio.Agregar(sinCentros);
         repositorio.Agregar(conCentros);
         repositorio.IdsConCentrosActivos.Add(conCentros.Id);
@@ -53,7 +53,7 @@ public class EliminarClientesCommandHandlerTests
     [Fact]
     public async Task Reporta_error_por_cada_id_inexistente()
     {
-        var repositorio = new ClienteRepositorioFalso();
+        var repositorio = new EmpresaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new EliminarClientesCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
@@ -69,9 +69,9 @@ public class EliminarClientesCommandHandlerTests
     {
         // Blindaje contra un lote construido a mano (fuera de la UI, que ya
         // filtra por cartera) con el Id de un cliente ajeno dentro del mismo tenant.
-        var propio = new Cliente("Propio S.A.", "B12345674", false);
-        var ajeno = new Cliente("Ajeno S.A.", "B12345674", false);
-        var repositorio = new ClienteRepositorioFalso { TieneCentrosActivos = false };
+        var propio = Empresa.CrearComoCliente("Propio S.A.", "B12345674", false, null, null);
+        var ajeno = Empresa.CrearComoCliente("Ajeno S.A.", "B12345674", false, null, null);
+        var repositorio = new EmpresaRepositorioFalso { TieneCentrosActivos = false };
         repositorio.Agregar(propio);
         repositorio.Agregar(ajeno);
         var unitOfWork = new UnitOfWorkFalso();

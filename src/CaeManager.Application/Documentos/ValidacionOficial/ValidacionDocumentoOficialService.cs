@@ -1,4 +1,3 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.ValidacionOficial.Parsers;
 using CaeManager.Application.Empresas;
@@ -29,7 +28,6 @@ public class ValidacionDocumentoOficialService(
     IDocumentosQueryContext documentosContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IEmpresasQueryContext empresasContext,
-    IClientesQueryContext clientesContext,
     IFileStorageService almacenamiento,
     IVerificadorFirmaPdfService verificadorFirma,
     IExtractorTextoDigitalService extractorTexto,
@@ -263,8 +261,9 @@ public class ValidacionDocumentoOficialService(
     private async Task<string?> ObtenerCifPropietarioAsync(Documento documento, CancellationToken cancellationToken) =>
         documento.EmpresaId is { } empresaId
             ? await empresasContext.Empresas.Where(e => e.Id == empresaId).Select(e => e.Cif).FirstOrDefaultAsync(cancellationToken)
+            // Documento.ClienteId ya apunta a Empresas (F3).
             : documento.ClienteId is { } clienteId
-                ? await clientesContext.Clientes.Where(c => c.Id == clienteId).Select(c => c.Cif).FirstOrDefaultAsync(cancellationToken)
+                ? await empresasContext.Empresas.Where(e => e.Id == clienteId).Select(e => e.Cif).FirstOrDefaultAsync(cancellationToken)
                 : null;
 
     private async Task ReemplazarResultadosAsync(

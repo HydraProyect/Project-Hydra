@@ -1,4 +1,3 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Documentos.Eventos;
@@ -55,7 +54,6 @@ public class CrearDocumentoCommandHandler(
     IDocumentoRepository repositorio,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     ITrabajadoresQueryContext trabajadoresContext,
-    IClientesQueryContext clientesContext,
     IVehiculosQueryContext vehiculosContext,
     IProyectosQueryContext proyectosContext,
     IEmpresasQueryContext empresasContext,
@@ -93,7 +91,9 @@ public class CrearDocumentoCommandHandler(
         var propietarioEncontrado = ambitoSolicitado switch
         {
             AmbitoAplicacion.Trabajador => await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == request.TrabajadorId, cancellationToken),
-            AmbitoAplicacion.Cliente => await clientesContext.Clientes.AnyAsync(c => c.Id == request.ClienteId, cancellationToken),
+            // Documento.ClienteId ya apunta a Empresas (F3): el propietario "Cliente" de un
+            // Documento nuevo vive en Empresas, no en la tabla Clientes congelada.
+            AmbitoAplicacion.Cliente => await empresasContext.Empresas.AnyAsync(e => e.Id == request.ClienteId, cancellationToken),
             AmbitoAplicacion.Vehiculo => await vehiculosContext.Vehiculos.AnyAsync(v => v.Id == request.VehiculoId, cancellationToken),
             AmbitoAplicacion.Proyecto => await proyectosContext.Proyectos.AnyAsync(p => p.Id == request.ProyectoId, cancellationToken),
             _ => await empresasContext.Empresas.AnyAsync(e => e.Id == request.EmpresaId, cancellationToken)

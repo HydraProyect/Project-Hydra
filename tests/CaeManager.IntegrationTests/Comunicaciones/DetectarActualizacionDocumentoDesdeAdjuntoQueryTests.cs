@@ -1,8 +1,8 @@
 using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
 using CaeManager.Application.Common;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -42,8 +42,8 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
     {
         await using var contexto = CrearContexto();
 
-        var cliente = new Cliente("Cliente Deteccion Documento S.L.", "B10380194", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Cliente Deteccion Documento S.L.", "B10380194", false, null, null);
+        contexto.Empresas.Add(cliente);
         await contexto.SaveChangesAsync();
 
         var conversacion = new Conversacion("Documentación recibida");

@@ -2,7 +2,6 @@ using CaeManager.Application.Alertas;
 using CaeManager.Application.Alertas.Queries.ObtenerSugerenciasPreventivas;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -39,9 +38,9 @@ public class ObtenerSugerenciasPreventivasQueryTests : IAsyncLifetime
         if (await contexto.ParametrosSistema.SingleOrDefaultAsync() is null)
             contexto.ParametrosSistema.Add(new ParametroSistema(30, 15));
 
-        var cliente = new Cliente("Sugerencias Test S.L.", "B12345674", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Sugerencias Test S.L.", "B12345674", false, null, null);
         var empresa = new Empresa("Contratista de Prueba S.L.", "B87654323");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 

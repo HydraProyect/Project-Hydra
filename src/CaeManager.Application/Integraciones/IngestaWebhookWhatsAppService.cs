@@ -1,6 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Eventos;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using Microsoft.Extensions.Logging;
@@ -33,7 +33,7 @@ public class IngestaWebhookWhatsAppService(
     ILineaWhatsAppRepository lineaRepositorio,
     IConversacionRepository conversacionRepositorio,
     IContactoWhatsAppRepository contactoRepositorio,
-    IClienteRepository clienteRepositorio,
+    IEmpresaRepository empresaRepositorio,
     IWhatsAppCloudApiClient whatsAppClient,
     IFileStorageService almacenamiento,
     ILogger<IngestaWebhookWhatsAppService> logger)
@@ -126,7 +126,7 @@ public class IngestaWebhookWhatsAppService(
         var contacto = await contactoRepositorio.ObtenerPorTelefonoAsync(telefono, cancellationToken);
         if (contacto is not null)
         {
-            var cliente = await clienteRepositorio.ObtenerPorIdAsync(contacto.ClienteId, cancellationToken);
+            var cliente = await empresaRepositorio.ObtenerPorIdAsync(contacto.ClienteId, cancellationToken);
             if (cliente is not null)
                 return new DestinoAsignacion(cliente.Id, cliente.EjecutivoUsuarioId ?? await ElegirDestinoDeLineaAsync(linea, cancellationToken));
         }
