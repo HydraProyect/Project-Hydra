@@ -1,4 +1,3 @@
-using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
@@ -7,6 +6,9 @@ using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace CaeManager.IntegrationTests;
@@ -18,22 +20,28 @@ namespace CaeManager.IntegrationTests;
 /// f3-comparativa-alcance-abcd-2026-08-25.md, camino D): crear columnas +
 /// backfill + índices — SIN redirigir lectores, SIN repuntear FKs, SIN
 /// retirar tablas antiguas. El repunteo de FKs y los CHECK anti-
-/// autorreferencia son F3c, no se prueban aquí — ver
-/// f3c-diseno-adversario-reconciliacion-2026-08-25.md.
+/// autorreferencia son F3c — ver f3c-diseno-adversario-reconciliacion-2026-08-25.md.
 ///
-/// El requisito explícito del propietario del producto para F3a es que el
-/// backfill no introduzca ninguna divergencia silenciosa: cada test
-/// compara la fila copiada contra la fila de origen, campo a campo,
-/// incluidos los de soft-delete — nunca solo "no lanzó excepción".
+/// Cada test siembra datos ANTES de que la migración F3a se aplique y
+/// deja que sea la migración REAL (<see cref="IMigrator.MigrateAsync"/>
+/// contra el nombre exacto de la migración) la que ejecute el backfill —
+/// no una reimplementación del SQL dentro del test. Un test que re-declara
+/// su propia copia del INSERT puede quedarse en verde después de que
+/// alguien edite la migración real y no el test — exactamente el "falso
+/// verde" que este diseño evita a propósito.
 /// </summary>
 public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
 {
+    private const string MigracionAnteriorAF3a = "EstadoBootstrapPlataforma";
+    private const string MigracionF3a = "F3aEmpresasUnificadaPreparacion";
+
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
     public async Task InitializeAsync()
     {
         await using var contexto = CrearContexto(Guid.NewGuid());
-        await contexto.Database.MigrateAsync();
+        var migrador = contexto.GetInfrastructure().GetRequiredService<IMigrator>();
+        await migrador.MigrateAsync(MigracionAnteriorAF3a);
     }
 
     public async Task DisposeAsync()
@@ -42,7 +50,7 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task El_backfill_copia_un_Cliente_activo_sin_divergencia_de_ningun_campo()
+    public async Task El_backfill_real_copia_un_Cliente_activo_sin_divergencia_de_ningun_campo()
     {
         var tenantId = Guid.NewGuid();
         var ejecutivoId = Guid.NewGuid();
@@ -55,35 +63,10 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
         }
 
-        // Re-aplicar el backfill de F3a sobre datos ya existentes: como el
-        // backfill corre dentro de la migración (una sola vez, al crear la
-        // base), aquí se simula reconstruyendo la base desde cero con el
-        // Cliente ya sembrado no es posible con el patrón de
-        // BaseDatosPostgresDePruebas (migra antes de poder insertar). Se
-        // verifica en su lugar re-ejecutando el propio SQL del backfill de
-        // forma aislada, exactamente como está escrito en la migración —
-        // no una reimplementación paralela que podría divergir del real.
-        await using var conexion = new Npgsql.NpgsqlConnection(_cadenaConexion);
-        await conexion.OpenAsync();
-        await using (var comando = conexion.CreateCommand())
-        {
-            comando.CommandText = """
-                INSERT INTO "Empresas"
-                    ("Id", "TenantId", "RazonSocial", "Cif", "Cnae", "ConvenioAplicable", "EsActividadAnexoI",
-                     "EsPropia", "EjecutivoUsuarioId", "EsCritico", "Notas", "NivelServicio",
-                     "CreadoEnUtc", "EstaEliminado", "EliminadoEnUtc", "EliminadoPorUsuarioId", "Version")
-                SELECT
-                    "Id", "TenantId", "RazonSocial", "Cif", NULL, NULL, false,
-                    false, "EjecutivoUsuarioId", "EsCritico", "Notas", NULL,
-                    "CreadoEnUtc", "EstaEliminado", "EliminadoEnUtc", "EliminadoPorUsuarioId", "Version"
-                FROM "Clientes" WHERE "Id" = @id;
-                """;
-            comando.Parameters.AddWithValue("id", clienteOriginal.Id);
-            await comando.ExecuteNonQueryAsync();
-        }
+        await AplicarMigracionF3aAsync(tenantId);
 
         await using var contextoVerificacion = CrearContexto(tenantId);
-        var copia = await contextoVerificacion.Empresas.IgnoreQueryFilters().SingleAsync(e => e.Id == clienteOriginal.Id);
+        var copia = await contextoVerificacion.Empresas.SingleAsync(e => e.Id == clienteOriginal.Id);
 
         copia.EsPropia.Should().BeFalse();
         copia.RazonSocial.Should().Be(clienteOriginal.RazonSocial);
@@ -95,11 +78,11 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task El_backfill_copia_un_Cliente_soft_deleted_conservando_su_estado_de_borrado()
+    public async Task El_backfill_real_copia_un_Cliente_soft_deleted_conservando_su_estado_de_borrado()
     {
         var tenantId = Guid.NewGuid();
         Guid clienteId;
-        Guid usuarioQueElimino = Guid.NewGuid();
+        var usuarioQueElimino = Guid.NewGuid();
 
         await using (var contexto = CrearContexto(tenantId))
         {
@@ -112,39 +95,25 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
         }
 
+        await AplicarMigracionF3aAsync(tenantId);
+
+        // Lectura directa por SQL, sin pasar por el DbContext: el filtro
+        // global de EF (HasQueryFilter) podría enmascarar el dato real si
+        // algún día cambiase de forma — leer crudo confirma el estado
+        // físico de la columna, no el efecto de un filtro.
         await using var conexion = new Npgsql.NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
-        await using (var comando = conexion.CreateCommand())
-        {
-            comando.CommandText = """
-                INSERT INTO "Empresas"
-                    ("Id", "TenantId", "RazonSocial", "Cif", "Cnae", "ConvenioAplicable", "EsActividadAnexoI",
-                     "EsPropia", "EjecutivoUsuarioId", "EsCritico", "Notas", "NivelServicio",
-                     "CreadoEnUtc", "EstaEliminado", "EliminadoEnUtc", "EliminadoPorUsuarioId", "Version")
-                SELECT
-                    "Id", "TenantId", "RazonSocial", "Cif", NULL, NULL, false,
-                    false, "EjecutivoUsuarioId", "EsCritico", "Notas", NULL,
-                    "CreadoEnUtc", "EstaEliminado", "EliminadoEnUtc", "EliminadoPorUsuarioId", "Version"
-                FROM "Clientes" WHERE "Id" = @id;
-                """;
-            comando.Parameters.AddWithValue("id", clienteId);
-            await comando.ExecuteNonQueryAsync();
-        }
-
-        // Lectura directa por SQL: IgnoreQueryFilters() no basta si algún
-        // día el filtro global cambiara de forma — leer crudo confirma el
-        // dato físico, no el efecto de un filtro que podría enmascararlo.
-        await using var comandoLectura = conexion.CreateCommand();
-        comandoLectura.CommandText = """SELECT "EstaEliminado", "EliminadoPorUsuarioId" FROM "Empresas" WHERE "Id" = @id""";
-        comandoLectura.Parameters.AddWithValue("id", clienteId);
-        await using var lector = await comandoLectura.ExecuteReaderAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = """SELECT "EstaEliminado", "EliminadoPorUsuarioId" FROM "Empresas" WHERE "Id" = @id""";
+        comando.Parameters.AddWithValue("id", clienteId);
+        await using var lector = await comando.ExecuteReaderAsync();
         (await lector.ReadAsync()).Should().BeTrue();
         lector.GetBoolean(0).Should().BeTrue("una fila soft-deleted en Cliente debe llegar soft-deleted a la copia, o F3c encontraría una divergencia falsa");
         lector.GetGuid(1).Should().Be(usuarioQueElimino);
     }
 
     [Fact]
-    public async Task El_backfill_traduce_NivelServicio_de_Subcontrata_del_entero_al_texto_esperado()
+    public async Task El_backfill_real_traduce_NivelServicio_de_Subcontrata_del_entero_al_texto_esperado()
     {
         var tenantId = Guid.NewGuid();
         Subcontrata subcontrataOriginal;
@@ -157,25 +126,7 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
         }
 
-        await using var conexion = new Npgsql.NpgsqlConnection(_cadenaConexion);
-        await conexion.OpenAsync();
-        await using (var comando = conexion.CreateCommand())
-        {
-            comando.CommandText = """
-                INSERT INTO "Empresas"
-                    ("Id", "TenantId", "RazonSocial", "Cif", "Cnae", "ConvenioAplicable", "EsActividadAnexoI",
-                     "EsPropia", "EjecutivoUsuarioId", "EsCritico", "Notas", "NivelServicio",
-                     "CreadoEnUtc", "EstaEliminado", "EliminadoEnUtc", "EliminadoPorUsuarioId", "Version")
-                SELECT
-                    "Id", "TenantId", "RazonSocial", "Cif", NULL, NULL, false,
-                    false, NULL, NULL, NULL,
-                    CASE "NivelServicio" WHEN 0 THEN 'Gestionada' WHEN 1 THEN 'Supervisada' END,
-                    "CreadoEnUtc", "EstaEliminado", "EliminadoEnUtc", "EliminadoPorUsuarioId", "Version"
-                FROM "Subcontratas" WHERE "Id" = @id;
-                """;
-            comando.Parameters.AddWithValue("id", subcontrataOriginal.Id);
-            await comando.ExecuteNonQueryAsync();
-        }
+        await AplicarMigracionF3aAsync(tenantId);
 
         await using var contextoVerificacion = CrearContexto(tenantId);
         var copia = await contextoVerificacion.Empresas.SingleAsync(e => e.Id == subcontrataOriginal.Id);
@@ -187,32 +138,75 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Una_Empresa_ya_existente_queda_EsPropia_true_tras_la_migracion()
+    public async Task El_backfill_real_traduce_NivelServicio_Gestionada_por_defecto_no_solo_el_caso_Supervisada()
     {
-        // La propia migración F3a ya corrió en InitializeAsync sobre una
-        // base vacía — este test siembra una Empresa DESPUÉS de migrar
-        // (dominio ya conoce EsPropia, la establece explícitamente a true
-        // en el constructor) para confirmar el valor por defecto real de
-        // la columna, no solo lo que el dominio asigna en memoria.
+        // El caso Gestionada (0) es el default de NivelServicioSubcontrata —
+        // sin este test, un CASE WHEN que solo mapeara 1 y dejara 0 en NULL
+        // por error habría pasado inadvertido (el otro test solo cubre el
+        // valor no-default).
         var tenantId = Guid.NewGuid();
-        await using var contexto = CrearContexto(tenantId);
-        var empresa = new Empresa("Talveg Coordinación S.L.", "B12345674");
-        contexto.Empresas.Add(empresa);
-        await contexto.SaveChangesAsync();
+        Subcontrata subcontrataOriginal;
 
-        await using var conexion = new Npgsql.NpgsqlConnection(_cadenaConexion);
-        await conexion.OpenAsync();
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = """SELECT "EsPropia" FROM "Empresas" WHERE "Id" = @id""";
-        comando.Parameters.AddWithValue("id", empresa.Id);
-        var esPropia = (bool)(await comando.ExecuteScalarAsync())!;
-        esPropia.Should().BeTrue();
+        await using (var contexto = CrearContexto(tenantId))
+        {
+            subcontrataOriginal = new Subcontrata("Subcontrata Gestionada S.L.", "B87654323");
+            contexto.Subcontratas.Add(subcontrataOriginal);
+            await contexto.SaveChangesAsync();
+        }
+
+        await AplicarMigracionF3aAsync(tenantId);
+
+        await using var contextoVerificacion = CrearContexto(tenantId);
+        var copia = await contextoVerificacion.Empresas.SingleAsync(e => e.Id == subcontrataOriginal.Id);
+        copia.NivelServicio.Should().Be("Gestionada");
     }
 
     [Fact]
-    public async Task Los_indices_unicos_de_Cif_y_RazonSocial_siguen_activos_tras_anadir_las_columnas_de_F3a()
+    public async Task Una_Empresa_ya_existente_antes_de_F3a_queda_EsPropia_true_tras_la_migracion_real()
     {
         var tenantId = Guid.NewGuid();
+        Guid empresaId;
+
+        await using (var contexto = CrearContexto(tenantId))
+        {
+            // Empresa sembrada ANTES de F3a — con SQL directo, porque el
+            // modelo compilado de CaeManagerDbContext ya es el de DESPUÉS
+            // de F3a (EmpresaConfiguration ya declara EsPropia), pero la
+            // base de datos en este punto del test todavía no tiene esa
+            // columna. Reproduce exactamente la situación real: código
+            // nuevo desplegado, migración todavía no aplicada.
+            await using var conexion = new Npgsql.NpgsqlConnection(_cadenaConexion);
+            await conexion.OpenAsync();
+            await using var comando = conexion.CreateCommand();
+            empresaId = Guid.NewGuid();
+            comando.CommandText = """
+                INSERT INTO "Empresas"
+                    ("Id", "TenantId", "RazonSocial", "Cif", "EsActividadAnexoI", "CreadoEnUtc", "EstaEliminado", "Version")
+                VALUES (@id, @tenantId, 'Talveg Coordinación S.L.', 'B12345674', false, now(), false, @version);
+                """;
+            comando.Parameters.AddWithValue("id", empresaId);
+            comando.Parameters.AddWithValue("tenantId", tenantId);
+            comando.Parameters.AddWithValue("version", Guid.NewGuid());
+            await comando.ExecuteNonQueryAsync();
+        }
+
+        await AplicarMigracionF3aAsync(tenantId);
+
+        await using var conexionVerificacion = new Npgsql.NpgsqlConnection(_cadenaConexion);
+        await conexionVerificacion.OpenAsync();
+        await using var comandoVerificacion = conexionVerificacion.CreateCommand();
+        comandoVerificacion.CommandText = """SELECT "EsPropia" FROM "Empresas" WHERE "Id" = @id""";
+        comandoVerificacion.Parameters.AddWithValue("id", empresaId);
+        var esPropia = (bool)(await comandoVerificacion.ExecuteScalarAsync())!;
+        esPropia.Should().BeTrue("una Empresa ya existente antes de F3a nunca fue una contraparte");
+    }
+
+    [Fact]
+    public async Task Los_indices_unicos_de_Cif_y_RazonSocial_siguen_activos_tras_F3a()
+    {
+        var tenantId = Guid.NewGuid();
+        await AplicarMigracionF3aAsync(tenantId);
+
         await using var contexto = CrearContexto(tenantId);
         contexto.Empresas.Add(new Empresa("Duplicado S.L.", "B12345674"));
         await contexto.SaveChangesAsync();
@@ -230,6 +224,9 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
         // Confirmación explícita de que F3a se quedó estrictamente dentro
         // de su alcance (f3-comparativa-alcance-abcd-2026-08-25.md): el
         // repunteo de FKs es F3c, no debe haber ocurrido todavía.
+        var tenantId = Guid.NewGuid();
+        await AplicarMigracionF3aAsync(tenantId);
+
         await using var conexion = new Npgsql.NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
         await using var comando = conexion.CreateCommand();
@@ -240,6 +237,13 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
             """;
         var tablaReferenciada = (string?)await comando.ExecuteScalarAsync();
         tablaReferenciada.Should().Be("\"Clientes\"", "F3a no debe repuntear ninguna FK — eso es F3c");
+    }
+
+    private async Task AplicarMigracionF3aAsync(Guid tenantId)
+    {
+        await using var contexto = CrearContexto(tenantId);
+        var migrador = contexto.GetInfrastructure().GetRequiredService<IMigrator>();
+        await migrador.MigrateAsync(MigracionF3a);
     }
 
     private CaeManagerDbContext CrearContexto(Guid tenantId)
