@@ -1,4 +1,3 @@
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Proyectos;
@@ -37,9 +36,13 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
             .HasPrincipalKey(t => new { t.TenantId, t.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne<Cliente>().WithMany()
+        // F3 (verificación del modelo real) — ClienteId y EmpresaId apuntan
+        // ambas a la Empresas unificada; el CHECK de exclusión mutua
+        // existente (declarado en la migración, no en la fluent API) sigue
+        // siendo válido tal cual, solo cambia a qué tabla apuntan las dos.
+        builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(d => new { d.TenantId, d.ClienteId })
-            .HasPrincipalKey(c => new { c.TenantId, c.Id })
+            .HasPrincipalKey(e => new { e.TenantId, e.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<Empresa>().WithMany()

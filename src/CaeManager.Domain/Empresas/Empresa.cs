@@ -40,6 +40,44 @@ public class Empresa : EntidadBase
     /// </summary>
     public bool EsActividadAnexoI { get; private set; }
 
+    /// <summary>
+    /// F3 (verificación del modelo real, `f3-diseno-fisico-empresa-unificada…`
+    /// §3) — <c>true</c> para las filas que ya eran Empresa antes de la
+    /// unificación, <c>false</c> para las filas incorporadas desde
+    /// Cliente/Subcontrata. NOT NULL: no hay "no aplica" para esta columna,
+    /// a diferencia de las cuatro de abajo.
+    /// </summary>
+    public bool EsPropia { get; private set; } = true;
+
+    /// <summary>
+    /// Deuda transitoria de F3 (§2 del diseño físico) — antiguo
+    /// <c>Cliente.EjecutivoUsuarioId</c>. NULL = "no aplica" (no es una fila
+    /// ex-Cliente). Se retira cuando F4 redefina "gestor principal" con
+    /// carteras múltiples por relación — no antes.
+    /// </summary>
+    public Guid? EjecutivoUsuarioId { get; private set; }
+
+    /// <summary>
+    /// Deuda transitoria de F3 — antiguo <c>Cliente.EsCritico</c>. NULL =
+    /// "no aplica". Destino final: <c>RelacionEmpresarial</c> (F4).
+    /// </summary>
+    public bool? EsCritico { get; private set; }
+
+    /// <summary>
+    /// Deuda transitoria de F3 — antiguo <c>Cliente.Notas</c>. NULL =
+    /// "no aplica". Destino final: <c>RelacionEmpresarial</c> (F4).
+    /// </summary>
+    public string? Notas { get; private set; }
+
+    /// <summary>
+    /// Deuda transitoria de F3 — antiguo <c>Subcontrata.NivelServicio</c>.
+    /// Texto y no el enum <c>NivelServicioSubcontrata</c> a propósito: evita
+    /// acoplar <c>Domain.Empresas</c> a <c>Domain.Subcontratas</c> por una
+    /// columna que F4 va a retirar. NULL = "no aplica" (no es una fila
+    /// ex-Subcontrata).
+    /// </summary>
+    public string? NivelServicio { get; private set; }
+
     private Empresa()
     {
     }
@@ -51,6 +89,7 @@ public class Empresa : EntidadBase
         EstablecerCnae(cnae);
         EstablecerConvenioAplicable(convenioAplicable);
         EsActividadAnexoI = esActividadAnexoI;
+        EsPropia = true;
     }
 
     public void Actualizar(string razonSocial, string? cif, string? cnae = null, string? convenioAplicable = null, bool esActividadAnexoI = false)
