@@ -1,4 +1,4 @@
-﻿using CaeManager.Domain.Clientes;
+﻿using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -29,8 +29,8 @@ public class ConcurrenciaOptimistaTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Concurrida S.L.", "B12345674", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Concurrida S.L.", "B12345674", false, null, null);
+        contexto.Empresas.Add(cliente);
         await contexto.SaveChangesAsync();
 
         _clienteId = cliente.Id;
@@ -50,13 +50,13 @@ public class ConcurrenciaOptimistaTests : IAsyncLifetime
         await using var contextoPrimero = CrearContexto();
         await using var contextoSegundo = CrearContexto();
 
-        var clientePrimero = await contextoPrimero.Clientes.FirstAsync(c => c.Id == _clienteId);
-        var clienteSegundo = await contextoSegundo.Clientes.FirstAsync(c => c.Id == _clienteId);
+        var clientePrimero = await contextoPrimero.Empresas.FirstAsync(c => c.Id == _clienteId);
+        var clienteSegundo = await contextoSegundo.Empresas.FirstAsync(c => c.Id == _clienteId);
 
-        clientePrimero.Actualizar("Renombrada por el primero S.L.", "B12345674", esCritico: false, notas: null);
+        clientePrimero.ActualizarComoCliente("Renombrada por el primero S.L.", "B12345674", esCritico: false, notas: null);
         await contextoPrimero.SaveChangesAsync();
 
-        clienteSegundo.Actualizar("Renombrada por el segundo S.L.", "B12345674", esCritico: true, notas: null);
+        clienteSegundo.ActualizarComoCliente("Renombrada por el segundo S.L.", "B12345674", esCritico: true, notas: null);
 
         var guardarSegundo = async () => await contextoSegundo.SaveChangesAsync();
 
@@ -65,7 +65,7 @@ public class ConcurrenciaOptimistaTests : IAsyncLifetime
 
         // Y lo que importa de verdad: el cambio del primero sigue ahí.
         await using var contextoComprobacion = CrearContexto();
-        var almacenado = await contextoComprobacion.Clientes.FirstAsync(c => c.Id == _clienteId);
+        var almacenado = await contextoComprobacion.Empresas.FirstAsync(c => c.Id == _clienteId);
         almacenado.RazonSocial.Should().Be("Renombrada por el primero S.L.");
         almacenado.EsCritico.Should().BeFalse();
     }
@@ -77,13 +77,13 @@ public class ConcurrenciaOptimistaTests : IAsyncLifetime
         // normal, que es el 99% de las ediciones.
         await using (var contexto = CrearContexto())
         {
-            var cliente = await contexto.Clientes.FirstAsync(c => c.Id == _clienteId);
-            cliente.Actualizar("Editada sin competencia S.L.", "B12345674", esCritico: true, notas: "ok");
+            var cliente = await contexto.Empresas.FirstAsync(c => c.Id == _clienteId);
+            cliente.ActualizarComoCliente("Editada sin competencia S.L.", "B12345674", esCritico: true, notas: "ok");
             await contexto.SaveChangesAsync();
         }
 
         await using var contextoComprobacion = CrearContexto();
-        var almacenado = await contextoComprobacion.Clientes.FirstAsync(c => c.Id == _clienteId);
+        var almacenado = await contextoComprobacion.Empresas.FirstAsync(c => c.Id == _clienteId);
         almacenado.RazonSocial.Should().Be("Editada sin competencia S.L.");
     }
 
@@ -95,18 +95,18 @@ public class ConcurrenciaOptimistaTests : IAsyncLifetime
         Guid versionInicial;
         await using (var contexto = CrearContexto())
         {
-            versionInicial = (await contexto.Clientes.FirstAsync(c => c.Id == _clienteId)).Version;
+            versionInicial = (await contexto.Empresas.FirstAsync(c => c.Id == _clienteId)).Version;
         }
 
         await using (var contexto = CrearContexto())
         {
-            var cliente = await contexto.Clientes.FirstAsync(c => c.Id == _clienteId);
-            cliente.Actualizar("Otra razón social S.L.", "B12345674", esCritico: false, notas: null);
+            var cliente = await contexto.Empresas.FirstAsync(c => c.Id == _clienteId);
+            cliente.ActualizarComoCliente("Otra razón social S.L.", "B12345674", esCritico: false, notas: null);
             await contexto.SaveChangesAsync();
         }
 
         await using var contextoComprobacion = CrearContexto();
-        var versionFinal = (await contextoComprobacion.Clientes.FirstAsync(c => c.Id == _clienteId)).Version;
+        var versionFinal = (await contextoComprobacion.Empresas.FirstAsync(c => c.Id == _clienteId)).Version;
 
         versionFinal.Should().NotBe(versionInicial);
     }

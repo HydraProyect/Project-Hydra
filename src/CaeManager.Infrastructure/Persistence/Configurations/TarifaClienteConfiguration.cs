@@ -1,4 +1,4 @@
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -23,7 +23,8 @@ public class TarifaClienteConfiguration : IEntityTypeConfiguration<TarifaCliente
         builder.HasIndex(t => t.ClienteId);
 
         // FK real — ver P0-1 de docs/business/MATURITY_REVIEW.md.
-        builder.HasOne<Cliente>().WithMany()
+        // F3b — ClienteId repunta contra Empresas (ver CentroConfiguration).
+        builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(t => new { t.TenantId, t.ClienteId })
             .HasPrincipalKey(c => new { c.TenantId, c.Id })
             .OnDelete(DeleteBehavior.Restrict);

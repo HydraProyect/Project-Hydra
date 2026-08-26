@@ -1,5 +1,4 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Domain.Centros;
@@ -83,7 +82,7 @@ public record CentroListaDto(
 ///   persistir el estado en una columna.
 /// </summary>
 public class ObtenerCentrosQueryHandler(
-    ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext,
+    ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
     IAlcanceDatosService alcanceDatos, ICalculoEstadoCentroService calculoEstadoCentro)
     : IRequestHandler<ObtenerCentrosQuery, ResultadoPaginado<CentroListaDto>>
 {
@@ -91,7 +90,9 @@ public class ObtenerCentrosQueryHandler(
     {
         var consulta =
             from centro in centrosContext.Centros
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+                // F3b — ClienteId ahora repunta contra Empresas (join independiente
+                // del de EmpresaId de abajo: son dos roles distintos sobre la misma tabla).
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
             select new { centro, cliente, empresa };
 

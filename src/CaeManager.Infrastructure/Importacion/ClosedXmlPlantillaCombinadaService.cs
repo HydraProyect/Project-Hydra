@@ -1,5 +1,4 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
@@ -19,7 +18,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// por Id — más cómodo de rellenar a mano en Excel — y se resuelven contra
 /// la base de datos y contra las propias hojas anteriores del archivo.
 /// </summary>
-public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext) : IPlantillaCombinadaService
+public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext) : IPlantillaCombinadaService
 {
     private const string HojaClientes = "Clientes";
     private const string HojaEmpresas = "Empresas";
@@ -95,8 +94,12 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
 
     public async Task<PlanImportacionCombinadaDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
-        var clientesExistentes = await clientesContext.Clientes.ToListAsync(cancellationToken);
-        var cifsExistentes = new HashSet<string>(clientesExistentes.Select(c => c.Cif), StringComparer.OrdinalIgnoreCase);
+        // F3b — Empresas, no la tabla legacy Clientes: la unicidad de Cif y
+        // RazonSocial ya es global sobre esa tabla, así que comprobar aquí
+        // contra Empresas es lo que de verdad evita el 23505 al guardar.
+        var clientesExistentes = await empresasContext.Empresas.ToListAsync(cancellationToken);
+        var cifsExistentes = new HashSet<string>(
+            clientesExistentes.Where(c => c.Cif is not null).Select(c => c.Cif!), StringComparer.OrdinalIgnoreCase);
         var nombresClientesDisponibles = new HashSet<string>(clientesExistentes.Select(c => c.RazonSocial), StringComparer.OrdinalIgnoreCase);
 
         var nombresEmpresasExistentes = new HashSet<string>(
@@ -105,7 +108,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
 
         var centrosExistentes = new HashSet<string>(
             (await (from centro in centrosContext.Centros
-                    join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+                    join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
                     select cliente.RazonSocial + ClaveSeparador + centro.Nombre)
                 .ToListAsync(cancellationToken)),
             StringComparer.OrdinalIgnoreCase);

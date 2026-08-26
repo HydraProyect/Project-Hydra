@@ -1,10 +1,10 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
@@ -64,7 +64,7 @@ public class ObtenerLoteReclamacionQueryHandler(
     ITrabajadoresQueryContext trabajadoresContext,
     IAsignacionesQueryContext asignacionesContext,
     ICentrosQueryContext centrosContext,
-    IClientesQueryContext clientesContext,
+    IEmpresasQueryContext empresasContext,
     IReclamacionesQueryContext reclamacionesContext,
     IAlcanceDatosService alcanceDatos,
     Contactos.IResolucionDestinatariosAgendaService resolucionDestinatarios)
@@ -94,7 +94,7 @@ public class ObtenerLoteReclamacionQueryHandler(
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
             where request.CentroId == null || centro.Id == request.CentroId
             where clienteIdsVisibles == null || clienteIdsVisibles.Contains(centro.ClienteId)
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new
             {
                 cliente.Id,

@@ -1,7 +1,6 @@
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Reclamaciones;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -37,9 +36,9 @@ public class ClasificacionRuidoMensajeServiceTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Cliente Ruido Reclamado S.L.", "B10380194", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Cliente Ruido Reclamado S.L.", "B10380194", false, null, null);
         var empresa = new Empresa("Empresa Ruido Reclamado S.L.", "B10380186");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 

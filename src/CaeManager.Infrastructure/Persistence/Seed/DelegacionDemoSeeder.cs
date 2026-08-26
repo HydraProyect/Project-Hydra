@@ -288,7 +288,7 @@ public static class DelegacionDemoSeeder
 
         if (gestores.Count > 0)
         {
-            var clientes = await dbContext.Clientes.OrderBy(c => c.CreadoEnUtc).ToListAsync(cancellationToken);
+            var clientes = await dbContext.Empresas.Where(e => e.EsCritico != null).OrderBy(c => c.CreadoEnUtc).ToListAsync(cancellationToken);
             for (var i = 0; i < clientes.Count; i++)
                 clientes[i].AsignarEjecutivo(gestores[i % gestores.Count].Id);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -297,7 +297,7 @@ public static class DelegacionDemoSeeder
         var clientePrueba = await CrearAsync(Roles.Cliente, 1, "Cliente");
         if (clientePrueba is not null)
         {
-            var primerCliente = await dbContext.Clientes.OrderBy(c => c.CreadoEnUtc).FirstOrDefaultAsync(cancellationToken);
+            var primerCliente = await dbContext.Empresas.Where(e => e.EsCritico != null).OrderBy(c => c.CreadoEnUtc).FirstOrDefaultAsync(cancellationToken);
             if (primerCliente is not null)
             {
                 clientePrueba.ClienteId = primerCliente.Id;
@@ -337,7 +337,7 @@ public static class DelegacionDemoSeeder
     {
         if (!await dbContext.ReclamacionesDocumentales.AnyAsync(cancellationToken))
         {
-            var clientes = await dbContext.Clientes.OrderBy(c => c.CreadoEnUtc).ToListAsync(cancellationToken);
+            var clientes = await dbContext.Empresas.Where(e => e.EsCritico != null).OrderBy(c => c.CreadoEnUtc).ToListAsync(cancellationToken);
             await DatosPruebaSeeder.SembrarReclamacionesAsync(dbContext, clientes, gestores.FirstOrDefault()?.Id, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
             logger.LogInformation("Reclamaciones de demo sembradas para Refrielectric (incluye la variante sin respuesta).");
@@ -369,7 +369,7 @@ public static class DelegacionDemoSeeder
 
             if (clienteDelCanal != Guid.Empty)
             {
-                var cliente = await dbContext.Clientes.FirstAsync(c => c.Id == clienteDelCanal, cancellationToken);
+                var cliente = await dbContext.Empresas.Where(e => e.EsCritico != null).FirstAsync(c => c.Id == clienteDelCanal, cancellationToken);
                 if (cliente.EjecutivoUsuarioId != gestores[0].Id)
                 {
                     cliente.AsignarEjecutivo(gestores[0].Id);
@@ -629,7 +629,7 @@ public static class DelegacionDemoSeeder
 
             // Toda la cartera del demo 2 a su único gestor — sin ejecutivo
             // asignado, un GestorCae no vería ningún dato (IAlcanceDatosService).
-            var clientes = await dbContext.Clientes.ToListAsync(cancellationToken);
+            var clientes = await dbContext.Empresas.Where(e => e.EsCritico != null).ToListAsync(cancellationToken);
             foreach (var cliente in clientes)
                 cliente.AsignarEjecutivo(gestor.Id);
             await dbContext.SaveChangesAsync(cancellationToken);

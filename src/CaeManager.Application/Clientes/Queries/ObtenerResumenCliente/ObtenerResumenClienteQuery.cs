@@ -1,6 +1,7 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,7 +24,7 @@ public record ResumenClienteDto(
     Guid? EjecutivoUsuarioId, int TotalCentros, int TotalTrabajadores);
 
 public class ObtenerResumenClienteQueryHandler(
-    IClientesQueryContext clientesContext, ICentrosQueryContext centrosContext,
+    IEmpresasQueryContext empresasContext, ICentrosQueryContext centrosContext,
     IAsignacionesQueryContext asignacionesContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerResumenClienteQuery, ResumenClienteDto?>
 {
@@ -31,9 +32,9 @@ public class ObtenerResumenClienteQueryHandler(
     {
         if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteId, cancellationToken)) return null;
 
-        var cliente = await clientesContext.Clientes
+        var cliente = await empresasContext.Empresas
             .Where(c => c.Id == request.ClienteId)
-            .Select(c => new { c.Id, c.RazonSocial, c.Cif, c.EsCritico, c.CreadoEnUtc, c.EjecutivoUsuarioId })
+            .Select(c => new { c.Id, c.RazonSocial, Cif = c.Cif!, EsCritico = c.EsCritico ?? false, c.CreadoEnUtc, c.EjecutivoUsuarioId })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (cliente is null) return null;

@@ -89,7 +89,7 @@ public class DatosPruebaAgendaSeederTests : IAsyncLifetime
         solapa.Should().BeTrue("hace falta un tipo que tengan a la vez el Centro y su Cliente para poder ver que gana el del Centro");
 
         // Perfil incompleto: un Cliente a propósito sin ningún contacto.
-        var clienteIds = await contexto.Clientes.Select(c => c.Id).ToListAsync();
+        var clienteIds = await contexto.Empresas.Where(e => e.EsCritico != null).Select(e => e.Id).ToListAsync();
         var clientesConAgenda = contactos.Where(c => c.ClienteId != null).Select(c => c.ClienteId!.Value).ToHashSet();
         clienteIds.Should().Contain(id => !clientesConAgenda.Contains(id),
             "sin un cliente sin agenda no se puede ejercitar el aviso de que no hay a quién reclamar");

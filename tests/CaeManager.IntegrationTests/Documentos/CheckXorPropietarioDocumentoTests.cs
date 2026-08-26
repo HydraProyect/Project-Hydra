@@ -1,6 +1,6 @@
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -31,8 +31,8 @@ public class CheckXorPropietarioDocumentoTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Propietario Único S.L.", "B12345674", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Propietario Único S.L.", "B12345674", false, null, null);
+        contexto.Empresas.Add(cliente);
 
         var tipo = new TipoDocumento("Certificado", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, esObligatorio: true);
         contexto.TiposDocumento.Add(tipo);

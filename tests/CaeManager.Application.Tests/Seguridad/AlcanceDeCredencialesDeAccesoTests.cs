@@ -197,6 +197,9 @@ public class AlcanceDeCredencialesDeAccesoTests
         public Task<bool> TieneTrabajadoresAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
 
+        public Task<bool> TieneCentrosComoTitularAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
         public void Agregar(Empresa nueva) { }
     }
 

@@ -1,10 +1,8 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -38,13 +36,29 @@ public record ResultadoImportacionCombinadaDto(
     IReadOnlyList<ItemImportacionDto> Advertencias,
     IReadOnlyList<ItemImportacionDto> Omitidos);
 
+/// <summary>
+/// F3b — "Clientes" y "Empresas" del archivo escriben ahora en el mismo
+/// agregado (<see cref="Empresa"/>): ya no hace falta <c>IClienteRepository</c>
+/// ni <c>IClientesQueryContext</c>, solo <c>IEmpresaRepository</c>/
+/// <c>IEmpresasQueryContext</c> para ambas hojas.
+///
+/// Cuidado de correctitud que la unificación introduce y que no existía
+/// antes: <c>empresasPorRazonSocial</c> (usado por la hoja "Empresas") se
+/// siembra ANTES de la consulta a partir de las filas de la hoja "Clientes"
+/// ya procesadas — si no, una fila "Empresas" con la misma razón social que
+/// un Cliente recién creado en esta misma ejecución no lo encontraría
+/// todavía en la base de datos (la fila del Cliente está en el
+/// change tracker, sin guardar) e intentaría crear una segunda Empresa con
+/// la misma razón social, chocando con el índice único global en el
+/// <c>SaveChangesAsync</c> final. Antes de F3 esto no podía pasar —
+/// Cliente y Empresa eran tablas independientes sin unicidad cruzada.
+/// </summary>
 public class EjecutarImportacionCombinadaCommandHandler(
-    IClienteRepository clienteRepositorio,
     IEmpresaRepository empresaRepositorio,
     IEmpresaClienteRepository empresaClienteRepositorio,
     ICentroRepository centroRepositorio,
     ITrabajadorRepository trabajadorRepositorio,
-    ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
+    ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EjecutarImportacionCombinadaCommand, Result<ResultadoImportacionCombinadaDto>>
 {
@@ -55,7 +69,9 @@ public class EjecutarImportacionCombinadaCommandHandler(
         var reemplazar = request.ReemplazarExistentes;
         var omitidosEnEscritura = new List<ItemImportacionDto>();
 
-        var clientesPorCif = await clientesContext.Clientes.ToDictionaryAsync(c => c.Cif, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        var clientesPorCif = await empresasContext.Empresas
+            .Where(e => e.Cif != null)
+            .ToDictionaryAsync(e => e.Cif!, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
         // Indexado por razón social para que Empresas/Centros/Trabajadores puedan
         // referenciar un Cliente por nombre. Incluye tanto el nombre real que
@@ -78,7 +94,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
             {
                 if (reemplazar && (existente.RazonSocial != fila.RazonSocial || existente.EsCritico != fila.EsCritico))
                 {
-                    existente.Actualizar(fila.RazonSocial, fila.Cif, fila.EsCritico, existente.Notas);
+                    existente.ActualizarComoCliente(fila.RazonSocial, fila.Cif, fila.EsCritico, existente.Notas);
                     clientesActualizados++;
                 }
 
@@ -88,8 +104,8 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
             try
             {
-                var cliente = new Cliente(fila.RazonSocial, fila.Cif, fila.EsCritico);
-                clienteRepositorio.Agregar(cliente);
+                var cliente = Empresa.CrearComoCliente(fila.RazonSocial, fila.Cif, fila.EsCritico, notas: null, ejecutivoUsuarioId: null);
+                empresaRepositorio.Agregar(cliente);
                 clientesPorCif[fila.Cif] = cliente;
                 clientesIdPorRazonSocial[fila.RazonSocial] = cliente.Id;
                 clientesCreados++;
@@ -100,7 +116,15 @@ public class EjecutarImportacionCombinadaCommandHandler(
             }
         }
 
-        var empresasPorRazonSocial = await empresasContext.Empresas.ToDictionaryAsync(e => e.RazonSocial, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        // Semilla con lo que la hoja "Clientes" ya creó/tocó en memoria (ver
+        // comentario de clase) antes de consultar la base de datos — luego la
+        // consulta a la base de datos completa el resto sin pisar estas.
+        var empresasPorRazonSocial = new Dictionary<string, Empresa>(StringComparer.OrdinalIgnoreCase);
+        foreach (var cliente in clientesPorCif.Values)
+            empresasPorRazonSocial[cliente.RazonSocial] = cliente;
+        foreach (var empresa in await empresasContext.Empresas.ToListAsync(cancellationToken))
+            empresasPorRazonSocial.TryAdd(empresa.RazonSocial, empresa);
+
         var asociacionesActuales = await empresasContext.EmpresasClientes.ToListAsync(cancellationToken);
 
         var empresasCreadas = 0;

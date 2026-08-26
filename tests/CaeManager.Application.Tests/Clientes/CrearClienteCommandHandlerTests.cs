@@ -1,6 +1,6 @@
 using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Tests.Operaciones;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using FluentAssertions;
 using Xunit;
 
@@ -14,7 +14,7 @@ public class CrearClienteCommandHandlerTests
     [Fact]
     public async Task Crea_el_cliente_y_guarda_cuando_la_razon_social_no_esta_repetida()
     {
-        var repositorio = new ClienteRepositorioFalso();
+        var repositorio = new EmpresaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso());
 
@@ -22,15 +22,15 @@ public class CrearClienteCommandHandlerTests
             new CrearClienteCommand("Cadena Industrial Iberia S.A.", CifValido, true, "Notas"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        repositorio.Clientes.Should().ContainSingle(c => c.RazonSocial == "Cadena Industrial Iberia S.A.");
+        repositorio.Empresas.Should().ContainSingle(c => c.RazonSocial == "Cadena Industrial Iberia S.A.");
         unitOfWork.VecesGuardado.Should().Be(1);
     }
 
     [Fact]
     public async Task Falla_cuando_ya_existe_un_cliente_con_la_misma_razon_social()
     {
-        var repositorio = new ClienteRepositorioFalso();
-        repositorio.Agregar(new Cliente("RENDELSUR", CifValido, false));
+        var repositorio = new EmpresaRepositorioFalso();
+        repositorio.Agregar(Empresa.CrearComoCliente("RENDELSUR", CifValido, false, null, null));
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso());
 
@@ -44,8 +44,8 @@ public class CrearClienteCommandHandlerTests
     [Fact]
     public async Task Falla_cuando_ya_existe_un_cliente_con_el_mismo_cif()
     {
-        var repositorio = new ClienteRepositorioFalso();
-        repositorio.Agregar(new Cliente("RENDELSUR", CifValido, false));
+        var repositorio = new EmpresaRepositorioFalso();
+        repositorio.Agregar(Empresa.CrearComoCliente("RENDELSUR", CifValido, false, null, null));
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso());
 
@@ -59,7 +59,7 @@ public class CrearClienteCommandHandlerTests
     [Fact]
     public async Task Asigna_automaticamente_al_gestor_cae_que_lo_crea()
     {
-        var repositorio = new ClienteRepositorioFalso();
+        var repositorio = new EmpresaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var gestorId = Guid.NewGuid();
         var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(gestorId, "GestorCae"), new AsignacionesOperativasWriterFalso());
@@ -67,13 +67,13 @@ public class CrearClienteCommandHandlerTests
         var resultado = await handler.Handle(new CrearClienteCommand("RENDELSUR", CifValido, false, null), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        repositorio.Clientes.Single().EjecutivoUsuarioId.Should().Be(gestorId);
+        repositorio.Empresas.Single().EjecutivoUsuarioId.Should().Be(gestorId);
     }
 
     [Fact]
     public async Task No_asigna_gestor_cuando_lo_crea_otro_rol()
     {
-        var repositorio = new ClienteRepositorioFalso();
+        var repositorio = new EmpresaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var administradorId = Guid.NewGuid();
         var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(administradorId, "Administrador"), new AsignacionesOperativasWriterFalso());
@@ -81,6 +81,6 @@ public class CrearClienteCommandHandlerTests
         var resultado = await handler.Handle(new CrearClienteCommand("RENDELSUR", CifValido, false, null), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        repositorio.Clientes.Single().EjecutivoUsuarioId.Should().BeNull();
+        repositorio.Empresas.Single().EjecutivoUsuarioId.Should().BeNull();
     }
 }

@@ -3,7 +3,6 @@ using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.DependencyInjection;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Tenants;
@@ -161,9 +160,9 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
 
-        var cliente = new Cliente($"{prefijo} Cliente", "B12345674", esCritico: false);
+        var cliente = Empresa.CrearComoCliente($"{prefijo} Cliente", "B12345674", false, null, null);
         var empresa = new Empresa($"{prefijo} Empresa");
-        _dbContext.Clientes.Add(cliente);
+        _dbContext.Empresas.Add(cliente);
         _dbContext.Empresas.Add(empresa);
         _dbContext.ParametrosSistema.Add(new ParametroSistema(umbralAmbarDias: 30, umbralRojoDias: 15));
         await _dbContext.SaveChangesAsync();

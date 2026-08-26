@@ -242,9 +242,16 @@ public static class AsignacionesOperativasBackfillSeeder
         // legítimamente cruza la frontera, y solo para escribir el reparto que
         // ya existe. Se excluyen los clientes eliminados: una cartera vigente
         // sobre algo invisible ocuparía su índice único para siempre.
-        var clientes = await dbContext.Clientes
+        //
+        // F3b — lee Empresas (EsCritico != null identifica a un ex-Cliente),
+        // no la tabla legacy Clientes: desde la congelación, un Cliente nuevo
+        // solo existe en Empresas, y F3a ya copió ahí el EjecutivoUsuarioId de
+        // todo Cliente preexistente — Empresas es la fuente completa para las
+        // dos generaciones, la legacy dejaría invisibles a los posteriores al
+        // corte.
+        var clientes = await dbContext.Empresas
             .IgnoreQueryFilters()
-            .Where(c => !c.EstaEliminado)
+            .Where(c => c.EsCritico != null && !c.EstaEliminado)
             .Select(c => new { c.Id, c.TenantId, c.EjecutivoUsuarioId })
             .ToListAsync(cancellationToken);
 

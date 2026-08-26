@@ -1,5 +1,4 @@
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -29,7 +28,9 @@ public class CentroConfiguration : IEntityTypeConfiguration<Centro>
         builder.HasIndex(c => c.ClienteId);
         builder.HasIndex(c => c.EmpresaId);
 
-        builder.HasOne<Cliente>().WithMany()
+        // F3b — ClienteId repunta contra Empresas: desde la congelación de
+        // Cliente, "Cliente" es una Empresa contraparte (Empresa.CrearComoCliente).
+        builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(c => new { c.TenantId, c.ClienteId })
             .HasPrincipalKey(cl => new { cl.TenantId, cl.Id })
             .OnDelete(DeleteBehavior.Restrict);

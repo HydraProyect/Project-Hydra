@@ -1,5 +1,5 @@
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Trabajadores;
@@ -115,7 +115,8 @@ public class AsignacionOperacionConfiguration : IEntityTypeConfiguration<Asignac
         //
         // Restrict, como todas las FKs del núcleo: nada se borra en cascada
         // desde autorización.
-        builder.HasOne<Cliente>().WithMany()
+        // F3b — AmbitoRelacionClienteId repunta contra Empresas (ver CentroConfiguration).
+        builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(a => new { a.PropietarioTenantId, a.AmbitoRelacionClienteId })
             .HasPrincipalKey(c => new { c.TenantId, c.Id })
             .OnDelete(DeleteBehavior.Restrict);

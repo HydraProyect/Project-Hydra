@@ -2,7 +2,6 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Retencion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Retencion;
@@ -40,10 +39,10 @@ public class EjecucionPurgaTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Purgable Ejecucion S.L.", "B12345674", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Purgable Ejecucion S.L.", "B12345674", false, null, null);
+        contexto.Empresas.Add(cliente);
 
-        var empresa = new Empresa("Contrata Purgable Ejecucion S.L.", "B12345674");
+        var empresa = new Empresa("Contrata Purgable Ejecucion S.L.", "B87654323");
         contexto.Empresas.Add(empresa);
 
         var tipo = new TipoDocumento("Seguro RC Ejecucion", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, esObligatorio: true);

@@ -1,4 +1,4 @@
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
@@ -74,8 +74,8 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
         // exactamente la falsa delegación que ese plano prohíbe.
         contexto.DelegacionesTenant.Add(DelegacionTenant.ParaSoporte(_consultora, _clienteDelegante));
 
-        var cliente = new Cliente("Cliente con ejecutivo", "B12345674", false, ejecutivoUsuarioId: _gestorInterno);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Cliente con ejecutivo", "B12345674", false, null, _gestorInterno);
+        contexto.Empresas.Add(cliente);
         await contexto.SaveChangesAsync();
 
         _clienteConEjecutivoId = cliente.Id;
@@ -165,7 +165,7 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
                 UserName = "nuevo@cliente",
                 Email = "nuevo@cliente"
             });
-            var cliente = await contextoCambio.Clientes.FirstAsync(c => c.Id == _clienteConEjecutivoId);
+            var cliente = await contextoCambio.Empresas.FirstAsync(c => c.Id == _clienteConEjecutivoId);
             cliente.AsignarEjecutivo(nuevoGestor);
             await contextoCambio.SaveChangesAsync();
         }
@@ -190,7 +190,7 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
 
         await using (var contextoCambio = CrearContexto(_clienteDelegante))
         {
-            var cliente = await contextoCambio.Clientes.FirstAsync(c => c.Id == _clienteConEjecutivoId);
+            var cliente = await contextoCambio.Empresas.FirstAsync(c => c.Id == _clienteConEjecutivoId);
             cliente.AsignarEjecutivo(null);
             await contextoCambio.SaveChangesAsync();
         }

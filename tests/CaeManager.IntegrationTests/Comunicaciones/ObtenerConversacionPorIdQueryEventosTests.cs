@@ -1,7 +1,6 @@
 using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -40,9 +39,9 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
         Guid conversacionId, visitaId;
         await using (var contexto = CrearContexto())
         {
-            var cliente = new Cliente("Cliente Timeline S.L.", "B10380194", esCritico: false);
+            var cliente = Empresa.CrearComoCliente("Cliente Timeline S.L.", "B10380194", false, null, null);
             var empresa = new Empresa("Empresa Timeline S.L.", "B10380186");
-            contexto.Clientes.Add(cliente);
+            contexto.Empresas.Add(cliente);
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
@@ -67,7 +66,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
@@ -86,9 +85,9 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
         Guid conversacionId, documentoId;
         await using (var contexto = CrearContexto())
         {
-            var cliente = new Cliente("Cliente Timeline Documento S.L.", "B10380194", esCritico: false);
+            var cliente = Empresa.CrearComoCliente("Cliente Timeline Documento S.L.", "B10380194", false, null, null);
             var empresa = new Empresa("Empresa Timeline Documento S.L.", "B10380186");
-            contexto.Clientes.Add(cliente);
+            contexto.Empresas.Add(cliente);
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
@@ -115,7 +114,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
@@ -134,9 +133,9 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
         Guid conversacionId, reclamacionId;
         await using (var contexto = CrearContexto())
         {
-            var cliente = new Cliente("Cliente Timeline Reclamación S.L.", "B10380186", esCritico: false);
+            var cliente = Empresa.CrearComoCliente("Cliente Timeline Reclamación S.L.", "B10380186", false, null, null);
             var empresa = new Empresa("Empresa Timeline Reclamación S.L.", "B10380194");
-            contexto.Clientes.Add(cliente);
+            contexto.Empresas.Add(cliente);
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
@@ -168,7 +167,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);

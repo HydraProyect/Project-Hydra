@@ -3384,6 +3384,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("EjecutivoUsuarioId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("EliminadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -3393,8 +3396,22 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("EsActividadAnexoI")
                         .HasColumnType("boolean");
 
+                    b.Property<bool?>("EsCritico")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("EsPropia")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("NivelServicio")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("RazonSocial")
                         .IsRequired()
@@ -3410,8 +3427,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("EjecutivoUsuarioId");
+
                     b.HasIndex("TenantId", "Cif")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "EsPropia");
 
                     b.HasIndex("TenantId", "Id")
                         .IsUnique();
@@ -6585,7 +6606,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Centros.Centro", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ClienteId")
                         .HasPrincipalKey("TenantId", "Id")
@@ -6643,7 +6664,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("CentroId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
                         .WithMany()
                         .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -6702,7 +6723,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.Documento", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ClienteId")
                         .HasPrincipalKey("TenantId", "Id")
@@ -6804,7 +6825,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Empresas.EmpresaCliente", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ClienteId")
                         .HasPrincipalKey("TenantId", "Id")
@@ -6821,7 +6842,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Facturacion.TarifaCliente", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ClienteId")
                         .HasPrincipalKey("TenantId", "Id")
@@ -6908,7 +6929,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
                         .WithMany()
                         .HasForeignKey("PropietarioTenantId", "AmbitoRelacionClienteId")
                         .HasPrincipalKey("TenantId", "Id")
@@ -6935,7 +6956,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
                         .WithMany()
                         .HasForeignKey("PropietarioTenantId", "AmbitoRelacionClienteId")
                         .HasPrincipalKey("TenantId", "Id")
@@ -7042,7 +7063,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ClienteId")
                         .HasPrincipalKey("TenantId", "Id")
@@ -7086,7 +7107,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Subcontratas.SubcontrataCliente", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Clientes.Cliente", null)
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ClienteId")
                         .HasPrincipalKey("TenantId", "Id")

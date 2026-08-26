@@ -1,6 +1,5 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Asignaciones;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores;
 using MediatR;
@@ -19,7 +18,7 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEm
 /// </summary>
 public record ObtenerCentrosConActividadDeEmpresaQuery(Guid EmpresaId) : IRequest<IReadOnlyList<CentroConActividadDto>>;
 
-public class ObtenerCentrosConActividadDeEmpresaQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerCentrosConActividadDeEmpresaQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCentrosConActividadDeEmpresaQuery, IReadOnlyList<CentroConActividadDto>>
 {
     public async Task<IReadOnlyList<CentroConActividadDto>> Handle(
@@ -34,7 +33,8 @@ public class ObtenerCentrosConActividadDeEmpresaQueryHandler(IAsignacionesQueryC
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             where trabajador.EmpresaId == request.EmpresaId
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            // Centro.ClienteId ya apunta a Empresas (F3).
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new FilaActividadCentro(centro.Id, centro.Nombre, cliente.RazonSocial, trabajador.Id))
             .ToListAsync(cancellationToken);
 

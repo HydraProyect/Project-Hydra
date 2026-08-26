@@ -2,7 +2,6 @@ using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
@@ -44,9 +43,9 @@ public class PedirPrioridadValidacionCommandTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Pedir Prioridad Envío S.L.", "B12345674", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Pedir Prioridad Envío S.L.", "B12345674", false, null, null);
         var empresa = new Empresa("Empresa Envío S.L.", "B87654323");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 

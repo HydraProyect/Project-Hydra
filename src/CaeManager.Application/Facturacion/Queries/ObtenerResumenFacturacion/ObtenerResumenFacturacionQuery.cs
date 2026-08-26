@@ -1,8 +1,8 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Facturacion;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.Trabajadores;
@@ -40,7 +40,7 @@ public record LineaFacturacionDto(
 /// precisión histórica se pueden añadir fechas de vigencia a <see cref="TarifaCliente"/>
 /// en una fase posterior.
 /// </summary>
-public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IFacturacionQueryContext facturacionContext, IProyectosQueryContext proyectosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext)
+public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IDocumentosQueryContext documentosContext, IFacturacionQueryContext facturacionContext, IProyectosQueryContext proyectosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext)
     : IRequestHandler<ObtenerResumenFacturacionQuery, ResumenFacturacionDto?>
 {
     public async Task<ResumenFacturacionDto?> Handle(ObtenerResumenFacturacionQuery request, CancellationToken cancellationToken)
@@ -50,7 +50,7 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
         var periodoInicioFecha = DateOnly.FromDateTime(periodoInicio);
         var periodoFinFecha = DateOnly.FromDateTime(periodoFin.AddDays(-1));
 
-        var clienteNombre = await clientesContext.Clientes
+        var clienteNombre = await empresasContext.Empresas
             .Where(c => c.Id == request.ClienteId)
             .Select(c => c.RazonSocial)
             .FirstOrDefaultAsync(cancellationToken);

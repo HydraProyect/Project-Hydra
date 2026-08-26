@@ -1,6 +1,5 @@
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -25,9 +24,9 @@ public class ObtenerSugerenciasVisitaCorreoPendientesQueryTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Cliente Sugerencia S.L.", "B12345674", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Cliente Sugerencia S.L.", "B12345674", false, null, null);
         var empresa = new Empresa("Empresa Sugerencia S.L.", "B87654323");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 

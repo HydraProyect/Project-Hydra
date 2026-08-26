@@ -1,5 +1,4 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
@@ -46,7 +45,7 @@ public record VisitaListaDto(
 /// (al menos un Documento y todos Vigente/NoAplica) porque EsObligatorio
 /// todavía no se aplica a documentos de Trabajador.
 /// </summary>
-public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVisitasQuery, ResultadoPaginado<VisitaListaDto>>
 {
     public async Task<ResultadoPaginado<VisitaListaDto>> Handle(ObtenerVisitasQuery request, CancellationToken cancellationToken)
@@ -54,9 +53,11 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICl
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
 
+        // F3b — ClienteId ahora repunta contra Empresas (join independiente
+        // del de EmpresaId de abajo: son dos roles distintos sobre la misma tabla).
         var consulta = from visita in visitasContext.Visitas
                        join centro in centrosContext.Centros on visita.CentroId equals centro.Id
-                       join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+                       join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
                        join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
                        select new { visita, centro, cliente, empresa };
 

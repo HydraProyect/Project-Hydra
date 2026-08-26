@@ -70,7 +70,25 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     /// el 2026-08-14 la cuenta de plataforma no opera ningún Delegated
     /// Workspace (ver DelegacionDemoSeeder).
     /// </summary>
-    [Fact]
+    // F3b (2026-08-26): las tres pruebas de más abajo verificaban visibilidad
+    // acotada por cartera (GestorCae/Consulta/Administrador delegado) leyendo
+    // el contador del paginador de /clientes, respaldado por
+    // ObtenerClientesQuery — una de las 6 consultas que D2 deja leyendo la
+    // tabla legacy Clientes hasta F4. Con los escritores de Cliente
+    // redirigidos a Empresa, esa pantalla queda vacía en cualquier entorno
+    // (decisión explícita: "aceptar el vacío", ver
+    // f3b-decision-d2-transicion-acotada-2026-08-25.md): el contador ya ni
+    // siquiera se renderiza (Clientes.razor muestra el EstadoVacio en su
+    // lugar), así que el instrumento no puede observar la propiedad que
+    // pretendía probar — ni "true" ni "false" tendría el significado que
+    // tenía antes. La propiedad de fondo (alcance por cartera vía
+    // AlcanceDatosService) sigue demostrada en
+    // CaeManager.IntegrationTests.MemoizacionAlcanceDatosTests y
+    // CaeManager.IntegrationTests.Tenants.RolEfectivoEnDelegacionTests, que
+    // sí pueden observarla directamente contra el filtro real, así que no
+    // queda un hueco de cobertura de la propiedad — solo de esta ruta E2E
+    // concreta, que se retoma cuando F4 resuelva ObtenerClientesQuery.
+    [Fact(Skip = "F3b/D2: ObtenerClientesQuery congelada, /clientes vacío hasta F4 — ver f3b-decision-d2-transicion-acotada-2026-08-25.md. Propiedad cubierta en IntegrationTests (MemoizacionAlcanceDatosTests, RolEfectivoEnDelegacionTests).")]
     public async Task El_rol_de_la_delegacion_acota_al_administrador_dentro_del_workspace_delegado()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
@@ -106,7 +124,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     /// reparto exacto porque la siembra es determinista — no es un número
     /// arbitrario.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "F3b/D2: ObtenerClientesQuery congelada, /clientes vacío hasta F4 — ver f3b-decision-d2-transicion-acotada-2026-08-25.md. Propiedad cubierta en IntegrationTests (MemoizacionAlcanceDatosTests, RolEfectivoEnDelegacionTests).")]
     public async Task GestorCae_ve_solo_su_cartera_acotada()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
@@ -131,13 +149,17 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("consulta", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        var contador = page.GetByText(PatronContadorElementos()).First;
-        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
-        // Consulta ve la cartera entera del tenant: los 9 clientes de la
-        // siembra determinista (ver DatosPruebaSeeder), no una cartera acotada.
-        Assert.Equal(9, ExtraerTotalElementos(await contador.InnerTextAsync()));
-
-        await page.GetByText("+ Nuevo cliente").ClickAsync();
+        // F3b/D2 (2026-08-26): la comprobación de visibilidad total (9
+        // clientes de la siembra determinista) se retira — ObtenerClientesQuery
+        // sigue congelada hasta F4 y /clientes queda vacío en cualquier
+        // entorno (ver f3b-decision-d2-transicion-acotada-2026-08-25.md), así
+        // que el contador del paginador ni siquiera se renderiza. La
+        // propiedad de visibilidad total de Consulta está cubierta en
+        // IntegrationTests (AlcanceDatosService); lo que este test verifica
+        // de forma real y sigue observable aquí es el bloqueo de escritura,
+        // abajo. .First: con la lista vacía, el botón "+ Nuevo cliente"
+        // aparece tanto en la cabecera como en el EstadoVacio.
+        await page.GetByText("+ Nuevo cliente").First.ClickAsync();
         var drawer = page.Locator(".drawer-panel");
         await drawer.GetByLabel("Razón social").FillAsync("Cliente bloqueado por rol Consulta");
         await drawer.GetByLabel("CIF", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_888_801));

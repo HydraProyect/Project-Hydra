@@ -1,13 +1,11 @@
 using System.Text.Json;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
@@ -37,7 +35,6 @@ public class GenerarDocumentoIndividualCommandHandler(
     IEmpresasQueryContext empresasContext,
     ITrabajadoresQueryContext trabajadoresContext,
     ICentrosQueryContext centrosContext,
-    IClientesQueryContext clientesContext,
     IContactosAgendaQueryContext contactosContext,
     IRellenadorPlantillaPdfService rellenador,
     IFileStorageService almacenamientoArchivos,
@@ -70,7 +67,7 @@ public class GenerarDocumentoIndividualCommandHandler(
         var propietarioEncontrado = plantilla.AmbitoAplicacion switch
         {
             AmbitoAplicacion.Trabajador => await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == request.OwnerId, cancellationToken),
-            AmbitoAplicacion.Cliente => await clientesContext.Clientes.AnyAsync(c => c.Id == request.OwnerId, cancellationToken),
+            AmbitoAplicacion.Cliente => await empresasContext.Empresas.AnyAsync(c => c.Id == request.OwnerId, cancellationToken),
             _ => await empresasContext.Empresas.AnyAsync(e => e.Id == request.OwnerId, cancellationToken)
         };
         if (!propietarioEncontrado)
@@ -103,7 +100,7 @@ public class GenerarDocumentoIndividualCommandHandler(
             ? await empresasContext.Empresas.FirstOrDefaultAsync(e => e.Id == eId, cancellationToken)
             : null;
         var cliente = clienteId is { } clId
-            ? await clientesContext.Clientes.FirstOrDefaultAsync(c => c.Id == clId, cancellationToken)
+            ? await empresasContext.Empresas.FirstOrDefaultAsync(c => c.Id == clId, cancellationToken)
             : null;
 
         var contactosPorRol = empresaId is { } idParaContactos
@@ -185,7 +182,7 @@ public class GenerarDocumentoIndividualCommandHandler(
         Empresa? empresa,
         Trabajador? trabajador,
         Centro? centro,
-        Cliente? cliente,
+        Empresa? cliente,
         IReadOnlyDictionary<RolContacto, string> contactosPorRol,
         DateTime ahoraUtc) => elemento.FuenteDato switch
         {

@@ -1,6 +1,5 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
@@ -25,7 +24,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// Nunca lanza una excepción por una fila individual mal formada — solo por
 /// un archivo que no tiene ninguna de las hojas esperadas.
 /// </summary>
-public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext) : IExcelImportacionParser
+public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext) : IExcelImportacionParser
 {
     private const string HojaCentros = "Centros_Plataformas";
     private const string HojaEmpleados = "Empleados";
@@ -62,8 +61,9 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
     {
         using var libro = new XLWorkbook(archivo);
 
+        // F3b — Empresas, no la tabla legacy Clientes.
         var nombresClientesExistentes = new HashSet<string>(
-            await clientesContext.Clientes.Select(c => c.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await empresasContext.Empresas.Select(c => c.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
         var nombresCentrosExistentes = new HashSet<string>(
             await centrosContext.Centros.Select(c => c.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
         var razonesSocialesExistentes = new HashSet<string>(

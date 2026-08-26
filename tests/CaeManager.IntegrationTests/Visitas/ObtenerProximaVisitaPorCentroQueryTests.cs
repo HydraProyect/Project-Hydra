@@ -1,6 +1,5 @@
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
@@ -36,9 +35,9 @@ public class ObtenerProximaVisitaPorCentroQueryTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
 
-        var cliente = new Cliente("Cliente Recuento Visita S.L.", "B10380194", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Cliente Recuento Visita S.L.", "B10380194", false, null, null);
         var empresa = new Empresa("Empresa Recuento Visita S.L.", "B10380186");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 
@@ -72,9 +71,9 @@ public class ObtenerProximaVisitaPorCentroQueryTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
 
-        var cliente = new Cliente("Cliente Recuento Multivisita S.L.", "B10380194", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Cliente Recuento Multivisita S.L.", "B10380194", false, null, null);
         var empresa = new Empresa("Empresa Recuento Multivisita S.L.", "B10380186");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 
@@ -112,9 +111,9 @@ public class ObtenerProximaVisitaPorCentroQueryTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
 
-        var cliente = new Cliente("Cliente Recuento Vacio S.L.", "B10380194", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Cliente Recuento Vacio S.L.", "B10380194", false, null, null);
         var empresa = new Empresa("Empresa Recuento Vacio S.L.", "B10380186");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 

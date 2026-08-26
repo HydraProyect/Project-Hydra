@@ -1,10 +1,10 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -33,7 +33,7 @@ public record CentroDocumentacionTrabajadorDto(
 public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
     IAsignacionesQueryContext asignacionesContext,
     ICentrosQueryContext centrosContext,
-    IClientesQueryContext clientesContext,
+    IEmpresasQueryContext empresasContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IDocumentosQueryContext documentosContext,
     IConfiguracionQueryContext configuracionContext,
@@ -58,7 +58,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
         var asignaciones = await (
             from asignacion in asignacionesContext.Asignaciones
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             where asignacion.TrabajadorId == request.TrabajadorId && asignacion.FechaBaja == null
             orderby centro.Nombre
             select new

@@ -1,8 +1,8 @@
 using CaeManager.Application.Comunicaciones.Commands.VincularConversacion;
 using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -39,8 +39,8 @@ public class VincularConversacionCommandTests : IAsyncLifetime
         Guid clienteId, conversacionWhatsAppId, conversacionCorreoId, mensajeWhatsAppId;
         await using (var contexto = CrearContexto())
         {
-            var cliente = new Cliente("Cliente Matching S.L.", "B10380194", esCritico: false);
-            contexto.Clientes.Add(cliente);
+            var cliente = Empresa.CrearComoCliente("Cliente Matching S.L.", "B10380194", false, null, null);
+            contexto.Empresas.Add(cliente);
             await contexto.SaveChangesAsync();
             clienteId = cliente.Id;
 
@@ -62,7 +62,7 @@ public class VincularConversacionCommandTests : IAsyncLifetime
         await using (var lectura = CrearContexto())
         {
             var handlerQuery = new ObtenerConversacionPorIdQueryHandler(
-                lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+                lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
                 new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
 
             var detalle = await handlerQuery.Handle(new ObtenerConversacionPorIdQuery(conversacionWhatsAppId), CancellationToken.None);

@@ -1,6 +1,5 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
@@ -62,7 +61,7 @@ public record DesgloseDashboardDto(
     IReadOnlyList<RiesgoEmpresaDto> EmpresasEnRiesgo,
     ProximoVencimientoDto? ProximoVencimiento = null);
 
-public class ObtenerDesgloseDashboardQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerDesgloseDashboardQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDesgloseDashboardQuery, DesgloseDashboardDto>
 {
     private const int MaximoFilas = 5;
@@ -131,10 +130,12 @@ public class ObtenerDesgloseDashboardQueryHandler(IAsignacionesQueryContext asig
             .Take(MaximoFilas)
             .ToList();
 
+        // Centro.ClienteId repunta contra Empresas desde F3b: "Cliente" es una
+        // Empresa contraparte (Empresa.CrearComoCliente).
         var asignacionesActivas = await (
             from asignacion in asignacionesContext.Asignaciones
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             where asignacion.FechaBaja == null
             where centroIdsVisibles == null || centroIdsVisibles.Contains(centro.Id)
             select new { asignacion.TrabajadorId, CentroId = centro.Id, CentroNombre = centro.Nombre, ClienteNombre = cliente.RazonSocial })

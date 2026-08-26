@@ -1,7 +1,6 @@
 using CaeManager.Application.Contactos.Commands.GuardarContactoAgenda;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -35,8 +34,8 @@ public class AgendaContactosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Agenda Test S.L.", "B12345674", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Agenda Test S.L.", "B12345674", false, null, null);
+        contexto.Empresas.Add(cliente);
 
         var rlc = new TipoDocumento("RLC/TC1", 1, true, 1, AmbitoAplicacion.Empresa);
         var aptoMedico = new TipoDocumento("Apto médico laboral", 12, true, 1, AmbitoAplicacion.Trabajador);

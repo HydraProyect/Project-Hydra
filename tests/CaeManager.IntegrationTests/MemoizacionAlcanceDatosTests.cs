@@ -1,6 +1,5 @@
 ﻿using CaeManager.Domain.Centros;
 using CaeManager.Application.Plataforma;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Autorizacion;
@@ -31,11 +30,11 @@ public class MemoizacionAlcanceDatosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Memoizada S.L.", "B12345674", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Memoizada S.L.", "B12345674", false, null, null);
+        contexto.Empresas.Add(cliente);
         await contexto.SaveChangesAsync();
 
-        var empresa = new Empresa("Contrata Memo S.L.", "B12345674");
+        var empresa = new Empresa("Contrata Memo S.L.", "B87654323");
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 
@@ -93,7 +92,7 @@ public class MemoizacionAlcanceDatosTests : IAsyncLifetime
     public async Task Con_cartera_asignada_el_alcance_derivado_es_estable_entre_llamadas()
     {
         await using var contextoAsignacion = CrearContexto();
-        var cliente = await contextoAsignacion.Clientes.FirstAsync(c => c.Id == _clienteId);
+        var cliente = await contextoAsignacion.Empresas.FirstAsync(c => c.Id == _clienteId);
         var usuarioId = Guid.NewGuid();
 
         // Las dos escrituras que hace el sistema al asignar cartera: la
