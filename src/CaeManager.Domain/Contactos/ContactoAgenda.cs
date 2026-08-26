@@ -11,8 +11,8 @@ namespace CaeManager.Domain.Contactos;
 /// Salud, los EPIs al responsable de PRL y la programación de visitas a otra
 /// persona distinta (requisito del usuario, 2026-08-13). Hasta ahora el
 /// destinatario de una reclamación salía de los usuarios de portal del Cliente
-/// (<c>IContactosClienteService.ObtenerEmailsPortalAsync</c>), que es "quién
-/// tiene cuenta", no "a quién le toca esto".
+/// (vinculados por ApplicationUser.ClienteId, sin invocador propio — retirado
+/// en F4.2a), que es "quién tiene cuenta", no "a quién le toca esto".
 ///
 /// **Propietario polimórfico con FK real**: exactamente uno de
 /// <see cref="ClienteId"/>/<see cref="EmpresaId"/>/<see cref="SubcontrataId"/>/
