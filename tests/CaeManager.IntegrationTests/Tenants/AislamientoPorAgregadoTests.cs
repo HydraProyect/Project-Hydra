@@ -15,6 +15,7 @@ using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
+using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
@@ -308,6 +309,19 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     [Fact]
     public Task Aislamiento_NotificacionUsuario() => VerificarAislamientoAsync(
         () => new NotificacionUsuario(Guid.NewGuid(), "Título", "Mensaje"));
+
+    [Fact]
+    public Task Aislamiento_RelacionEmpresarial()
+    {
+        Guid proveedoraId = default, clienteId = default;
+        return VerificarAislamientoAsync(
+            () => RelacionEmpresarial.Crear(proveedoraId, clienteId, DateTime.UtcNow),
+            async contexto =>
+            {
+                proveedoraId = await SembrarEmpresaAsync(contexto);
+                clienteId = await SembrarClienteAsync(contexto);
+            });
+    }
 
     [Fact]
     public Task Aislamiento_CredencialAccesoSubcontrata() => VerificarAislamientoAsync(

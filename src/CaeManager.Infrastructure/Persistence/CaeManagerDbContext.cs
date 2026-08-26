@@ -50,6 +50,7 @@ using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Reclamaciones;
+using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Reportes;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Telemetria;
@@ -132,6 +133,7 @@ public class CaeManagerDbContext(
     IQueryable<CredencialAccesoSubcontrata> ISubcontratasQueryContext.CredencialesAccesoSubcontrata => CredencialesAccesoSubcontrata;
     public DbSet<VerificacionExternaSubcontrata> VerificacionesExternaSubcontrata => Set<VerificacionExternaSubcontrata>();
     IQueryable<VerificacionExternaSubcontrata> ISubcontratasQueryContext.VerificacionesExternaSubcontrata => VerificacionesExternaSubcontrata;
+    public DbSet<RelacionEmpresarial> RelacionesEmpresariales => Set<RelacionEmpresarial>();
     public DbSet<Trabajador> Trabajadores => Set<Trabajador>();
     IQueryable<Trabajador> ITrabajadoresQueryContext.Trabajadores => Trabajadores;
     public DbSet<DeteccionTrabajador> DeteccionesTrabajador => Set<DeteccionTrabajador>();
