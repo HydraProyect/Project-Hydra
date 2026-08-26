@@ -2,7 +2,6 @@ using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignacion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -37,9 +36,9 @@ public class ReasignarMismoDiaTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Reasignación S.A.", "B12345674", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Reasignación S.A.", "B12345674", false, null, null);
         var empresa = new Empresa("Contratas de Reasignación S.L.", "B87654323");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 

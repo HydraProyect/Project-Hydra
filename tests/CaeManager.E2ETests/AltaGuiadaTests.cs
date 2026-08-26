@@ -69,18 +69,20 @@ public class AltaGuiadaTests(WebAppFixture fixture)
         await Expect(pasosCompletados).ToHaveCountAsync(3);
 
         // --- Verificación final: los tres registros existen de verdad, consultando cada pantalla ---
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByPlaceholder("Buscar por nombre…").FillAsync(razonSocialCliente);
-        await page.Locator("tr", new PageLocatorOptions { HasText = razonSocialCliente })
+        // F3b (2026-08-26): el Cliente ya no se verifica en /clientes —
+        // ObtenerClientesQuery es una de las 6 consultas que D2 deja leyendo
+        // la tabla legacy Clientes hasta F4, y con los escritores
+        // redirigidos a Empresa esa pantalla queda vacía en cualquier
+        // entorno (decisión explícita: "aceptar el vacío", ver
+        // f3b-decision-d2-transicion-acotada-2026-08-25.md). El Cliente
+        // recién creado sí existe como fila en /empresas (EsCritico != null,
+        // sin consulta congelada), así que la verificación se reancla ahí.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
+        await page.GetByPlaceholder("Buscar por razón social…").FillAsync(razonSocialCliente);
+        await page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialCliente })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await page.GetByPlaceholder("Buscar por razón social…").FillAsync(razonSocialEmpresa);
-        // No es un <tr>: Empresas.razor no usa QuickGrid (migrado a tarjetas
-        // con acordeón de Clientes, Centro 360 — PLAN-EJECUCION-UX.md § 0.11),
-        // así que la fila real es ".tarjeta-fila-acordeon". Este era el
-        // timeout de 15s real visto en CI: el locator "tr" nunca podía
-        // resolver nada en esta página, con o sin datos.
         await page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialEmpresa })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 

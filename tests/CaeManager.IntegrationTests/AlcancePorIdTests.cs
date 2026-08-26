@@ -2,7 +2,6 @@
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -30,8 +29,8 @@ public class AlcancePorIdTests : IAsyncLifetime
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private CaeManagerDbContext _dbContext = null!;
 
-    private Cliente _clienteVisible = null!;
-    private Cliente _clienteAjeno = null!;
+    private Empresa _clienteVisible = null!;
+    private Empresa _clienteAjeno = null!;
     private Documento _documentoDeTrabajadorVisible = null!;
     private Documento _documentoDeTrabajadorAjeno = null!;
     private Guid _trabajadorVisibleId;
@@ -47,9 +46,9 @@ public class AlcancePorIdTests : IAsyncLifetime
         _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
         await _dbContext.Database.MigrateAsync();
 
-        _clienteVisible = new Cliente("Cadena Industrial Iberia S.A.", "B12345674", esCritico: true);
-        _clienteAjeno = new Cliente("Otro cliente, de otra cartera", "P1234567D", esCritico: false);
-        _dbContext.Clientes.AddRange(_clienteVisible, _clienteAjeno);
+        _clienteVisible = Empresa.CrearComoCliente("Cadena Industrial Iberia S.A.", "B12345674", true, null, null);
+        _clienteAjeno = Empresa.CrearComoCliente("Otro cliente, de otra cartera", "P1234567D", false, null, null);
+        _dbContext.Empresas.AddRange(_clienteVisible, _clienteAjeno);
 
         var empresa = new Empresa("Ibertec S.A.");
         _dbContext.Empresas.Add(empresa);
@@ -130,7 +129,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     {
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisibleId]);
         var handler = new ObtenerDocumentoPorIdQueryHandler(
-            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
+            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
 
         var resultado = await handler.Handle(
             new ObtenerDocumentoPorIdQuery(_documentoDeTrabajadorVisible.Id), CancellationToken.None);
@@ -147,7 +146,7 @@ public class AlcancePorIdTests : IAsyncLifetime
         // conocer/adivinar el Guid del Documento.
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisibleId]);
         var handler = new ObtenerDocumentoPorIdQueryHandler(
-            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
+            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
 
         var resultado = await handler.Handle(
             new ObtenerDocumentoPorIdQuery(_documentoDeTrabajadorAjeno.Id), CancellationToken.None);
@@ -162,7 +161,7 @@ public class AlcancePorIdTests : IAsyncLifetime
         // creado) — nunca debe confundirse con "sin restricción".
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: []);
         var handler = new ObtenerDocumentoPorIdQueryHandler(
-            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
+            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
 
         var resultado = await handler.Handle(
             new ObtenerDocumentoPorIdQuery(_documentoDeTrabajadorVisible.Id), CancellationToken.None);

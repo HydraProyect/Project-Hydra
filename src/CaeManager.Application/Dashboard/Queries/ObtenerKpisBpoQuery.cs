@@ -1,7 +1,7 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Configuracion;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Telemetria;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Comunicaciones;
@@ -48,7 +48,7 @@ public class ObtenerKpisBpoQueryHandler(
     ITelemetriaQueryContext telemetriaContext,
     IComunicacionesQueryContext comunicacionesContext,
     IVisitasQueryContext visitasContext,
-    IClientesQueryContext clientesContext,
+    IEmpresasQueryContext empresasContext,
     IConfiguracionQueryContext configuracionContext,
     IAlcanceDatosService alcanceDatos,
     IDirectorioUsuariosService directorioUsuarios)
@@ -132,8 +132,11 @@ public class ObtenerKpisBpoQueryHandler(
         var nombresUsuario = await directorioUsuarios.ObtenerNombresVisiblesAsync(
             porUsuario.Select(u => u.UsuarioId).ToList(), cancellationToken);
 
+        // RegistroTiempoGestion.ClienteId hereda Conversacion.ClienteId, que es un
+        // Empresa.Id desde F3b (AsignarClienteConversacionCommand resuelve el
+        // Cliente vía IEmpresaRepository): "Cliente" es una Empresa contraparte.
         var clienteIds = porCliente.Select(c => c.ClienteId).ToList();
-        var nombresCliente = await clientesContext.Clientes
+        var nombresCliente = await empresasContext.Empresas
             .Where(c => clienteIds.Contains(c.Id))
             .ToDictionaryAsync(c => c.Id, c => c.RazonSocial, cancellationToken);
 

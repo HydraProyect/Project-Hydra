@@ -1,5 +1,5 @@
 ﻿using CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -40,8 +40,8 @@ public class TarifasClienteAislamientoTests : IAsyncLifetime
         await using var contexto = CrearContexto(_tenantCliente);
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Rendelsur S.L.", "B12345674", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Rendelsur S.L.", "B12345674", false, null, null);
+        contexto.Empresas.Add(cliente);
 
         contexto.TarifasCliente.AddRange(
             TarifaCliente.Crear(cliente.Id, ConceptoFacturable.TrabajadorActivo, 12.50m, "EUR"),

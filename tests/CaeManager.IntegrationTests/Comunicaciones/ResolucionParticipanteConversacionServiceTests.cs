@@ -1,7 +1,6 @@
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -33,9 +32,9 @@ public class ResolucionParticipanteConversacionServiceTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Cliente Resolución Participante S.L.", "B10380194", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Cliente Resolución Participante S.L.", "B10380194", false, null, null);
         var empresa = new Empresa("Empresa Resolución Participante S.L.", "B10380186");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 

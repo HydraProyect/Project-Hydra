@@ -1,5 +1,4 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using MediatR;
@@ -22,7 +21,7 @@ public record CentroDetalleDto(
     DateOnly? ContratoVigenteHasta,
     Guid Version);
 
-public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCentroPorIdQuery, CentroDetalleDto?>
 {
     public async Task<CentroDetalleDto?> Handle(ObtenerCentroPorIdQuery request, CancellationToken cancellationToken)
@@ -31,7 +30,9 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
 
         return await (
             from centro in centrosContext.Centros
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            // Centro.ClienteId repunta contra Empresas desde F3b (CentroConfiguration):
+            // "Cliente" es una Empresa contraparte (Empresa.CrearComoCliente).
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
             where centro.Id == request.Id
             select new CentroDetalleDto(

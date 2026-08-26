@@ -1,7 +1,7 @@
 using CaeManager.Application.Common;
 using System.Text.RegularExpressions;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
@@ -70,7 +70,7 @@ public record ConversacionListaDto(
 }
 
 public class ObtenerConversacionesQueryHandler(
-    IClientesQueryContext clientesContext, IComunicacionesQueryContext comunicacionesContext,
+    IEmpresasQueryContext empresasContext, IComunicacionesQueryContext comunicacionesContext,
     IIntegracionesQueryContext integracionesContext,
     IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerConversacionesQuery, ResultadoPaginado<ConversacionListaDto>>
@@ -173,9 +173,11 @@ public class ObtenerConversacionesQueryHandler(
         if (total == 0)
             return new ResultadoPaginado<ConversacionListaDto>([], 0, request.Pagina, request.TamanoPagina);
 
+        // Conversacion.ClienteId es un Empresa.Id desde F3b (AsignarClienteConversacionCommand
+        // resuelve el Cliente vía IEmpresaRepository): "Cliente" es una Empresa contraparte.
         var conversaciones = await (
             from c in consulta
-            join cliente in clientesContext.Clientes on c.ClienteId equals cliente.Id into clientesUnidos
+            join cliente in empresasContext.Empresas on c.ClienteId equals cliente.Id into clientesUnidos
             from cliente in clientesUnidos.DefaultIfEmpty()
             orderby c.FechaUltimoMensajeUtc descending
             select new

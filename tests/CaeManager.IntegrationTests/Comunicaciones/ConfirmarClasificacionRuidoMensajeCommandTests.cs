@@ -1,7 +1,7 @@
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Comunicaciones.Commands.ConfirmarClasificacionRuidoMensaje;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -31,8 +31,8 @@ public class ConfirmarClasificacionRuidoMensajeCommandTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Cliente Confirmación Ruido S.L.", "B10380202", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Cliente Confirmación Ruido S.L.", "B10380202", false, null, null);
+        contexto.Empresas.Add(cliente);
         await contexto.SaveChangesAsync();
 
         _clienteId = cliente.Id;

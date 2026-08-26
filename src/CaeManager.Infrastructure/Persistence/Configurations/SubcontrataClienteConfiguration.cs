@@ -1,4 +1,4 @@
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -21,7 +21,9 @@ public class SubcontrataClienteConfiguration : IEntityTypeConfiguration<Subcontr
             .HasPrincipalKey(s => new { s.TenantId, s.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne<Cliente>().WithMany()
+        // F3b — ClienteId repunta contra Empresas (ver CentroConfiguration);
+        // SubcontrataId no cambia hasta que se congele Subcontrata.
+        builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(sc => new { sc.TenantId, sc.ClienteId })
             .HasPrincipalKey(c => new { c.TenantId, c.Id })
             .OnDelete(DeleteBehavior.Restrict);

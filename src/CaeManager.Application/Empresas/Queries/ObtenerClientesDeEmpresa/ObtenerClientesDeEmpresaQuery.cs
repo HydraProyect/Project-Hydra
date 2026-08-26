@@ -1,4 +1,3 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +13,7 @@ public record ObtenerClientesDeEmpresaQuery(Guid EmpresaId) : IRequest<IReadOnly
 
 public record ClienteDeEmpresaDto(Guid Id, string RazonSocial, string? Cif);
 
-public class ObtenerClientesDeEmpresaQueryHandler(IEmpresasQueryContext empresasContext, IClientesQueryContext clientesContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerClientesDeEmpresaQueryHandler(IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerClientesDeEmpresaQuery, IReadOnlyList<ClienteDeEmpresaDto>>
 {
     public async Task<IReadOnlyList<ClienteDeEmpresaDto>> Handle(
@@ -26,7 +25,8 @@ public class ObtenerClientesDeEmpresaQueryHandler(IEmpresasQueryContext empresas
         return await (
             from ec in empresasContext.EmpresasClientes
             where ec.EmpresaId == request.EmpresaId
-            join cliente in clientesContext.Clientes on ec.ClienteId equals cliente.Id
+            // EmpresaCliente.ClienteId ya apunta a Empresas (F3).
+            join cliente in empresasContext.Empresas on ec.ClienteId equals cliente.Id
             orderby cliente.RazonSocial
             select new ClienteDeEmpresaDto(cliente.Id, cliente.RazonSocial, cliente.Cif))
             .ToListAsync(cancellationToken);

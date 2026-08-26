@@ -1,6 +1,6 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +21,7 @@ public record SugerenciaVisitaCorreoPendienteDto(
     DateTime CreadaEnUtc, Guid? ClienteId = null, string? ClienteNombre = null);
 
 public class ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(
-    IComunicacionesQueryContext comunicacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext,
+    IComunicacionesQueryContext comunicacionesContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerSugerenciasVisitaCorreoPendientesQuery, IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>>
 {
@@ -52,10 +52,12 @@ public class ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(
             .Select(c => new { c.Id, c.Nombre })
             .ToDictionaryAsync(c => c.Id, c => c.Nombre, cancellationToken);
 
+        // Centro.ClienteId repunta contra Empresas desde F3b: "Cliente" es una
+        // Empresa contraparte (Empresa.CrearComoCliente).
         var clientesPorCentro = await (
             from centro in centrosContext.Centros
             where centroIds.Contains(centro.Id)
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new { centro.Id, ClienteId = cliente.Id, cliente.RazonSocial })
             .ToDictionaryAsync(x => x.Id, x => (x.ClienteId, x.RazonSocial), cancellationToken);
 

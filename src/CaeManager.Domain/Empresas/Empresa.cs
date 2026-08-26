@@ -14,6 +14,9 @@ public class Empresa : EntidadBase
     public const int LongitudMaximaCnae = 10;
     public const int LongitudMaximaConvenioAplicable = 300;
 
+    /// <summary>Deuda transitoria de F3 — mismo límite que tenía Cliente.Notas.</summary>
+    public const int LongitudMaximaNotas = 2000;
+
     public string RazonSocial { get; private set; } = string.Empty;
 
     /// <summary>
@@ -40,6 +43,44 @@ public class Empresa : EntidadBase
     /// </summary>
     public bool EsActividadAnexoI { get; private set; }
 
+    /// <summary>
+    /// F3 (verificación del modelo real, `f3-diseno-fisico-empresa-unificada…`
+    /// §3) — <c>true</c> para las filas que ya eran Empresa antes de la
+    /// unificación, <c>false</c> para las filas incorporadas desde
+    /// Cliente/Subcontrata. NOT NULL: no hay "no aplica" para esta columna,
+    /// a diferencia de las cuatro de abajo.
+    /// </summary>
+    public bool EsPropia { get; private set; } = true;
+
+    /// <summary>
+    /// Deuda transitoria de F3 (§2 del diseño físico) — antiguo
+    /// <c>Cliente.EjecutivoUsuarioId</c>. NULL = "no aplica" (no es una fila
+    /// ex-Cliente). Se retira cuando F4 redefina "gestor principal" con
+    /// carteras múltiples por relación — no antes.
+    /// </summary>
+    public Guid? EjecutivoUsuarioId { get; private set; }
+
+    /// <summary>
+    /// Deuda transitoria de F3 — antiguo <c>Cliente.EsCritico</c>. NULL =
+    /// "no aplica". Destino final: <c>RelacionEmpresarial</c> (F4).
+    /// </summary>
+    public bool? EsCritico { get; private set; }
+
+    /// <summary>
+    /// Deuda transitoria de F3 — antiguo <c>Cliente.Notas</c>. NULL =
+    /// "no aplica". Destino final: <c>RelacionEmpresarial</c> (F4).
+    /// </summary>
+    public string? Notas { get; private set; }
+
+    /// <summary>
+    /// Deuda transitoria de F3 — antiguo <c>Subcontrata.NivelServicio</c>.
+    /// Texto y no el enum <c>NivelServicioSubcontrata</c> a propósito: evita
+    /// acoplar <c>Domain.Empresas</c> a <c>Domain.Subcontratas</c> por una
+    /// columna que F4 va a retirar. NULL = "no aplica" (no es una fila
+    /// ex-Subcontrata).
+    /// </summary>
+    public string? NivelServicio { get; private set; }
+
     private Empresa()
     {
     }
@@ -51,6 +92,21 @@ public class Empresa : EntidadBase
         EstablecerCnae(cnae);
         EstablecerConvenioAplicable(convenioAplicable);
         EsActividadAnexoI = esActividadAnexoI;
+        EsPropia = true;
+    }
+
+    /// <summary>
+    /// F3b — alta de la contraparte antes llamada Cliente. <c>cif</c> exige
+    /// formato válido de NIF de empresa, igual que exigía
+    /// <c>Cliente.EstablecerCif</c> (a diferencia del constructor de arriba,
+    /// donde el CIF es opcional). <c>EsCritico</c>/<c>Notas</c>/
+    /// <c>EjecutivoUsuarioId</c> son deuda transitoria de F3 (§2 del diseño
+    /// físico) — se retiran a <c>RelacionEmpresarial</c> en F4, no antes.
+    /// </summary>
+    public static Empresa CrearComoCliente(string razonSocial, string cif, bool esCritico, string? notas, Guid? ejecutivoUsuarioId)
+    {
+        var empresa = new Empresa(razonSocial, cif) { EsPropia = false, EsCritico = esCritico, Notas = notas, EjecutivoUsuarioId = ejecutivoUsuarioId };
+        return empresa;
     }
 
     public void Actualizar(string razonSocial, string? cif, string? cnae = null, string? convenioAplicable = null, bool esActividadAnexoI = false)
@@ -61,6 +117,18 @@ public class Empresa : EntidadBase
         EstablecerConvenioAplicable(convenioAplicable);
         EsActividadAnexoI = esActividadAnexoI;
     }
+
+    /// <summary>F3b — reemplaza a <c>Cliente.Actualizar</c>: mismos cuatro campos, ahora sobre Empresa.</summary>
+    public void ActualizarComoCliente(string razonSocial, string cif, bool esCritico, string? notas)
+    {
+        EstablecerRazonSocial(razonSocial);
+        EstablecerCif(cif);
+        EsCritico = esCritico;
+        Notas = notas;
+    }
+
+    /// <summary>F3b — reemplaza a <c>Cliente.AsignarEjecutivo</c>.</summary>
+    public void AsignarEjecutivo(Guid? ejecutivoUsuarioId) => EjecutivoUsuarioId = ejecutivoUsuarioId;
 
     private void EstablecerRazonSocial(string razonSocial)
     {

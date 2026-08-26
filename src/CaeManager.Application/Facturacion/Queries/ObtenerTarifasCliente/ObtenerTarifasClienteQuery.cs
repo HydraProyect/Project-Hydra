@@ -1,5 +1,5 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Facturacion;
 using CaeManager.Domain.Facturacion;
 using MediatR;
@@ -18,7 +18,7 @@ public record TarifaClienteDto(
     string MonedaIso,
     Guid Version);
 
-public class ObtenerTarifasClienteQueryHandler(IClientesQueryContext clientesContext, IFacturacionQueryContext facturacionContext)
+public class ObtenerTarifasClienteQueryHandler(IEmpresasQueryContext empresasContext, IFacturacionQueryContext facturacionContext)
     : IRequestHandler<ObtenerTarifasClienteQuery, List<TarifaClienteDto>>
 {
     public async Task<List<TarifaClienteDto>> Handle(ObtenerTarifasClienteQuery request, CancellationToken cancellationToken)
@@ -29,7 +29,8 @@ public class ObtenerTarifasClienteQueryHandler(IClientesQueryContext clientesCon
         // El filtro global de TarifaCliente ya aísla por tenant; esto lo
         // refuerza en el handler para no depender de una sola capa en datos
         // comercialmente sensibles.
-        var clienteExiste = await clientesContext.Clientes
+        // F3b — ClienteId ahora repunta contra Empresas.
+        var clienteExiste = await empresasContext.Empresas
             .AnyAsync(c => c.Id == request.ClienteId, cancellationToken);
 
         if (!clienteExiste)

@@ -1,6 +1,5 @@
 ﻿using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Deteccion;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -54,7 +53,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     }
 
     private DeteccionTrabajadoresService CrearServicio(IExtraccionTrabajadoresIaService extraccion, IFileStorageService? almacenamiento = null) =>
-        new(_dbContext, _dbContext, _dbContext, _dbContext, _dbContext,
+        new(_dbContext, _dbContext, _dbContext, _dbContext,
             almacenamiento ?? new AlmacenamientoFalso(), extraccion,
             new DeteccionTrabajadorRepository(_dbContext), new NotificacionUsuarioRepository(_dbContext),
             _dbContext, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeteccionTrabajadoresService>.Instance);
@@ -63,9 +62,9 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     public async Task Detecta_altas_y_bajas_y_avisa_al_gestor_del_cliente()
     {
         var gestorId = Guid.NewGuid();
-        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false, ejecutivoUsuarioId: gestorId);
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, gestorId);
         var empresa = new Empresa("Ibertec S.A.");
-        _dbContext.Clientes.Add(cliente);
+        _dbContext.Empresas.Add(cliente);
         _dbContext.Empresas.Add(empresa);
         _dbContext.EmpresasClientes.Add(new EmpresaCliente(empresa.Id, cliente.Id));
 

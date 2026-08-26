@@ -2,7 +2,6 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -38,11 +37,11 @@ public class CentrosOrdenacionSqlTests : IAsyncLifetime
         if (await contexto.ParametrosSistema.SingleOrDefaultAsync() is null)
             contexto.ParametrosSistema.Add(new ParametroSistema(30, 15));
 
-        var clienteAlfa = new Cliente("Alfa Cliente S.L.", "B10000016", esCritico: false);
-        var clienteZeta = new Cliente("Zeta Cliente S.L.", "B10000024", esCritico: false);
+        var clienteAlfa = Empresa.CrearComoCliente("Alfa Cliente S.L.", "B10000016", false, null, null);
+        var clienteZeta = Empresa.CrearComoCliente("Zeta Cliente S.L.", "B10000024", false, null, null);
         var empresaAlfa = new Empresa("Alfa Empresa S.L.", "B20000014");
         var empresaZeta = new Empresa("Zeta Empresa S.L.", "B20000022");
-        contexto.Clientes.AddRange(clienteAlfa, clienteZeta);
+        contexto.Empresas.AddRange(clienteAlfa, clienteZeta);
         contexto.Empresas.AddRange(empresaAlfa, empresaZeta);
         await contexto.SaveChangesAsync();
 
@@ -96,7 +95,7 @@ public class CentrosOrdenacionSqlTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerCentrosQueryHandler(
-            contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
+            contexto, contexto, new AlcanceDatosServiceFalso(),
             new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto));
 
         return await handler.Handle(

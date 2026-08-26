@@ -195,8 +195,11 @@ public class AlcanceDatosService(
         // rol de alcance total, y esos ya salieron por TieneAccesoTotalAsync
         // sin consultar carteras — a un rol de cartera no se le emite nunca una
         // universal, justamente para no ensanchar su alcance.
+        //
+        // F3b — Empresas, no la tabla legacy Clientes: un Cliente creado tras
+        // la congelación solo existe ahí (EsCritico != null lo identifica).
         if (carteras.Any(id => id is null))
-            return await dbContext.Clientes.Select(c => c.Id).ToListAsync(cancellationToken);
+            return await dbContext.Empresas.Where(e => e.EsCritico != null).Select(e => e.Id).ToListAsync(cancellationToken);
 
         return carteras.Where(id => id is not null).Select(id => id!.Value).ToList();
     }

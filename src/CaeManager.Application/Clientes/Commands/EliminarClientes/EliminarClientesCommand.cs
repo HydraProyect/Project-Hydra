@@ -1,6 +1,6 @@
 using CaeManager.Application.Common;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Empresas;
 using FluentValidation;
 using MediatR;
 
@@ -21,7 +21,7 @@ public class EliminarClientesCommandValidator : AbstractValidator<EliminarClient
     public EliminarClientesCommandValidator() => RuleFor(c => c.Ids).NotEmpty();
 }
 
-public class EliminarClientesCommandHandler(IClienteRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+public class EliminarClientesCommandHandler(IEmpresaRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarClientesCommand, Result<ResultadoEliminacionLoteDto>>
 {
     public async Task<Result<ResultadoEliminacionLoteDto>> Handle(EliminarClientesCommand request, CancellationToken cancellationToken)
@@ -31,20 +31,20 @@ public class EliminarClientesCommandHandler(IClienteRepository repositorio, IAlc
 
         foreach (var id in request.Ids)
         {
-            var cliente = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
-            if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
+            var empresa = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
+            if (empresa is null || !await alcanceDatos.ClienteVisibleAsync(empresa.Id, cancellationToken))
             {
                 errores.Add("Un cliente ya no existía.");
                 continue;
             }
 
-            if (await repositorio.TieneCentrosActivosAsync(id, cancellationToken))
+            if (await repositorio.TieneCentrosComoTitularAsync(id, cancellationToken))
             {
-                errores.Add($"{cliente.RazonSocial}: tiene centros activos.");
+                errores.Add($"{empresa.RazonSocial}: tiene centros activos.");
                 continue;
             }
 
-            cliente.MarcarComoEliminado(request.UsuarioId);
+            empresa.MarcarComoEliminado(request.UsuarioId);
             eliminados++;
         }
 

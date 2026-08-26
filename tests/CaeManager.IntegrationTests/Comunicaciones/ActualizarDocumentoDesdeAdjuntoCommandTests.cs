@@ -4,7 +4,6 @@ using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
@@ -157,9 +156,9 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
     {
         var contexto = CrearContexto();
 
-        var cliente = new Cliente("Cliente Actualizar Documento S.L.", "B10380194", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Cliente Actualizar Documento S.L.", "B10380194", false, null, null);
         var empresa = new Empresa("Empresa Actualizar Documento S.L.", "B10380186");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 

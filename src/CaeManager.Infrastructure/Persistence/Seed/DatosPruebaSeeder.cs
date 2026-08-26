@@ -228,7 +228,10 @@ public static class DatosPruebaSeeder
             return;
         }
 
-        if (await dbContext.Clientes.AnyAsync(cancellationToken))
+        // F3b: "ya se sembró" se detecta por la señal que el propio backfill
+        // de F3a ya usa para reconocer una fila ex-Cliente — EsCritico nunca
+        // es NULL para las que este seeder crea (ver Empresa.CrearComoCliente).
+        if (await dbContext.Empresas.AnyAsync(e => e.EsCritico != null, cancellationToken))
         {
             logger.LogInformation("DatosPrueba:Activo está en true, pero ya hay Clientes — se omite la siembra de datos de prueba.");
             return;
@@ -259,7 +262,10 @@ public static class DatosPruebaSeeder
     public static async Task<ResumenSiembra?> SembrarSoloDatosAsync(
         CaeManagerDbContext dbContext, ILogger logger, CancellationToken cancellationToken = default)
     {
-        if (await dbContext.Clientes.AnyAsync(cancellationToken))
+        // F3b: "ya se sembró" se detecta por la señal que el propio backfill
+        // de F3a ya usa para reconocer una fila ex-Cliente — EsCritico nunca
+        // es NULL para las que este seeder crea (ver Empresa.CrearComoCliente).
+        if (await dbContext.Empresas.AnyAsync(e => e.EsCritico != null, cancellationToken))
             return null;
 
         // Semilla distinta a la del tenant principal a propósito: mismos
@@ -287,7 +293,10 @@ public static class DatosPruebaSeeder
     public static async Task<ResumenSiembra?> SembrarSoloDatosCompletosAsync(
         CaeManagerDbContext dbContext, ILogger logger, CancellationToken cancellationToken = default)
     {
-        if (await dbContext.Clientes.AnyAsync(cancellationToken))
+        // F3b: "ya se sembró" se detecta por la señal que el propio backfill
+        // de F3a ya usa para reconocer una fila ex-Cliente — EsCritico nunca
+        // es NULL para las que este seeder crea (ver Empresa.CrearComoCliente).
+        if (await dbContext.Empresas.AnyAsync(e => e.EsCritico != null, cancellationToken))
             return null;
 
         // Semilla distinta a la del tenant principal (20260801) y a la del
@@ -313,16 +322,18 @@ public static class DatosPruebaSeeder
         var indiceNombre = 0;
 
         // --- Clientes: la cartera del cliente fundador ---
-        var clientes = new List<Cliente>();
+        // F3b: "Cliente" se crea como Empresa contraparte (EsPropia=false).
+        var clientes = new List<Empresa>();
         for (var i = 0; i < numeroClientes; i++)
         {
-            clientes.Add(new Cliente(
+            clientes.Add(Empresa.CrearComoCliente(
                 razonSocial: RazonesSocialesClientes[i % RazonesSocialesClientes.Length],
                 cif: GenerarCifValido(contadorCif++),
                 esCritico: i is 0 or 3,
-                notas: null));
+                notas: null,
+                ejecutivoUsuarioId: null));
         }
-        dbContext.Clientes.AddRange(clientes);
+        dbContext.Empresas.AddRange(clientes);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // --- Empresas contratistas: cada cliente trabaja con 5-10 del pool ---
@@ -374,7 +385,7 @@ public static class DatosPruebaSeeder
         // --- Subcontratas, vinculadas a clientes y empresas reales ---
         var subcontratas = new List<Subcontrata>();
         var empresasPorSubcontrata = new Dictionary<Guid, List<Empresa>>();
-        var clientesPorSubcontrata = new Dictionary<Guid, List<Cliente>>();
+        var clientesPorSubcontrata = new Dictionary<Guid, List<Empresa>>();
         for (var i = 0; i < numeroSubcontratas; i++)
         {
             var subcontrata = new Subcontrata($"Subcontrata {ElementoAleatorio(aleatorio, MarcasCaricatura)} {ElementoAleatorio(aleatorio, SectoresEmpresa)} {i + 1:D2} {ElementoAleatorio(aleatorio, SufijosSociedad)}");
@@ -832,7 +843,7 @@ public static class DatosPruebaSeeder
     /// contacto, no salir a un destinatario inventado.
     /// </summary>
     private static void SembrarAgendaContactos(
-        CaeManagerDbContext dbContext, Random aleatorio, List<Cliente> clientes, List<Empresa> empresas,
+        CaeManagerDbContext dbContext, Random aleatorio, List<Empresa> clientes, List<Empresa> empresas,
         List<Subcontrata> subcontratas, List<Centro> centros, List<TipoDocumento> tiposDocumento)
     {
         var contactos = new List<ContactoAgenda>();
@@ -1004,7 +1015,7 @@ public static class DatosPruebaSeeder
         // uno — AlcanceRolesTests depende de este reparto exacto); cada
         // usuario Cliente de prueba queda vinculado a un Cliente real
         // distinto.
-        var clientes = await dbContext.Clientes.OrderBy(c => c.CreadoEnUtc).ToListAsync(cancellationToken);
+        var clientes = await dbContext.Empresas.Where(e => e.EsCritico != null).OrderBy(c => c.CreadoEnUtc).ToListAsync(cancellationToken);
         var coordinadorPrincipal = usuariosPorRol[Roles.CoordinadorCae].FirstOrDefault();
         var gestoresPrueba = usuariosPorRol[Roles.GestorCae];
 
@@ -1115,7 +1126,7 @@ public static class DatosPruebaSeeder
     /// no tienen hilo de Graph que representar (ver <see cref="Conversacion"/>).
     /// </summary>
     internal static async Task SembrarReclamacionesAsync(
-        CaeManagerDbContext dbContext, List<Cliente> clientes, Guid? ejecutivoPrincipalId, CancellationToken cancellationToken)
+        CaeManagerDbContext dbContext, List<Empresa> clientes, Guid? ejecutivoPrincipalId, CancellationToken cancellationToken)
     {
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var limiteVentana = hoy.AddDays(90);

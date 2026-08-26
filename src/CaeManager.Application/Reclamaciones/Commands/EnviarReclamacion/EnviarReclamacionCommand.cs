@@ -1,10 +1,10 @@
 using System.Text;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Reclamaciones.Eventos;
 using CaeManager.Application.TiposDocumento;
@@ -44,7 +44,7 @@ public record EnviarReclamacionCommand(
     IReadOnlyList<Guid>? ContactoIdsSeleccionados = null) : ICommand;
 
 public class EnviarReclamacionCommandHandler(
-    IClientesQueryContext clientesContext,
+    IEmpresasQueryContext empresasContext,
     IDocumentosQueryContext documentosContext,
     ITrabajadoresQueryContext trabajadoresContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
@@ -69,7 +69,7 @@ public class EnviarReclamacionCommandHandler(
                 return Result.Fallo(Error.Crear("Reclamacion.SinAcceso", "No tienes acceso a este cliente."));
         }
 
-        var cliente = await clientesContext.Clientes.FirstOrDefaultAsync(c => c.Id == request.ClienteId, cancellationToken);
+        var cliente = await empresasContext.Empresas.FirstOrDefaultAsync(c => c.Id == request.ClienteId, cancellationToken);
         if (cliente is null)
             return Result.Fallo(Error.Crear("Reclamacion.ClienteNoEncontrado", "No encontramos este cliente."));
 

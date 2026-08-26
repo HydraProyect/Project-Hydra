@@ -1,3 +1,4 @@
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,9 @@ public class EmpresaRepository(CaeManagerDbContext dbContext) : IEmpresaReposito
 
     public Task<bool> TieneTrabajadoresAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
         dbContext.Set<Trabajador>().AnyAsync(t => t.EmpresaId == empresaId, cancellationToken);
+
+    public Task<bool> TieneCentrosComoTitularAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
+        dbContext.Set<Centro>().AnyAsync(c => c.ClienteId == empresaId, cancellationToken);
 
     public void Agregar(Empresa empresa) => dbContext.Empresas.Add(empresa);
 }

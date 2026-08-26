@@ -61,8 +61,14 @@ public class BuscarGlobalAlcanceTests : IAsyncLifetime
 
         await contexto.SaveChangesAsync();
 
-        var centroMio = new Centro(clienteMio.Id, empresaMia.Id, "Zeta Centro Propio");
-        var centroAjeno = new Centro(clienteAjeno.Id, empresaAjena.Id, "Zeta Centro Ajeno");
+        // F3b: ClienteId de Centro repunta contra Empresas — clienteMio/clienteAjeno
+        // se quedan a propósito solo en Clientes (esta prueba ejercita justo la
+        // rama Cliente de BuscarGlobalQuery, una de las 6 consultas congeladas
+        // por D2 hasta F4), así que el Centro usa empresaMia/empresaAjena como
+        // FK, sin relación semántica con el cliente probado — el buscador global
+        // acota Centro por su propio Id de cartera, no por el del cliente.
+        var centroMio = new Centro(empresaMia.Id, empresaMia.Id, "Zeta Centro Propio");
+        var centroAjeno = new Centro(empresaAjena.Id, empresaAjena.Id, "Zeta Centro Ajeno");
         contexto.Centros.AddRange(centroMio, centroAjeno);
 
         var trabajadorMio = Trabajador.DeEmpresa(empresaMia.Id, "Zeta", "Propio", "12345678Z");
