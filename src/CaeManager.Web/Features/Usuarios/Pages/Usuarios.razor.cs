@@ -1,6 +1,6 @@
 using System.Security.Claims;
-using CaeManager.Application.Clientes.Queries.BuscarClientePorCif;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
+using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
@@ -69,7 +69,7 @@ public partial class Usuarios : ComponentBase
     private string _coordinadorUsuarioId = string.Empty;
 
     private string _clienteCif = string.Empty;
-    private ClientePorCifDto? _clienteEncontrado;
+    private EmpresaPorCifDto? _clienteEncontrado;
     private bool _buscandoCliente;
 
     protected override Task OnInitializedAsync() => CargarAsync();
@@ -158,7 +158,7 @@ public partial class Usuarios : ComponentBase
 
         try
         {
-            _clienteEncontrado = await Mediator.Send(new BuscarClientePorCifQuery(valor));
+            _clienteEncontrado = await Mediator.Send(new BuscarEmpresaPorCifQuery(valor));
         }
         finally
         {
@@ -210,7 +210,7 @@ public partial class Usuarios : ComponentBase
             if (cliente is not null)
             {
                 _clienteCif = cliente.Cif;
-                _clienteEncontrado = new ClientePorCifDto(cliente.Id, cliente.RazonSocial, cliente.Cif);
+                _clienteEncontrado = new EmpresaPorCifDto(cliente.Id, cliente.RazonSocial, cliente.Cif);
             }
         }
 

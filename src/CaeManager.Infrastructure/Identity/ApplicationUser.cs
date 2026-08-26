@@ -19,9 +19,15 @@ public class ApplicationUser : IdentityUser<Guid>
     public Guid? CoordinadorUsuarioId { get; set; }
 
     /// <summary>
-    /// Solo relevante para el rol Cliente — el Cliente de negocio
-    /// (CaeManager.Domain.Clientes.Cliente) que este usuario representa.
-    /// Se vincula por CIF al crear el usuario (ver Usuarios.razor). Un
+    /// Solo relevante para el rol Cliente — la Empresa contraparte
+    /// (CaeManager.Domain.Empresas.Empresa) que este usuario representa.
+    /// Se vincula por CIF al crear el usuario (ver Usuarios.razor,
+    /// BuscarEmpresaPorCifQuery). Nombre físico "ClienteId" conservado por
+    /// ahora (F4.2a cambió la semántica, no la columna — ver
+    /// SincronizacionRelacionEmpresarial para el patrón de F4 en general);
+    /// un rename físico se evalúa aparte si hace falta. Antes de F4.2a
+    /// apuntaba a la tabla legacy <c>Clientes</c> — ya retirada de este
+    /// flujo, ver f4-diseno-fisico-relacionempresarial-2026-08-26.md. Un
     /// usuario Cliente sin ClienteId no ve ningún dato (alcance vacío, no
     /// alcance total) — nunca se interpreta null aquí como "sin
     /// restricción", a diferencia del resto de roles.
