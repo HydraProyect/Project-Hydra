@@ -3,7 +3,6 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Subcontratas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
@@ -52,7 +51,6 @@ public class ObtenerDocumentacionVisitaQueryHandler(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     ITrabajadoresQueryContext trabajadoresContext,
     IEmpresasQueryContext empresasContext,
-    ISubcontratasQueryContext subcontratasContext,
     IConfiguracionQueryContext configuracionContext,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentacionVisitaQuery, DocumentacionVisitaDto?>
@@ -193,7 +191,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
             where trabajadorIds.Contains(trabajador.Id)
             join empresa in empresasContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
             from empresa in empresasCoincidentes.DefaultIfEmpty()
-            join subcontrata in subcontratasContext.Subcontratas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
+            join subcontrata in empresasContext.Empresas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
             from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
             orderby trabajador.Apellidos, trabajador.Nombre
             select new

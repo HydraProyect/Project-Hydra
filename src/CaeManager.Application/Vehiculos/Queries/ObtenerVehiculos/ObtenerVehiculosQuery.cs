@@ -1,7 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Vehiculos;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -24,7 +23,7 @@ public record VehiculoListaDto(
     EstadoDocumento? EstadoDocumental = null);
 
 public class ObtenerVehiculosQueryHandler(
-    IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext,
+    IEmpresasQueryContext empresasContext,
     IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos,
     ICalculoEstadoDocumentalService calculoEstadoDocumental)
     : IRequestHandler<ObtenerVehiculosQuery, ResultadoPaginado<VehiculoListaDto>>
@@ -36,7 +35,7 @@ public class ObtenerVehiculosQueryHandler(
             from vehiculo in vehiculosContext.Vehiculos
             join empresa in empresasContext.Empresas on vehiculo.EmpresaId equals empresa.Id into empresasCoincidentes
             from empresa in empresasCoincidentes.DefaultIfEmpty()
-            join subcontrata in subcontratasContext.Subcontratas on vehiculo.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
+            join subcontrata in empresasContext.Empresas on vehiculo.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
             from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
             select new { vehiculo, EmpleadorNombre = empresa != null ? empresa.RazonSocial : subcontrata!.RazonSocial };
 

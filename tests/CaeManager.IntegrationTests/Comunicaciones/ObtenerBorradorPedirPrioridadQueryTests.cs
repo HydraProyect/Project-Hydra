@@ -69,7 +69,7 @@ public class ObtenerBorradorPedirPrioridadQueryTests : IAsyncLifetime
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
     private ObtenerBorradorPedirPrioridadQueryHandler CrearHandler(CaeManagerDbContext contexto, AlcanceDatosServiceFalso? alcance = null) =>
-        new(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+        new(contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new DocumentosFaltantesService(contexto, contexto), alcance ?? new AlcanceDatosServiceFalso());
 
     [Fact]

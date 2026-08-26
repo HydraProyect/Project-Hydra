@@ -1,6 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
-using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Subcontratas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,13 +22,24 @@ public record SubcontrataListaDto(
     Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, NivelServicioSubcontrata NivelServicio,
     int? CumplimientoPorcentaje, RecuentosSubcontrataDto Recuentos);
 
+/// <summary>
+/// F3b-Subcontrata (revisión adversaria del 2026-08-26, evidencia real de
+/// IntegrationTests): a diferencia de las otras dos consultas semánticas de
+/// D2 (<c>ObtenerSubcontratasParaSelectorQuery</c> y la rama Subcontrata de
+/// <c>BuscarGlobalQuery</c>, que siguen congeladas), esta se adelanta a leer
+/// Empresas — congelarla dejaba el % de cumplimiento activamente incorrecto
+/// (no solo desactualizado) para cualquier Subcontrata creada tras el
+/// freeze, porque <see cref="Domain.Trabajadores.Trabajador.SubcontrataId"/>
+/// ya solo puede apuntar a filas de Empresas. Ver
+/// f3b-subcontrata-inventario-fresco-2026-08-26.md.
+/// </summary>
 public class ObtenerSubcontratasQueryHandler(
-    ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoSubcontrataService calculoEstado)
+    IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoSubcontrataService calculoEstado)
     : IRequestHandler<ObtenerSubcontratasQuery, ResultadoPaginado<SubcontrataListaDto>>
 {
     public async Task<ResultadoPaginado<SubcontrataListaDto>> Handle(ObtenerSubcontratasQuery request, CancellationToken cancellationToken)
     {
-        var consulta = dbContext.Subcontratas.AsQueryable();
+        var consulta = dbContext.Empresas.Where(e => e.NivelServicio != null);
 
         var subcontrataIdsVisibles = await alcanceDatos.ObtenerSubcontrataIdsVisiblesAsync(cancellationToken);
         if (subcontrataIdsVisibles is not null)
@@ -77,7 +88,7 @@ public class ObtenerSubcontratasQueryHandler(
 
         var elementos = pagina
             .Select(s => new SubcontrataListaDto(
-                s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, s.NivelServicio,
+                s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, Enum.Parse<NivelServicioSubcontrata>(s.NivelServicio!),
                 cumplimiento.TryGetValue(s.Id, out var fraccion) ? fraccion.Porcentaje : null,
                 causas.TryGetValue(s.Id, out var incidencias) ? Desglosar(incidencias) : RecuentosSubcontrataDto.Vacio))
             .ToList();

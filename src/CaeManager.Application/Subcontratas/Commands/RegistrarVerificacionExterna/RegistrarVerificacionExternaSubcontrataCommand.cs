@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
 using MediatR;
@@ -58,7 +59,7 @@ public class RegistrarVerificacionExternaSubcontrataCommandValidator
 }
 
 public class RegistrarVerificacionExternaSubcontrataCommandHandler(
-    ISubcontrataRepository subcontrataRepositorio,
+    IEmpresaRepository subcontrataRepositorio,
     IVerificacionExternaSubcontrataRepository verificacionRepositorio,
     ICentrosQueryContext centrosContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,

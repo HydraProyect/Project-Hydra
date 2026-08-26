@@ -1,7 +1,6 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +12,7 @@ public record ObtenerTrabajadoresAsignadosDeCentroQuery(Guid CentroId) : IReques
 
 public record TrabajadorAsignadoDto(Guid TrabajadorId, string Nombre, string EmpleadorNombre, DateOnly FechaAlta);
 
-public class ObtenerTrabajadoresAsignadosDeCentroQueryHandler(IAsignacionesQueryContext asignacionesContext, IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerTrabajadoresAsignadosDeCentroQueryHandler(IAsignacionesQueryContext asignacionesContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTrabajadoresAsignadosDeCentroQuery, IReadOnlyList<TrabajadorAsignadoDto>>
 {
     public async Task<IReadOnlyList<TrabajadorAsignadoDto>> Handle(
@@ -28,7 +27,7 @@ public class ObtenerTrabajadoresAsignadosDeCentroQueryHandler(IAsignacionesQuery
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             join empresa in empresasContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
             from empresa in empresasCoincidentes.DefaultIfEmpty()
-            join subcontrata in subcontratasContext.Subcontratas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
+            join subcontrata in empresasContext.Empresas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
             from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
             orderby trabajador.Nombre
             select new TrabajadorAsignadoDto(

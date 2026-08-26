@@ -130,6 +130,33 @@ public class Empresa : EntidadBase
     /// <summary>F3b — reemplaza a <c>Cliente.AsignarEjecutivo</c>.</summary>
     public void AsignarEjecutivo(Guid? ejecutivoUsuarioId) => EjecutivoUsuarioId = ejecutivoUsuarioId;
 
+    /// <summary>
+    /// F3b-Subcontrata — alta de la contraparte antes llamada Subcontrata. A
+    /// diferencia de <see cref="CrearComoCliente"/>, el CIF es opcional
+    /// (mismo criterio que tenía <c>Subcontrata.EstablecerCif</c>).
+    /// <paramref name="nivelServicio"/> se recibe ya como texto (no como el
+    /// enum <c>NivelServicioSubcontrata</c>) por el mismo motivo que
+    /// <see cref="NivelServicio"/> es <c>string?</c>: evitar acoplar
+    /// <c>Domain.Empresas</c> a <c>Domain.Subcontratas</c> por una columna
+    /// que F4 va a retirar — la conversión enum→texto vive en el llamador
+    /// (Application), que ya depende de <c>Domain.Subcontratas</c>.
+    /// </summary>
+    public static Empresa CrearComoSubcontrata(string razonSocial, string? cif, string nivelServicio)
+    {
+        var empresa = new Empresa(razonSocial, cif) { EsPropia = false, NivelServicio = nivelServicio };
+        return empresa;
+    }
+
+    /// <summary>F3b-Subcontrata — reemplaza a <c>Subcontrata.Actualizar</c>: mismos dos campos, ahora sobre Empresa.</summary>
+    public void ActualizarComoSubcontrata(string razonSocial, string? cif)
+    {
+        EstablecerRazonSocial(razonSocial);
+        EstablecerCif(cif);
+    }
+
+    /// <summary>F3b-Subcontrata — reemplaza a <c>Subcontrata.CambiarNivelServicio</c>.</summary>
+    public void CambiarNivelServicioComoSubcontrata(string nivelServicio) => NivelServicio = nivelServicio;
+
     private void EstablecerRazonSocial(string razonSocial)
     {
         if (string.IsNullOrWhiteSpace(razonSocial))

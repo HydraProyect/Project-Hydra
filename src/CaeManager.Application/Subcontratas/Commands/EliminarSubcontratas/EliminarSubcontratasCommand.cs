@@ -1,7 +1,7 @@
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
-using CaeManager.Domain.Subcontratas;
+using CaeManager.Domain.Empresas;
 using FluentValidation;
 using MediatR;
 
@@ -15,7 +15,7 @@ public class EliminarSubcontratasCommandValidator : AbstractValidator<EliminarSu
     public EliminarSubcontratasCommandValidator() => RuleFor(c => c.Ids).NotEmpty();
 }
 
-public class EliminarSubcontratasCommandHandler(ISubcontrataRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+public class EliminarSubcontratasCommandHandler(IEmpresaRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarSubcontratasCommand, Result<ResultadoEliminacionLoteDto>>
 {
     public async Task<Result<ResultadoEliminacionLoteDto>> Handle(EliminarSubcontratasCommand request, CancellationToken cancellationToken)
@@ -32,7 +32,7 @@ public class EliminarSubcontratasCommandHandler(ISubcontrataRepository repositor
                 continue;
             }
 
-            if (await repositorio.TieneTrabajadoresAsync(id, cancellationToken))
+            if (await repositorio.TieneTrabajadoresComoSubcontrataAsync(id, cancellationToken))
             {
                 errores.Add($"{subcontrata.RazonSocial}: tiene trabajadores.");
                 continue;

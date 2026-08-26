@@ -550,8 +550,12 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     private static async Task<Guid> SembrarSubcontrataAsync(CaeManagerDbContext contexto)
     {
-        var subcontrata = new Subcontrata($"Subcontrata de prueba {Guid.NewGuid():N}");
-        contexto.Subcontratas.Add(subcontrata);
+        // F3b-Subcontrata — anclas de FK para SubcontrataCliente/SubcontrataEmpresa/
+        // VerificacionExternaSubcontrata/Trabajador/Vehiculo/ContactoAgenda: su
+        // SubcontrataId repunta contra Empresas.
+        var subcontrata = Empresa.CrearComoSubcontrata(
+            $"Subcontrata de prueba {Guid.NewGuid():N}", null, NivelServicioSubcontrata.Gestionada.ToString());
+        contexto.Empresas.Add(subcontrata);
         await contexto.SaveChangesAsync();
         return subcontrata.Id;
     }

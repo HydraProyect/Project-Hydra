@@ -16,6 +16,9 @@ public class EmpresaRepositorioFalso : IEmpresaRepository
     /// <summary>Control fino por id, para probar éxito parcial en borrado en lote (P3-31) sin afectar <see cref="TieneCentrosActivos"/>.</summary>
     public HashSet<Guid> IdsConCentrosActivos { get; } = [];
 
+    /// <summary>F3b-Subcontrata: análogo a <see cref="IdsConCentrosActivos"/> pero para <see cref="TieneTrabajadoresComoSubcontrataAsync"/>.</summary>
+    public HashSet<Guid> IdsConTrabajadoresComoSubcontrata { get; } = [];
+
     public Task<Empresa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Empresas.FirstOrDefault(e => e.Id == id));
 
@@ -30,6 +33,9 @@ public class EmpresaRepositorioFalso : IEmpresaRepository
 
     public Task<bool> TieneCentrosComoTitularAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
         Task.FromResult(TieneCentrosActivos || IdsConCentrosActivos.Contains(empresaId));
+
+    public Task<bool> TieneTrabajadoresComoSubcontrataAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(IdsConTrabajadoresComoSubcontrata.Contains(empresaId));
 
     public void Agregar(Empresa empresa) => Empresas.Add(empresa);
 }
