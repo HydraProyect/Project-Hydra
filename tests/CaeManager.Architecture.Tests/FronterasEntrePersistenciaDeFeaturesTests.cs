@@ -331,6 +331,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.ResolverRevisionIaDocumentoCommandHandler", "IAuditoriaExtraccionIaRepository"),
         ("Empresas.CrearEmpresaCommandHandler", "IClientesQueryContext"),
         ("Empresas.EditarEmpresaCommandHandler", "IClientesQueryContext"),
+        // F4 — doble escritura transitoria hacia RelacionEmpresarial mientras
+        // las tres tablas legacy sigan siendo la fuente de escritura
+        // primaria (f4-diseno-fisico-relacionempresarial-2026-08-26.md).
+        // Desaparece cuando RelacionEmpresarial pase a ser la única fuente.
+        ("Empresas.CrearEmpresaCommandHandler", "IRelacionEmpresarialRepository"),
+        ("Empresas.EditarEmpresaCommandHandler", "IRelacionEmpresarialRepository"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "IAsignacionesQueryContext"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "ICentrosQueryContext"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "IClientesQueryContext"),
@@ -362,6 +368,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IEmpresasQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ITrabajadoresQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ITrabajadorRepository"),
+        // F4 — misma doble escritura transitoria de arriba.
+        ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IRelacionEmpresarialRepository"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionesQueryContext"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionRepository"),
         ("Importacion.EjecutarImportacionCommandHandler", "ICentrosQueryContext"),
@@ -445,6 +453,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.CrearSubcontrataCommandHandler", "IEmpresasQueryContext"),
         ("Subcontratas.EditarSubcontrataCommandHandler", "IClientesQueryContext"),
         ("Subcontratas.EditarSubcontrataCommandHandler", "IEmpresasQueryContext"),
+        // F4 — misma doble escritura transitoria de arriba.
+        ("Subcontratas.CrearSubcontrataCommandHandler", "IRelacionEmpresarialRepository"),
+        ("Subcontratas.EditarSubcontrataCommandHandler", "IRelacionEmpresarialRepository"),
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "IAsignacionesQueryContext"),
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "ICentrosQueryContext"),
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "IClientesQueryContext"),

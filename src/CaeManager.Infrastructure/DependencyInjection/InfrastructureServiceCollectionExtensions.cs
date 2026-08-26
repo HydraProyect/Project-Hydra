@@ -16,6 +16,7 @@ using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Soporte;
+using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
@@ -263,6 +264,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IVerificacionExternaSubcontrataRepository, VerificacionExternaSubcontrataRepository>();
         services.AddScoped<ISubcontrataClienteRepository, SubcontrataClienteRepository>();
         services.AddScoped<ISubcontrataEmpresaRepository, SubcontrataEmpresaRepository>();
+        services.AddScoped<IRelacionEmpresarialRepository, RelacionEmpresarialRepository>();
         services.AddScoped<ICredencialAccesoSubcontrataRepository, CredencialAccesoSubcontrataRepository>();
         services.AddScoped<ICentroRepository, CentroRepository>();
         services.AddScoped<ICanalGestionDocumentalRepository, CanalGestionDocumentalRepository>();

@@ -19,11 +19,13 @@ using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Reclamaciones;
+using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -342,11 +344,21 @@ public static class DatosPruebaSeeder
             empresas.Add(new Empresa($"{ElementoAleatorio(aleatorio, SectoresEmpresa)} {ElementoAleatorio(aleatorio, MarcasCaricatura)} {i + 1:D2} {ElementoAleatorio(aleatorio, SufijosSociedad)}"));
         dbContext.Empresas.AddRange(empresas);
 
+        // Doble escritura F4 (transitoria — ver SincronizacionRelacionEmpresarial
+        // en Application; el seeder no depende de Application, así que
+        // construye el repositorio directo sobre este mismo dbContext).
+        var relacionEmpresarialRepositorio = new RelacionEmpresarialRepository(dbContext);
+        var ahoraSeed = DateTime.UtcNow;
+
         var empresasClientes = new List<EmpresaCliente>();
         foreach (var cliente in clientes)
         {
             var contratistas = ElementosAleatoriosUnicos(aleatorio, empresas, aleatorio.Next(5, Math.Min(11, numeroEmpresas + 1)));
-            empresasClientes.AddRange(contratistas.Select(e => new EmpresaCliente(e.Id, cliente.Id)));
+            foreach (var contratista in contratistas)
+            {
+                empresasClientes.Add(new EmpresaCliente(contratista.Id, cliente.Id));
+                dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(contratista.Id, cliente.Id, ahoraSeed));
+            }
         }
         dbContext.EmpresasClientes.AddRange(empresasClientes);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -401,12 +413,34 @@ public static class DatosPruebaSeeder
             empresasPorSubcontrata[subcontrata.Id] = empresasVinculadas;
             dbContext.SubcontratasEmpresas.AddRange(
                 empresasVinculadas.Select(e => new SubcontrataEmpresa(subcontrata.Id, e.Id)));
+            foreach (var empresaVinculada in empresasVinculadas)
+                dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(subcontrata.Id, empresaVinculada.Id, ahoraSeed));
+
             var clientesVinculados = ElementosAleatoriosUnicos(aleatorio, clientes, aleatorio.Next(1, 3));
             clientesPorSubcontrata[subcontrata.Id] = clientesVinculados;
             dbContext.SubcontratasClientes.AddRange(
                 clientesVinculados.Select(c => new SubcontrataCliente(subcontrata.Id, c.Id)));
         }
         dbContext.Empresas.AddRange(subcontratas);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Los candidatos a enmarcadaEn se resuelven DESPUÉS del SaveChanges de
+        // arriba: la resolución consulta RelacionEmpresarial vía el
+        // repositorio (mismo método que CrearSubcontrataCommand), y necesita
+        // que los vínculos Subcontrata→Empresa recién creados ya estén
+        // persistidos para poder cruzarlos con los Empresa→Cliente (estos ya
+        // lo estaban desde el bloque anterior).
+        foreach (var subcontrata in subcontratas)
+        {
+            var empresaIdsDeEstaSubcontrata = empresasPorSubcontrata[subcontrata.Id].Select(e => e.Id).ToList();
+            foreach (var clienteVinculado in clientesPorSubcontrata[subcontrata.Id])
+            {
+                var enmarcadaEnId = await relacionEmpresarialRepositorio.ObtenerCandidatoUnicoParaEnmarcarAsync(
+                    empresaIdsDeEstaSubcontrata, clienteVinculado.Id, cancellationToken);
+                dbContext.RelacionesEmpresariales.Add(
+                    RelacionEmpresarial.Crear(subcontrata.Id, clienteVinculado.Id, ahoraSeed, enmarcadaEnId));
+            }
+        }
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // --- Trabajadores: 5-12 por empresa, 2-5 por subcontrata ---
