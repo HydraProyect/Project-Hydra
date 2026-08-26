@@ -1,7 +1,9 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.RelacionesEmpresariales;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
 using MediatR;
@@ -40,6 +42,7 @@ public class EditarSubcontrataCommandHandler(
     IEmpresaRepository repositorio,
     ISubcontrataClienteRepository subcontrataClienteRepositorio,
     ISubcontrataEmpresaRepository subcontrataEmpresaRepositorio,
+    IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     IEmpresasQueryContext empresasContext,
     IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork)
@@ -62,6 +65,21 @@ public class EditarSubcontrataCommandHandler(
 
         subcontrata.ActualizarComoSubcontrata(request.RazonSocial, request.Cif);
 
+        var ahora = DateTime.UtcNow;
+
+        // EmpresaIds se resuelve ANTES que ClienteIds a propósito: el
+        // candidato a enmarcadaEn de una relación Subcontrata→Cliente nueva
+        // necesita el conjunto FINAL de Empresas vinculadas tras esta
+        // edición — incluidas las que ya estaban antes, no solo las que se
+        // añaden ahora — no el orden en que el código las escribe.
+        var empresasActuales = await subcontrataEmpresaRepositorio.ObtenerPorSubcontrataAsync(subcontrata.Id, cancellationToken);
+        var empresaIdsDeseados = request.EmpresaIds.Distinct().ToHashSet();
+        var empresaIdsActuales = empresasActuales.Select(se => se.EmpresaId).ToHashSet();
+
+        var empresaIdsNuevos = empresaIdsDeseados.Except(empresaIdsActuales).ToList();
+        if (await empresasContext.Empresas.Where(e => empresaIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != empresaIdsNuevos.Count)
+            return Result.Fallo(Error.Crear("Subcontrata.EmpresaNoEncontrada", "Alguna de las empresas seleccionadas no existe."));
+
         var clientesActuales = await subcontrataClienteRepositorio.ObtenerPorSubcontrataAsync(subcontrata.Id, cancellationToken);
         var clienteIdsDeseados = request.ClienteIds.Distinct().ToHashSet();
         var clienteIdsActuales = clientesActuales.Select(sc => sc.ClienteId).ToHashSet();
@@ -71,25 +89,42 @@ public class EditarSubcontrataCommandHandler(
         if (await empresasContext.Empresas.Where(e => clienteIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != clienteIdsNuevos.Count)
             return Result.Fallo(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));
 
+        // Doble escritura F4 (transitoria — ver SincronizacionRelacionEmpresarial):
+        // RazonSocial/Cif no tocan RelacionEmpresarial. Los diffs de
+        // EmpresaIds/ClienteIds sí. Una baja de EmpresaIds/ClienteIds NO
+        // re-resuelve retroactivamente el enmarcadaEn de relaciones
+        // Subcontrata→Cliente ya existentes — eso sería editar una relación
+        // in situ, y el modelo es append-only; solo las relaciones NUEVAS de
+        // este mismo alta usan el enmarcadaEn resuelto aquí.
         foreach (var sc in clientesActuales.Where(sc => !clienteIdsDeseados.Contains(sc.ClienteId)))
+        {
             subcontrataClienteRepositorio.Eliminar(sc);
+            await SincronizacionRelacionEmpresarial.SincronizarBajaAsync(
+                relacionEmpresarialRepositorio, subcontrata.Id, sc.ClienteId, ahora, cancellationToken);
+        }
 
         foreach (var clienteId in clienteIdsNuevos)
+        {
             subcontrataClienteRepositorio.Agregar(new SubcontrataCliente(subcontrata.Id, clienteId));
-
-        var empresasActuales = await subcontrataEmpresaRepositorio.ObtenerPorSubcontrataAsync(subcontrata.Id, cancellationToken);
-        var empresaIdsDeseados = request.EmpresaIds.Distinct().ToHashSet();
-        var empresaIdsActuales = empresasActuales.Select(se => se.EmpresaId).ToHashSet();
-
-        var empresaIdsNuevos = empresaIdsDeseados.Except(empresaIdsActuales).ToList();
-        if (await empresasContext.Empresas.Where(e => empresaIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != empresaIdsNuevos.Count)
-            return Result.Fallo(Error.Crear("Subcontrata.EmpresaNoEncontrada", "Alguna de las empresas seleccionadas no existe."));
+            var enmarcadaEnId = await relacionEmpresarialRepositorio.ObtenerCandidatoUnicoParaEnmarcarAsync(
+                empresaIdsDeseados, clienteId, cancellationToken);
+            await SincronizacionRelacionEmpresarial.SincronizarAltaAsync(
+                relacionEmpresarialRepositorio, subcontrata.Id, clienteId, ahora, enmarcadaEnId, cancellationToken);
+        }
 
         foreach (var se in empresasActuales.Where(se => !empresaIdsDeseados.Contains(se.EmpresaId)))
+        {
             subcontrataEmpresaRepositorio.Eliminar(se);
+            await SincronizacionRelacionEmpresarial.SincronizarBajaAsync(
+                relacionEmpresarialRepositorio, subcontrata.Id, se.EmpresaId, ahora, cancellationToken);
+        }
 
         foreach (var empresaId in empresaIdsNuevos)
+        {
             subcontrataEmpresaRepositorio.Agregar(new SubcontrataEmpresa(subcontrata.Id, empresaId));
+            await SincronizacionRelacionEmpresarial.SincronizarAltaAsync(
+                relacionEmpresarialRepositorio, subcontrata.Id, empresaId, ahora, cancellationToken: cancellationToken);
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

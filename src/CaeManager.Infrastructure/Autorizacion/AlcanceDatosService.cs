@@ -224,6 +224,17 @@ public class AlcanceDatosService(
         return _centroIds;
     }
 
+    /// <summary>
+    /// F4 — reescrito sobre <c>RelacionEmpresarial</c> en vez de
+    /// <c>EmpresaCliente</c> (contrato verificado con paridad exacta OLD/NEW,
+    /// ver f4-diseno-fisico-relacionempresarial-2026-08-26.md § 6/8ter).
+    /// <c>porCentro</c> no cambia: F4 no toca <c>Centro</c> (eso es F5).
+    ///
+    /// El filtro <c>Proveedora.EsPropia</c> repone una garantía que antes
+    /// daba gratis la separación física de tablas — en la tabla unificada
+    /// hay que comprobarlo explícitamente, o una relación Subcontrata→Cliente
+    /// (mismo ClienteId) se colaría aquí.
+    /// </summary>
     public async Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
         if (_empresaIdsResueltos) return _empresaIds;
@@ -238,7 +249,9 @@ public class AlcanceDatosService(
         }
 
         var porCentro = dbContext.Centros.Where(c => clienteIds.Contains(c.ClienteId)).Select(c => c.EmpresaId);
-        var porVinculoDirecto = dbContext.EmpresasClientes.Where(ec => clienteIds.Contains(ec.ClienteId)).Select(ec => ec.EmpresaId);
+        var porVinculoDirecto = dbContext.RelacionesEmpresariales
+            .Where(r => clienteIds.Contains(r.ClienteId) && r.VigenciaHasta == null)
+            .Join(dbContext.Empresas.Where(e => e.EsPropia), r => r.ProveedoraId, e => e.Id, (r, e) => e.Id);
 
         _empresaIds = await porCentro.Concat(porVinculoDirecto).Distinct().ToListAsync(cancellationToken);
         _empresaIdsResueltos = true;
@@ -246,6 +259,18 @@ public class AlcanceDatosService(
         return _empresaIds;
     }
 
+    /// <summary>
+    /// F4 — reescrito sobre <c>RelacionEmpresarial</c> en vez de
+    /// <c>SubcontrataCliente</c>/<c>SubcontrataEmpresa</c> (contrato
+    /// verificado con paridad exacta OLD/NEW).
+    ///
+    /// El filtro <c>Proveedora.NivelServicio != null</c> es el marcador
+    /// TRANSITORIO de F3a que distingue una subcontrata — no el contrato
+    /// definitivo. Se retira cuando F4 termine de re-anclar el nivel de
+    /// servicio a <c>RelacionEmpresarial</c>, nunca antes: ver el ratchet
+    /// pendiente (§ 6 del diseño físico) que debe existir antes de retirar
+    /// esa columna mientras este método siga dependiendo de ella.
+    /// </summary>
     public async Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
         if (_subcontrataIdsResueltos) return _subcontrataIds;
@@ -261,8 +286,12 @@ public class AlcanceDatosService(
 
         var empresaIds = await ObtenerEmpresaIdsVisiblesAsync(cancellationToken) ?? [];
 
-        var porCliente = dbContext.SubcontratasClientes.Where(sc => clienteIds.Contains(sc.ClienteId)).Select(sc => sc.SubcontrataId);
-        var porEmpresa = dbContext.SubcontratasEmpresas.Where(se => empresaIds.Contains(se.EmpresaId)).Select(se => se.SubcontrataId);
+        var relacionesConSubcontrataComoProveedora = dbContext.RelacionesEmpresariales
+            .Where(r => r.VigenciaHasta == null)
+            .Join(dbContext.Empresas.Where(e => e.NivelServicio != null), r => r.ProveedoraId, e => e.Id, (r, e) => new { r.ClienteId, SubcontrataId = e.Id });
+
+        var porCliente = relacionesConSubcontrataComoProveedora.Where(x => clienteIds.Contains(x.ClienteId)).Select(x => x.SubcontrataId);
+        var porEmpresa = relacionesConSubcontrataComoProveedora.Where(x => empresaIds.Contains(x.ClienteId)).Select(x => x.SubcontrataId);
 
         _subcontrataIds = await porCliente.Concat(porEmpresa).Distinct().ToListAsync(cancellationToken);
         _subcontrataIdsResueltos = true;
