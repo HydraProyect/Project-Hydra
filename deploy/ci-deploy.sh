@@ -25,7 +25,7 @@ case "$ENTORNO" in
     ;;
 esac
 
-/opt/talveg/deploy/resolve-deploy-sha.sh /opt/talveg "${SHA:-}"
+bash /opt/talveg/deploy/resolve-deploy-sha.sh /opt/talveg "${SHA:-}"
 
 cd /opt/talveg/deploy/local
 case "$ENTORNO" in

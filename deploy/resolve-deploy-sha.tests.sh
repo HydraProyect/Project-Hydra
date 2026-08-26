@@ -14,7 +14,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RESOLVER="$SCRIPT_DIR/resolve-deploy-sha.sh"
+# Invocado como `bash <script>` (no directamente) para no depender de que el
+# bit ejecutable sobreviva al checkout — se ha visto perder en Windows.
+RESOLVER=(bash "$SCRIPT_DIR/resolve-deploy-sha.sh")
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
@@ -70,25 +72,25 @@ SHA_B="$(git -C "$WORK_DIR" rev-parse HEAD)"
 git -C "$WORK_DIR" push --quiet origin main
 
 # --- Prueba 1 (la que importa): pedir A cuando origin/main ya está en B ---
-"$RESOLVER" "$WORK_DIR" "$SHA_A"
+"${RESOLVER[@]}" "$WORK_DIR" "$SHA_A"
 HEAD_TRAS_RESOLVER="$(git -C "$WORK_DIR" rev-parse HEAD)"
 assert_eq "pide SHA_A con origin/main ya avanzado a SHA_B -> despliega A, no B" \
   "$SHA_A" "$HEAD_TRAS_RESOLVER"
 
 # --- Prueba 2: pedir B (el más reciente) sigue funcionando ---
-"$RESOLVER" "$WORK_DIR" "$SHA_B"
+"${RESOLVER[@]}" "$WORK_DIR" "$SHA_B"
 HEAD_TRAS_RESOLVER_B="$(git -C "$WORK_DIR" rev-parse HEAD)"
 assert_eq "pide SHA_B (el más reciente) -> despliega B" \
   "$SHA_B" "$HEAD_TRAS_RESOLVER_B"
 
 # --- Prueba 3: SHA con formato inválido se rechaza sin tocar el working tree ---
-assert_fails "rechaza un SHA corto (abreviado)" "$RESOLVER" "$WORK_DIR" "${SHA_A:0:7}"
-assert_fails "rechaza un SHA con caracteres no hexadecimales" "$RESOLVER" "$WORK_DIR" "g0000000000000000000000000000000000000"
-assert_fails "rechaza intento de inyección de comando" "$RESOLVER" "$WORK_DIR" "; rm -rf / #"
+assert_fails "rechaza un SHA corto (abreviado)" "${RESOLVER[@]}" "$WORK_DIR" "${SHA_A:0:7}"
+assert_fails "rechaza un SHA con caracteres no hexadecimales" "${RESOLVER[@]}" "$WORK_DIR" "g0000000000000000000000000000000000000"
+assert_fails "rechaza intento de inyección de comando" "${RESOLVER[@]}" "$WORK_DIR" "; rm -rf / #"
 
 # --- Prueba 4: SHA bien formado pero inexistente se rechaza, no revienta ---
 assert_fails "rechaza un SHA de 40 hex bien formado pero inexistente" \
-  "$RESOLVER" "$WORK_DIR" "0000000000000000000000000000000000000000"
+  "${RESOLVER[@]}" "$WORK_DIR" "0000000000000000000000000000000000000000"
 
 # --- Prueba 5: SHA real pero de una rama nunca mergeada a main se rechaza ---
 git -C "$WORK_DIR" checkout --quiet -b rama-no-mergeada
@@ -100,7 +102,7 @@ git -C "$WORK_DIR" push --quiet origin rama-no-mergeada
 git -C "$WORK_DIR" checkout --quiet main
 
 assert_fails "rechaza un commit real que no es ancestro de origin/main" \
-  "$RESOLVER" "$WORK_DIR" "$SHA_FUERA_DE_MAIN"
+  "${RESOLVER[@]}" "$WORK_DIR" "$SHA_FUERA_DE_MAIN"
 
 echo
 echo "$PRUEBAS pruebas, $FALLOS fallos"
