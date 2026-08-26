@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
 using MediatR;
@@ -36,7 +37,7 @@ public class EditarSubcontrataCommandValidator : AbstractValidator<EditarSubcont
 }
 
 public class EditarSubcontrataCommandHandler(
-    ISubcontrataRepository repositorio,
+    IEmpresaRepository repositorio,
     ISubcontrataClienteRepository subcontrataClienteRepositorio,
     ISubcontrataEmpresaRepository subcontrataEmpresaRepositorio,
     IEmpresasQueryContext empresasContext,
@@ -59,7 +60,7 @@ public class EditarSubcontrataCommandHandler(
         if (!string.IsNullOrWhiteSpace(request.Cif) && await repositorio.ExisteConCifAsync(request.Cif, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.CifDuplicado", "Ya existe una subcontrata con este CIF."));
 
-        subcontrata.Actualizar(request.RazonSocial, request.Cif);
+        subcontrata.ActualizarComoSubcontrata(request.RazonSocial, request.Cif);
 
         var clientesActuales = await subcontrataClienteRepositorio.ObtenerPorSubcontrataAsync(subcontrata.Id, cancellationToken);
         var clienteIdsDeseados = request.ClienteIds.Distinct().ToHashSet();

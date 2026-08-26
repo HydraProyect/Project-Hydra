@@ -114,9 +114,9 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     public async Task No_compara_trabajadores_de_subcontrata()
     {
         var empresa = new Empresa("Ibertec S.A.");
-        var subcontrata = new Subcontrata("Subcontrata de Limpieza");
+        var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata de Limpieza", null, NivelServicioSubcontrata.Gestionada.ToString());
         _dbContext.Empresas.Add(empresa);
-        _dbContext.Subcontratas.Add(subcontrata);
+        _dbContext.Empresas.Add(subcontrata);
 
         var trabajadorSubcontrata = Trabajador.DeSubcontrata(subcontrata.Id, "Juan", "Perez Lopez", "11111111H");
         _dbContext.Trabajadores.Add(trabajadorSubcontrata);

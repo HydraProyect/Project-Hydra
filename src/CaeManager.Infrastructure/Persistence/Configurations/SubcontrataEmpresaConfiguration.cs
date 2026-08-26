@@ -16,7 +16,8 @@ public class SubcontrataEmpresaConfiguration : IEntityTypeConfiguration<Subcontr
         builder.HasIndex(se => se.EmpresaId);
 
         // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md.
-        builder.HasOne<Subcontrata>().WithMany()
+        // F3b-Subcontrata — SubcontrataId repunta contra Empresas.
+        builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(se => new { se.TenantId, se.SubcontrataId })
             .HasPrincipalKey(s => new { s.TenantId, s.Id })
             .OnDelete(DeleteBehavior.Restrict);

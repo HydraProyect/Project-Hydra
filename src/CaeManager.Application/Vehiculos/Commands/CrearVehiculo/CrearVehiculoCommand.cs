@@ -1,6 +1,5 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Subcontratas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Vehiculos;
 using FluentValidation;
@@ -44,7 +43,7 @@ public class CrearVehiculoCommandValidator : AbstractValidator<CrearVehiculoComm
 }
 
 public class CrearVehiculoCommandHandler(
-    IVehiculoRepository repositorio, IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, IUnitOfWork unitOfWork)
+    IVehiculoRepository repositorio, IEmpresasQueryContext empresasContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearVehiculoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearVehiculoCommand request, CancellationToken cancellationToken)
@@ -55,7 +54,7 @@ public class CrearVehiculoCommandHandler(
             return Result.Fallo<Guid>(Error.Crear("Vehiculo.EmpresaNoEncontrada", "No encontramos esta empresa."));
 
         if (request.SubcontrataId is { } subcontrataId
-            && !await subcontratasContext.Subcontratas.AnyAsync(s => s.Id == subcontrataId, cancellationToken))
+            && !await empresasContext.Empresas.AnyAsync(e => e.Id == subcontrataId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Vehiculo.SubcontrataNoEncontrada", "No encontramos esta subcontrata."));
 
         if (await repositorio.ExisteConMatriculaAsync(request.NumeroPlaca, cancellationToken: cancellationToken))

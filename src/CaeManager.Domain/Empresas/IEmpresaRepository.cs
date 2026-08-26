@@ -18,5 +18,16 @@ public interface IEmpresaRepository
     /// </summary>
     Task<bool> TieneCentrosComoTitularAsync(Guid empresaId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// F3b-Subcontrata — reemplaza a
+    /// <c>ISubcontrataRepository.TieneTrabajadoresAsync</c>. Distinto de
+    /// <see cref="TieneTrabajadoresAsync"/>: el FK repuntado conserva la
+    /// columna <c>Trabajador.SubcontrataId</c> (no se fusiona con
+    /// <c>EmpresaId</c>, mismo patrón P0-1 que el resto de F3b), así que una
+    /// Empresa actuando como Subcontrata debe comprobarse por esa columna,
+    /// no por <c>EmpresaId</c>.
+    /// </summary>
+    Task<bool> TieneTrabajadoresComoSubcontrataAsync(Guid empresaId, CancellationToken cancellationToken = default);
+
     void Agregar(Empresa empresa);
 }
