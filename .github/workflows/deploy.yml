@@ -21,26 +21,22 @@ name: Desplegar
 # La clave SSH (secrets.VPS_SSH_KEY) es de un par dedicado, restringido en el
 # propio VPS (ver /root/.ssh/authorized_keys, entrada con "command=") a solo
 # poder ejecutar /opt/talveg/deploy/ci-deploy.sh — ese script decide, por el
-# comando recibido ("staging" o "produccion"), cuál de los dos stacks
-# reconstruye. Aunque este secreto se filtrara, no da una shell libre en el
-# VPS: como mucho, permite forzar un redeploy desde el main real de GitHub.
+# primer token recibido ("staging" o "produccion"), cuál de los dos stacks
+# reconstruye, y usa el segundo token (el SHA) para fijar exactamente qué
+# commit despliega (ver deploy/resolve-deploy-sha.sh). Aunque este secreto se
+# filtrara, no da una shell libre en el VPS: como mucho, permite forzar el
+# redeploy de un commit que ya sea ancestro real de main en GitHub.
+#
+# El SHA que se pasa es `github.sha`: el commit exacto que disparó ESTE job,
+# no "lo que haya en main cuando el comando llegue a ejecutarse". Esto
+# importa especialmente para producción, cuya aprobación manual puede tardar
+# horas — sin fijar el SHA, un job aprobado para el commit X podía terminar
+# desplegando el commit Y si main avanzó mientras se esperaba la aprobación
+# (incidente real, 2026-08-26).
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
-# Sin esto, dos push a main en poco tiempo (o un push + un workflow_dispatch
-# manual) disparan dos ejecuciones de este workflow en paralelo, y ambas
-# corren `docker compose up --build` contra el mismo VPS al mismo tiempo:
-# una gana, la otra falla con "container name already in use" al chocar con
-# los contenedores que la primera ya está recreando (visto en el run #47,
-# 2026-08-26). `cancel-in-progress: false` es deliberado: un despliegue en
-# marcha nunca debe cancelarse a mitad de `docker compose up` — eso dejaría
-# el stack a medio reconstruir. La segunda ejecución debe esperar a que la
-# primera termine, no interrumpirla.
-concurrency:
-  group: deploy
-  cancel-in-progress: false
 
 env:
   VPS_HOST: 2.29.9.79
@@ -50,6 +46,14 @@ jobs:
     if: github.event_name == 'push'
     name: Desplegar a staging
     runs-on: ubuntu-latest
+    # Concurrencia por entorno, no por workflow entero: dos deploys de
+    # staging no deben chocar entre sí (causa real del run #47, dos runs
+    # desplegando staging a la vez), pero staging tampoco debe quedar
+    # bloqueado detrás de una aprobación de producción pendiente durante
+    # horas — son colas independientes.
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
     steps:
       - name: Preparar clave SSH
         run: |
@@ -57,13 +61,20 @@ jobs:
           printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
-      - name: git pull + docker compose up --build (staging)
-        run: ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" staging
+      - name: Desplegar SHA exacto a staging
+        run: ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "staging ${{ github.sha }}"
 
   produccion:
     name: Desplegar a producción
     runs-on: ubuntu-latest
     environment: produccion
+    # Grupo propio, igual que staging — y es lo que de verdad importa aquí:
+    # si dos aprobaciones de producción quedaran pendientes a la vez, esta
+    # cola evita que ambas ejecuten `docker compose up` sobre el mismo VPS
+    # en paralelo cuando se aprueben.
+    concurrency:
+      group: deploy-produccion
+      cancel-in-progress: false
     steps:
       - name: Preparar clave SSH
         run: |
@@ -71,5 +82,5 @@ jobs:
           printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
-      - name: git pull + docker compose up --build (producción)
-        run: ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" produccion
+      - name: Desplegar SHA exacto a producción
+        run: ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "produccion ${{ github.sha }}"
