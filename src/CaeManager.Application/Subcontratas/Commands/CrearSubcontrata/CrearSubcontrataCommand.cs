@@ -1,7 +1,9 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.RelacionesEmpresariales;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
 using MediatR;
@@ -37,6 +39,7 @@ public class CrearSubcontrataCommandHandler(
     IEmpresaRepository repositorio,
     ISubcontrataClienteRepository subcontrataClienteRepositorio,
     ISubcontrataEmpresaRepository subcontrataEmpresaRepositorio,
+    IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     IEmpresasQueryContext empresasContext,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearSubcontrataCommand, Result<Guid>>
@@ -62,11 +65,33 @@ public class CrearSubcontrataCommandHandler(
         var subcontrata = Empresa.CrearComoSubcontrata(request.RazonSocial, request.Cif, NivelServicioSubcontrata.Gestionada.ToString());
         repositorio.Agregar(subcontrata);
 
-        foreach (var clienteId in clienteIds)
-            subcontrataClienteRepositorio.Agregar(new SubcontrataCliente(subcontrata.Id, clienteId));
+        // Doble escritura F4 (transitoria — ver SincronizacionRelacionEmpresarial):
+        // RazonSocial/Cif no tocan RelacionEmpresarial. EmpresaIds y ClienteIds
+        // sí — ambos son de primer nivel (proveedora=subcontrata), salvo que
+        // ClienteId coincida con el EnmarcadaEnId resuelto por debajo.
+        //
+        // El candidato de enmarcadaEn se resuelve contra `empresaIds` EN
+        // MEMORIA (no contra la BD): los vínculos SubcontrataEmpresa de esta
+        // Subcontrata nueva todavía no existen en RelacionEmpresarial en este
+        // punto de la transacción, así que el repositorio no podría
+        // encontrarlos si se le pidiera resolverlos por su propia Id.
+        var ahora = DateTime.UtcNow;
 
         foreach (var empresaId in empresaIds)
+        {
             subcontrataEmpresaRepositorio.Agregar(new SubcontrataEmpresa(subcontrata.Id, empresaId));
+            await SincronizacionRelacionEmpresarial.SincronizarAltaAsync(
+                relacionEmpresarialRepositorio, subcontrata.Id, empresaId, ahora, cancellationToken: cancellationToken);
+        }
+
+        foreach (var clienteId in clienteIds)
+        {
+            subcontrataClienteRepositorio.Agregar(new SubcontrataCliente(subcontrata.Id, clienteId));
+            var enmarcadaEnId = await relacionEmpresarialRepositorio.ObtenerCandidatoUnicoParaEnmarcarAsync(
+                empresaIds, clienteId, cancellationToken);
+            await SincronizacionRelacionEmpresarial.SincronizarAltaAsync(
+                relacionEmpresarialRepositorio, subcontrata.Id, clienteId, ahora, enmarcadaEnId, cancellationToken);
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

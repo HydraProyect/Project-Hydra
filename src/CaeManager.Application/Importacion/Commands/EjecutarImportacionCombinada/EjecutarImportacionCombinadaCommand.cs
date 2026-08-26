@@ -1,10 +1,12 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.RelacionesEmpresariales;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -56,6 +58,7 @@ public record ResultadoImportacionCombinadaDto(
 public class EjecutarImportacionCombinadaCommandHandler(
     IEmpresaRepository empresaRepositorio,
     IEmpresaClienteRepository empresaClienteRepositorio,
+    IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     ICentroRepository centroRepositorio,
     ITrabajadorRepository trabajadorRepositorio,
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
@@ -68,6 +71,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
         var plan = request.Plan;
         var reemplazar = request.ReemplazarExistentes;
         var omitidosEnEscritura = new List<ItemImportacionDto>();
+        var ahora = DateTime.UtcNow;
 
         var clientesPorCif = await empresasContext.Empresas
             .Where(e => e.Cif != null)
@@ -163,12 +167,23 @@ public class EjecutarImportacionCombinadaCommandHandler(
             var asociacionesDeLaEmpresa = asociacionesActuales.Where(ec => ec.EmpresaId == empresa.Id).ToList();
             var clienteIdsActuales = asociacionesDeLaEmpresa.Select(ec => ec.ClienteId).ToHashSet();
 
+            // Doble escritura F4 (transitoria — ver SincronizacionRelacionEmpresarial).
+            // SincronizarAltaAsync es idempotente por sí mismo (no duplica si ya
+            // existe una relación vigente para el par): ejecutar la misma
+            // importación dos veces con reemplazar=false recalcula
+            // "clienteIdsDeseados.Except(clienteIdsActuales)" como un conjunto
+            // VACÍO la segunda vez (las asociaciones ya están en la tabla
+            // legacy), así que ninguna de las dos fuentes crece en la segunda
+            // ejecución — la garantía de idempotencia es la misma que ya tenía
+            // el lado legacy, no una nueva.
             if (reemplazar)
             {
                 foreach (var ec in asociacionesDeLaEmpresa.Where(ec => !clienteIdsDeseados.Contains(ec.ClienteId)))
                 {
                     empresaClienteRepositorio.Eliminar(ec);
                     asociacionesActuales.Remove(ec);
+                    await SincronizacionRelacionEmpresarial.SincronizarBajaAsync(
+                        relacionEmpresarialRepositorio, empresa.Id, ec.ClienteId, ahora, cancellationToken);
                 }
             }
 
@@ -178,6 +193,8 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 var nuevaAsociacion = new EmpresaCliente(empresa.Id, clienteId);
                 empresaClienteRepositorio.Agregar(nuevaAsociacion);
                 asociacionesActuales.Add(nuevaAsociacion);
+                await SincronizacionRelacionEmpresarial.SincronizarAltaAsync(
+                    relacionEmpresarialRepositorio, empresa.Id, clienteId, ahora, cancellationToken: cancellationToken);
                 nuevasAsociaciones++;
             }
 
