@@ -1,5 +1,6 @@
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
+using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
@@ -125,6 +126,45 @@ public class F42bRelacionEmpresarialDiscriminadorTests : IAsyncLifetime
 
         resultado.Should().NotBeNull();
         resultado!.ClienteIds.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El cambio de comportamiento real de este lector no es el discriminador
+    /// (la consulta base ya filtra <c>NivelServicio != null</c>) sino el filtro
+    /// de vigencia: la tabla legacy <c>SubcontratasEmpresas</c> borraba
+    /// físicamente al desvincular, así que "sin fila" y "relación cerrada"
+    /// eran indistinguibles. Con la arista unificada, una subcontrata que dejó
+    /// de prestar servicio sigue teniendo su fila — sin el filtro, el selector
+    /// seguiría ofreciéndola.
+    /// </summary>
+    [Fact]
+    public async Task ObtenerSubcontratasParaSelectorQuery_no_ofrece_una_subcontrata_cuya_relacion_ya_esta_cerrada()
+    {
+        Guid empresaPropiaId, subcontrataVigenteId;
+        await using (var contexto = CrearContexto())
+        {
+            var empresaPropia = new Empresa("Empresa Propia Del Selector S.L.", "B10380269");
+            var vigente = Empresa.CrearComoSubcontrata("Subcontrata Todavia Activa S.L.", "B10380277", NivelServicioSubcontrata.Gestionada.ToString());
+            var cerrada = Empresa.CrearComoSubcontrata("Subcontrata Ya Desvinculada S.L.", "B10380285", NivelServicioSubcontrata.Gestionada.ToString());
+            var sinRelacion = Empresa.CrearComoSubcontrata("Subcontrata Sin Vinculo S.L.", "B10380293", NivelServicioSubcontrata.Supervisada.ToString());
+            contexto.Empresas.AddRange(empresaPropia, vigente, cerrada, sinRelacion);
+            await contexto.SaveChangesAsync();
+            empresaPropiaId = empresaPropia.Id; subcontrataVigenteId = vigente.Id;
+
+            var ahora = DateTime.UtcNow;
+            var relacionCerrada = RelacionEmpresarial.Migrar(cerrada.Id, empresaPropiaId, ahora.AddMonths(-3), ahora);
+            relacionCerrada.Cerrar(ahora);
+            contexto.RelacionesEmpresariales.AddRange(
+                RelacionEmpresarial.Migrar(subcontrataVigenteId, empresaPropiaId, ahora, ahora),
+                relacionCerrada);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = new ObtenerSubcontratasParaSelectorQueryHandler(lectura);
+        var resultado = await handler.Handle(new ObtenerSubcontratasParaSelectorQuery(empresaPropiaId), CancellationToken.None);
+
+        resultado.Should().ContainSingle().Which.Id.Should().Be(subcontrataVigenteId);
     }
 
     private CaeManagerDbContext CrearContexto()
