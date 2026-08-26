@@ -7,6 +7,7 @@ using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcon
 using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
 using FluentAssertions;
 using Xunit;
@@ -239,5 +240,7 @@ public class AlcanceDeCredencialesDeAccesoTests
         public IQueryable<EmpresaCliente> EmpresasClientes => Explota<EmpresaCliente>();
 
         public IQueryable<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Explota<CredencialAccesoEmpresa>();
+
+        public IQueryable<RelacionEmpresarial> RelacionesEmpresariales => Explota<RelacionEmpresarial>();
     }
 }
