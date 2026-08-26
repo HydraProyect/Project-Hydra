@@ -33,6 +33,18 @@ name: Desplegar
 # horas — sin fijar el SHA, un job aprobado para el commit X podía terminar
 # desplegando el commit Y si main avanzó mientras se esperaba la aprobación
 # (incidente real, 2026-08-26).
+#
+# `produccion` depende de `staging` (needs:) por una razón que no es de
+# orden de despliegue sino de disco: los dos `docker-compose.*.yml` compilan
+# con `build: context: ../..`, es decir, ambos entornos comparten EL MISMO
+# checkout git en /opt/talveg. Sin este `needs:`, GitHub podría arrancar
+# ambos jobs a la vez (si la aprobación de producción llegara rápido) y sus
+# dos `git checkout --detach <sha>` + `docker compose build` competirían por
+# el mismo árbol de ficheros en disco — pisándose entre sí y pudiendo acabar
+# construyendo cualquiera de los dos con el SHA equivocado, precisamente lo
+# que el SHA determinista de arriba quiere evitar. `needs: staging` fuerza a
+# que el build de staging termine (éxito o fallo) antes de que producción
+# empiece siquiera a esperar aprobación.
 on:
   push:
     branches: [main]
@@ -43,7 +55,10 @@ env:
 
 jobs:
   staging:
-    if: github.event_name == 'push'
+    # workflow_dispatch también dispara staging (antes solo push) — hace
+    # falta una vía manual para probar el mecanismo de despliegue (SHA
+    # determinista, etc.) sin esperar a un push real ni tocar producción.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     name: Desplegar a staging
     runs-on: ubuntu-latest
     # Concurrencia por entorno, no por workflow entero: dos deploys de
@@ -66,6 +81,7 @@ jobs:
 
   produccion:
     name: Desplegar a producción
+    needs: staging
     runs-on: ubuntu-latest
     environment: produccion
     # Grupo propio, igual que staging — y es lo que de verdad importa aquí:
