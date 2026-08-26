@@ -2,7 +2,7 @@ using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 using CaeManager.Application.Tests.Notificaciones;
 using CaeManager.Application.Tests.Operaciones;
 using CaeManager.Application.Tests.TiposDocumento;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using FluentAssertions;
 using Xunit;
 
@@ -11,7 +11,7 @@ namespace CaeManager.Application.Tests.Clientes;
 public class ReasignarEjecutivoClienteCommandHandlerTests
 {
     private static ReasignarEjecutivoClienteCommandHandler CrearHandler(
-        ClienteRepositorioFalso clienteRepositorio,
+        EmpresaRepositorioFalso clienteRepositorio,
         ConfiguracionIaDocumentoClienteRepositorioFalso configuracionIaRepositorio,
         NotificacionUsuarioRepositorioFalso notificacionRepositorio,
         UnitOfWorkFalso unitOfWork,
@@ -26,9 +26,9 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
     {
         var gestorAnteriorId = Guid.NewGuid();
         var gestorNuevoId = Guid.NewGuid();
-        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false, ejecutivoUsuarioId: gestorAnteriorId);
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, gestorAnteriorId);
 
-        var clienteRepositorio = new ClienteRepositorioFalso();
+        var clienteRepositorio = new EmpresaRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
         var configuracionIaRepositorio = new ConfiguracionIaDocumentoClienteRepositorioFalso();
         var notificacionRepositorio = new NotificacionUsuarioRepositorioFalso();
@@ -49,10 +49,10 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
     public async Task Avisa_al_nuevo_gestor_de_los_tipos_de_documento_sin_lectura_ia()
     {
         var gestorNuevoId = Guid.NewGuid();
-        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false);
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, null);
         var tipoDocumentoId = Guid.NewGuid();
 
-        var clienteRepositorio = new ClienteRepositorioFalso();
+        var clienteRepositorio = new EmpresaRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
         var configuracionIaRepositorio = new ConfiguracionIaDocumentoClienteRepositorioFalso();
         configuracionIaRepositorio.NombresTipoDocumento[tipoDocumentoId] = "ITA";
@@ -74,8 +74,8 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
     [InlineData((string?)null)]
     public async Task Roles_sin_permiso_no_pueden_reasignar(string? rol)
     {
-        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false);
-        var clienteRepositorio = new ClienteRepositorioFalso();
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, null);
+        var clienteRepositorio = new EmpresaRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
         var configuracionIaRepositorio = new ConfiguracionIaDocumentoClienteRepositorioFalso();
         var notificacionRepositorio = new NotificacionUsuarioRepositorioFalso();
@@ -95,8 +95,8 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
     [Fact]
     public async Task CoordinadorCae_reasigna_un_cliente_dentro_de_su_ambito_de_supervision()
     {
-        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false);
-        var clienteRepositorio = new ClienteRepositorioFalso();
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, null);
+        var clienteRepositorio = new EmpresaRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
         var configuracionIaRepositorio = new ConfiguracionIaDocumentoClienteRepositorioFalso();
         var notificacionRepositorio = new NotificacionUsuarioRepositorioFalso();
@@ -115,8 +115,8 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
     [Fact]
     public async Task CoordinadorCae_no_puede_reasignar_un_cliente_fuera_de_su_ambito_de_supervision()
     {
-        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false);
-        var clienteRepositorio = new ClienteRepositorioFalso();
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, null);
+        var clienteRepositorio = new EmpresaRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
         var configuracionIaRepositorio = new ConfiguracionIaDocumentoClienteRepositorioFalso();
         var notificacionRepositorio = new NotificacionUsuarioRepositorioFalso();
@@ -141,8 +141,8 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
     [Fact]
     public async Task Administrador_reasigna_sin_restriccion_de_ambito()
     {
-        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false);
-        var clienteRepositorio = new ClienteRepositorioFalso();
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, null);
+        var clienteRepositorio = new EmpresaRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
         var configuracionIaRepositorio = new ConfiguracionIaDocumentoClienteRepositorioFalso();
         var notificacionRepositorio = new NotificacionUsuarioRepositorioFalso();
@@ -164,8 +164,8 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
     public async Task No_hace_nada_si_el_gestor_no_cambia()
     {
         var gestorId = Guid.NewGuid();
-        var cliente = new Cliente("Cadena Industrial Iberia", "B12345674", false, ejecutivoUsuarioId: gestorId);
-        var clienteRepositorio = new ClienteRepositorioFalso();
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, gestorId);
+        var clienteRepositorio = new EmpresaRepositorioFalso();
         clienteRepositorio.Agregar(cliente);
         var configuracionIaRepositorio = new ConfiguracionIaDocumentoClienteRepositorioFalso();
         var notificacionRepositorio = new NotificacionUsuarioRepositorioFalso();

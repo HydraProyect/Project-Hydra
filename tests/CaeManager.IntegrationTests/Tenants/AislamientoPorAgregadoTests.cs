@@ -532,8 +532,10 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     private static async Task<Guid> SembrarClienteAsync(CaeManagerDbContext contexto)
     {
-        var cliente = new Cliente($"Cliente de prueba {Guid.NewGuid():N}", GenerarCifValido(), esCritico: false);
-        contexto.Clientes.Add(cliente);
+        // F3b — anclas de FK para Centro/Proyecto/TarifaCliente/EmpresaCliente/
+        // SubcontrataCliente: sus ClienteId repuntan contra Empresas.
+        var cliente = Empresa.CrearComoCliente($"Cliente de prueba {Guid.NewGuid():N}", GenerarCifValido(), false, null, null);
+        contexto.Empresas.Add(cliente);
         await contexto.SaveChangesAsync();
         return cliente.Id;
     }

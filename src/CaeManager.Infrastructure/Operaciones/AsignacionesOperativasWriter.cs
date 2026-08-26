@@ -218,8 +218,9 @@ public class AsignacionesOperativasWriter(
         var idsOperadores = operadores.Select(o => o.UsuarioId).ToList();
         if (idsOperadores.Count == 0) return;
 
-        var clientes = await dbContext.Clientes
-            .Where(c => c.EjecutivoUsuarioId != null && idsOperadores.Contains(c.EjecutivoUsuarioId!.Value))
+        // F3b — Empresas, no la tabla legacy Clientes (ver AlcanceDatosService).
+        var clientes = await dbContext.Empresas
+            .Where(c => c.EsCritico != null && c.EjecutivoUsuarioId != null && idsOperadores.Contains(c.EjecutivoUsuarioId!.Value))
             .Select(c => new { c.Id, EjecutivoId = c.EjecutivoUsuarioId!.Value })
             .ToListAsync(cancellationToken);
 

@@ -1,6 +1,6 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +21,7 @@ public record FilaInformeAsignacionDto(string TrabajadorNombre, string CentroNom
 
 public class GenerarInformeAsignacionesQueryHandler(
     IAsignacionesQueryContext asignacionesContext, ITrabajadoresQueryContext trabajadoresContext,
-    ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext)
+    ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext)
     : IRequestHandler<GenerarInformeAsignacionesQuery, InformeAsignacionesDto>
 {
     public async Task<InformeAsignacionesDto> Handle(GenerarInformeAsignacionesQuery request, CancellationToken cancellationToken)
@@ -57,7 +57,7 @@ public class GenerarInformeAsignacionesQueryHandler(
 
         if (clienteId is { } clId)
         {
-            var cliente = await clientesContext.Clientes.Where(c => c.Id == clId).Select(c => c.RazonSocial).SingleOrDefaultAsync(cancellationToken);
+            var cliente = await empresasContext.Empresas.Where(c => c.Id == clId).Select(c => c.RazonSocial).SingleOrDefaultAsync(cancellationToken);
             return cliente is null ? "Cliente" : $"{cliente} · todo el cliente";
         }
 

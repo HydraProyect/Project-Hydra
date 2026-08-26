@@ -1,5 +1,5 @@
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Proyectos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -26,7 +26,8 @@ public class ProyectoConfiguration : IEntityTypeConfiguration<Proyecto>
         builder.HasIndex(p => p.CentroId);
 
         // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md.
-        builder.HasOne<Cliente>().WithMany()
+        // F3b — ClienteId repunta contra Empresas (ver CentroConfiguration).
+        builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(p => new { p.TenantId, p.ClienteId })
             .HasPrincipalKey(c => new { c.TenantId, c.Id })
             .OnDelete(DeleteBehavior.Restrict);

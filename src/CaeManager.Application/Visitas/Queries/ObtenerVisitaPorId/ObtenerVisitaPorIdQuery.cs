@@ -1,5 +1,4 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Visitas;
@@ -24,7 +23,7 @@ public record VisitaDetalleDto(
     TimeOnly? HoraEstimadaAcceso,
     Guid Version);
 
-public class ObtenerVisitaPorIdQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVisitaPorIdQueryHandler(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVisitaPorIdQuery, VisitaDetalleDto?>
 {
     public async Task<VisitaDetalleDto?> Handle(ObtenerVisitaPorIdQuery request, CancellationToken cancellationToken)
@@ -32,7 +31,9 @@ public class ObtenerVisitaPorIdQueryHandler(ICentrosQueryContext centrosContext,
         var visita = await (
             from v in visitasContext.Visitas
             join centro in centrosContext.Centros on v.CentroId equals centro.Id
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            // F3b — ClienteId ahora repunta contra Empresas (join independiente
+            // del de EmpresaId de abajo: son dos roles distintos sobre la misma tabla).
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
             where v.Id == request.Id
             select new

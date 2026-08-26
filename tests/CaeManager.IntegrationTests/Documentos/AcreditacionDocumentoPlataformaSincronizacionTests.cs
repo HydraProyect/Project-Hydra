@@ -2,7 +2,6 @@ using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Asignaciones;
@@ -42,9 +41,9 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
         Guid trabajadorId, tipoDocumentoId, canalId;
         await using (var contexto = CrearContexto())
         {
-            var cliente = new Cliente("Cliente Acreditación S.L.", "B10380194", esCritico: false);
+            var cliente = Empresa.CrearComoCliente("Cliente Acreditación S.L.", "B10380194", false, null, null);
             var empresa = new Empresa("Empresa Acreditación S.L.", "B10380186");
-            contexto.Clientes.Add(cliente);
+            contexto.Empresas.Add(cliente);
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
@@ -146,9 +145,9 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
         Guid trabajadorId, tipoDocumentoId;
         await using (var contexto = CrearContexto())
         {
-            var cliente = new Cliente("Cliente Renovación S.L.", "B10380194", esCritico: false);
+            var cliente = Empresa.CrearComoCliente("Cliente Renovación S.L.", "B10380194", false, null, null);
             var empresa = new Empresa("Empresa Renovación S.L.", "B10380186");
-            contexto.Clientes.Add(cliente);
+            contexto.Empresas.Add(cliente);
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
@@ -220,7 +219,7 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
 
     private static CrearDocumentoCommandHandler ConstruirHandlerCrear(CaeManagerDbContext contexto) =>
         new(
-            new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto, contexto,
+            new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto,
             contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
             new DerivarCanalesAplicablesDocumentoService(contexto, contexto, contexto),
             new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso());

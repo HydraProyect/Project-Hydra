@@ -1,6 +1,6 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Empresas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,7 +21,7 @@ public record ObtenerMacrosQuery(Guid? ClienteId = null) : IRequest<IReadOnlyLis
 public record MacroListaDto(
     Guid Id, Guid? ClienteId, string? ClienteRazonSocial, string Titulo, string CuerpoHtml, Guid Version);
 
-public class ObtenerMacrosQueryHandler(IClientesQueryContext clientesContext, IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerMacrosQueryHandler(IEmpresasQueryContext empresasContext, IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerMacrosQuery, IReadOnlyList<MacroListaDto>>
 {
     public async Task<IReadOnlyList<MacroListaDto>> Handle(ObtenerMacrosQuery request, CancellationToken cancellationToken)
@@ -38,9 +38,11 @@ public class ObtenerMacrosQueryHandler(IClientesQueryContext clientesContext, IC
             ? comunicacionesContext.MacrosRespuesta.Where(m => m.ClienteId == null)
             : comunicacionesContext.MacrosRespuesta.Where(m => m.ClienteId == null || m.ClienteId == clienteId);
 
+        // MacroRespuesta.ClienteId es un Empresa.Id desde F3b (CrearMacroCommand
+        // resuelve el Cliente vía IEmpresaRepository): "Cliente" es una Empresa contraparte.
         return await (
             from macro in consulta
-            join cliente in clientesContext.Clientes on macro.ClienteId equals cliente.Id into clientesUnidos
+            join cliente in empresasContext.Empresas on macro.ClienteId equals cliente.Id into clientesUnidos
             from cliente in clientesUnidos.DefaultIfEmpty()
             orderby macro.Titulo
             select new MacroListaDto(

@@ -1,9 +1,9 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
@@ -60,7 +60,7 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
     IAsignacionesQueryContext asignacionesContext,
     ITrabajadoresQueryContext trabajadoresContext,
     ICentrosQueryContext centrosContext,
-    IClientesQueryContext clientesContext,
+    IEmpresasQueryContext empresasContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IConfiguracionQueryContext configuracionContext,
     IAlcanceDatosService alcanceDatos)
@@ -78,7 +78,7 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
             from vinculo in subcontratasContext.SubcontratasClientes
             where vinculo.SubcontrataId == request.SubcontrataId
             join centro in centrosContext.Centros on vinculo.ClienteId equals centro.ClienteId
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new CentroSeleccionableDto(centro.Id, centro.Nombre, cliente.RazonSocial))
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -119,7 +119,7 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
         var centros = await (
             from centro in centrosContext.Centros
             where centroIds.Contains(centro.Id)
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new { centro.Id, centro.Nombre, ClienteRazonSocial = cliente.RazonSocial })
             .ToListAsync(cancellationToken);
 

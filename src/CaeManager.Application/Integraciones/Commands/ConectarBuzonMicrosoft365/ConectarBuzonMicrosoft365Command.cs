@@ -1,6 +1,6 @@
 using CaeManager.Application.Common;
 using System.Security.Cryptography;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
@@ -38,7 +38,7 @@ public class ConectarBuzonMicrosoft365CommandHandler(
     IConexionIntegracionRepository conexionRepositorio,
     ICredencialIntegracionRepository credencialRepositorio,
     ISuscripcionWebhookRepository suscripcionRepositorio,
-    IClienteRepository clienteRepositorio,
+    IEmpresaRepository empresaRepositorio,
     IAlcanceDatosService alcanceDatos,
     IDirectorioUsuariosService directorioUsuarios,
     IMicrosoft365GraphClient graphClient,
@@ -50,7 +50,7 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
         if (request.ClienteId is { } clienteId)
         {
-            var cliente = await clienteRepositorio.ObtenerPorIdAsync(clienteId, cancellationToken);
+            var cliente = await empresaRepositorio.ObtenerPorIdAsync(clienteId, cancellationToken);
             if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
                 return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
         }

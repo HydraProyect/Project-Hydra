@@ -1,5 +1,5 @@
 using CaeManager.Application.Common;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -20,7 +20,7 @@ public class CrearMacroCommandValidator : AbstractValidator<CrearMacroCommand>
 }
 
 public class CrearMacroCommandHandler(
-    IMacroRespuestaRepository repositorio, IClienteRepository clienteRepositorio,
+    IMacroRespuestaRepository repositorio, IEmpresaRepository empresaRepositorio,
     IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearMacroCommand, Result<Guid>>
 {
@@ -30,7 +30,7 @@ public class CrearMacroCommandHandler(
         {
             // Mismo alcance que EditarMacroCommandHandler: sin esto se podía
             // dar de alta una plantilla en la cartera de otro gestor.
-            var cliente = await clienteRepositorio.ObtenerPorIdAsync(request.ClienteId.Value, cancellationToken);
+            var cliente = await empresaRepositorio.ObtenerPorIdAsync(request.ClienteId.Value, cancellationToken);
             if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
                 return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
         }

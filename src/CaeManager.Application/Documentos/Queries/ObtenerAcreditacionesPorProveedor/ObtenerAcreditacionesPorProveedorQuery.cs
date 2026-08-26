@@ -1,5 +1,4 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
@@ -38,7 +37,7 @@ public record AcreditacionDrillDownDto(
 
 public class ObtenerAcreditacionesPorProveedorQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
-    IClientesQueryContext clientesContext, IProveedoresPlataformaCaeQueryContext proveedoresContext,
+    IProveedoresPlataformaCaeQueryContext proveedoresContext,
     ITrabajadoresQueryContext trabajadoresContext, IEmpresasQueryContext empresasContext,
     ITiposDocumentoQueryContext tiposDocumentoContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerAcreditacionesPorProveedorQuery, IReadOnlyList<ProveedorAcreditacionesDto>>
@@ -82,10 +81,12 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             .Where(p => proveedorIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => (p.Nombre, p.Codigo), cancellationToken);
 
+        // Centro.ClienteId ya apunta a Empresas (F3): el "Cliente" dueño del Centro
+        // se resuelve contra Empresas, no contra la tabla Clientes congelada.
         var clienteIds = filas.Select(f => f.ClienteId).Distinct().ToList();
-        var clientes = await clientesContext.Clientes
-            .Where(c => clienteIds.Contains(c.Id))
-            .ToDictionaryAsync(c => c.Id, c => c.RazonSocial, cancellationToken);
+        var clientes = await empresasContext.Empresas
+            .Where(e => clienteIds.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
 
         var trabajadorIds = filas.Where(f => f.TrabajadorId is not null).Select(f => f.TrabajadorId!.Value).Distinct().ToList();
         var trabajadores = await trabajadoresContext.Trabajadores

@@ -1,4 +1,3 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
@@ -27,7 +26,7 @@ namespace CaeManager.Application.Trabajadores.Deteccion;
 /// documento, no duplica.
 /// </summary>
 public class DeteccionTrabajadoresService(
-    IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
+    IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
     IFileStorageService almacenamiento,
     IExtraccionTrabajadoresIaService extraccion,
     IDeteccionTrabajadorRepository deteccionRepositorio,
@@ -127,7 +126,7 @@ public class DeteccionTrabajadoresService(
     {
         var empresa = await empresasContext.Empresas.FirstOrDefaultAsync(e => e.Id == empresaId, cancellationToken);
 
-        var gestoresANotificar = await clientesContext.Clientes
+        var gestoresANotificar = await empresasContext.Empresas
             .Where(c => clientesVinculados.Contains(c.Id) && c.EjecutivoUsuarioId != null)
             .Select(c => c.EjecutivoUsuarioId!.Value)
             .Distinct()

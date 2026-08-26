@@ -1,5 +1,5 @@
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Trabajadores;
@@ -82,7 +82,8 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
         // FKs compuestas del ámbito — mismo mecanismo y mismo motivo que en
         // AsignacionOperacion: imposibilitan físicamente apuntar a datos de
         // otro tenant.
-        builder.HasOne<Cliente>().WithMany()
+        // F3b — AmbitoRelacionClienteId repunta contra Empresas (ver CentroConfiguration).
+        builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(a => new { a.PropietarioTenantId, a.AmbitoRelacionClienteId })
             .HasPrincipalKey(c => new { c.TenantId, c.Id })
             .OnDelete(DeleteBehavior.Restrict);

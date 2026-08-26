@@ -1,7 +1,7 @@
 ﻿using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -44,8 +44,8 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         else
             parametros.Actualizar(UmbralAmbarDias, UmbralRojoDias);
 
-        var cliente = new Cliente("Documentada S.L.", "B12345674", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Documentada S.L.", "B12345674", false, null, null);
+        contexto.Empresas.Add(cliente);
 
         var tipo = new TipoDocumento("Seguro RC", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, esObligatorio: true);
         contexto.TiposDocumento.Add(tipo);
@@ -87,7 +87,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerDocumentosQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new AlcanceDatosServiceFalso(), contexto, contexto);
 
         var resultado = await handler.Handle(
@@ -110,7 +110,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerDocumentosQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new AlcanceDatosServiceFalso(), contexto, contexto);
 
         var resultado = await handler.Handle(
@@ -128,7 +128,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         // mentiría.
         await using var contexto = CrearContexto();
         var handler = new ObtenerDocumentosQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new AlcanceDatosServiceFalso(), contexto, contexto);
 
         var resultado = await handler.Handle(

@@ -1,5 +1,5 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Integraciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +24,7 @@ public record ConexionIntegracionListaDto(
     DateTime FechaConectadaUtc, Guid? GestorPropietarioId);
 
 public class ObtenerConexionesIntegracionQueryHandler(
-    IIntegracionesQueryContext integracionesContext, IClientesQueryContext clientesContext,
+    IIntegracionesQueryContext integracionesContext, IEmpresasQueryContext empresasContext,
     IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerConexionesIntegracionQuery, IReadOnlyList<ConexionIntegracionListaDto>>
 {
@@ -45,7 +45,7 @@ public class ObtenerConexionesIntegracionQueryHandler(
             where conexion.Proveedor == ProveedorIntegracion.Microsoft365
             where clienteIdsVisibles == null || conexion.ClienteId == null || clienteIdsVisibles.Contains(conexion.ClienteId!.Value)
             where !request.SoloPropiasYGenerales || conexion.GestorPropietarioId == null || conexion.GestorPropietarioId == usuarioActualId
-            join cliente in clientesContext.Clientes on conexion.ClienteId equals cliente.Id into clientesUnidos
+            join cliente in empresasContext.Empresas on conexion.ClienteId equals cliente.Id into clientesUnidos
             from cliente in clientesUnidos.DefaultIfEmpty()
             orderby conexion.FechaConectadaUtc descending
             select new ConexionIntegracionListaDto(

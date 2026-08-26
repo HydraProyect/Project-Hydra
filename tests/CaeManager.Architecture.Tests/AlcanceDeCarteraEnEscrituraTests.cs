@@ -7,7 +7,6 @@ using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
@@ -44,7 +43,6 @@ public class AlcanceDeCarteraEnEscrituraTests
 {
     private static readonly Dictionary<Type, string> RepositoriosConAlcance = new()
     {
-        [typeof(IClienteRepository)] = nameof(IClienteRepository),
         [typeof(ICentroRepository)] = nameof(ICentroRepository),
         [typeof(IEmpresaRepository)] = nameof(IEmpresaRepository),
         [typeof(ISubcontrataRepository)] = nameof(ISubcontrataRepository),

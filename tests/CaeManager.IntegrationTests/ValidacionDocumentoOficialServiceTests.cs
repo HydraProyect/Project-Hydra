@@ -66,7 +66,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
 
     private ValidacionDocumentoOficialService CrearServicio(
         Result<ResultadoVerificacionFirmasPdf> firmas, Result<IReadOnlyList<string>>? texto = null) =>
-        new(_dbContext, _dbContext, _dbContext, _dbContext,
+        new(_dbContext, _dbContext, _dbContext,
             new AlmacenamientoFalso(),
             new VerificadorFirmaFalso(firmas),
             new ExtractorTextoFalso(texto ?? Result.Exito<IReadOnlyList<string>>([TextoTgssValido])),

@@ -3,7 +3,6 @@ using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.Eventos;
 using CaeManager.Application.Visitas.PaqueteDocumental;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -44,9 +43,9 @@ public class CrearVisitaCommandTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
 
-        var cliente = new Cliente("Cliente Visita Guiada S.L.", "B10380194", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Cliente Visita Guiada S.L.", "B10380194", false, null, null);
         var empresa = new Empresa("Empresa Visita Guiada S.L.", "B10380186");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 
@@ -92,9 +91,9 @@ public class CrearVisitaCommandTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
 
-        var cliente = new Cliente("Cliente Visita Directa S.L.", "B10380194", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Cliente Visita Directa S.L.", "B10380194", false, null, null);
         var empresa = new Empresa("Empresa Visita Directa S.L.", "B10380186");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 

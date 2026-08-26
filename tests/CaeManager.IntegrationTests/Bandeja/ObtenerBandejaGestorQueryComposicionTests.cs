@@ -3,7 +3,6 @@ using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
@@ -79,9 +78,9 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: _tenant));
         _servicios = servicios.BuildServiceProvider();
 
-        var cliente = new Cliente("Bandeja Composición S.L.", "B12345674", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Bandeja Composición S.L.", "B12345674", false, null, null);
         var empresa = new Empresa("Empresa Bandeja S.L.", "B87654323");
-        _dbContext.Clientes.Add(cliente);
+        _dbContext.Empresas.Add(cliente);
         _dbContext.Empresas.Add(empresa);
         _dbContext.ParametrosSistema.Add(new ParametroSistema(umbralAmbarDias: 30, umbralRojoDias: 15));
         await _dbContext.SaveChangesAsync();

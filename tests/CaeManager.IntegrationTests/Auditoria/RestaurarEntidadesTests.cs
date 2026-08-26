@@ -3,7 +3,6 @@ using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -47,8 +46,8 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         Guid clienteId;
         await using (var contexto = CrearContexto(_tenant))
         {
-            var cliente = new Cliente("Restaurar S.L.", "B12345674", esCritico: false);
-            contexto.Clientes.Add(cliente);
+            var cliente = Empresa.CrearComoCliente("Restaurar S.L.", "B12345674", false, null, null);
+            contexto.Empresas.Add(cliente);
             await contexto.SaveChangesAsync();
             cliente.MarcarComoEliminado(Guid.NewGuid());
             await contexto.SaveChangesAsync();
@@ -62,7 +61,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         var resultado = await handler.Handle(new RestaurarClienteCommand(clienteId), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        (await contextoRestaurar.Clientes.SingleAsync(c => c.Id == clienteId)).EstaEliminado.Should().BeFalse();
+        (await contextoRestaurar.Empresas.SingleAsync(c => c.Id == clienteId)).EstaEliminado.Should().BeFalse();
     }
 
     [Fact]
@@ -71,8 +70,8 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         Guid clienteId;
         await using (var contexto = CrearContexto(_tenant))
         {
-            var cliente = new Cliente("Cliente Ajeno S.L.", "B12345674", esCritico: false);
-            contexto.Clientes.Add(cliente);
+            var cliente = Empresa.CrearComoCliente("Cliente Ajeno S.L.", "B12345674", false, null, null);
+            contexto.Empresas.Add(cliente);
             await contexto.SaveChangesAsync();
             cliente.MarcarComoEliminado(Guid.NewGuid());
             await contexto.SaveChangesAsync();
@@ -141,9 +140,9 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         Guid centroId;
         await using (var contexto = CrearContexto(_tenant))
         {
-            var cliente = new Cliente("Cliente del Centro S.L.", "B12345674", esCritico: false);
+            var cliente = Empresa.CrearComoCliente("Cliente del Centro S.L.", "B12345674", false, null, null);
             var empresa = new Empresa("Empresa del Centro S.L.", "B87654323");
-            contexto.Clientes.Add(cliente);
+            contexto.Empresas.Add(cliente);
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
@@ -171,9 +170,9 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         Guid centroId;
         await using (var contexto = CrearContexto(_tenant))
         {
-            var cliente = new Cliente("Cliente del Centro Ajeno S.L.", "B12345674", esCritico: false);
+            var cliente = Empresa.CrearComoCliente("Cliente del Centro Ajeno S.L.", "B12345674", false, null, null);
             var empresa = new Empresa("Empresa del Centro Ajeno S.L.", "B87654323");
-            contexto.Clientes.Add(cliente);
+            contexto.Empresas.Add(cliente);
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
@@ -326,8 +325,8 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         Guid clienteId;
         await using (var contexto = CrearContexto(_tenant))
         {
-            var cliente = new Cliente("Nunca Eliminado S.L.", "B12345674", esCritico: false);
-            contexto.Clientes.Add(cliente);
+            var cliente = Empresa.CrearComoCliente("Nunca Eliminado S.L.", "B12345674", false, null, null);
+            contexto.Empresas.Add(cliente);
             await contexto.SaveChangesAsync();
             clienteId = cliente.Id;
         }

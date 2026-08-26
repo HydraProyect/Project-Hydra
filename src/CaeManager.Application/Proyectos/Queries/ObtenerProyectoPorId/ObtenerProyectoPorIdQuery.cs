@@ -1,7 +1,7 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +26,7 @@ public record ProyectoDetalleDto(
     int DocumentosGestionados,
     Guid Version);
 
-public class ObtenerProyectoPorIdQueryHandler(ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerProyectoPorIdQueryHandler(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IDocumentosQueryContext documentosContext, IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerProyectoPorIdQuery, ProyectoDetalleDto?>
 {
     public async Task<ProyectoDetalleDto?> Handle(ObtenerProyectoPorIdQuery request, CancellationToken cancellationToken)
@@ -38,7 +38,7 @@ public class ObtenerProyectoPorIdQueryHandler(ICentrosQueryContext centrosContex
         if (clienteIdsVisibles is not null && !clienteIdsVisibles.Contains(proyecto.ClienteId))
             return null;
 
-        var clienteRazonSocial = await clientesContext.Clientes
+        var clienteRazonSocial = await empresasContext.Empresas
             .Where(c => c.Id == proyecto.ClienteId).Select(c => c.RazonSocial).FirstAsync(cancellationToken);
         var centroNombre = await centrosContext.Centros
             .Where(c => c.Id == proyecto.CentroId).Select(c => c.Nombre).FirstAsync(cancellationToken);

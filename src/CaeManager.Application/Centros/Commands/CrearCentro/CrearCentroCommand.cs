@@ -1,4 +1,3 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
@@ -38,7 +37,7 @@ public class CrearCentroCommandValidator : AbstractValidator<CrearCentroCommand>
 }
 
 public class CrearCentroCommandHandler(
-    ICentroRepository repositorio, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext,
+    ICentroRepository repositorio, IEmpresasQueryContext empresasContext,
     ITiposDocumentoQueryContext tiposDocumentoContext, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CrearCentroCommand, Result<Guid>>
@@ -64,7 +63,10 @@ public class CrearCentroCommandHandler(
     public async Task<Result<Guid>> Handle(CrearCentroCommand request, CancellationToken cancellationToken)
     {
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
-        if (!await clientesContext.Clientes.AnyAsync(c => c.Id == request.ClienteId, cancellationToken))
+        // Centro.ClienteId repunta contra Empresas desde F3b (CentroConfiguration):
+        // "Cliente" es una Empresa contraparte (Empresa.CrearComoCliente), Clientes
+        // queda congelada.
+        if (!await empresasContext.Empresas.AnyAsync(e => e.Id == request.ClienteId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Centro.ClienteNoEncontrado", "No encontramos este cliente."));
 
         if (!await empresasContext.Empresas.AnyAsync(e => e.Id == request.EmpresaId, cancellationToken))

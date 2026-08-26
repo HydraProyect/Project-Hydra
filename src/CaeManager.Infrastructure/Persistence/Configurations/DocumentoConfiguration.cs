@@ -1,4 +1,3 @@
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Proyectos;
@@ -37,7 +36,8 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
             .HasPrincipalKey(t => new { t.TenantId, t.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne<Cliente>().WithMany()
+        // F3b — ClienteId repunta contra Empresas (ver CentroConfiguration).
+        builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(d => new { d.TenantId, d.ClienteId })
             .HasPrincipalKey(c => new { c.TenantId, c.Id })
             .OnDelete(DeleteBehavior.Restrict);

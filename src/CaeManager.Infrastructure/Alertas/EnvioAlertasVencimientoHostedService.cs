@@ -130,7 +130,7 @@ public class EnvioAlertasVencimientoHostedService(
         // comentario) — MediatR no garantiza que el tipo concreto del
         // handler sea resoluble por sí mismo desde el contenedor.
         var handler = new ObtenerAlertasQueryHandler(
-            dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, resolverClientePrincipal, alcanceDatos, documentosFaltantesService);
+            dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, resolverClientePrincipal, alcanceDatos, documentosFaltantesService);
 
         var alertas = await handler.CalcularAsync(trabajadorIdsVisibles: null, centroIdsVisibles: null, stoppingToken);
         if (alertas.Count == 0) return;

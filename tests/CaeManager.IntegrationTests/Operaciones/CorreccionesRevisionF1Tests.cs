@@ -3,6 +3,7 @@ using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
@@ -72,8 +73,8 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
             new AsignacionOperadorDelegado(delegacion.Id, _gestorConsultora, Roles.GestorCae));
         _delegacionId = delegacion.Id;
 
-        var cliente = new Cliente("Cliente F1", "B12345674", false, ejecutivoUsuarioId: _gestorConsultora);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Cliente F1", "B12345674", false, null, _gestorConsultora);
+        contexto.Empresas.Add(cliente);
 
         contexto.AsignacionesOperacion.Add(
             AsignacionOperacion.Raiz(_propietario, ServicioCae.Outbound, DateTime.UtcNow, DateTime.UtcNow));

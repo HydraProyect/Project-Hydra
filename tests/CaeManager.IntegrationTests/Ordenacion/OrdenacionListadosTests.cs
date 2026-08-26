@@ -1,8 +1,8 @@
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -45,8 +45,8 @@ public class OrdenacionListadosTests : IAsyncLifetime
         else
             parametros.Actualizar(UmbralAmbarDias, UmbralRojoDias);
 
-        var cliente = new Cliente("Zeta Industrial S.A.", "B12345674", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Zeta Industrial S.A.", "B12345674", false, null, null);
+        contexto.Empresas.Add(cliente);
 
         // Nombres deliberadamente fuera de orden alfabético respecto al de
         // emisión, para que ordenar por una columna no pueda "acertar" por
@@ -183,7 +183,7 @@ public class OrdenacionListadosTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerDocumentosQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new AlcanceDatosServiceFalso(), contexto, contexto);
 
         var resultado = await handler.Handle(
