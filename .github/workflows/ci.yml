@@ -462,3 +462,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  deploy-script-tests:
+    name: Prueba de mutación — SHA determinista en el despliegue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: deploy/resolve-deploy-sha.tests.sh
+        run: bash deploy/resolve-deploy-sha.tests.sh
+
