@@ -2,7 +2,7 @@ using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
@@ -49,9 +49,9 @@ public class BorradoEnLoteYFiltrosGuardadosTests : IAsyncLifetime
         Guid unoId, dosId;
         await using (var contexto = CrearContexto())
         {
-            var uno = new Cliente("Uno S.A.", "B12345674", false);
-            var dos = new Cliente("Dos S.A.", "B87654323", false);
-            contexto.Clientes.AddRange(uno, dos);
+            var uno = Empresa.CrearComoCliente("Uno S.A.", "B12345674", false, null, null);
+            var dos = Empresa.CrearComoCliente("Dos S.A.", "B87654323", false, null, null);
+            contexto.Empresas.AddRange(uno, dos);
             await contexto.SaveChangesAsync();
             unoId = uno.Id;
             dosId = dos.Id;
@@ -59,7 +59,7 @@ public class BorradoEnLoteYFiltrosGuardadosTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var handler = new EliminarClientesCommandHandler(new ClienteRepository(contexto), new AlcanceDatosServiceFalso(), contexto);
+            var handler = new EliminarClientesCommandHandler(new EmpresaRepository(contexto), new AlcanceDatosServiceFalso(), contexto);
             var resultado = await handler.Handle(new EliminarClientesCommand([unoId, dosId], Guid.NewGuid()), CancellationToken.None);
 
             resultado.EsExitoso.Should().BeTrue();
@@ -67,7 +67,7 @@ public class BorradoEnLoteYFiltrosGuardadosTests : IAsyncLifetime
         }
 
         await using var verificacion = CrearContexto();
-        (await verificacion.Clientes.CountAsync(c => c.Id == unoId || c.Id == dosId)).Should().Be(0,
+        (await verificacion.Empresas.CountAsync(c => c.Id == unoId || c.Id == dosId)).Should().Be(0,
             "el filtro global de soft delete oculta ambos tras eliminarlos");
     }
 

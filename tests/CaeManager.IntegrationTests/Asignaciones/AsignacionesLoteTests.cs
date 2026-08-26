@@ -4,7 +4,6 @@ using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -40,9 +39,9 @@ public class AsignacionesLoteTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Lote de Asignaciones S.A.", "B12345674", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Lote de Asignaciones S.A.", "B12345674", false, null, null);
         var empresa = new Empresa("Contratas del Lote S.L.", "B87654323");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 

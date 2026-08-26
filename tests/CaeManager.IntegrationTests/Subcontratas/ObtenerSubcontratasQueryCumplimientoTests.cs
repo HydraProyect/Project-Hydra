@@ -2,7 +2,6 @@ using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -39,9 +38,9 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         if (await contexto.ParametrosSistema.SingleOrDefaultAsync() is null)
             contexto.ParametrosSistema.Add(new ParametroSistema(30, 15));
 
-        var cliente = new Cliente("Cliente Cumplimiento Sub S.L.", "B12345674", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Cliente Cumplimiento Sub S.L.", "B12345674", false, null, null);
         var empresa = new Empresa("Empresa Cumplimiento Sub S.L.", "B87654323");
-        contexto.Clientes.Add(cliente);
+        contexto.Empresas.Add(cliente);
         contexto.Empresas.Add(empresa);
         await contexto.SaveChangesAsync();
 

@@ -1,6 +1,6 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -43,7 +43,7 @@ public record ReclamacionSinRespuestaDto(
 public class ObtenerReclamacionesSinRespuestaQueryHandler(
     IReclamacionesQueryContext reclamacionesContext,
     IComunicacionesQueryContext comunicacionesContext,
-    IClientesQueryContext clientesContext,
+    IEmpresasQueryContext empresasContext,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerReclamacionesSinRespuestaQuery, IReadOnlyList<ReclamacionSinRespuestaDto>>
 {
@@ -64,7 +64,8 @@ public class ObtenerReclamacionesSinRespuestaQueryHandler(
                 m.ConversacionId == reclamacion.ConversacionId!.Value &&
                 m.Direccion == DireccionMensaje.Entrante &&
                 m.FechaUtc > reclamacion.FechaEnvioUtc)
-            join cliente in clientesContext.Clientes on reclamacion.ClienteId equals cliente.Id
+            // F3b — ClienteId ahora repunta contra Empresas.
+            join cliente in empresasContext.Empresas on reclamacion.ClienteId equals cliente.Id
             select new
             {
                 ReclamacionId = reclamacion.Id,

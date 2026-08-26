@@ -127,7 +127,7 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
     }
 
     private static ObtenerDocumentoPorIdQueryHandler ConstruirHandlerConsulta(CaeManagerDbContext contexto) =>
-        new(contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
+        new(contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
 
     private static RenovarDocumentoCommandHandler ConstruirHandlerRenovar(CaeManagerDbContext contexto) =>
         new(

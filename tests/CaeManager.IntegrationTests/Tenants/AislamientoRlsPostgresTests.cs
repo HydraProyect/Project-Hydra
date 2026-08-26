@@ -54,14 +54,20 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
 
         var tipoDocumento = new TipoDocumento("Certificado", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, esObligatorio: true);
         dbContext.TiposDocumento.Add(tipoDocumento);
-        var documento = Documento.DeCliente(cliente.Id, tipoDocumento.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
+
+        // F3b — Documento.ClienteId repunta contra Empresas, no contra el
+        // `cliente` de arriba (que se queda en Clientes a propósito, para que
+        // los tests de RLS sobre esa tabla sigan viendo su única fila). Se
+        // ancla aquí a `empresa`, creada antes de lo que tenía el código
+        // original solo para tener su Id disponible en este punto.
+        var empresa = new Empresa("Empresa de prueba", "B12345674");
+        dbContext.Empresas.Add(empresa);
+        var documento = Documento.DeCliente(empresa.Id, tipoDocumento.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
         dbContext.Documentos.Add(documento);
         dbContext.FirmasEnCampoDocumento.Add(new FirmaEnCampoDocumento(
             documento.Id, Guid.NewGuid(), "Juan Pérez", "GestorCae", DateTime.UtcNow, null, new string('a', 64)));
 
         dbContext.FirmasGuardadasUsuario.Add(new FirmaGuardadaUsuario(Guid.NewGuid(), "url/firma.png", DateTime.UtcNow));
-        var empresa = new Empresa("Empresa de prueba", "B12345674");
-        dbContext.Empresas.Add(empresa);
         dbContext.SellosEmpresa.Add(new SelloEmpresa(empresa.Id, "url/sello.png", DateTime.UtcNow));
 
         var contacto = ContactoAgenda.DeEmpresa(empresa.Id, "Juan Pérez", "juan@example.com");

@@ -1,5 +1,4 @@
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
@@ -84,7 +83,11 @@ public static class ComunicacionesDatosPruebaSeeder
             return;
         }
 
-        var clientes = await dbContext.Clientes.OrderBy(c => c.RazonSocial).Take(40).ToListAsync(cancellationToken);
+        // F3b — Empresas, no la tabla legacy Clientes: DatosPruebaSeeder ya
+        // crea los clientes de demo ahí.
+        var clientes = await dbContext.Empresas
+            .Where(e => e.EsCritico != null)
+            .OrderBy(e => e.RazonSocial).Take(40).ToListAsync(cancellationToken);
         if (clientes.Count == 0)
         {
             logger.LogInformation("No hay Clientes sembrados todavía — se omite la siembra de Comunicaciones (ejecuta DatosPruebaSeeder primero).");
@@ -501,7 +504,7 @@ public static class ComunicacionesDatosPruebaSeeder
     /// reales — ninguna llamada sale hacia Meta sin webhook real configurado.
     /// </summary>
     private static async Task SembrarWhatsAppAsync(
-        CaeManagerDbContext dbContext, IReadOnlyList<Cliente> clientes,
+        CaeManagerDbContext dbContext, IReadOnlyList<Empresa> clientes,
         IReadOnlyList<ApplicationUser> gestoresPrueba, DateTime ahora, CancellationToken cancellationToken)
     {
         if (gestoresPrueba.Count == 0 || clientes.Count < 2)
@@ -696,7 +699,7 @@ public static class ComunicacionesDatosPruebaSeeder
         }
     }
 
-    private static string EmailSimuladoDeCliente(Cliente cliente) => $"contacto@{Slug(cliente.RazonSocial)}.com";
+    private static string EmailSimuladoDeCliente(Empresa cliente) => $"contacto@{Slug(cliente.RazonSocial)}.com";
 
     private static string Slug(string texto)
     {

@@ -1,5 +1,5 @@
 using CaeManager.Application.Common;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -20,13 +20,13 @@ public class AsignarClienteConversacionCommandValidator : AbstractValidator<Asig
 }
 
 public class AsignarClienteConversacionCommandHandler(
-    IConversacionRepository conversacionRepositorio, IClienteRepository clienteRepositorio,
+    IConversacionRepository conversacionRepositorio, IEmpresaRepository empresaRepositorio,
     IContactoWhatsAppRepository contactoRepositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<AsignarClienteConversacionCommand, Result>
 {
     public async Task<Result> Handle(AsignarClienteConversacionCommand request, CancellationToken cancellationToken)
     {
-        var cliente = await clienteRepositorio.ObtenerPorIdAsync(request.ClienteId, cancellationToken);
+        var cliente = await empresaRepositorio.ObtenerPorIdAsync(request.ClienteId, cancellationToken);
         // Mismo mensaje que "no existe" a propósito (ver
         // AlcanceDatosServiceExtensions): no se confirma la existencia de un
         // cliente fuera de la cartera de quien pregunta.

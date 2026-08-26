@@ -1,9 +1,9 @@
 ﻿using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -38,8 +38,8 @@ public class VisibilidadTriageTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Contrata Propia S.L.", "B12345674", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Contrata Propia S.L.", "B12345674", false, null, null);
+        contexto.Empresas.Add(cliente);
 
         var propia = new Conversacion("Mi propia consulta", clienteId: cliente.Id);
         propia.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "yo@propia.test", "<p>Hola</p>");
@@ -75,7 +75,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
         // Acotar solo el listado dejaba el hilo accesible por Id.
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(clienteIds: [_clientePropio]),
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(clienteIds: [_clientePropio]),
             new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "Cliente"),
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)));
 
@@ -113,7 +113,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura,
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura,
             new AlcanceDatosServiceFalso(clienteIds: [_clientePropio], conexionesIntegracionAjenas: [conexionPersonalId]),
             new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "GestorCae"),
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));

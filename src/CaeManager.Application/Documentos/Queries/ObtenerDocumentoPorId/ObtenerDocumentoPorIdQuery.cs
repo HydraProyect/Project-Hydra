@@ -1,4 +1,3 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
@@ -38,7 +37,7 @@ public record DocumentoDetalleDto(
     PerfilDocumentoOficial TipoDocumentoPerfilDocumentoOficial,
     Guid? EmpresaId);
 
-public class ObtenerDocumentoPorIdQueryHandler(IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentoPorIdQuery, DocumentoDetalleDto?>
 {
     public async Task<DocumentoDetalleDto?> Handle(ObtenerDocumentoPorIdQuery request, CancellationToken cancellationToken)
@@ -107,9 +106,10 @@ public class ObtenerDocumentoPorIdQueryHandler(IClientesQueryContext clientesCon
                 .Select(t => t.Nombre + " " + t.Apellidos)
                 .FirstAsync(cancellationToken))
             : documento.ClienteId is not null
-                ? (AmbitoAplicacion.Cliente, await clientesContext.Clientes
-                    .Where(c => c.Id == documento.ClienteId)
-                    .Select(c => c.RazonSocial)
+                // Documento.ClienteId ya apunta a Empresas (F3).
+                ? (AmbitoAplicacion.Cliente, await empresasContext.Empresas
+                    .Where(e => e.Id == documento.ClienteId)
+                    .Select(e => e.RazonSocial)
                     .FirstAsync(cancellationToken))
                 : documento.VehiculoId is not null
                     ? (AmbitoAplicacion.Vehiculo, await vehiculosContext.Vehiculos

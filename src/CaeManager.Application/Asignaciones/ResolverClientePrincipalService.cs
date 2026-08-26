@@ -1,5 +1,5 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
+using CaeManager.Application.Empresas;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Asignaciones;
@@ -30,7 +30,7 @@ public interface IResolverClientePrincipalService
 }
 
 public class ResolverClientePrincipalService(
-    IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext)
+    IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext)
     : IResolverClientePrincipalService
 {
     public async Task<IReadOnlyDictionary<Guid, ClientePrincipalTrabajador>> ResolverPorTrabajadorAsync(
@@ -43,7 +43,8 @@ public class ResolverClientePrincipalService(
             from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null && trabajadorIds.Contains(asignacion.TrabajadorId)
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            // F3b — ClienteId ahora repunta contra Empresas.
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new
             {
                 asignacion.TrabajadorId,

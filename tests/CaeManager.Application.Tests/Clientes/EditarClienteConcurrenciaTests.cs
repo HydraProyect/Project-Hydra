@@ -1,5 +1,5 @@
 using CaeManager.Application.Clientes.Commands.EditarCliente;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using FluentAssertions;
 using Xunit;
 
@@ -20,8 +20,8 @@ public class EditarClienteConcurrenciaTests
     [Fact]
     public async Task Guardar_con_una_version_vieja_no_pisa_al_que_guardo_antes()
     {
-        var cliente = new Cliente("Original S.L.", "B12345674", esCritico: false);
-        var repositorio = new ClienteRepositorioFalso();
+        var cliente = Empresa.CrearComoCliente("Original S.L.", "B12345674", false, null, null);
+        var repositorio = new EmpresaRepositorioFalso();
         repositorio.Agregar(cliente);
         var unitOfWork = new UnitOfWorkFalso();
 
@@ -46,8 +46,8 @@ public class EditarClienteConcurrenciaTests
     [Fact]
     public async Task Con_la_version_vigente_la_edicion_se_aplica()
     {
-        var cliente = new Cliente("Original S.L.", "B12345674", esCritico: false);
-        var repositorio = new ClienteRepositorioFalso();
+        var cliente = Empresa.CrearComoCliente("Original S.L.", "B12345674", false, null, null);
+        var repositorio = new EmpresaRepositorioFalso();
         repositorio.Agregar(cliente);
         var unitOfWork = new UnitOfWorkFalso();
 
@@ -66,8 +66,8 @@ public class EditarClienteConcurrenciaTests
     {
         // Guid.Empty = "sin comprobación". Los demás agregados todavía no
         // propagan su versión, y no pueden quedarse sin poder editar por eso.
-        var cliente = new Cliente("Original S.L.", "B12345674", esCritico: false);
-        var repositorio = new ClienteRepositorioFalso();
+        var cliente = Empresa.CrearComoCliente("Original S.L.", "B12345674", false, null, null);
+        var repositorio = new EmpresaRepositorioFalso();
         repositorio.Agregar(cliente);
         var unitOfWork = new UnitOfWorkFalso();
 

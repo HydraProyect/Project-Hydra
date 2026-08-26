@@ -130,6 +130,21 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.ObtenerVehiculosConActividadDeCentroQueryHandler", "ISubcontratasQueryContext"),
         ("Centros.ObtenerVehiculosConActividadDeCentroQueryHandler", "ITrabajadoresQueryContext"),
         ("Centros.ObtenerVehiculosConActividadDeCentroQueryHandler", "IVehiculosQueryContext"),
+        // ── F3b: redirección de escritura de Cliente a Empresa ─────────────
+        //
+        // Desde la congelación (D2), "Cliente" es una Empresa contraparte
+        // (Empresa.CrearComoCliente): los comandos de la feature Clientes
+        // escriben/leen ahora directamente contra el repositorio y el
+        // contexto de consulta de Empresas en vez de contra los suyos
+        // propios, que se retiraron. Es cruce de feature deliberado, no un
+        // acoplamiento colado — Cliente y Empresa comparten agregado físico
+        // hasta F4.
+        ("Clientes.CrearClienteCommandHandler", "IEmpresaRepository"),
+        ("Clientes.EditarClienteCommandHandler", "IEmpresaRepository"),
+        ("Clientes.EliminarClienteCommandHandler", "IEmpresaRepository"),
+        ("Clientes.EliminarClientesCommandHandler", "IEmpresaRepository"),
+        ("Clientes.ReasignarEjecutivoClienteCommandHandler", "IEmpresaRepository"),
+        ("Clientes.RestaurarClienteCommandHandler", "IEmpresasQueryContext"),
         ("Clientes.ObtenerCentrosDeClienteQueryHandler", "ICentrosQueryContext"),
         ("Clientes.ObtenerCentrosDeClienteQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ObtenerClientesQueryHandler", "ICentrosQueryContext"),
@@ -149,12 +164,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comercial.ObtenerEstadoComercialTenantsQueryHandler", "ITenantsQueryContext"),
         ("Comercial.RegistrarSuscripcionTenantCommandHandler", "ITenantsQueryContext"),
         ("Comunicaciones.ActualizarDocumentoDesdeAdjuntoCommandHandler", "IDocumentosQueryContext"),
-        ("Comunicaciones.AsignarClienteConversacionCommandHandler", "IClienteRepository"),
-        ("Comunicaciones.CrearMacroCommandHandler", "IClienteRepository"),
+        ("Comunicaciones.AsignarClienteConversacionCommandHandler", "IEmpresaRepository"),
+        ("Comunicaciones.CrearMacroCommandHandler", "IEmpresaRepository"),
         ("Comunicaciones.DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler", "IEmpresasQueryContext"),
         ("Comunicaciones.DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler", "ITiposDocumentoQueryContext"),
         ("Comunicaciones.DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler", "ITrabajadoresQueryContext"),
-        ("Comunicaciones.EditarMacroCommandHandler", "IClienteRepository"),
+        ("Comunicaciones.EditarMacroCommandHandler", "IEmpresaRepository"),
         ("Comunicaciones.EnviarMensajeNuevoCommandHandler", "IConexionIntegracionRepository"),
         ("Comunicaciones.MigrarConversacionACorreoCommandHandler", "IConexionIntegracionRepository"),
         ("Comunicaciones.MigrarConversacionACorreoCommandHandler", "IIntegracionesQueryContext"),
@@ -317,8 +332,6 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Gestiones.ObtenerGestionesQueryHandler", "ITrabajadoresQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ICentroRepository"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ICentrosQueryContext"),
-        ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IClienteRepository"),
-        ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IClientesQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IEmpresaClienteRepository"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IEmpresaRepository"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IEmpresasQueryContext"),
@@ -341,8 +354,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Incidencias.ObtenerIncidenciaPorIdQueryHandler", "ICentrosQueryContext"),
         ("Incidencias.ObtenerIncidenciasQueryHandler", "ICentrosQueryContext"),
         ("Incidencias.ObtenerIncidenciasQueryHandler", "ITrabajadoresQueryContext"),
-        ("Integraciones.ConectarBuzonMicrosoft365CommandHandler", "IClienteRepository"),
-        ("Integraciones.CrearLineaWhatsAppCommandHandler", "IClienteRepository"),
+        ("Integraciones.ConectarBuzonMicrosoft365CommandHandler", "IEmpresaRepository"),
+        ("Integraciones.CrearLineaWhatsAppCommandHandler", "IEmpresaRepository"),
         ("Integraciones.ObtenerConexionesIntegracionQueryHandler", "IClientesQueryContext"),
         ("Integraciones.ObtenerLineasWhatsAppQueryHandler", "IClientesQueryContext"),
         // Alta de plantilla exige un TipoDocumento existente cuyo Ambito coincida
@@ -512,6 +525,50 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Tenants.DesactivarDelegacionTenantCommandHandler", "IAsignacionesOperativasWriter"),
         ("Tenants.ReactivarDelegacionTenantCommandHandler", "IAsignacionesOperativasWriter"),
         ("Tenants.RevocarAsignacionOperadorDelegadoCommandHandler", "IAsignacionesOperativasWriter"),
+
+        // ── F3b: lectores de categoría B redirigidos de Clientes a Empresas ─
+        //
+        // Cada uno de estos handlers leía un ClienteId ya conocido (de un
+        // Centro/Documento/Proyecto/Reclamación/Conversación/etc. ya cargado)
+        // contra IClientesQueryContext — la tabla legacy Clientes. Desde la
+        // congelación de Cliente (D2), esos Ids solo existen en Empresas para
+        // cualquier fila creada después del corte, así que la lectura tenía
+        // que repuntar también. Cruce de feature deliberado, mismo motivo que
+        // el bloque de escritura de más arriba: Cliente y Empresa comparten
+        // agregado físico hasta F4.
+        ("Asignaciones.ObtenerAsignacionesQueryHandler", "IEmpresasQueryContext"),
+
+        // Este NO es un lector de categoría B (Id ya conocido) — es una de
+        // las 6 consultas semánticas que D2 dejó congeladas, adelantada
+        // deliberadamente antes de F4 tras una revisión adversaria (E2E real
+        // en rojo: el asistente de alta guiada crea un Cliente y lo vincula
+        // en la misma sesión vía este selector; congelado, el selector nunca
+        // lo encontraba). Las otras 5 consultas de D2 §3 siguen intactas —
+        // ver f3b-selectores-adelantados-2026-08-26.md.
+        ("Clientes.ObtenerClientesParaSelectorQueryHandler", "IEmpresasQueryContext"),
+        ("Clientes.ObtenerClientePorIdQueryHandler", "IEmpresasQueryContext"),
+        ("Clientes.ObtenerResumenClienteQueryHandler", "IEmpresasQueryContext"),
+        ("Comunicaciones.ObtenerConversacionesQueryHandler", "IEmpresasQueryContext"),
+        ("Comunicaciones.ObtenerMacrosQueryHandler", "IEmpresasQueryContext"),
+        ("Comunicaciones.ObtenerSugerenciasVisitaCorreoPendientesQueryHandler", "IEmpresasQueryContext"),
+        ("Dashboard.ObtenerKpisBpoQueryHandler", "IEmpresasQueryContext"),
+        ("Facturacion.CrearTarifaClienteCommandHandler", "IEmpresasQueryContext"),
+        ("Facturacion.ObtenerResumenFacturacionQueryHandler", "IEmpresasQueryContext"),
+        ("Facturacion.ObtenerTarifasClienteQueryHandler", "IEmpresasQueryContext"),
+        ("Integraciones.ObtenerConexionesIntegracionQueryHandler", "IEmpresasQueryContext"),
+        ("Integraciones.ObtenerLineasWhatsAppQueryHandler", "IEmpresasQueryContext"),
+        ("Proyectos.ObtenerProyectoPorIdQueryHandler", "IEmpresasQueryContext"),
+        ("Proyectos.ObtenerProyectosParaSelectorQueryHandler", "IEmpresasQueryContext"),
+        ("Reclamaciones.EnviarReclamacionCommandHandler", "IEmpresasQueryContext"),
+        ("Reclamaciones.ObtenerLoteReclamacionQueryHandler", "IEmpresasQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionesEnviadasQueryHandler", "IEmpresasQueryContext"),
+        ("Reclamaciones.ObtenerReclamacionesSinRespuestaQueryHandler", "IEmpresasQueryContext"),
+        ("Reportes.GenerarInformeAsignacionesQueryHandler", "IEmpresasQueryContext"),
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "IEmpresasQueryContext"),
+        ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "IEmpresasQueryContext"),
+        ("TiposDocumento.ActualizarLecturaIaClienteCommandHandler", "IEmpresasQueryContext"),
+        ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IEmpresasQueryContext"),
+        ("Visitas.ObtenerVisitasParaCalendarioQueryHandler", "IEmpresasQueryContext"),
     };
 
     [Fact]

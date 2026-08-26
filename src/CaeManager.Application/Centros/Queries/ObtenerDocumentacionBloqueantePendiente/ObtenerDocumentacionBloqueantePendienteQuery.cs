@@ -1,5 +1,4 @@
 using CaeManager.Application.Asignaciones;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
@@ -48,7 +47,6 @@ public class ObtenerDocumentacionBloqueantePendienteQueryHandler(
     ITrabajadoresQueryContext trabajadoresContext,
     IAsignacionesQueryContext asignacionesContext,
     IDocumentosQueryContext documentosContext,
-    IClientesQueryContext clientesContext,
     IEmpresasQueryContext empresasContext,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentacionBloqueantePendienteQuery, IReadOnlyList<DocumentacionBloqueantePendienteDto>>
@@ -79,10 +77,12 @@ public class ObtenerDocumentacionBloqueantePendienteQueryHandler(
             .Select(c => new { c.Id, c.Nombre })
             .ToDictionaryAsync(c => c.Id, c => c.Nombre, cancellationToken);
 
+        // Centro.ClienteId repunta contra Empresas desde F3b: "Cliente" es una
+        // Empresa contraparte (Empresa.CrearComoCliente).
         var clientesPorCentro = await (
             from centro in centrosContext.Centros
             where centroIds.Contains(centro.Id)
-            join cliente in clientesContext.Clientes on centro.ClienteId equals cliente.Id
+            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new { centro.Id, ClienteId = cliente.Id, cliente.RazonSocial })
             .ToDictionaryAsync(x => x.Id, x => (x.ClienteId, x.RazonSocial), cancellationToken);
 

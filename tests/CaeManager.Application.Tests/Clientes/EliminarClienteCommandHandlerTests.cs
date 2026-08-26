@@ -1,5 +1,5 @@
 using CaeManager.Application.Clientes.Commands.EliminarCliente;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using FluentAssertions;
 using Xunit;
 
@@ -10,8 +10,8 @@ public class EliminarClienteCommandHandlerTests
     [Fact]
     public async Task Marca_el_cliente_como_eliminado_cuando_no_tiene_centros_activos()
     {
-        var cliente = new Cliente("Bebidas del Norte S.A. (Planta El Prat)", "B12345674", true);
-        var repositorio = new ClienteRepositorioFalso { TieneCentrosActivos = false };
+        var cliente = Empresa.CrearComoCliente("Bebidas del Norte S.A. (Planta El Prat)", "B12345674", true, null, null);
+        var repositorio = new EmpresaRepositorioFalso { TieneCentrosActivos = false };
         repositorio.Agregar(cliente);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new EliminarClienteCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
@@ -25,8 +25,8 @@ public class EliminarClienteCommandHandlerTests
     [Fact]
     public async Task Falla_cuando_el_cliente_esta_fuera_de_la_cartera()
     {
-        var cliente = new Cliente("Bebidas del Norte S.A. (Planta El Prat)", "B12345674", true);
-        var repositorio = new ClienteRepositorioFalso { TieneCentrosActivos = false };
+        var cliente = Empresa.CrearComoCliente("Bebidas del Norte S.A. (Planta El Prat)", "B12345674", true, null, null);
+        var repositorio = new EmpresaRepositorioFalso { TieneCentrosActivos = false };
         repositorio.Agregar(cliente);
         var unitOfWork = new UnitOfWorkFalso();
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]);
@@ -43,8 +43,8 @@ public class EliminarClienteCommandHandlerTests
     [Fact]
     public async Task Falla_cuando_el_cliente_tiene_centros_activos()
     {
-        var cliente = new Cliente("Bebidas del Norte S.A. (Planta El Prat)", "B12345674", true);
-        var repositorio = new ClienteRepositorioFalso { TieneCentrosActivos = true };
+        var cliente = Empresa.CrearComoCliente("Bebidas del Norte S.A. (Planta El Prat)", "B12345674", true, null, null);
+        var repositorio = new EmpresaRepositorioFalso { TieneCentrosActivos = true };
         repositorio.Agregar(cliente);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new EliminarClienteCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
@@ -59,7 +59,7 @@ public class EliminarClienteCommandHandlerTests
     [Fact]
     public async Task Falla_cuando_el_cliente_no_existe()
     {
-        var repositorio = new ClienteRepositorioFalso();
+        var repositorio = new EmpresaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new EliminarClienteCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 

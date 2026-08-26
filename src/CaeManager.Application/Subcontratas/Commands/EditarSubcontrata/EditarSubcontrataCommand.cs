@@ -1,4 +1,3 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Domain.Common;
@@ -40,7 +39,6 @@ public class EditarSubcontrataCommandHandler(
     ISubcontrataRepository repositorio,
     ISubcontrataClienteRepository subcontrataClienteRepositorio,
     ISubcontrataEmpresaRepository subcontrataEmpresaRepositorio,
-    IClientesQueryContext clientesContext,
     IEmpresasQueryContext empresasContext,
     IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork)
@@ -69,7 +67,7 @@ public class EditarSubcontrataCommandHandler(
 
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
         var clienteIdsNuevos = clienteIdsDeseados.Except(clienteIdsActuales).ToList();
-        if (await clientesContext.Clientes.Where(c => clienteIdsNuevos.Contains(c.Id)).CountAsync(cancellationToken) != clienteIdsNuevos.Count)
+        if (await empresasContext.Empresas.Where(e => clienteIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != clienteIdsNuevos.Count)
             return Result.Fallo(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));
 
         foreach (var sc in clientesActuales.Where(sc => !clienteIdsDeseados.Contains(sc.ClienteId)))

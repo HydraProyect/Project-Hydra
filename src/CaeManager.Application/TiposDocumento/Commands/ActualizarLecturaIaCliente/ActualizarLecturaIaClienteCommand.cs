@@ -1,5 +1,5 @@
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -11,7 +11,7 @@ namespace CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaClie
 public record ActualizarLecturaIaClienteCommand(Guid ClienteId, Guid TipoDocumentoId, bool Activa) : ICommand;
 
 public class ActualizarLecturaIaClienteCommandHandler(
-    IConfiguracionIaDocumentoClienteRepository repositorio, IClientesQueryContext clientesContext, ITiposDocumentoQueryContext tiposDocumentoContext,
+    IConfiguracionIaDocumentoClienteRepository repositorio, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     IUnitOfWork unitOfWork, IAlcanceDatosService alcanceDatosService)
     : IRequestHandler<ActualizarLecturaIaClienteCommand, Result>
 {
@@ -23,7 +23,7 @@ public class ActualizarLecturaIaClienteCommandHandler(
             if (clienteIdsVisibles is null || !clienteIdsVisibles.Contains(request.ClienteId))
                 return Result.Fallo(Error.Crear("LecturaIa.SinAcceso", "No tienes acceso a este cliente."));
         }
-        else if (!await clientesContext.Clientes.AnyAsync(c => c.Id == request.ClienteId, cancellationToken))
+        else if (!await empresasContext.Empresas.AnyAsync(c => c.Id == request.ClienteId, cancellationToken))
         {
             // Con acceso total (Administrador) el chequeo de arriba no corre —
             // verificación de Ids ajenos, ver P0-1 de docs/business/MATURITY_REVIEW.md.

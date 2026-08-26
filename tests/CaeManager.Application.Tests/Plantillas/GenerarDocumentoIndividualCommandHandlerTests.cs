@@ -6,7 +6,6 @@ using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -41,7 +40,6 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         public required EmpresasQueryContextFalso Empresas { get; init; }
         public required TrabajadoresQueryContextFalso Trabajadores { get; init; }
         public required CentrosQueryContextFalso Centros { get; init; }
-        public required ClientesQueryContextFalso Clientes { get; init; }
         public required ContactosAgendaQueryContextFalso Contactos { get; init; }
         public required RellenadorFalso Rellenador { get; init; }
         public required FileStorageServiceFalso Almacenamiento { get; init; }
@@ -50,7 +48,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
 
         public GenerarDocumentoIndividualCommandHandler CrearHandler(Guid? usuarioActualId = null) => new(
             Versiones, Plantillas, Documentos, new DocumentoGeneradoRepositorioFalso(), TiposDocumento,
-            Empresas, Trabajadores, Centros, Clientes, Contactos, Rellenador, Almacenamiento,
+            Empresas, Trabajadores, Centros, Contactos, Rellenador, Almacenamiento,
             new CurrentUserServiceFalso(usuarioActualId ?? Guid.NewGuid()), new UnitOfWorkFalso());
     }
 
@@ -82,7 +80,6 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             Empresas = new EmpresasQueryContextFalso(),
             Trabajadores = new TrabajadoresQueryContextFalso(),
             Centros = new CentrosQueryContextFalso(),
-            Clientes = new ClientesQueryContextFalso(),
             Contactos = new ContactosAgendaQueryContextFalso(),
             Rellenador = new RellenadorFalso(),
             Almacenamiento = almacenamiento,
@@ -162,9 +159,9 @@ public class GenerarDocumentoIndividualCommandHandlerTests
     public async Task Resuelve_empresa_y_cliente_a_traves_del_centro_cuando_no_vienen_directos()
     {
         var entorno = await ConstruirEntornoAsync();
-        var cliente = new Cliente("Cliente SA", "B12345674", esCritico: false);
+        var cliente = Empresa.CrearComoCliente("Cliente SA", "B12345674", false, null, null);
         var empresa = new Empresa("Contratista SL", "B12345674");
-        entorno.Clientes.ListaClientes.Add(cliente);
+        entorno.Empresas.ListaEmpresas.Add(cliente);
         entorno.Empresas.ListaEmpresas.Add(empresa);
         var centro = new Centro(cliente.Id, empresa.Id, "Centro Norte", direccion: "Calle Falsa 123");
         entorno.Centros.ListaCentros.Add(centro);
@@ -277,7 +274,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         var documentosGenerados = new DocumentoGeneradoRepositorioFalso();
         var handler = new GenerarDocumentoIndividualCommandHandler(
             entorno.Versiones, entorno.Plantillas, entorno.Documentos, documentosGenerados, entorno.TiposDocumento,
-            entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Clientes, entorno.Contactos,
+            entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(

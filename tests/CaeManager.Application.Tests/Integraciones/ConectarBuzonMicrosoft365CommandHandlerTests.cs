@@ -1,6 +1,6 @@
 using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
 using CaeManager.Application.Tests.Clientes;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using FluentAssertions;
 using Xunit;
 
@@ -12,7 +12,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         ConexionIntegracionRepositorioFalso conexionRepositorio,
         CredencialIntegracionRepositorioFalso credencialRepositorio,
         SuscripcionWebhookRepositorioFalso suscripcionRepositorio,
-        ClienteRepositorioFalso clienteRepositorio,
+        EmpresaRepositorioFalso clienteRepositorio,
         AlcanceDatosServiceFalso alcanceDatos,
         Microsoft365GraphClientFalso graphClient,
         UnitOfWorkFalso unitOfWork,
@@ -29,7 +29,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
         var handler = CrearHandler(
             conexionRepositorio, credencialRepositorio, suscripcionRepositorio,
-            new ClienteRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(), unitOfWork);
+            new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new ConectarBuzonMicrosoft365Command(
@@ -46,8 +46,8 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
     [Fact]
     public async Task Rechaza_un_clienteId_fuera_de_la_cartera()
     {
-        var clienteAjeno = new Cliente("Empresa Ajena", "B12345674", esCritico: false);
-        var clienteRepositorio = new ClienteRepositorioFalso();
+        var clienteAjeno = Empresa.CrearComoCliente("Empresa Ajena", "B12345674", false, null, null);
+        var clienteRepositorio = new EmpresaRepositorioFalso();
         clienteRepositorio.Agregar(clienteAjeno);
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
@@ -75,7 +75,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         var gestorId = Guid.NewGuid();
         var handler = CrearHandler(
             conexionRepositorio, new CredencialIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(),
-            new ClienteRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(), unitOfWork);
+            new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new ConectarBuzonMicrosoft365Command(
@@ -94,7 +94,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
         var handler = CrearHandler(
             conexionRepositorio, new CredencialIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(),
-            new ClienteRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(), unitOfWork,
+            new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(), unitOfWork,
             new DirectorioUsuariosServiceFalso(esVisible: false));
 
         var resultado = await handler.Handle(
@@ -117,7 +117,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         var graphClient = new Microsoft365GraphClientFalso { FallaCreacionSuscripcion = true };
         var handler = CrearHandler(
             conexionRepositorio, new CredencialIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(),
-            new ClienteRepositorioFalso(), new AlcanceDatosServiceFalso(), graphClient, unitOfWork);
+            new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), graphClient, unitOfWork);
 
         var resultado = await handler.Handle(
             new ConectarBuzonMicrosoft365Command(

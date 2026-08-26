@@ -74,7 +74,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var handler = new CrearDocumentoCommandHandler(
-            new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto, contexto,
+            new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto,
             contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
             new DerivarCanalesAplicablesDocumentoService(contexto, contexto, contexto),
             new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso());
