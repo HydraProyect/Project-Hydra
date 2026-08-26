@@ -115,6 +115,11 @@ public class AlcanceDatosService(
         return _clienteIds;
     }
 
+    /// <summary>
+    /// ApplicationUser.ClienteId es, desde F4.2a, un Empresa.Id (ver su
+    /// doc-comment) — comparable directamente contra RelacionEmpresarial.ClienteId
+    /// en ObtenerEmpresaIdsVisiblesAsync/ObtenerSubcontrataIdsVisiblesAsync.
+    /// </summary>
     private async Task<IReadOnlyList<Guid>> ObtenerClienteIdsParaRolClienteAsync(Guid usuarioId, CancellationToken cancellationToken)
     {
         var clienteId = await dbContext.Users
