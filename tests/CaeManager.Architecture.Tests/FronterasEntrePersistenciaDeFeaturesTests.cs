@@ -537,6 +537,15 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // el bloque de escritura de más arriba: Cliente y Empresa comparten
         // agregado físico hasta F4.
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "IEmpresasQueryContext"),
+
+        // Este NO es un lector de categoría B (Id ya conocido) — es una de
+        // las 6 consultas semánticas que D2 dejó congeladas, adelantada
+        // deliberadamente antes de F4 tras una revisión adversaria (E2E real
+        // en rojo: el asistente de alta guiada crea un Cliente y lo vincula
+        // en la misma sesión vía este selector; congelado, el selector nunca
+        // lo encontraba). Las otras 5 consultas de D2 §3 siguen intactas —
+        // ver f3b-selectores-adelantados-2026-08-26.md.
+        ("Clientes.ObtenerClientesParaSelectorQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ObtenerClientePorIdQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ObtenerResumenClienteQueryHandler", "IEmpresasQueryContext"),
         ("Comunicaciones.ObtenerConversacionesQueryHandler", "IEmpresasQueryContext"),
