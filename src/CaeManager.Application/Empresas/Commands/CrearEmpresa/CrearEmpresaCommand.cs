@@ -1,6 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.RelacionesEmpresariales;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.RelacionesEmpresariales;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -46,6 +48,7 @@ public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaComman
 
 public class CrearEmpresaCommandHandler(
     IEmpresaRepository repositorio, IEmpresaClienteRepository empresaClienteRepositorio,
+    IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     IEmpresasQueryContext empresasContext, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearEmpresaCommand, Result<Guid>>
 {
@@ -71,8 +74,17 @@ public class CrearEmpresaCommandHandler(
         var empresa = new Empresa(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);
         repositorio.Agregar(empresa);
 
+        // Doble escritura F4 (transitoria — ver SincronizacionRelacionEmpresarial):
+        // solo el alta de ClienteIds toca RelacionEmpresarial. RazonSocial/Cif/
+        // Cnae/ConvenioAplicable/EsActividadAnexoI son identidad de Empresa, no
+        // de la relación — no generan ninguna escritura aquí.
+        var ahora = DateTime.UtcNow;
         foreach (var clienteId in clienteIds)
+        {
             empresaClienteRepositorio.Agregar(new EmpresaCliente(empresa.Id, clienteId));
+            await SincronizacionRelacionEmpresarial.SincronizarAltaAsync(
+                relacionEmpresarialRepositorio, empresa.Id, clienteId, ahora, cancellationToken: cancellationToken);
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
