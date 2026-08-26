@@ -26,5 +26,8 @@ public class EmpresaRepository(CaeManagerDbContext dbContext) : IEmpresaReposito
     public Task<bool> TieneCentrosComoTitularAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
         dbContext.Set<Centro>().AnyAsync(c => c.ClienteId == empresaId, cancellationToken);
 
+    public Task<bool> TieneTrabajadoresComoSubcontrataAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
+        dbContext.Set<Trabajador>().AnyAsync(t => t.SubcontrataId == empresaId, cancellationToken);
+
     public void Agregar(Empresa empresa) => dbContext.Empresas.Add(empresa);
 }

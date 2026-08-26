@@ -153,8 +153,33 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Clientes.ObtenerResumenClienteQueryHandler", "IAsignacionesQueryContext"),
         ("Clientes.ObtenerResumenClienteQueryHandler", "ICentrosQueryContext"),
         ("Clientes.ObtenerSubcontratasDeClienteQueryHandler", "ISubcontratasQueryContext"),
+        // F3b-Subcontrata: la parte SubcontrataId de este join ahora resuelve
+        // contra Empresas — el ISubcontratasQueryContext de arriba se
+        // conserva solo por la tabla puente SubcontratasClientes.
+        ("Clientes.ObtenerSubcontratasDeClienteQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "IConfiguracionIaDocumentoClienteRepository"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "INotificacionUsuarioRepository"),
+        // F3b-Subcontrata: mismo motivo que Cliente arriba — "Subcontrata" es
+        // ahora una Empresa contraparte (Empresa.CrearComoSubcontrata), y los
+        // comandos de la feature Subcontratas escriben/leen contra el
+        // repositorio de Empresas en vez del suyo propio, retirado.
+        ("Subcontratas.CrearSubcontrataCommandHandler", "IEmpresaRepository"),
+        ("Subcontratas.EditarSubcontrataCommandHandler", "IEmpresaRepository"),
+        ("Subcontratas.EliminarSubcontrataCommandHandler", "IEmpresaRepository"),
+        ("Subcontratas.EliminarSubcontratasCommandHandler", "IEmpresaRepository"),
+        ("Subcontratas.CambiarNivelServicioSubcontrataCommandHandler", "IEmpresaRepository"),
+        ("Subcontratas.GuardarCredencialAccesoSubcontrataCommandHandler", "IEmpresaRepository"),
+        ("Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler", "IEmpresaRepository"),
+        // F3b-Subcontrata: el detalle de Subcontrata (RazonSocial/Cif/NivelServicio)
+        // ahora vive en Empresas; ISubcontratasQueryContext se conserva en este
+        // handler solo por SubcontratasClientes/SubcontratasEmpresas.
+        ("Subcontratas.ObtenerSubcontrataPorIdQueryHandler", "IEmpresasQueryContext"),
+        // F3b-Subcontrata (revisión adversaria, 2026-08-26): adelantadas por
+        // evidencia real, no por reclasificación — ver
+        // f3b-subcontrata-obtenersubcontratasquery-adelantada-2026-08-26.md
+        // y f3b-subcontrata-selector-adelantado-2026-08-26.md.
+        ("Subcontratas.ObtenerSubcontratasQueryHandler", "IEmpresasQueryContext"),
+        ("Subcontratas.ObtenerSubcontratasParaSelectorQueryHandler", "IEmpresasQueryContext"),
         // Comercial (Horizonte 1.7, "Billing mínimo viable") opera
         // directamente sobre el agregado Tenant (EstadoComercial,
         // StripeCustomerId/SubscriptionId) — mismo motivo que ApiKeys arriba:

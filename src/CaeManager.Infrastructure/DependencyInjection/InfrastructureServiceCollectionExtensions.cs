@@ -252,14 +252,14 @@ public static class InfrastructureServiceCollectionExtensions
         if (opcionesWhatsApp.EstaConfigurado)
             services.AddHostedService<IngestaWebhookWhatsAppHostedService>();
 
-        // F3b: IClienteRepository/ClienteRepository retirados — Cliente
-        // pasa a ser Empresa contraparte (EsPropia=false), ver
-        // Empresa.CrearComoCliente. Clientes/Subcontratas quedan legacy
-        // read-only (f3b-decision-d2-transicion-acotada-2026-08-25.md).
+        // F3b: IClienteRepository/ClienteRepository e
+        // ISubcontrataRepository/SubcontrataRepository retirados — Cliente y
+        // Subcontrata pasan a ser Empresa contraparte (EsPropia=false), ver
+        // Empresa.CrearComoCliente/CrearComoSubcontrata. Clientes/Subcontratas
+        // quedan legacy read-only (f3b-decision-d2-transicion-acotada-2026-08-25.md).
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         services.AddScoped<IEmpresaClienteRepository, EmpresaClienteRepository>();
         services.AddScoped<ICredencialAccesoEmpresaRepository, CredencialAccesoEmpresaRepository>();
-        services.AddScoped<ISubcontrataRepository, SubcontrataRepository>();
         services.AddScoped<IVerificacionExternaSubcontrataRepository, VerificacionExternaSubcontrataRepository>();
         services.AddScoped<ISubcontrataClienteRepository, SubcontrataClienteRepository>();
         services.AddScoped<ISubcontrataEmpresaRepository, SubcontrataEmpresaRepository>();

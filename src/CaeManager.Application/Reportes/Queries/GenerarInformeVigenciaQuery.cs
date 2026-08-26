@@ -4,7 +4,6 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Subcontratas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
@@ -38,7 +37,7 @@ public record FilaReporteDocumentoDto(
 
 public class GenerarInformeVigenciaQueryHandler(
     IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext,
-    IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext,
+    IEmpresasQueryContext empresasContext,
     ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
     IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext)
     : IRequestHandler<GenerarInformeVigenciaQuery, InformeVigenciaDto>
@@ -69,7 +68,7 @@ public class GenerarInformeVigenciaQueryHandler(
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             join empresa in empresasContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
             from empresa in empresasCoincidentes.DefaultIfEmpty()
-            join subcontrata in subcontratasContext.Subcontratas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
+            join subcontrata in empresasContext.Empresas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
             from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
             select new
             {

@@ -47,8 +47,8 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         var centro = new Centro(cliente.Id, empresa.Id, "Centro Cumplimiento Sub");
         contexto.Centros.Add(centro);
 
-        var subcontrata = new Subcontrata("Subcontrata Cumplimiento S.L.");
-        contexto.Subcontratas.Add(subcontrata);
+        var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata Cumplimiento S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
+        contexto.Empresas.Add(subcontrata);
 
         var tipoObligatorio = new TipoDocumento("EPIs", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
         contexto.TiposDocumento.Add(tipoObligatorio);
@@ -119,8 +119,8 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     {
         await using (var contexto = CrearContexto())
         {
-            var subcontrata = await contexto.Subcontratas.SingleAsync(s => s.Id == _subcontrataId);
-            subcontrata.CambiarNivelServicio(NivelServicioSubcontrata.Supervisada);
+            var subcontrata = await contexto.Empresas.SingleAsync(e => e.Id == _subcontrataId);
+            subcontrata.CambiarNivelServicioComoSubcontrata(NivelServicioSubcontrata.Supervisada.ToString());
             await contexto.SaveChangesAsync();
         }
 

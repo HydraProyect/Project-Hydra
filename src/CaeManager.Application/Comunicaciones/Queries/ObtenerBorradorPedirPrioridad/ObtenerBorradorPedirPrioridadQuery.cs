@@ -5,7 +5,6 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
-using CaeManager.Application.Subcontratas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
@@ -43,7 +42,6 @@ public class ObtenerBorradorPedirPrioridadQueryHandler(
     IAsignacionesQueryContext asignacionesContext,
     ITrabajadoresQueryContext trabajadoresContext,
     IEmpresasQueryContext empresasContext,
-    ISubcontratasQueryContext subcontratasContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IIntegracionesQueryContext integracionesContext,
     IComunicacionesQueryContext comunicacionesContext,
@@ -64,7 +62,7 @@ public class ObtenerBorradorPedirPrioridadQueryHandler(
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             join empresa in empresasContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
             from empresa in empresasCoincidentes.DefaultIfEmpty()
-            join subcontrata in subcontratasContext.Subcontratas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
+            join subcontrata in empresasContext.Empresas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
             from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
             select new
             {

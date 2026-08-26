@@ -55,9 +55,12 @@ public class DatosPruebaSupervisionSeederTests : IAsyncLifetime
 
         await using var contexto = CrearContexto();
 
-        var subcontratas = await contexto.Subcontratas.ToListAsync();
-        subcontratas.Should().Contain(s => s.NivelServicio == NivelServicioSubcontrata.Gestionada);
-        subcontratas.Should().Contain(s => s.NivelServicio == NivelServicioSubcontrata.Supervisada);
+        // F3b-Subcontrata: DatosPruebaSeeder ya crea las subcontratas de
+        // demo como Empresa (EsCritico null, NivelServicio informado), no en
+        // la tabla legacy Subcontratas — mismo motivo que Cliente.
+        var subcontratas = await contexto.Empresas.Where(e => e.NivelServicio != null).ToListAsync();
+        subcontratas.Should().Contain(s => s.NivelServicio == NivelServicioSubcontrata.Gestionada.ToString());
+        subcontratas.Should().Contain(s => s.NivelServicio == NivelServicioSubcontrata.Supervisada.ToString());
 
         var verificaciones = await contexto.VerificacionesExternaSubcontrata.ToListAsync();
         verificaciones.Should().NotBeEmpty();
@@ -82,7 +85,7 @@ public class DatosPruebaSupervisionSeederTests : IAsyncLifetime
         // Una subcontrata Gestionada también lleva verificaciones: son hechos
         // registrables en ambos niveles.
         var idsGestionadas = subcontratas
-            .Where(s => s.NivelServicio == NivelServicioSubcontrata.Gestionada)
+            .Where(s => s.NivelServicio == NivelServicioSubcontrata.Gestionada.ToString())
             .Select(s => s.Id)
             .ToHashSet();
         verificaciones.Should().Contain(v => idsGestionadas.Contains(v.SubcontrataId));

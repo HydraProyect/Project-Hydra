@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
 using MediatR;
@@ -33,7 +34,7 @@ public class CrearSubcontrataCommandValidator : AbstractValidator<CrearSubcontra
 }
 
 public class CrearSubcontrataCommandHandler(
-    ISubcontrataRepository repositorio,
+    IEmpresaRepository repositorio,
     ISubcontrataClienteRepository subcontrataClienteRepositorio,
     ISubcontrataEmpresaRepository subcontrataEmpresaRepositorio,
     IEmpresasQueryContext empresasContext,
@@ -58,7 +59,7 @@ public class CrearSubcontrataCommandHandler(
         if (await empresasContext.Empresas.Where(e => empresaIds.Contains(e.Id)).CountAsync(cancellationToken) != empresaIds.Count)
             return Result.Fallo<Guid>(Error.Crear("Subcontrata.EmpresaNoEncontrada", "Alguna de las empresas seleccionadas no existe."));
 
-        var subcontrata = new Subcontrata(request.RazonSocial, request.Cif);
+        var subcontrata = Empresa.CrearComoSubcontrata(request.RazonSocial, request.Cif, NivelServicioSubcontrata.Gestionada.ToString());
         repositorio.Agregar(subcontrata);
 
         foreach (var clienteId in clienteIds)

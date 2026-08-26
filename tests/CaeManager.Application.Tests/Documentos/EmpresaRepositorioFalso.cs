@@ -21,5 +21,8 @@ public class EmpresaRepositorioFalso : IEmpresaRepository
     public Task<bool> TieneCentrosComoTitularAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
         Task.FromResult(false);
 
+    public Task<bool> TieneTrabajadoresComoSubcontrataAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
+
     public void Agregar(Empresa empresa) => Empresas.Add(empresa);
 }
