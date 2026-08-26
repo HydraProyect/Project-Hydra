@@ -2,7 +2,6 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
-using CaeManager.Domain.Subcontratas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -32,17 +31,18 @@ public class ContactoAgendaConfiguration : IEntityTypeConfiguration<ContactoAgen
         // repositorio: borrar un Cliente con agenda debe fallar de forma
         // visible, no llevarse los contactos por delante en silencio.
         //
-        // F3b — ClienteId repunta contra Empresas.Id (ver
+        // F3b — ClienteId/SubcontrataId repuntan contra Empresas.Id (ver
         // f3b-decision-d2-transicion-acotada-2026-08-25.md §2): a diferencia
-        // de las otras 12 constraints de este repunteo, aquí no hay
+        // de las otras constraints de este repunteo, aquí no hay
         // HasPrincipalKey ni TenantId en la FK — ya no lo había contra
-        // Cliente tampoco, así que apunta igual que antes, solo que ahora a
-        // Empresa.Id (su PK, globalmente única). Cubierto por su propio test
-        // de integridad en RepointFksClienteTests, no asume el patrón
-        // compuesto de las demás.
+        // Cliente/Subcontrata tampoco, así que apuntan igual que antes, solo
+        // que ahora a Empresa.Id (su PK, globalmente única). Cubierto por su
+        // propio test de integridad (RepointFksClienteTests para ClienteId,
+        // F3bSubcontrataRepunteoFksTests para SubcontrataId), no asume el
+        // patrón compuesto de las demás.
         builder.HasOne<Empresa>().WithMany().HasForeignKey(c => c.ClienteId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Empresa>().WithMany().HasForeignKey(c => c.EmpresaId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne<Subcontrata>().WithMany().HasForeignKey(c => c.SubcontrataId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Empresa>().WithMany().HasForeignKey(c => c.SubcontrataId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Centro>().WithMany().HasForeignKey(c => c.CentroId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(c => c.TiposDocumento)

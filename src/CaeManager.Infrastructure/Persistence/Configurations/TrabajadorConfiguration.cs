@@ -1,5 +1,4 @@
 using CaeManager.Domain.Empresas;
-using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -39,7 +38,8 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
             .HasPrincipalKey(e => new { e.TenantId, e.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne<Subcontrata>().WithMany()
+        // F3b-Subcontrata — SubcontrataId repunta contra Empresas también.
+        builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(t => new { t.TenantId, t.SubcontrataId })
             .HasPrincipalKey(s => new { s.TenantId, s.Id })
             .OnDelete(DeleteBehavior.Restrict);

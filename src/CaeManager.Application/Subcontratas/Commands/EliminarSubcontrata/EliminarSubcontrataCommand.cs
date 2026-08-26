@@ -1,13 +1,13 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
-using CaeManager.Domain.Subcontratas;
+using CaeManager.Domain.Empresas;
 using MediatR;
 
 namespace CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 
 public record EliminarSubcontrataCommand(Guid Id, Guid UsuarioId) : ICommand;
 
-public class EliminarSubcontrataCommandHandler(ISubcontrataRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+public class EliminarSubcontrataCommandHandler(IEmpresaRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarSubcontrataCommand, Result>
 {
     public async Task<Result> Handle(EliminarSubcontrataCommand request, CancellationToken cancellationToken)
@@ -16,7 +16,7 @@ public class EliminarSubcontrataCommandHandler(ISubcontrataRepository repositori
         if (subcontrata is null || !await alcanceDatos.SubcontrataVisibleAsync(subcontrata.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 
-        if (await repositorio.TieneTrabajadoresAsync(request.Id, cancellationToken))
+        if (await repositorio.TieneTrabajadoresComoSubcontrataAsync(request.Id, cancellationToken))
             return Result.Fallo(Error.Crear(
                 "Subcontrata.TieneTrabajadores",
                 "No puedes eliminar una subcontrata con trabajadores. Da de baja a sus trabajadores primero."));

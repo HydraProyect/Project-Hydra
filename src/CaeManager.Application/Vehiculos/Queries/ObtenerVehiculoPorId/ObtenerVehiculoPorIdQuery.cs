@@ -1,6 +1,5 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Vehiculos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +18,7 @@ public record VehiculoDetalleDto(
     string NumeroPlaca,
     Guid Version);
 
-public class ObtenerVehiculoPorIdQueryHandler(IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVehiculoPorIdQueryHandler(IEmpresasQueryContext empresasContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVehiculoPorIdQuery, VehiculoDetalleDto?>
 {
     public async Task<VehiculoDetalleDto?> Handle(ObtenerVehiculoPorIdQuery request, CancellationToken cancellationToken)
@@ -35,7 +34,7 @@ public class ObtenerVehiculoPorIdQueryHandler(IEmpresasQueryContext empresasCont
 
         var empleadorNombre = vehiculo.EmpresaId is not null
             ? await empresasContext.Empresas.Where(e => e.Id == vehiculo.EmpresaId).Select(e => e.RazonSocial).FirstAsync(cancellationToken)
-            : await subcontratasContext.Subcontratas.Where(s => s.Id == vehiculo.SubcontrataId).Select(s => s.RazonSocial).FirstAsync(cancellationToken);
+            : await empresasContext.Empresas.Where(e => e.Id == vehiculo.SubcontrataId).Select(e => e.RazonSocial).FirstAsync(cancellationToken);
 
         return new VehiculoDetalleDto(
             vehiculo.Id, vehiculo.EmpresaId, vehiculo.SubcontrataId, empleadorNombre, vehiculo.Nombre, vehiculo.Modelo,

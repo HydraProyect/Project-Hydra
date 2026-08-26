@@ -146,8 +146,8 @@ public class ObtenerDocumentacionVisitaQueryTests : IAsyncLifetime
         Guid trabajadorSubId;
         await using (var contexto = CrearContexto())
         {
-            var subcontrata = new Subcontrata("Subcontrata Doc Visita S.L.");
-            contexto.Subcontratas.Add(subcontrata);
+            var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata Doc Visita S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.Add(subcontrata);
             await contexto.SaveChangesAsync();
 
             var trabajadorSub = Trabajador.DeSubcontrata(subcontrata.Id, "Luis", "Pérez", "12345678Z");
@@ -169,7 +169,7 @@ public class ObtenerDocumentacionVisitaQueryTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerDocumentacionVisitaQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
 
         return await handler.Handle(new ObtenerDocumentacionVisitaQuery(_visitaId), CancellationToken.None);
     }

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
 using MediatR;
@@ -25,7 +26,7 @@ public class CambiarNivelServicioSubcontrataCommandValidator : AbstractValidator
 }
 
 public class CambiarNivelServicioSubcontrataCommandHandler(
-    ISubcontrataRepository repositorio,
+    IEmpresaRepository repositorio,
     IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CambiarNivelServicioSubcontrataCommand, Result>
@@ -39,7 +40,7 @@ public class CambiarNivelServicioSubcontrataCommandHandler(
         if (ConcurrenciaOptimista.Verificar(subcontrata, request.Version, "esta subcontrata") is { } conflicto)
             return Result.Fallo(conflicto);
 
-        subcontrata.CambiarNivelServicio(request.NivelServicio);
+        subcontrata.CambiarNivelServicioComoSubcontrata(request.NivelServicio.ToString());
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Subcontratas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,8 @@ public record ObtenerSubcontratasDeClienteQuery(Guid ClienteId) : IRequest<IRead
 
 public record SubcontrataDeClienteDto(Guid Id, string RazonSocial);
 
-public class ObtenerSubcontratasDeClienteQueryHandler(ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerSubcontratasDeClienteQueryHandler(
+    IEmpresasQueryContext empresasContext, ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerSubcontratasDeClienteQuery, IReadOnlyList<SubcontrataDeClienteDto>>
 {
     public async Task<IReadOnlyList<SubcontrataDeClienteDto>> Handle(
@@ -22,7 +24,7 @@ public class ObtenerSubcontratasDeClienteQueryHandler(ISubcontratasQueryContext 
         return await (
             from sc in dbContext.SubcontratasClientes
             where sc.ClienteId == request.ClienteId
-            join subcontrata in dbContext.Subcontratas on sc.SubcontrataId equals subcontrata.Id
+            join subcontrata in empresasContext.Empresas on sc.SubcontrataId equals subcontrata.Id
             orderby subcontrata.RazonSocial
             select new SubcontrataDeClienteDto(subcontrata.Id, subcontrata.RazonSocial))
             .ToListAsync(cancellationToken);
