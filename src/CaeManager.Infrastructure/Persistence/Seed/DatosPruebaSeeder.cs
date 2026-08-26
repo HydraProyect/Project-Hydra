@@ -383,12 +383,18 @@ public static class DatosPruebaSeeder
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // --- Subcontratas, vinculadas a clientes y empresas reales ---
-        var subcontratas = new List<Subcontrata>();
+        // F3b-Subcontrata: "Subcontrata" se crea como Empresa contraparte
+        // (EsPropia=false), igual que Cliente arriba — ver
+        // Empresa.CrearComoSubcontrata.
+        var subcontratas = new List<Empresa>();
         var empresasPorSubcontrata = new Dictionary<Guid, List<Empresa>>();
         var clientesPorSubcontrata = new Dictionary<Guid, List<Empresa>>();
         for (var i = 0; i < numeroSubcontratas; i++)
         {
-            var subcontrata = new Subcontrata($"Subcontrata {ElementoAleatorio(aleatorio, MarcasCaricatura)} {ElementoAleatorio(aleatorio, SectoresEmpresa)} {i + 1:D2} {ElementoAleatorio(aleatorio, SufijosSociedad)}");
+            var subcontrata = Empresa.CrearComoSubcontrata(
+                $"Subcontrata {ElementoAleatorio(aleatorio, MarcasCaricatura)} {ElementoAleatorio(aleatorio, SectoresEmpresa)} {i + 1:D2} {ElementoAleatorio(aleatorio, SufijosSociedad)}",
+                cif: null,
+                nivelServicio: NivelServicioSubcontrata.Gestionada.ToString());
             subcontratas.Add(subcontrata);
 
             var empresasVinculadas = ElementosAleatoriosUnicos(aleatorio, empresas, aleatorio.Next(1, 4));
@@ -400,7 +406,7 @@ public static class DatosPruebaSeeder
             dbContext.SubcontratasClientes.AddRange(
                 clientesVinculados.Select(c => new SubcontrataCliente(subcontrata.Id, c.Id)));
         }
-        dbContext.Subcontratas.AddRange(subcontratas);
+        dbContext.Empresas.AddRange(subcontratas);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // --- Trabajadores: 5-12 por empresa, 2-5 por subcontrata ---
@@ -738,9 +744,9 @@ public static class DatosPruebaSeeder
         {
             var subcontrata = subcontratas[indice];
             if (indice % 2 == 1)
-                subcontrata.CambiarNivelServicio(NivelServicioSubcontrata.Supervisada);
+                subcontrata.CambiarNivelServicioComoSubcontrata(NivelServicioSubcontrata.Supervisada.ToString());
 
-            if (subcontrata.NivelServicio != NivelServicioSubcontrata.Supervisada && indice != 0)
+            if (subcontrata.NivelServicio != NivelServicioSubcontrata.Supervisada.ToString() && indice != 0)
                 continue;
 
             var centrosDeSusClientes = clientesPorSubcontrata[subcontrata.Id]
@@ -844,7 +850,7 @@ public static class DatosPruebaSeeder
     /// </summary>
     private static void SembrarAgendaContactos(
         CaeManagerDbContext dbContext, Random aleatorio, List<Empresa> clientes, List<Empresa> empresas,
-        List<Subcontrata> subcontratas, List<Centro> centros, List<TipoDocumento> tiposDocumento)
+        List<Empresa> subcontratas, List<Centro> centros, List<TipoDocumento> tiposDocumento)
     {
         var contactos = new List<ContactoAgenda>();
         var indiceNombre = aleatorio.Next(NombresTrabajadores.Length);

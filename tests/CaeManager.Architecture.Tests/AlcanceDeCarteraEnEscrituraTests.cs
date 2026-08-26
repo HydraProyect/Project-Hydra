@@ -9,7 +9,6 @@ using CaeManager.Application.Vehiculos;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
-using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
 using FluentAssertions;
@@ -45,7 +44,6 @@ public class AlcanceDeCarteraEnEscrituraTests
     {
         [typeof(ICentroRepository)] = nameof(ICentroRepository),
         [typeof(IEmpresaRepository)] = nameof(IEmpresaRepository),
-        [typeof(ISubcontrataRepository)] = nameof(ISubcontrataRepository),
         [typeof(ITrabajadorRepository)] = nameof(ITrabajadorRepository),
         [typeof(IVehiculoRepository)] = nameof(IVehiculoRepository),
         [typeof(IDocumentoRepository)] = nameof(IDocumentoRepository),
@@ -109,8 +107,14 @@ public class AlcanceDeCarteraEnEscrituraTests
             // ICentroRepository --para dar de alta uno nuevo-- y lleva
             // ClienteId y EmpresaId, que son las coordenadas donde colocarlo, no
             // una fila existente que se cargue por Id.
+            //
+            // IEmpresaRepository es multiforme desde F3b: sirve tanto a Empresa
+            // como a las filas ex-Cliente/ex-Subcontrata que ahora viven en la
+            // misma tabla, y sus comandos heredaron los nombres de propiedad
+            // historicos (ClienteId, SubcontrataId), no "EmpresaId" — ver
+            // NombresDelAgregado.
             var cargadosPorId = repositoriosConAlcance
-                .Where(r => ElComandoCargaElAgregado(handlerInfo.Command, NombreDelAgregado(r)))
+                .Where(r => NombresDelAgregado(r).Any(nombre => ElComandoCargaElAgregado(handlerInfo.Command, nombre)))
                 .ToList();
 
             if (cargadosPorId.Count == 0) continue;
@@ -146,7 +150,15 @@ public class AlcanceDeCarteraEnEscrituraTests
         comando.GetProperties().Any(p => p.PropertyType == typeof(Guid)
                                          && (p.Name == "Id" || p.Name == agregado + "Id"));
 
-    /// <summary>IClienteRepository -> Cliente.</summary>
-    private static string NombreDelAgregado(Type repositorio) =>
-        repositorio.Name[1..^"Repository".Length];
+    /// <summary>
+    /// ICentroRepository -> ["Centro"]. Caso especial: IEmpresaRepository
+    /// carga tanto Empresa como las filas ex-Cliente/ex-Subcontrata (F3b/
+    /// F3b-Subcontrata), cuyos comandos siguen usando los nombres de
+    /// propiedad históricos <c>ClienteId</c>/<c>SubcontrataId</c> — devuelve
+    /// las tres formas para que el emparejamiento por nombre no las pierda.
+    /// </summary>
+    private static string[] NombresDelAgregado(Type repositorio) =>
+        repositorio == typeof(IEmpresaRepository)
+            ? ["Empresa", "Cliente", "Subcontrata"]
+            : [repositorio.Name[1..^"Repository".Length]];
 }

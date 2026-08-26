@@ -1,7 +1,6 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
 using MediatR;
@@ -22,7 +21,7 @@ public record ObtenerVehiculosConActividadDeCentroQuery(Guid CentroId) : IReques
 
 public record VehiculoConActividadDto(Guid Id, string Nombre, string Modelo, string NumeroPlaca, string EmpleadorNombre);
 
-public class ObtenerVehiculosConActividadDeCentroQueryHandler(IAsignacionesQueryContext asignacionesContext, IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVehiculosConActividadDeCentroQueryHandler(IAsignacionesQueryContext asignacionesContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVehiculosConActividadDeCentroQuery, IReadOnlyList<VehiculoConActividadDto>>
 {
     public async Task<IReadOnlyList<VehiculoConActividadDto>> Handle(
@@ -51,7 +50,7 @@ public class ObtenerVehiculosConActividadDeCentroQueryHandler(IAsignacionesQuery
                || (vehiculo.SubcontrataId != null && subcontrataIds.Contains(vehiculo.SubcontrataId.Value))
             join empresa in empresasContext.Empresas on vehiculo.EmpresaId equals empresa.Id into empresasCoincidentes
             from empresa in empresasCoincidentes.DefaultIfEmpty()
-            join subcontrata in subcontratasContext.Subcontratas on vehiculo.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
+            join subcontrata in empresasContext.Empresas on vehiculo.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
             from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
             orderby vehiculo.Nombre
             select new VehiculoConActividadDto(

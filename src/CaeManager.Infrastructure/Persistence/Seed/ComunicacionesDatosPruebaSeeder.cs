@@ -2,7 +2,6 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
-using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Telemetria;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
@@ -96,7 +95,11 @@ public static class ComunicacionesDatosPruebaSeeder
 
         var trabajadores = await dbContext.Trabajadores.Take(60).ToListAsync(cancellationToken);
         var empresas = await dbContext.Empresas.Take(40).ToListAsync(cancellationToken);
-        var subcontratas = await dbContext.Subcontratas.Take(40).ToListAsync(cancellationToken);
+        // F3b-Subcontrata — Empresas, no la tabla legacy Subcontratas: mismo
+        // motivo que Clientes arriba.
+        var subcontratas = await dbContext.Empresas
+            .Where(e => e.NivelServicio != null)
+            .OrderBy(e => e.RazonSocial).Take(40).ToListAsync(cancellationToken);
         var centros = await dbContext.Centros.Take(40).ToListAsync(cancellationToken);
 
         var gestoresPrueba = (await userManager.GetUsersInRoleAsync(Roles.GestorCae)).ToList();
@@ -672,7 +675,7 @@ public static class ComunicacionesDatosPruebaSeeder
         Conversacion conversacion, Random aleatorio,
         IReadOnlyList<Trabajador> trabajadores,
         IReadOnlyList<Empresa> empresas,
-        IReadOnlyList<Subcontrata> subcontratas,
+        IReadOnlyList<Empresa> subcontratas,
         IReadOnlyList<Centro> centros)
     {
         switch (aleatorio.Next(4))

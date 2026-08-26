@@ -39,12 +39,12 @@ public class AlcanceDeCredencialesDeAccesoTests
     [Fact]
     public async Task Fuera_de_cartera_no_se_pueden_sobreescribir_las_credenciales_de_una_subcontrata()
     {
-        var subcontrata = new Subcontrata("Contrata ajena S.L.");
+        var subcontrata = Empresa.CrearComoSubcontrata("Contrata ajena S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
         var credenciales = new CredencialSubcontrataRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
 
         var handler = new GuardarCredencialAccesoSubcontrataCommandHandler(
-            new SubcontrataRepositorioFalso(subcontrata),
+            new EmpresaRepositorioFalso(subcontrata),
             credenciales,
             new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: []),
             unitOfWork);
@@ -64,12 +64,12 @@ public class AlcanceDeCredencialesDeAccesoTests
     [Fact]
     public async Task Dentro_de_cartera_las_credenciales_de_una_subcontrata_se_guardan()
     {
-        var subcontrata = new Subcontrata("Contrata propia S.L.");
+        var subcontrata = Empresa.CrearComoSubcontrata("Contrata propia S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
         var credenciales = new CredencialSubcontrataRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
 
         var handler = new GuardarCredencialAccesoSubcontrataCommandHandler(
-            new SubcontrataRepositorioFalso(subcontrata),
+            new EmpresaRepositorioFalso(subcontrata),
             credenciales,
             new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrata.Id]),
             unitOfWork);
@@ -162,25 +162,6 @@ public class AlcanceDeCredencialesDeAccesoTests
         resultado.Should().BeNull();
     }
 
-    private sealed class SubcontrataRepositorioFalso(Subcontrata subcontrata) : ISubcontrataRepository
-    {
-        public Task<Subcontrata?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            Task.FromResult<Subcontrata?>(subcontrata);
-
-        public Task<bool> ExisteConRazonSocialAsync(
-            string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult(false);
-
-        public Task<bool> ExisteConCifAsync(
-            string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult(false);
-
-        public Task<bool> TieneTrabajadoresAsync(Guid subcontrataId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(false);
-
-        public void Agregar(Subcontrata nueva) { }
-    }
-
     private sealed class EmpresaRepositorioFalso(Empresa empresa) : IEmpresaRepository
     {
         public Task<Empresa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
@@ -198,6 +179,9 @@ public class AlcanceDeCredencialesDeAccesoTests
             Task.FromResult(false);
 
         public Task<bool> TieneCentrosComoTitularAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<bool> TieneTrabajadoresComoSubcontrataAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
 
         public void Agregar(Empresa nueva) { }

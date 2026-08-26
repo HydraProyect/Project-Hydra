@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Domain.Subcontratas;
 using MediatR;
@@ -12,19 +13,20 @@ public record SubcontrataDetalleDto(
     Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds,
     Guid Version, NivelServicioSubcontrata NivelServicio);
 
-public class ObtenerSubcontrataPorIdQueryHandler(ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerSubcontrataPorIdQueryHandler(
+    IEmpresasQueryContext empresasContext, ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerSubcontrataPorIdQuery, SubcontrataDetalleDto?>
 {
     public async Task<SubcontrataDetalleDto?> Handle(ObtenerSubcontrataPorIdQuery request, CancellationToken cancellationToken)
     {
         if (!await alcanceDatos.SubcontrataVisibleAsync(request.Id, cancellationToken)) return null;
 
-        var subcontrata = await dbContext.Subcontratas
-            .Where(s => s.Id == request.Id)
-            .Select(s => new { s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, s.Version, s.NivelServicio })
+        var subcontrata = await empresasContext.Empresas
+            .Where(e => e.Id == request.Id)
+            .Select(e => new { e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc, e.Version, e.NivelServicio })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (subcontrata is null) return null;
+        if (subcontrata is null || subcontrata.NivelServicio is null) return null;
 
         var clienteIds = await dbContext.SubcontratasClientes
             .Where(sc => sc.SubcontrataId == request.Id)
@@ -38,6 +40,6 @@ public class ObtenerSubcontrataPorIdQueryHandler(ISubcontratasQueryContext dbCon
 
         return new SubcontrataDetalleDto(
             subcontrata.Id, subcontrata.RazonSocial, subcontrata.Cif, subcontrata.CreadoEnUtc, clienteIds, empresaIds,
-            subcontrata.Version, subcontrata.NivelServicio);
+            subcontrata.Version, Enum.Parse<NivelServicioSubcontrata>(subcontrata.NivelServicio));
     }
 }

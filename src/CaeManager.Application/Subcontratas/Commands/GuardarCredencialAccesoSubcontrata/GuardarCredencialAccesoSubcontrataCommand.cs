@@ -1,5 +1,6 @@
 ﻿using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
 using MediatR;
@@ -27,7 +28,7 @@ public class GuardarCredencialAccesoSubcontrataCommandValidator : AbstractValida
 }
 
 public class GuardarCredencialAccesoSubcontrataCommandHandler(
-    ISubcontrataRepository subcontrataRepositorio,
+    IEmpresaRepository subcontrataRepositorio,
     ICredencialAccesoSubcontrataRepository credencialRepositorio,
     IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork)

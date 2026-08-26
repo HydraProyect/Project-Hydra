@@ -1,6 +1,5 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -25,7 +24,7 @@ public record TrabajadorDetalleDto(
     string? Puesto,
     Guid Version);
 
-public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasContext, ISubcontratasQueryContext subcontratasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTrabajadorPorIdQuery, TrabajadorDetalleDto?>
 {
     public async Task<TrabajadorDetalleDto?> Handle(ObtenerTrabajadorPorIdQuery request, CancellationToken cancellationToken)
@@ -56,7 +55,7 @@ public class ObtenerTrabajadorPorIdQueryHandler(IEmpresasQueryContext empresasCo
 
         var empleadorNombre = trabajador.EmpresaId is not null
             ? await empresasContext.Empresas.Where(e => e.Id == trabajador.EmpresaId).Select(e => e.RazonSocial).FirstAsync(cancellationToken)
-            : await subcontratasContext.Subcontratas.Where(s => s.Id == trabajador.SubcontrataId).Select(s => s.RazonSocial).FirstAsync(cancellationToken);
+            : await empresasContext.Empresas.Where(e => e.Id == trabajador.SubcontrataId).Select(e => e.RazonSocial).FirstAsync(cancellationToken);
 
         return new TrabajadorDetalleDto(
             trabajador.Id, trabajador.EmpresaId, trabajador.SubcontrataId, empleadorNombre, trabajador.Nombre, trabajador.Apellidos,
