@@ -100,9 +100,13 @@
                             }
                         </td>
                         <td>
-                            @if (tipo.EsObligatorio)
+                            @if (tipo.Requerido != RequisitoDocumental.No)
                             {
-                                <Badge Tono="TonoBadge.Advertencia">Obligatorio</Badge>
+                                @* El badge dice CON QUÉ AUTORIDAD se pide, no
+                                   "Obligatorio" a secas: llamar obligación a
+                                   una práctica del sector es exactamente lo
+                                   que esta taxonomía existe para impedir. *@
+                                <Badge Tono="@RequisitoDocumentalUi.Tono(tipo.Naturaleza)">@RequisitoDocumentalUi.Texto(tipo.Requerido, tipo.Naturaleza)</Badge>
                             }
                             else
                             {
@@ -208,7 +212,18 @@
         </label>
 
         <label class="campo-checkbox">
-            <input type="checkbox" @bind="_esObligatorio" /> Obligatorio para todos los clientes
+            <CampoSelect Etiqueta="¿Se pide?" Valor="@_requerido.ToString()" ValorChanged="v => _requerido = Enum.Parse<RequisitoDocumental>(v)">
+                <option value="@nameof(RequisitoDocumental.No)">No se pide</option>
+                <option value="@nameof(RequisitoDocumental.Si)">Sí, siempre</option>
+                <option value="@nameof(RequisitoDocumental.Condicional)">Solo si aplica (actividad, sector o situación)</option>
+            </CampoSelect>
+            <CampoSelect Etiqueta="¿Con qué autoridad?" Valor="@_naturaleza.ToString()" ValorChanged="v => _naturaleza = Enum.Parse<NaturalezaJuridica>(v)">
+                <option value="@nameof(NaturalezaJuridica.ObligacionLegal)">Obligación legal</option>
+                <option value="@nameof(NaturalezaJuridica.ObligacionCondicionada)">Obligación condicionada</option>
+                <option value="@nameof(NaturalezaJuridica.PracticaSector)">Práctica del sector</option>
+                <option value="@nameof(NaturalezaJuridica.RequisitoCliente)">Requisito de cliente</option>
+                <option value="@nameof(NaturalezaJuridica.Recomendacion)">Recomendación de TALVEG</option>
+            </CampoSelect>
         </label>
 
         @if (_aplicaVencimientoAutomatico)

@@ -91,8 +91,8 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         var trabajador = Trabajador.DeEmpresa(empresa.Id, "Bandeja", "Trabajador", "77189989B");
         _dbContext.Trabajadores.Add(trabajador);
 
-        var tipoObligatorio = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
-        var tipoBloqueante = new TipoDocumento("PSS firmado", null, false, 2, AmbitoAplicacion.Trabajador, esObligatorio: false);
+        var tipoObligatorio = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+        var tipoBloqueante = new TipoDocumento("PSS firmado", null, false, 2, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);
         _dbContext.TiposDocumento.Add(tipoObligatorio);
         _dbContext.TiposDocumento.Add(tipoBloqueante);
         await _dbContext.SaveChangesAsync();
@@ -102,7 +102,7 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
 
         // Requisito bloqueante sin cumplir — TipoDocumentoCentro.BloqueaAcceso=true
         // sin ningún Documento Vigente del trabajador (PLAN-EJECUCION-UX.md § 0.4).
-        // No obligatorio globalmente (esObligatorio: false), pero Incluido=true aquí
+        // No obligatorio globalmente (requerido: RequisitoDocumental.No), pero Incluido=true aquí
         // lo hace también "aplicar" (y por tanto Faltante en Alertas) en este Centro.
         _dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoBloqueante.Id, centro.Id, incluido: true, bloqueaAcceso: true));
 

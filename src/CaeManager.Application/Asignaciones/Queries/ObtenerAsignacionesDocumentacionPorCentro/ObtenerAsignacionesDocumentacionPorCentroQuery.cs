@@ -94,7 +94,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, t.EsObligatorio })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
             .ToListAsync(cancellationToken);
 
         // Tipos requeridos por ESTE centro — ver ResolucionTipoDocumentoCentro:
@@ -106,7 +106,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
         var tiposRequeridosPorCentro = tiposCandidatos
-            .Where(t => ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, request.CentroId, t.EsObligatorio))
+            .Where(t => ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, request.CentroId, t.CuentaParaCumplimiento))
             .Select(t => new { t.Id, t.Nombre })
             .ToList();
 

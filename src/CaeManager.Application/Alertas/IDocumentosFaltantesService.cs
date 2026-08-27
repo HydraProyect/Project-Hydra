@@ -37,7 +37,7 @@ public class DocumentosFaltantesService(ITiposDocumentoQueryContext tiposDocumen
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, t.EsObligatorio })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
             .ToListAsync(cancellationToken);
 
         if (tiposCandidatos.Count == 0)
@@ -68,7 +68,7 @@ public class DocumentosFaltantesService(ITiposDocumentoQueryContext tiposDocumen
         {
             foreach (var tipo in tiposCandidatos)
             {
-                if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, pareja.CentroId, tipo.EsObligatorio))
+                if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, pareja.CentroId, tipo.CuentaParaCumplimiento))
                     continue;
 
                 if (parejasConDocumento.Contains((pareja.TrabajadorId, tipo.Id)))

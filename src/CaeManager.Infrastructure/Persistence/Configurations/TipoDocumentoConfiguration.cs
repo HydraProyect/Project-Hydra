@@ -22,6 +22,13 @@ public class TipoDocumentoConfiguration : IEntityTypeConfiguration<TipoDocumento
         builder.Property(t => t.AmbitoAplicacion).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(t => t.PerfilDocumentoOficial).HasConversion<string>().HasMaxLength(20).IsRequired();
 
+        // Los dos ejes que sustituyen a EsObligatorio. Como cadena, igual que
+        // el resto de enums persistidos de la casa: el nombre es legible en la
+        // base y renombrar un valor se ve, en vez de reinterpretar filas en
+        // silencio. "ObligacionCondicionada" es el valor más largo (22).
+        builder.Property(t => t.Requerido).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(t => t.Naturaleza).HasConversion<string>().HasMaxLength(30).IsRequired();
+
         builder.HasIndex(t => new { t.TenantId, t.Nombre }).IsUnique();
 
         // Prerequisito de las FKs que Documento/TipoDocumentoCentro declaran

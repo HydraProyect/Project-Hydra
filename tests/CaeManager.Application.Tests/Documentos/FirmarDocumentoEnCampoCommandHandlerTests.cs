@@ -53,7 +53,9 @@ public class FirmarDocumentoEnCampoCommandHandlerTests
         PerfilDocumentoOficial perfil = PerfilDocumentoOficial.Ninguno)
     {
         var tipo = new CaeManager.Domain.Documentos.TipoDocumento(
-            "Certificado", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+            "Certificado", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Trabajador,
+            CaeManager.Domain.Documentos.RequisitoDocumental.Si,
+            CaeManager.Domain.Documentos.NaturalezaJuridica.PracticaSector);
         tipo.EstablecerPerfilDocumentoOficial(perfil);
         return tipo;
     }

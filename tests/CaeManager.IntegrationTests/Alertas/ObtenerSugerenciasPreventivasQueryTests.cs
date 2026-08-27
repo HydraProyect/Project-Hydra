@@ -51,7 +51,7 @@ public class ObtenerSugerenciasPreventivasQueryTests : IAsyncLifetime
         var trabajador2 = Trabajador.DeEmpresa(empresa.Id, "Segundo", "Técnico Prueba", "12345678Z");
         contexto.Trabajadores.AddRange(trabajador1, trabajador2);
 
-        var tipo = new TipoDocumento("Autorización uso de maquinaria", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        var tipo = new TipoDocumento("Autorización uso de maquinaria", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
 

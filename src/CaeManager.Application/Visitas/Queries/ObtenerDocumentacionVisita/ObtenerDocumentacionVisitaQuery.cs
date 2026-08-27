@@ -99,7 +99,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
 
         var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, t.AmbitoAplicacion, t.EsObligatorio })
+            .Select(t => new { t.Id, t.Nombre, t.AmbitoAplicacion, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
             .ToListAsync(cancellationToken);
 
         var tipoIdsRelevantes = tipos.Select(t => t.Id).ToHashSet();
@@ -119,11 +119,11 @@ public class ObtenerDocumentacionVisitaQueryHandler(
 
         var tiposEmpresa = tipos
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa && EnAlcanceDelCentro(t.Id))
-            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centro.Id, t.EsObligatorio)))
+            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centro.Id, t.CuentaParaCumplimiento)))
             .ToList();
         var tiposTrabajador = tipos
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && EnAlcanceDelCentro(t.Id))
-            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centro.Id, t.EsObligatorio)))
+            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centro.Id, t.CuentaParaCumplimiento)))
             .ToList();
 
         var seccionEmpresa = await ConstruirSeccionAsync(
