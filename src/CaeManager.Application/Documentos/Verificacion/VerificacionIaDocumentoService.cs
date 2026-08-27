@@ -84,18 +84,30 @@ public class VerificacionIaDocumentoService(
             await archivo.CopyToAsync(buffer, cancellationToken);
             contenido = buffer.ToArray();
         }
+        catch (FileNotFoundException)
+        {
+            // Se relanza SIN envolver, a propósito: DiskFileStorageService y
+            // S3FileStorageService ya normalizan a FileNotFoundException el
+            // único caso realmente determinista de este catch (el archivo no
+            // existe o no resuelve a este tenant) — no va a aparecer en un
+            // segundo intento. Dejar pasar el tipo intacto es lo que permite
+            // a ProcesadorAnalisisDocumentoHostedService reconocerlo y no
+            // gastar los reintentos de TrabajoAnalisisDocumento.MaximoIntentos
+            // (cada uno sería otro evento de Sentry sin ninguna posibilidad
+            // de éxito) en vez de tragárselo como antes.
+            throw;
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            // Cualquier otro fallo al abrir (red, el backend de almacenamiento
+            // caído, un timeout) sí puede ser transitorio — se envuelve para
+            // no perder el contexto, pero se deja reintentar como el resto.
             // No se traga el fallo: antes moría aquí con solo un log y el
             // trabajo seguía su curso hasta MarcarCompletado() como si el
             // documento sí se hubiera revisado (ver
             // ProcesadorAnalisisDocumentoHostedService, que interpreta "no
             // lanzó" como éxito y avisa al usuario "ya está revisado" sin que
             // se haya revisado nada — la trampa que Issue de D3 identificó).
-            // Relanzar deja que ese mismo servicio la capture con el
-            // contexto de tenant/intento que ya tiene, reintente hasta
-            // TrabajoAnalisisDocumento.MaximoIntentos veces y, si se agotan,
-            // avise honestamente en vez de fingir un éxito.
             throw new InvalidOperationException(
                 $"No se pudo abrir el archivo del Documento {documentoId} para verificación IA.", ex);
         }

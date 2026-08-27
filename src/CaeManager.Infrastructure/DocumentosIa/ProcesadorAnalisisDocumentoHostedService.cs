@@ -239,7 +239,20 @@ public class ProcesadorAnalisisDocumentoHostedService(
                 // intento puede fallar por una causa distinta que vale la
                 // pena ver por separado.
                 alertaOperativa.CapturarExcepcion(ex);
-                trabajo.RegistrarFallo(ex.Message);
+
+                // FileNotFoundException es el único caso, hoy, en el que un
+                // servicio de análisis (ver VerificacionIaDocumentoService)
+                // relanza sin envolver para señalar "esto no va a cambiar en
+                // el siguiente intento" — el archivo del Documento no existe
+                // o no resuelve a este tenant. Reintentarlo 3 veces no
+                // compraría ninguna posibilidad de éxito, solo 2 llamadas de
+                // pago a un proveedor de IA y 2 eventos de Sentry más de
+                // más. Cualquier otro fallo (red, proveedor caído, timeout)
+                // sí puede ser transitorio y conserva el reintento normal.
+                if (ex is FileNotFoundException)
+                    trabajo.RegistrarFalloDefinitivo(ex.Message);
+                else
+                    trabajo.RegistrarFallo(ex.Message);
             }
 
             await AvisarSiCorrespondeAsync(ambito.ServiceProvider, trabajo, stoppingToken);
