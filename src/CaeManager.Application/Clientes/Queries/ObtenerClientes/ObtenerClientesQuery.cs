@@ -26,7 +26,7 @@ public record ObtenerClientesQuery(
 /// El peor estado entre todas las alertas de vigencia (Vencido/Urgente/Próximo)
 /// de los Trabajadores cuyo Cliente principal es este (ver AlertaDto.ClienteId,
 /// IResolverClientePrincipalService) — null si no tiene ninguna alerta abierta
-/// ("Al día", mismo criterio que "nada pendiente" en Inicio/Mi trabajo: la
+/// ("Al corriente", mismo criterio que "nada pendiente" en Inicio/Mi trabajo: la
 /// ausencia se lee como estado, no como "sin datos").
 /// </param>
 /// <param name="EstadoDocumentalCantidad">Cuántas alertas hay en <paramref name="EstadoDocumentalPeor"/> — "12 vencidos", no solo "vencidos".</param>
@@ -187,7 +187,7 @@ public class ObtenerClientesQueryHandler(
 
     /// <summary>
     /// "Estado documental" de Cliente (mockup "Lista Clientes TALVEG": "12
-    /// vencidos" / "9 próximos" / "Al día") es el mismo agregado que ya
+    /// vencidos" / "9 próximos" / "Al corriente") es el mismo agregado que ya
     /// alimenta "Requiere atención" en Inicio/Mi trabajo — reutiliza
     /// ObtenerAlertasQuery en vez de recorrer Centro→Asignación→Documento
     /// desde cero, para no duplicar la lógica de umbrales/estados. Vencido

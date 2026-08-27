@@ -6,6 +6,7 @@
 @using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
 @using CaeManager.Application.Clientes.Queries.ObtenerClientes
 @using CaeManager.Application.Common
+@using CaeManager.Application.Documentos
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Clientes.Components
 @using CaeManager.Web.Features.Documentos
@@ -49,7 +50,7 @@
             <option value="">Estado: todos</option>
             <option value="@nameof(EstadoDocumento.Vencido)">Con vencidos</option>
             <option value="@nameof(EstadoDocumento.Urgente)">Con urgentes</option>
-            <option value="@nameof(EstadoDocumento.Vigente)">Al día</option>
+            <option value="@EstadoDocumentalFiltro.AlCorriente">Al corriente</option>
         </CampoSelect>
         @if (_filtrosGuardados.Count > 0)
         {
@@ -179,7 +180,7 @@
                     }
                     else
                     {
-                        <Badge Tono="TonoBadge.Exito">Al día</Badge>
+                        <Badge Tono="TonoBadge.Exito">Al corriente</Badge>
                     }
                 </TemplateColumn>
                 <TemplateColumn Title="Crítico" Align="Align.Center" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EsCritico))">
