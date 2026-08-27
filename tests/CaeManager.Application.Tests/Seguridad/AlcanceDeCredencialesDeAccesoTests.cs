@@ -218,9 +218,7 @@ public class AlcanceDeCredencialesDeAccesoTests
 
         public IQueryable<Subcontrata> Subcontratas => Explota<Subcontrata>();
 
-        public IQueryable<SubcontrataCliente> SubcontratasClientes => Explota<SubcontrataCliente>();
 
-        public IQueryable<SubcontrataEmpresa> SubcontratasEmpresas => Explota<SubcontrataEmpresa>();
 
         public IQueryable<CredencialAccesoSubcontrata> CredencialesAccesoSubcontrata =>
             Explota<CredencialAccesoSubcontrata>();
@@ -237,7 +235,6 @@ public class AlcanceDeCredencialesDeAccesoTests
 
         public IQueryable<Empresa> Empresas => Explota<Empresa>();
 
-        public IQueryable<EmpresaCliente> EmpresasClientes => Explota<EmpresaCliente>();
 
         public IQueryable<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Explota<CredencialAccesoEmpresa>();
 
