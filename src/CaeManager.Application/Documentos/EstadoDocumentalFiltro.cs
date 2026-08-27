@@ -18,6 +18,31 @@ public static class EstadoDocumentalFiltro
     public const string SinDocumentos = "SinDocumentos";
 
     /// <summary>
+    /// «Al corriente» — <b>no es un estado documental, es una ausencia</b>: el
+    /// Cliente no tiene ninguna alerta abierta.
+    ///
+    /// <para>
+    /// Viaja por el hilo como <c>"Vigente"</c> porque
+    /// <see cref="ObtenerClientes.ObtenerClientesQuery"/> **secuestra** ese
+    /// valor como centinela: <c>Vigente</c> nunca aparece en los estados
+    /// presentes de un Cliente (las alertas no se emiten para lo que está en
+    /// regla), así que servía para pedir «sin ninguna alerta» sin añadir un
+    /// parámetro más. La constante existe para que ese secuestro esté
+    /// <b>nombrado en los dos extremos</b> en vez de deducirse leyendo la
+    /// consulta.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠️ <b>Deuda declarada</b>: sigue siendo un centinela. El día que las
+    /// alertas emitan <c>Vigente</c>, este filtro dejará de significar lo que
+    /// dice y no habrá nada que avise. El arreglo de verdad es un valor de
+    /// filtro propio —como <see cref="SinDocumentos"/>—, y cuesta romper los
+    /// filtros guardados y los enlaces que hoy llevan <c>?estado=Vigente</c>.
+    /// </para>
+    /// </summary>
+    public const string AlCorriente = nameof(Domain.Documentos.EstadoDocumento.Vigente);
+
+    /// <summary>
     /// <paramref name="estado"/> es null cuando el propietario no tiene
     /// Documentos. Un filtro vacío o desconocido no descarta nada, igual que
     /// un <c>OrdenarPor</c> desconocido cae al orden por defecto.
