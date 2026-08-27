@@ -52,7 +52,7 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         dbContext.Clientes.Add(cliente);
         dbContext.ClavesApi.Add(new ClaveApi("Integración de prueba", "cae_abcd", "hash-de-prueba", Guid.NewGuid()));
 
-        var tipoDocumento = new TipoDocumento("Certificado", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, esObligatorio: true);
+        var tipoDocumento = new TipoDocumento("Certificado", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
         dbContext.TiposDocumento.Add(tipoDocumento);
 
         // F3b — Documento.ClienteId repunta contra Empresas, no contra el

@@ -22,7 +22,9 @@ public class AccionCenterTests : BunitContext
     private static readonly CentroSelectorDto CentroA = new(Guid.NewGuid(), "Centro Norte", "Cliente Demo", "Empresa Demo");
     private static readonly TrabajadorSelectorDto TrabajadorA = new(Guid.NewGuid(), "Ana García", "12345678A", null);
     private static readonly TipoDocumentoListaDto TipoDocA = new(
-        Guid.NewGuid(), "ITA", null, false, 1, CaeManager.Domain.Documentos.AmbitoAplicacion.Trabajador, true,
+        Guid.NewGuid(), "ITA", null, false, 1, CaeManager.Domain.Documentos.AmbitoAplicacion.Trabajador,
+        CaeManager.Domain.Documentos.RequisitoDocumental.Si,
+        CaeManager.Domain.Documentos.NaturalezaJuridica.RequisitoCliente,
         null, null, null, null, false, false, false, CaeManager.Domain.Documentos.PerfilDocumentoOficial.Ninguno);
 
     [Fact]

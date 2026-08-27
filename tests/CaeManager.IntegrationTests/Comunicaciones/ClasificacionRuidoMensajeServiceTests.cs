@@ -44,7 +44,7 @@ public class ClasificacionRuidoMensajeServiceTests : IAsyncLifetime
 
         var trabajadorReclamado = Trabajador.DeEmpresa(empresa.Id, "Ana", "García", "11111111H");
         var trabajadorSinReclamar = Trabajador.DeEmpresa(empresa.Id, "Luis", "Pérez", "22222222J");
-        var tipoDocumento = new TipoDocumento("EPI", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        var tipoDocumento = new TipoDocumento("EPI", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
         contexto.Trabajadores.AddRange(trabajadorReclamado, trabajadorSinReclamar);
         contexto.TiposDocumento.Add(tipoDocumento);
         await contexto.SaveChangesAsync();

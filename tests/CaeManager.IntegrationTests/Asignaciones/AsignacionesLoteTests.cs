@@ -53,7 +53,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         var trabajador2 = Trabajador.DeEmpresa(empresa.Id, "Luis", "Pérez", "12345678Z");
         contexto.Trabajadores.AddRange(trabajador1, trabajador2);
 
-        var tipoObligatorio = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        var tipoObligatorio = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipoObligatorio);
         await contexto.SaveChangesAsync();
 

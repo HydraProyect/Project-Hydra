@@ -145,7 +145,7 @@ public class EvaluadorExpedienteVisitaService(
 
         var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.AmbitoAplicacion, t.EsObligatorio })
+            .Select(t => new { t.Id, t.AmbitoAplicacion, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
             .ToListAsync(cancellationToken);
 
         var filasDelCentro = (await tiposDocumentoContext.TiposDocumentoCentros
@@ -155,13 +155,13 @@ public class EvaluadorExpedienteVisitaService(
 
         var tiposRequeridosEmpresa = tipos
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa
-                     && ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, visita.CentroId, t.EsObligatorio))
+                     && ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, visita.CentroId, t.CuentaParaCumplimiento))
             .Select(t => t.Id)
             .ToList();
 
         var tiposRequeridosTrabajador = tipos
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador
-                     && ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, visita.CentroId, t.EsObligatorio))
+                     && ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, visita.CentroId, t.CuentaParaCumplimiento))
             .Select(t => t.Id)
             .ToList();
 
