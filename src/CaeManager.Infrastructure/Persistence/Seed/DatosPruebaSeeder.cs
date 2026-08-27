@@ -29,6 +29,7 @@ using CaeManager.Infrastructure.Persistence.Repositories;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Infrastructure.Persistence.Seed;
@@ -63,18 +64,15 @@ public static class DatosPruebaSeeder
 {
     private const string PrefijoEmailPrueba = "prueba.";
     private const string DominioEmailPrueba = "@caemanager.local";
-    public const string ContrasenaUsuariosPrueba = "Prueba#2026";
 
     /// <summary>
-    /// Claves API de demo en claro — sintéticas y públicas a propósito
-    /// (mismo criterio que <see cref="ContrasenaUsuariosPrueba"/>): permiten
-    /// llamar a la API pública V1 contra la siembra sin pasar por
-    /// /configuracion/claves-api. Solo el hash SHA256 se persiste.
+    /// Contraseña y claves API de demo: <b>ya no son constantes de este
+    /// tipo</b>. Fuera de Producción siguen siendo los valores públicos de
+    /// siempre —las suites E2E dependen de ellos— pero en Producción tienen
+    /// que venir de configuración o la siembra falla al arrancar. El porqué,
+    /// en <see cref="CredencialesDemo"/>.
     /// </summary>
-    public const string ClaveApiDemoActiva =
-        "hydra_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
-    public const string ClaveApiDemoRevocada =
-        "hydra_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    public const string ContrasenaUsuariosPrueba = CredencialesDemo.ContrasenaPorDefecto;
 
     /// <summary>
     /// Resumen para componer el log y para que el invocador (DelegacionDemoSeeder)
@@ -220,6 +218,7 @@ public static class DatosPruebaSeeder
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IConfiguration configuration,
+        IHostEnvironment entorno,
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
@@ -239,20 +238,24 @@ public static class DatosPruebaSeeder
             return;
         }
 
+        // Antes de escribir nada: si esto es Producción y no hay credenciales
+        // configuradas, lanza. Ver CredencialesDemo.
+        var credenciales = CredencialesDemo.Resolver(configuration, entorno);
+
         logger.LogInformation("Sembrando cartera de prueba (perfil cliente fundador)…");
 
         var aleatorio = new Random(20260801);
         var resumen = await SembrarDatosOperativosAsync(
             dbContext, aleatorio, RazonesSocialesClientes.Length, numeroEmpresas: 24, numeroSubcontratas: 8, cancellationToken);
 
-        await SembrarUsuariosYCarteraAsync(dbContext, userManager, logger, cancellationToken);
+        await SembrarUsuariosYCarteraAsync(dbContext, userManager, credenciales, logger, cancellationToken);
 
         logger.LogInformation(
             "Datos de prueba sembrados: {Clientes} clientes, {Empresas} empresas, {Subcontratas} subcontratas, " +
             "{Centros} centros, {Trabajadores} trabajadores, {Documentos} documentos, {Usuarios} usuarios de prueba " +
-            "(contraseña «{Contrasena}» para todos, email prueba.<rol><n>@caemanager.local).",
+            "(email prueba.<rol><n>@caemanager.local; la contraseña es la configurada en DatosPrueba:Contrasena).",
             resumen.Clientes, resumen.Empresas, resumen.Subcontratas, resumen.Centros, resumen.Trabajadores,
-            resumen.Documentos, Roles.Todos.Count * 3, ContrasenaUsuariosPrueba);
+            resumen.Documentos, Roles.Todos.Count * 3);
     }
 
     /// <summary>
@@ -988,7 +991,8 @@ public static class DatosPruebaSeeder
             .ToArray());
 
     private static async Task SembrarUsuariosYCarteraAsync(
-        CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager, ILogger logger,
+        CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager,
+        CredencialesDemo credenciales, ILogger logger,
         CancellationToken cancellationToken)
     {
         var usuariosPorRol = new Dictionary<string, List<ApplicationUser>>();
@@ -1014,7 +1018,7 @@ public static class DatosPruebaSeeder
                     NombreCompleto = $"Prueba {rol} {i}",
                     EmailConfirmed = true,
                     // Todo su propósito es poder iniciar sesión directamente
-                    // con ContrasenaUsuariosPrueba — nunca deben quedar
+                    // con la contraseña de demo — nunca deben quedar
                     // atrapados en la pantalla de cambio de contraseña.
                     DebeCambiarContrasena = false,
                     // Antes hardcodeado al tenant #1 — asumía que este
@@ -1028,7 +1032,7 @@ public static class DatosPruebaSeeder
                     TenantId = AmbitoTenantExplicito.TenantIdActual ?? TenantSeedData.IdPorDefecto
                 };
 
-                var resultado = await userManager.CreateAsync(usuario, ContrasenaUsuariosPrueba);
+                var resultado = await userManager.CreateAsync(usuario, credenciales.Contrasena);
                 if (!resultado.Succeeded)
                 {
                     logger.LogWarning(
@@ -1101,17 +1105,17 @@ public static class DatosPruebaSeeder
         // --- Claves API (activa y revocada), filtros guardados y preferencia
         // de dashboard: /configuracion/claves-api y los selectores de filtro
         // no arrancan vacíos, y la API pública V1 es llamable con la clave de
-        // demo en claro (ver ClaveApiDemoActiva) ---
+        // demo en claro (ver CredencialesDemo) ---
         var creadorClaves = coordinadorPrincipal ?? gestoresPrueba.FirstOrDefault();
         if (creadorClaves is not null)
         {
             dbContext.ClavesApi.Add(new ClaveApi(
-                "Integración de demo (activa)", ClaveApiDemoActiva[..12],
-                HashSha256(ClaveApiDemoActiva), creadorClaves.Id));
+                "Integración de demo (activa)", credenciales.ClaveApiActiva[..12],
+                HashSha256(credenciales.ClaveApiActiva), creadorClaves.Id));
 
             var claveRevocada = new ClaveApi(
-                "Integración antigua (revocada)", ClaveApiDemoRevocada[..12],
-                HashSha256(ClaveApiDemoRevocada), creadorClaves.Id);
+                "Integración antigua (revocada)", credenciales.ClaveApiRevocada[..12],
+                HashSha256(credenciales.ClaveApiRevocada), creadorClaves.Id);
             claveRevocada.Revocar();
             dbContext.ClavesApi.Add(claveRevocada);
         }
