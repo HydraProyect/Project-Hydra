@@ -5,6 +5,38 @@ public interface IRelacionEmpresarialRepository
     void Agregar(RelacionEmpresarial relacion);
 
     /// <summary>
+    /// Contrapartes vigentes de una proveedora, clasificadas por tipo (ver
+    /// <see cref="ContrapartesVigentes"/>). Es la ÚNICA fuente válida de
+    /// "actuales" para un diff de edición desde F4.2c: los dos lados del
+    /// diff (lectura del DTO y cálculo de bajas) deben leer esta misma
+    /// clasificación, o un desalineamiento entre fuentes vuelve a producir
+    /// cierres silenciosos.
+    /// </summary>
+    Task<ContrapartesVigentes> ObtenerContrapartesVigentesAsync(
+        Guid proveedoraId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Alta idempotente en las DOS dimensiones que importan: contra la base
+    /// de datos (una relación vigente ya persistida para el par) y contra el
+    /// ChangeTracker (un alta anterior de esta misma transacción, todavía sin
+    /// guardar, que una consulta no vería). Sin la segunda, dos filas del
+    /// mismo plan de importación que resuelvan al mismo par reventarían
+    /// <c>IX_RelacionesEmpresariales_ParActivo</c> en el <c>SaveChanges</c>.
+    /// Devuelve <c>true</c> si creó la relación.
+    /// </summary>
+    Task<bool> AgregarSiNoVigenteAsync(
+        Guid proveedoraId, Guid clienteId, DateTime ahora, Guid? enmarcadaEnId = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// CIERRA la relación vigente del par — nunca la borra: preservar el
+    /// historial es para lo que existe <see cref="RelacionEmpresarial"/>.
+    /// No-op (devuelve <c>false</c>) si no hay vigente para el par.
+    /// </summary>
+    Task<bool> CerrarVigenteAsync(
+        Guid proveedoraId, Guid clienteId, DateTime ahora, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// La relación vigente (si existe) para el par proveedora×cliente — la
     /// que un "Editar" debe cerrar antes de que se pueda abrir una nueva
     /// para el mismo par (nunca se edita in situ). Sin <c>tenantId</c>

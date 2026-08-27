@@ -18,9 +18,12 @@ namespace CaeManager.Domain.RelacionesEmpresariales;
 /// este tipo ni por el esquema físico</b> — demostrado experimentalmente
 /// (revisión adversaria del 2026-08-26: un ciclo de 2 pasos pasa los dos
 /// `CHECK` de autorreferencia sin problema). La garantía vive en
-/// <c>IRelacionEmpresarialRepository.ExisteCicloAsync</c> más el comando que
-/// crea/reencuadra una relación — nunca asumir que construir esta entidad
-/// basta para excluir un ciclo.
+/// <c>IRelacionEmpresarialRepository.CreariaUnCicloAsync</c> más el comando que
+/// reencuadra una relación — nunca asumir que construir esta entidad
+/// basta para excluir un ciclo. Ojo: en un ALTA el chequeo es vacuo por
+/// construcción (la fila nueva aún no tiene Id que la cadena pueda alcanzar);
+/// solo un reencuadre posterior puede cerrar un ciclo, y es ahí donde el
+/// chequeo tiene que ejecutarse.
 /// </summary>
 public class RelacionEmpresarial : EntidadConTenant
 {

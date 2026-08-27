@@ -1,7 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.RelacionesEmpresariales;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -57,7 +56,6 @@ public record ResultadoImportacionCombinadaDto(
 /// </summary>
 public class EjecutarImportacionCombinadaCommandHandler(
     IEmpresaRepository empresaRepositorio,
-    IEmpresaClienteRepository empresaClienteRepositorio,
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     ICentroRepository centroRepositorio,
     ITrabajadorRepository trabajadorRepositorio,
@@ -65,6 +63,9 @@ public class EjecutarImportacionCombinadaCommandHandler(
     IUnitOfWork unitOfWork)
     : IRequestHandler<EjecutarImportacionCombinadaCommand, Result<ResultadoImportacionCombinadaDto>>
 {
+    /// <summary>Par vigente Empresa propia→Cliente, en memoria durante la importación — value equality para poder hacer Remove.</summary>
+    private sealed record ParEmpresaCliente(Guid EmpresaId, Guid ClienteId);
+
     public async Task<Result<ResultadoImportacionCombinadaDto>> Handle(
         EjecutarImportacionCombinadaCommand request, CancellationToken cancellationToken)
     {
@@ -129,7 +130,22 @@ public class EjecutarImportacionCombinadaCommandHandler(
         foreach (var empresa in await empresasContext.Empresas.ToListAsync(cancellationToken))
             empresasPorRazonSocial.TryAdd(empresa.RazonSocial, empresa);
 
-        var asociacionesActuales = await empresasContext.EmpresasClientes.ToListAsync(cancellationToken);
+        // F4.2c — "actuales" sale de la arista, CLASIFICADA al eje Empresa
+        // propia→Cliente. La clasificación protege dos cosas a la vez: una
+        // contraparte soft-deleted (invisible por el filtro global de
+        // Empresas) jamás entra en "actuales" y por tanto jamás se cierra
+        // por ausencia en el archivo; y una fila de la hoja "Empresas" cuya
+        // razón social coincida con una Subcontrata existente no puede
+        // cerrar las aristas de esa Subcontrata — su proveedora no es
+        // EsPropia, así que sus pares no están en esta lista.
+        var asociacionesActuales = await (
+            from r in empresasContext.RelacionesEmpresariales
+            where r.VigenciaHasta == null
+            join p in empresasContext.Empresas on r.ProveedoraId equals p.Id
+            join c in empresasContext.Empresas on r.ClienteId equals c.Id
+            where p.EsPropia && c.EsCritico != null
+            select new ParEmpresaCliente(r.ProveedoraId, r.ClienteId))
+            .ToListAsync(cancellationToken);
 
         var empresasCreadas = 0;
         var empresasActualizadas = 0;
@@ -167,34 +183,29 @@ public class EjecutarImportacionCombinadaCommandHandler(
             var asociacionesDeLaEmpresa = asociacionesActuales.Where(ec => ec.EmpresaId == empresa.Id).ToList();
             var clienteIdsActuales = asociacionesDeLaEmpresa.Select(ec => ec.ClienteId).ToHashSet();
 
-            // Doble escritura F4 (transitoria — ver SincronizacionRelacionEmpresarial).
-            // SincronizarAltaAsync es idempotente por sí mismo (no duplica si ya
-            // existe una relación vigente para el par): ejecutar la misma
-            // importación dos veces con reemplazar=false recalcula
-            // "clienteIdsDeseados.Except(clienteIdsActuales)" como un conjunto
-            // VACÍO la segunda vez (las asociaciones ya están en la tabla
-            // legacy), así que ninguna de las dos fuentes crece en la segunda
-            // ejecución — la garantía de idempotencia es la misma que ya tenía
-            // el lado legacy, no una nueva.
+            // Idempotencia en dos capas, ambas necesarias: entre ejecuciones,
+            // la segunda pasada recalcula "deseados.Except(actuales)" como
+            // conjunto vacío (las aristas ya están vigentes) y además
+            // AgregarSiNoVigenteAsync no duplica; dentro de UNA ejecución,
+            // dos filas del plan que resuelvan a la misma empresa mantienen
+            // coherente esta lista en memoria — y el propio repositorio
+            // comprueba también su ChangeTracker, doble red para el mismo
+            // índice único parcial.
             if (reemplazar)
             {
                 foreach (var ec in asociacionesDeLaEmpresa.Where(ec => !clienteIdsDeseados.Contains(ec.ClienteId)))
                 {
-                    empresaClienteRepositorio.Eliminar(ec);
                     asociacionesActuales.Remove(ec);
-                    await SincronizacionRelacionEmpresarial.SincronizarBajaAsync(
-                        relacionEmpresarialRepositorio, empresa.Id, ec.ClienteId, ahora, cancellationToken);
+                    await relacionEmpresarialRepositorio.CerrarVigenteAsync(empresa.Id, ec.ClienteId, ahora, cancellationToken);
                 }
             }
 
             var nuevasAsociaciones = 0;
             foreach (var clienteId in clienteIdsDeseados.Except(clienteIdsActuales))
             {
-                var nuevaAsociacion = new EmpresaCliente(empresa.Id, clienteId);
-                empresaClienteRepositorio.Agregar(nuevaAsociacion);
-                asociacionesActuales.Add(nuevaAsociacion);
-                await SincronizacionRelacionEmpresarial.SincronizarAltaAsync(
-                    relacionEmpresarialRepositorio, empresa.Id, clienteId, ahora, cancellationToken: cancellationToken);
+                asociacionesActuales.Add(new ParEmpresaCliente(empresa.Id, clienteId));
+                await relacionEmpresarialRepositorio.AgregarSiNoVigenteAsync(
+                    empresa.Id, clienteId, ahora, cancellationToken: cancellationToken);
                 nuevasAsociaciones++;
             }
 
