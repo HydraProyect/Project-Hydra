@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -112,6 +113,7 @@ public class CuatroPropiedadesDelArranqueTests
                 sp.GetRequiredService<UserManager<ApplicationUser>>(),
                 sp.GetRequiredService<IUserStore<ApplicationUser>>(),
                 sp.GetRequiredService<IConfiguration>(),
+                EntornoDePrueba.Desarrollo,
                 NullLogger.Instance);
         }
 
@@ -163,6 +165,7 @@ public class CuatroPropiedadesDelArranqueTests
             sp.GetRequiredService<UserManager<ApplicationUser>>(),
             sp.GetRequiredService<IUserStore<ApplicationUser>>(),
             sp.GetRequiredService<IConfiguration>(),
+            EntornoDePrueba.Desarrollo,
             NullLogger.Instance);
 
         return identidad;
