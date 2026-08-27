@@ -1,5 +1,4 @@
 using CaeManager.Application.Common;
-using CaeManager.Application.RelacionesEmpresariales;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
@@ -49,7 +48,7 @@ public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaComm
 }
 
 public class EditarEmpresaCommandHandler(
-    IEmpresaRepository repositorio, IEmpresaClienteRepository empresaClienteRepositorio,
+    IEmpresaRepository repositorio,
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarEmpresaCommand, Result>
@@ -71,14 +70,21 @@ public class EditarEmpresaCommandHandler(
 
         empresa.Actualizar(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);
 
-        var actuales = await empresaClienteRepositorio.ObtenerPorEmpresaAsync(empresa.Id, cancellationToken);
+        // F4.2c — los DOS lados del diff leen la misma fuente clasificada
+        // (ver ContrapartesVigentes): "actuales" es el eje Cliente de la
+        // arista, y una contraparte OPACA (soft-deleted, o no clasificable)
+        // no entra jamás en "actuales" — por tanto jamás puede cerrarse por
+        // ausencia en "deseados". Es el invariante que impide el borrado
+        // silencioso que la revisión adversarial de F4.2b encontró: las
+        // bajas se calculan sobre lo que el usuario pudo desmarcar, no sobre
+        // lo que existe.
+        var contrapartes = await relacionEmpresarialRepositorio.ObtenerContrapartesVigentesAsync(empresa.Id, cancellationToken);
         var deseados = request.ClienteIds.Distinct().ToHashSet();
-        var actualesClienteIds = actuales.Select(ec => ec.ClienteId).ToHashSet();
+        var actualesClienteIds = contrapartes.ClienteIds.ToHashSet();
 
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
         // Solo hace falta verificar las vinculaciones NUEVAS: las que ya
         // estaban antes ya pasaron por esta comprobación cuando se crearon.
-        // EmpresaCliente.ClienteId ya apunta a Empresas (F3).
         var clienteIdsNuevos = deseados.Except(actualesClienteIds).ToList();
         var clientesNuevosEncontrados = await empresasContext.Empresas
             .Where(e => clienteIdsNuevos.Contains(e.Id))
@@ -87,26 +93,18 @@ public class EditarEmpresaCommandHandler(
         if (clientesNuevosEncontrados != clienteIdsNuevos.Count)
             return Result.Fallo(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));
 
-        // Doble escritura F4 (transitoria — ver SincronizacionRelacionEmpresarial):
-        // solo el diff de ClienteIds toca RelacionEmpresarial. Los campos de
-        // identidad actualizados arriba (RazonSocial/Cif/Cnae/ConvenioAplicable/
+        // Solo el diff de ClienteIds toca la arista. Los campos de identidad
+        // actualizados arriba (RazonSocial/Cif/Cnae/ConvenioAplicable/
         // EsActividadAnexoI) no generan ninguna escritura aquí — editar el
         // nombre de una Empresa no es cambiar sus relaciones.
         var ahora = DateTime.UtcNow;
 
-        foreach (var ec in actuales.Where(ec => !deseados.Contains(ec.ClienteId)))
-        {
-            empresaClienteRepositorio.Eliminar(ec);
-            await SincronizacionRelacionEmpresarial.SincronizarBajaAsync(
-                relacionEmpresarialRepositorio, empresa.Id, ec.ClienteId, ahora, cancellationToken);
-        }
+        foreach (var clienteId in actualesClienteIds.Where(id => !deseados.Contains(id)))
+            await relacionEmpresarialRepositorio.CerrarVigenteAsync(empresa.Id, clienteId, ahora, cancellationToken);
 
         foreach (var clienteId in clienteIdsNuevos)
-        {
-            empresaClienteRepositorio.Agregar(new EmpresaCliente(empresa.Id, clienteId));
-            await SincronizacionRelacionEmpresarial.SincronizarAltaAsync(
-                relacionEmpresarialRepositorio, empresa.Id, clienteId, ahora, cancellationToken: cancellationToken);
-        }
+            await relacionEmpresarialRepositorio.AgregarSiNoVigenteAsync(
+                empresa.Id, clienteId, ahora, cancellationToken: cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

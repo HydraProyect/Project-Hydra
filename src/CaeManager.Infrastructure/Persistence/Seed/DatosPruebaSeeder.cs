@@ -344,29 +344,29 @@ public static class DatosPruebaSeeder
             empresas.Add(new Empresa($"{ElementoAleatorio(aleatorio, SectoresEmpresa)} {ElementoAleatorio(aleatorio, MarcasCaricatura)} {i + 1:D2} {ElementoAleatorio(aleatorio, SufijosSociedad)}"));
         dbContext.Empresas.AddRange(empresas);
 
-        // Doble escritura F4 (transitoria — ver SincronizacionRelacionEmpresarial
-        // en Application; el seeder no depende de Application, así que
-        // construye el repositorio directo sobre este mismo dbContext).
+        // F4.2c — RelacionEmpresarial es la única fuente de escritura: el
+        // seeder ya no siembra las tres tablas puente legacy. El repositorio
+        // se construye directo sobre este dbContext (el seeder no depende de
+        // Application).
         var relacionEmpresarialRepositorio = new RelacionEmpresarialRepository(dbContext);
         var ahoraSeed = DateTime.UtcNow;
 
-        var empresasClientes = new List<EmpresaCliente>();
+        var paresEmpresaCliente = new List<(Guid EmpresaId, Guid ClienteId)>();
         foreach (var cliente in clientes)
         {
             var contratistas = ElementosAleatoriosUnicos(aleatorio, empresas, aleatorio.Next(5, Math.Min(11, numeroEmpresas + 1)));
             foreach (var contratista in contratistas)
             {
-                empresasClientes.Add(new EmpresaCliente(contratista.Id, cliente.Id));
+                paresEmpresaCliente.Add((contratista.Id, cliente.Id));
                 dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(contratista.Id, cliente.Id, ahoraSeed));
             }
         }
-        dbContext.EmpresasClientes.AddRange(empresasClientes);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // --- Centros: cada empresa opera 1-3, siempre en clientes a los que presta servicio ---
-        var clientesPorEmpresa = empresasClientes
-            .GroupBy(ec => ec.EmpresaId)
-            .ToDictionary(g => g.Key, g => g.Select(ec => ec.ClienteId).ToList());
+        var clientesPorEmpresa = paresEmpresaCliente
+            .GroupBy(par => par.EmpresaId)
+            .ToDictionary(g => g.Key, g => g.Select(par => par.ClienteId).ToList());
 
         var centros = new List<Centro>();
         var centrosPorEmpresa = new Dictionary<Guid, List<Centro>>();
@@ -411,15 +411,11 @@ public static class DatosPruebaSeeder
 
             var empresasVinculadas = ElementosAleatoriosUnicos(aleatorio, empresas, aleatorio.Next(1, 4));
             empresasPorSubcontrata[subcontrata.Id] = empresasVinculadas;
-            dbContext.SubcontratasEmpresas.AddRange(
-                empresasVinculadas.Select(e => new SubcontrataEmpresa(subcontrata.Id, e.Id)));
             foreach (var empresaVinculada in empresasVinculadas)
                 dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(subcontrata.Id, empresaVinculada.Id, ahoraSeed));
 
             var clientesVinculados = ElementosAleatoriosUnicos(aleatorio, clientes, aleatorio.Next(1, 3));
             clientesPorSubcontrata[subcontrata.Id] = clientesVinculados;
-            dbContext.SubcontratasClientes.AddRange(
-                clientesVinculados.Select(c => new SubcontrataCliente(subcontrata.Id, c.Id)));
         }
         dbContext.Empresas.AddRange(subcontratas);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -1187,11 +1183,15 @@ public static class DatosPruebaSeeder
             if (cliente.EjecutivoUsuarioId is null)
                 continue;
 
+            // F4.2c — el join va contra la arista, no contra la tabla puente
+            // legacy (que ya no se siembra y quedaría vacía en un entorno
+            // nuevo, dejando esta consulta en verde-por-vacío).
             var documentosProximos = await (
                 from documento in dbContext.Documentos
                 join trabajador in dbContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
-                join empresaCliente in dbContext.EmpresasClientes on trabajador.EmpresaId equals (Guid?)empresaCliente.EmpresaId
-                where empresaCliente.ClienteId == cliente.Id
+                join relacion in dbContext.RelacionesEmpresariales on trabajador.EmpresaId equals (Guid?)relacion.ProveedoraId
+                where relacion.ClienteId == cliente.Id
+                      && relacion.VigenciaHasta == null
                       && documento.FechaVencimiento != null
                       && documento.FechaVencimiento > hoy
                       && documento.FechaVencimiento <= limiteVentana
