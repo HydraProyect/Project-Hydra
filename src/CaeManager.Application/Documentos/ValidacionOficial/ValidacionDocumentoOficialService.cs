@@ -68,10 +68,23 @@ public class ValidacionDocumentoOficialService(
             await archivo.CopyToAsync(buffer, cancellationToken);
             contenido = buffer.ToArray();
         }
-        catch (Exception ex)
+        catch (FileNotFoundException)
         {
-            logger.LogWarning(ex, "No se pudo abrir el archivo del Documento {DocumentoId} para validación oficial.", documentoId);
-            return;
+            // Se relanza SIN envolver, a propósito: ver el mismo catch en
+            // VerificacionIaDocumentoService (D3) — Disk/S3FileStorageService
+            // ya normalizan a FileNotFoundException el único caso realmente
+            // determinista (el archivo no existe o no resuelve a este
+            // tenant), y no va a aparecer en un segundo intento.
+            throw;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Cualquier otro fallo al abrir (red, el backend de
+            // almacenamiento caído, un timeout) sí puede ser transitorio —
+            // se envuelve para no perder el contexto, pero se deja
+            // reintentar como el resto.
+            throw new InvalidOperationException(
+                $"No se pudo abrir el archivo del Documento {documentoId} para validación oficial.", ex);
         }
 
         var perfil = tipoDocumento.PerfilDocumentoOficial;
