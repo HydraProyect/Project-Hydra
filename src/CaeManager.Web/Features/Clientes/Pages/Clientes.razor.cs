@@ -305,7 +305,7 @@ public partial class Clientes : ComponentBase
 
     private string EtiquetaFiltroEstadoDocumental =>
         "Estado: " + (Enum.TryParse<EstadoDocumento>(_estadoDocumentalFiltro, out var estado)
-            ? (estado == EstadoDocumento.Vigente ? "Al día" : EstadoDocumentoUi.Texto(estado))
+            ? (estado == EstadoDocumento.Vigente ? "Al corriente" : EstadoDocumentoUi.Texto(estado))
             : "—");
 
     private async Task RecargarAsync()
