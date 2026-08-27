@@ -1,6 +1,5 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.RelacionesEmpresariales;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
@@ -37,8 +36,6 @@ public class CrearSubcontrataCommandValidator : AbstractValidator<CrearSubcontra
 
 public class CrearSubcontrataCommandHandler(
     IEmpresaRepository repositorio,
-    ISubcontrataClienteRepository subcontrataClienteRepositorio,
-    ISubcontrataEmpresaRepository subcontrataEmpresaRepositorio,
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     IEmpresasQueryContext empresasContext,
     IUnitOfWork unitOfWork)
@@ -65,32 +62,28 @@ public class CrearSubcontrataCommandHandler(
         var subcontrata = Empresa.CrearComoSubcontrata(request.RazonSocial, request.Cif, NivelServicioSubcontrata.Gestionada.ToString());
         repositorio.Agregar(subcontrata);
 
-        // Doble escritura F4 (transitoria — ver SincronizacionRelacionEmpresarial):
-        // RazonSocial/Cif no tocan RelacionEmpresarial. EmpresaIds y ClienteIds
-        // sí — ambos son de primer nivel (proveedora=subcontrata), salvo que
-        // ClienteId coincida con el EnmarcadaEnId resuelto por debajo.
+        // F4.2c — RelacionEmpresarial es la única fuente de escritura (R6
+        // aceptada 2026-08-27). RazonSocial/Cif no tocan la arista. EmpresaIds
+        // y ClienteIds sí — ambos de primer nivel (proveedora=subcontrata),
+        // salvo el EnmarcadaEnId resuelto por debajo.
         //
         // El candidato de enmarcadaEn se resuelve contra `empresaIds` EN
-        // MEMORIA (no contra la BD): los vínculos SubcontrataEmpresa de esta
-        // Subcontrata nueva todavía no existen en RelacionEmpresarial en este
-        // punto de la transacción, así que el repositorio no podría
-        // encontrarlos si se le pidiera resolverlos por su propia Id.
+        // MEMORIA (no contra los vínculos de esta Subcontrata en la BD): sus
+        // aristas Subcontrata→Empresa todavía no están persistidas en este
+        // punto de la transacción. La resolución cruza contra las relaciones
+        // Empresa propia→Cliente, que sí existen desde antes.
         var ahora = DateTime.UtcNow;
 
         foreach (var empresaId in empresaIds)
-        {
-            subcontrataEmpresaRepositorio.Agregar(new SubcontrataEmpresa(subcontrata.Id, empresaId));
-            await SincronizacionRelacionEmpresarial.SincronizarAltaAsync(
-                relacionEmpresarialRepositorio, subcontrata.Id, empresaId, ahora, cancellationToken: cancellationToken);
-        }
+            await relacionEmpresarialRepositorio.AgregarSiNoVigenteAsync(
+                subcontrata.Id, empresaId, ahora, cancellationToken: cancellationToken);
 
         foreach (var clienteId in clienteIds)
         {
-            subcontrataClienteRepositorio.Agregar(new SubcontrataCliente(subcontrata.Id, clienteId));
             var enmarcadaEnId = await relacionEmpresarialRepositorio.ObtenerCandidatoUnicoParaEnmarcarAsync(
                 empresaIds, clienteId, cancellationToken);
-            await SincronizacionRelacionEmpresarial.SincronizarAltaAsync(
-                relacionEmpresarialRepositorio, subcontrata.Id, clienteId, ahora, enmarcadaEnId, cancellationToken);
+            await relacionEmpresarialRepositorio.AgregarSiNoVigenteAsync(
+                subcontrata.Id, clienteId, ahora, enmarcadaEnId, cancellationToken);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
