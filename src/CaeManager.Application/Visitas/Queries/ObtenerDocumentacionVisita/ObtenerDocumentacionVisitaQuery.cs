@@ -26,7 +26,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 /// se extiende a Empresa a petición explícita del usuario para esta vista.
 ///
 /// Cada sección viene pre-ordenada por severidad (Faltante, Vencido,
-/// Urgente, Próximo, Vigente) y sin NoAplica — es el orden en el que el
+/// Urgente, Próximo, Vigente) y sin SinCaducidad — es el orden en el que el
 /// Gestor quiere verlos, y el peor estado de la sección es el primer
 /// elemento tras ordenar.
 /// </summary>
@@ -159,7 +159,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
         foreach (var documento in documentos)
         {
             var estado = CalculadoraEstadoDocumento.Calcular(documento.FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias);
-            if (estado == EstadoDocumento.NoAplica) continue;
+            if (estado == EstadoDocumento.SinCaducidad) continue;
 
             items.Add(new DocumentoVisitaItemDto(
                 documento.Id, trabajadorId, documento.TipoDocumentoId, tiposPorId[documento.TipoDocumentoId].Nombre,

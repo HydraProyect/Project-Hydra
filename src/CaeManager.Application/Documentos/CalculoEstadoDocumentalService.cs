@@ -70,7 +70,7 @@ public class CalculoEstadoDocumentalService(
         var filas = await consulta.ToListAsync(cancellationToken);
 
         // El peor estado es el mayor del enum: el orden de EstadoDocumento va
-        // de menos a más urgente (NoAplica … Vencido), así que Max es
+        // de menos a más urgente (SinCaducidad … Vencido), así que Max es
         // literalmente "lo que más urge de este propietario".
         return filas
             .GroupBy(f => f.PropietarioId)

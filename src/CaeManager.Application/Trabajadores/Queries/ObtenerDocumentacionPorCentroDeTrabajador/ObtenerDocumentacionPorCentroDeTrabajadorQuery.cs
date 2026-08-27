@@ -117,7 +117,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
                 var estado = CalculadoraEstadoDocumento.Calcular(
                     documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
-                if (estado == EstadoDocumento.NoAplica) continue;
+                if (estado == EstadoDocumento.SinCaducidad) continue;
 
                 items.Add(new DocumentoRequeridoDto(documento.Id, tipo.Id, tipo.Nombre, estado, documento.FechaVencimiento));
             }

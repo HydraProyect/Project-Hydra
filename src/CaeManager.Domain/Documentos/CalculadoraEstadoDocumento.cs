@@ -22,7 +22,7 @@ public static class CalculadoraEstadoDocumento
         int umbralRojoDias)
     {
         if (fechaVencimiento is null)
-            return EstadoDocumento.NoAplica;
+            return EstadoDocumento.SinCaducidad;
 
         var diasRestantes = fechaVencimiento.Value.DayNumber - hoy.DayNumber;
 

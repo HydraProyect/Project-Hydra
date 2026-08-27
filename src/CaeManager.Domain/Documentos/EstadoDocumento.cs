@@ -18,7 +18,7 @@ namespace CaeManager.Domain.Documentos;
 public enum EstadoDocumento
 {
     /// <summary>El tipo de documento no genera vencimiento (p. ej. Formación 60h).</summary>
-    NoAplica = 0,
+    SinCaducidad = 0,
     Vigente = 1,
     Proximo = 2,
     Urgente = 3,
