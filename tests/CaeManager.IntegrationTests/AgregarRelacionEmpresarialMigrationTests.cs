@@ -62,9 +62,8 @@ public class AgregarRelacionEmpresarialMigrationTests : IAsyncLifetime
             cliente = cli.Id;
 
             // Nivel 1: ambas Empresas propias sirven al mismo Cliente.
-            contexto.EmpresasClientes.AddRange(
-                new EmpresaCliente(empresaUno, cliente),
-                new EmpresaCliente(empresaDos, cliente));
+            await SembrarEmpresaClienteAsync(contexto, empresaUno, cliente);
+            await SembrarEmpresaClienteAsync(contexto, empresaDos, cliente);
 
             // Subcontrata con UN candidato coherente: solo vinculada a
             // EmpresaUno, que ya sirve al Cliente -> EnmarcadaEnId automático.
@@ -72,8 +71,8 @@ public class AgregarRelacionEmpresarialMigrationTests : IAsyncLifetime
             contexto.Empresas.Add(sUno);
             await contexto.SaveChangesAsync();
             subcontrataUnCandidato = sUno.Id;
-            contexto.SubcontratasEmpresas.Add(new SubcontrataEmpresa(subcontrataUnCandidato, empresaUno));
-            contexto.SubcontratasClientes.Add(new SubcontrataCliente(subcontrataUnCandidato, cliente));
+            await SembrarSubcontrataEmpresaAsync(contexto, subcontrataUnCandidato, empresaUno);
+            await SembrarSubcontrataClienteAsync(contexto, subcontrataUnCandidato, cliente);
 
             // Subcontrata con DOS candidatos coherentes: vinculada a ambas
             // Empresas propias, y las dos sirven al mismo Cliente.
@@ -81,10 +80,9 @@ public class AgregarRelacionEmpresarialMigrationTests : IAsyncLifetime
             contexto.Empresas.Add(sDos);
             await contexto.SaveChangesAsync();
             subcontrataDosCandidatos = sDos.Id;
-            contexto.SubcontratasEmpresas.AddRange(
-                new SubcontrataEmpresa(subcontrataDosCandidatos, empresaUno),
-                new SubcontrataEmpresa(subcontrataDosCandidatos, empresaDos));
-            contexto.SubcontratasClientes.Add(new SubcontrataCliente(subcontrataDosCandidatos, cliente));
+            await SembrarSubcontrataEmpresaAsync(contexto, subcontrataDosCandidatos, empresaUno);
+            await SembrarSubcontrataEmpresaAsync(contexto, subcontrataDosCandidatos, empresaDos);
+            await SembrarSubcontrataClienteAsync(contexto, subcontrataDosCandidatos, cliente);
 
             // Subcontrata con CERO candidatos coherentes: vinculada a una
             // tercera Empresa propia que NO sirve a este Cliente.
@@ -95,8 +93,8 @@ public class AgregarRelacionEmpresarialMigrationTests : IAsyncLifetime
             contexto.Empresas.Add(sCero);
             await contexto.SaveChangesAsync();
             subcontrataCeroCandidatos = sCero.Id;
-            contexto.SubcontratasEmpresas.Add(new SubcontrataEmpresa(subcontrataCeroCandidatos, e3.Id));
-            contexto.SubcontratasClientes.Add(new SubcontrataCliente(subcontrataCeroCandidatos, cliente));
+            await SembrarSubcontrataEmpresaAsync(contexto, subcontrataCeroCandidatos, e3.Id);
+            await SembrarSubcontrataClienteAsync(contexto, subcontrataCeroCandidatos, cliente);
 
             await contexto.SaveChangesAsync();
         }
@@ -152,8 +150,7 @@ public class AgregarRelacionEmpresarialMigrationTests : IAsyncLifetime
             var cliente = Empresa.CrearComoCliente("Cliente De Otro Tenant S.A.", "B10380251", esCritico: false, notas: null, ejecutivoUsuarioId: null);
             contextoOtroTenant.Empresas.AddRange(empresa, cliente);
             await contextoOtroTenant.SaveChangesAsync();
-            contextoOtroTenant.EmpresasClientes.Add(new EmpresaCliente(empresa.Id, cliente.Id));
-            await contextoOtroTenant.SaveChangesAsync();
+            await SembrarEmpresaClienteAsync(contextoOtroTenant, empresa.Id, cliente.Id, otroTenantId);
         }
 
         await using (var contexto = CrearContexto(_tenantId))
@@ -170,6 +167,28 @@ public class AgregarRelacionEmpresarialMigrationTests : IAsyncLifetime
         var relacionesDelOtroTenant = await verificacionOtroTenant.RelacionesEmpresariales.ToListAsync();
         relacionesDelOtroTenant.Should().HaveCount(1, "el otro tenant sí tenía una fila legacy, migrada de forma independiente");
     }
+
+    // El cierre de F4 retiró las tres tablas puente del modelo EF (entidades,
+    // configuraciones y DbSets), pero la migración que este test verifica
+    // sigue en el árbol y se ejecuta en toda base nueva. La siembra pasa por
+    // SQL crudo porque ya no existe un tipo C# que las represente — no por
+    // conveniencia. Consecuencia que hay que respetar: sin ChangeTracker no
+    // actúa TenantSelladoInterceptor, así que el TenantId se escribe a mano,
+    // y es justamente lo que el segundo test comprueba.
+    private Task SembrarEmpresaClienteAsync(CaeManagerDbContext contexto, Guid empresaId, Guid clienteId, Guid? tenantId = null) =>
+        contexto.Database.ExecuteSqlRawAsync(
+            """INSERT INTO "EmpresasClientes" ("Id", "EmpresaId", "ClienteId", "TenantId") VALUES ({0}, {1}, {2}, {3})""",
+            Guid.NewGuid(), empresaId, clienteId, tenantId ?? _tenantId);
+
+    private Task SembrarSubcontrataClienteAsync(CaeManagerDbContext contexto, Guid subcontrataId, Guid clienteId, Guid? tenantId = null) =>
+        contexto.Database.ExecuteSqlRawAsync(
+            """INSERT INTO "SubcontratasClientes" ("Id", "SubcontrataId", "ClienteId", "TenantId") VALUES ({0}, {1}, {2}, {3})""",
+            Guid.NewGuid(), subcontrataId, clienteId, tenantId ?? _tenantId);
+
+    private Task SembrarSubcontrataEmpresaAsync(CaeManagerDbContext contexto, Guid subcontrataId, Guid empresaId, Guid? tenantId = null) =>
+        contexto.Database.ExecuteSqlRawAsync(
+            """INSERT INTO "SubcontratasEmpresas" ("Id", "SubcontrataId", "EmpresaId", "TenantId") VALUES ({0}, {1}, {2}, {3})""",
+            Guid.NewGuid(), subcontrataId, empresaId, tenantId ?? _tenantId);
 
     private CaeManagerDbContext CrearContexto(Guid tenantId)
     {
