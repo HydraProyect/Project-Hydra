@@ -1,4 +1,6 @@
+using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
+using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Domain.Empresas;
@@ -165,6 +167,71 @@ public class F42bRelacionEmpresarialDiscriminadorTests : IAsyncLifetime
         var resultado = await handler.Handle(new ObtenerSubcontratasParaSelectorQuery(empresaPropiaId), CancellationToken.None);
 
         resultado.Should().ContainSingle().Which.Id.Should().Be(subcontrataVigenteId);
+    }
+
+    /// <summary>
+    /// Espejo de <c>ObtenerSubcontratasDeCliente</c>: el mismo Cliente servido
+    /// a la vez por una Empresa propia y por una Subcontrata — situación
+    /// corriente, no caso límite. La pestaña "Empresas" solo debe mostrar la
+    /// Empresa propia.
+    /// </summary>
+    [Fact]
+    public async Task ObtenerEmpresasDeClienteQuery_no_incluye_la_Subcontrata_que_tambien_sirve_al_mismo_Cliente()
+    {
+        Guid clienteId, empresaPropiaId;
+        await using (var contexto = CrearContexto())
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Con Los Dos Proveedores S.A.", "B10380301", false, null, null);
+            var empresaPropia = new Empresa("La Empresa Propia Correcta S.L.", "B10380319");
+            var subcontrata = Empresa.CrearComoSubcontrata("La Subcontrata Que No Toca S.L.", "B10380327", NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.AddRange(cliente, empresaPropia, subcontrata);
+            await contexto.SaveChangesAsync();
+            clienteId = cliente.Id; empresaPropiaId = empresaPropia.Id;
+
+            var ahora = DateTime.UtcNow;
+            contexto.RelacionesEmpresariales.AddRange(
+                RelacionEmpresarial.Migrar(empresaPropiaId, clienteId, ahora, ahora),
+                RelacionEmpresarial.Migrar(subcontrata.Id, clienteId, ahora, ahora));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = new ObtenerEmpresasDeClienteQueryHandler(lectura, new AlcanceDatosServiceFalso());
+        var resultado = await handler.Handle(new ObtenerEmpresasDeClienteQuery(clienteId), CancellationToken.None);
+
+        resultado.Should().ContainSingle().Which.Id.Should().Be(empresaPropiaId);
+    }
+
+    /// <summary>
+    /// Dirección contraria: el lado fijado es la proveedora y el ambiguo la
+    /// contraparte. Una Subcontrata que presta servicio tanto a un Cliente
+    /// real como a una Empresa propia solo debe listar el Cliente.
+    /// </summary>
+    [Fact]
+    public async Task ObtenerClientesDeEmpresaQuery_no_incluye_la_Empresa_propia_a_la_que_esa_Subcontrata_sirve()
+    {
+        Guid subcontrataId, clienteRealId;
+        await using (var contexto = CrearContexto())
+        {
+            var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata De Doble Cara S.L.", "B10380335", NivelServicioSubcontrata.Gestionada.ToString());
+            var clienteReal = Empresa.CrearComoCliente("El Cliente Real Que Toca S.A.", "B10380343", false, null, null);
+            var empresaPropia = new Empresa("Empresa Propia Que No Es Cliente S.L.", "B10380350");
+            contexto.Empresas.AddRange(subcontrata, clienteReal, empresaPropia);
+            await contexto.SaveChangesAsync();
+            subcontrataId = subcontrata.Id; clienteRealId = clienteReal.Id;
+
+            var ahora = DateTime.UtcNow;
+            contexto.RelacionesEmpresariales.AddRange(
+                RelacionEmpresarial.Migrar(subcontrataId, clienteRealId, ahora, ahora),
+                RelacionEmpresarial.Migrar(subcontrataId, empresaPropia.Id, ahora, ahora));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = new ObtenerClientesDeEmpresaQueryHandler(lectura, new AlcanceDatosServiceFalso());
+        var resultado = await handler.Handle(new ObtenerClientesDeEmpresaQuery(subcontrataId), CancellationToken.None);
+
+        resultado.Should().ContainSingle().Which.Id.Should().Be(clienteRealId);
     }
 
     private CaeManagerDbContext CrearContexto()
