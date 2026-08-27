@@ -27,8 +27,8 @@ namespace CaeManager.Application.Centros;
 /// </summary>
 public enum AmbitoCausa
 {
-    Empresa,
-    Trabajador
+    Empresa = 0,
+    Trabajador = 1
 }
 
 /// <param name="DocumentoId">
