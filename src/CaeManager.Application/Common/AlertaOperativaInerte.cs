@@ -19,4 +19,8 @@ public class AlertaOperativaInerte : IAlertaOperativa
     public void Emitir(string mensaje, NivelAlertaOperativa nivel)
     {
     }
+
+    public void CapturarExcepcion(Exception excepcion)
+    {
+    }
 }

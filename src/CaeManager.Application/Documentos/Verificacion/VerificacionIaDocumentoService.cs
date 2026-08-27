@@ -4,7 +4,6 @@ using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Documentos.Verificacion;
 
@@ -33,6 +32,18 @@ namespace CaeManager.Application.Documentos.Verificacion;
 /// criterios reales, ese campo es el insumo, no uno nuevo que haya que
 /// modelar. Anotado aquí para que la sesión que lo implemente no tenga que
 /// redescubrirlo.
+///
+/// <b>No confundir "no aplica" con "falló"</b> (D3): los primeros chequeos
+/// de <see cref="ProcesarDocumentoAsync"/> (Documento sin archivo/Trabajador,
+/// TipoDocumento sin verificación activa, revisión ya pendiente) terminan
+/// en un <c>return</c> silencioso a propósito — son casos legítimos donde no
+/// hay nada que verificar. Pero no abrir el archivo o que el proveedor de IA
+/// devuelva un <c>Result</c> fallido SÍ es un fallo real de la verificación,
+/// y por eso ambos casos lanzan en vez de retornar: dejan que
+/// <c>ProcesadorAnalisisDocumentoHostedService</c> (Infrastructure, que ya
+/// sabe reintentar, capturar en Sentry y avisar sin mentir) lo trate como lo
+/// que es, en vez de que <c>MarcarCompletado()</c> + la campana "ya está
+/// revisado" mientan sobre un documento que nunca llegó a leerse.
 /// </summary>
 public class VerificacionIaDocumentoService(
     IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext,
@@ -41,8 +52,7 @@ public class VerificacionIaDocumentoService(
     IRevisionIaDocumentoRepository revisionRepositorio,
     IAprobacionDocumentoRepository aprobacionRepositorio,
     IAuditoriaExtraccionIaRepository auditoriaRepositorio,
-    IUnitOfWork unitOfWork,
-    ILogger<VerificacionIaDocumentoService> logger) : IVerificacionIaDocumentoService
+    IUnitOfWork unitOfWork) : IVerificacionIaDocumentoService
 {
     /// <summary>Por debajo de este umbral, la confianza general por sí sola ya justifica revisión humana (ver Issue #19, "70-95% revisar").</summary>
     private const int UmbralConfianzaBaja = 70;
@@ -74,19 +84,32 @@ public class VerificacionIaDocumentoService(
             await archivo.CopyToAsync(buffer, cancellationToken);
             contenido = buffer.ToArray();
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "No se pudo abrir el archivo del Documento {DocumentoId} para verificación IA.", documentoId);
-            return;
+            // No se traga el fallo: antes moría aquí con solo un log y el
+            // trabajo seguía su curso hasta MarcarCompletado() como si el
+            // documento sí se hubiera revisado (ver
+            // ProcesadorAnalisisDocumentoHostedService, que interpreta "no
+            // lanzó" como éxito y avisa al usuario "ya está revisado" sin que
+            // se haya revisado nada — la trampa que Issue de D3 identificó).
+            // Relanzar deja que ese mismo servicio la capture con el
+            // contexto de tenant/intento que ya tiene, reintente hasta
+            // TrabajoAnalisisDocumento.MaximoIntentos veces y, si se agotan,
+            // avise honestamente en vez de fingir un éxito.
+            throw new InvalidOperationException(
+                $"No se pudo abrir el archivo del Documento {documentoId} para verificación IA.", ex);
         }
 
         var resultadoExtraccion = await extraccion.ExtraerAsync(contenido, tipoDocumento.Nombre, documentoId, cancellationToken);
 
         if (resultadoExtraccion.EsFallido)
         {
-            logger.LogInformation(
-                "Verificación IA del Documento {DocumentoId} no disponible: {Codigo}", documentoId, resultadoExtraccion.Error.Codigo);
-            return;
+            // Mismo criterio que el catch de arriba: un Result fallido del
+            // proveedor de IA (proveedor caído, sin API key, respuesta
+            // inválida...) no es "nada que revisar" — es un fallo real de la
+            // verificación, y debe contar como tal en vez de como éxito.
+            throw new InvalidOperationException(
+                $"Verificación IA del Documento {documentoId} no disponible: {resultadoExtraccion.Error.Codigo} — {resultadoExtraccion.Error.Mensaje}");
         }
 
         var extraido = resultadoExtraccion.Valor;

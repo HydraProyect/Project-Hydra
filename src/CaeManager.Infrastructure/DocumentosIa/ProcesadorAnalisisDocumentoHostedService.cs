@@ -232,6 +232,13 @@ public class ProcesadorAnalisisDocumentoHostedService(
                 logger.LogError(ex,
                     "Falló el análisis {Tipo} del trabajo {TrabajoId} (documento {DocumentoId}, tenant {TenantId}, intento {Intento}).",
                     trabajo.Tipo, trabajo.Id, trabajo.DocumentoId, tenantId, trabajo.Intentos + 1);
+                // Antes esto solo quedaba en el log local (Seq si está
+                // configurado): ni un solo fallo de análisis IA llegaba a
+                // Sentry (ver D3). CaptureException por intento, no solo al
+                // agotarse — con MaximoIntentos=3 no satura el canal, y cada
+                // intento puede fallar por una causa distinta que vale la
+                // pena ver por separado.
+                alertaOperativa.CapturarExcepcion(ex);
                 trabajo.RegistrarFallo(ex.Message);
             }
 
@@ -287,35 +294,67 @@ public class ProcesadorAnalisisDocumentoHostedService(
     /// La campana, no un correo: el usuario que acaba de subir el documento
     /// suele seguir en la aplicación, y <see cref="NotificacionUsuario"/>
     /// sobrevive a recargas y a cerrar sesión, así que tampoco se pierde si
-    /// no lo está. Solo al completar con éxito — igual que antes, un fallo
-    /// nunca notificaba (ver criterio de mejor esfuerzo más arriba).
+    /// no lo está.
+    ///
+    /// Dos desenlaces avisan, y con mensajes distintos a propósito (D3): al
+    /// completar con éxito, que ya está revisado; al agotar
+    /// <see cref="TrabajoAnalisisDocumento.MaximoIntentos"/> sin conseguirlo,
+    /// que NO se pudo revisar — nunca el primer mensaje para el segundo
+    /// caso, que es justo la mentira que este aviso tenía antes. Mientras
+    /// quedan reintentos (Estado vuelve a Pendiente) no se avisa nada
+    /// todavía: es un fallo transitorio que el propio sondeo va a reintentar
+    /// en segundos, no algo que el usuario tenga que atender ya.
     /// </summary>
     private static Task AvisarSiCorrespondeAsync(
         IServiceProvider servicios, TrabajoAnalisisDocumento trabajo, CancellationToken cancellationToken)
     {
-        if (trabajo.Estado != EstadoTrabajoAnalisisDocumento.Completado) return Task.CompletedTask;
         if (trabajo.UsuarioSolicitanteId is not { } usuarioId) return Task.CompletedTask;
 
-        // Con tres tipos, los ternarios originales ya no escalaban.
-        var (titulo, mensaje, urlAccion, textoAccion) = trabajo.Tipo switch
+        var aviso = trabajo.Estado switch
         {
-            TipoAnalisisDocumento.VerificacionIa => (
-                "Verificación automática terminada",
-                "Ya está revisado el documento que subiste. Comprueba el resultado por si necesita tu confirmación.",
-                "/documentos/revision-ia", "Ver revisión"),
-            TipoAnalisisDocumento.DeteccionTrabajadores => (
-                "Detección de personal terminada",
-                "Ya se ha analizado el documento que subiste en busca de altas y bajas de personal.",
-                "/trabajadores", "Ver trabajadores"),
-            _ => (
-                "Validación de documento oficial terminada",
-                "Ya se ha verificado la firma digital del documento que subiste y cotejado sus datos.",
-                "/documentos", "Ver documentos"),
+            EstadoTrabajoAnalisisDocumento.Completado => ObtenerAvisoCompletado(trabajo.Tipo),
+            EstadoTrabajoAnalisisDocumento.Fallido => ObtenerAvisoFallido(trabajo.Tipo),
+            _ => default((string Titulo, string Mensaje, string UrlAccion, string TextoAccion)?),
         };
 
+        if (aviso is not { } valores) return Task.CompletedTask;
+
         servicios.GetRequiredService<INotificacionUsuarioRepository>()
-            .Agregar(new NotificacionUsuario(usuarioId, titulo, mensaje, urlAccion, textoAccion));
+            .Agregar(new NotificacionUsuario(usuarioId, valores.Titulo, valores.Mensaje, valores.UrlAccion, valores.TextoAccion));
 
         return Task.CompletedTask;
     }
+
+    // Con tres tipos, los ternarios originales ya no escalaban.
+    private static (string Titulo, string Mensaje, string UrlAccion, string TextoAccion) ObtenerAvisoCompletado(TipoAnalisisDocumento tipo) => tipo switch
+    {
+        TipoAnalisisDocumento.VerificacionIa => (
+            "Verificación automática terminada",
+            "Ya está revisado el documento que subiste. Comprueba el resultado por si necesita tu confirmación.",
+            "/documentos/revision-ia", "Ver revisión"),
+        TipoAnalisisDocumento.DeteccionTrabajadores => (
+            "Detección de personal terminada",
+            "Ya se ha analizado el documento que subiste en busca de altas y bajas de personal.",
+            "/trabajadores", "Ver trabajadores"),
+        _ => (
+            "Validación de documento oficial terminada",
+            "Ya se ha verificado la firma digital del documento que subiste y cotejado sus datos.",
+            "/documentos", "Ver documentos"),
+    };
+
+    private static (string Titulo, string Mensaje, string UrlAccion, string TextoAccion) ObtenerAvisoFallido(TipoAnalisisDocumento tipo) => tipo switch
+    {
+        TipoAnalisisDocumento.VerificacionIa => (
+            "No se pudo verificar por IA",
+            "No hemos podido revisar automáticamente el documento que subiste (el archivo no se pudo leer o el proveedor de IA falló). Revísalo tú manualmente.",
+            "/documentos", "Ver documentos"),
+        TipoAnalisisDocumento.DeteccionTrabajadores => (
+            "No se pudo completar la detección de personal",
+            "No hemos podido analizar automáticamente el documento que subiste en busca de altas y bajas de personal. Revísalo tú manualmente.",
+            "/trabajadores", "Ver trabajadores"),
+        _ => (
+            "No se pudo validar el documento oficial",
+            "No hemos podido verificar automáticamente la firma digital del documento que subiste. Revísalo tú manualmente.",
+            "/documentos", "Ver documentos"),
+    };
 }

@@ -7,5 +7,9 @@ public class AlertaOperativaFalsa : IAlertaOperativa
 {
     public List<(string Mensaje, NivelAlertaOperativa Nivel)> Alertas { get; } = [];
 
+    public List<Exception> ExcepcionesCapturadas { get; } = [];
+
     public void Emitir(string mensaje, NivelAlertaOperativa nivel) => Alertas.Add((mensaje, nivel));
+
+    public void CapturarExcepcion(Exception excepcion) => ExcepcionesCapturadas.Add(excepcion);
 }
