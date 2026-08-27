@@ -73,7 +73,7 @@ public class ObtenerFormatosRequeridosCentroQueryHandler(
         var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
             .OrderBy(t => t.Orden)
-            .Select(t => new { t.Id, t.Nombre, t.Descripcion, t.EsObligatorio })
+            .Select(t => new { t.Id, t.Nombre, t.Descripcion, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
             .ToListAsync(cancellationToken);
 
         var tipoIds = tipos.Select(t => t.Id).ToHashSet();
@@ -83,7 +83,7 @@ public class ObtenerFormatosRequeridosCentroQueryHandler(
             .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
         return tipos
-            .Where(t => ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centroId, t.EsObligatorio))
+            .Where(t => ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centroId, t.CuentaParaCumplimiento))
             .Select(t =>
             {
                 filasDelCentro.TryGetValue((t.Id, centroId), out var fila);

@@ -51,9 +51,9 @@ public class OrdenacionListadosTests : IAsyncLifetime
         // Nombres deliberadamente fuera de orden alfabético respecto al de
         // emisión, para que ordenar por una columna no pueda "acertar" por
         // coincidir con el orden por defecto.
-        var tipoA = new TipoDocumento("Alta en Seguridad Social", 12, true, 1, AmbitoAplicacion.Cliente, true);
-        var tipoM = new TipoDocumento("Modelo 190", 12, true, 2, AmbitoAplicacion.Cliente, true);
-        var tipoZ = new TipoDocumento("Zona de trabajo", 12, true, 3, AmbitoAplicacion.Cliente, true);
+        var tipoA = new TipoDocumento("Alta en Seguridad Social", 12, true, 1, AmbitoAplicacion.Cliente, RequisitoDocumental.Si);
+        var tipoM = new TipoDocumento("Modelo 190", 12, true, 2, AmbitoAplicacion.Cliente, RequisitoDocumental.Si);
+        var tipoZ = new TipoDocumento("Zona de trabajo", 12, true, 3, AmbitoAplicacion.Cliente, RequisitoDocumental.Si);
         contexto.TiposDocumento.AddRange(tipoA, tipoM, tipoZ);
         await contexto.SaveChangesAsync();
 

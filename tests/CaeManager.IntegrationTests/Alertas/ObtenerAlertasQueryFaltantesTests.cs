@@ -52,7 +52,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         contexto.Trabajadores.Add(trabajador);
 
         // Sin ninguna fila en TiposDocumentoCentros: aplica a todos los Centros.
-        var tipo = new TipoDocumento("EPIs", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        var tipo = new TipoDocumento("EPIs", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
 

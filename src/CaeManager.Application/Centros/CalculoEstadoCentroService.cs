@@ -218,7 +218,7 @@ public class CalculoEstadoCentroService(
         // globalmente (PLAN-EJECUCION-UX.md § 0.4, TipoDocumentoCentro.Incluido).
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, t.EsObligatorio })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
             .ToListAsync(cancellationToken);
 
         if (tiposCandidatos.Count == 0) return;
@@ -243,7 +243,7 @@ public class CalculoEstadoCentroService(
         {
             foreach (var tipo in tiposCandidatos)
             {
-                if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, asignacion.CentroId, tipo.EsObligatorio))
+                if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, asignacion.CentroId, tipo.CuentaParaCumplimiento))
                     continue;
 
                 if (parejasConDocumento.Contains((asignacion.TrabajadorId, tipo.Id)))
@@ -286,7 +286,7 @@ public class CalculoEstadoCentroService(
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.EsObligatorio })
+            .Select(t => new { t.Id, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
             .ToListAsync(cancellationToken);
 
         if (tiposCandidatos.Count == 0)
@@ -317,7 +317,7 @@ public class CalculoEstadoCentroService(
         {
             foreach (var tipo in tiposCandidatos)
             {
-                if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, asignacion.CentroId, tipo.EsObligatorio))
+                if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, asignacion.CentroId, tipo.CuentaParaCumplimiento))
                     continue;
 
                 var actual = acumulado[asignacion.CentroId];

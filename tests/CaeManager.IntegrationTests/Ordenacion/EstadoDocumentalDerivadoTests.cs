@@ -57,7 +57,7 @@ public class EstadoDocumentalDerivadoTests : IAsyncLifetime
         var sinDocumentos = Trabajador.DeEmpresa(empresa.Id, "Marta", "Ruiz", "00000000T");
         contexto.Trabajadores.AddRange(conVencido, soloVigentes, sinDocumentos);
 
-        var tipo = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, true);
+        var tipo = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
 

@@ -50,7 +50,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata Cumplimiento S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
         contexto.Empresas.Add(subcontrata);
 
-        var tipoObligatorio = new TipoDocumento("EPIs", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        var tipoObligatorio = new TipoDocumento("EPIs", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipoObligatorio);
         await contexto.SaveChangesAsync();
 

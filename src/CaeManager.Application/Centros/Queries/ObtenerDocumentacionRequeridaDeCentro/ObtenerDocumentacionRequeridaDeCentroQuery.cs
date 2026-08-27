@@ -13,7 +13,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDe
 /// (Trabajador + Empresa) del tenant, con la posición de ESTE Centro sobre
 /// cada uno: si aplica hoy (<see cref="ResolucionTipoDocumentoCentro"/>), si
 /// hay una fila explícita (y su Incluido/PeriodicidadEspecial/BloqueaAcceso/
-/// adjunto) o si sigue el criterio global de <c>TipoDocumento.EsObligatorio</c>.
+/// adjunto) o si sigue el criterio global de <c>TipoDocumento.CuentaParaCumplimiento</c>.
 /// Sustituye a ObtenerRequisitosDocumentalesDeCentroQuery (retirada junto con
 /// RequisitoDocumental).
 /// </summary>
@@ -49,7 +49,7 @@ public class ObtenerDocumentacionRequeridaDeCentroQueryHandler(
         var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador || t.AmbitoAplicacion == AmbitoAplicacion.Empresa)
             .OrderBy(t => t.AmbitoAplicacion).ThenBy(t => t.Orden)
-            .Select(t => new { t.Id, t.Nombre, t.AmbitoAplicacion, t.EsObligatorio })
+            .Select(t => new { t.Id, t.Nombre, t.AmbitoAplicacion, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
             .ToListAsync(cancellationToken);
 
         var filas = (await tiposDocumentoContext.TiposDocumentoCentros
@@ -62,8 +62,8 @@ public class ObtenerDocumentacionRequeridaDeCentroQueryHandler(
             {
                 filas.TryGetValue(t.Id, out var fila);
                 return new DocumentacionRequeridaCentroDto(
-                    t.Id, t.Nombre, t.AmbitoAplicacion, t.EsObligatorio,
-                    Aplica: fila is not null ? fila.Incluido : t.EsObligatorio,
+                    t.Id, t.Nombre, t.AmbitoAplicacion, t.CuentaParaCumplimiento,
+                    Aplica: fila is not null ? fila.Incluido : t.CuentaParaCumplimiento,
                     Incluido: fila?.Incluido,
                     PeriodicidadEspecialMeses: fila?.PeriodicidadEspecialMeses,
                     BloqueaAcceso: fila?.BloqueaAcceso ?? false,

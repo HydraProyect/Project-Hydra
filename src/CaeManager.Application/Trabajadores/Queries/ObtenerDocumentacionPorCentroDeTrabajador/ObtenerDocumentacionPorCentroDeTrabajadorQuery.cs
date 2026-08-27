@@ -79,7 +79,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, t.EsObligatorio })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
             .ToListAsync(cancellationToken);
         var tipoIdsCandidatos = tiposCandidatos.Select(t => t.Id).ToHashSet();
 
@@ -102,7 +102,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
         foreach (var asignacion in asignaciones)
         {
             var tiposRequeridos = tiposCandidatos
-                .Where(t => ResolucionTipoDocumentoCentro.Aplica(filasDeLosCentros, t.Id, asignacion.CentroId, t.EsObligatorio))
+                .Where(t => ResolucionTipoDocumentoCentro.Aplica(filasDeLosCentros, t.Id, asignacion.CentroId, t.CuentaParaCumplimiento))
                 .ToList();
 
             var items = new List<DocumentoRequeridoDto>();
