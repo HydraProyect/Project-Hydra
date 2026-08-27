@@ -5,6 +5,7 @@ using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Infrastructure.Persistence.Seed;
@@ -20,7 +21,16 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 public static class SegundoTenantSeeder
 {
     public const string EmailAdministradorSegundoTenant = "admin-segundo-tenant@caemanager.local";
+    /// <summary>
+    /// Valor por defecto fuera de Producción. En Producción tiene que venir
+    /// de <c>SegundoTenant:Contrasena</c> o la siembra falla — mismo motivo
+    /// que en <see cref="CredencialesDemo"/>: es una constante de un
+    /// repositorio público, y eso solo es inocuo mientras no abra una sesión
+    /// en un servidor público.
+    /// </summary>
     public const string ContrasenaAdministradorSegundoTenant = "SegundoTenant#2026";
+
+    public const string ClaveContrasenaConfiguracion = "SegundoTenant:Contrasena";
     public const string NombreSegundoTenant = "Tenant de verificación B";
 
     public static async Task<Guid?> SeedAsync(
@@ -28,11 +38,15 @@ public static class SegundoTenantSeeder
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
         IConfiguration configuration,
+        IHostEnvironment entorno,
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
         if (!configuration.GetValue<bool>("SegundoTenant:Activo"))
             return null;
+
+        var contrasena = CredencialesDemo.ResolverCredencial(
+            configuration, entorno, ClaveContrasenaConfiguracion, ContrasenaAdministradorSegundoTenant);
 
         var tenantExistente = await dbContext.Tenants
             .FirstOrDefaultAsync(t => t.Nombre == NombreSegundoTenant, cancellationToken);
@@ -90,7 +104,7 @@ public static class SegundoTenantSeeder
                 TenantId = tenantId,
             };
 
-            var resultado = await userManager.CreateAsync(administrador, ContrasenaAdministradorSegundoTenant);
+            var resultado = await userManager.CreateAsync(administrador, contrasena);
             if (resultado.Succeeded)
             {
                 await userManager.AddToRoleAsync(administrador, Roles.Administrador);

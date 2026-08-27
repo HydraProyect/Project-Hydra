@@ -8,6 +8,7 @@ using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Infrastructure.Persistence.Seed;
@@ -85,16 +86,21 @@ public static class DelegacionDemoSeeder
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
         IConfiguration configuration,
+        IHostEnvironment entorno,
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
         if (!configuration.GetValue<bool>("DatosPrueba:Activo"))
             return;
 
+        // Antes de aprovisionar el primer tenant: si esto es Producción y no
+        // hay credenciales configuradas, lanza. Ver CredencialesDemo.
+        var credenciales = CredencialesDemo.Resolver(configuration, entorno);
+
         var tenantConsultoraId = await AprovisionarTenantAsync(
             dbContext, NombreTenantConsultora, PerfilVocabularioTenant.Consultora, logger, cancellationToken);
         var administradorConsultora = await CrearAdministradorConsultoraAsync(
-            dbContext, userManager, userStore, logger, tenantConsultoraId, cancellationToken);
+            dbContext, userManager, userStore, credenciales, logger, tenantConsultoraId, cancellationToken);
 
         // --- Refrielectric: la referencia principal de "empresa final" ---
         var refrielectricId = await AprovisionarTenantAsync(
@@ -102,7 +108,7 @@ public static class DelegacionDemoSeeder
         using (AmbitoTenantExplicito.Establecer(refrielectricId))
         {
             await DatosPruebaSeeder.SembrarSoloDatosCompletosAsync(dbContext, logger, cancellationToken);
-            var gestoresRefrielectric = await SembrarUsuariosRefrielectricAsync(dbContext, userManager, userStore, logger, cancellationToken);
+            var gestoresRefrielectric = await SembrarUsuariosRefrielectricAsync(dbContext, userManager, userStore, credenciales, logger, cancellationToken);
             await SembrarEscenariosDashboardRefrielectricAsync(dbContext, gestoresRefrielectric, logger, cancellationToken);
         }
         await CrearDelegacionAsync(
@@ -119,10 +125,10 @@ public static class DelegacionDemoSeeder
         // propios".
         using (AmbitoTenantExplicito.Establecer(tenantClienteId))
         {
-            await DatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
+            await DatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, entorno, logger, cancellationToken);
             await ComunicacionesDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
             await CicloDocumentalDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
-            await SembrarVariantesIdentidadAsync(dbContext, userManager, userStore, logger, cancellationToken);
+            await SembrarVariantesIdentidadAsync(dbContext, userManager, userStore, credenciales, logger, cancellationToken);
         }
         await CrearDelegacionAsync(
             dbContext, tenantConsultoraId, tenantClienteId, administradorConsultora, logger, NombreTenantClienteDemo, cancellationToken);
@@ -134,7 +140,7 @@ public static class DelegacionDemoSeeder
         using (AmbitoTenantExplicito.Establecer(tenantCliente2Id))
         {
             await DatosPruebaSeeder.SembrarSoloDatosAsync(dbContext, logger, cancellationToken);
-            await SembrarUsuariosDemo2Async(dbContext, userManager, userStore, logger, cancellationToken);
+            await SembrarUsuariosDemo2Async(dbContext, userManager, userStore, credenciales, logger, cancellationToken);
         }
         await CrearDelegacionAsync(
             dbContext, tenantConsultoraId, tenantCliente2Id, administradorConsultora, logger, NombreTenantClienteDemo2, cancellationToken);
@@ -145,7 +151,7 @@ public static class DelegacionDemoSeeder
         await CrearDelegacionRevocadaAsync(dbContext, tenantConsultoraId, tenantCliente3Id, logger, cancellationToken);
 
         await SembrarOperadoresConsultoraAsync(
-            dbContext, userManager, logger, tenantConsultoraId, refrielectricId, tenantClienteId, cancellationToken);
+            dbContext, userManager, credenciales, logger, tenantConsultoraId, refrielectricId, tenantClienteId, cancellationToken);
     }
 
     /// <summary>
@@ -160,6 +166,7 @@ public static class DelegacionDemoSeeder
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
+        CredencialesDemo credenciales,
         ILogger logger,
         Guid tenantConsultoraId,
         CancellationToken cancellationToken)
@@ -178,7 +185,7 @@ public static class DelegacionDemoSeeder
             TenantId = tenantConsultoraId
         };
 
-        var resultado = await userManager.CreateAsync(administrador, DatosPruebaSeeder.ContrasenaUsuariosPrueba);
+        var resultado = await userManager.CreateAsync(administrador, credenciales.Contrasena);
         if (!resultado.Succeeded)
         {
             logger.LogWarning("No se pudo crear el administrador de ArcoSPA: {Errores}",
@@ -218,6 +225,7 @@ public static class DelegacionDemoSeeder
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
+        CredencialesDemo credenciales,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -239,7 +247,7 @@ public static class DelegacionDemoSeeder
                 TenantId = tenantId
             };
 
-            var resultado = await userManager.CreateAsync(usuario, DatosPruebaSeeder.ContrasenaUsuariosPrueba);
+            var resultado = await userManager.CreateAsync(usuario, credenciales.Contrasena);
             if (!resultado.Succeeded)
             {
                 logger.LogWarning("No se pudo crear el usuario de Refrielectric {Email}: {Errores}",
@@ -309,7 +317,7 @@ public static class DelegacionDemoSeeder
 
         logger.LogInformation(
             "Usuarios de Refrielectric sembrados (contraseña «{Contrasena}» para todos, email {Prefijo}<rol><n>@caemanager.local).",
-            DatosPruebaSeeder.ContrasenaUsuariosPrueba, PrefijoEmailRefrielectric);
+            credenciales.Contrasena, PrefijoEmailRefrielectric);
 
         return gestores;
     }
@@ -395,6 +403,7 @@ public static class DelegacionDemoSeeder
     private static async Task SembrarOperadoresConsultoraAsync(
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
+        CredencialesDemo credenciales,
         ILogger logger,
         Guid tenantConsultoraId,
         Guid tenantClienteDemo1Id,
@@ -402,10 +411,10 @@ public static class DelegacionDemoSeeder
         CancellationToken cancellationToken)
     {
         var operadorGestor = await CrearUsuarioConsultoraAsync(
-            dbContext, userManager, logger, tenantConsultoraId, "prueba.operador.gestor1@caemanager.local",
+            dbContext, userManager, credenciales, logger, tenantConsultoraId, "prueba.operador.gestor1@caemanager.local",
             "Operador Consultora Gestor (prueba)", Roles.GestorCae, cancellationToken);
         var operadorConsulta = await CrearUsuarioConsultoraAsync(
-            dbContext, userManager, logger, tenantConsultoraId, "prueba.operador.consulta1@caemanager.local",
+            dbContext, userManager, credenciales, logger, tenantConsultoraId, "prueba.operador.consulta1@caemanager.local",
             "Operador Consultora Consulta (prueba)", Roles.Consulta, cancellationToken);
 
         var delegacionDemo1 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
@@ -440,6 +449,7 @@ public static class DelegacionDemoSeeder
     private static async Task<ApplicationUser?> CrearUsuarioConsultoraAsync(
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
+        CredencialesDemo credenciales,
         ILogger logger,
         Guid tenantConsultoraId,
         string email,
@@ -461,7 +471,7 @@ public static class DelegacionDemoSeeder
             TenantId = tenantConsultoraId
         };
 
-        var resultado = await userManager.CreateAsync(usuario, DatosPruebaSeeder.ContrasenaUsuariosPrueba);
+        var resultado = await userManager.CreateAsync(usuario, credenciales.Contrasena);
         if (!resultado.Succeeded)
         {
             logger.LogWarning("No se pudo crear el operador de consultora {Email}: {Errores}",
@@ -490,6 +500,7 @@ public static class DelegacionDemoSeeder
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
+        CredencialesDemo credenciales,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -510,7 +521,7 @@ public static class DelegacionDemoSeeder
                 TenantId = tenantId
             };
 
-            var resultado = await userManager.CreateAsync(usuario, DatosPruebaSeeder.ContrasenaUsuariosPrueba);
+            var resultado = await userManager.CreateAsync(usuario, credenciales.Contrasena);
             if (!resultado.Succeeded)
             {
                 logger.LogWarning("No se pudo crear el usuario de variante de identidad {Email}: {Errores}",
@@ -572,6 +583,7 @@ public static class DelegacionDemoSeeder
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
+        CredencialesDemo credenciales,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -589,7 +601,7 @@ public static class DelegacionDemoSeeder
             DebeCambiarContrasena = false,
             TenantId = tenantId
         };
-        var resultado = await userManager.CreateAsync(administrador, DatosPruebaSeeder.ContrasenaUsuariosPrueba);
+        var resultado = await userManager.CreateAsync(administrador, credenciales.Contrasena);
         if (resultado.Succeeded)
         {
             await userManager.AddToRoleAsync(administrador, Roles.Administrador);
@@ -621,7 +633,7 @@ public static class DelegacionDemoSeeder
             DebeCambiarContrasena = false,
             TenantId = tenantId
         };
-        resultado = await userManager.CreateAsync(gestor, DatosPruebaSeeder.ContrasenaUsuariosPrueba);
+        resultado = await userManager.CreateAsync(gestor, credenciales.Contrasena);
         if (resultado.Succeeded)
         {
             await userManager.AddToRoleAsync(gestor, Roles.GestorCae);
