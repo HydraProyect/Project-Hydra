@@ -329,10 +329,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.ResolverRevisionIaDocumentoCommandHandler", "IAuditoriaExtraccionIaRepository"),
         ("Empresas.CrearEmpresaCommandHandler", "IClientesQueryContext"),
         ("Empresas.EditarEmpresaCommandHandler", "IClientesQueryContext"),
-        // F4 — doble escritura transitoria hacia RelacionEmpresarial mientras
-        // las tres tablas legacy sigan siendo la fuente de escritura
-        // primaria (f4-diseno-fisico-relacionempresarial-2026-08-26.md).
-        // Desaparece cuando RelacionEmpresarial pase a ser la única fuente.
+        // F4.2c — RelacionEmpresarial es la única fuente de escritura de los
+        // vínculos empresariales (R6 aceptada 2026-08-27): estos cruces de
+        // feature son el destino final del diseño, no una transición.
         ("Empresas.CrearEmpresaCommandHandler", "IRelacionEmpresarialRepository"),
         ("Empresas.EditarEmpresaCommandHandler", "IRelacionEmpresarialRepository"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "IAsignacionesQueryContext"),
@@ -361,12 +360,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Gestiones.ObtenerGestionesQueryHandler", "ITrabajadoresQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ICentroRepository"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ICentrosQueryContext"),
-        ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IEmpresaClienteRepository"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IEmpresaRepository"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IEmpresasQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ITrabajadoresQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ITrabajadorRepository"),
-        // F4 — misma doble escritura transitoria de arriba.
+        // F4.2c — mismo destino final que el bloque de Empresas de arriba.
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IRelacionEmpresarialRepository"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionesQueryContext"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionRepository"),

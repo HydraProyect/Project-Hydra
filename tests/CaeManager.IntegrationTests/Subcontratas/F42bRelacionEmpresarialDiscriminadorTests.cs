@@ -2,6 +2,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata;
 using CaeManager.Domain.Centros;
@@ -303,6 +304,84 @@ public class F42bRelacionEmpresarialDiscriminadorTests : IAsyncLifetime
         // Sin ClienteId: el catálogo global tampoco debe incluir contrapartes.
         var completo = await handler.Handle(new ObtenerEmpresasParaSelectorQuery(), CancellationToken.None);
         completo.Should().ContainSingle().Which.Id.Should().Be(empresaPropiaId);
+    }
+
+    /// <summary>
+    /// F4.2c re-migra este lector (su primera migración, en F4.2b, se
+    /// revirtió por el fallo de pérdida de datos). El DTO de detalle separa
+    /// los dos ejes por la fila real de la contraparte: <c>ClienteIds</c>
+    /// solo Clientes (<c>EsCritico != null</c>), <c>EmpresaIds</c> solo
+    /// Empresas propias — aunque ambas shapes compartan la columna
+    /// <c>RelacionEmpresarial.ClienteId</c>.
+    /// </summary>
+    [Fact]
+    public async Task ObtenerSubcontrataPorIdQuery_separa_ClienteIds_de_EmpresaIds_por_la_fila_real()
+    {
+        Guid subcontrataId, clienteId, empresaPropiaId;
+        await using (var contexto = CrearContexto())
+        {
+            var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata Con Dos Ejes S.L.", "B10380442", NivelServicioSubcontrata.Gestionada.ToString());
+            var cliente = Empresa.CrearComoCliente("Cliente Del Eje Clientes S.A.", "B10380459", false, null, null);
+            var empresaPropia = new Empresa("Empresa Del Eje Empresas S.L.", "B10380467");
+            contexto.Empresas.AddRange(subcontrata, cliente, empresaPropia);
+            await contexto.SaveChangesAsync();
+            subcontrataId = subcontrata.Id; clienteId = cliente.Id; empresaPropiaId = empresaPropia.Id;
+
+            var ahora = DateTime.UtcNow;
+            contexto.RelacionesEmpresariales.AddRange(
+                RelacionEmpresarial.Migrar(subcontrataId, clienteId, ahora, ahora),
+                RelacionEmpresarial.Migrar(subcontrataId, empresaPropiaId, ahora, ahora));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = new ObtenerSubcontrataPorIdQueryHandler(lectura, new AlcanceDatosServiceFalso());
+        var resultado = await handler.Handle(new ObtenerSubcontrataPorIdQuery(subcontrataId), CancellationToken.None);
+
+        resultado.Should().NotBeNull();
+        resultado!.ClienteIds.Should().BeEquivalentTo([clienteId]);
+        resultado.EmpresaIds.Should().BeEquivalentTo([empresaPropiaId]);
+    }
+
+    /// <summary>
+    /// La mitad de lectura del invariante de opacas: una contraparte
+    /// soft-deleted no aparece en NINGÚN eje del DTO — es exactamente lo que
+    /// el usuario no puede desmarcar, y por eso el diff de escritura de
+    /// <c>EditarSubcontrataCommand</c> tampoco la cuenta como "actual". El
+    /// ciclo completo DTO→Editar se mide en
+    /// <c>FuenteUnicaRelacionEmpresarialTests</c>.
+    /// </summary>
+    [Fact]
+    public async Task ObtenerSubcontrataPorIdQuery_no_incluye_la_contraparte_soft_deleted_en_ningun_eje()
+    {
+        Guid subcontrataId, clienteVivoId, clienteEliminadoId;
+        await using (var contexto = CrearContexto())
+        {
+            var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata Con Baja Opaca S.L.", "B10380475", NivelServicioSubcontrata.Supervisada.ToString());
+            var clienteVivo = Empresa.CrearComoCliente("Cliente Vivo Del Detalle S.A.", "B10380483", false, null, null);
+            var clienteEliminado = Empresa.CrearComoCliente("Cliente Eliminado Del Detalle S.A.", "B10380491", false, null, null);
+            contexto.Empresas.AddRange(subcontrata, clienteVivo, clienteEliminado);
+            await contexto.SaveChangesAsync();
+            subcontrataId = subcontrata.Id; clienteVivoId = clienteVivo.Id; clienteEliminadoId = clienteEliminado.Id;
+
+            var ahora = DateTime.UtcNow;
+            contexto.RelacionesEmpresariales.AddRange(
+                RelacionEmpresarial.Migrar(subcontrataId, clienteVivoId, ahora, ahora),
+                RelacionEmpresarial.Migrar(subcontrataId, clienteEliminadoId, ahora, ahora));
+            await contexto.SaveChangesAsync();
+
+            clienteEliminado.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = new ObtenerSubcontrataPorIdQueryHandler(lectura, new AlcanceDatosServiceFalso());
+        var resultado = await handler.Handle(new ObtenerSubcontrataPorIdQuery(subcontrataId), CancellationToken.None);
+
+        resultado.Should().NotBeNull();
+        resultado!.ClienteIds.Should().BeEquivalentTo([clienteVivoId],
+            "la contraparte soft-deleted es opaca: no se pinta, y por eso su ausencia en un request posterior no puede leerse como baja");
+        resultado.EmpresaIds.Should().BeEmpty();
     }
 
     private CaeManagerDbContext CrearContexto()
