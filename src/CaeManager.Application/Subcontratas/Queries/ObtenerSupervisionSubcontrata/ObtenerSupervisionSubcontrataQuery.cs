@@ -74,12 +74,27 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
 
         // Centros de los Clientes vinculados — candidatos para registrar la
         // primera verificación de un centro sin historial ni actividad.
+        //
+        // F4.2b: repuntado de SubcontratasClientes a RelacionEmpresarial. El
+        // filtro de vigencia es el cambio de comportamiento real: legacy
+        // borraba la fila al desvincular, así que "esta subcontrata dejó de
+        // trabajar con ese cliente" no era un estado representable; ahora sí
+        // lo es, y sin filtrar seguiríamos ofreciendo los centros de un
+        // cliente ya desvinculado como candidatos a primera verificación.
+        //
+        // El discriminador EsCritico != null hace explícita una garantía que
+        // hoy presta el JOIN a Centros (Centro.ClienteId siempre referencia
+        // una fila ex-Cliente): al declararlo aquí, deja de depender de una
+        // tabla ajena — que además es justo la que F5 va a reescribir. De
+        // paso ahorra el tercer JOIN, porque centro.ClienteId == clienteReal.Id
+        // por construcción.
         var centrosSeleccionables = await (
-            from vinculo in subcontratasContext.SubcontratasClientes
-            where vinculo.SubcontrataId == request.SubcontrataId
-            join centro in centrosContext.Centros on vinculo.ClienteId equals centro.ClienteId
-            join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
-            select new CentroSeleccionableDto(centro.Id, centro.Nombre, cliente.RazonSocial))
+            from r in empresasContext.RelacionesEmpresariales
+            where r.ProveedoraId == request.SubcontrataId && r.VigenciaHasta == null
+            join clienteReal in empresasContext.Empresas.Where(e => e.EsCritico != null)
+                on r.ClienteId equals clienteReal.Id
+            join centro in centrosContext.Centros on clienteReal.Id equals centro.ClienteId
+            select new CentroSeleccionableDto(centro.Id, centro.Nombre, clienteReal.RazonSocial))
             .Distinct()
             .ToListAsync(cancellationToken);
 

@@ -21,13 +21,26 @@ public class ObtenerEmpresasParaSelectorQueryHandler(IEmpresasQueryContext dbCon
     public async Task<IReadOnlyList<EmpresaSelectorDto>> Handle(
         ObtenerEmpresasParaSelectorQuery request, CancellationToken cancellationToken)
     {
-        var consulta = dbContext.Empresas.AsQueryable();
+        // El filtro EsPropia corrige un defecto que arrastra desde F3a, no de
+        // F4: al unificar Cliente y Subcontrata dentro de Empresas, este
+        // selector pasó a ofrecer también las contrapartes como si fueran
+        // Empresas propias. Sus dos hermanos ya discriminan
+        // (ObtenerClientesParaSelectorQuery por EsCritico != null,
+        // ObtenerSubcontratasParaSelectorQuery por NivelServicio != null) y
+        // los consumidores lo confirman: /vehiculos y /subcontratas cargan
+        // por separado el selector de Empresas y el de la contraparte.
+        var consulta = dbContext.Empresas.Where(e => e.EsPropia);
 
         if (request.ClienteId is not null)
         {
-            var empresaIdsAsociadas = dbContext.EmpresasClientes
-                .Where(ec => ec.ClienteId == request.ClienteId)
-                .Select(ec => ec.EmpresaId);
+            // F4.2b: la shape Empresa propia→Cliente vive ahora en la arista
+            // unificada, donde el mismo ClienteId también aparece en la shape
+            // Subcontrata→Cliente — de ahí el discriminador sobre la
+            // proveedora, además del filtro de vigencia.
+            var empresaIdsAsociadas = dbContext.RelacionesEmpresariales
+                .Where(r => r.ClienteId == request.ClienteId && r.VigenciaHasta == null)
+                .Join(dbContext.Empresas.Where(e => e.EsPropia),
+                    r => r.ProveedoraId, e => e.Id, (r, e) => e.Id);
 
             consulta = consulta.Where(e => empresaIdsAsociadas.Contains(e.Id));
         }
