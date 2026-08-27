@@ -1,10 +1,10 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos;
-using CaeManager.Domain.Clientes;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Empresas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,14 +38,26 @@ public record ClienteListaDto(
     EstadoDocumento? EstadoDocumentalPeor = null,
     int EstadoDocumentalCantidad = 0);
 
+/// <summary>
+/// F4-P0 (2026-08-27): congelada desde F3b-Cliente (PR #279), esta consulta
+/// seguía leyendo la tabla legacy <c>Clientes</c>, que ya no recibe
+/// escrituras — cualquier Cliente dado de alta después del freeze era
+/// invisible en su propio listado (nunca silencioso: el alta lo confirma, la
+/// lista simplemente no lo muestra). "Cliente" es la Empresa contraparte
+/// creada por <see cref="Empresa.CrearComoCliente"/>; <c>EsCritico != null</c>
+/// es su discriminador — mismo patrón que <c>NivelServicio != null</c> distingue
+/// Subcontrata en <see cref="Subcontratas.Queries.ObtenerSubcontratas.ObtenerSubcontratasQuery"/>.
+/// Los demás lectores de este handler (Centros/ContactosAgenda/Alertas) ya
+/// leían <c>Empresa.Id</c> desde el repunteo de FKs de F3b — sin cambio.
+/// </summary>
 public class ObtenerClientesQueryHandler(
-    IClientesQueryContext dbContext, IContactosAgendaQueryContext contactosContext,
+    IEmpresasQueryContext dbContext, IContactosAgendaQueryContext contactosContext,
     ICentrosQueryContext centrosContext, IMediator mediator, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerClientesQuery, ResultadoPaginado<ClienteListaDto>>
 {
     public async Task<ResultadoPaginado<ClienteListaDto>> Handle(ObtenerClientesQuery request, CancellationToken cancellationToken)
     {
-        var consulta = dbContext.Clientes.AsQueryable();
+        var consulta = dbContext.Empresas.Where(e => e.EsCritico != null);
 
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
         if (clienteIdsVisibles is not null)
@@ -58,7 +70,7 @@ public class ObtenerClientesQueryHandler(
         }
 
         if (request.SoloCriticos == true)
-            consulta = consulta.Where(c => c.EsCritico);
+            consulta = consulta.Where(c => c.EsCritico == true);
 
         if (request.EjecutivoUsuarioId is { } ejecutivoId)
             consulta = consulta.Where(c => c.EjecutivoUsuarioId == ejecutivoId);
@@ -95,7 +107,7 @@ public class ObtenerClientesQueryHandler(
         // en vez de traer toda la cartera.
         const int limiteCandidatosConFiltroCalculado = 2000;
 
-        List<Cliente> candidatos;
+        List<Empresa> candidatos;
         int total;
         if (request.EstadoDocumental is null)
         {
@@ -114,7 +126,7 @@ public class ObtenerClientesQueryHandler(
         var estadoPorCliente = await ObtenerEstadoDocumentalPorClienteAsync(cancellationToken);
 
         var todosLosCandidatos = candidatos
-            .Select(c => new ClienteListaDto(c.Id, c.RazonSocial, c.Cif, c.EsCritico, c.CreadoEnUtc,
+            .Select(c => new ClienteListaDto(c.Id, c.RazonSocial, c.Cif ?? string.Empty, c.EsCritico == true, c.CreadoEnUtc,
                 EjecutivoUsuarioId: c.EjecutivoUsuarioId))
             .Select(c => estadoPorCliente.TryGetValue(c.Id, out var estado)
                 ? c with { EstadoDocumentalPeor = estado.Peor, EstadoDocumentalCantidad = estado.Cantidad }
