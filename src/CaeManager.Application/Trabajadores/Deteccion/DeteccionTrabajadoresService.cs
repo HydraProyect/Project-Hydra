@@ -49,9 +49,17 @@ public class DeteccionTrabajadoresService(
 
         var empresaId = documento.EmpresaId.Value;
 
-        var clientesVinculados = await empresasContext.EmpresasClientes
-            .Where(ec => ec.EmpresaId == empresaId)
-            .Select(ec => ec.ClienteId)
+        // F4.2c — la arista sustituye a la tabla puente. El JOIN discriminador
+        // (EsCritico != null) hace explícito que aquí solo cuentan Clientes
+        // reales: RelacionEmpresarial.ClienteId contiene una Empresa propia en
+        // la shape Subcontrata→Empresa, y la configuración de lectura IA por
+        // cliente no aplica a esas.
+        var clientesVinculados = await (
+            from r in empresasContext.RelacionesEmpresariales
+            where r.ProveedoraId == empresaId && r.VigenciaHasta == null
+            join c in empresasContext.Empresas.Where(e => e.EsCritico != null)
+                on r.ClienteId equals c.Id
+            select r.ClienteId)
             .ToListAsync(cancellationToken);
 
         if (clientesVinculados.Count > 0 && await TodosLosClientesLoTienenDesactivadoAsync(clientesVinculados, tipoDocumento.Id, cancellationToken))

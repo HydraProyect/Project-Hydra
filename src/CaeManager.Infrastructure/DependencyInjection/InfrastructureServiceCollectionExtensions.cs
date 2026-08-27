@@ -259,11 +259,8 @@ public static class InfrastructureServiceCollectionExtensions
         // Empresa.CrearComoCliente/CrearComoSubcontrata. Clientes/Subcontratas
         // quedan legacy read-only (f3b-decision-d2-transicion-acotada-2026-08-25.md).
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
-        services.AddScoped<IEmpresaClienteRepository, EmpresaClienteRepository>();
         services.AddScoped<ICredencialAccesoEmpresaRepository, CredencialAccesoEmpresaRepository>();
         services.AddScoped<IVerificacionExternaSubcontrataRepository, VerificacionExternaSubcontrataRepository>();
-        services.AddScoped<ISubcontrataClienteRepository, SubcontrataClienteRepository>();
-        services.AddScoped<ISubcontrataEmpresaRepository, SubcontrataEmpresaRepository>();
         services.AddScoped<IRelacionEmpresarialRepository, RelacionEmpresarialRepository>();
         services.AddScoped<ICredencialAccesoSubcontrataRepository, CredencialAccesoSubcontrataRepository>();
         services.AddScoped<ICentroRepository, CentroRepository>();
