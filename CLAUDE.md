@@ -120,6 +120,17 @@ ratchets/documentación; y verificar sensibilidad.
 —siguen en verde solo mientras nadie ejercite la condición nueva—. Y no inventes
 contratos que faltan para cerrar una implementación.
 
+**Antes de migrar un lector, determinar si su DTO alimenta después un comando de
+escritura** (read-modify-write). Si es así, trazar la cadena completa —lector →
+DTO → llamador → comando → diff → efecto— y migrar los dos lados con el MISMO
+criterio de visibilidad: cuando un diff calcula bajas por ausencia, **lo que el
+usuario no pudo ver (soft delete, alcance de cartera, filtros) no puede
+interpretarse como eliminado** — las bajas se definen sobre lo que pudo
+desmarcar, no sobre lo que existe. Probar específicamente soft delete, alcance,
+orden de listas y eliminación por ausencia antes de dar el lector por migrado.
+Migrar solo la lectura, o solo la escritura, convierte un guardado "sin cambios"
+en una pérdida de datos silenciosa.
+
 ## 7. Fronteras de incremento
 
 Un incremento debe tener una frontera funcional clara. **No declares independiente
