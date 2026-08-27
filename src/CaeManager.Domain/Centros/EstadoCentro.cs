@@ -8,21 +8,21 @@ namespace CaeManager.Domain.Centros;
 /// </summary>
 public enum EstadoCentro
 {
-    Vigente,
-    Proximo,
-    Urgente,
-    Vencido,
+    Vigente = 0,
+    Proximo = 1,
+    Urgente = 2,
+    Vencido = 3,
 
     /// <summary>
     /// Un Trabajador con Asignación activa a este Centro no tiene ningún
     /// Documento de un TipoDocumento obligatorio que el Centro le exige.
     /// </summary>
-    Faltante,
+    Faltante = 4,
 
     /// <summary>
     /// Al menos un RequisitoDocumental de este Centro con BloqueaAcceso=true
     /// sigue sin Cumplido. Es el peor caso posible: aunque toda la
     /// documentación esté Vigente, el acceso al Centro sigue bloqueado.
     /// </summary>
-    Bloqueado
+    Bloqueado = 5
 }
