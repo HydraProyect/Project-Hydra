@@ -18,19 +18,23 @@ namespace CaeManager.IntegrationTests;
 /// y <see cref="AlcanceDatosService.ObtenerSubcontrataIdsVisiblesAsync"/> —
 /// primer test obligatorio de F4 (ver
 /// f4-diseno-fisico-relacionempresarial-2026-08-26.md § 6/8ter en el
-/// repositorio de negocio). Cada fixture se siembra en las TRES tablas
-/// legacy (EmpresaCliente/SubcontrataEmpresa/SubcontrataCliente) Y en
-/// RelacionEmpresarial con los datos equivalentes — exactamente lo que la
-/// doble escritura mantiene sincronizado en producción — y se afirma el
-/// mismo conjunto visible que ya se demostró por SQL contra staging.
+/// repositorio de negocio).
 ///
-/// La paridad real "antes/después" se demostró ejecutando esta suite en dos
-/// momentos: contra la implementación de <c>AlcanceDatosService</c> anterior
-/// a F4 (leyendo las tres tablas legacy) y otra vez contra la implementación
-/// posterior (leyendo solo <c>RelacionesEmpresariales</c>) — mismas
-/// aserciones, mismo resultado en ambas.
+/// <para>
+/// <b>Su nombre cambió en el cierre de F4, y el motivo importa</b>: mientras
+/// existieron las tres tablas puente, cada fixture se sembraba por duplicado
+/// (legacy + arista) y la suite servía de prueba de PARIDAD — se ejecutó
+/// contra la implementación anterior a F4 (que leía legacy) y contra la
+/// posterior (que lee solo la arista), con las mismas aserciones y el mismo
+/// resultado. Esa paridad ya está demostrada y no puede volver a medirse:
+/// las tablas legacy se retiraron. Lo que esta suite sigue probando —y por
+/// eso no se borra— es que el alcance de datos se resuelve correctamente
+/// sobre <c>RelacionEmpresarial</c>, incluida la frontera entre tenants.
+/// Llamarla "Paridad" después del DROP sería un nombre que miente sobre lo
+/// que el instrumento puede observar.
+/// </para>
 /// </summary>
-public class AlcanceDatosServiceRelacionEmpresarialParidadTests : IAsyncLifetime
+public class AlcanceDatosServiceSobreRelacionEmpresarialTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
@@ -60,7 +64,6 @@ public class AlcanceDatosServiceRelacionEmpresarialParidadTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
             cliente = cli.Id; empresaUno = e1.Id; empresaDos = e2.Id;
 
-            contexto.EmpresasClientes.AddRange(new EmpresaCliente(empresaUno, cliente), new EmpresaCliente(empresaDos, cliente));
             var ahora = DateTime.UtcNow;
             contexto.RelacionesEmpresariales.AddRange(
                 RelacionEmpresarial.Migrar(empresaUno, cliente, ahora, ahora),
@@ -85,7 +88,6 @@ public class AlcanceDatosServiceRelacionEmpresarialParidadTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
             cliente = cli.Id; subcontrata = sub.Id;
 
-            contexto.SubcontratasClientes.Add(new SubcontrataCliente(subcontrata, cliente));
             var ahora = DateTime.UtcNow;
             contexto.RelacionesEmpresariales.Add(RelacionEmpresarial.Migrar(subcontrata, cliente, ahora, ahora));
             await contexto.SaveChangesAsync();
@@ -112,7 +114,6 @@ public class AlcanceDatosServiceRelacionEmpresarialParidadTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
             cliente = cli.Id; empresaPropia = empresa.Id;
 
-            contexto.EmpresasClientes.Add(new EmpresaCliente(empresaPropia, cliente));
             var ahora = DateTime.UtcNow;
             contexto.RelacionesEmpresariales.Add(RelacionEmpresarial.Migrar(empresaPropia, cliente, ahora, ahora));
             await contexto.SaveChangesAsync();
@@ -142,7 +143,6 @@ public class AlcanceDatosServiceRelacionEmpresarialParidadTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
             cliente = cli.Id; empresaDeMiTenant = empresa.Id;
 
-            contexto.EmpresasClientes.Add(new EmpresaCliente(empresaDeMiTenant, cliente));
             var ahora = DateTime.UtcNow;
             contexto.RelacionesEmpresariales.Add(RelacionEmpresarial.Migrar(empresaDeMiTenant, cliente, ahora, ahora));
             await contexto.SaveChangesAsync();
@@ -154,7 +154,6 @@ public class AlcanceDatosServiceRelacionEmpresarialParidadTests : IAsyncLifetime
             var empresaOtro = new Empresa("Empresa De Otro Tenant S.L.", "B10380277");
             contextoOtroTenant.Empresas.AddRange(cliOtro, empresaOtro);
             await contextoOtroTenant.SaveChangesAsync();
-            contextoOtroTenant.EmpresasClientes.Add(new EmpresaCliente(empresaOtro.Id, cliOtro.Id));
             var ahora = DateTime.UtcNow;
             contextoOtroTenant.RelacionesEmpresariales.Add(RelacionEmpresarial.Migrar(empresaOtro.Id, cliOtro.Id, ahora, ahora));
             await contextoOtroTenant.SaveChangesAsync();
