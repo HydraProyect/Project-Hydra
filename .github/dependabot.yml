@@ -11,6 +11,12 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # FluentAssertions 8.x exige licencia comercial de pago (Xceed) desde
+      # 2026-01; nos quedamos fijados en la rama 7.x (Apache 2.0, bugfixes
+      # indefinidos). No proponer el salto de mayor de versión.
+      - dependency-name: "FluentAssertions"
+        versions: [">=8.0.0"]
 
   - package-ecosystem: "docker"
     directory: "/"

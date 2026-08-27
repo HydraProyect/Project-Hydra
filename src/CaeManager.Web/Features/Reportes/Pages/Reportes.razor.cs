@@ -39,6 +39,15 @@ public partial class Reportes : ComponentBase
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
 
+    // Deep-link desde Centro 360 ("Generar informe del centro") y, por
+    // simetría, desde donde haga falta preseleccionar cliente/centro sin
+    // reconstruir la pantalla — mismo patrón que /visitas?centroId=.
+    [SupplyParameterFromQuery(Name = "clienteId")]
+    public string? ClienteIdQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "centroId")]
+    public string? CentroIdQuery { get; set; }
+
     private string _tipoInforme = "vigencia";
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
@@ -63,6 +72,15 @@ public partial class Reportes : ComponentBase
     protected override async Task OnInitializedAsync()
     {
         _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+
+        if (Guid.TryParse(ClienteIdQuery, out var clienteId) && _clientesDisponibles.Any(c => c.Id == clienteId))
+        {
+            await CambiarClienteAsync(clienteId.ToString());
+
+            if (Guid.TryParse(CentroIdQuery, out var centroId) && _centrosDisponibles.Any(c => c.Id == centroId))
+                _centroId = centroId.ToString();
+        }
+
         await CargarHistorialAsync();
     }
 
