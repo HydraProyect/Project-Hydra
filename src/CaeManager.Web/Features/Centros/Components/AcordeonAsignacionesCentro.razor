@@ -324,10 +324,10 @@ else
                                             <span role="cell">
                                                 @if (documento.DocumentoId is null)
                                                 {
-                                                    <VentanaContexto Etiqueta="Pendiente de subir: el centro lo exige y no hay ningún documento todavía"
-                                                                     Titulo="Pendiente de subir">
+                                                    <VentanaContexto Etiqueta="Falta: el centro lo exige y no hay ningún documento todavía"
+                                                                     Titulo="Falta">
                                                         <Disparador>
-                                                            <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">Pendiente de Subir</Badge>
+                                                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">Falta</Badge>
                                                         </Disparador>
                                                         <Detalle>
                                                             Este centro exige el documento y todavía no hay ninguno subido.

@@ -20,7 +20,7 @@ namespace CaeManager.IntegrationTests.Alertas;
 /// P1-15 de docs/business/MATURITY_REVIEW.md: un Trabajador con Asignación
 /// activa a un Centro que exige un TipoDocumento obligatorio, sin ningún
 /// Documento de ese tipo, no aparecía en ningún sitio — ni "Vencido" (no hay
-/// fila que evaluar) ni "NoAplica" (ese estado es para Documentos existentes
+/// fila que evaluar) ni "SinCaducidad" (ese estado es para Documentos existentes
 /// sin vigencia). Estos tests prueban el hueco cerrado, contra Postgres real.
 /// </summary>
 public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime

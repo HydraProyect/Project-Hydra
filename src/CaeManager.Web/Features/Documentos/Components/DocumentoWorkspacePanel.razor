@@ -41,7 +41,7 @@ else
                     <CampoInfo Etiqueta="Propietario" Valor="@_detalle.PropietarioNombre" />
                     <CampoInfo Etiqueta="Tipo de documento" Valor="@_detalle.TipoDocumentoNombre" />
                     <CampoInfo Etiqueta="Fecha de emisión" Valor="@_detalle.FechaEmision.ToString("dd/MM/yyyy")" />
-                    <CampoInfo Etiqueta="Fecha de vencimiento" Valor="@(_detalle.FechaVencimiento?.ToString("dd/MM/yyyy") ?? (_detalle.TipoDocumentoAplicaVencimientoAutomatico ? null : "No aplica"))" />
+                    <CampoInfo Etiqueta="Fecha de vencimiento" Valor="@(_detalle.FechaVencimiento?.ToString("dd/MM/yyyy") ?? (_detalle.TipoDocumentoAplicaVencimientoAutomatico ? null : "Sin caducidad"))" />
                     <CampoInfo Etiqueta="Comentarios" Valor="@_detalle.Comentarios" />
                     <CampoInfo Etiqueta="Archivo">
                         @if (_detalle.ArchivoUrl is not null)

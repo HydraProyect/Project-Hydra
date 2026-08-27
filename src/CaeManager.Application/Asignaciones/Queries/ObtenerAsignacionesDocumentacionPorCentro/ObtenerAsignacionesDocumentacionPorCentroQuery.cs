@@ -22,7 +22,7 @@ namespace CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumen
 /// ya tiene el desglose completo en memoria.
 ///
 /// Las filas sin <c>Documento</c> (<see cref="DocumentoRequeridoDto.DocumentoId"/>
-/// <c>null</c>) son "Pendiente de Subir" en la UI (§ 0.4) — un requisito recién
+/// <c>null</c>) se rotulan "Falta" en la UI — un requisito recién
 /// añadido al Centro, no necesariamente un problema urgente; se mantienen
 /// como <see cref="EstadoDocumento.Faltante"/> a nivel de dominio/alertas
 /// (mismo cálculo que el resto de la app), solo cambia cómo se pinta.
@@ -148,7 +148,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             {
                 var estado = CalculadoraEstadoDocumento.Calcular(
                     documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
-                if (estado == EstadoDocumento.NoAplica) continue;
+                if (estado == EstadoDocumento.SinCaducidad) continue;
 
                 // Solo tiene sentido avisar de un documento que hoy está bien
                 // pero no aguantará hasta el final de la visita — uno que ya
@@ -157,7 +157,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
                 var caducaEnVentana = estado == EstadoDocumento.Vigente
                     && request.VentanaVisitaFechaFin is { } finVisita
                     && CalculadoraEstadoDocumento.Calcular(documento.FechaVencimiento, finVisita, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
-                        is not (EstadoDocumento.Vigente or EstadoDocumento.NoAplica);
+                        is not (EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad);
 
                 var nombreTipo = tiposRequeridosPorCentro.First(t => t.Id == documento.TipoDocumentoId).Nombre;
                 items.Add(new DocumentoRequeridoDto(documento.Id, documento.TipoDocumentoId, nombreTipo, estado, documento.FechaVencimiento, caducaEnVentana));

@@ -45,7 +45,7 @@ public static class EstadoDocumentalFiltro
         EstadoDocumento.Urgente => 1,
         EstadoDocumento.Proximo => 2,
         EstadoDocumento.Vigente => 3,
-        EstadoDocumento.NoAplica => 4,
+        EstadoDocumento.SinCaducidad => 4,
         _ => 5
     };
 }

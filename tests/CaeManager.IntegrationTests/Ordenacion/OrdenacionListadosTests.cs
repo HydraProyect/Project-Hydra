@@ -64,7 +64,7 @@ public class OrdenacionListadosTests : IAsyncLifetime
             Documento.DeCliente(cliente.Id, tipoM.Id, _hoy.AddDays(-20), _hoy.AddDays(UmbralRojoDias - 1)),     // Urgente
             Documento.DeCliente(cliente.Id, tipoA.Id, _hoy.AddDays(-30), _hoy.AddDays(UmbralAmbarDias - 1)),    // Proximo
             Documento.DeCliente(cliente.Id, tipoA.Id, _hoy.AddDays(-40), _hoy.AddDays(UmbralAmbarDias + 60)),   // Vigente
-            Documento.DeCliente(cliente.Id, tipoM.Id, _hoy.AddDays(-50), null));                                // NoAplica
+            Documento.DeCliente(cliente.Id, tipoM.Id, _hoy.AddDays(-50), null));                                // SinCaducidad
 
         await contexto.SaveChangesAsync();
     }
@@ -153,7 +153,7 @@ public class OrdenacionListadosTests : IAsyncLifetime
             EstadoDocumento.Urgente,
             EstadoDocumento.Proximo,
             EstadoDocumento.Vigente,
-            EstadoDocumento.NoAplica
+            EstadoDocumento.SinCaducidad
         };
 
         elementos.Select(d => d.Estado).Should().Equal(esperado);
