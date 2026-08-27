@@ -152,10 +152,10 @@ else
                                         <span role="cell">
                                             @if (documento.DocumentoId is null)
                                             {
-                                                <VentanaContexto Etiqueta="Pendiente de subir: la subcontrata no ha aportado este documento todavía"
-                                                                 Titulo="Pendiente de subir">
+                                                <VentanaContexto Etiqueta="Falta: la subcontrata no ha aportado este documento todavía"
+                                                                 Titulo="Falta">
                                                     <Disparador>
-                                                        <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">Pendiente de Subir</Badge>
+                                                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">Falta</Badge>
                                                     </Disparador>
                                                     <Detalle>
                                                         Al menos uno de los centros donde trabaja exige este documento y todavía no hay ninguno subido.
@@ -256,14 +256,14 @@ else
         trabajador.Documentos.Where(d => d.Estado == EstadoDocumento.Urgente).ToList();
 
     private static int DocumentosAlDia(TrabajadorDocumentacionSubcontrataDto trabajador) =>
-        trabajador.Documentos.Count(d => d.Estado is EstadoDocumento.Vigente or EstadoDocumento.NoAplica);
+        trabajador.Documentos.Count(d => d.Estado is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad);
 
     private static bool RequiereIntervencion(DocumentoRequeridoDto documento) =>
         documento.Estado is not EstadoDocumento.Vigente;
 
     private static string DescribirDocumentoIncidencia(DocumentoRequeridoDto documento) =>
         documento.DocumentoId is null
-            ? $"{documento.TipoDocumentoNombre} — pendiente de subir"
+            ? $"{documento.TipoDocumentoNombre} — falta"
             : $"{documento.TipoDocumentoNombre} — {EstadoDocumentoUi.Texto(documento.Estado)}";
 
     private static string DescribirRecuento(IReadOnlyList<DocumentoRequeridoDto> documentos, string calificativo) =>

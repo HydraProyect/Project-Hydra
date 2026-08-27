@@ -239,7 +239,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
 
     private static string DescribirDocumentoIncidencia(DocumentoRequeridoDto documento) => documento.Estado switch
     {
-        EstadoDocumento.Faltante => $"{documento.TipoDocumentoNombre} — pendiente de subir",
+        EstadoDocumento.Faltante => $"{documento.TipoDocumentoNombre} — falta",
         EstadoDocumento.Vencido when documento.FechaVencimiento is { } vencio => $"{documento.TipoDocumentoNombre} — venció {vencio:dd/MM/yyyy}",
         EstadoDocumento.Proximo when documento.FechaVencimiento is { } caduca => $"{documento.TipoDocumentoNombre} — caduca {caduca:dd/MM/yyyy}",
         _ => documento.TipoDocumentoNombre

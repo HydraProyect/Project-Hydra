@@ -37,11 +37,11 @@
 
     private static string TextoDe(EstadoAcreditacion estado) => estado switch
     {
-        EstadoAcreditacion.PendienteDeSubir => "pendiente de subir",
-        EstadoAcreditacion.Subida => "en validación",
+        EstadoAcreditacion.PendienteDeSubir => "pendiente de envío",
+        EstadoAcreditacion.Subida => "enviado",
         EstadoAcreditacion.Aceptada => "aceptado",
         EstadoAcreditacion.Rechazada => "rechazado",
-        EstadoAcreditacion.NoRequerida => "no requerido",
+        EstadoAcreditacion.NoRequerida => "no exigido",
         _ => estado.ToString()
     };
 }

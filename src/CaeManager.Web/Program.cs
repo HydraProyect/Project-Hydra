@@ -288,7 +288,7 @@ builder.Services.AddRateLimiter(options =>
 // como el ordinal implícito de su posición en la declaración, de modo que
 // insertar un valor en medio de EstadoDocumento habría cambiado en silencio
 // el significado de todo lo ya entregado a los consumidores de la API. Peor:
-// el mismo número significaba cosas distintas según el enum — 0 era NoAplica
+// el mismo número significaba cosas distintas según el enum — 0 era SinCaducidad
 // en EstadoDocumento y Vigente en EstadoCentro, así que quien tratara ambos
 // como "estado" leía lo peor como lo mejor.
 //

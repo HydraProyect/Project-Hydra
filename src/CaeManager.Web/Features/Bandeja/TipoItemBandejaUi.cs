@@ -52,7 +52,7 @@ public static class TipoItemBandejaUi
         // No "Falta": la documentación existe y está al día en Talveg, solo
         // falta replicarla en la plataforma del cliente — un badge "Falta"
         // sugeriría (incorrectamente) que hay que reclamarla a alguien.
-        TipoItemBandeja.PlataformaPendiente => "Pendiente",
+        TipoItemBandeja.PlataformaPendiente => "Pendiente de envío",
         _ => "—"
     };
 

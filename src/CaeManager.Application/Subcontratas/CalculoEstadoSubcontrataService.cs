@@ -182,10 +182,10 @@ public class CalculoEstadoSubcontrataService(
                     ? CalculadoraEstadoDocumento.Calcular(documento!.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
                     : EstadoDocumento.Faltante;
 
-                var alDia = actual.AlDia + (estado is EstadoDocumento.Vigente or EstadoDocumento.NoAplica ? 1 : 0);
+                var alDia = actual.AlDia + (estado is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad ? 1 : 0);
                 actual = (alDia, actual.Requeridos + 1);
 
-                if (estado is EstadoDocumento.NoAplica or EstadoDocumento.Vigente) continue;
+                if (estado is EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente) continue;
 
                 causasPorSubcontrata[subcontrataId].Add(new IncidenciaSubcontrataDto(
                     $"{nombrePorTipo[tipoId]} — {nombrePorTrabajador[trabajadorId]}", estado,

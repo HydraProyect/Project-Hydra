@@ -51,7 +51,7 @@ public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEsta
 /// % de cumplimiento documental de un Centro (Centro 360, PLAN-EJECUCION-UX.md
 /// § 0.5/0.8) — <c>Requeridos</c> es el número de pares Trabajador×TipoDocumento
 /// aplicables a ese Centro (ver <see cref="Documentos.ResolucionTipoDocumentoCentro"/>),
-/// <c>AlDia</c> cuántos de esos pares tienen hoy un Documento Vigente o NoAplica.
+/// <c>AlDia</c> cuántos de esos pares tienen hoy un Documento Vigente o SinCaducidad.
 /// <see cref="Porcentaje"/> es <c>null</c> cuando el centro no tiene ningún par
 /// aplicable — un 0% o 100% ahí sería engañoso, "sin requisitos" es la lectura
 /// correcta.
@@ -155,7 +155,7 @@ public class CalculoEstadoCentroService(
         foreach (var documento in documentosEmpresa)
         {
             var estado = CalculadoraEstadoDocumento.Calcular(documento.FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias);
-            if (estado is EstadoDocumento.NoAplica or EstadoDocumento.Vigente) continue;
+            if (estado is EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente) continue;
             if (!centroIdsPorEmpresa.TryGetValue(documento.EmpresaId, out var centrosDeEmpresa)) continue;
 
             var causa = new CausaEstadoCentro(
@@ -203,7 +203,7 @@ public class CalculoEstadoCentroService(
             foreach (var documento in documentosTrabajador.Where(d => d.TrabajadorId == asignacion.TrabajadorId))
             {
                 var estado = CalculadoraEstadoDocumento.Calcular(documento.FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias);
-                if (estado is EstadoDocumento.NoAplica or EstadoDocumento.Vigente) continue;
+                if (estado is EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente) continue;
 
                 causasPorCentro[asignacion.CentroId].Add(
                     new CausaEstadoCentro(
@@ -323,7 +323,7 @@ public class CalculoEstadoCentroService(
                 var actual = acumulado[asignacion.CentroId];
                 var alDia = actual.AlDia;
                 if (estadosPorPareja.TryGetValue((asignacion.TrabajadorId, tipo.Id), out var estado)
-                    && estado is EstadoDocumento.Vigente or EstadoDocumento.NoAplica)
+                    && estado is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad)
                     alDia++;
 
                 acumulado[asignacion.CentroId] = (alDia, actual.Requeridos + 1);

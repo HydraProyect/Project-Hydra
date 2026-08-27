@@ -39,10 +39,10 @@ public record VisitaListaDto(
 /// pueda haber un resultado distinto entre pantallas. "Documentación
 /// completa" de la Empresa exige que exista, para cada TipoDocumento
 /// obligatorio de ámbito Empresa (EsObligatorio = true), al menos un
-/// Documento de ese tipo en estado Vigente o NoAplica — un tipo obligatorio
+/// Documento de ese tipo en estado Vigente o SinCaducidad — un tipo obligatorio
 /// sin ningún Documento cuenta como pendiente de gestionar, igual que uno
 /// vencido. Para cada Trabajador de la visita se usa el criterio anterior
-/// (al menos un Documento y todos Vigente/NoAplica) porque EsObligatorio
+/// (al menos un Documento y todos Vigente/SinCaducidad) porque EsObligatorio
 /// todavía no se aplica a documentos de Trabajador.
 /// </summary>
 public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
@@ -174,14 +174,14 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
 
             return lista.All(f =>
                 CalculadoraEstadoDocumento.Calcular(f, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
-                    is EstadoDocumento.Vigente or EstadoDocumento.NoAplica);
+                    is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad);
         }
 
         bool TipoVigenteParaEmpresa(Guid empresaId, Guid tipoDocumentoId) =>
             vencimientosEmpresas
                 .Where(v => v.EmpresaId == empresaId && v.TipoDocumentoId == tipoDocumentoId)
                 .Any(v => CalculadoraEstadoDocumento.Calcular(v.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
-                    is EstadoDocumento.Vigente or EstadoDocumento.NoAplica);
+                    is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad);
 
         var elementos = pagina.Select(p =>
         {
