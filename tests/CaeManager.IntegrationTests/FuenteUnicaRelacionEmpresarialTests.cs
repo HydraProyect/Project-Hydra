@@ -6,6 +6,7 @@ using CaeManager.Application.Importacion.Commands.EjecutarImportacionCombinada;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EditarSubcontrata;
+using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
@@ -391,6 +392,72 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         contrapartes.EmpresaPropiaIds.Should().BeEquivalentTo([empresaPropia]);
         contrapartes.OpacaIds.Should().BeEquivalentTo([clienteEliminado],
             "una contraparte que la consulta de clasificación no devuelve cae en Opacas — jamás se clasifica por defecto");
+    }
+
+    /// <summary>
+    /// El ciclo completo que rompió F4.2b, ahora medido de punta a punta: el
+    /// DTO de <c>ObtenerSubcontrataPorIdQuery</c> realimenta
+    /// <c>EditarSubcontrataCommand</c> tal cual (lo que la pantalla de
+    /// edición hace al guardar sin tocar nada), con una contraparte
+    /// soft-deleted en medio. En F4.2b la lectura filtraba soft delete y el
+    /// diff no, y este guardado "sin cambios" cerraba la relación en
+    /// silencio. Ahora ambos lados clasifican igual y las tres relaciones
+    /// sobreviven.
+    /// </summary>
+    [Fact]
+    public async Task Ciclo_completo_DTO_de_detalle_a_EditarSubcontrata_conserva_la_relacion_opaca()
+    {
+        Guid subcontrataId, clienteVivo, empresaPropia, clienteEliminado;
+        await using (var contexto = CrearContexto())
+        {
+            var s = Empresa.CrearComoSubcontrata("Subcontrata Ciclo Completo S.L.", "B10380400", NivelServicioSubcontrata.Gestionada.ToString());
+            var cv = Empresa.CrearComoCliente("Cliente Vivo Ciclo Completo S.A.", "B10380418", false, null, null);
+            var ep = new Empresa("Empresa Propia Ciclo Completo S.L.", "B10380426");
+            var ce = Empresa.CrearComoCliente("Cliente Eliminado Ciclo Completo S.A.", "B10380434", false, null, null);
+            contexto.Empresas.AddRange(s, cv, ep, ce);
+            await contexto.SaveChangesAsync();
+            subcontrataId = s.Id; clienteVivo = cv.Id; empresaPropia = ep.Id; clienteEliminado = ce.Id;
+
+            var ahora = DateTime.UtcNow;
+            contexto.RelacionesEmpresariales.AddRange(
+                RelacionEmpresarial.Crear(subcontrataId, clienteVivo, ahora),
+                RelacionEmpresarial.Crear(subcontrataId, empresaPropia, ahora),
+                RelacionEmpresarial.Crear(subcontrataId, clienteEliminado, ahora));
+            await contexto.SaveChangesAsync();
+
+            ce.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+        }
+
+        SubcontrataDetalleDto dto;
+        await using (var lectura = CrearContexto())
+        {
+            var query = new ObtenerSubcontrataPorIdQueryHandler(lectura, CrearAlcanceConAccesoTotal(lectura));
+            dto = (await query.Handle(new ObtenerSubcontrataPorIdQuery(subcontrataId), CancellationToken.None))!;
+
+            dto.ClienteIds.Should().BeEquivalentTo([clienteVivo]);
+            dto.EmpresaIds.Should().BeEquivalentTo([empresaPropia]);
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var handler = new EditarSubcontrataCommandHandler(
+                new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
+                CrearAlcanceConAccesoTotal(contexto), contexto);
+
+            // Guardado "sin cambios": el request es literalmente lo que el DTO trajo.
+            var resultado = await handler.Handle(
+                new EditarSubcontrataCommand(
+                    dto.Id, dto.RazonSocial, dto.Cif, dto.ClienteIds, dto.EmpresaIds, dto.Version),
+                CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        await using var verificacion = CrearContexto();
+        (await verificacion.RelacionesEmpresariales.CountAsync(r => r.ProveedoraId == subcontrataId && r.VigenciaHasta == null))
+            .Should().Be(3,
+                "un guardado sin cambios no debe cerrar NADA — tampoco la relación con la contraparte soft-deleted que el DTO no pudo mostrar");
     }
 
     private async Task<ResultadoImportacionCombinadaDto> EjecutarImportacionAsync(PlanImportacionCombinadaDto plan)
