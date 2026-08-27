@@ -96,4 +96,53 @@ public class TipoDocumentoTests
 
         tipo.VerificacionIaActiva.Should().BeTrue();
     }
+
+    [Fact]
+    public void Aliases_empieza_vacio()
+    {
+        var tipo = new TipoDocumento("Relación Nominal de Trabajadores", null, aplicaVencimientoAutomatico: false, orden: 1, AmbitoAplicacion.Empresa);
+
+        tipo.Aliases.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void EstablecerAliases_guarda_los_alias_normalizados()
+    {
+        var tipo = new TipoDocumento("Relación Nominal de Trabajadores", null, aplicaVencimientoAutomatico: false, orden: 1, AmbitoAplicacion.Empresa);
+
+        tipo.EstablecerAliases(["  TC2  ", "RNT"]);
+
+        tipo.Aliases.Select(a => a.Texto).Should().BeEquivalentTo(["TC2", "RNT"]);
+    }
+
+    [Fact]
+    public void EstablecerAliases_colapsa_duplicados_sin_distinguir_mayusculas()
+    {
+        var tipo = new TipoDocumento("Relación Nominal de Trabajadores", null, aplicaVencimientoAutomatico: false, orden: 1, AmbitoAplicacion.Empresa);
+
+        tipo.EstablecerAliases(["TC2", "tc2", " TC2 "]);
+
+        tipo.Aliases.Should().ContainSingle().Which.Texto.Should().Be("TC2");
+    }
+
+    [Fact]
+    public void EstablecerAliases_ignora_entradas_vacias()
+    {
+        var tipo = new TipoDocumento("Relación Nominal de Trabajadores", null, aplicaVencimientoAutomatico: false, orden: 1, AmbitoAplicacion.Empresa);
+
+        tipo.EstablecerAliases(["TC2", "", "   "]);
+
+        tipo.Aliases.Should().ContainSingle().Which.Texto.Should().Be("TC2");
+    }
+
+    [Fact]
+    public void EstablecerAliases_reemplaza_el_conjunto_completo()
+    {
+        var tipo = new TipoDocumento("Relación Nominal de Trabajadores", null, aplicaVencimientoAutomatico: false, orden: 1, AmbitoAplicacion.Empresa);
+        tipo.EstablecerAliases(["TC2"]);
+
+        tipo.EstablecerAliases(["RNT"]);
+
+        tipo.Aliases.Select(a => a.Texto).Should().BeEquivalentTo(["RNT"]);
+    }
 }

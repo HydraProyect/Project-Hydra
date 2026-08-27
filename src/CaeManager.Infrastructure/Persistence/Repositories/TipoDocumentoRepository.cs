@@ -6,7 +6,7 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 public class TipoDocumentoRepository(CaeManagerDbContext dbContext) : ITipoDocumentoRepository
 {
     public Task<TipoDocumento?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        dbContext.TiposDocumento.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+        dbContext.TiposDocumento.Include(t => t.Aliases).FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
 
     public Task<bool> ExisteConNombreAsync(string nombre, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         dbContext.TiposDocumento.AnyAsync(

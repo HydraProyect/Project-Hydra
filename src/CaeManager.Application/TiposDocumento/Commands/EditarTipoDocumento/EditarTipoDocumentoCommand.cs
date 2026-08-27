@@ -21,7 +21,8 @@ public record EditarTipoDocumentoCommand(
     string? CriteriosValidacion,
     string? SeSolicitaA,
     string? Observaciones,
-    IReadOnlyList<Guid> CentroIds) : ICommand;
+    IReadOnlyList<Guid> CentroIds,
+    IReadOnlyList<string>? Aliases = null) : ICommand;
 
 public class EditarTipoDocumentoCommandValidator : AbstractValidator<EditarTipoDocumentoCommand>
 {
@@ -32,6 +33,10 @@ public class EditarTipoDocumentoCommandValidator : AbstractValidator<EditarTipoD
         RuleFor(c => c.Nombre)
             .NotEmpty().WithMessage("El nombre es obligatorio.")
             .MaximumLength(TipoDocumento.LongitudMaximaNombre);
+
+        RuleForEach(c => c.Aliases)
+            .MaximumLength(TipoDocumentoAlias.LongitudMaximaTexto)
+            .WithMessage($"Un alias no puede superar {TipoDocumentoAlias.LongitudMaximaTexto} caracteres.");
 
         RuleFor(c => c.VigenciaMeses)
             .GreaterThan(0).WithMessage("La vigencia debe ser mayor que cero.")
@@ -75,6 +80,8 @@ public class EditarTipoDocumentoCommandHandler(
             request.CriteriosValidacion,
             request.SeSolicitaA,
             request.Observaciones);
+
+        tipoDocumento.EstablecerAliases(request.Aliases ?? []);
 
         // Solo se tocan las filas Incluido=true (creadas desde este mismo picker) — las
         // Incluido=false son exclusiones explícitas por Centro dadas de alta desde

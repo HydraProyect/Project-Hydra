@@ -15,9 +15,15 @@ namespace CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 /// selectores en cascada de la aplicación): un Tipo de Documento sin
 /// ninguna asociación a Centro (<see cref="TipoDocumentoCentro"/>) es
 /// global y aparece siempre, independientemente del filtro.
+///
+/// <paramref name="Texto"/> busca por <c>Nombre</c> o por cualquiera de los
+/// <see cref="TipoDocumentoAlias"/> — es la razón de ser del campo de alias
+/// (taxonomía documental CAE §2bis): sin él, buscar "TC2" solo encontraba
+/// nada a menos que "TC2" estuviera escrito dentro del nombre.
 /// </summary>
 public record ObtenerTiposDocumentoQuery(
-    Guid? ClienteId = null, Guid? EmpresaId = null, Guid? CentroId = null, AmbitoAplicacion? AmbitoAplicacion = null)
+    Guid? ClienteId = null, Guid? EmpresaId = null, Guid? CentroId = null, AmbitoAplicacion? AmbitoAplicacion = null,
+    string? Texto = null)
     : IRequest<IReadOnlyList<TipoDocumentoListaDto>>;
 
 public record TipoDocumentoListaDto(
@@ -36,7 +42,8 @@ public record TipoDocumentoListaDto(
     bool LecturaIaActiva,
     bool DeteccionTrabajadoresActiva,
     bool VerificacionIaActiva,
-    PerfilDocumentoOficial PerfilDocumentoOficial);
+    PerfilDocumentoOficial PerfilDocumentoOficial,
+    IReadOnlyList<string> Aliases);
 
 public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosContext, ITiposDocumentoQueryContext tiposDocumentoContext)
     : IRequestHandler<ObtenerTiposDocumentoQuery, IReadOnlyList<TipoDocumentoListaDto>>
@@ -48,6 +55,14 @@ public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosConte
 
         if (request.AmbitoAplicacion is not null)
             consulta = consulta.Where(t => t.AmbitoAplicacion == request.AmbitoAplicacion);
+
+        if (!string.IsNullOrWhiteSpace(request.Texto))
+        {
+            var textoMayus = request.Texto.Trim().ToUpper();
+            consulta = consulta.Where(t =>
+                t.Nombre.ToUpper().Contains(textoMayus) ||
+                t.Aliases.Any(a => a.Texto.ToUpper().Contains(textoMayus)));
+        }
 
         if (request.ClienteId is not null || request.EmpresaId is not null || request.CentroId is not null)
         {
@@ -84,7 +99,7 @@ public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosConte
             .Select(t => new TipoDocumentoListaDto(
                 t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden, t.AmbitoAplicacion, t.Requerido, t.Naturaleza,
                 t.Descripcion, t.CriteriosValidacion, t.SeSolicitaA, t.Observaciones, t.LecturaIaActiva, t.DeteccionTrabajadoresActiva,
-                t.VerificacionIaActiva, t.PerfilDocumentoOficial))
+                t.VerificacionIaActiva, t.PerfilDocumentoOficial, t.Aliases.Select(a => a.Texto).ToList()))
             .ToListAsync(cancellationToken);
     }
 }

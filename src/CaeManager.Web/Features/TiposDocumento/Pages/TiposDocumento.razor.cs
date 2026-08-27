@@ -13,6 +13,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace CaeManager.Web.Features.TiposDocumento.Pages;
 
@@ -31,6 +32,7 @@ public partial class TiposDocumento : ComponentBase
     private string _clienteFiltroId = string.Empty;
     private string _empresaFiltroId = string.Empty;
     private string _centroFiltroId = string.Empty;
+    private string _terminoBusqueda = string.Empty;
 
     private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
 
@@ -49,6 +51,8 @@ public partial class TiposDocumento : ComponentBase
     private string _seSolicitaA = string.Empty;
     private string _observaciones = string.Empty;
     private HashSet<Guid> _centroIdsSeleccionados = [];
+    private string _aliasNuevo = string.Empty;
+    private List<string> _aliasesSeleccionados = [];
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -88,7 +92,8 @@ public partial class TiposDocumento : ComponentBase
             Guid? empresaId = Guid.TryParse(_empresaFiltroId, out var eId) ? eId : null;
             Guid? centroId = Guid.TryParse(_centroFiltroId, out var ceId) ? ceId : null;
 
-            _tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(clienteId, empresaId, centroId));
+            var texto = string.IsNullOrWhiteSpace(_terminoBusqueda) ? null : _terminoBusqueda;
+            _tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(clienteId, empresaId, centroId, Texto: texto));
             _pagina = 1;
         }
         catch (Exception)
@@ -133,6 +138,15 @@ public partial class TiposDocumento : ComponentBase
         return CargarAsync();
     }
 
+    // Busca por Nombre o por cualquiera de los alias (TC2, CIF...) — la razón
+    // de ser del campo de alias: antes de que existiera, la única forma de
+    // encontrar "TC2" era que estuviera escrito dentro del nombre.
+    private Task BuscarAsync(string texto)
+    {
+        _terminoBusqueda = texto;
+        return CargarAsync();
+    }
+
     private async Task AbrirCrear()
     {
         _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
@@ -151,6 +165,8 @@ public partial class TiposDocumento : ComponentBase
         _seSolicitaA = string.Empty;
         _observaciones = string.Empty;
         _centroIdsSeleccionados = [];
+        _aliasNuevo = string.Empty;
+        _aliasesSeleccionados = [];
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
@@ -182,6 +198,8 @@ public partial class TiposDocumento : ComponentBase
         _seSolicitaA = tipo.SeSolicitaA ?? string.Empty;
         _observaciones = tipo.Observaciones ?? string.Empty;
         _centroIdsSeleccionados = tipo.CentroIds.ToHashSet();
+        _aliasNuevo = string.Empty;
+        _aliasesSeleccionados = tipo.Aliases.ToList();
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
@@ -193,6 +211,28 @@ public partial class TiposDocumento : ComponentBase
             _centroIdsSeleccionados.Add(centroId);
         else
             _centroIdsSeleccionados.Remove(centroId);
+    }
+
+    private void AgregarAlias()
+    {
+        var alias = _aliasNuevo.Trim();
+        if (alias.Length == 0)
+            return;
+
+        if (!_aliasesSeleccionados.Contains(alias, StringComparer.OrdinalIgnoreCase))
+            _aliasesSeleccionados.Add(alias);
+
+        _aliasNuevo = string.Empty;
+    }
+
+    private void QuitarAlias(string alias) => _aliasesSeleccionados.Remove(alias);
+
+    private Task ManejarTeclaAliasAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            AgregarAlias();
+
+        return Task.CompletedTask;
     }
 
     private Task CerrarDrawerAsync(bool visible)
@@ -226,7 +266,7 @@ public partial class TiposDocumento : ComponentBase
                 var resultado = await Mediator.Send(
                     new CrearTipoDocumentoCommand(
                         _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, ambito, _requerido, _naturaleza, notas,
-                        descripcion, criteriosValidacion, seSolicitaA, observaciones, centroIds));
+                        descripcion, criteriosValidacion, seSolicitaA, observaciones, centroIds, _aliasesSeleccionados));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
             else
@@ -234,7 +274,7 @@ public partial class TiposDocumento : ComponentBase
                 var resultado = await Mediator.Send(
                     new EditarTipoDocumentoCommand(
                         _editandoId.Value, _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, _requerido, _naturaleza, notas,
-                        descripcion, criteriosValidacion, seSolicitaA, observaciones, centroIds));
+                        descripcion, criteriosValidacion, seSolicitaA, observaciones, centroIds, _aliasesSeleccionados));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 

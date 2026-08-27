@@ -26,6 +26,8 @@
     </div>
 
     <div class="barra-filtros">
+        <CampoTexto Placeholder="Buscar por nombre o alias (p. ej. TC2)…" Valor="@_terminoBusqueda" ValorChanged="BuscarAsync" />
+
         <CampoSelect Etiqueta="Cliente" Valor="@_clienteFiltroId" ValorChanged="CambiarClienteFiltroAsync">
             <option value="">Todos los clientes</option>
             @foreach (var cliente in _clientesFiltroDisponibles)
@@ -86,7 +88,13 @@
                 {
                     <tr>
                         <td>@tipo.Orden</td>
-                        <td>@tipo.Nombre</td>
+                        <td>
+                            @tipo.Nombre
+                            @if (tipo.Aliases.Count > 0)
+                            {
+                                <p class="texto-ayuda-campo">@string.Join(", ", tipo.Aliases)</p>
+                            }
+                        </td>
                         <td>@tipo.AmbitoAplicacion</td>
                         <td>@(tipo.VigenciaMeses is null ? "—" : $"{tipo.VigenciaMeses} meses")</td>
                         <td>
@@ -188,6 +196,32 @@
         }
 
         <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Nombre))" />
+
+        <div class="campo">
+            <label>Nombres alternativos (siglas, alias históricos — p. ej. "TC2")</label>
+            <div class="campo-con-boton">
+                <div class="campo">
+                    <input class="campo-input" placeholder="Escribe un alias y pulsa Añadir"
+                           value="@_aliasNuevo" @oninput="e => _aliasNuevo = e.Value?.ToString() ?? string.Empty"
+                           @onkeydown="ManejarTeclaAliasAsync" />
+                </div>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AgregarAlias">
+                    Añadir
+                </Boton>
+            </div>
+            @if (_aliasesSeleccionados.Count > 0)
+            {
+                <div class="chips-filtros">
+                    @foreach (var alias in _aliasesSeleccionados)
+                    {
+                        <span class="chip-filtro">
+                            @alias
+                            <button type="button" class="chip-filtro-quitar" @onclick="() => QuitarAlias(alias)" aria-label="@($"Quitar alias {alias}")">×</button>
+                        </span>
+                    }
+                </div>
+            }
+        </div>
 
         @if (_editandoId is null)
         {
