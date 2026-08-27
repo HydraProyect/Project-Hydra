@@ -134,6 +134,7 @@ public class CaeManagerDbContext(
     public DbSet<VerificacionExternaSubcontrata> VerificacionesExternaSubcontrata => Set<VerificacionExternaSubcontrata>();
     IQueryable<VerificacionExternaSubcontrata> ISubcontratasQueryContext.VerificacionesExternaSubcontrata => VerificacionesExternaSubcontrata;
     public DbSet<RelacionEmpresarial> RelacionesEmpresariales => Set<RelacionEmpresarial>();
+    IQueryable<RelacionEmpresarial> IEmpresasQueryContext.RelacionesEmpresariales => RelacionesEmpresariales;
     public DbSet<Trabajador> Trabajadores => Set<Trabajador>();
     IQueryable<Trabajador> ITrabajadoresQueryContext.Trabajadores => Trabajadores;
     public DbSet<DeteccionTrabajador> DeteccionesTrabajador => Set<DeteccionTrabajador>();
