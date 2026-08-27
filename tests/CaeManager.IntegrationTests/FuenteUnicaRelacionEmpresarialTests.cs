@@ -52,7 +52,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
     public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
     [Fact]
-    public async Task CrearEmpresaCommand_escribe_solo_la_arista_y_nada_en_legacy()
+    public async Task CrearEmpresaCommand_escribe_la_arista_como_unica_fuente()
     {
         Guid cliente;
         await using (var contexto = CrearContexto())
@@ -81,13 +81,10 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         relacion.EstaVigente.Should().BeTrue();
         relacion.EnmarcadaEnId.Should().BeNull();
         relacion.OrigenVigencia.Should().Be(OrigenVigencia.HistoricaConfirmada, "es un alta nueva, no una migración de datos legacy");
-
-        (await verificacion.EmpresasClientes.CountAsync()).Should().Be(0,
-            "F4.2c: la tabla puente legacy ya no recibe escrituras — la arista es la única fuente");
     }
 
     [Fact]
-    public async Task EditarEmpresaCommand_cierra_sin_borrar_y_no_escribe_legacy()
+    public async Task EditarEmpresaCommand_cierra_sin_borrar()
     {
         Guid empresaId, clienteUno, clienteDos;
         await using (var contexto = CrearContexto())
@@ -122,7 +119,6 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             .EstaVigente.Should().BeFalse("la baja debe CERRAR la relación, nunca borrarla");
         (await verificacion.RelacionesEmpresariales.SingleAsync(r => r.ProveedoraId == empresaId && r.ClienteId == clienteDos))
             .EstaVigente.Should().BeTrue();
-        (await verificacion.EmpresasClientes.CountAsync()).Should().Be(0);
     }
 
     /// <summary>
@@ -217,9 +213,6 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         (await verificacion.RelacionesEmpresariales.SingleAsync(r => r.ProveedoraId == subcontrataId && r.ClienteId == cliente))
             .EnmarcadaEnId.Should().Be(relacionEmpresaCliente.Id,
                 "único candidato coherente: la Empresa vinculada ya servía a este Cliente");
-
-        (await verificacion.SubcontratasClientes.CountAsync()).Should().Be(0);
-        (await verificacion.SubcontratasEmpresas.CountAsync()).Should().Be(0);
     }
 
     [Fact]

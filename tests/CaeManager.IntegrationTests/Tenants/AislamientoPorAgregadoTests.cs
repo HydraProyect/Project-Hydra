@@ -293,18 +293,6 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     public Task Aislamiento_CredencialAccesoEmpresa() => VerificarAislamientoAsync(
         () => new CredencialAccesoEmpresa(Guid.NewGuid(), null, null, null, null));
 
-    [Fact]
-    public Task Aislamiento_EmpresaCliente()
-    {
-        Guid empresaId = default, clienteId = default;
-        return VerificarAislamientoAsync(
-            () => new EmpresaCliente(empresaId, clienteId),
-            async contexto =>
-            {
-                empresaId = await SembrarEmpresaAsync(contexto);
-                clienteId = await SembrarClienteAsync(contexto);
-            });
-    }
 
     [Fact]
     public Task Aislamiento_NotificacionUsuario() => VerificarAislamientoAsync(
@@ -327,18 +315,6 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     public Task Aislamiento_CredencialAccesoSubcontrata() => VerificarAislamientoAsync(
         () => new CredencialAccesoSubcontrata(Guid.NewGuid(), null, null, null, null));
 
-    [Fact]
-    public Task Aislamiento_SubcontrataCliente()
-    {
-        Guid subcontrataId = default, clienteId = default;
-        return VerificarAislamientoAsync(
-            () => new SubcontrataCliente(subcontrataId, clienteId),
-            async contexto =>
-            {
-                subcontrataId = await SembrarSubcontrataAsync(contexto);
-                clienteId = await SembrarClienteAsync(contexto);
-            });
-    }
 
     [Fact]
     public Task Aislamiento_VerificacionExternaSubcontrata()
@@ -356,18 +332,6 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
             });
     }
 
-    [Fact]
-    public Task Aislamiento_SubcontrataEmpresa()
-    {
-        Guid subcontrataId = default, empresaId = default;
-        return VerificarAislamientoAsync(
-            () => new SubcontrataEmpresa(subcontrataId, empresaId),
-            async contexto =>
-            {
-                subcontrataId = await SembrarSubcontrataAsync(contexto);
-                empresaId = await SembrarEmpresaAsync(contexto);
-            });
-    }
 
     [Fact]
     public Task Aislamiento_DeteccionTrabajador() => VerificarAislamientoAsync(
@@ -546,8 +510,10 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     private static async Task<Guid> SembrarClienteAsync(CaeManagerDbContext contexto)
     {
-        // F3b — anclas de FK para Centro/Proyecto/TarifaCliente/EmpresaCliente/
-        // SubcontrataCliente: sus ClienteId repuntan contra Empresas.
+        // F3b — anclas de FK para Centro/Proyecto/TarifaCliente: sus ClienteId
+        // repuntan contra Empresas. (Las tablas puente EmpresaCliente/
+        // SubcontrataCliente también dependían de esto hasta el cierre de F4,
+        // que las retiró.)
         var cliente = Empresa.CrearComoCliente($"Cliente de prueba {Guid.NewGuid():N}", GenerarCifValido(), false, null, null);
         contexto.Empresas.Add(cliente);
         await contexto.SaveChangesAsync();
@@ -564,9 +530,10 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     private static async Task<Guid> SembrarSubcontrataAsync(CaeManagerDbContext contexto)
     {
-        // F3b-Subcontrata — anclas de FK para SubcontrataCliente/SubcontrataEmpresa/
-        // VerificacionExternaSubcontrata/Trabajador/Vehiculo/ContactoAgenda: su
-        // SubcontrataId repunta contra Empresas.
+        // F3b-Subcontrata — anclas de FK para VerificacionExternaSubcontrata/
+        // Trabajador/Vehiculo/ContactoAgenda: su SubcontrataId repunta contra
+        // Empresas. (Las tablas puente que también dependían de esto se
+        // retiraron en el cierre de F4.)
         var subcontrata = Empresa.CrearComoSubcontrata(
             $"Subcontrata de prueba {Guid.NewGuid():N}", null, NivelServicioSubcontrata.Gestionada.ToString());
         contexto.Empresas.Add(subcontrata);

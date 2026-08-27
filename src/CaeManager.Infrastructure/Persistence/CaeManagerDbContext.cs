@@ -119,16 +119,10 @@ public class CaeManagerDbContext(
     IQueryable<CanalGestionDocumental> ICentrosQueryContext.CanalesGestionDocumental => CanalesGestionDocumental;
     public DbSet<Empresa> Empresas => Set<Empresa>();
     IQueryable<Empresa> IEmpresasQueryContext.Empresas => Empresas;
-    public DbSet<EmpresaCliente> EmpresasClientes => Set<EmpresaCliente>();
-    IQueryable<EmpresaCliente> IEmpresasQueryContext.EmpresasClientes => EmpresasClientes;
     public DbSet<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Set<CredencialAccesoEmpresa>();
     IQueryable<CredencialAccesoEmpresa> IEmpresasQueryContext.CredencialesAccesoEmpresa => CredencialesAccesoEmpresa;
     public DbSet<Subcontrata> Subcontratas => Set<Subcontrata>();
     IQueryable<Subcontrata> ISubcontratasQueryContext.Subcontratas => Subcontratas;
-    public DbSet<SubcontrataCliente> SubcontratasClientes => Set<SubcontrataCliente>();
-    IQueryable<SubcontrataCliente> ISubcontratasQueryContext.SubcontratasClientes => SubcontratasClientes;
-    public DbSet<SubcontrataEmpresa> SubcontratasEmpresas => Set<SubcontrataEmpresa>();
-    IQueryable<SubcontrataEmpresa> ISubcontratasQueryContext.SubcontratasEmpresas => SubcontratasEmpresas;
     public DbSet<CredencialAccesoSubcontrata> CredencialesAccesoSubcontrata => Set<CredencialAccesoSubcontrata>();
     IQueryable<CredencialAccesoSubcontrata> ISubcontratasQueryContext.CredencialesAccesoSubcontrata => CredencialesAccesoSubcontrata;
     public DbSet<VerificacionExternaSubcontrata> VerificacionesExternaSubcontrata => Set<VerificacionExternaSubcontrata>();
