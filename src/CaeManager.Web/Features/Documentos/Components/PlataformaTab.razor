@@ -57,7 +57,7 @@ else
                                 <span class="plataforma-documento-tipo">@documento.TipoDocumentoNombre</span>
                                 <span class="plataforma-documento-estado">
                                     <Badge Tono="@(documento.Estado == EstadoAcreditacion.Rechazada ? TonoBadge.Peligro : TonoBadge.Advertencia)">
-                                        @(documento.Estado == EstadoAcreditacion.Rechazada ? "Rechazado" : "Pendiente de subir")
+                                        @(documento.Estado == EstadoAcreditacion.Rechazada ? "Rechazado" : "Pendiente de envío")
                                     </Badge>
                                     @if (documento.UltimoMotivoRechazo is { Length: > 0 } motivo)
                                     {

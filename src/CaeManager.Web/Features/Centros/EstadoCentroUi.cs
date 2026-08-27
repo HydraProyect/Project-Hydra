@@ -7,6 +7,13 @@ namespace CaeManager.Web.Features.Centros;
 /// Traduce EstadoCentro a color/etiqueta. Vive en un solo sitio para que la
 /// tabla de Centros y el Workspace nunca puedan mostrar el mismo estado con
 /// colores o textos distintos — mismo criterio que EstadoDocumentoUi.
+///
+/// <para>
+/// <b>Las ramas por defecto no degradan a favorable.</b> Un valor sin traducir
+/// se rotulaba «Vigente» con tono neutro: un centro en un estado nuevo que
+/// nadie hubiera añadido aquí se pintaba como si estuviera al día. Ahora lo
+/// desconocido se muestra como tal y en rojo.
+/// </para>
 /// </summary>
 public static class EstadoCentroUi
 {
@@ -18,7 +25,7 @@ public static class EstadoCentroUi
         EstadoCentro.Vencido => TonoBadge.Peligro,
         EstadoCentro.Faltante => TonoBadge.Peligro,
         EstadoCentro.Bloqueado => TonoBadge.Peligro,
-        _ => TonoBadge.Neutro
+        _ => TonoBadge.Peligro
     };
 
     /// <summary>
@@ -51,6 +58,6 @@ public static class EstadoCentroUi
         // estado del sujeto, no lo que el documento provoca (decisión
         // cerrada del lámina, protocolo de cierre — banco visual Ronda 1).
         EstadoCentro.Bloqueado => "Acceso bloqueado",
-        _ => "Vigente"
+        _ => "Estado desconocido"
     };
 }

@@ -123,7 +123,7 @@ public class EstadoDocumentalDerivadoTests : IAsyncLifetime
         var claves = new EstadoDocumento?[]
         {
             EstadoDocumento.Vencido, EstadoDocumento.Urgente, EstadoDocumento.Proximo,
-            EstadoDocumento.Vigente, EstadoDocumento.NoAplica, null
+            EstadoDocumento.Vigente, EstadoDocumento.SinCaducidad, null
         }.Select(EstadoDocumentalFiltro.ClaveOrden);
 
         claves.Should().BeInAscendingOrder();

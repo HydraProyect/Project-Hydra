@@ -19,7 +19,7 @@ public class CalculadoraEstadoDocumentoTests
             umbralAmbarDias: UmbralAmbarDias,
             umbralRojoDias: UmbralRojoDias);
 
-        estado.Should().Be(EstadoDocumento.NoAplica);
+        estado.Should().Be(EstadoDocumento.SinCaducidad);
     }
 
     [Fact]

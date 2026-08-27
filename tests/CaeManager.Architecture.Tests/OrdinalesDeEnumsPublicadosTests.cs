@@ -35,7 +35,7 @@ public class OrdinalesDeEnumsPublicadosTests
         {
             nameof(EstadoDocumento), new Dictionary<string, int>
             {
-                [nameof(EstadoDocumento.NoAplica)] = 0,
+                [nameof(EstadoDocumento.SinCaducidad)] = 0,
                 [nameof(EstadoDocumento.Vigente)] = 1,
                 [nameof(EstadoDocumento.Proximo)] = 2,
                 [nameof(EstadoDocumento.Urgente)] = 3,
