@@ -45,6 +45,7 @@ using OpenTelemetry.Trace;
 using PdfSharp.Fonts;
 using Serilog;
 using System.Globalization;
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 
 // El resolver de fuentes de PDFsharp 6 es global e independiente del ciclo de
@@ -281,6 +282,26 @@ builder.Services.AddRateLimiter(options =>
             PermitLimit = rateLimitPorMinuto,
             Window = TimeSpan.FromMinutes(1),
         }));
+});
+
+// Los enums viajan por JSON como CADENA, no como número. Sin esto salían
+// como el ordinal implícito de su posición en la declaración, de modo que
+// insertar un valor en medio de EstadoDocumento habría cambiado en silencio
+// el significado de todo lo ya entregado a los consumidores de la API. Peor:
+// el mismo número significaba cosas distintas según el enum — 0 era NoAplica
+// en EstadoDocumento y Vigente en EstadoCentro, así que quien tratara ambos
+// como "estado" leía lo peor como lo mejor.
+//
+// El contrato era además asimétrico: los filtros de entrada (?estado=Vencido)
+// siempre se han parseado por NOMBRE, así que el cliente enviaba una cadena y
+// recibía un número.
+//
+// Afecta solo a la API pública: es la única superficie que devuelve JSON
+// (verificado — el resto de endpoints devuelven archivos, redirecciones o
+// códigos de estado, y ningún JavaScript del cliente consume endpoints).
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
 builder.Services.AddOpenApi("v1", options =>
