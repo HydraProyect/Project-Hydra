@@ -574,6 +574,17 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // agregado físico hasta F4.
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "IEmpresasQueryContext"),
 
+        // F4-P0 (2026-08-27): la última de las 6 consultas semánticas que D2
+        // había dejado congeladas — la propia lista de /clientes. Sin
+        // escrituras a la tabla legacy Clientes desde F3b, cualquier Cliente
+        // dado de alta después del freeze era invisible en su propio
+        // listado: problema de producto visible, no incertidumbre
+        // arquitectónica, así que se repunta ahora sin esperar a F4.2b.
+        // Discrimina Cliente de Empresa propia/Subcontrata con
+        // EsCritico != null (mismo patrón que ObtenerSubcontratasQueryHandler
+        // usa NivelServicio != null).
+        ("Clientes.ObtenerClientesQueryHandler", "IEmpresasQueryContext"),
+
         // Este NO es un lector de categoría B (Id ya conocido) — es una de
         // las 6 consultas semánticas que D2 dejó congeladas, adelantada
         // deliberadamente antes de F4 tras una revisión adversaria (E2E real
