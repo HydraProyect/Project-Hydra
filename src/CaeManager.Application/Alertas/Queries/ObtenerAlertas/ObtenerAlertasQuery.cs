@@ -30,7 +30,7 @@ namespace CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 /// tiene ninguna fila ahí — ver ese comentario) un TipoDocumento marcado
 /// EsObligatorio, y ningún Documento de ese tipo para ese Trabajador. Antes
 /// de esto, un requisito sin ningún Documento no aparecía en ningún sitio:
-/// no es "Vencido" (no hay fila que evaluar) ni "NoAplica" (ese estado es
+/// no es "Vencido" (no hay fila que evaluar) ni "SinCaducidad" (ese estado es
 /// para Documentos existentes sin vigencia) — el hueco funcional exacto que
 /// señala el informe de madurez.
 /// </summary>

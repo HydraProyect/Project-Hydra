@@ -8,6 +8,15 @@ namespace CaeManager.Web.Features.Documentos;
 /// Traduce EstadoDocumento a color/etiqueta. Vive en un solo sitio para que
 /// Documentos y Alertas nunca puedan mostrar el mismo estado con colores o
 /// textos distintos.
+///
+/// <para>
+/// <b>Las ramas por defecto no degradan a favorable.</b> Antes, un valor sin
+/// traducir se rotulaba «No aplica» con tono neutro — es decir, un estado
+/// nuevo que alguien olvidara añadir aquí se pintaba como si no hubiera nada
+/// que hacer. Un fallo así no avisa: enseña calma donde debería enseñar
+/// alarma. Ahora cada valor se declara y lo desconocido se muestra como tal,
+/// en rojo.
+/// </para>
 /// </summary>
 public static class EstadoDocumentoUi
 {
@@ -18,7 +27,8 @@ public static class EstadoDocumentoUi
         EstadoDocumento.Urgente => TonoBadge.Peligro,
         EstadoDocumento.Vencido => TonoBadge.Peligro,
         EstadoDocumento.Faltante => TonoBadge.Peligro,
-        _ => TonoBadge.Neutro
+        EstadoDocumento.SinCaducidad => TonoBadge.Neutro,
+        _ => TonoBadge.Peligro
     };
 
     public static string Texto(EstadoDocumento estado) => estado switch
@@ -28,7 +38,8 @@ public static class EstadoDocumentoUi
         EstadoDocumento.Urgente => "Urgente",
         EstadoDocumento.Vencido => "Vencido",
         EstadoDocumento.Faltante => "Falta",
-        _ => "No aplica"
+        EstadoDocumento.SinCaducidad => "Sin caducidad",
+        _ => "Estado desconocido"
     };
 
     /// <summary>
@@ -53,7 +64,7 @@ public static class EstadoDocumentoUi
         new(nameof(EstadoDocumento.Urgente), "Urgente"),
         new(nameof(EstadoDocumento.Proximo), "Próximo"),
         new(nameof(EstadoDocumento.Vigente), "Vigente"),
-        new(nameof(EstadoDocumento.NoAplica), "No aplica"),
+        new(nameof(EstadoDocumento.SinCaducidad), "Sin caducidad"),
         new(EstadoDocumentalFiltro.SinDocumentos, "Sin documentos")
     ];
 }

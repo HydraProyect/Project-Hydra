@@ -204,7 +204,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             // no se separen en silencio.
             consulta = request.Estado.Value switch
             {
-                EstadoDocumento.NoAplica => consulta.Where(x => x.FechaVencimiento == null),
+                EstadoDocumento.SinCaducidad => consulta.Where(x => x.FechaVencimiento == null),
                 EstadoDocumento.Vencido => consulta.Where(x => x.FechaVencimiento != null && x.FechaVencimiento < hoy),
                 EstadoDocumento.Urgente => consulta.Where(x => x.FechaVencimiento >= hoy && x.FechaVencimiento <= limiteRojo),
                 EstadoDocumento.Proximo => consulta.Where(x => x.FechaVencimiento > limiteRojo && x.FechaVencimiento <= limiteAmbar),

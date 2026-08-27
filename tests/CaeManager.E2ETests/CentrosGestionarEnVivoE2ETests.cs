@@ -167,15 +167,25 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await tablaDocumentos.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // Fila específica de ESTE tipo de documento — el resto de tipos
-        // obligatorios del catálogo compartido también aparecen "Pendiente
-        // de Subir" para este Trabajador nuevo, así que no basta con buscar
-        // ese texto suelto en toda la tabla.
+        // obligatorios del catálogo compartido también aparecen como "Falta"
+        // para este Trabajador nuevo, así que no basta con buscar ese texto
+        // suelto en toda la tabla.
         var filaDocumento = tablaDocumentos.Locator(".fila-documento-requerido", new LocatorLocatorOptions { HasText = nombreTipoDocumento });
-        // Badge por clase, no por texto: la misma frase también aparece
-        // (en minúscula) dentro de la ventana de contexto emergente del
-        // recuento de la fila de Centro, y GetByText la resolvía dos veces.
-        var badgePendienteDeSubir = filaDocumento.Locator(".badge-neutro");
-        await Expect(badgePendienteDeSubir).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        // Se ancla por clase Y por texto, y las dos mitades hacen falta:
+        //
+        // - Por clase, porque la misma palabra aparece también dentro de la
+        //   ventana de contexto que envuelve al badge, y GetByText la
+        //   resolvía dos veces. La clase es "badge-peligro" desde que
+        //   "Falta" dejó de pintarse en tono neutro: un requisito sin
+        //   documento no es un estado benigno.
+        // - Por texto, porque "badge-peligro" ya no identifica el caso: un
+        //   documento presente pero Vencido o Urgente lleva esa misma
+        //   clase. Distinguir "no existe" de "existe y está vencido" es
+        //   justamente lo que separa este badge, y sin la aserción de texto
+        //   el test dejaría de observar esa distinción.
+        var badgeFalta = filaDocumento.Locator(".badge-peligro");
+        await Expect(badgeFalta).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Expect(badgeFalta).ToHaveTextAsync("Falta", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 
         // --- Paso 5: Gestionar → subir el documento, sin salir de /centros ---
         await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
@@ -205,7 +215,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // está roto. El recuento global del Centro baja en exactamente 1
         // (el resto de tipos obligatorios del catálogo compartido siguen
         // pendientes, así que no llega a desaparecer del todo).
-        await Expect(badgePendienteDeSubir).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Expect(badgeFalta).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         var vencidasDespues = int.Parse((await badgeVencidas.InnerTextAsync()).Trim());
         Assert.Equal(vencidasAntes - 1, vencidasDespues);
     }

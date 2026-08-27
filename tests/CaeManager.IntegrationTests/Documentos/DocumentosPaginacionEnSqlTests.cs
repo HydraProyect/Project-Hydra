@@ -55,7 +55,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         // vencimiento justo dentro de cada franja.
         var vencimientos = new DateOnly?[]
         {
-            null,                                   // NoAplica
+            null,                                   // SinCaducidad
             _hoy.AddDays(-1),                       // Vencido
             _hoy.AddDays(UmbralRojoDias - 1),       // Urgente
             _hoy.AddDays(UmbralAmbarDias - 1),      // Proximo
@@ -78,7 +78,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(EstadoDocumento.NoAplica)]
+    [InlineData(EstadoDocumento.SinCaducidad)]
     [InlineData(EstadoDocumento.Vencido)]
     [InlineData(EstadoDocumento.Urgente)]
     [InlineData(EstadoDocumento.Proximo)]
