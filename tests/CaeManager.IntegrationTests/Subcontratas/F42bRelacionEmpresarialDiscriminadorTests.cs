@@ -2,8 +2,10 @@ using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
-using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
+using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata;
+using CaeManager.Domain.Centros;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
@@ -45,37 +47,6 @@ public class F42bRelacionEmpresarialDiscriminadorTests : IAsyncLifetime
     public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
     [Fact]
-    public async Task ObtenerSubcontrataPorIdQuery_separa_ClienteIds_y_EmpresaIds_cuando_ambos_coexisten()
-    {
-        Guid subcontrataId, clienteRealId, empresaPropiaId;
-        await using (var contexto = CrearContexto())
-        {
-            var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata Mixta S.L.", "B10380186", NivelServicioSubcontrata.Gestionada.ToString());
-            var clienteReal = Empresa.CrearComoCliente("Cliente Real De La Subcontrata S.A.", "B10380194", false, null, null);
-            var empresaPropia = new Empresa("Empresa Propia Servida S.L.", "B10380202");
-            contexto.Empresas.AddRange(subcontrata, clienteReal, empresaPropia);
-            await contexto.SaveChangesAsync();
-            subcontrataId = subcontrata.Id; clienteRealId = clienteReal.Id; empresaPropiaId = empresaPropia.Id;
-
-            var ahora = DateTime.UtcNow;
-            // Shape Subcontrata→Cliente (target real = Cliente) y Subcontrata→Empresa
-            // (target real = Empresa propia) sobre la MISMA Subcontrata a la vez.
-            contexto.RelacionesEmpresariales.AddRange(
-                RelacionEmpresarial.Migrar(subcontrataId, clienteRealId, ahora, ahora),
-                RelacionEmpresarial.Migrar(subcontrataId, empresaPropiaId, ahora, ahora));
-            await contexto.SaveChangesAsync();
-        }
-
-        await using var lectura = CrearContexto();
-        var handler = new ObtenerSubcontrataPorIdQueryHandler(lectura, new AlcanceDatosServiceFalso());
-        var resultado = await handler.Handle(new ObtenerSubcontrataPorIdQuery(subcontrataId), CancellationToken.None);
-
-        resultado.Should().NotBeNull();
-        resultado!.ClienteIds.Should().BeEquivalentTo([clienteRealId]);
-        resultado.EmpresaIds.Should().BeEquivalentTo([empresaPropiaId]);
-    }
-
-    [Fact]
     public async Task ObtenerSubcontratasDeClienteQuery_no_incluye_la_Empresa_propia_que_tambien_sirve_al_mismo_Cliente()
     {
         Guid clienteId, subcontrataId, empresaPropiaId;
@@ -104,31 +75,92 @@ public class F42bRelacionEmpresarialDiscriminadorTests : IAsyncLifetime
         resultado.Should().ContainSingle().Which.Id.Should().Be(subcontrataId);
     }
 
+    /// <summary>
+    /// Eje de vigencia con <b>control positivo</b>: la revisión adversarial
+    /// señaló que un test que solo siembra una relación cerrada y afirma
+    /// "vacío" no distingue "el filtro de vigencia funciona" de "la consulta
+    /// no devuelve nada nunca" — y esa segunda posibilidad es justo la clase
+    /// de fallo por sobre-restricción que hay que poder ver. Por eso aquí
+    /// conviven una vigente y una cerrada, y se afirma la identidad de la que
+    /// sobrevive, no solo la ausencia de la otra.
+    /// </summary>
     [Fact]
-    public async Task ObtenerSubcontrataPorIdQuery_ignora_una_relacion_ya_cerrada()
+    public async Task ObtenerSubcontratasDeClienteQuery_ignora_la_relacion_cerrada_y_conserva_la_vigente()
     {
-        Guid subcontrataId, clienteId;
+        Guid clienteId, subcontrataVigenteId;
         await using (var contexto = CrearContexto())
         {
-            var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata Con Baja S.L.", "B10380244", NivelServicioSubcontrata.Gestionada.ToString());
-            var cliente = Empresa.CrearComoCliente("Cliente Que Ya No Es Servido S.A.", "B10380251", false, null, null);
-            contexto.Empresas.AddRange(subcontrata, cliente);
+            var cliente = Empresa.CrearComoCliente("Cliente Con Una Baja S.A.", "B10380251", false, null, null);
+            var vigente = Empresa.CrearComoSubcontrata("Subcontrata Aun Vigente S.L.", "B10380244", NivelServicioSubcontrata.Gestionada.ToString());
+            var cerrada = Empresa.CrearComoSubcontrata("Subcontrata Ya Cerrada S.L.", "B10380186", NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.AddRange(cliente, vigente, cerrada);
             await contexto.SaveChangesAsync();
-            subcontrataId = subcontrata.Id; clienteId = cliente.Id;
+            clienteId = cliente.Id; subcontrataVigenteId = vigente.Id;
 
             var ahora = DateTime.UtcNow;
-            var relacion = RelacionEmpresarial.Migrar(subcontrataId, clienteId, ahora.AddMonths(-6), ahora);
-            relacion.Cerrar(ahora);
-            contexto.RelacionesEmpresariales.Add(relacion);
+            var relacionCerrada = RelacionEmpresarial.Migrar(cerrada.Id, clienteId, ahora.AddMonths(-6), ahora);
+            relacionCerrada.Cerrar(ahora);
+            contexto.RelacionesEmpresariales.AddRange(
+                RelacionEmpresarial.Migrar(subcontrataVigenteId, clienteId, ahora, ahora),
+                relacionCerrada);
             await contexto.SaveChangesAsync();
         }
 
         await using var lectura = CrearContexto();
-        var handler = new ObtenerSubcontrataPorIdQueryHandler(lectura, new AlcanceDatosServiceFalso());
-        var resultado = await handler.Handle(new ObtenerSubcontrataPorIdQuery(subcontrataId), CancellationToken.None);
+        var handler = new ObtenerSubcontratasDeClienteQueryHandler(lectura, new AlcanceDatosServiceFalso());
+        var resultado = await handler.Handle(new ObtenerSubcontratasDeClienteQuery(clienteId), CancellationToken.None);
+
+        resultado.Should().ContainSingle().Which.Id.Should().Be(subcontrataVigenteId);
+    }
+
+    /// <summary>
+    /// <c>ObtenerSupervisionSubcontrataQuery</c> era el lector que más cambió
+    /// (reordenación de JOINs y eliminación de uno) y el único que se quedó
+    /// sin instrumento — lo señaló la revisión adversarial. Cubre sus dos
+    /// ejes a la vez: solo aparecen centros de Clientes reales (no de
+    /// Empresas propias servidas) y solo de relaciones vigentes.
+    /// </summary>
+    [Fact]
+    public async Task ObtenerSupervisionSubcontrataQuery_solo_ofrece_centros_de_Clientes_reales_con_relacion_vigente()
+    {
+        Guid subcontrataId, centroDelClienteVigenteId;
+        await using (var contexto = CrearContexto())
+        {
+            contexto.ParametrosSistema.Add(new ParametroSistema(umbralAmbarDias: 30, umbralRojoDias: 15));
+
+            var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata Supervisada S.L.", "B10380392", NivelServicioSubcontrata.Supervisada.ToString());
+            var clienteVigente = Empresa.CrearComoCliente("Cliente Vigente Con Centro S.A.", "B10380400", false, null, null);
+            var clienteCerrado = Empresa.CrearComoCliente("Cliente Ya Desvinculado S.A.", "B10380418", false, null, null);
+            var empresaPropia = new Empresa("Empresa Propia Servida Tambien S.L.", "B10380426");
+            var ejecutora = new Empresa("Empresa Ejecutora Del Centro S.L.", "B10380434");
+            contexto.Empresas.AddRange(subcontrata, clienteVigente, clienteCerrado, empresaPropia, ejecutora);
+            await contexto.SaveChangesAsync();
+            subcontrataId = subcontrata.Id;
+
+            var centroVigente = new Centro(clienteVigente.Id, ejecutora.Id, "Centro Del Cliente Vigente");
+            var centroCerrado = new Centro(clienteCerrado.Id, ejecutora.Id, "Centro Del Cliente Cerrado");
+            var centroDeEmpresaPropia = new Centro(empresaPropia.Id, ejecutora.Id, "Centro De La Empresa Propia");
+            contexto.Centros.AddRange(centroVigente, centroCerrado, centroDeEmpresaPropia);
+
+            var ahora = DateTime.UtcNow;
+            var relacionCerrada = RelacionEmpresarial.Migrar(subcontrataId, clienteCerrado.Id, ahora.AddMonths(-6), ahora);
+            relacionCerrada.Cerrar(ahora);
+            contexto.RelacionesEmpresariales.AddRange(
+                RelacionEmpresarial.Migrar(subcontrataId, clienteVigente.Id, ahora, ahora),
+                RelacionEmpresarial.Migrar(subcontrataId, empresaPropia.Id, ahora, ahora),
+                relacionCerrada);
+            await contexto.SaveChangesAsync();
+            centroDelClienteVigenteId = centroVigente.Id;
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = new ObtenerSupervisionSubcontrataQueryHandler(
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso());
+        var resultado = await handler.Handle(new ObtenerSupervisionSubcontrataQuery(subcontrataId), CancellationToken.None);
 
         resultado.Should().NotBeNull();
-        resultado!.ClienteIds.Should().BeEmpty();
+        resultado!.CentrosSeleccionables.Should().ContainSingle()
+            .Which.CentroId.Should().Be(centroDelClienteVigenteId);
     }
 
     /// <summary>
