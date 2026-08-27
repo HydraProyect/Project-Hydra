@@ -52,8 +52,8 @@ public class ObtenerDocumentacionVisitaQueryTests : IAsyncLifetime
         var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "García", "77189989B");
         contexto.Trabajadores.Add(trabajador);
 
-        var tipoEmpresa = new TipoDocumento("Seguro RC", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Empresa, esObligatorio: true);
-        var tipoTrabajador = new TipoDocumento("EPIs", null, aplicaVencimientoAutomatico: false, 2, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        var tipoEmpresa = new TipoDocumento("Seguro RC", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Empresa, requerido: RequisitoDocumental.Si);
+        var tipoTrabajador = new TipoDocumento("EPIs", null, aplicaVencimientoAutomatico: false, 2, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.AddRange(tipoEmpresa, tipoTrabajador);
         await contexto.SaveChangesAsync();
 

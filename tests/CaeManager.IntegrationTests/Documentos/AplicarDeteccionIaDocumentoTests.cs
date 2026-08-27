@@ -46,8 +46,8 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
         _trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "García", "77189989B");
         _dbContext.Trabajadores.Add(_trabajador);
 
-        _tipoConVencimientoAutomatico = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
-        _tipoConVencimientoManual = new TipoDocumento("Formación PRL", null, false, 2, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        _tipoConVencimientoAutomatico = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+        _tipoConVencimientoManual = new TipoDocumento("Formación PRL", null, false, 2, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
         _dbContext.TiposDocumento.AddRange(_tipoConVencimientoAutomatico, _tipoConVencimientoManual);
         await _dbContext.SaveChangesAsync();
     }

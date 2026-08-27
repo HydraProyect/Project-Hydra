@@ -107,7 +107,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
         var resultado = await handler.Handle(
             new CrearTipoDocumentoCommand(
                 Nombre: "Tipo de prueba", VigenciaMeses: 12, AplicaVencimientoAutomatico: true, Orden: 1,
-                AmbitoAplicacion: AmbitoAplicacion.Trabajador, EsObligatorio: false, Notas: null, Descripcion: null,
+                AmbitoAplicacion: AmbitoAplicacion.Trabajador, Requerido: RequisitoDocumental.No, Naturaleza: NaturalezaJuridica.RequisitoCliente, Notas: null, Descripcion: null,
                 CriteriosValidacion: null, SeSolicitaA: null, Observaciones: null, CentroIds: [Guid.NewGuid()]),
             CancellationToken.None);
 
@@ -130,7 +130,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(
                 Id: tipoDocumento.Id, Nombre: "Tipo de prueba", VigenciaMeses: 12, AplicaVencimientoAutomatico: true,
-                Orden: 1, EsObligatorio: false, Notas: null, Descripcion: null, CriteriosValidacion: null,
+                Orden: 1, Requerido: RequisitoDocumental.No, Naturaleza: NaturalezaJuridica.RequisitoCliente, Notas: null, Descripcion: null, CriteriosValidacion: null,
                 SeSolicitaA: null, Observaciones: null, CentroIds: [Guid.NewGuid()]),
             CancellationToken.None);
 

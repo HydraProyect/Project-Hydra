@@ -15,7 +15,8 @@ public record TipoDocumentoDetalleDto(
     bool AplicaVencimientoAutomatico,
     int Orden,
     AmbitoAplicacion AmbitoAplicacion,
-    bool EsObligatorio,
+    RequisitoDocumental Requerido,
+    NaturalezaJuridica Naturaleza,
     string? Notas,
     string? Descripcion,
     string? CriteriosValidacion,
@@ -38,7 +39,8 @@ public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext d
                 t.AplicaVencimientoAutomatico,
                 t.Orden,
                 t.AmbitoAplicacion,
-                t.EsObligatorio,
+                t.Requerido,
+                t.Naturaleza,
                 t.Notas,
                 t.Descripcion,
                 t.CriteriosValidacion,
@@ -56,7 +58,7 @@ public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext d
 
         return new TipoDocumentoDetalleDto(
             tipoDocumento.Id, tipoDocumento.Nombre, tipoDocumento.VigenciaMeses, tipoDocumento.AplicaVencimientoAutomatico,
-            tipoDocumento.Orden, tipoDocumento.AmbitoAplicacion, tipoDocumento.EsObligatorio, tipoDocumento.Notas, tipoDocumento.Descripcion,
+            tipoDocumento.Orden, tipoDocumento.AmbitoAplicacion, tipoDocumento.Requerido, tipoDocumento.Naturaleza, tipoDocumento.Notas, tipoDocumento.Descripcion,
             tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones, centroIds);
     }
 }

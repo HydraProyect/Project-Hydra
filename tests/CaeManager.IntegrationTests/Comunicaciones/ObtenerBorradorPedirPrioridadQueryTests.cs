@@ -52,7 +52,7 @@ public class ObtenerBorradorPedirPrioridadQueryTests : IAsyncLifetime
         var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "García", "77189989B");
         contexto.Trabajadores.Add(trabajador);
 
-        var tipoObligatorio = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        var tipoObligatorio = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipoObligatorio);
         await contexto.SaveChangesAsync();
 

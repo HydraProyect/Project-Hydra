@@ -163,7 +163,7 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
             .ToListAsync(cancellationToken);
 
         var tiposObligatoriosEmpresa = await tiposDocumentoContext.TiposDocumento
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa && t.EsObligatorio)
+            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa && t.Requerido == RequisitoDocumental.Si)
             .Select(t => t.Id)
             .ToListAsync(cancellationToken);
 

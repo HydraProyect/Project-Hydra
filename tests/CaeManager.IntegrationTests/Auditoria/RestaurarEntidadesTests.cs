@@ -261,7 +261,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
             var trabajador = Trabajador.DeEmpresa(empresa.Id, "Documento", "Trabajador", "77189989B");
             contexto.Trabajadores.Add(trabajador);
 
-            var tipoDocumento = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+            var tipoDocumento = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
             contexto.TiposDocumento.Add(tipoDocumento);
             await contexto.SaveChangesAsync();
 
@@ -297,7 +297,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
             var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ajeno", "Documento", "12345678Z");
             contexto.Trabajadores.Add(trabajador);
 
-            var tipoDocumento = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+            var tipoDocumento = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
             contexto.TiposDocumento.Add(tipoDocumento);
             await contexto.SaveChangesAsync();
 
