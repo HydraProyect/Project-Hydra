@@ -39,7 +39,8 @@ public partial class TiposDocumento : ComponentBase
     private string _nombre = string.Empty;
     private string _ambitoAplicacion = nameof(AmbitoAplicacion.Trabajador);
     private bool _aplicaVencimientoAutomatico;
-    private bool _esObligatorio;
+    private RequisitoDocumental _requerido;
+    private NaturalezaJuridica _naturaleza;
     private string _vigenciaMeses = string.Empty;
     private string _orden = "0";
     private string _notas = string.Empty;
@@ -140,7 +141,8 @@ public partial class TiposDocumento : ComponentBase
         _nombre = string.Empty;
         _ambitoAplicacion = nameof(AmbitoAplicacion.Trabajador);
         _aplicaVencimientoAutomatico = false;
-        _esObligatorio = false;
+        _requerido = RequisitoDocumental.No;
+        _naturaleza = NaturalezaJuridica.RequisitoCliente;
         _vigenciaMeses = string.Empty;
         _orden = (_tipos.Count > 0 ? _tipos.Max(t => t.Orden) + 1 : 1).ToString();
         _notas = string.Empty;
@@ -170,7 +172,8 @@ public partial class TiposDocumento : ComponentBase
         _nombre = tipo.Nombre;
         _ambitoAplicacion = tipo.AmbitoAplicacion.ToString();
         _aplicaVencimientoAutomatico = tipo.AplicaVencimientoAutomatico;
-        _esObligatorio = tipo.EsObligatorio;
+        _requerido = tipo.Requerido;
+        _naturaleza = tipo.Naturaleza;
         _vigenciaMeses = tipo.VigenciaMeses?.ToString() ?? string.Empty;
         _orden = tipo.Orden.ToString();
         _notas = tipo.Notas ?? string.Empty;
@@ -222,7 +225,7 @@ public partial class TiposDocumento : ComponentBase
                 var ambito = Enum.Parse<AmbitoAplicacion>(_ambitoAplicacion);
                 var resultado = await Mediator.Send(
                     new CrearTipoDocumentoCommand(
-                        _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, ambito, _esObligatorio, notas,
+                        _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, ambito, _requerido, _naturaleza, notas,
                         descripcion, criteriosValidacion, seSolicitaA, observaciones, centroIds));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
@@ -230,7 +233,7 @@ public partial class TiposDocumento : ComponentBase
             {
                 var resultado = await Mediator.Send(
                     new EditarTipoDocumentoCommand(
-                        _editandoId.Value, _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, _esObligatorio, notas,
+                        _editandoId.Value, _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, _requerido, _naturaleza, notas,
                         descripcion, criteriosValidacion, seSolicitaA, observaciones, centroIds));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }

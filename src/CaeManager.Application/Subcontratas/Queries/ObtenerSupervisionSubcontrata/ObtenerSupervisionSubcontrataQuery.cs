@@ -143,7 +143,7 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
         // exigencias a una subcontrata.
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador || t.AmbitoAplicacion == AmbitoAplicacion.Empresa)
-            .Select(t => new { t.Id, t.Nombre, t.EsObligatorio, t.Orden })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.Orden })
             .OrderBy(t => t.Orden)
             .ToListAsync(cancellationToken);
 
@@ -173,7 +173,7 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
 
             foreach (var tipo in tiposCandidatos)
             {
-                var exigido = ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, centro.Id, tipo.EsObligatorio);
+                var exigido = ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, centro.Id, tipo.CuentaParaCumplimiento);
                 var tieneVerificacion = ultimaPorPar.TryGetValue((centro.Id, tipo.Id), out var ultima);
 
                 // Un tipo no exigido sin verificaciones no es una fila: el

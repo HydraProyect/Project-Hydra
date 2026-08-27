@@ -27,7 +27,8 @@ public record TipoDocumentoListaDto(
     bool AplicaVencimientoAutomatico,
     int Orden,
     AmbitoAplicacion AmbitoAplicacion,
-    bool EsObligatorio,
+    RequisitoDocumental Requerido,
+    NaturalezaJuridica Naturaleza,
     string? Descripcion,
     string? CriteriosValidacion,
     string? SeSolicitaA,
@@ -58,7 +59,7 @@ public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosConte
             var centroIdsFiltrados = await centrosFiltrados.Select(c => c.Id).ToListAsync(cancellationToken);
 
             var candidatos = await consulta
-                .Select(t => new { t.Id, t.EsObligatorio })
+                .Select(t => new { t.Id, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
                 .ToListAsync(cancellationToken);
             var tipoIdsCandidatos = candidatos.Select(t => t.Id).ToHashSet();
 
@@ -71,7 +72,7 @@ public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosConte
             // que coinciden (mismo criterio que antes: Cliente/Empresa agregan
             // varios Centros, y basta con que uno de ellos lo exija).
             var tipoIdsAplicables = candidatos
-                .Where(t => centroIdsFiltrados.Any(centroId => ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.EsObligatorio)))
+                .Where(t => centroIdsFiltrados.Any(centroId => ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
                 .Select(t => t.Id)
                 .ToHashSet();
 
@@ -81,7 +82,7 @@ public class ObtenerTiposDocumentoQueryHandler(ICentrosQueryContext centrosConte
         return await consulta
             .OrderBy(t => t.Orden)
             .Select(t => new TipoDocumentoListaDto(
-                t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden, t.AmbitoAplicacion, t.EsObligatorio,
+                t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden, t.AmbitoAplicacion, t.Requerido, t.Naturaleza,
                 t.Descripcion, t.CriteriosValidacion, t.SeSolicitaA, t.Observaciones, t.LecturaIaActiva, t.DeteccionTrabajadoresActiva,
                 t.VerificacionIaActiva, t.PerfilDocumentoOficial))
             .ToListAsync(cancellationToken);

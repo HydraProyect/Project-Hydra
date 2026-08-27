@@ -38,13 +38,41 @@ public class TipoDocumento : EntidadConTenant
     public string? Observaciones { get; private set; }
 
     /// <summary>
-    /// Si es obligatorio para todos los Clientes/Empresas (o Vehículos, según
-    /// el Ámbito) — lo usa la verificación de documentación de Visitas para
-    /// distinguir "no aplica, no cuenta como pendiente" de "obligatorio y
-    /// falta, hay que gestionarlo". No aplica a Ámbito Trabajador, donde
-    /// todavía no existe una lista estructurada de qué es obligatorio.
+    /// ¿Se pide este documento? Lo usa la verificación de documentación para
+    /// distinguir "no aplica, no cuenta como pendiente" de "se exige y falta,
+    /// hay que gestionarlo".
+    ///
+    /// <para>
+    /// Sustituye al antiguo booleano <c>EsObligatorio</c>, que respondía a la
+    /// vez a esta pregunta y a la de <see cref="Naturaleza"/> — y colapsarlas
+    /// obligaba a mentir en una de las dos.
+    /// </para>
     /// </summary>
-    public bool EsObligatorio { get; private set; }
+    public RequisitoDocumental Requerido { get; private set; }
+
+    /// <summary>
+    /// ¿Con qué autoridad se pide? Es lo que se le enseña al usuario cuando
+    /// pregunta "¿por qué me pides esto?", y el eje donde está prohibido
+    /// exagerar: llamar ley a una práctica del sector es el fallo que esta
+    /// taxonomía existe para impedir.
+    /// </summary>
+    public NaturalezaJuridica Naturaleza { get; private set; }
+
+    /// <summary>
+    /// Atajo de lectura: <b>solo <see cref="RequisitoDocumental.Si"/> cuenta
+    /// para el cumplimiento</b>. <see cref="RequisitoDocumental.Condicional"/>
+    /// queda fuera a propósito mientras no exista la maquinaria que evalúa la
+    /// condición — ver el razonamiento en <see cref="RequisitoDocumental"/>.
+    ///
+    /// <para>
+    /// ⚠️ <b>No usar dentro de una consulta EF.</b> Es una propiedad
+    /// calculada sin columna detrás, así que no se traduce a SQL: compila,
+    /// pasa los tests que no tocan base y revienta en ejecución. Dentro de un
+    /// <c>Where</c> o un <c>Select</c> sobre el <c>DbSet</c>, escribir
+    /// <c>Requerido == RequisitoDocumental.Si</c>, que sí se traduce.
+    /// </para>
+    /// </summary>
+    public bool CuentaParaCumplimiento => Requerido == RequisitoDocumental.Si;
 
     /// <summary>
     /// A qué se asocian los Documentos de este tipo — Trabajador, Cliente o
@@ -115,7 +143,8 @@ public class TipoDocumento : EntidadConTenant
         bool aplicaVencimientoAutomatico,
         int orden,
         AmbitoAplicacion ambitoAplicacion,
-        bool esObligatorio = false,
+        RequisitoDocumental requerido = RequisitoDocumental.No,
+        NaturalezaJuridica naturaleza = NaturalezaJuridica.RequisitoCliente,
         string? notas = null,
         string? descripcion = null,
         string? criteriosValidacion = null,
@@ -126,7 +155,8 @@ public class TipoDocumento : EntidadConTenant
         EstablecerVigencia(vigenciaMeses, aplicaVencimientoAutomatico);
         Orden = orden;
         AmbitoAplicacion = ambitoAplicacion;
-        EsObligatorio = esObligatorio;
+        Requerido = requerido;
+        Naturaleza = naturaleza;
         Notas = notas;
         EstablecerGlosario(descripcion, criteriosValidacion, seSolicitaA, observaciones);
     }
@@ -136,7 +166,8 @@ public class TipoDocumento : EntidadConTenant
         int? vigenciaMeses,
         bool aplicaVencimientoAutomatico,
         int orden,
-        bool esObligatorio,
+        RequisitoDocumental requerido,
+        NaturalezaJuridica naturaleza,
         string? notas,
         string? descripcion,
         string? criteriosValidacion,
@@ -146,7 +177,8 @@ public class TipoDocumento : EntidadConTenant
         EstablecerNombre(nombre);
         EstablecerVigencia(vigenciaMeses, aplicaVencimientoAutomatico);
         Orden = orden;
-        EsObligatorio = esObligatorio;
+        Requerido = requerido;
+        Naturaleza = naturaleza;
         Notas = notas;
         EstablecerGlosario(descripcion, criteriosValidacion, seSolicitaA, observaciones);
     }

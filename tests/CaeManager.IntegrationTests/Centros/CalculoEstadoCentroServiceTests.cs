@@ -51,7 +51,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "García", "77189989B");
         contexto.Trabajadores.Add(trabajador);
 
-        var tipoObligatorio = new TipoDocumento("EPIs", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        var tipoObligatorio = new TipoDocumento("EPIs", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipoObligatorio);
         await contexto.SaveChangesAsync();
 
@@ -134,7 +134,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
 
-            var tipoBloqueante = new TipoDocumento("Formulario de acceso", null, false, 3, AmbitoAplicacion.Trabajador, esObligatorio: false);
+            var tipoBloqueante = new TipoDocumento("Formulario de acceso", null, false, 3, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);
             contexto.TiposDocumento.Add(tipoBloqueante);
             await contexto.SaveChangesAsync();
             tipoBloqueanteId = tipoBloqueante.Id;
@@ -157,7 +157,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
 
-            var tipoBloqueante = new TipoDocumento("Formulario de acceso", null, false, 3, AmbitoAplicacion.Trabajador, esObligatorio: false);
+            var tipoBloqueante = new TipoDocumento("Formulario de acceso", null, false, 3, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);
             contexto.TiposDocumento.Add(tipoBloqueante);
             await contexto.SaveChangesAsync();
 

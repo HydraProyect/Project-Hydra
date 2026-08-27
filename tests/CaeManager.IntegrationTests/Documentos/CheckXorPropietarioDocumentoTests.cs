@@ -34,7 +34,7 @@ public class CheckXorPropietarioDocumentoTests : IAsyncLifetime
         var cliente = Empresa.CrearComoCliente("Propietario Único S.L.", "B12345674", false, null, null);
         contexto.Empresas.Add(cliente);
 
-        var tipo = new TipoDocumento("Certificado", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, esObligatorio: true);
+        var tipo = new TipoDocumento("Certificado", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipo);
 
         _documento = Documento.DeCliente(cliente.Id, tipo.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);

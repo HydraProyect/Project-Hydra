@@ -203,11 +203,83 @@ public static class TipoDocumentoSeedData
     /// construcción (y para que ningún aprovisionamiento vuelva a olvidarse
     /// de los flags, como pasó con los tenants de demo).
     /// </summary>
+
+    /// <summary>
+    /// Naturaleza jurídica de cada tipo del catálogo — <b>con qué autoridad
+    /// se pide</b>, eje independiente de si se pide (ver
+    /// <see cref="NaturalezaJuridica"/>). Búsqueda por nombre, mismo patrón
+    /// que <c>PerfilOficialDe</c>.
+    ///
+    /// <para>
+    /// <b>Solo figura aquí lo verificado contra fuente oficial.</b> Todo lo
+    /// demás cae en <see cref="NaturalezaJuridica.RequisitoCliente"/>, que es
+    /// la afirmación más débil y la única segura: dice «alguien lo pide», que
+    /// es cierto de todo el catálogo, y no atribuye ninguna ley. Sub-afirmar
+    /// se corrige; sobre-afirmar es el fallo que esta taxonomía existe para
+    /// impedir.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠️ <b>Hueco declarado</b>: muchas formaciones y habilitaciones de
+    /// máquina (carretillas, PEMP, grúas, altura…) son con toda probabilidad
+    /// <see cref="NaturalezaJuridica.ObligacionCondicionada"/> por el RD
+    /// 1215/1997 y por convenio, pero <b>no se han verificado una por una</b>
+    /// y por eso no se afirma. Igual con el protocolo de acoso y el registro
+    /// retributivo. Es trabajo de verificación pendiente, no una conclusión.
+    /// </para>
+    /// </summary>
+    private static NaturalezaJuridica NaturalezaDe(string nombre) => nombre switch
+    {
+        // — Obligación legal directa: la norma lo exige por escrito y sin condición —
+        // Art. 10 RD 171/2004: lo único que se exige por escrito en concurrencia.
+        "EVR (Evaluación de Riesgos Laborales)" => NaturalezaJuridica.ObligacionLegal,
+        "PAP (Planificación de la Actividad Preventiva)" => NaturalezaJuridica.ObligacionLegal,
+        // Art. 16 LPRL: el plan de prevención y tener modalidad preventiva válida.
+        "Plan de Prevención" => NaturalezaJuridica.ObligacionLegal,
+        "Modalidad Preventiva" => NaturalezaJuridica.ObligacionLegal,
+        // Arts. 18 y 19 LPRL: informar y formar son obligaciones materiales.
+        // Ojo: la obligación es EL HECHO; el certificado es prueba, y la LPRL
+        // no fija caducidad — la renovación periódica sale de convenio.
+        "Información Art. 18" => NaturalezaJuridica.ObligacionLegal,
+        "Formación Art. 19" => NaturalezaJuridica.ObligacionLegal,
+
+        // — Obligación condicionada: la norma la exige en un supuesto concreto —
+        // Art. 22.1 LPRL: la vigilancia de la salud exige consentimiento del
+        // trabajador. El requisito documental se satisface con el
+        // reconocimiento O la renuncia (documentos alternativos, sin modelar).
+        "Apto médico laboral" => NaturalezaJuridica.ObligacionCondicionada,
+        // Dependen del supuesto: recursos preventivos y procedimiento de CAE.
+        "Designación de Recursos Preventivos" => NaturalezaJuridica.ObligacionCondicionada,
+        "Procedimiento de Coordinación de Actividades Empresariales" => NaturalezaJuridica.ObligacionCondicionada,
+        // Art. 43.1.f LGT: carga con efecto legal (excluye responsabilidad
+        // subsidiaria), con caducidad real de 12 meses exigible en cada pago.
+        "Certificado de estar al corriente con Hacienda" => NaturalezaJuridica.ObligacionCondicionada,
+        // Ley 45/1999: desplazamiento transnacional.
+        "Comunicación de desplazamiento" => NaturalezaJuridica.ObligacionCondicionada,
+        "Documento acreditativo de empresa extranjera" => NaturalezaJuridica.ObligacionCondicionada,
+        "Certificado A1 de Seguridad Social" => NaturalezaJuridica.ObligacionCondicionada,
+
+        // — Práctica del sector: ninguna norma lo exige, lo piden todos —
+        // RD 773/1997 obliga a PROPORCIONAR el EPI (art. 3.c); revisados los
+        // arts. 1-10, ninguno exige registro firmado de entrega.
+        "EPIS (firma)" => NaturalezaJuridica.PracticaSector,
+        // El blindaje del art. 42.1 ET nace de que la principal lo solicite a
+        // la TGSS, no de archivar el que envía el contratista. Se pide igual.
+        "Certificado de estar al corriente con la Seguridad Social" => NaturalezaJuridica.PracticaSector,
+        // Tener modalidad es obligación (arriba); entregar el concierto es práctica.
+        "SPA (Servicio de Prevención Ajeno)" => NaturalezaJuridica.PracticaSector,
+
+        // Todo lo demás: la afirmación más débil y verdadera.
+        _ => NaturalezaJuridica.RequisitoCliente,
+    };
+
     public static IEnumerable<TipoDocumento> CrearCopiasParaTenant() =>
         Datos.Select(t =>
         {
             var copia = new TipoDocumento(
-                t.Nombre, t.VigenciaMeses, t.AplicaVencimiento, t.Orden, t.Ambito, t.EsObligatorio, t.Notas);
+                t.Nombre, t.VigenciaMeses, t.AplicaVencimiento, t.Orden, t.Ambito,
+                t.EsObligatorio ? RequisitoDocumental.Si : RequisitoDocumental.No,
+                NaturalezaDe(t.Nombre), t.Notas);
             copia.EstablecerDeteccionTrabajadoresActiva(TieneDeteccionTrabajadores(t.Nombre));
             copia.EstablecerPerfilDocumentoOficial(PerfilOficialDe(t.Nombre));
             return copia;
@@ -224,7 +296,8 @@ public static class TipoDocumentoSeedData
             Orden = d.Orden,
             Notas = d.Notas,
             AmbitoAplicacion = d.Ambito,
-            EsObligatorio = d.EsObligatorio,
+            Requerido = d.EsObligatorio ? RequisitoDocumental.Si : RequisitoDocumental.No,
+            Naturaleza = NaturalezaDe(d.Nombre),
             LecturaIaActiva = true,
             DeteccionTrabajadoresActiva = IdsConDeteccionTrabajadores.Contains(d.Id),
             // Empieza desactivada para todo el catálogo semilla — mismo
