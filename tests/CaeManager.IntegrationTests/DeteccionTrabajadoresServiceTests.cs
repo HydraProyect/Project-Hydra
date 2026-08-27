@@ -66,7 +66,11 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
         var empresa = new Empresa("Ibertec S.A.");
         _dbContext.Empresas.Add(cliente);
         _dbContext.Empresas.Add(empresa);
-        _dbContext.EmpresasClientes.Add(new EmpresaCliente(empresa.Id, cliente.Id));
+        // F4.2c — el fixture siembra la MISMA fuente que el servicio lee (la
+        // arista): sembrar la tabla puente legacy dejaría este test en
+        // verde-por-vacío, midiendo nada.
+        _dbContext.RelacionesEmpresariales.Add(
+            CaeManager.Domain.RelacionesEmpresariales.RelacionEmpresarial.Crear(empresa.Id, cliente.Id, DateTime.UtcNow));
 
         var trabajadorQueSigue = Trabajador.DeEmpresa(empresa.Id, "Alvaro", "Sanchez Martin", "77189989B");
         var trabajadorQueYaNoAparece = Trabajador.DeEmpresa(empresa.Id, "Pedro", "Gomez Ruiz", "12345678Z");

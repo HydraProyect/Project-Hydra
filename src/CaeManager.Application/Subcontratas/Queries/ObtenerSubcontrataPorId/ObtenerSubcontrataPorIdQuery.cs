@@ -1,6 +1,5 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Subcontratas;
 using CaeManager.Domain.Subcontratas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,27 +13,20 @@ public record SubcontrataDetalleDto(
     Guid Version, NivelServicioSubcontrata NivelServicio);
 
 /// <summary>
-/// <b>F4.2b — deliberadamente NO migrado a <c>RelacionEmpresarial</c>, igual
-/// que <c>ObtenerEmpresaPorIdQuery</c>.</b> Se llegó a migrar y se revirtió al
-/// detectarlo una revisión adversarial (2026-08-27), porque este DTO no es de
-/// solo lectura: <c>SubcontrataWorkspacePanel</c> carga <c>ClienteIds</c>/
-/// <c>EmpresaIds</c> en los selectores y los devuelve tal cual a
-/// <c>EditarSubcontrataCommand</c>, que borra todo vínculo presente en
-/// "actuales" (repositorio legacy, sin filtro de soft delete) y ausente en
-/// "deseados". Un JOIN contra <c>Empresas</c> arrastra su filtro global de
-/// soft delete, así que una contraparte eliminada desaparecería de la lectura
-/// y el diff la borraría físicamente <b>y</b> cerraría su arista — de forma
-/// irreversible, en un flujo que sí ofrece "Deshacer al eliminar", y sin que
-/// el usuario haya tocado ese selector.
-///
-/// Los dos lados del diff tienen que leer la misma fuente. Este lector migra
-/// en el mismo incremento que mueva el diff de <c>EditarSubcontrataCommand</c>
-/// a <c>RelacionesEmpresariales</c>, no antes. Lo mismo aplica a
-/// <c>EjecutarImportacionCombinadaCommand</c>, que lee legacy por el mismo
-/// motivo.
+/// F4.2c: <c>ClienteIds</c>/<c>EmpresaIds</c> salen de la arista, con el
+/// MISMO criterio de clasificación que usa el diff de escritura de
+/// <c>EditarSubcontrataCommand</c> — la condición que faltaba cuando la
+/// primera migración de este lector (F4.2b) se revirtió: entonces la lectura
+/// filtraba soft delete y el diff de escritura leía el repositorio legacy
+/// sin filtrarlo, y una contraparte eliminada se borraba en silencio al
+/// guardar. Ahora ambos lados leen la clasificación de
+/// <c>ContrapartesVigentes</c>: una contraparte opaca no aparece aquí NI
+/// entra en "actuales" del diff, así que su relación sobrevive intacta.
+/// Igual que en <c>ObtenerEmpresaPorIdQuery</c>, los Ids NO se acotan por
+/// cartera a propósito.
 /// </summary>
 public class ObtenerSubcontrataPorIdQueryHandler(
-    IEmpresasQueryContext empresasContext, ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+    IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerSubcontrataPorIdQuery, SubcontrataDetalleDto?>
 {
     public async Task<SubcontrataDetalleDto?> Handle(ObtenerSubcontrataPorIdQuery request, CancellationToken cancellationToken)
@@ -48,14 +40,15 @@ public class ObtenerSubcontrataPorIdQueryHandler(
 
         if (subcontrata is null || subcontrata.NivelServicio is null) return null;
 
-        var clienteIds = await dbContext.SubcontratasClientes
-            .Where(sc => sc.SubcontrataId == request.Id)
-            .Select(sc => sc.ClienteId)
+        var relacionesVigentes = empresasContext.RelacionesEmpresariales
+            .Where(r => r.ProveedoraId == request.Id && r.VigenciaHasta == null);
+
+        var clienteIds = await relacionesVigentes
+            .Join(empresasContext.Empresas.Where(e => e.EsCritico != null), r => r.ClienteId, e => e.Id, (r, e) => e.Id)
             .ToListAsync(cancellationToken);
 
-        var empresaIds = await dbContext.SubcontratasEmpresas
-            .Where(se => se.SubcontrataId == request.Id)
-            .Select(se => se.EmpresaId)
+        var empresaIds = await relacionesVigentes
+            .Join(empresasContext.Empresas.Where(e => e.EsPropia), r => r.ClienteId, e => e.Id, (r, e) => e.Id)
             .ToListAsync(cancellationToken);
 
         return new SubcontrataDetalleDto(
