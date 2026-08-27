@@ -75,6 +75,24 @@ public class OrdinalesDeEnumsPublicadosTests
             }
         },
         {
+            nameof(RequisitoDocumental), new Dictionary<string, int>
+            {
+                [nameof(RequisitoDocumental.No)] = 0,
+                [nameof(RequisitoDocumental.Si)] = 1,
+                [nameof(RequisitoDocumental.Condicional)] = 2,
+            }
+        },
+        {
+            nameof(NaturalezaJuridica), new Dictionary<string, int>
+            {
+                [nameof(NaturalezaJuridica.ObligacionLegal)] = 0,
+                [nameof(NaturalezaJuridica.ObligacionCondicionada)] = 1,
+                [nameof(NaturalezaJuridica.PracticaSector)] = 2,
+                [nameof(NaturalezaJuridica.RequisitoCliente)] = 3,
+                [nameof(NaturalezaJuridica.Recomendacion)] = 4,
+            }
+        },
+        {
             nameof(AmbitoCausa), new Dictionary<string, int>
             {
                 [nameof(AmbitoCausa.Empresa)] = 0,

@@ -70,7 +70,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         var trabajador = Trabajador.DeEmpresa(empresa.Id, "Reclamación", "Documento Prueba", "77189989B");
         contexto.Trabajadores.Add(trabajador);
 
-        var tipo = new TipoDocumento("Certificado médico", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        var tipo = new TipoDocumento("Certificado médico", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
 
@@ -395,7 +395,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
                     var trabajador = Trabajador.DeEmpresa(empresa.Id, $"Bulk{i}", "Trabajador", GenerarDniValido(i));
                     setup.Trabajadores.Add(trabajador);
 
-                    var tipo = new TipoDocumento($"Tipo Bulk {i}", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+                    var tipo = new TipoDocumento($"Tipo Bulk {i}", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
                     setup.TiposDocumento.Add(tipo);
                     await setup.SaveChangesAsync();
 

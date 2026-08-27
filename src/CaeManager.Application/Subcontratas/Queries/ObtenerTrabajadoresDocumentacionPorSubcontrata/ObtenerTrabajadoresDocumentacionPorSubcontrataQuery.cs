@@ -92,7 +92,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, t.EsObligatorio })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
             .ToListAsync(cancellationToken);
 
         var tiposRequeridosPorTrabajador = new Dictionary<Guid, List<Guid>>();
@@ -113,7 +113,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
                 tiposRequeridosPorTrabajador[trabajadorId] = centrosDelTrabajador.Count == 0
                     ? []
                     : tiposCandidatos
-                        .Where(t => centrosDelTrabajador.Any(centroId => ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.EsObligatorio)))
+                        .Where(t => centrosDelTrabajador.Any(centroId => ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
                         .Select(t => t.Id)
                         .ToList();
             }

@@ -121,7 +121,7 @@ public class CalculoEstadoSubcontrataService(
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-            .Select(t => new { t.Id, t.Nombre, t.EsObligatorio })
+            .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
             .ToListAsync(cancellationToken);
 
         if (tiposCandidatos.Count == 0)
@@ -149,7 +149,7 @@ public class CalculoEstadoSubcontrataService(
             }
 
             tiposRequeridosPorTrabajador[trabajadorId] = tiposCandidatos
-                .Where(t => centrosDelTrabajador.Any(centroId => ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.EsObligatorio)))
+                .Where(t => centrosDelTrabajador.Any(centroId => ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
                 .Select(t => t.Id)
                 .ToList();
         }

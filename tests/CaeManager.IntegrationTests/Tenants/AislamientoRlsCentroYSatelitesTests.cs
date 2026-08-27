@@ -74,7 +74,7 @@ public class AislamientoRlsCentroYSatelitesTests : IAsyncLifetime
 
         var centro = new Centro(titular.Id, ejecutora.Id, nombreCentro);
         var trabajador = Trabajador.DeEmpresa(ejecutora.Id, "Nombre", "Apellidos", dni);
-        var tipoDocumento = new TipoDocumento($"Apto médico de {nombreCentro}", 12, true, 1, AmbitoAplicacion.Trabajador, esObligatorio: true);
+        var tipoDocumento = new TipoDocumento($"Apto médico de {nombreCentro}", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
         contexto.Centros.Add(centro);
         contexto.Trabajadores.Add(trabajador);
         contexto.TiposDocumento.Add(tipoDocumento);

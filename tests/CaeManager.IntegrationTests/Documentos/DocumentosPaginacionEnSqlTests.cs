@@ -47,7 +47,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         var cliente = Empresa.CrearComoCliente("Documentada S.L.", "B12345674", false, null, null);
         contexto.Empresas.Add(cliente);
 
-        var tipo = new TipoDocumento("Seguro RC", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, esObligatorio: true);
+        var tipo = new TipoDocumento("Seguro RC", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
 

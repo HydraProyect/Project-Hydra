@@ -530,7 +530,7 @@ public static class DatosPruebaSeeder
             .Select(nombre => tiposDocumento.Single(t => t.Nombre == nombre))
             .ToList();
         var tiposEmpresaObligatorios = tiposDocumento
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa && t.EsObligatorio)
+            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa && t.CuentaParaCumplimiento)
             .ToList();
         var tiposVehiculo = tiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Vehiculo)

@@ -45,7 +45,7 @@ public class DeteccionPurgaTests : IAsyncLifetime
         var empresa = new Empresa("Contrata Purgable S.L.", "B87654323");
         contexto.Empresas.Add(empresa);
 
-        var tipo = new TipoDocumento("Seguro RC", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, esObligatorio: true);
+        var tipo = new TipoDocumento("Seguro RC", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
 

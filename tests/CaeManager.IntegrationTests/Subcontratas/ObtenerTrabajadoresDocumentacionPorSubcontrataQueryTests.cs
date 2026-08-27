@@ -53,8 +53,8 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryTests : IAsyncLi
         var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata 360 Demo S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
         contexto.Empresas.Add(subcontrata);
 
-        var tipoA = new TipoDocumento("Tipo A", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, esObligatorio: false);
-        var tipoB = new TipoDocumento("Tipo B", null, aplicaVencimientoAutomatico: false, 2, AmbitoAplicacion.Trabajador, esObligatorio: false);
+        var tipoA = new TipoDocumento("Tipo A", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);
+        var tipoB = new TipoDocumento("Tipo B", null, aplicaVencimientoAutomatico: false, 2, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);
         contexto.TiposDocumento.AddRange(tipoA, tipoB);
         await contexto.SaveChangesAsync();
 

@@ -52,13 +52,19 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
 
         var drawer = page.Locator(".drawer-panel");
 
-        // --- Paso 0: Tipo de documento obligatorio para Trabajador ---
-        // Sin fila explícita de TipoDocumentoCentro, EsObligatorio=true basta
-        // para que aplique a cualquier centro (ResolucionTipoDocumentoCentro.Aplica).
+        // --- Paso 0: Tipo de documento requerido para Trabajador ---
+        // Sin fila explícita de TipoDocumentoCentro, que el tipo esté
+        // requerido basta para que aplique a cualquier centro
+        // (ResolucionTipoDocumentoCentro.Aplica).
+        //
+        // Se elige "Sí, siempre" y no "Solo si aplica" a propósito: solo
+        // Requerido == Si cuenta para el cumplimiento, porque la maquinaria
+        // que evalúa la condición todavía no existe. Con "Condicional" este
+        // centro no saldría en falta y el test dejaría de medir lo que mide.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/tipos-documento");
         await page.GetByText("+ Nuevo tipo").ClickAsync();
         await drawer.GetByLabel("Nombre").FillAsync(nombreTipoDocumento);
-        await drawer.GetByLabel("Obligatorio para todos los clientes").CheckAsync();
+        await drawer.GetByLabel("¿Se pide?").SelectOptionAsync("Si");
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
