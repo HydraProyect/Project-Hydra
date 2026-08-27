@@ -133,6 +133,16 @@ public partial class CentroDetalle : ComponentBase
     private void ProgramarVisita() =>
         NavigationManager.NavigateTo($"/visitas?centroId={CentroId}");
 
+    /// <summary>
+    /// "Generar informe del centro" del mockup no describe un informe nuevo —
+    /// /reportes ya genera Vigencia documental/Incidencias/Asignaciones con
+    /// alcance por Centro (GenerarInformeVigenciaQuery/GenerarInformeAsignacionesQuery,
+    /// ambas con CentroId). Es un deep-link que preselecciona cliente y centro,
+    /// mismo patrón que "Desglosar por cliente" de Inicio.
+    /// </summary>
+    private void GenerarInformeDelCentro() =>
+        NavigationManager.NavigateTo($"/reportes?clienteId={_detalle!.ClienteId}&centroId={CentroId}");
+
     private static string DescribirRecuento(IReadOnlyList<IncidenciaCentroDto> incidencias, string calificativo)
     {
         var deEmpresa = incidencias.Count(i => i.Ambito == AmbitoCausa.Empresa);
