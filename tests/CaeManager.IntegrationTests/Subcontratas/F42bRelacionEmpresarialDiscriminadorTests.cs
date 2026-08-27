@@ -1,6 +1,7 @@
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Domain.Empresas;
@@ -232,6 +233,44 @@ public class F42bRelacionEmpresarialDiscriminadorTests : IAsyncLifetime
         var resultado = await handler.Handle(new ObtenerClientesDeEmpresaQuery(subcontrataId), CancellationToken.None);
 
         resultado.Should().ContainSingle().Which.Id.Should().Be(clienteRealId);
+    }
+
+    /// <summary>
+    /// Dos propiedades a la vez, porque el defecto tenía dos capas: sin
+    /// <c>ClienteId</c> el selector ofrecía TODA la tabla <c>Empresas</c>
+    /// (incluidas contrapartes, defecto heredado de F3a), y con
+    /// <c>ClienteId</c> podía colar una Subcontrata que sirviera al mismo
+    /// Cliente.
+    /// </summary>
+    [Fact]
+    public async Task ObtenerEmpresasParaSelectorQuery_solo_ofrece_Empresas_propias_con_y_sin_ClienteId()
+    {
+        Guid clienteId, empresaPropiaId;
+        await using (var contexto = CrearContexto())
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Del Selector De Empresas S.A.", "B10380368", false, null, null);
+            var empresaPropia = new Empresa("Empresa Propia Ofrecible S.L.", "B10380376");
+            var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata No Ofrecible S.L.", "B10380384", NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.AddRange(cliente, empresaPropia, subcontrata);
+            await contexto.SaveChangesAsync();
+            clienteId = cliente.Id; empresaPropiaId = empresaPropia.Id;
+
+            var ahora = DateTime.UtcNow;
+            contexto.RelacionesEmpresariales.AddRange(
+                RelacionEmpresarial.Migrar(empresaPropiaId, clienteId, ahora, ahora),
+                RelacionEmpresarial.Migrar(subcontrata.Id, clienteId, ahora, ahora));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = new ObtenerEmpresasParaSelectorQueryHandler(lectura);
+
+        var acotado = await handler.Handle(new ObtenerEmpresasParaSelectorQuery(clienteId), CancellationToken.None);
+        acotado.Should().ContainSingle().Which.Id.Should().Be(empresaPropiaId);
+
+        // Sin ClienteId: el catálogo global tampoco debe incluir contrapartes.
+        var completo = await handler.Handle(new ObtenerEmpresasParaSelectorQuery(), CancellationToken.None);
+        completo.Should().ContainSingle().Which.Id.Should().Be(empresaPropiaId);
     }
 
     private CaeManagerDbContext CrearContexto()
