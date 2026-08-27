@@ -96,5 +96,18 @@ public class ApplicationServiceCollectionExtensionsTests
         public void CapturarExcepcion(Exception excepcion)
         {
         }
+
+        public void DejarMigaDePan(string mensaje)
+        {
+        }
+
+        public IDisposable IniciarAmbitoDeCaptura() => new AmbitoDePrueba();
+
+        private sealed class AmbitoDePrueba : IDisposable
+        {
+            public void Dispose()
+            {
+            }
+        }
     }
 }

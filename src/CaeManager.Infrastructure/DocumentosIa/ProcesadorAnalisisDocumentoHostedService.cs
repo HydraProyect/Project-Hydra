@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.ValidacionOficial;
 using CaeManager.Application.Documentos.Verificacion;
+using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Trabajadores.Deteccion;
 using CaeManager.Domain.DocumentosIa;
@@ -190,6 +191,11 @@ public class ProcesadorAnalisisDocumentoHostedService(
     {
         await RecuperarEstancadosAsync(tenantId, stoppingToken);
 
+        // Aísla en Sentry el historial de reintentos de cada trabajo (D3,
+        // decisión del propietario del producto): ver SeguimientoReintentosAnalisisIa
+        // (Application) para el porqué y el aislamiento por ámbito.
+        using var seguimiento = new SeguimientoReintentosAnalisisIa(alertaOperativa);
+
         while (!stoppingToken.IsCancellationRequested)
         {
             using var ambito = ambitoFactory.CreateScope();
@@ -198,6 +204,8 @@ public class ProcesadorAnalisisDocumentoHostedService(
             var repositorio = ambito.ServiceProvider.GetRequiredService<ITrabajoAnalisisDocumentoRepository>();
             var trabajo = await repositorio.ObtenerSiguientePendienteAsync(stoppingToken);
             if (trabajo is null) return;
+
+            seguimiento.AlEmpezarIntento(trabajo.Id);
 
             // Se marca "Procesando" y se guarda antes de ejecutar el análisis
             // — si el proceso se cae durante el análisis, el trabajo queda
@@ -232,27 +240,8 @@ public class ProcesadorAnalisisDocumentoHostedService(
                 logger.LogError(ex,
                     "Falló el análisis {Tipo} del trabajo {TrabajoId} (documento {DocumentoId}, tenant {TenantId}, intento {Intento}).",
                     trabajo.Tipo, trabajo.Id, trabajo.DocumentoId, tenantId, trabajo.Intentos + 1);
-                // Antes esto solo quedaba en el log local (Seq si está
-                // configurado): ni un solo fallo de análisis IA llegaba a
-                // Sentry (ver D3). CaptureException por intento, no solo al
-                // agotarse — con MaximoIntentos=3 no satura el canal, y cada
-                // intento puede fallar por una causa distinta que vale la
-                // pena ver por separado.
-                alertaOperativa.CapturarExcepcion(ex);
 
-                // FileNotFoundException es el único caso, hoy, en el que un
-                // servicio de análisis (ver VerificacionIaDocumentoService)
-                // relanza sin envolver para señalar "esto no va a cambiar en
-                // el siguiente intento" — el archivo del Documento no existe
-                // o no resuelve a este tenant. Reintentarlo 3 veces no
-                // compraría ninguna posibilidad de éxito, solo 2 llamadas de
-                // pago a un proveedor de IA y 2 eventos de Sentry más de
-                // más. Cualquier otro fallo (red, proveedor caído, timeout)
-                // sí puede ser transitorio y conserva el reintento normal.
-                if (ex is FileNotFoundException)
-                    trabajo.RegistrarFalloDefinitivo(ex.Message);
-                else
-                    trabajo.RegistrarFallo(ex.Message);
+                seguimiento.RegistrarFallo(trabajo, ex);
             }
 
             await AvisarSiCorrespondeAsync(ambito.ServiceProvider, trabajo, stoppingToken);
@@ -311,12 +300,18 @@ public class ProcesadorAnalisisDocumentoHostedService(
     ///
     /// Dos desenlaces avisan, y con mensajes distintos a propósito (D3): al
     /// completar con éxito, que ya está revisado; al agotar
-    /// <see cref="TrabajoAnalisisDocumento.MaximoIntentos"/> sin conseguirlo,
-    /// que NO se pudo revisar — nunca el primer mensaje para el segundo
-    /// caso, que es justo la mentira que este aviso tenía antes. Mientras
-    /// quedan reintentos (Estado vuelve a Pendiente) no se avisa nada
-    /// todavía: es un fallo transitorio que el propio sondeo va a reintentar
-    /// en segundos, no algo que el usuario tenga que atender ya.
+    /// <see cref="TrabajoAnalisisDocumento.MaximoIntentos"/> (o al fallar de
+    /// forma definitiva) sin conseguirlo, que la verificación no está
+    /// disponible — nunca el primer mensaje para el segundo caso, que es
+    /// justo la mentira que este aviso tenía antes. El texto del segundo
+    /// caso (decisión del propietario del producto) separa a propósito dos
+    /// hechos que el usuario podría confundir: el Documento SÍ se guardó —
+    /// eso no falló — lo que no está disponible es la verificación
+    /// automática. Dejarlo ambiguo empuja al usuario a volver a subir el
+    /// documento por si acaso, creyendo que se perdió. Mientras quedan
+    /// reintentos (Estado vuelve a Pendiente) no se avisa nada todavía: es
+    /// un fallo transitorio que el propio sondeo va a reintentar en
+    /// segundos, no algo que el usuario tenga que atender ya.
     /// </summary>
     private static Task AvisarSiCorrespondeAsync(
         IServiceProvider servicios, TrabajoAnalisisDocumento trabajo, CancellationToken cancellationToken)
@@ -358,16 +353,16 @@ public class ProcesadorAnalisisDocumentoHostedService(
     private static (string Titulo, string Mensaje, string UrlAccion, string TextoAccion) ObtenerAvisoFallido(TipoAnalisisDocumento tipo) => tipo switch
     {
         TipoAnalisisDocumento.VerificacionIa => (
-            "No se pudo verificar por IA",
-            "No hemos podido revisar automáticamente el documento que subiste (el archivo no se pudo leer o el proveedor de IA falló). Revísalo tú manualmente.",
+            "Verificación automática no disponible",
+            "El documento se guardó correctamente. No hemos podido revisarlo por IA — compruébalo tú manualmente.",
             "/documentos", "Ver documentos"),
         TipoAnalisisDocumento.DeteccionTrabajadores => (
-            "No se pudo completar la detección de personal",
-            "No hemos podido analizar automáticamente el documento que subiste en busca de altas y bajas de personal. Revísalo tú manualmente.",
+            "Detección de personal no disponible",
+            "El documento se guardó correctamente. No hemos podido analizarlo automáticamente en busca de altas y bajas de personal — revísalo tú manualmente.",
             "/trabajadores", "Ver trabajadores"),
         _ => (
-            "No se pudo validar el documento oficial",
-            "No hemos podido verificar automáticamente la firma digital del documento que subiste. Revísalo tú manualmente.",
+            "Validación de documento oficial no disponible",
+            "El documento se guardó correctamente. No hemos podido verificar automáticamente su firma digital — revísalo tú manualmente.",
             "/documentos", "Ver documentos"),
     };
 }

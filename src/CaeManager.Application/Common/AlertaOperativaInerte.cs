@@ -23,4 +23,19 @@ public class AlertaOperativaInerte : IAlertaOperativa
     public void CapturarExcepcion(Exception excepcion)
     {
     }
+
+    public void DejarMigaDePan(string mensaje)
+    {
+    }
+
+    public IDisposable IniciarAmbitoDeCaptura() => AmbitoInerte.Instance;
+
+    private sealed class AmbitoInerte : IDisposable
+    {
+        public static readonly AmbitoInerte Instance = new();
+
+        public void Dispose()
+        {
+        }
+    }
 }
