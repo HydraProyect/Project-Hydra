@@ -152,10 +152,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Clientes.ObtenerEmpresasDeClienteQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ObtenerResumenClienteQueryHandler", "IAsignacionesQueryContext"),
         ("Clientes.ObtenerResumenClienteQueryHandler", "ICentrosQueryContext"),
-        ("Clientes.ObtenerSubcontratasDeClienteQueryHandler", "ISubcontratasQueryContext"),
-        // F3b-Subcontrata: la parte SubcontrataId de este join ahora resuelve
-        // contra Empresas — el ISubcontratasQueryContext de arriba se
-        // conserva solo por la tabla puente SubcontratasClientes.
+        // F4.2b: repuntado a RelacionesEmpresariales — ya no depende de
+        // ISubcontratasQueryContext en absoluto.
         ("Clientes.ObtenerSubcontratasDeClienteQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "IConfiguracionIaDocumentoClienteRepository"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "INotificacionUsuarioRepository"),

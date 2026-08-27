@@ -1,6 +1,5 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Subcontratas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +23,7 @@ public record ObtenerSubcontratasParaSelectorQuery(Guid? EmpresaId = null) : IRe
 
 public record SubcontrataSelectorDto(Guid Id, string RazonSocial);
 
-public class ObtenerSubcontratasParaSelectorQueryHandler(IEmpresasQueryContext empresasContext, ISubcontratasQueryContext dbContext)
+public class ObtenerSubcontratasParaSelectorQueryHandler(IEmpresasQueryContext empresasContext)
     : IRequestHandler<ObtenerSubcontratasParaSelectorQuery, IReadOnlyList<SubcontrataSelectorDto>>
 {
     public async Task<IReadOnlyList<SubcontrataSelectorDto>> Handle(
@@ -34,9 +33,24 @@ public class ObtenerSubcontratasParaSelectorQueryHandler(IEmpresasQueryContext e
 
         if (request.EmpresaId is not null)
         {
-            var subcontrataIdsAsociadas = dbContext.SubcontratasEmpresas
-                .Where(se => se.EmpresaId == request.EmpresaId)
-                .Select(se => se.SubcontrataId);
+            // F4.2b: antes leía SubcontratasEmpresas. En la arista unificada esa
+            // shape es (Proveedora = Subcontrata, Cliente = Empresa propia), así
+            // que el par se busca por ClienteId.
+            //
+            // El filtro de vigencia SÍ cambia el comportamiento: la tabla legacy
+            // borraba físicamente al desvincular, mientras que una relación
+            // cerrada sigue en la tabla — sin él, el selector ofrecería
+            // subcontratas que ya no prestan servicio a esa Empresa.
+            //
+            // El JOIN discriminador es defensa en profundidad, no corrección: la
+            // consulta base ya restringe a NivelServicio != null, así que una
+            // Empresa propia que llegara a colarse en la subconsulta quedaría
+            // descartada igualmente. Se declara explícito para que quitar aquel
+            // filtro en el futuro no reintroduzca el fallo en silencio.
+            var subcontrataIdsAsociadas = empresasContext.RelacionesEmpresariales
+                .Where(r => r.ClienteId == request.EmpresaId && r.VigenciaHasta == null)
+                .Join(empresasContext.Empresas.Where(e => e.NivelServicio != null),
+                    r => r.ProveedoraId, e => e.Id, (r, e) => e.Id);
 
             consulta = consulta.Where(s => subcontrataIdsAsociadas.Contains(s.Id));
         }
