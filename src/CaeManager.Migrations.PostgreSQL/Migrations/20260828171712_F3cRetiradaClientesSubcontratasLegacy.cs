@@ -14,14 +14,24 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <c>NivelServicio != null</c>.
     ///
     /// <para>
-    /// <b>ARTEFACTO DE PRESERVACIÓN — PENDIENTE, BLOQUEA EL DESPLIEGUE.</b>
+    /// <b>ARTEFACTO DE PRESERVACIÓN — GENERADO Y VERIFICADO (2026-08-28).</b>
     /// Igual que el <c>DROP</c> de F4 (<c>F4CierreDropTablasPuente</c>), este
-    /// exige exportar íntegras las dos tablas desde PRODUCCIÓN a un artefacto
-    /// inmutable en el repositorio de negocio
-    /// (<c>tecnico/artefactos-migracion/</c>) y declarar aquí su SHA-256.
-    /// Hasta que ese hash sustituya a este párrafo, esta migración NO debe
-    /// desplegarse. La sesión que la escribió no tiene —ni debe tener— acceso
-    /// a producción: generar el artefacto es una acción del propietario.
+    /// exigía exportar íntegras las dos tablas desde PRODUCCIÓN a un artefacto
+    /// inmutable en el repositorio de negocio. Hecho:
+    /// <c>tecnico/artefactos-migracion/f3c-clientes-subcontratas-20260828.sql</c>
+    /// <code>
+    /// SHA-256  1dc62638fe16a6f52638008ccd558ba756dd823136f8c687597d22dc94cd27b5
+    /// filas    40 (21 Clientes + 19 Subcontratas)
+    /// </code>
+    /// Los recuentos coinciden exactos con los medidos en producción antes de
+    /// exportar, y el hash se verificó a los dos lados de la copia.
+    ///
+    /// Las dos comprobaciones del <c>Up()</c> se ejecutaron además A MANO contra
+    /// producción antes de desplegar, y dieron cero filas: ninguna fila legacy
+    /// sin contraparte en <c>Empresas</c>, ninguna divergencia de
+    /// <c>CreadoEnUtc</c>. No sustituyen a la verificación automática —siguen
+    /// ahí y siguen abortando— pero convierten el despliegue en algo cuyo
+    /// resultado se conoce antes de lanzarlo.
     /// </para>
     ///
     /// <para>
