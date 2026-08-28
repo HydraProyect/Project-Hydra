@@ -38,8 +38,11 @@ public class RetiradaTenantDemoServiceTests
         using var ambito = arnes.Servicios.CreateScope();
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
 
-        var intentar = async () => await RetiradaTenantDemoService.RetirarAsync(
-            contexto, TenantSeedData.IdPorDefecto, NullLogger.Instance);
+        // Paso 1 — la validación con identidad NO privilegiada, la que
+        // decide si vale la pena elevar. El tenant de plataforma se rechaza
+        // aquí y nunca llega a ver un contexto de bootstrap.
+        var intentar = async () => await RetiradaTenantDemoService.ValidarTenantRetirableAsync(
+            contexto, TenantSeedData.IdPorDefecto);
 
         await intentar.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*plataforma*");
@@ -73,8 +76,8 @@ public class RetiradaTenantDemoServiceTests
         using var ambito = arnes.Servicios.CreateScope();
         var contextoLectura = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
 
-        var intentar = async () => await RetiradaTenantDemoService.RetirarAsync(
-            contextoLectura, tenantRealId, NullLogger.Instance);
+        var intentar = async () => await RetiradaTenantDemoService.ValidarTenantRetirableAsync(
+            contextoLectura, tenantRealId);
 
         await intentar.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*no está en la lista de tenants de demo conocidos*");
@@ -199,7 +202,16 @@ public class RetiradaTenantDemoServiceTests
         RetiradaTenantDemoService.ResultadoRetirada resultado;
         await using (var contextoBootstrap = CrearContextoBootstrap(arnes))
         {
-            resultado = await RetiradaTenantDemoService.RetirarAsync(contextoBootstrap, tenantDexterId, NullLogger.Instance);
+            // Paso 1 con identidad no privilegiada, paso 2 con la de
+            // bootstrap — el mismo orden que Program.cs.
+            Tenant tenantValidado;
+            using (var ambitoValidacion = arnes.Servicios.CreateScope())
+            {
+                tenantValidado = await RetiradaTenantDemoService.ValidarTenantRetirableAsync(
+                    ambitoValidacion.ServiceProvider.GetRequiredService<CaeManagerDbContext>(), tenantDexterId);
+            }
+
+            resultado = await RetiradaTenantDemoService.RetirarAsync(contextoBootstrap, tenantValidado, NullLogger.Instance);
         }
 
         resultado.FilasBorradas.Should().BeGreaterThan(0);
@@ -300,7 +312,14 @@ public class RetiradaTenantDemoServiceTests
 
         await using (var contextoBootstrap = CrearContextoBootstrap(arnes))
         {
-            await RetiradaTenantDemoService.RetirarAsync(contextoBootstrap, tenantConsultoraId, NullLogger.Instance);
+            Tenant tenantValidado;
+            using (var ambitoValidacion = arnes.Servicios.CreateScope())
+            {
+                tenantValidado = await RetiradaTenantDemoService.ValidarTenantRetirableAsync(
+                    ambitoValidacion.ServiceProvider.GetRequiredService<CaeManagerDbContext>(), tenantConsultoraId);
+            }
+
+            await RetiradaTenantDemoService.RetirarAsync(contextoBootstrap, tenantValidado, NullLogger.Instance);
         }
 
         await using var contextoFinal = CrearContextoBootstrap(arnes);

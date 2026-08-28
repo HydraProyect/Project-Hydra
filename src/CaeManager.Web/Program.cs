@@ -474,6 +474,16 @@ if (args.Contains("--migrate-only"))
 // avisara — RLS no falla, solo no muestra. Medido: la primera versión de este
 // dispatch usaba el contexto inyectado y ese hueco pasó sin detectarse hasta
 // ejercitar la retirada de la Consultora de verdad.
+//
+// VALIDA PRIMERO, ELEVA DESPUÉS — con el contexto inyectado (rol
+// restringido), NO con el de bootstrap. Este comando corre con identidad de
+// propietario de base de datos y bypassa RLS por diseño: mientras la
+// allowlist no haya confirmado que el TenantId es retirable, el proceso no
+// tiene por qué tener en la mano una conexión capaz de tocar cualquier fila
+// de cualquier tenant. RetiradaTenantDemoService.ValidarTenantRetirableAsync
+// exige el contexto normal y devuelve el Tenant ya validado — la firma de
+// RetirarAsync exige ESE Tenant, no un Guid suelto, así que no hay forma de
+// llegar a FabricaContextoDeBootstrap.Crear() sin haber validado antes.
 if (args.Contains("--retirar-tenant-demo"))
 {
     var indiceArgumento = Array.IndexOf(args, "--retirar-tenant-demo");
@@ -486,14 +496,20 @@ if (args.Contains("--retirar-tenant-demo"))
     }
 
     using var scopeRetirada = app.Services.CreateScope();
-    await using var dbContextRetirada = scopeRetirada.ServiceProvider
-        .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>()
-        .Crear();
     var loggerRetirada = scopeRetirada.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     try
     {
-        var resultado = await RetiradaTenantDemoService.RetirarAsync(dbContextRetirada, tenantIdARetirar, loggerRetirada);
+        // Paso 1 — identidad NO privilegiada.
+        var dbContextNoPrivilegiado = scopeRetirada.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var tenantValidado = await RetiradaTenantDemoService.ValidarTenantRetirableAsync(dbContextNoPrivilegiado, tenantIdARetirar);
+
+        // Paso 2 — solo aquí, con el tenant ya validado, se eleva.
+        await using var dbContextRetirada = scopeRetirada.ServiceProvider
+            .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>()
+            .Crear();
+
+        var resultado = await RetiradaTenantDemoService.RetirarAsync(dbContextRetirada, tenantValidado, loggerRetirada);
         Console.WriteLine(
             $"Retirado: '{resultado.NombreTenant}' ({resultado.TenantId}) — " +
             $"{resultado.FilasBorradas} filas tenant-scoped, {resultado.UsuariosBorrados} usuarios.");

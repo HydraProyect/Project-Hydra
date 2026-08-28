@@ -15,16 +15,32 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// corre sola: la invoca un operador con el <c>TenantId</c> exacto (ver el
 /// modo <c>--retirar-tenant-demo</c> de <c>CaeManager.Web/Program.cs</c>).
 ///
-/// <b>El <see cref="CaeManagerDbContext"/> que recibe tiene que ser de
-/// identidad de BOOTSTRAP (<c>FabricaContextoDeBootstrap</c>), no el
-/// inyectado.</b> Igual que <c>AsignacionesOperativasBackfillSeeder</c>: la
-/// política RLS de <c>AsignacionesCartera</c>/<c>AsignacionesOperacion</c>
+/// <b>Este servicio corre con identidad de propietario de base de datos y
+/// bypassa RLS por diseño</b> (<c>FabricaContextoDeBootstrap</c>, no el
+/// contexto inyectado) — más poder de lectura/escritura que cualquier tráfico
+/// normal de la aplicación tiene jamás. Igual que
+/// <c>AsignacionesOperativasBackfillSeeder</c>: la política RLS de
+/// <c>AsignacionesCartera</c>/<c>AsignacionesOperacion</c>
 /// (<c>posicion_en_la_asignacion</c>) solo deja ver el lado Operador bajo
 /// <c>app.tenant_origen_id</c> == el tenant del usuario autenticado, una
 /// coordenada que no existe fuera de una sesión HTTP real. Con el contexto
 /// inyectado (rol restringido), retirar un tenant que opera la cartera de
-/// otro (una Consultora) dejaría esas filas huérfanas sin ningún error —
-/// RLS no falla, solo no muestra. Program.cs ya lo cablea así.
+/// otro (una Consultora) dejaría esas filas huérfanas sin ningún error — RLS
+/// no falla, solo no muestra.
+///
+/// <b>Precisamente porque eleva privilegios, la validación va ANTES de
+/// elevar, nunca después — y eso está en la firma de los métodos, no en el
+/// orden de las líneas.</b> <see cref="ValidarTenantRetirableAsync"/> corre
+/// con la identidad NO privilegiada (el contexto inyectado — <c>Tenants</c>
+/// no lleva RLS, así que esta lectura no la necesita) y es la ÚNICA forma de
+/// obtener el <see cref="Tenant"/> que <see cref="RetirarAsync"/> exige como
+/// parámetro: no hay ningún camino de compilación que llegue a
+/// <see cref="RetirarAsync"/> con un <c>Guid</c> suelto sin haber pasado antes
+/// por la validación. <see cref="RetirarAsync"/> repite igualmente el
+/// rechazo con el tenant ya validado, en profundidad, por si algún día algo
+/// construye un <see cref="Tenant"/> por otra vía — pero la validación
+/// determinante, la que decide si vale la pena elevar el proceso a todo, es
+/// la de antes.
 ///
 /// <b>La propiedad que importa de verdad, la única que este servicio existe
 /// para garantizar</b>: no puede alcanzar un tenant que no sea de demo. Se
@@ -96,17 +112,30 @@ public static class RetiradaTenantDemoService
     public sealed record ResultadoRetirada(string NombreTenant, Guid TenantId, int FilasBorradas, int UsuariosBorrados);
 
     /// <summary>
+    /// Paso 1, con identidad NO privilegiada — <paramref name="dbContext"/> es
+    /// el contexto inyectado normal (rol restringido), nunca el de bootstrap.
+    /// <c>Tenants</c> no lleva RLS (es el catálogo raíz, se lee antes de que
+    /// exista ningún contexto de tenant — ver <c>TenantConfiguration</c>), así
+    /// que esta lectura no necesita ningún privilegio elevado.
+    ///
     /// Lanza <see cref="InvalidOperationException"/> si el tenant no existe,
     /// es el de plataforma, o no está en <see cref="NombresTenantsDeDemo"/> —
-    /// fallo cerrado: ante cualquier duda, no borra nada.
+    /// fallo cerrado: ante cualquier duda, no se llega a elevar nada.
     /// </summary>
-    public static async Task<ResultadoRetirada> RetirarAsync(
-        CaeManagerDbContext dbContext, Guid tenantId, ILogger logger, CancellationToken cancellationToken = default)
+    public static async Task<Tenant> ValidarTenantRetirableAsync(
+        CaeManagerDbContext dbContext, Guid tenantId, CancellationToken cancellationToken = default)
     {
         var tenant = await dbContext.Tenants.IgnoreQueryFilters()
             .SingleOrDefaultAsync(t => t.Id == tenantId, cancellationToken)
             ?? throw new InvalidOperationException($"No existe ningún tenant con Id {tenantId} — no se borra nada.");
 
+        RechazarSiNoEsRetirable(tenant);
+
+        return tenant;
+    }
+
+    private static void RechazarSiNoEsRetirable(Tenant tenant)
+    {
         if (tenant.EsPlataforma)
             throw new InvalidOperationException(
                 $"'{tenant.Nombre}' es el tenant de plataforma — la retirada lo rechaza siempre, sin excepción.");
@@ -116,7 +145,23 @@ public static class RetiradaTenantDemoService
                 $"'{tenant.Nombre}' no está en la lista de tenants de demo conocidos " +
                 $"({string.Join(", ", NombresTenantsDeDemo)}) — la retirada se niega por diseño: solo borra " +
                 "tenants cuyo nombre coincide EXACTAMENTE con uno de los que siembran DelegacionDemoSeeder o SegundoTenantSeeder.");
+    }
 
+    /// <summary>
+    /// Paso 2, con identidad de BOOTSTRAP — <paramref name="dbContext"/> tiene
+    /// que venir de <c>FabricaContextoDeBootstrap</c>. Exige un
+    /// <see cref="Tenant"/> ya validado por <see cref="ValidarTenantRetirableAsync"/>,
+    /// no un <c>Guid</c> suelto: la firma hace estructuralmente imposible
+    /// llegar aquí sin haber pasado antes por el paso 1. Repite el rechazo de
+    /// todas formas (en profundidad, no por desconfianza del llamante) antes
+    /// de tocar una sola fila.
+    /// </summary>
+    public static async Task<ResultadoRetirada> RetirarAsync(
+        CaeManagerDbContext dbContext, Tenant tenant, ILogger logger, CancellationToken cancellationToken = default)
+    {
+        RechazarSiNoEsRetirable(tenant);
+
+        var tenantId = tenant.Id;
         var filasBorradas = 0;
         var usuariosBorrados = 0;
 
