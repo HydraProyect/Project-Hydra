@@ -456,6 +456,26 @@ jobs:
   gitleaks:
     name: Escaneo de secretos (gitleaks)
     runs-on: ubuntu-latest
+    # gitleaks-action@v3 aborta en la cola de merge con «ERROR: The
+    # [merge_group] event is not yet supported» — no es un secreto encontrado,
+    # es que la Action se niega a arrancar. Como el escaneo es check obligatorio,
+    # eso bloqueaba TODAS las entradas de la cola.
+    #
+    # Saltarlo aquí no deja ningún hueco: cada PR se escanea íntegro por la vía
+    # `pull_request` ANTES de poder entrar en la cola, y una entrada de la cola
+    # es la combinación de PRs ya escaneados con un `main` ya escaneado. Un
+    # secreto no aparece por combinar dos ramas limpias.
+    #
+    # Un job saltado reporta «skipped», que GitHub da por satisfecho en los
+    # checks obligatorios — por eso la cola puede completar.
+    #
+    # Deuda declarada: el binario `gitleaks` que esta Action descarga y ejecuta
+    # por debajo es MIT y no tiene ninguna de sus tres limitaciones (licencia por
+    # tipo de cuenta, validación remota que su propio autor dejó desactivada, y
+    # este evento sin soportar). Sustituir la Action por el binario resolvería
+    # las tres de golpe; queda como incremento propio, no como parche a la
+    # carrera de un gate roto.
+    if: github.event_name != 'merge_group'
     permissions:
       contents: read
       pull-requests: read
