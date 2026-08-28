@@ -9,12 +9,19 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # La cola de merge construye cada PR sobre una referencia temporal
+  # (`gh-readonly-queue/main/...`) que incluye los que van delante, y espera ahí
+  # los mismos checks obligatorios. Sin este disparador esos checks no se
+  # ejecutan nunca y la cola se queda colgada en silencio — no falla, espera.
+  merge_group:
 
 # Cancela ejecuciones anteriores del mismo PR/rama cuando llega un push nuevo
-# — evita gastar minutos de CI en un estado ya obsoleto.
+# — evita gastar minutos de CI en un estado ya obsoleto. La cola de merge queda
+# fuera a propósito: cada entrada tiene su propia referencia, y cancelar una
+# construcción de la cola la retiraría de la fila.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 env:
   DOTNET_NOLOGO: true
