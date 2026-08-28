@@ -164,6 +164,89 @@ public static class DatosPruebaSeeder
         "Alta en Seguridad Social"
     ];
 
+    /// <summary>
+    /// Los dos <see cref="TipoDocumento"/> de Trabajador marcados
+    /// <c>EsObligatorio</c> que <see cref="DocumentacionEstandarTrabajador"/>
+    /// <b>no</b> incluye — y que, por tanto, le faltaban a TODO trabajador
+    /// sembrado.
+    ///
+    /// <para>
+    /// <b>Por qué se añaden.</b> Un tipo obligatorio sin fila explícita de
+    /// <c>TipoDocumentoCentro</c> aplica a todos los centros
+    /// (<c>ResolucionTipoDocumentoCentro.Aplica</c>), y
+    /// <c>CalculadoraEstadoCentro</c> evalúa <c>Faltante</c> <b>antes</b> que
+    /// <c>Vencido/Urgente/Proximo</c>. Las dos cosas juntas hacían que el
+    /// hueco universal tapara cualquier otro estado: medido sobre la siembra
+    /// completa, <b>41 de 41</b> centros con plantilla salían
+    /// <c>Faltante</c> (40) o <c>Bloqueado</c> (1) — el semáforo entero de un
+    /// solo color, con el reparto de vigencias que sí siembra
+    /// <see cref="CrearDocumento"/> invisible detrás. Ver
+    /// <c>SemaforoDeCentrosDemoTests</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// Ninguno de los dos tiene vencimiento automático, así que se siembran
+    /// <b>sin consumir el generador aleatorio</b> (fecha de emisión derivada
+    /// del índice del trabajador): añadir dos tiradas por trabajador habría
+    /// desplazado la secuencia de toda la siembra posterior — vehículos,
+    /// visitas, incidencias, canales— sin ninguna necesidad.
+    /// </para>
+    /// </summary>
+    private static readonly string[] DocumentacionObligatoriaSinVencimientoTrabajador =
+    [
+        "Información Art. 18",
+        "DNI o NIE en vigor"
+    ];
+
+    /// <summary>
+    /// Peor estado de vigencia al que puede llegar la documentación de una
+    /// empresa contratista (o subcontrata) y de su plantilla.
+    ///
+    /// <para>
+    /// <b>Por qué el perfil es de la empresa y no del documento.</b> El estado
+    /// de un Centro es el <b>peor caso</b> de decenas de documentos (los ~20
+    /// obligatorios de su Empresa más los de cada trabajador con asignación
+    /// activa). Con un sorteo independiente por documento —lo que hacía la
+    /// siembra— la probabilidad de que un centro entero se libre de tener al
+    /// menos un vencido es despreciable: "mayoría de documentos vigente" se
+    /// convierte, agregado, en "casi todos los centros en rojo". El reparto
+    /// solo se ve en pantalla si se decide por el sujeto que agrega (la
+    /// empresa), no por cada documento suelto.
+    /// </para>
+    /// </summary>
+    private enum PerfilCumplimiento
+    {
+        AlDia = 0,
+        Proximo = 1,
+        Urgente = 2,
+        Vencido = 3
+    }
+
+    /// <summary>
+    /// Reparto determinista por posición en la lista (no sorteado: no consume
+    /// el generador aleatorio y garantiza que los cuatro perfiles están
+    /// representados pase lo que pase con el dado). La mitad de las empresas
+    /// al día es lo que hace que el semáforo tenga verde de verdad.
+    /// </summary>
+    private static PerfilCumplimiento PerfilDeEmpresa(int indice) => (indice % 10) switch
+    {
+        0 or 1 or 2 or 3 or 4 => PerfilCumplimiento.AlDia,
+        5 or 6 => PerfilCumplimiento.Proximo,
+        7 => PerfilCumplimiento.Urgente,
+        _ => PerfilCumplimiento.Vencido
+    };
+
+    /// <summary>
+    /// Las subcontratas van casi todas al día a propósito: su plantilla se
+    /// asigna a centros de OTRAS empresas (ver el bloque de asignaciones), así
+    /// que un perfil malo aquí no colorea un centro propio — contamina el de
+    /// un tercero y se lleva por delante el verde que la empresa titular sí
+    /// tenía. Una de cada cuatro basta para que el caso "el centro está en
+    /// rojo por la subcontrata, no por el titular" exista en la demo.
+    /// </summary>
+    private static PerfilCumplimiento PerfilDeSubcontrata(int indice) =>
+        indice % 4 == 3 ? PerfilCumplimiento.Vencido : PerfilCumplimiento.AlDia;
+
     /// <summary>Caricaturas de los 90 y 2000 — (nombre, apellidos).</summary>
     private static readonly (string Nombre, string Apellidos)[] NombresTrabajadores =
     [
@@ -626,17 +709,73 @@ public static class DatosPruebaSeeder
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Vehiculo)
             .ToList();
 
+        var tiposObligatoriosSinVencimiento = DocumentacionObligatoriaSinVencimientoTrabajador
+            .Select(nombre => tiposDocumento.Single(t => t.Nombre == nombre))
+            .ToList();
+
+        // --- Perfiles de cumplimiento (ver PerfilCumplimiento) ---
+        var perfilPorEmpresaId = new Dictionary<Guid, PerfilCumplimiento>();
+        for (var i = 0; i < empresas.Count; i++)
+            perfilPorEmpresaId[empresas[i].Id] = PerfilDeEmpresa(i);
+        for (var i = 0; i < subcontratas.Count; i++)
+            perfilPorEmpresaId[subcontratas[i].Id] = PerfilDeSubcontrata(i);
+
+        PerfilCumplimiento PerfilDeTrabajador(Trabajador trabajador) =>
+            perfilPorEmpresaId.GetValueOrDefault(
+                trabajador.EmpresaId ?? trabajador.SubcontrataId ?? Guid.Empty,
+                PerfilCumplimiento.AlDia);
+
+        // --- Huecos documentales deliberados ---
+        // Los dos tipos de DocumentacionObligatoriaSinVencimientoTrabajador se
+        // siembran para TODA la plantilla salvo en dos centros elegidos aquí:
+        // sin esa excepción no quedaría ningún EstadoCentro.Faltante que
+        // enseñar, y el requisito bloqueante de más abajo no tendría a quién
+        // faltarle. La elección es por CodigoCentro (secuencia fija de la
+        // siembra) y NO consume el generador aleatorio, para no desplazar el
+        // resto de la siembra.
+        var centrosConPlantilla = centros
+            .Where(c => trabajadoresPorCentro.ContainsKey(c.Id))
+            .OrderBy(c => c.CodigoCentro, StringComparer.Ordinal)
+            .ToList();
+        var centroSinIdentidad = centrosConPlantilla.ElementAtOrDefault(0);
+        var centroSinInformacionRiesgos = centrosConPlantilla.ElementAtOrDefault(1);
+
+        var trabajadorIdsSinDni = centroSinIdentidad is null
+            ? []
+            : trabajadoresPorCentro[centroSinIdentidad.Id].Select(t => t.Id).ToHashSet();
+        var trabajadorIdsSinInformacionRiesgos = centroSinInformacionRiesgos is null
+            ? []
+            : trabajadoresPorCentro[centroSinInformacionRiesgos.Id].Select(t => t.Id).ToHashSet();
+
         var documentos = new List<Documento>();
-        foreach (var trabajador in trabajadores)
+        for (var indice = 0; indice < trabajadores.Count; indice++)
         {
+            var trabajador = trabajadores[indice];
+            var perfil = PerfilDeTrabajador(trabajador);
+
             foreach (var tipo in tiposTrabajadorEstandar)
-                documentos.Add(CrearDocumento(aleatorio, hoy, tipo, id => Documento.DeTrabajador(trabajador.Id, id.TipoId, id.Emision, id.Vencimiento)));
+                documentos.Add(CrearDocumento(aleatorio, hoy, tipo, perfil, id => Documento.DeTrabajador(trabajador.Id, id.TipoId, id.Emision, id.Vencimiento)));
+
+            // Sin vencimiento y sin tirada de dado (ver
+            // DocumentacionObligatoriaSinVencimientoTrabajador): la emisión se
+            // deriva del índice solo para que no salgan todas el mismo día.
+            var emisionObligatoria = hoy.AddDays(-(30 + indice * 7 % 370));
+            foreach (var tipo in tiposObligatoriosSinVencimiento)
+            {
+                if (tipo.Nombre == "DNI o NIE en vigor" && trabajadorIdsSinDni.Contains(trabajador.Id))
+                    continue;
+                if (tipo.Nombre == "Información Art. 18" && trabajadorIdsSinInformacionRiesgos.Contains(trabajador.Id))
+                    continue;
+
+                documentos.Add(Documento.DeTrabajador(trabajador.Id, tipo.Id, emisionObligatoria, fechaVencimiento: null));
+            }
         }
 
         foreach (var empresa in empresas)
         {
+            var perfil = perfilPorEmpresaId[empresa.Id];
             foreach (var tipo in tiposEmpresaObligatorios)
-                documentos.Add(CrearDocumento(aleatorio, hoy, tipo, id => Documento.DeEmpresa(empresa.Id, id.TipoId, id.Emision, id.Vencimiento)));
+                documentos.Add(CrearDocumento(aleatorio, hoy, tipo, perfil, id => Documento.DeEmpresa(empresa.Id, id.TipoId, id.Emision, id.Vencimiento)));
         }
 
         // --- Vehículos con su documentación ---
@@ -652,7 +791,7 @@ public static class DatosPruebaSeeder
             vehiculos.Add(vehiculo);
 
             foreach (var tipo in tiposVehiculo)
-                documentos.Add(CrearDocumento(aleatorio, hoy, tipo, id => Documento.DeVehiculo(vehiculo.Id, id.TipoId, id.Emision, id.Vencimiento)));
+                documentos.Add(CrearDocumento(aleatorio, hoy, tipo, perfilPorEmpresaId[empresa.Id], id => Documento.DeVehiculo(vehiculo.Id, id.TipoId, id.Emision, id.Vencimiento)));
         }
         dbContext.Vehiculos.AddRange(vehiculos);
 
@@ -787,14 +926,17 @@ public static class DatosPruebaSeeder
         var proveedoresCae = await dbContext.ProveedoresPlataformaCae
             .Where(p => p.Activo).OrderBy(p => p.Codigo).Take(4).ToListAsync(cancellationToken);
 
-        // El bloque de "Requisitos documentales" de abajo necesita que
-        // centrosConCanal[0..2] tengan plantilla real: si no, el requisito se
-        // graba pero no hay ningún trabajador al que le falte, y el centro no
-        // sale bloqueado. SeleccionarCentrosConCanal sortea primero entre los
-        // centros con gente y solo completa con el resto si no hay
-        // suficientes — así la garantía no depende de dónde caiga el sorteo
-        // (ver SeleccionarCentrosConCanalTests, que la fuerza con Random
+        // Las variantes de TipoDocumentoCentro de más abajo (periodicidad
+        // especial, exclusión explícita) necesitan que centrosConCanal[1..2]
+        // tengan plantilla real: sin trabajadores a los que aplicar el
+        // requisito, la variante se graba pero no se ve en ninguna pantalla.
+        // SeleccionarCentrosConCanal sortea primero entre los centros con
+        // gente y solo completa con el resto si no hay suficientes — así la
+        // garantía no depende de dónde caiga el sorteo (ver
+        // SeleccionarCentrosConCanalTests, que la fuerza con Random
         // arbitrarios en vez de depender del seed fijo de producción).
+        // El requisito BLOQUEANTE ya no sale de aquí: se ancla al centro cuyo
+        // hueco de identidad se retiene a propósito (ver centroSinIdentidad).
         var centrosConCanal = SeleccionarCentrosConCanal(centros, centrosConGente, aleatorio);
         for (var i = 0; i < centrosConCanal.Count; i++)
         {
@@ -818,17 +960,27 @@ public static class DatosPruebaSeeder
             }
         }
 
-        // --- Requisitos documentales por centro. El bloqueante está
-        // garantizado: ningún trabajador sembrado tiene "DNI o NIE en vigor"
-        // (ver DocumentacionEstandarTrabajador) y centrosConCanal[0] sale de
-        // centros con plantilla real (ver arriba), así que ese centro queda
-        // en EstadoCentro.Bloqueado ---
+        // --- Requisito bloqueante. La garantía ya no es "a nadie le sobra el
+        // DNI" (desde que DocumentacionObligatoriaSinVencimientoTrabajador se
+        // siembra, a casi todos les consta): es que el hueco de "DNI o NIE en
+        // vigor" se retiene A PROPÓSITO en centroSinIdentidad, que por
+        // construcción tiene plantilla activa. El requisito y el hueco se
+        // deciden en el mismo sitio y con el mismo criterio, en vez de
+        // depender uno de un efecto secundario del otro ---
+        var tipoDniNie = tiposDocumento.Single(t => t.Nombre == "DNI o NIE en vigor");
+        if (centroSinIdentidad is not null)
+        {
+            dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
+                tipoDniNie.Id, centroSinIdentidad.Id, bloqueaAcceso: true));
+        }
+
+        // --- Variantes de TipoDocumentoCentro sobre centros con canal:
+        // periodicidad especial y exclusión explícita. Siguen apoyándose en
+        // que SeleccionarCentrosConCanal prioriza centros con plantilla real,
+        // porque sin plantilla ninguna de las dos se ve en pantalla ---
         if (centrosConCanal.Count >= 3)
         {
-            var tipoDniNie = tiposDocumento.Single(t => t.Nombre == "DNI o NIE en vigor");
             var tipoAptoMedico = tiposDocumento.Single(t => t.Nombre == "Apto médico laboral");
-            dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
-                tipoDniNie.Id, centrosConCanal[0].Id, bloqueaAcceso: true));
             dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
                 tipoAptoMedico.Id, centrosConCanal[1].Id, periodicidadEspecialMeses: 6));
             dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
@@ -951,19 +1103,51 @@ public static class DatosPruebaSeeder
     private readonly record struct DatosDocumento(Guid TipoId, DateOnly Emision, DateOnly? Vencimiento);
 
     /// <summary>
-    /// Reparto realista de estados: mayoría vigente, con próximos, urgentes y
-    /// vencidos suficientes para que Dashboard, semáforos y alertas tengan
-    /// materia en cada tenant.
+    /// Reparto realista de estados: dentro de una empresa la mayoría de los
+    /// documentos está al día, y solo una minoría cae en la banda del
+    /// <see cref="PerfilCumplimiento"/> de esa empresa — que es, por
+    /// construcción, el peor estado al que puede llegar su documentación y la
+    /// de su plantilla.
+    ///
+    /// <para>
+    /// <b>Bandas alineadas con los umbrales reales</b>
+    /// (<see cref="ParametroSistemaSeedData"/>: rojo ≤ 15 días, ámbar ≤ 30).
+    /// El reparto anterior sorteaba "próximo" entre 15 y 45 días, y la mitad
+    /// alta de ese rango caía en realidad en <c>Vigente</c> — un sorteo que no
+    /// producía el estado que decía producir.
+    /// </para>
+    ///
+    /// <para>
+    /// Consume <b>exactamente las mismas tiradas</b> que la versión anterior
+    /// (una para la banda, y otra para la emisión solo cuando el tipo no
+    /// vence): así el resto de la siembra —qué empresa, qué centro, qué
+    /// trabajador, cuántos de cada— no se desplaza, y lo único que cambia es
+    /// la fecha de vencimiento, que es lo que se pretendía cambiar.
+    /// </para>
     /// </summary>
     private static Documento CrearDocumento(
-        Random aleatorio, DateOnly hoy, TipoDocumento tipo, Func<DatosDocumento, Documento> fabrica)
+        Random aleatorio, DateOnly hoy, TipoDocumento tipo, PerfilCumplimiento perfil,
+        Func<DatosDocumento, Documento> fabrica)
     {
-        var diasHastaVencimiento = aleatorio.Next(100) switch
+        var sorteo = aleatorio.Next(100);
+
+        // Una cuarta parte de los documentos de una empresa marcada como
+        // "con problemas" los tiene de verdad; el resto está al día. Sin
+        // esto, un cliente en rojo saldría con el 100 % de su documentación
+        // en rojo, que no es un escenario que nadie reconozca.
+        var banda = sorteo < 25 ? perfil : PerfilCumplimiento.AlDia;
+
+        // Las tres primeras bandas solo se alcanzan con sorteo < 25 (ver la
+        // línea de arriba), así que el multiplicador reparte de verdad dentro
+        // de la banda: sin él, «-1 - sorteo % 180» prometía 180 días de
+        // recorrido y entregaba 25 — todos los vencidos de la demo caerían en
+        // las últimas tres semanas.
+        var diasHastaVencimiento = banda switch
         {
-            < 12 => -aleatorio.Next(1, 180),   // vencido
-            < 22 => aleatorio.Next(1, 15),     // urgente
-            < 38 => aleatorio.Next(15, 45),    // próximo
-            _ => aleatorio.Next(45, 400)        // vigente
+            PerfilCumplimiento.Vencido => -1 - sorteo * 7 % 180,    // 1..169 días vencido
+            PerfilCumplimiento.Urgente => sorteo % 16,              // 0..15  → Urgente
+            PerfilCumplimiento.Proximo => 16 + sorteo % 15,         // 16..30 → Proximo
+            _ => 31 + sorteo * 3                                     // 31..328 → Vigente
         };
 
         var vencimiento = tipo.AplicaVencimientoAutomatico ? hoy.AddDays(diasHastaVencimiento) : (DateOnly?)null;
