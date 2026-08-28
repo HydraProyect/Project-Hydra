@@ -272,11 +272,19 @@ public class WebAppFixture : IAsyncLifetime
     /// Sondea /salud (endpoint anónimo de Program.cs) hasta obtener 200 — es
     /// la señal real de que las migraciones y la siembra de datos de prueba
     /// (varios cientos de filas) ya terminaron, no solo que el proceso existe.
+    ///
+    /// Presupuesto de 120s: tres sesiones midieron el arranque en frío por
+    /// separado el 2026-08-28 y rondaba los 63s contra un presupuesto de 60s
+    /// — producía fallos rojos con traza en InitializeAsync que no eran del
+    /// código bajo prueba (en caliente los mismos tests pasan en 3-4s). El
+    /// margen no penaliza el camino feliz: el sondeo devuelve en cuanto /salud
+    /// responde 200, así que un techo más alto solo importa cuando el arranque
+    /// ya iba lento.
     /// </summary>
     private async Task EsperarArranqueAsync()
     {
         using var cliente = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-        var limite = DateTime.UtcNow.AddSeconds(60);
+        var limite = DateTime.UtcNow.AddSeconds(120);
 
         while (DateTime.UtcNow < limite)
         {
