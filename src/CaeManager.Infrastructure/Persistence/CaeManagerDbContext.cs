@@ -5,7 +5,6 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Auditoria;
 using CaeManager.Application.Blindaje42;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
@@ -36,7 +35,6 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Blindaje42;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Cumplimiento;
@@ -75,7 +73,7 @@ public class CaeManagerDbContext(
     IDataProtectionProvider dataProtectionProvider,
     ITenantActual tenantActual)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options), IUnitOfWork,
-        IClientesQueryContext, IEmpresasQueryContext, ISubcontratasQueryContext, ICentrosQueryContext,
+        IEmpresasQueryContext, ISubcontratasQueryContext, ICentrosQueryContext,
         ITrabajadoresQueryContext, ITiposDocumentoQueryContext, IDocumentosQueryContext, IDocumentosIaQueryContext,
         INotificacionesQueryContext, IAsignacionesQueryContext, IVisitasQueryContext, IVehiculosQueryContext,
         IConfiguracionQueryContext, IAuditoriaQueryContext, ITenantsQueryContext,
@@ -114,8 +112,6 @@ public class CaeManagerDbContext(
     private void AplicarFiltroTenantConSoftDelete<TEntidad>(ModelBuilder builder) where TEntidad : EntidadBase =>
         builder.Entity<TEntidad>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
 
-    public DbSet<Cliente> Clientes => Set<Cliente>();
-    IQueryable<Cliente> IClientesQueryContext.Clientes => Clientes;
     public DbSet<Centro> Centros => Set<Centro>();
     IQueryable<Centro> ICentrosQueryContext.Centros => Centros;
     public DbSet<CanalGestionDocumental> CanalesGestionDocumental => Set<CanalGestionDocumental>();
@@ -124,8 +120,6 @@ public class CaeManagerDbContext(
     IQueryable<Empresa> IEmpresasQueryContext.Empresas => Empresas;
     public DbSet<CredencialAccesoEmpresa> CredencialesAccesoEmpresa => Set<CredencialAccesoEmpresa>();
     IQueryable<CredencialAccesoEmpresa> IEmpresasQueryContext.CredencialesAccesoEmpresa => CredencialesAccesoEmpresa;
-    public DbSet<Subcontrata> Subcontratas => Set<Subcontrata>();
-    IQueryable<Subcontrata> ISubcontratasQueryContext.Subcontratas => Subcontratas;
     public DbSet<CredencialAccesoSubcontrata> CredencialesAccesoSubcontrata => Set<CredencialAccesoSubcontrata>();
     IQueryable<CredencialAccesoSubcontrata> ISubcontratasQueryContext.CredencialesAccesoSubcontrata => CredencialesAccesoSubcontrata;
     public DbSet<VerificacionExternaSubcontrata> VerificacionesExternaSubcontrata => Set<VerificacionExternaSubcontrata>();

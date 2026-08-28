@@ -1,6 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -43,7 +43,7 @@ public class AuditoriaConIdentidadDualTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.Normal(usuarioId))))
         {
-            contexto.Clientes.Add(new Cliente("Cliente auditado", "B12345674", false));
+            contexto.Empresas.Add(Empresa.CrearComoCliente("Cliente auditado", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null));
             await contexto.SaveChangesAsync();
         }
 
@@ -68,7 +68,8 @@ public class AuditoriaConIdentidadDualTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto(new ActorAuditoriaFalso(actor)))
         {
-            contexto.Clientes.Add(new Cliente("Cliente delegado", "B58818501", false));
+            contexto.Empresas.Add(Empresa.CrearComoCliente(
+                "Cliente delegado", "B58818501", esCritico: false, notas: null, ejecutivoUsuarioId: null));
             await contexto.SaveChangesAsync();
         }
 
@@ -93,7 +94,8 @@ public class AuditoriaConIdentidadDualTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto(new ActorAuditoriaFalso(actor)))
         {
-            contexto.Clientes.Add(new Cliente("Cliente impersonado", "B10380186", false));
+            contexto.Empresas.Add(Empresa.CrearComoCliente(
+                "Cliente impersonado", "B10380186", esCritico: false, notas: null, ejecutivoUsuarioId: null));
             await contexto.SaveChangesAsync();
         }
 
@@ -112,7 +114,7 @@ public class AuditoriaConIdentidadDualTests : IAsyncLifetime
         // de fondo. Registrar "Normal sin usuario" sería mentir: no se sabe.
         await using (var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.SinResolver)))
         {
-            contexto.Clientes.Add(new Cliente("Cliente sin actor", "B10380194", false));
+            contexto.Empresas.Add(Empresa.CrearComoCliente("Cliente sin actor", "B10380194", esCritico: false, notas: null, ejecutivoUsuarioId: null));
             await contexto.SaveChangesAsync();
         }
 
@@ -134,7 +136,8 @@ public class AuditoriaConIdentidadDualTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto(actorLento))
         {
-            contexto.Clientes.Add(new Cliente("Cliente sincrono", "B10380202", false));
+            contexto.Empresas.Add(Empresa.CrearComoCliente(
+                "Cliente sincrono", "B10380202", esCritico: false, notas: null, ejecutivoUsuarioId: null));
             contexto.SaveChanges();
         }
 
@@ -149,7 +152,7 @@ public class AuditoriaConIdentidadDualTests : IAsyncLifetime
         await using var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.SinResolver));
 
         return await contexto.RegistrosAuditoria
-            .Where(r => r.EntidadTipo == nameof(Cliente))
+            .Where(r => r.EntidadTipo == nameof(Empresa))
             .OrderByDescending(r => r.FechaUtc)
             .FirstAsync();
     }

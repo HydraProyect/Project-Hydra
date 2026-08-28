@@ -91,20 +91,20 @@ public class ArnesDeArranqueRuntimeTests
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
 
         var tenant = Guid.NewGuid();
-        await SembrarClienteComoPropietarioAsync(arnes.CadenaPropietario, tenant);
+        await SembrarEmpresaComoPropietarioAsync(arnes.CadenaPropietario, tenant);
 
         using (var ambito = arnes.Servicios.CreateScope())
         {
             var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
 
-            (await contexto.Clientes.IgnoreQueryFilters().CountAsync()).Should().Be(0,
+            (await contexto.Empresas.IgnoreQueryFilters().CountAsync()).Should().Be(0,
                 "sin AmbitoTenantExplicito el interceptor no fija app.tenant_id y RLS no empareja nada: " +
                 "la ausencia de coordenada cierra, no abre. IgnoreQueryFilters descarta el filtro de EF, " +
                 "así que lo que queda observado es RLS y no la primera capa");
 
             using (AmbitoTenantExplicito.Establecer(tenant))
             {
-                (await contexto.Clientes.IgnoreQueryFilters().CountAsync()).Should().Be(1,
+                (await contexto.Empresas.IgnoreQueryFilters().CountAsync()).Should().Be(1,
                     "con el ámbito puesto, el interceptor propaga app.tenant_id y la fila aparece");
             }
         }
@@ -112,14 +112,14 @@ public class ArnesDeArranqueRuntimeTests
         await using var propietario = new NpgsqlConnection(arnes.CadenaPropietario);
         await propietario.OpenAsync();
         await using var comando = propietario.CreateCommand();
-        comando.CommandText = @"SELECT count(*) FROM ""Clientes"";";
+        comando.CommandText = @"SELECT count(*) FROM ""Empresas"";";
 
         Convert.ToInt32(await comando.ExecuteScalarAsync()).Should().Be(1,
             "control negativo: el propietario la ve siempre, así que el cero de arriba es RLS filtrando " +
             "y no una fila que no llegó a escribirse");
     }
 
-    private static async Task SembrarClienteComoPropietarioAsync(string cadena, Guid tenant)
+    private static async Task SembrarEmpresaComoPropietarioAsync(string cadena, Guid tenant)
     {
         await using var conexion = new NpgsqlConnection(cadena);
         await conexion.OpenAsync();
@@ -130,9 +130,10 @@ public class ArnesDeArranqueRuntimeTests
         // una columna NOT NULL, y el sintoma (23502 / 42703) no se parece en nada
         // a lo que el test pretende medir.
         comando.CommandText = @"
-INSERT INTO ""Clientes""
-    (""Id"", ""TenantId"", ""RazonSocial"", ""Cif"", ""EsCritico"", ""Version"", ""CreadoEnUtc"", ""EstaEliminado"")
-VALUES (@id, @tenant, 'Cliente del arnés', @cif, false, gen_random_uuid(), now(), false);";
+INSERT INTO ""Empresas""
+    (""Id"", ""TenantId"", ""RazonSocial"", ""Cif"", ""EsCritico"", ""EsPropia"", ""EsActividadAnexoI"",
+     ""Version"", ""CreadoEnUtc"", ""EstaEliminado"")
+VALUES (@id, @tenant, 'Empresa del arnés', @cif, false, false, false, gen_random_uuid(), now(), false);";
         comando.Parameters.AddWithValue("id", Guid.NewGuid());
         comando.Parameters.AddWithValue("tenant", tenant);
         comando.Parameters.AddWithValue("cif", $"B{Random.Shared.Next(10000000, 99999999)}");

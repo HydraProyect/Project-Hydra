@@ -65,7 +65,10 @@ comprobar_tabla() {
     echo "    $tabla: $filas filas"
 }
 # Tablas núcleo: si alguna no existe, pg_restore no restauró el esquema completo y el script falla aquí.
-comprobar_tabla "Clientes"
+# F3c (2026-08-28) retiró "Clientes": toda contraparte es hoy una fila de
+# "Empresas", que ya está en esta lista. Comprobarla seguiría abortando el
+# ensayo con set -e sobre una restauración correcta — un falso negativo de
+# backup, que es justo lo contrario de lo que este guion existe para detectar.
 comprobar_tabla "Empresas"
 comprobar_tabla "Trabajadores"
 comprobar_tabla "Documentos"

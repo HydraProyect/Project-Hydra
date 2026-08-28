@@ -1,5 +1,5 @@
 using CaeManager.Application.Common;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -42,13 +42,15 @@ public class SoloLecturaEnLaCapaDeDatosTests : IAsyncLifetime
         await using var contexto = CrearContexto(_tenantVisitado);
         await contexto.Database.MigrateAsync();
 
-        var cliente = new Cliente("Cliente Visitado S.L.", "B12345674", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente(
+            "Cliente Visitado S.L.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        contexto.Empresas.Add(cliente);
         await contexto.SaveChangesAsync();
         _clienteId = cliente.Id;
 
         await using var contextoAjeno = CrearContexto(_otroTenant);
-        contextoAjeno.Clientes.Add(new Cliente("Cliente Ajeno S.L.", "B87654323", esCritico: false));
+        contextoAjeno.Empresas.Add(Empresa.CrearComoCliente(
+            "Cliente Ajeno S.L.", "B87654323", esCritico: false, notas: null, ejecutivoUsuarioId: null));
         await contextoAjeno.SaveChangesAsync();
     }
 
@@ -90,9 +92,9 @@ public class SoloLecturaEnLaCapaDeDatosTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("INSERT INTO \"Clientes\" (\"Id\", \"TenantId\", \"RazonSocial\", \"Cif\") VALUES (gen_random_uuid(), @tenant, 'Intruso S.L.', 'B00000000');")]
-    [InlineData("UPDATE \"Clientes\" SET \"RazonSocial\" = 'Manipulado' WHERE \"Id\" = @cliente;")]
-    [InlineData("DELETE FROM \"Clientes\" WHERE \"Id\" = @cliente;")]
+    [InlineData("INSERT INTO \"Empresas\" (\"Id\", \"TenantId\", \"RazonSocial\", \"Cif\", \"EsPropia\", \"EsActividadAnexoI\", \"CreadoEnUtc\", \"EstaEliminado\", \"Version\") VALUES (gen_random_uuid(), @tenant, 'Intruso S.L.', 'B00000000', false, false, now(), false, gen_random_uuid());")]
+    [InlineData("UPDATE \"Empresas\" SET \"RazonSocial\" = 'Manipulado' WHERE \"Id\" = @cliente;")]
+    [InlineData("DELETE FROM \"Empresas\" WHERE \"Id\" = @cliente;")]
     public async Task El_rol_de_soporte_no_puede_escribir_ni_con_sql_directo(string sql)
     {
         // Por debajo de MediatR, de los repositorios y del propio EF: si la
@@ -146,7 +148,7 @@ public class SoloLecturaEnLaCapaDeDatosTests : IAsyncLifetime
         await conexion.OpenAsync();
 
         await using var comando = conexion.CreateCommand();
-        comando.CommandText = "SELECT has_table_privilege('cae_app_soporte', '\"Clientes\"', @privilegio);";
+        comando.CommandText = "SELECT has_table_privilege('cae_app_soporte', '\"Empresas\"', @privilegio);";
         comando.Parameters.AddWithValue("privilegio", privilegio);
 
         ((bool)(await comando.ExecuteScalarAsync())!).Should().Be(esperado);
@@ -162,7 +164,8 @@ public class SoloLecturaEnLaCapaDeDatosTests : IAsyncLifetime
         // por MediatR y por tanto sin que AutorizacionEscrituraBehavior tenga
         // nada que decir. Falla en la base.
         await using var contexto = CrearContexto(_tenantVisitado, sesionPrivilegiadaId: Guid.NewGuid());
-        contexto.Clientes.Add(new Cliente("Escrito por soporte S.L.", "B66666678", esCritico: false));
+        contexto.Empresas.Add(Empresa.CrearComoCliente(
+            "Escrito por soporte S.L.", "B66666678", esCritico: false, notas: null, ejecutivoUsuarioId: null));
 
         var accion = async () => await contexto.SaveChangesAsync();
 
@@ -177,7 +180,7 @@ public class SoloLecturaEnLaCapaDeDatosTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto(_tenantVisitado, sesionPrivilegiadaId: Guid.NewGuid());
 
-        var clientes = await contexto.Clientes.ToListAsync();
+        var clientes = await contexto.Empresas.ToListAsync();
 
         clientes.Should().ContainSingle().Which.RazonSocial.Should().Be("Cliente Visitado S.L.");
     }
@@ -189,11 +192,12 @@ public class SoloLecturaEnLaCapaDeDatosTests : IAsyncLifetime
         // rol solo se adopta cuando el token nombra una sesión privilegiada.
         // Adoptarlo de más dejaría la aplicación entera en solo lectura.
         await using var contexto = CrearContexto(_tenantVisitado);
-        contexto.Clientes.Add(new Cliente("Operador normal S.L.", "B33333337", esCritico: false));
+        contexto.Empresas.Add(Empresa.CrearComoCliente(
+            "Operador normal S.L.", "B33333337", esCritico: false, notas: null, ejecutivoUsuarioId: null));
 
         await contexto.SaveChangesAsync();
 
-        (await contexto.Clientes.CountAsync()).Should().Be(2);
+        (await contexto.Empresas.CountAsync()).Should().Be(2);
     }
 
     /// <summary>
@@ -226,13 +230,14 @@ public class SoloLecturaEnLaCapaDeDatosTests : IAsyncLifetime
         await using var contexto = CrearContexto(
             _tenantVisitado, sesionPrivilegiadaId: Guid.NewGuid(), cadenaConexion: comoRuntime);
 
-        var clientes = await contexto.Clientes.ToListAsync();
+        var clientes = await contexto.Empresas.ToListAsync();
 
         clientes.Should().ContainSingle().Which.RazonSocial.Should().Be("Cliente Visitado S.L.",
             "si esto falla, la sesión de soporte no llegó a abrirse —falta la membresía— y la aserción de " +
             "escritura de abajo mediría otra cosa");
 
-        contexto.Clientes.Add(new Cliente("Escrito por soporte S.L.", "B66666678", esCritico: false));
+        contexto.Empresas.Add(Empresa.CrearComoCliente(
+            "Escrito por soporte S.L.", "B66666678", esCritico: false, notas: null, ejecutivoUsuarioId: null));
 
         var accion = async () => await contexto.SaveChangesAsync();
 
@@ -287,14 +292,14 @@ public class SoloLecturaEnLaCapaDeDatosTests : IAsyncLifetime
     private static async Task<long> ContarClientesAsync(NpgsqlConnection conexion)
     {
         await using var consulta = conexion.CreateCommand();
-        consulta.CommandText = "SELECT count(*) FROM \"Clientes\";";
+        consulta.CommandText = "SELECT count(*) FROM \"Empresas\";";
         return (long)(await consulta.ExecuteScalarAsync())!;
     }
 
     private static async Task<List<string>> LeerNombresClientesAsync(NpgsqlConnection conexion)
     {
         await using var consulta = conexion.CreateCommand();
-        consulta.CommandText = "SELECT \"RazonSocial\" FROM \"Clientes\";";
+        consulta.CommandText = "SELECT \"RazonSocial\" FROM \"Empresas\";";
 
         var nombres = new List<string>();
         await using var lector = await consulta.ExecuteReaderAsync();

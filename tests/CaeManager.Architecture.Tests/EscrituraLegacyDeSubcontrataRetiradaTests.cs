@@ -21,6 +21,16 @@ namespace CaeManager.Architecture.Tests;
 /// <c>CaeManagerDbContext</c> directo, o resucitando el repositorio retirado)
 /// rompe CI de inmediato.
 /// </para>
+///
+/// <para>
+/// <b>F3c (2026-08-28)</b>: la tabla y su <c>DbSet</c> ya no existen — se
+/// retiraron con <c>F3cRetiradaClientesSubcontratasLegacy</c>, y las tres
+/// consultas que aquí se citaban como congeladas leen ya <c>Empresas</c>.
+/// Hoy escribir sobre ese <c>DbSet</c> es un error de compilación, garantía
+/// más fuerte que este ratchet. Se conserva con sensibilidad residual, igual
+/// que su gemelo de Cliente: cubre solo que alguien reintroduzca la entidad
+/// entera y vuelva a escribir en ella.
+/// </para>
 /// </summary>
 public class EscrituraLegacyDeSubcontrataRetiradaTests
 {

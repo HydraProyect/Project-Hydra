@@ -1,5 +1,4 @@
 ﻿using CaeManager.Domain.Alertas;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -53,18 +52,18 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
         Guid clienteId;
         await using (var contextoA = CrearContexto(_tenantA))
         {
-            var cliente = new Cliente("RENDELSUR", "B12345674", esCritico: false);
-            contextoA.Clientes.Add(cliente);
+            var cliente = Empresa.CrearComoCliente("RENDELSUR", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+            contextoA.Empresas.Add(cliente);
             await contextoA.SaveChangesAsync();
             clienteId = cliente.Id;
         }
 
         await using var contextoB = CrearContexto(_tenantB);
-        var visibleParaB = await contextoB.Clientes.FirstOrDefaultAsync(c => c.Id == clienteId);
+        var visibleParaB = await contextoB.Empresas.FirstOrDefaultAsync(c => c.Id == clienteId);
         visibleParaB.Should().BeNull();
 
         await using var contextoAOtraVez = CrearContexto(_tenantA);
-        var visibleParaA = await contextoAOtraVez.Clientes.FirstOrDefaultAsync(c => c.Id == clienteId);
+        var visibleParaA = await contextoAOtraVez.Empresas.FirstOrDefaultAsync(c => c.Id == clienteId);
         visibleParaA.Should().NotBeNull();
     }
 
@@ -72,7 +71,7 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
     public async Task Una_alerta_creada_por_el_tenant_A_es_invisible_para_el_tenant_B()
     {
         // Cubre también el caso de entidad EntidadConTenant-directa (sin soft
-        // delete), no solo las que extienden EntidadBase como Cliente.
+        // delete), no solo las que extienden EntidadBase como Empresa.
         Guid alertaId;
         await using (var contextoA = CrearContexto(_tenantA))
         {
@@ -108,8 +107,8 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
     public async Task El_interceptor_sella_TenantId_del_tenant_actual_sin_que_el_codigo_lo_asigne()
     {
         await using var contextoA = CrearContexto(_tenantA);
-        var cliente = new Cliente("Ibertec S.A.", "B12345674", esCritico: false);
-        contextoA.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Ibertec S.A.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        contextoA.Empresas.Add(cliente);
         await contextoA.SaveChangesAsync();
 
         cliente.TenantId.Should().Be(_tenantA);
@@ -119,8 +118,8 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
     public async Task No_se_puede_crear_una_entidad_sin_tenant_resuelto()
     {
         await using var contextoSinTenant = CrearContexto(tenantId: null);
-        var cliente = new Cliente("Sin tenant", "B12345674", esCritico: false);
-        contextoSinTenant.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Sin tenant", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        contextoSinTenant.Empresas.Add(cliente);
 
         var accion = async () => await contextoSinTenant.SaveChangesAsync();
 
@@ -133,8 +132,8 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
         Guid clienteId;
         await using (var contextoA = CrearContexto(_tenantA))
         {
-            var cliente = new Cliente("RENDELSUR", "B12345674", esCritico: false);
-            contextoA.Clientes.Add(cliente);
+            var cliente = Empresa.CrearComoCliente("RENDELSUR", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+            contextoA.Empresas.Add(cliente);
             await contextoA.SaveChangesAsync();
             clienteId = cliente.Id;
         }
@@ -145,11 +144,11 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
         // saltándose el filtro (IgnoreQueryFilters justificado y revisado,
         // ver docs/MULTITENANCY.md § 4.2) y modificada después.
         await using var contextoB = CrearContexto(_tenantB);
-        var clienteDeOtroTenant = await contextoB.Clientes
+        var clienteDeOtroTenant = await contextoB.Empresas
             .IgnoreQueryFilters()
             .SingleAsync(c => c.Id == clienteId);
 
-        clienteDeOtroTenant.Actualizar("Nombre modificado por otro tenant", "B12345674", esCritico: true, notas: null);
+        clienteDeOtroTenant.ActualizarComoCliente("Nombre modificado por otro tenant", "B12345674", esCritico: true, notas: null);
 
         var accion = async () => await contextoB.SaveChangesAsync();
 
@@ -163,7 +162,8 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
 
         await using (var contextoA = CrearContexto(_tenantA))
         {
-            contextoA.Clientes.Add(new Cliente("Empresa en tenant A", cifCompartido, esCritico: false));
+            contextoA.Empresas.Add(Empresa.CrearComoCliente(
+                "Empresa en tenant A", cifCompartido, esCritico: false, notas: null, ejecutivoUsuarioId: null));
             await contextoA.SaveChangesAsync();
         }
 
@@ -171,7 +171,8 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
         // ver docs/MULTITENANCY.md § 5).
         await using (var contextoB = CrearContexto(_tenantB))
         {
-            contextoB.Clientes.Add(new Cliente("La misma empresa, vista por otro tenant", cifCompartido, esCritico: false));
+            contextoB.Empresas.Add(Empresa.CrearComoCliente(
+                "La misma empresa, vista por otro tenant", cifCompartido, esCritico: false, notas: null, ejecutivoUsuarioId: null));
             var guardarEnB = async () => await contextoB.SaveChangesAsync();
             await guardarEnB.Should().NotThrowAsync();
         }
@@ -179,7 +180,8 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
         // Mismo CIF, mismo tenant — debe rechazarse por el índice único compuesto.
         await using (var contextoADuplicado = CrearContexto(_tenantA))
         {
-            contextoADuplicado.Clientes.Add(new Cliente("Duplicado dentro del mismo tenant", cifCompartido, esCritico: false));
+            contextoADuplicado.Empresas.Add(Empresa.CrearComoCliente(
+                "Duplicado dentro del mismo tenant", cifCompartido, esCritico: false, notas: null, ejecutivoUsuarioId: null));
             var guardarDuplicado = async () => await contextoADuplicado.SaveChangesAsync();
             await guardarDuplicado.Should().ThrowAsync<DbUpdateException>();
         }

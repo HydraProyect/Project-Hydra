@@ -1,6 +1,5 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
@@ -43,7 +42,7 @@ public class EjecutarImportacionCommandHandler(
     ITrabajadorRepository trabajadorRepositorio,
     IDocumentoRepository documentoRepositorio,
     IAsignacionRepository asignacionRepositorio,
-    IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
+    IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
@@ -52,7 +51,12 @@ public class EjecutarImportacionCommandHandler(
         var plan = request.Plan;
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var clientesPorNombre = await clientesContext.Clientes.ToDictionaryAsync(
+        // F3c (2026-08-28): leía la tabla legacy Clientes, congelada desde
+        // F3b — un Cliente creado tras el freeze no se reconocía al importar y
+        // su fila se omitía con el motivo "no existe todavía". "Cliente" es la
+        // Empresa contraparte con EsCritico != null, mismo discriminador que
+        // ObtenerClientesQuery.
+        var clientesPorNombre = await empresasContext.Empresas.Where(e => e.EsCritico != null).ToDictionaryAsync(
             c => c.RazonSocial, c => c.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
         var centrosPorNombre = await centrosContext.Centros.ToDictionaryAsync(
             c => c.Nombre, c => c.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);

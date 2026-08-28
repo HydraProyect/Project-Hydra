@@ -1,10 +1,8 @@
 using CaeManager.Application.Centros;
-using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
-using CaeManager.Application.Subcontratas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
@@ -39,8 +37,8 @@ public record ResultadoBusquedaGlobalDto(
 }
 
 public class BuscarGlobalQueryHandler(
-    ICentrosQueryContext centrosContext, IClientesQueryContext clientesContext, IEmpresasQueryContext empresasContext,
-    ISubcontratasQueryContext subcontratasContext, ITrabajadoresQueryContext trabajadoresContext,
+    ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
+    ITrabajadoresQueryContext trabajadoresContext,
     IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     IVehiculosQueryContext vehiculosContext, IProyectosQueryContext proyectosContext,
     IAlcanceDatosService alcanceDatos) : IRequestHandler<BuscarGlobalQuery, ResultadoBusquedaGlobalDto>
@@ -69,7 +67,15 @@ public class BuscarGlobalQueryHandler(
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
-        var clientes = await clientesContext.Clientes
+        // F3c (2026-08-28): las ramas Cliente y Subcontrata leían las tablas
+        // legacy Clientes/Subcontratas, congeladas desde F3b (PR #279/#280) —
+        // un alta posterior al freeze no aparecía nunca en Ctrl+K. Ambas son
+        // Empresas contraparte; el discriminador es el mismo que ya usan
+        // ObtenerClientesQuery (EsCritico != null) y ObtenerSubcontratasQuery
+        // (NivelServicio != null). El alcance de cartera no cambia: los Ids que
+        // devuelve IAlcanceDatosService son Empresa.Id desde el repunteo de FKs
+        // de F3b.
+        var clientes = await empresasContext.Empresas.Where(e => e.EsCritico != null)
             .Where(c => clienteIdsVisibles == null || clienteIdsVisibles.Contains(c.Id))
             .Where(c => c.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(c => c.RazonSocial)
@@ -85,7 +91,7 @@ public class BuscarGlobalQueryHandler(
             .Select(e => new ItemBusquedaDto(e.Id, e.RazonSocial, "Empresa", $"/empresas?q={Uri.EscapeDataString(e.RazonSocial)}"))
             .ToListAsync(cancellationToken);
 
-        var subcontratas = await subcontratasContext.Subcontratas
+        var subcontratas = await empresasContext.Empresas.Where(e => e.NivelServicio != null)
             .Where(s => subcontrataIdsVisibles == null || subcontrataIdsVisibles.Contains(s.Id))
             .Where(s => s.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(s => s.RazonSocial)
@@ -146,7 +152,10 @@ public class BuscarGlobalQueryHandler(
             from documento in documentosContext.Documentos
             where documento.ClienteId != null
             where clienteIdsVisibles == null || clienteIdsVisibles.Contains(documento.ClienteId!.Value)
-            join cliente in clientesContext.Clientes on documento.ClienteId!.Value equals cliente.Id
+            // Documento.ClienteId apunta a Empresas desde el repunteo de FKs de
+            // F3b — el ancla sigue siendo la contraparte, no la relación (F4b
+            // diferida, ADR-011 § 18.1).
+            join cliente in empresasContext.Empresas on documento.ClienteId!.Value equals cliente.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             where tipoDocumento.Nombre.ToUpper().Contains(terminoMayus)
             select new { documento.Id, TipoNombre = tipoDocumento.Nombre, PropietarioNombre = cliente.RazonSocial };

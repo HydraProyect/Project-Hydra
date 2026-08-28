@@ -19,8 +19,8 @@ public class CrearSubcontrataCommandValidator : AbstractValidator<CrearSubcontra
     {
         RuleFor(c => c.RazonSocial)
             .NotEmpty().WithMessage("La razón social es obligatoria.")
-            .MaximumLength(Subcontrata.LongitudMaximaRazonSocial)
-            .WithMessage($"La razón social no puede superar {Subcontrata.LongitudMaximaRazonSocial} caracteres.");
+            .MaximumLength(Empresa.LongitudMaximaRazonSocial)
+            .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
 
         RuleFor(c => c.Cif)
             .Must(EsCifValido).WithMessage("El CIF no es válido.")

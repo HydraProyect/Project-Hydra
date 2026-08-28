@@ -96,16 +96,16 @@ public class F3bSubcontrataRepunteoFksTests : IAsyncLifetime
         await AplicarMigracionF3aAsync(tenantId);
         await AplicarMigracionF3bAsync(tenantId);
 
-        await using var contexto = CrearContexto(tenantId);
-        var subcontrataSoloLegacy = new Subcontrata("Solo en legacy S.L.", "B12345674");
-        contexto.Subcontratas.Add(subcontrataSoloLegacy);
-        await contexto.SaveChangesAsync();
+        var subcontrataSoloLegacyId = Guid.NewGuid();
+        await SiembraTablasLegacyF3.InsertarSubcontrataAsync(
+            _cadenaConexion, subcontrataSoloLegacyId, tenantId, "Solo en legacy S.L.", "B12345674");
 
-        contexto.Trabajadores.Add(Trabajador.DeSubcontrata(subcontrataSoloLegacy.Id, "Imposible", "De Verdad", "87654321X"));
+        await using var contexto = CrearContexto(tenantId);
+        contexto.Trabajadores.Add(Trabajador.DeSubcontrata(subcontrataSoloLegacyId, "Imposible", "De Verdad", "87654321X"));
         var accion = async () => await contexto.SaveChangesAsync();
 
         await accion.Should().ThrowAsync<DbUpdateException>(
-            "subcontrataSoloLegacy.Id no existe en Empresas — la FK repuntada debe rechazarlo aunque exista en Subcontratas");
+            "subcontrataSoloLegacyId no existe en Empresas — la FK repuntada debe rechazarlo aunque exista en Subcontratas");
     }
 
     [Fact]
@@ -117,15 +117,10 @@ public class F3bSubcontrataRepunteoFksTests : IAsyncLifetime
         // de F3a es un INSERT único que solo copia lo que exista en el
         // momento de su propio Up().
         var tenantId = Guid.NewGuid();
-        Guid subcontrataId;
+        var subcontrataId = Guid.NewGuid();
 
-        await using (var contextoPrevio = CrearContexto(tenantId))
-        {
-            var subcontrata = new Subcontrata("Subcontrata Preexistente S.L.", "B10380186");
-            contextoPrevio.Subcontratas.Add(subcontrata);
-            await contextoPrevio.SaveChangesAsync();
-            subcontrataId = subcontrata.Id;
-        }
+        await SiembraTablasLegacyF3.InsertarSubcontrataAsync(
+            _cadenaConexion, subcontrataId, tenantId, "Subcontrata Preexistente S.L.", "B10380186");
 
         await AplicarMigracionF3aAsync(tenantId);
         await AplicarMigracionF3bAsync(tenantId);
