@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260827232108_HabilitarRlsSolicitudCertificacionTgss")]
+    partial class HabilitarRlsSolicitudCertificacionTgss
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2640,7 +2643,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
                             Orden = 23,
                             PerfilDocumentoOficial = "Ninguno",
-                            Requerido = "No",
+                            Requerido = "Si",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             VerificacionIaActiva = false
                         },
@@ -2752,7 +2755,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Notas = "Vigente hasta modificación — vencimiento manual.",
                             Orden = 30,
                             PerfilDocumentoOficial = "Ninguno",
-                            Requerido = "Condicional",
+                            Requerido = "Si",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             VerificacionIaActiva = false
                         },
@@ -2768,7 +2771,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Notas = "Vigente hasta revisión — vencimiento manual.",
                             Orden = 31,
                             PerfilDocumentoOficial = "Ninguno",
-                            Requerido = "Condicional",
+                            Requerido = "Si",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             VerificacionIaActiva = false
                         },
@@ -5993,9 +5996,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreadoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DatosDemoCompletadosEnUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("EsPlataforma")

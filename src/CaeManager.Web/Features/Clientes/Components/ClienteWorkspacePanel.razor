@@ -1,8 +1,10 @@
 @*
     Panel de Cliente para el Context Workspace (ver arquitectura acordada
     con el usuario). Pestañas: Información, Empresas, Subcontratas, Centros,
-    Documentación, Actividad (= historial de auditoría, con otro nombre
-    porque Cliente no tiene una pestaña "Historial" separada), Notas.
+    Blindaje 42.1 (art. 42.1/42.2 ET — certificaciones TGSS solicitadas
+    sobre cada Empresa relacionada), Documentación, Actividad (= historial de
+    auditoría, con otro nombre porque Cliente no tiene una pestaña
+    "Historial" separada), Notas.
 
     "Centros" es la relación directa: Centro.ClienteId es FK real (un Cliente
     es dueño de todos sus Centros, los opere la Empresa que los opere) — a
@@ -15,6 +17,7 @@
 @using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Blindaje42.Components
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
@@ -137,6 +140,10 @@ else
                 }
                 break;
 
+            case "blindaje42":
+                <PestanaBlindaje42 EntidadId="EntidadId" />
+                break;
+
             case "documentacion":
                 <PestanaDocumentacion Ambito="AmbitoAplicacion.Cliente" PropietarioId="EntidadId" />
                 break;
@@ -163,6 +170,7 @@ else
         new("empresas", "Empresas"),
         new("subcontratas", "Subcontratas"),
         new("centros", "Centros"),
+        new("blindaje42", "Blindaje 42.1"),
         new("documentacion", "Documentación"),
         new("agenda", "Agenda"),
         new("actividad", "Actividad"),

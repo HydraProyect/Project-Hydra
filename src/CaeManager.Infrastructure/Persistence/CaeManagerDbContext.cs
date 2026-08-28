@@ -3,6 +3,7 @@ using System.Reflection;
 using CaeManager.Application.ApiKeys;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Auditoria;
+using CaeManager.Application.Blindaje42;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Comunicaciones;
@@ -33,6 +34,7 @@ using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.Blindaje42;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
@@ -82,7 +84,8 @@ public class CaeManagerDbContext(
         IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext,
         ITelemetriaQueryContext, CaeManager.Application.Contactos.IContactosAgendaQueryContext,
         CaeManager.Application.Plantillas.IPlantillasQueryContext, IImportacionQueryContext, IReportesQueryContext,
-        IOperacionesQueryContext, CaeManager.Application.Plataforma.IPlataformaQueryContext
+        IOperacionesQueryContext, CaeManager.Application.Plataforma.IPlataformaQueryContext,
+        IBlindaje42QueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -129,6 +132,8 @@ public class CaeManagerDbContext(
     IQueryable<VerificacionExternaSubcontrata> ISubcontratasQueryContext.VerificacionesExternaSubcontrata => VerificacionesExternaSubcontrata;
     public DbSet<RelacionEmpresarial> RelacionesEmpresariales => Set<RelacionEmpresarial>();
     IQueryable<RelacionEmpresarial> IEmpresasQueryContext.RelacionesEmpresariales => RelacionesEmpresariales;
+    public DbSet<SolicitudCertificacionTgss> SolicitudesCertificacionTgss => Set<SolicitudCertificacionTgss>();
+    IQueryable<SolicitudCertificacionTgss> IBlindaje42QueryContext.SolicitudesCertificacionTgss => SolicitudesCertificacionTgss;
     public DbSet<Trabajador> Trabajadores => Set<Trabajador>();
     IQueryable<Trabajador> ITrabajadoresQueryContext.Trabajadores => Trabajadores;
     public DbSet<DeteccionTrabajador> DeteccionesTrabajador => Set<DeteccionTrabajador>();
