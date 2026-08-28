@@ -460,6 +460,20 @@ if (args.Contains("--migrate-only"))
 // tenant que no esté en su allowlist de nombres de demo conocidos, empezando
 // por el de plataforma — ese rechazo es la garantía real, no esta capa de
 // entrada.
+//
+// Identidad de BOOTSTRAP (FabricaContextoDeBootstrap), no el contexto
+// inyectado: igual que AsignacionesOperativasBackfillSeeder, la retirada es
+// cross-tenant por naturaleza — tiene que ver y borrar los dos catálogos
+// globales de asignación operativa (ver RetiradaTenantDemoService) tanto por
+// la posición de propietario como por la de operador, y su política RLS
+// (posicion_en_la_asignacion) solo deja ver el lado operador bajo la
+// coordenada de tenant de origen del usuario autenticado — una coordenada que
+// no existe en un proceso administrativo sin sesión. Bajo el rol restringido,
+// un tenant que retira siendo operador de la cartera de otro (p. ej. ArcoSPA,
+// la Consultora) dejaría esas filas huérfanas sin que ningún error lo
+// avisara — RLS no falla, solo no muestra. Medido: la primera versión de este
+// dispatch usaba el contexto inyectado y ese hueco pasó sin detectarse hasta
+// ejercitar la retirada de la Consultora de verdad.
 if (args.Contains("--retirar-tenant-demo"))
 {
     var indiceArgumento = Array.IndexOf(args, "--retirar-tenant-demo");
@@ -472,7 +486,9 @@ if (args.Contains("--retirar-tenant-demo"))
     }
 
     using var scopeRetirada = app.Services.CreateScope();
-    var dbContextRetirada = scopeRetirada.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+    await using var dbContextRetirada = scopeRetirada.ServiceProvider
+        .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>()
+        .Crear();
     var loggerRetirada = scopeRetirada.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     try

@@ -15,6 +15,17 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// corre sola: la invoca un operador con el <c>TenantId</c> exacto (ver el
 /// modo <c>--retirar-tenant-demo</c> de <c>CaeManager.Web/Program.cs</c>).
 ///
+/// <b>El <see cref="CaeManagerDbContext"/> que recibe tiene que ser de
+/// identidad de BOOTSTRAP (<c>FabricaContextoDeBootstrap</c>), no el
+/// inyectado.</b> Igual que <c>AsignacionesOperativasBackfillSeeder</c>: la
+/// política RLS de <c>AsignacionesCartera</c>/<c>AsignacionesOperacion</c>
+/// (<c>posicion_en_la_asignacion</c>) solo deja ver el lado Operador bajo
+/// <c>app.tenant_origen_id</c> == el tenant del usuario autenticado, una
+/// coordenada que no existe fuera de una sesión HTTP real. Con el contexto
+/// inyectado (rol restringido), retirar un tenant que opera la cartera de
+/// otro (una Consultora) dejaría esas filas huérfanas sin ningún error —
+/// RLS no falla, solo no muestra. Program.cs ya lo cablea así.
+///
 /// <b>La propiedad que importa de verdad, la única que este servicio existe
 /// para garantizar</b>: no puede alcanzar un tenant que no sea de demo. Se
 /// demuestra, no se promete — ver
@@ -41,16 +52,23 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// </para>
 ///
 /// <para>
-/// Los catálogos globales que referencian este tenant o a sus usuarios sin FK
-/// real (<c>DelegacionesTenant</c>, <c>AsignacionesOperadorDelegado</c>,
+/// Los catálogos globales que referencian este tenant o a sus usuarios no los
+/// alcanza el bucle de <see cref="EntidadConTenant"/> porque no heredan de
+/// ella; se limpian aquí explícitamente, y no todos por el mismo motivo.
+/// <c>DelegacionesTenant</c>, <c>AsignacionesOperadorDelegado</c>,
 /// <c>AceptacionesTerminos</c>, <c>FiltrosGuardados</c>,
-/// <c>PreferenciasDashboardUsuario</c>, <c>SesionesPrivilegiadas</c>,
-/// <c>TenantsAlcanzadosPorConcesion</c> — ver los comentarios "Sin
-/// HasQueryFilter" de sus configuraciones) no los alcanza el bucle de
-/// <see cref="EntidadConTenant"/> porque no heredan de ella; se limpian aquí
-/// explícitamente. Postgres no los habría bloqueado (no hay constraint física
-/// hacia <c>Tenants</c> en ninguno, comprobado en las configuraciones), pero
-/// dejarlos sería basura huérfana silenciosa.
+/// <c>PreferenciasDashboardUsuario</c>, <c>SesionesPrivilegiadas</c> y
+/// <c>TenantsAlcanzadosPorConcesion</c> no tienen FK física hacia
+/// <c>Tenants</c> (ver los comentarios "Sin HasQueryFilter" de sus
+/// configuraciones) — dejarlos sería basura huérfana silenciosa, pero
+/// Postgres no los habría bloqueado. <c>AsignacionesCartera</c> y
+/// <c>AsignacionesOperacion</c> son distintas: SÍ llevan FK compuesta
+/// <c>Restrict</c> hacia Empresa/Centro/Trabajador/Proyecto por
+/// <c>PropietarioTenantId</c> (ADR-011, plano 2) — sin limpiarlas primero,
+/// Postgres rechaza con un 23503 en cuanto el tenant retirado es propietario
+/// de alguna asignación. Esto no lo demostró el test contra el arnés (que
+/// nunca corre <c>AsignacionesOperativasBackfillSeeder</c>): lo destapó la
+/// primera ejecución real del binario contra una base sembrada de verdad.
 /// </para>
 /// </summary>
 public static class RetiradaTenantDemoService
@@ -119,6 +137,27 @@ public static class RetiradaTenantDemoService
                     filasBorradas++;
                 }
             }
+
+            // AsignacionesCartera/AsignacionesOperacion (plano 2, ADR-011): NO
+            // heredan de EntidadConTenant (cruzan tenants por naturaleza, ver
+            // AsignacionOperacionConfiguration), así que el bucle de arriba no
+            // las toca. Pero SÍ llevan FK compuesta Restrict hacia
+            // Empresa/Centro/Trabajador/Proyecto por PropietarioTenantId — sin
+            // esto, Postgres rechaza el borrado de la cartera con un 23503 en
+            // cuanto el tenant retirado es Propietario de alguna asignación
+            // (comprobado contra el proceso real, no solo en test: la primera
+            // vez que corrí --retirar-tenant-demo de verdad falló exactamente
+            // aquí). OperadorTenantId se limpia igual, por higiene — no tiene
+            // FK física, pero una asignación cuyo operador ya no existe es
+            // basura huérfana. Cartera antes que Operación en el código para
+            // que se lea en el orden de dependencia, aunque el único
+            // SaveChangesAsync de abajo resuelve el orden real por sí solo.
+            dbContext.RemoveRange(await dbContext.AsignacionesCartera
+                .Where(a => a.PropietarioTenantId == tenantId || a.OperadorTenantId == tenantId)
+                .ToListAsync(cancellationToken));
+            dbContext.RemoveRange(await dbContext.AsignacionesOperacion
+                .Where(a => a.PropietarioTenantId == tenantId || a.OperadorTenantId == tenantId)
+                .ToListAsync(cancellationToken));
 
             var usuarios = await dbContext.Users.Where(u => u.TenantId == tenantId).ToListAsync(cancellationToken);
             var idsUsuarios = usuarios.Select(u => u.Id).ToHashSet();
