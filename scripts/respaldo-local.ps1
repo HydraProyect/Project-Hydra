@@ -26,7 +26,16 @@
                                           silencio si $RaizNegocio no existe.
       3. locales-<fecha>.zip           - los ficheros ignorados del repo publico que si
                                           importan, mas un parche con el trabajo sin
-                                          commitear (que ningun bundle ve).
+                                          commitear y los ficheros que git no sigue
+                                          (nada de eso lo ve un bundle).
+      4. negocio-locales-<fecha>.zip   - lo mismo para el repositorio de negocio. Se
+                                          anadio el 2026-08-28, cuando se descubrio que
+                                          el artefacto 3 solo miraba el repo publico:
+                                          26 documentos de disenio de dominio llevaban
+                                          dos semanas sin rastrear y fuera de toda
+                                          copia. La asimetria estaba al reves — el repo
+                                          sin remoto era el peor cubierto. No se genera
+                                          si no hay nada pendiente.
 
     Cada artefacto se escribe con extension .part y solo se renombra al terminar, para
     que Drive nunca sincronice un fichero a medio escribir.
@@ -97,6 +106,52 @@ function Generar-Bundle([string]$RaizRepo, [string]$Prefijo, [string]$CarpetaTem
     }
 }
 
+# Captura lo que NINGUN bundle ve: el trabajo sin commitear y los ficheros que git
+# no sigue. Se extrajo a funcion cuando se descubrio (2026-08-28) que solo se aplicaba
+# al repositorio publico: 26 documentos de disenio de dominio del repo de negocio
+# llevaban dos semanas sin rastrear y, por tanto, fuera de toda copia — justo el repo
+# que NO tiene remoto y para el que el bundle es la unica redundancia.
+function Capturar-Local([string]$RaizRepo, [string]$AreaDestino, [string[]]$Patrones) {
+    $copiados = 0
+    New-Item -ItemType Directory -Path $AreaDestino -Force | Out-Null
+
+    foreach ($patron in $Patrones) {
+        $encontrados = Get-ChildItem -Path (Join-Path $RaizRepo $patron) -Force -ErrorAction SilentlyContinue
+        foreach ($f in $encontrados) {
+            $relativa = $f.FullName.Substring($RaizRepo.Length).TrimStart('\')
+            $destinoF = Join-Path $AreaDestino $relativa
+            New-Item -ItemType Directory -Path (Split-Path -Parent $destinoF) -Force | Out-Null
+            Copy-Item $f.FullName $destinoF -Force
+            $copiados++
+        }
+    }
+
+    Push-Location $RaizRepo
+    try {
+        $parche = Join-Path $AreaDestino "cambios-sin-commitear.patch"
+        git diff HEAD > $parche
+        # El parche cuenta como elemento respaldado. Sin esto el guion decia
+        # "0 elementos" mientras publicaba un zip con trabajo real dentro — un
+        # mensaje asi invita a creer que el artefacto esta vacio y a ignorarlo.
+        if ((Get-Item $parche).Length -eq 0) { Remove-Item $parche -Force }
+        else { $copiados++ }
+
+        # Los ficheros nuevos todavia sin `git add` no salen en `git diff HEAD`.
+        $nuevos = git ls-files --others --exclude-standard
+        foreach ($n in $nuevos) {
+            $origen = Join-Path $RaizRepo $n
+            if (-not (Test-Path $origen)) { continue }
+            $destinoN = Join-Path (Join-Path $AreaDestino "sin-seguimiento") $n
+            New-Item -ItemType Directory -Path (Split-Path -Parent $destinoN) -Force | Out-Null
+            Copy-Item $origen $destinoN -Force
+            $copiados++
+        }
+    }
+    finally { Pop-Location }
+
+    return $copiados
+}
+
 if (-not (Test-Path (Join-Path $raiz ".git"))) {
     throw "No parece un repositorio git: $raiz"
 }
@@ -135,49 +190,20 @@ try {
         Escribir "Repositorio de negocio no encontrado en $RaizNegocio - se omite ese bundle."
     }
 
-    # --- 2. Lo que el repositorio no guarda ----------------------------------------
+    # --- 2. Lo que los repositorios no guardan --------------------------------------
+    # Se hace para LOS DOS repositorios. El de negocio lo necesita mas, no menos: no
+    # tiene remoto, asi que su bundle es su unica redundancia y todo lo que quede sin
+    # commitear ahi no existe en ningun otro sitio del mundo.
     $areaLocal = Join-Path $temporal "locales"
-    New-Item -ItemType Directory -Path $areaLocal -Force | Out-Null
 
     # Ficheros ignorados a proposito pero que cuesta o es imposible regenerar.
-    $patrones = @(
+    $patronesPublico = @(
         "*.local.md",
         "src\CaeManager.Web\appsettings.Development.json",
         ".claude\settings.local.json",
         ".claude\launch.json"
     )
-    $copiados = 0
-    foreach ($patron in $patrones) {
-        $encontrados = Get-ChildItem -Path (Join-Path $raiz $patron) -Force -ErrorAction SilentlyContinue
-        foreach ($f in $encontrados) {
-            $relativa = $f.FullName.Substring($raiz.Length).TrimStart('\')
-            $destinoF = Join-Path $areaLocal $relativa
-            New-Item -ItemType Directory -Path (Split-Path -Parent $destinoF) -Force | Out-Null
-            Copy-Item $f.FullName $destinoF -Force
-            $copiados++
-        }
-    }
-
-    # El bundle solo contiene lo commiteado. Sin esto, una sesion de trabajo sin cerrar
-    # se pierde entera: el escenario mas probable de perdida real, no el disco muerto.
-    Push-Location $raiz
-    try {
-        $parche = Join-Path $areaLocal "cambios-sin-commitear.patch"
-        git diff HEAD > $parche
-        if ((Get-Item $parche).Length -eq 0) { Remove-Item $parche -Force }
-
-        # Los ficheros nuevos todavia sin `git add` no salen en `git diff HEAD`.
-        $nuevos = git ls-files --others --exclude-standard
-        foreach ($n in $nuevos) {
-            $origen = Join-Path $raiz $n
-            if (-not (Test-Path $origen)) { continue }
-            $destinoN = Join-Path (Join-Path $areaLocal "sin-seguimiento") $n
-            New-Item -ItemType Directory -Path (Split-Path -Parent $destinoN) -Force | Out-Null
-            Copy-Item $origen $destinoN -Force
-            $copiados++
-        }
-    }
-    finally { Pop-Location }
+    $copiados = Capturar-Local -RaizRepo $raiz -AreaDestino $areaLocal -Patrones $patronesPublico
 
     if ($IncluirDatosSubidos) {
         $datos = Join-Path $raiz "src\CaeManager.Web\App_Data"
@@ -189,13 +215,31 @@ try {
 
     $zip = Join-Path $temporal "locales-$marca.zip"
     Compress-Archive -Path (Join-Path $areaLocal "*") -DestinationPath $zip -Force
-    Escribir "Ficheros locales empaquetados: $copiados elementos"
+    Escribir "Ficheros locales del repo publico empaquetados: $copiados elementos"
+
+    # Mismo tratamiento para el repositorio de negocio. Sin patrones de ficheros
+    # ignorados: ahi no hay appsettings ni configuracion local que rescatar, solo
+    # documentacion — lo que importa es el trabajo sin commitear y lo no rastreado.
+    $zipNegocio = $null
+    if (Test-Path (Join-Path $RaizNegocio ".git")) {
+        $areaNegocio = Join-Path $temporal "locales-negocio"
+        $copiadosNegocio = Capturar-Local -RaizRepo $RaizNegocio -AreaDestino $areaNegocio -Patrones @()
+        if ((Get-ChildItem -Path $areaNegocio -Force -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) {
+            $zipNegocio = Join-Path $temporal "negocio-locales-$marca.zip"
+            Compress-Archive -Path (Join-Path $areaNegocio "*") -DestinationPath $zipNegocio -Force
+            Escribir "Ficheros locales del repo de negocio empaquetados: $copiadosNegocio elementos"
+        }
+        else {
+            Escribir "Repo de negocio sin trabajo pendiente ni ficheros sin rastrear - no se genera su zip."
+        }
+    }
 
     # --- 3. Publicar en Drive ------------------------------------------------------
     # .part primero y rename despues: Drive sincroniza lo que ve, y lo que ve tiene que
     # estar completo o no estar.
     $artefactos = @($bundle, $zip)
     if ($bundleNegocio) { $artefactos += $bundleNegocio }
+    if ($zipNegocio) { $artefactos += $zipNegocio }
     foreach ($artefacto in $artefactos) {
         $nombre = Split-Path -Leaf $artefacto
         $parcial = Join-Path $Destino "$nombre.part"
@@ -207,7 +251,7 @@ try {
     # --- 4. Rotacion ---------------------------------------------------------------
     # hydra-negocio-*.bundle no colisiona con hydra-*.bundle: el patron exige que
     # justo despues de "hydra-" venga la marca de fecha (digitos), no "negocio".
-    foreach ($tipo in @("hydra-????-??-??_*.bundle", "hydra-negocio-*.bundle", "locales-*.zip")) {
+    foreach ($tipo in @("hydra-????-??-??_*.bundle", "hydra-negocio-*.bundle", "locales-*.zip", "negocio-locales-*.zip")) {
         $viejos = Get-ChildItem -Path (Join-Path $Destino $tipo) -ErrorAction SilentlyContinue |
                   Sort-Object LastWriteTime -Descending |
                   Select-Object -Skip $Conservar
@@ -261,6 +305,17 @@ Generado por scripts/respaldo-local.ps1. Ultima actualizacion: $(Get-Date -Forma
                                              git apply cambios-sin-commitear.patch
      - sin-seguimiento/ .................... ficheros que aun no estaban en git;
                                              copiar a mano a su ruta equivalente
+
+2b. LOS FICHEROS LOCALES DEL REPOSITORIO DE NEGOCIO (negocio-locales-<fecha>.zip)
+
+   Solo existe si al hacer la copia habia trabajo pendiente. Mismo procedimiento,
+   descomprimiendo sobre C:\Users\chris\Project-Hydra-Negocio:
+     - cambios-sin-commitear.patch ......... git apply cambios-sin-commitear.patch
+     - sin-seguimiento/ .................... documentos que aun no estaban en git
+
+   Este es el artefacto mas critico de los cuatro, y el ultimo en existir. El repo de
+   negocio no tiene remoto: si se pierde el disco, lo unico que queda de el es su
+   bundle mas este zip. Un documento sin commitear ahi no existe en ningun otro sitio.
 
 3. QUE NO ESTA AQUI
 
