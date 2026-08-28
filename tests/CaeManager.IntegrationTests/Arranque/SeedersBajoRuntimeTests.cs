@@ -23,10 +23,13 @@ namespace CaeManager.IntegrationTests.Arranque;
 ///
 /// <para>
 /// <b>Lo que NO demuestra todavía</b>: que el seeder sea correcto. No comprueba
-/// que haya escrito en el tenant esperado, que no haya escrito en otro, ni que
-/// haya producido las entidades que promete. "No lanzó excepción" es evidencia
-/// de compatibilidad con RLS, no de comportamiento. Las cuatro propiedades
-/// —identidad, ámbito, exclusión y resultado— llegan en un incremento aparte.
+/// que haya escrito en el tenant esperado ni que no haya escrito en otro.
+/// "No lanzó excepción" es evidencia de compatibilidad con RLS, no de
+/// comportamiento. De las cuatro propiedades —identidad, ámbito, exclusión y
+/// resultado— aquí solo está cubierta una parte del <b>resultado</b>: las dos
+/// cuentas con las que se presenta el guion de la demo (ver
+/// <see cref="DelegacionDemoSeeder_crea_las_cuentas_de_direccion_cae_y_de_gestor_del_guion"/>).
+/// Las demás llegan en un incremento aparte.
 /// </para>
 /// </summary>
 public class SeedersBajoRuntimeTests
@@ -52,6 +55,66 @@ public class SeedersBajoRuntimeTests
             NullLogger.Instance);
 
         await ejecutar.Should().NotThrowAsync();
+    }
+
+    /// <summary>
+    /// <b>Los dos usuarios que el guion de la demo necesita, medidos contra la
+    /// base — no leídos de la documentación.</b>
+    ///
+    /// <para>
+    /// El guion se presenta con una cuenta de <b>Dirección CAE</b> (visión
+    /// completa del negocio) y otra de <b>nivel gestor</b> (cartera acotada,
+    /// <c>IAlcanceDatosService</c>). Que existan estaba dado por hecho: el
+    /// fichero de al lado solo comprobaba que el seeder no lanzara, y "no lanzó
+    /// excepción" no es "creó las cuentas". Un fallo silencioso de
+    /// <c>UserManager.CreateAsync</c> se registra como <c>LogWarning</c> y la
+    /// siembra continúa (ver <c>DelegacionDemoSeeder.SembrarUsuariosRefrielectricAsync</c>),
+    /// así que el modo de fallo real es exactamente "todo verde y sin usuarios".
+    /// </para>
+    ///
+    /// <para>
+    /// Se comprueban sobre <b>Refrielectric</b>, el tenant que la siembra usa
+    /// como referencia principal de "empresa final" — no sobre el tenant de
+    /// plataforma ni sobre la Consultora.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task DelegacionDemoSeeder_crea_las_cuentas_de_direccion_cae_y_de_gestor_del_guion()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
+        using var ambito = arnes.Servicios.CreateScope();
+        var sp = ambito.ServiceProvider;
+        var gestorUsuarios = sp.GetRequiredService<UserManager<ApplicationUser>>();
+
+        await DelegacionDemoSeeder.SeedAsync(
+            sp.GetRequiredService<CaeManagerDbContext>(),
+            gestorUsuarios,
+            sp.GetRequiredService<IUserStore<ApplicationUser>>(),
+            sp.GetRequiredService<IConfiguration>(),
+            EntornoDePrueba.Desarrollo,
+            NullLogger.Instance);
+
+        var esperados = new (string Email, string Rol)[]
+        {
+            ($"{DelegacionDemoSeeder.PrefijoEmailRefrielectric}direccioncae1@caemanager.local", Roles.DireccionCae),
+            ($"{DelegacionDemoSeeder.PrefijoEmailRefrielectric}gestorcae1@caemanager.local", Roles.GestorCae)
+        };
+
+        foreach (var (email, rol) in esperados)
+        {
+            var usuario = await gestorUsuarios.FindByEmailAsync(email);
+
+            usuario.Should().NotBeNull(
+                $"MEDIDO: el guion de la demo entra con {email} — si el seeder no lo creó, " +
+                "la sesión de demo no tiene con qué empezar");
+
+            (await gestorUsuarios.IsInRoleAsync(usuario!, rol)).Should().BeTrue(
+                $"MEDIDO: {email} tiene que llevar el rol {rol} — sin rol aterriza en " +
+                "/cuenta/pendiente-de-rol, que no es ninguna de las pantallas del guion");
+
+            usuario!.DebeCambiarContrasena.Should().BeFalse(
+                $"MEDIDO: {email} no puede toparse con el cambio de contraseña forzado al abrir la demo");
+        }
     }
 
     /// <summary>

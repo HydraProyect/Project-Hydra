@@ -93,16 +93,24 @@ public static class ComunicacionesDatosPruebaSeeder
             return;
         }
 
-        var trabajadores = await dbContext.Trabajadores.Take(60).ToListAsync(cancellationToken);
-        var empresas = await dbContext.Empresas.Take(40).ToListAsync(cancellationToken);
+        // Postgres no garantiza orden de fila sin ORDER BY: sin este OrderBy,
+        // qué 60/40 filas concretas trae cada Take varía entre siembras
+        // aunque el contenido de la tabla sea idéntico.
+        var trabajadores = await dbContext.Trabajadores.OrderBy(t => t.Dni).Take(60).ToListAsync(cancellationToken);
+        var empresas = await dbContext.Empresas.OrderBy(e => e.RazonSocial).Take(40).ToListAsync(cancellationToken);
         // F3b-Subcontrata — Empresas, no la tabla legacy Subcontratas: mismo
         // motivo que Clientes arriba.
         var subcontratas = await dbContext.Empresas
             .Where(e => e.NivelServicio != null)
             .OrderBy(e => e.RazonSocial).Take(40).ToListAsync(cancellationToken);
-        var centros = await dbContext.Centros.Take(40).ToListAsync(cancellationToken);
+        var centros = await dbContext.Centros.OrderBy(c => c.CodigoCentro).Take(40).ToListAsync(cancellationToken);
 
-        var gestoresPrueba = (await userManager.GetUsersInRoleAsync(Roles.GestorCae)).ToList();
+        // GetUsersInRoleAsync tampoco garantiza orden (Identity no añade
+        // ORDER BY): sin este OrderBy, la asignación aleatoria de conversación
+        // de la línea de abajo varía entre siembras. El resto de usos de
+        // gestoresPrueba en este fichero ya reordenaban antes de leer;
+        // ordenar aquí, en el origen, cubre a todos por igual.
+        var gestoresPrueba = (await userManager.GetUsersInRoleAsync(Roles.GestorCae)).OrderBy(g => g.Email).ToList();
 
         var aleatorio = new Random(20260730);
         var ahora = DateTime.UtcNow;

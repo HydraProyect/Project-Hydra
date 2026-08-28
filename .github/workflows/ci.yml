@@ -9,12 +9,19 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # La cola de merge construye cada PR sobre una referencia temporal
+  # (`gh-readonly-queue/main/...`) que incluye los que van delante, y espera ahí
+  # los mismos checks obligatorios. Sin este disparador esos checks no se
+  # ejecutan nunca y la cola se queda colgada en silencio — no falla, espera.
+  merge_group:
 
 # Cancela ejecuciones anteriores del mismo PR/rama cuando llega un push nuevo
-# — evita gastar minutos de CI en un estado ya obsoleto.
+# — evita gastar minutos de CI en un estado ya obsoleto. La cola de merge queda
+# fuera a propósito: cada entrada tiene su propia referencia, y cancelar una
+# construcción de la cola la retiraría de la fila.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 env:
   DOTNET_NOLOGO: true
@@ -449,6 +456,26 @@ jobs:
   gitleaks:
     name: Escaneo de secretos (gitleaks)
     runs-on: ubuntu-latest
+    # gitleaks-action@v3 aborta en la cola de merge con «ERROR: The
+    # [merge_group] event is not yet supported» — no es un secreto encontrado,
+    # es que la Action se niega a arrancar. Como el escaneo es check obligatorio,
+    # eso bloqueaba TODAS las entradas de la cola.
+    #
+    # Saltarlo aquí no deja ningún hueco: cada PR se escanea íntegro por la vía
+    # `pull_request` ANTES de poder entrar en la cola, y una entrada de la cola
+    # es la combinación de PRs ya escaneados con un `main` ya escaneado. Un
+    # secreto no aparece por combinar dos ramas limpias.
+    #
+    # Un job saltado reporta «skipped», que GitHub da por satisfecho en los
+    # checks obligatorios — por eso la cola puede completar.
+    #
+    # Deuda declarada: el binario `gitleaks` que esta Action descarga y ejecuta
+    # por debajo es MIT y no tiene ninguna de sus tres limitaciones (licencia por
+    # tipo de cuenta, validación remota que su propio autor dejó desactivada, y
+    # este evento sin soportar). Sustituir la Action por el binario resolvería
+    # las tres de golpe; queda como incremento propio, no como parche a la
+    # carrera de un gate roto.
+    if: github.event_name != 'merge_group'
     permissions:
       contents: read
       pull-requests: read
@@ -476,4 +503,42 @@ jobs:
 
       - name: deploy/resolve-deploy-sha.tests.sh
         run: bash deploy/resolve-deploy-sha.tests.sh
+
+  licencias-dependencias:
+    name: Licencias de dependencias
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # El guion se prueba a sí mismo primero, sin red: si el verificador no
+      # sabe distinguir MediatR 12.5.0 de 13.0.0, su veredicto sobre el árbol
+      # real tampoco vale nada.
+      - name: Probar el verificador (sin red)
+        run: bash scripts/verificar-licencias-nuget.tests.sh
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      # Las versiones se toman RESUELTAS, no del csproj: los comodines de
+      # versión (`12.*`) no dicen qué se instaló de verdad, y es justamente lo
+      # instalado lo que tiene licencia.
+      - name: Listar dependencias de primer nivel
+        run: |
+          dotnet list package --format json > paquetes.json
+          jq -r '[.projects[].frameworks[]?.topLevelPackages[]?
+                  | "\(.id) \(.resolvedVersion)"] | unique | .[]' \
+            paquetes.json > lista-paquetes.txt
+          echo "Dependencias de primer nivel: $(wc -l < lista-paquetes.txt)"
+
+      # Falla si un paquete cambia a una licencia no permitida o la declara
+      # como fichero sin estar en scripts/licencias-revisadas.txt. Es el gate
+      # que habría cazado FluentAssertions 8.x y MediatR 13.x cuando llegaron
+      # como PRs de dependabot indistinguibles de una actualización rutinaria.
+      - name: Verificar licencias
+        run: bash scripts/verificar-licencias-nuget.sh lista-paquetes.txt
 

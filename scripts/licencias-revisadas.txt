@@ -1,0 +1,19 @@
+# Paquetes que declaran su licencia como FICHERO (`<license type="file">`) y
+# cuya licencia real ha leído una persona y ha aceptado.
+#
+# Por qué existe este fichero: una licencia comercial propia no tiene
+# identificador SPDX, así que se publica como fichero. Eso hace que
+# `type="file"` sea la señal más fiable de un cambio a modelo de pago —fue
+# exactamente la forma que tomaron FluentAssertions 8.x y MediatR 13.x— pero
+# también la usan paquetes perfectamente libres. El guion no puede distinguirlos
+# solo, así que pide una lectura humana y la registra aquí.
+#
+# Las excepciones se anclan a la VERSIÓN EXACTA a propósito. Que una
+# actualización obligue a leer la licencia otra vez no es un efecto colateral
+# molesto: es el objetivo. Si al subir de versión el gate se pone rojo, la
+# respuesta correcta es leer la licencia nueva y actualizar la línea con lo que
+# se haya comprobado — nunca ampliar la excepción a "cualquier versión".
+#
+# Formato: <id> <version>   # licencia verificada — fuente
+#
+Stripe.net 52.3.0   # Apache-2.0 — LICENSE del commit f4cd0d3e del repositorio oficial stripe/stripe-dotnet, leído el 2026-08-28
