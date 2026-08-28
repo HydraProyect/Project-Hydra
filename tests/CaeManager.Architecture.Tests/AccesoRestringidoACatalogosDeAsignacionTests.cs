@@ -164,6 +164,15 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         "src/CaeManager.Application/Plataforma/Commands/AbrirSesionPrivilegiada/AbrirSesionPrivilegiadaCommand.cs",
         "src/CaeManager.Application/Plataforma/Commands/CerrarSesionPrivilegiada/CerrarSesionPrivilegiadaCommand.cs",
         "src/CaeManager.Infrastructure/Plataforma/PlataformaWriter.cs",
+
+        // Retirada de tenant de demo (incidente del 2026-08-28): limpia
+        // SesionesPrivilegiadas/TenantsAlcanzadosPorConcesion que pudieran
+        // nombrar al tenant retirado (p. ej. como TenantObjetivoId de una
+        // sesión de soporte abierta sobre él en algún momento), acotado a mano
+        // por TenantId == el tenant ya validado contra la allowlist de demo —
+        // el mismo filtro de posición que exige esta política, aplicado al
+        // tenant en vez de al usuario.
+        "src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs",
     ];
 
     [Fact]

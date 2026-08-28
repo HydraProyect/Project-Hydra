@@ -451,6 +451,78 @@ if (args.Contains("--migrate-only"))
     return;
 }
 
+// Modo administrativo explícito para retirar por completo un tenant de demo
+// (ver RetiradaTenantDemoService, motivado por el incidente de siembra
+// parcial del 2026-08-28): tenant, usuarios y toda fila tenant-scoped, fuera
+// del arranque normal — nunca corre sola, exige el TenantId exacto como
+// argumento y termina el proceso sin levantar Kestrel, mismo patrón que
+// --migrate-only. RetiradaTenantDemoService se niega a tocar cualquier
+// tenant que no esté en su allowlist de nombres de demo conocidos, empezando
+// por el de plataforma — ese rechazo es la garantía real, no esta capa de
+// entrada.
+//
+// Identidad de BOOTSTRAP (FabricaContextoDeBootstrap), no el contexto
+// inyectado: igual que AsignacionesOperativasBackfillSeeder, la retirada es
+// cross-tenant por naturaleza — tiene que ver y borrar los dos catálogos
+// globales de asignación operativa (ver RetiradaTenantDemoService) tanto por
+// la posición de propietario como por la de operador, y su política RLS
+// (posicion_en_la_asignacion) solo deja ver el lado operador bajo la
+// coordenada de tenant de origen del usuario autenticado — una coordenada que
+// no existe en un proceso administrativo sin sesión. Bajo el rol restringido,
+// un tenant que retira siendo operador de la cartera de otro (p. ej. ArcoSPA,
+// la Consultora) dejaría esas filas huérfanas sin que ningún error lo
+// avisara — RLS no falla, solo no muestra. Medido: la primera versión de este
+// dispatch usaba el contexto inyectado y ese hueco pasó sin detectarse hasta
+// ejercitar la retirada de la Consultora de verdad.
+//
+// VALIDA PRIMERO, ELEVA DESPUÉS — con el contexto inyectado (rol
+// restringido), NO con el de bootstrap. Este comando corre con identidad de
+// propietario de base de datos y bypassa RLS por diseño: mientras la
+// allowlist no haya confirmado que el TenantId es retirable, el proceso no
+// tiene por qué tener en la mano una conexión capaz de tocar cualquier fila
+// de cualquier tenant. RetiradaTenantDemoService.ValidarTenantRetirableAsync
+// exige el contexto normal y devuelve el Tenant ya validado — la firma de
+// RetirarAsync exige ESE Tenant, no un Guid suelto, así que no hay forma de
+// llegar a FabricaContextoDeBootstrap.Crear() sin haber validado antes.
+if (args.Contains("--retirar-tenant-demo"))
+{
+    var indiceArgumento = Array.IndexOf(args, "--retirar-tenant-demo");
+    if (indiceArgumento < 0 || indiceArgumento + 1 >= args.Length ||
+        !Guid.TryParse(args[indiceArgumento + 1], out var tenantIdARetirar))
+    {
+        Console.Error.WriteLine("Uso: --retirar-tenant-demo <TenantId guid> — falta el argumento o no es un Guid válido.");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    using var scopeRetirada = app.Services.CreateScope();
+    var loggerRetirada = scopeRetirada.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        // Paso 1 — identidad NO privilegiada.
+        var dbContextNoPrivilegiado = scopeRetirada.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var tenantValidado = await RetiradaTenantDemoService.ValidarTenantRetirableAsync(dbContextNoPrivilegiado, tenantIdARetirar);
+
+        // Paso 2 — solo aquí, con el tenant ya validado, se eleva.
+        await using var dbContextRetirada = scopeRetirada.ServiceProvider
+            .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>()
+            .Crear();
+
+        var resultado = await RetiradaTenantDemoService.RetirarAsync(dbContextRetirada, tenantValidado, loggerRetirada);
+        Console.WriteLine(
+            $"Retirado: '{resultado.NombreTenant}' ({resultado.TenantId}) — " +
+            $"{resultado.FilasBorradas} filas tenant-scoped, {resultado.UsuariosBorrados} usuarios.");
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.Error.WriteLine($"Retirada rechazada: {ex.Message}");
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
 // Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y DEPLOY.md),
 // Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS

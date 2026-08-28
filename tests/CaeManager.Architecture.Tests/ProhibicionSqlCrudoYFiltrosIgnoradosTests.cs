@@ -116,6 +116,17 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // para adquirir el lock, otro para liberarlo).
         [("src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs", "await using (var comandoLock = new NpgsqlCommand(")] = 1,
         [("src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs", "await using var comandoUnlock = new NpgsqlCommand(")] = 1,
+
+        // Retirada de tenant de demo (incidente de siembra parcial del
+        // 2026-08-28): borra POR COMPLETO un tenant, así que tiene que
+        // alcanzar también las filas ya soft-deleted de ese tenant — el
+        // mismo motivo que las Restaurar*Command de arriba, pero para el
+        // tenant entero en vez de una fila. El TenantId se comprueba a mano
+        // en el Where() que sigue a cada IgnoreQueryFilters(), y el tenant en
+        // sí ya pasó por la allowlist de RetiradaTenantDemoService.NombresTenantsDeDemo
+        // antes de llegar aquí — nunca se resuelve del ambiente.
+        [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.Set<TEntidad>().IgnoreQueryFilters().Where(e => e.TenantId == tenantId).ToListAsync(cancellationToken);")] = 1,
+        [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "var tenant = await dbContext.Tenants.IgnoreQueryFilters()")] = 1,
     };
 
     /// <summary>
