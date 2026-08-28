@@ -110,6 +110,17 @@ mismo más el timeout".
 **Un vigía que agota su tiempo sin observar el suceso sale con código 0.** Esperar
 no es medir: distinguir siempre "terminó y el resultado es X" de "dejé de mirar".
 
+**Tras un squash-merge el SHA nunca coincide, así que `--is-ancestor` da negativo
+tanto cuando de verdad falta integrar como cuando tu rama YA se mergeó.** El
+mismo síntoma para dos situaciones opuestas. Distinguirlas exige `gh pr view` o
+comparar el CONTENIDO de los ficheros; el SHA no puede hacerlo. Antes de avisar a
+nadie de que su trabajo se va a perder, diff de contenido — un cero ahí cierra la
+pregunta, un SHA distinto no dice nada.
+
+**Y antes de leer una hora, comprueba en qué reloj está escrita.** Un commit local
+en `+0200` y un merge en UTC son comparables solo tras convertirlos; confundirlos
+inventa discrepancias de dos horas que parecen trabajo sin integrar.
+
 ## 4. Verificación por capas
 
 Cada propiedad se prueba en la capa que realmente la garantiza: **Domain**
