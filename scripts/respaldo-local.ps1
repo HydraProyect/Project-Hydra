@@ -213,6 +213,32 @@ try {
         }
     }
 
+    # Los worktrees son checkouts aparte: `git diff HEAD` en la raiz NO ve su
+    # trabajo sin commitear. Se descubrio el 2026-08-28 auditando ramas abiertas —
+    # habia cambios de codigo reales (DbContext, paginas Razor, informes, RLS) en
+    # sesiones pausadas, ninguno respaldado. La guia de restauracion decia que
+    # .claude/worktrees "se regenera solo": cierto para lo commiteado, falso para
+    # esto. Se captura el parche y lo no rastreado de cada uno; el codigo
+    # commiteado ya viaja en el bundle, que incluye --all.
+    $raizWorktrees = Join-Path $areaLocal "worktrees"
+    $conPendiente = 0
+    Push-Location $raiz
+    try { $listaWt = git worktree list --porcelain } finally { Pop-Location }
+    foreach ($linea in $listaWt) {
+        if ($linea -notlike "worktree *") { continue }
+        $rutaWt = $linea.Substring(9)
+        if ($rutaWt -eq $raiz) { continue }          # la raiz ya se capturo arriba
+        if (-not (Test-Path $rutaWt)) { continue }   # worktree registrado pero borrado
+        $nombreWt = Split-Path -Leaf $rutaWt
+        $areaWt = Join-Path $raizWorktrees $nombreWt
+        $n = Capturar-Local -RaizRepo $rutaWt -AreaDestino $areaWt -Patrones @()
+        if ($n -gt 0) { $conPendiente++; $copiados += $n }
+        else { Remove-Item $areaWt -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+    if ($conPendiente -gt 0) {
+        Escribir "Worktrees con trabajo sin commitear respaldados: $conPendiente"
+    }
+
     $zip = Join-Path $temporal "locales-$marca.zip"
     Compress-Archive -Path (Join-Path $areaLocal "*") -DestinationPath $zip -Force
     Escribir "Ficheros locales del repo publico empaquetados: $copiados elementos"
