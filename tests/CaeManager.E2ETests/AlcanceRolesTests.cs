@@ -70,25 +70,24 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     /// el 2026-08-14 la cuenta de plataforma no opera ningún Delegated
     /// Workspace (ver DelegacionDemoSeeder).
     /// </summary>
-    // F3b (2026-08-26): las tres pruebas de más abajo verificaban visibilidad
-    // acotada por cartera (GestorCae/Consulta/Administrador delegado) leyendo
-    // el contador del paginador de /clientes, respaldado por
-    // ObtenerClientesQuery — una de las 6 consultas que D2 deja leyendo la
-    // tabla legacy Clientes hasta F4. Con los escritores de Cliente
-    // redirigidos a Empresa, esa pantalla queda vacía en cualquier entorno
-    // (decisión explícita: "aceptar el vacío", ver
-    // f3b-decision-d2-transicion-acotada-2026-08-25.md): el contador ya ni
-    // siquiera se renderiza (Clientes.razor muestra el EstadoVacio en su
-    // lugar), así que el instrumento no puede observar la propiedad que
-    // pretendía probar — ni "true" ni "false" tendría el significado que
-    // tenía antes. La propiedad de fondo (alcance por cartera vía
-    // AlcanceDatosService) sigue demostrada en
-    // CaeManager.IntegrationTests.MemoizacionAlcanceDatosTests y
-    // CaeManager.IntegrationTests.Tenants.RolEfectivoEnDelegacionTests, que
-    // sí pueden observarla directamente contra el filtro real, así que no
-    // queda un hueco de cobertura de la propiedad — solo de esta ruta E2E
-    // concreta, que se retoma cuando F4 resuelva ObtenerClientesQuery.
-    [Fact(Skip = "F3b/D2: ObtenerClientesQuery congelada, /clientes vacío hasta F4 — ver f3b-decision-d2-transicion-acotada-2026-08-25.md. Propiedad cubierta en IntegrationTests (MemoizacionAlcanceDatosTests, RolEfectivoEnDelegacionTests).")]
+    // F3b (2026-08-26) puso en cuarentena las pruebas de visibilidad acotada
+    // de más abajo: leían el contador del paginador de /clientes, y con
+    // ObtenerClientesQuery congelada sobre la tabla legacy Clientes esa
+    // pantalla salía vacía en cualquier entorno — el contador ni se
+    // renderizaba, así que el instrumento no podía observar nada.
+    //
+    // F4 (2026-08-27, #288/#291) levanta esa condición: ObtenerClientesQuery
+    // lee Empresas con EsCritico != null y SIGUE aplicando el filtro de
+    // IAlcanceDatosService, y AsignacionesOperativasBackfillSeeder emite las
+    // carteras con ámbito Empresa.Id — los dos lados del Contains hablan del
+    // mismo identificador, que es lo que hacía falta para que el filtro
+    // recorte en vez de vaciar. Cuarentena levantada el 2026-08-28.
+    //
+    // Comprobado por mutación, no solo por verde: quitando el filtro de
+    // alcance de ObtenerClientesQuery, GestorCae_ve_solo_su_cartera_acotada
+    // pasa de 3 a 9 y el test del administrador delegado se pone en rojo.
+    // Los dos observan la propiedad, no la rozan.
+    [Fact]
     public async Task El_rol_de_la_delegacion_acota_al_administrador_dentro_del_workspace_delegado()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
@@ -104,16 +103,28 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
         // El administrador no es ejecutivo de ninguno de los clientes
-        // sembrados, así que como GestorCae su cartera está vacía. Lo que se
-        // comprueba es que NO aparece la cartera entera (9 clientes en la
-        // siembra determinista): si el rol del claim volviera a filtrarse al
-        // workspace ajeno, el contador saldría con el total y este test
-        // fallaría.
+        // sembrados y nadie le asigna cartera en el workspace delegado (ver
+        // DelegacionDemoSeeder: le da rol, no clientes), así que como
+        // GestorCae su cartera está vacía. Lo que se comprueba es que NO
+        // aparece la cartera entera (9 clientes en la siembra determinista):
+        // si el rol del claim volviera a filtrarse al workspace ajeno, el
+        // contador saldría con el total y este test fallaría — verificado
+        // por mutación el 2026-08-28, no supuesto.
+        //
+        // Es una prueba de un solo sentido, y conviene saberlo: en el camino
+        // correcto el contador no llega a renderizarse, así que el Assert de
+        // abajo no se ejecuta. Por eso el estado vacío se exige aparte — sin
+        // esa exigencia, una /clientes rota por cualquier otro motivo pasaría
+        // por "acotada correctamente", que es justo el falso verde que la
+        // cuarentena de F3b dejó vivo durante dos días.
         var contador = page.GetByText(PatronContadorElementos()).First;
         var totalVisible = await contador.IsVisibleAsync();
 
         if (totalVisible)
             Assert.True(ExtraerTotalElementos(await contador.InnerTextAsync()) < 9);
+        else
+            await Assertions.Expect(page.GetByText("Aún no hay clientes"))
+                .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
     }
 
     /// <summary>
@@ -124,7 +135,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     /// reparto exacto porque la siembra es determinista — no es un número
     /// arbitrario.
     /// </summary>
-    [Fact(Skip = "F3b/D2: ObtenerClientesQuery congelada, /clientes vacío hasta F4 — ver f3b-decision-d2-transicion-acotada-2026-08-25.md. Propiedad cubierta en IntegrationTests (MemoizacionAlcanceDatosTests, RolEfectivoEnDelegacionTests).")]
+    [Fact]
     public async Task GestorCae_ve_solo_su_cartera_acotada()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
@@ -149,16 +160,19 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("consulta", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        // F3b/D2 (2026-08-26): la comprobación de visibilidad total (9
-        // clientes de la siembra determinista) se retira — ObtenerClientesQuery
-        // sigue congelada hasta F4 y /clientes queda vacío en cualquier
-        // entorno (ver f3b-decision-d2-transicion-acotada-2026-08-25.md), así
-        // que el contador del paginador ni siquiera se renderiza. La
-        // propiedad de visibilidad total de Consulta está cubierta en
-        // IntegrationTests (AlcanceDatosService); lo que este test verifica
-        // de forma real y sigue observable aquí es el bloqueo de escritura,
-        // abajo. .First: con la lista vacía, el botón "+ Nuevo cliente"
-        // aparece tanto en la cabecera como en el EstadoVacio.
+        // La mitad "ve todo" del nombre: F3b/D2 la retiró en 2026-08-26 porque
+        // /clientes salía vacío para todos, y el test se quedó probando solo
+        // el bloqueo de escritura — un nombre que prometía más que su
+        // contrato efectivo. F4 (#288/#291) devuelve el contador, así que la
+        // comprobación vuelve: Consulta es rol de alcance total
+        // (TieneAccesoTotalAsync), luego ve los 9 clientes de la siembra
+        // determinista, no un subconjunto.
+        var contador = page.GetByText(PatronContadorElementos()).First;
+        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+        Assert.Equal(9, ExtraerTotalElementos(await contador.InnerTextAsync()));
+
+        // .First: el botón "+ Nuevo cliente" aparece en la cabecera y, cuando
+        // la lista está vacía, también en el EstadoVacio.
         await page.GetByText("+ Nuevo cliente").First.ClickAsync();
         var drawer = page.Locator(".drawer-panel");
         await drawer.GetByLabel("Razón social").FillAsync("Cliente bloqueado por rol Consulta");
