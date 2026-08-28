@@ -17,6 +17,13 @@ updates:
       # indefinidos). No proponer el salto de mayor de versión.
       - dependency-name: "FluentAssertions"
         versions: [">=8.0.0"]
+      # MediatR 13.x cambia de Apache 2.0 a licencia dual (Lucky Penny
+      # Software): RPL-1.5 —copyleft recíproco que obligaría a publicar el
+      # fuente del producto— o suscripción de pago. 12.5.0 sigue siendo
+      # Apache 2.0 y lo será siempre: el cambio NO es retroactivo. No
+      # proponer el salto de mayor de versión.
+      - dependency-name: "MediatR"
+        versions: [">=13.0.0"]
 
   - package-ecosystem: "docker"
     directory: "/"
