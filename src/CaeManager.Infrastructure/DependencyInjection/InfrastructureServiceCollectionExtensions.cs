@@ -263,6 +263,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IVerificacionExternaSubcontrataRepository, VerificacionExternaSubcontrataRepository>();
         services.AddScoped<IRelacionEmpresarialRepository, RelacionEmpresarialRepository>();
         services.AddScoped<ICredencialAccesoSubcontrataRepository, CredencialAccesoSubcontrataRepository>();
+        services.AddScoped<CaeManager.Domain.Blindaje42.ISolicitudCertificacionTgssRepository, SolicitudCertificacionTgssRepository>();
         services.AddScoped<ICentroRepository, CentroRepository>();
         services.AddScoped<ICanalGestionDocumentalRepository, CanalGestionDocumentalRepository>();
         services.AddScoped<ITrabajadorRepository, TrabajadorRepository>();
@@ -356,6 +357,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Clientes.IClientesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Empresas.IEmpresasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Subcontratas.ISubcontratasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Blindaje42.IBlindaje42QueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Centros.ICentrosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Trabajadores.ITrabajadoresQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.TiposDocumento.ITiposDocumentoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());

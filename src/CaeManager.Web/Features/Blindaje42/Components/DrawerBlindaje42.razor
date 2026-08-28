@@ -1,0 +1,330 @@
+@*
+    Drawer de historial + acciones del blindaje 42.1 para un par (Empresa,
+    Cliente) concreto. Dos acciones, ambas hechos puntuales que nunca se
+    editan una vez guardados (ver el comentario de SolicitudCertificacionTgss):
+    "Nueva solicitud" siempre crea una fila; "Registrar respuesta" solo está
+    disponible sobre la solicitud más reciente cuando todavía no tiene
+    resultado — no tiene sentido responder a una solicitud antigua ya resuelta.
+*@
+@using CaeManager.Application.Blindaje42.Commands.RegistrarRespuestaCertificacionTgss
+@using CaeManager.Application.Blindaje42.Commands.SolicitarCertificacionTgss
+@using CaeManager.Application.Blindaje42.Queries.ObtenerHistorialCertificacionesTgss
+@using CaeManager.Domain.Blindaje42
+@using MediatR
+@using Microsoft.AspNetCore.Components.Forms
+@inject IMediator Mediator
+@inject ToastService Toasts
+
+<Drawer Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@($"Blindaje 42.1 · {EmpresaRazonSocial}")"
+        CerrarAlHacerClicFuera="@(!_guardandoSolicitud && !_guardandoRespuesta)">
+    <ChildContent>
+        <p class="texto-vacio-seccion">
+            Certificación negativa por descubiertos en la TGSS sobre esta empresa (art. 42.1 ET). La TGSS debe
+            librarla en 30 días improrrogables; pasado el plazo sin respuesta, el cliente queda exonerado. Cada
+            solicitud solo cubre los descubiertos existentes en su fecha — no los que surjan después mientras
+            dure el encargo.
+        </p>
+
+        <div class="workspace-grupo-campos">
+            <CampoTexto Etiqueta="Fecha de la nueva solicitud" Type="date" Valor="@_fechaSolicitud" ValorChanged="v => _fechaSolicitud = v" />
+            <CampoTextarea Etiqueta="Observaciones (opcional)" Valor="@_observacionesNueva" ValorChanged="v => _observacionesNueva = v" Filas="2" />
+            @if (_errorSolicitud is not null)
+            {
+                <span class="campo-mensaje-error" role="alert">@_errorSolicitud</span>
+            }
+            <Boton OnClick="RegistrarSolicitudAsync" Cargando="_guardandoSolicitud" Deshabilitado="_guardandoSolicitud">
+                Registrar solicitud
+            </Boton>
+        </div>
+
+        <hr />
+
+        @if (_cargando)
+        {
+            <EstadoCargando Filas="2" />
+        }
+        else if (_error)
+        {
+            <EstadoVacio Titulo="No pudimos cargar el historial" Descripcion="Intenta nuevamente en unos segundos.">
+                <Accion>
+                    <Boton OnClick="CargarAsync">Reintentar</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else if (_historial is { Count: 0 })
+        {
+            <EstadoVacio Titulo="Sin solicitudes" Descripcion="Todavía no se ha solicitado ninguna certificación TGSS para esta empresa." />
+        }
+        else if (_historial is not null)
+        {
+            @foreach (var solicitud in _historial)
+            {
+                <div class="workspace-nota-contextual">
+                    <div class="workspace-cabecera-entidad">
+                        <strong>Solicitada el @solicitud.FechaSolicitud.ToString("dd/MM/yyyy")</strong>
+                        <Badge Tono="Tono(solicitud.Estado)">@Etiqueta(solicitud.Estado)</Badge>
+                    </div>
+                    <span class="detalle-tecnico">Plazo orientativo hasta @solicitud.FechaLimiteOrientativa.ToString("dd/MM/yyyy") (30 días naturales, art. 42.1 ET)</span>
+
+                    @if (solicitud.Resultado is { } resultado)
+                    {
+                        <span>
+                            Respuesta TGSS: @(resultado == ResultadoCertificacionTgss.SinDescubiertos ? "sin descubiertos" : "con descubiertos")
+                            el @solicitud.FechaRespuesta!.Value.ToString("dd/MM/yyyy")
+                        </span>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(solicitud.Observaciones))
+                    {
+                        <span>@solicitud.Observaciones</span>
+                    }
+
+                    @if (solicitud.TieneEvidencia)
+                    {
+                        <span class="detalle-tecnico">Justificante: @solicitud.EvidenciaNombreArchivo</span>
+                    }
+
+                    @if (solicitud.Resultado is null && solicitud.Id == _historial[0].Id)
+                    {
+                        @if (_respondiendoSolicitudId == solicitud.Id)
+                        {
+                            <div class="workspace-grupo-campos">
+                                <CampoSelect Etiqueta="Resultado" Valor="@_resultadoRespuesta" ValorChanged="v => _resultadoRespuesta = v">
+                                    <option value="">Selecciona el resultado…</option>
+                                    <option value="@nameof(ResultadoCertificacionTgss.SinDescubiertos)">Sin descubiertos</option>
+                                    <option value="@nameof(ResultadoCertificacionTgss.ConDescubiertos)">Con descubiertos</option>
+                                </CampoSelect>
+                                <CampoTexto Etiqueta="Fecha de respuesta" Type="date" Valor="@_fechaRespuesta" ValorChanged="v => _fechaRespuesta = v" />
+                                <ZonaSoltarArchivo Titulo="Justificante (opcional)" FormatosTexto="PDF, JPG o PNG, máx. 10 MB"
+                                                    Accept=".pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png"
+                                                    Cargando="_subiendoEvidencia" OnChange="ManejarEvidenciaAsync"
+                                                    NombreArchivoActual="@_evidenciaNombreArchivo" />
+                                @if (_errorRespuesta is not null)
+                                {
+                                    <span class="campo-mensaje-error" role="alert">@_errorRespuesta</span>
+                                }
+                                <div class="workspace-tarjeta-requisito-acciones">
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                           OnClick="() => _respondiendoSolicitudId = null" Deshabilitado="_guardandoRespuesta">
+                                        Cancelar
+                                    </Boton>
+                                    <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => RegistrarRespuestaAsync(solicitud.Id)"
+                                           Cargando="_guardandoRespuesta" Deshabilitado="_guardandoRespuesta">
+                                        Guardar respuesta
+                                    </Boton>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRespuesta(solicitud.Id)">
+                                Registrar respuesta
+                            </Boton>
+                        }
+                    }
+                </div>
+            }
+        }
+    </ChildContent>
+</Drawer>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter, EditorRequired] public Guid ClienteId { get; set; }
+    [Parameter, EditorRequired] public Guid EmpresaId { get; set; }
+    [Parameter] public string EmpresaRazonSocial { get; set; } = string.Empty;
+
+    /// <summary>Avisa al padre (la lista de empresas) para que recargue los estados tras cualquier cambio.</summary>
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private const long TamanoMaximoEvidenciaBytes = 10 * 1024 * 1024;
+
+    private IReadOnlyList<SolicitudCertificacionTgssDto>? _historial;
+    private bool _cargando = true;
+    private bool _error;
+    private bool _visibleAnterior;
+    private Guid _empresaCargada;
+
+    private string _fechaSolicitud = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+    private string _observacionesNueva = string.Empty;
+    private bool _guardandoSolicitud;
+    private string? _errorSolicitud;
+
+    private Guid? _respondiendoSolicitudId;
+    private string _resultadoRespuesta = string.Empty;
+    private string _fechaRespuesta = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+    private byte[]? _evidenciaContenido;
+    private string? _evidenciaNombreArchivo;
+    private bool _subiendoEvidencia;
+    private bool _guardandoRespuesta;
+    private string? _errorRespuesta;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Visible && (!_visibleAnterior || EmpresaId != _empresaCargada))
+        {
+            _empresaCargada = EmpresaId;
+            ReiniciarFormularios();
+            await CargarAsync();
+        }
+
+        _visibleAnterior = Visible;
+    }
+
+    private void ReiniciarFormularios()
+    {
+        _fechaSolicitud = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+        _observacionesNueva = string.Empty;
+        _errorSolicitud = null;
+        _respondiendoSolicitudId = null;
+        _resultadoRespuesta = string.Empty;
+        _fechaRespuesta = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+        _evidenciaContenido = null;
+        _evidenciaNombreArchivo = null;
+        _errorRespuesta = null;
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            _historial = await Mediator.Send(new ObtenerHistorialCertificacionesTgssQuery(EmpresaId, ClienteId));
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task RegistrarSolicitudAsync()
+    {
+        if (!DateOnly.TryParse(_fechaSolicitud, out var fecha))
+        {
+            _errorSolicitud = "Indica una fecha de solicitud válida.";
+            return;
+        }
+
+        _errorSolicitud = null;
+        _guardandoSolicitud = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new SolicitarCertificacionTgssCommand(
+                EmpresaId, ClienteId, fecha, string.IsNullOrWhiteSpace(_observacionesNueva) ? null : _observacionesNueva));
+
+            if (resultado.EsFallido)
+            {
+                _errorSolicitud = resultado.Error.Mensaje;
+                return;
+            }
+
+            Toasts.Mostrar("Solicitud registrada.", TonoToast.Exito);
+            _observacionesNueva = string.Empty;
+            await CargarAsync();
+            await OnCambio.InvokeAsync();
+        }
+        finally
+        {
+            _guardandoSolicitud = false;
+        }
+    }
+
+    private void AbrirRespuesta(Guid solicitudId)
+    {
+        _respondiendoSolicitudId = solicitudId;
+        _resultadoRespuesta = string.Empty;
+        _fechaRespuesta = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+        _evidenciaContenido = null;
+        _evidenciaNombreArchivo = null;
+        _errorRespuesta = null;
+    }
+
+    private async Task ManejarEvidenciaAsync(InputFileChangeEventArgs args)
+    {
+        _subiendoEvidencia = true;
+        try
+        {
+            await using var flujo = args.File.OpenReadStream(TamanoMaximoEvidenciaBytes);
+            using var memoria = new MemoryStream();
+            await flujo.CopyToAsync(memoria);
+            _evidenciaContenido = memoria.ToArray();
+            _evidenciaNombreArchivo = args.File.Name;
+        }
+        catch (Exception)
+        {
+            _errorRespuesta = "No se pudo leer el archivo. Prueba con otro.";
+        }
+        finally
+        {
+            _subiendoEvidencia = false;
+        }
+    }
+
+    private async Task RegistrarRespuestaAsync(Guid solicitudId)
+    {
+        if (string.IsNullOrWhiteSpace(_resultadoRespuesta) || !Enum.TryParse<ResultadoCertificacionTgss>(_resultadoRespuesta, out var resultado))
+        {
+            _errorRespuesta = "Selecciona el resultado de la TGSS.";
+            return;
+        }
+
+        if (!DateOnly.TryParse(_fechaRespuesta, out var fecha))
+        {
+            _errorRespuesta = "Indica una fecha de respuesta válida.";
+            return;
+        }
+
+        _errorRespuesta = null;
+        _guardandoRespuesta = true;
+
+        try
+        {
+            var resultadoComando = await Mediator.Send(new RegistrarRespuestaCertificacionTgssCommand(
+                solicitudId, resultado, fecha, _evidenciaContenido, _evidenciaNombreArchivo));
+
+            if (resultadoComando.EsFallido)
+            {
+                _errorRespuesta = resultadoComando.Error.Mensaje;
+                return;
+            }
+
+            Toasts.Mostrar("Respuesta registrada.", TonoToast.Exito);
+            _respondiendoSolicitudId = null;
+            await CargarAsync();
+            await OnCambio.InvokeAsync();
+        }
+        finally
+        {
+            _guardandoRespuesta = false;
+        }
+    }
+
+    private static string Etiqueta(EstadoBlindaje42 estado) => estado switch
+    {
+        EstadoBlindaje42.PendienteRespuesta => "Pendiente TGSS",
+        EstadoBlindaje42.ExoneradaPorSilencio => "Exonerada (silencio)",
+        EstadoBlindaje42.ExoneradaPorCertificacion => "Exonerada (certificación)",
+        EstadoBlindaje42.NoExonerada => "Con descubiertos",
+        _ => "—"
+    };
+
+    private static TonoBadge Tono(EstadoBlindaje42 estado) => estado switch
+    {
+        EstadoBlindaje42.PendienteRespuesta => TonoBadge.Info,
+        EstadoBlindaje42.ExoneradaPorSilencio => TonoBadge.Advertencia,
+        EstadoBlindaje42.ExoneradaPorCertificacion => TonoBadge.Exito,
+        EstadoBlindaje42.NoExonerada => TonoBadge.Peligro,
+        _ => TonoBadge.Neutro
+    };
+
+    private Task CerrarAsync(bool visible) =>
+        _guardandoSolicitud || _guardandoRespuesta ? Task.CompletedTask : VisibleChanged.InvokeAsync(visible);
+}

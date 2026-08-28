@@ -1,0 +1,124 @@
+@*
+    Pestaña "Blindaje 42.1" del panel de Cliente — art. 42.1/42.2 ET. Una fila
+    por cada Empresa relacionada (misma fuente que la pestaña "Empresas":
+    EmpresaCliente) con el estado de su última solicitud de certificación
+    TGSS. El detalle y las acciones (nueva solicitud, registrar respuesta)
+    viven en DrawerBlindaje42, que se abre al clicar una fila — igual que el
+    resto de pestañas de relación (Empresas, Subcontratas, Centros).
+*@
+@using CaeManager.Application.Blindaje42.Queries.ObtenerBlindajeEmpresasDeCliente
+@using CaeManager.Domain.Blindaje42
+@using MediatR
+@inject IMediator Mediator
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="No pudimos cargar el blindaje 42.1" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_empresas is { Count: 0 })
+{
+    <EstadoVacio Titulo="Sin empresas" Descripcion="Este cliente todavía no tiene ninguna Empresa asociada." />
+}
+else if (_empresas is not null)
+{
+    <p class="texto-vacio-seccion">
+        Una certificación negativa de la TGSS (o su silencio de 30 días) solo exonera de la responsabilidad
+        solidaria del art. 42.2 ET por los descubiertos anteriores a la fecha de la solicitud — no por los que
+        la empresa genere después, mientras dure el encargo. Una contrata larga necesita solicitudes periódicas.
+    </p>
+
+    <ul class="workspace-lista-entidades">
+        @foreach (var empresa in _empresas)
+        {
+            <FilaEntidadRelacionada @key="empresa.EmpresaId" Titulo="@empresa.EmpresaRazonSocial"
+                                     Subtitulo="@Subtitulo(empresa)" OnClic="() => AbrirDrawer(empresa)">
+                <Badge Tono="@Tono(empresa.UltimaSolicitud?.Estado)">@Etiqueta(empresa.UltimaSolicitud?.Estado)</Badge>
+            </FilaEntidadRelacionada>
+        }
+    </ul>
+}
+
+<DrawerBlindaje42 Visible="_drawerVisible" VisibleChanged="v => _drawerVisible = v"
+                   ClienteId="EntidadId" EmpresaId="_empresaSeleccionadaId" EmpresaRazonSocial="_empresaSeleccionadaNombre"
+                   OnCambio="CargarAsync" />
+
+@code {
+    [Parameter, EditorRequired] public Guid EntidadId { get; set; }
+
+    private IReadOnlyList<BlindajeEmpresaDto>? _empresas;
+    private bool _cargando = true;
+    private bool _error;
+    private Guid _idCargado;
+
+    private bool _drawerVisible;
+    private Guid _empresaSeleccionadaId;
+    private string _empresaSeleccionadaNombre = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EntidadId == _idCargado) return;
+        _idCargado = EntidadId;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+
+        try
+        {
+            _empresas = await Mediator.Send(new ObtenerBlindajeEmpresasDeClienteQuery(EntidadId));
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void AbrirDrawer(BlindajeEmpresaDto empresa)
+    {
+        _empresaSeleccionadaId = empresa.EmpresaId;
+        _empresaSeleccionadaNombre = empresa.EmpresaRazonSocial;
+        _drawerVisible = true;
+    }
+
+    private static string Subtitulo(BlindajeEmpresaDto empresa) => empresa.TotalSolicitudes switch
+    {
+        0 => "Sin solicitudes registradas",
+        1 => "1 solicitud registrada",
+        var n => $"{n} solicitudes registradas"
+    };
+
+    private static string Etiqueta(EstadoBlindaje42? estado) => estado switch
+    {
+        null => "Sin solicitar",
+        EstadoBlindaje42.PendienteRespuesta => "Pendiente TGSS",
+        EstadoBlindaje42.ExoneradaPorSilencio => "Exonerada (silencio)",
+        EstadoBlindaje42.ExoneradaPorCertificacion => "Exonerada (certificación)",
+        EstadoBlindaje42.NoExonerada => "Con descubiertos",
+        _ => "—"
+    };
+
+    private static TonoBadge Tono(EstadoBlindaje42? estado) => estado switch
+    {
+        null => TonoBadge.Neutro,
+        EstadoBlindaje42.PendienteRespuesta => TonoBadge.Info,
+        EstadoBlindaje42.ExoneradaPorSilencio => TonoBadge.Advertencia,
+        EstadoBlindaje42.ExoneradaPorCertificacion => TonoBadge.Exito,
+        EstadoBlindaje42.NoExonerada => TonoBadge.Peligro,
+        _ => TonoBadge.Neutro
+    };
+}

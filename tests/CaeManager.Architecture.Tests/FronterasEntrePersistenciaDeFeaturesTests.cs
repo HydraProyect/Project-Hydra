@@ -85,6 +85,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Asignaciones.ObtenerTrabajadoresVisitaSinAsignacionQueryHandler", "ITrabajadoresQueryContext"),
         ("Asignaciones.ObtenerTrabajadoresVisitaSinAsignacionQueryHandler", "IVisitasQueryContext"),
         ("Bandeja.ObtenerBandejaGestorQueryHandler", "IConfiguracionQueryContext"),
+        ("Blindaje42.ObtenerBlindajeEmpresasDeClienteQueryHandler", "IEmpresasQueryContext"),
+        ("Blindaje42.SolicitarCertificacionTgssCommandHandler", "IEmpresasQueryContext"),
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "ICentrosQueryContext"),
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "IClientesQueryContext"),
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "IDocumentosQueryContext"),
