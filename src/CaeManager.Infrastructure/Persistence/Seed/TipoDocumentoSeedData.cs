@@ -273,12 +273,39 @@ public static class TipoDocumentoSeedData
         _ => NaturalezaJuridica.RequisitoCliente,
     };
 
+    /// <summary>
+    /// Eje "Requerido" — ¿lo pedimos? Traducido MECÁNICAMENTE del booleano
+    /// viejo como punto de partida (T1), con las excepciones de la tabla
+    /// verificada de la taxonomía documental (T2,
+    /// taxonomia-documental-cae-propuesta-2026-08-27.md §2): dos tipos que
+    /// dependen del supuesto concreto pasan a Condicional, y dos que no son
+    /// documentación CAE salen del baseline. El resto del catálogo no se
+    /// toca — ni un tercero de estas cuatro filas cambia de naturaleza,
+    /// solo de si se pide.
+    /// </summary>
+    private static RequisitoDocumental RequeridoDe(string nombre, bool esObligatorio) => nombre switch
+    {
+        // Dependen del supuesto concreto (nivel 2, no baseline): el art. 10
+        // RD 171/2004 no los exige incondicionalmente para toda empresa.
+        "Designación de Recursos Preventivos" => RequisitoDocumental.Condicional,
+        "Procedimiento de Coordinación de Actividades Empresariales" => RequisitoDocumental.Condicional,
+        // Es cotización y aseguramiento, no prevención — sale del baseline CAE.
+        "Mutua" => RequisitoDocumental.No,
+        // Ley 45/1999 art. 6.5 exige documentación traducida, no jurada —
+        // exigir la jurada es requisito de cliente, no baseline. Ya estaba en
+        // No por el booleano viejo; queda explícito para que no dependa de
+        // que nadie active el flag de origen por error.
+        "Traducción jurada" => RequisitoDocumental.No,
+
+        _ => esObligatorio ? RequisitoDocumental.Si : RequisitoDocumental.No,
+    };
+
     public static IEnumerable<TipoDocumento> CrearCopiasParaTenant() =>
         Datos.Select(t =>
         {
             var copia = new TipoDocumento(
                 t.Nombre, t.VigenciaMeses, t.AplicaVencimiento, t.Orden, t.Ambito,
-                t.EsObligatorio ? RequisitoDocumental.Si : RequisitoDocumental.No,
+                RequeridoDe(t.Nombre, t.EsObligatorio),
                 NaturalezaDe(t.Nombre), t.Notas);
             copia.EstablecerDeteccionTrabajadoresActiva(TieneDeteccionTrabajadores(t.Nombre));
             copia.EstablecerPerfilDocumentoOficial(PerfilOficialDe(t.Nombre));
@@ -296,7 +323,7 @@ public static class TipoDocumentoSeedData
             Orden = d.Orden,
             Notas = d.Notas,
             AmbitoAplicacion = d.Ambito,
-            Requerido = d.EsObligatorio ? RequisitoDocumental.Si : RequisitoDocumental.No,
+            Requerido = RequeridoDe(d.Nombre, d.EsObligatorio),
             Naturaleza = NaturalezaDe(d.Nombre),
             LecturaIaActiva = true,
             DeteccionTrabajadoresActiva = IdsConDeteccionTrabajadores.Contains(d.Id),
