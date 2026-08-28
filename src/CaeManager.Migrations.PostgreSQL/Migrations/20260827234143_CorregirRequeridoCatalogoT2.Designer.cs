@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260827234143_CorregirRequeridoCatalogoT2")]
+    partial class CorregirRequeridoCatalogoT2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -203,72 +206,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("EntidadTipo", "EntidadId");
 
                     b.ToTable("RegistrosAuditoria", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Blindaje42.SolicitudCertificacionTgss", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ClienteId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreadoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("EliminadoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("EliminadoPorUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("EmpresaId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("EstaEliminado")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("EvidenciaArchivoRuta")
-                        .HasColumnType("text");
-
-                    b.Property<string>("EvidenciaNombreArchivo")
-                        .HasMaxLength(260)
-                        .HasColumnType("character varying(260)");
-
-                    b.Property<DateOnly?>("FechaRespuesta")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly>("FechaSolicitud")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Observaciones")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<Guid?>("RespuestaRegistradaPorUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("Resultado")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("SolicitadaPorUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "ClienteId");
-
-                    b.HasIndex("TenantId", "EmpresaId", "ClienteId", "FechaSolicitud");
-
-                    b.ToTable("SolicitudesCertificacionTgss", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Centros.CanalGestionDocumental", b =>
@@ -6719,23 +6656,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "TrabajadorId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Blindaje42.SolicitudCertificacionTgss", b =>
-                {
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "ClienteId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "EmpresaId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
