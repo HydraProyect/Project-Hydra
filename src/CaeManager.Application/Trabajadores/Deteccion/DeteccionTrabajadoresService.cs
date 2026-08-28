@@ -7,7 +7,6 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Trabajadores;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Trabajadores.Deteccion;
 
@@ -24,6 +23,21 @@ namespace CaeManager.Application.Trabajadores.Deteccion;
 /// tiene desactivada a Nivel 2 — ver ConfiguracionIaDocumentoCliente
 /// (Fase 35). Si ya hay una detección pendiente sin resolver para el mismo
 /// documento, no duplica.
+///
+/// <b>No confundir "no aplica" con "falló"</b> (mismo criterio que
+/// VerificacionIaDocumentoService, D3): los primeros chequeos de
+/// <see cref="ProcesarDocumentoAsync"/> (Documento sin archivo/Empresa,
+/// TipoDocumento sin detección activa, todos los Clientes la tienen
+/// desactivada, detección ya pendiente) terminan en un <c>return</c>
+/// silencioso a propósito — son casos legítimos donde no hay nada que
+/// detectar. Pero no abrir el archivo o que el proveedor de IA devuelva un
+/// <c>Result</c> fallido SÍ es un fallo real de la detección, y por eso
+/// ambos casos lanzan en vez de retornar: dejan que
+/// <c>ProcesadorAnalisisDocumentoHostedService</c> (Infrastructure, que ya
+/// sabe reintentar, capturar en Sentry y avisar sin mentir) lo trate como lo
+/// que es, en vez de que <c>MarcarCompletado()</c> + la campana "Detección
+/// de personal terminada" mientan sobre un documento que nunca llegó a
+/// leerse.
 /// </summary>
 public class DeteccionTrabajadoresService(
     IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
@@ -31,8 +45,7 @@ public class DeteccionTrabajadoresService(
     IExtraccionTrabajadoresIaService extraccion,
     IDeteccionTrabajadorRepository deteccionRepositorio,
     INotificacionUsuarioRepository notificacionRepositorio,
-    IUnitOfWork unitOfWork,
-    ILogger<DeteccionTrabajadoresService> logger) : IDeteccionTrabajadoresService
+    IUnitOfWork unitOfWork) : IDeteccionTrabajadoresService
 {
     public async Task ProcesarDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default)
     {
@@ -79,19 +92,34 @@ public class DeteccionTrabajadoresService(
             await archivo.CopyToAsync(buffer, cancellationToken);
             contenido = buffer.ToArray();
         }
-        catch (Exception ex)
+        catch (FileNotFoundException)
         {
-            logger.LogWarning(ex, "No se pudo abrir el archivo del Documento {DocumentoId} para lectura IA.", documentoId);
-            return;
+            // Se relanza SIN envolver, a propósito: ver el mismo catch en
+            // VerificacionIaDocumentoService (D3) — Disk/S3FileStorageService
+            // ya normalizan a FileNotFoundException el único caso realmente
+            // determinista (el archivo no existe o no resuelve a este
+            // tenant), y no va a aparecer en un segundo intento.
+            throw;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Cualquier otro fallo al abrir (red, el backend de
+            // almacenamiento caído, un timeout) sí puede ser transitorio —
+            // se envuelve para no perder el contexto, pero se deja
+            // reintentar como el resto.
+            throw new InvalidOperationException(
+                $"No se pudo abrir el archivo del Documento {documentoId} para lectura IA.", ex);
         }
 
         var resultadoExtraccion = await extraccion.ExtraerAsync(contenido, cancellationToken);
 
         if (resultadoExtraccion.EsFallido)
         {
-            logger.LogInformation(
-                "Lectura IA del Documento {DocumentoId} no disponible: {Codigo}", documentoId, resultadoExtraccion.Error.Codigo);
-            return;
+            // Mismo criterio que el catch de arriba: un Result fallido del
+            // proveedor de IA no es "nada que detectar" — es un fallo real
+            // de la detección.
+            throw new InvalidOperationException(
+                $"Lectura IA del Documento {documentoId} no disponible: {resultadoExtraccion.Error.Codigo} — {resultadoExtraccion.Error.Mensaje}");
         }
 
         var extraidos = resultadoExtraccion.Valor;
