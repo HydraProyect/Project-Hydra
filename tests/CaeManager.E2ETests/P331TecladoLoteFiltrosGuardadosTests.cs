@@ -15,37 +15,26 @@ namespace CaeManager.E2ETests;
 [Collection("AppCollection")]
 public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
 {
-    // F3b/D2 (2026-08-26): este test crea Clientes de prueba y verifica j/k,
-    // "x" + BarraAccionesLote, y filtros guardados sobre /clientes —
-    // respaldado por ObtenerClientesQuery, una de las 6 consultas que D2 deja
-    // leyendo la tabla legacy Clientes hasta F4. Con los escritores de
-    // Cliente redirigidos a Empresa, ninguno de los dos Clientes de este test
-    // aparecerá jamás en esa pantalla (decisión explícita: "aceptar el
-    // vacío", ver f3b-decision-d2-transicion-acotada-2026-08-25.md), así que
-    // el test entero se queda sin datos que enfocar/seleccionar/filtrar.
+    // F3b/D2 (2026-08-26) retiró este test porque los dos Clientes que crea no
+    // llegaban a aparecer en /clientes: ObtenerClientesQuery seguía leyendo la
+    // tabla legacy Clientes, que ya no recibía escrituras, y el test se quedaba
+    // sin datos que enfocar, seleccionar ni filtrar. Su propio comentario
+    // dejaba escrita la condición de vuelta — "cuando F4 resuelva
+    // ObtenerClientesQuery" — y F4 (2026-08-27, #288/#291) la cumplió.
+    // Repuesto el 2026-08-28.
     //
-    // Se retira en vez de reancriarlo a /empresas: a diferencia de
-    // AltaGuiadaTests/ImportarCombinadoTests (una comprobación puntual de
-    // existencia), este test depende de la estructura completa de la lista
-    // de Clientes — <tr> de QuickGrid, no las tarjetas-acordeón de
-    // Empresas.razor — y de "Guardar filtro"/filtros guardados, que hoy solo
-    // existe implementado en Clientes/Documentos/Trabajadores (no en
-    // Empresas). Portarlo exigiría reescribir selectores contra una
-    // estructura DOM distinta y los timings ya ajustados a los recursos
-    // específicos de Clientes.razor.cs documentados abajo (blur/foco) — un
-    // rediseño de test, no una adaptación de la aserción a la pantalla donde
-    // el dato sigue existiendo.
+    // Con él vuelve la cobertura que el skip declaraba perdida y sin
+    // sustituto: alternar selección con "x" sin activar antes "Selección
+    // múltiple", BarraAccionesLote (selección en lote + borrado) y el ciclo
+    // completo de filtros guardados (guardar/aplicar/borrar). Los atajos j/k
+    // seguían cubiertos aparte en FlujoBandejaPriorizadaTests (sobre
+    // /bandeja); el resto no lo estaba en ningún sitio.
     //
-    // Cobertura real que queda intacta pese al skip: el mecanismo de atajos
-    // j/k de AtajosListaTeclado ya se prueba de forma independiente en
-    // FlujoBandejaPriorizadaTests (sobre /bandeja). Cobertura real que SÍ se
-    // pierde con este skip, sin sustituto E2E hoy: alternar selección con
-    // "x" sin activar antes "Selección múltiple", BarraAccionesLote
-    // (selección en lote + borrado), y el ciclo completo de filtros
-    // guardados (guardar/aplicar/borrar). Hueco reconocido, no oculto —
-    // pendiente de reconstruirse cuando F4 resuelva ObtenerClientesQuery (o,
-    // antes, si algún incremento lleva "Guardar filtro" a Empresas).
-    [Fact(Skip = "F3b/D2: ObtenerClientesQuery congelada, /clientes vacío hasta F4 — ver f3b-decision-d2-transicion-acotada-2026-08-25.md. Ver comentario de la clase para lo que queda sin cobertura E2E.")]
+    // Comprobado por mutación: forzando ObtenerClientesQuery a no devolver
+    // nada — la condición exacta de F3b — este test falla esperando la fila
+    // de "P331 Alfa". Depende de verdad de que la lista muestre lo que se
+    // acaba de crear, no pasa por inercia.
+    [Fact]
     public async Task Atajos_de_teclado_seleccion_en_lote_y_filtros_guardados_funcionan_en_Clientes()
     {
         var sufijo = Guid.NewGuid().ToString("N")[..8];
