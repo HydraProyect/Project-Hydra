@@ -87,6 +87,13 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
             {
                 ["DatosPrueba:Activo"] = datosDePruebaActivos ? "true" : "false",
                 ["SegundoTenant:Activo"] = segundoTenantActivo ? "true" : "false",
+                // Para FabricaContextoDeBootstrap: la misma identidad
+                // administrativa que Program.cs usa para los seeders
+                // cross-tenant (backfill, retirada) — sin esto, un test que
+                // pida FabricaContextoDeBootstrap del arnés fallaría con
+                // "Falta el connection string CaeManagerDb" en vez de
+                // reproducir producción.
+                ["ConnectionStrings:CaeManagerDb"] = cadenaPropietario,
             })
             .Build());
 
@@ -116,6 +123,13 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
             ConfiguracionDeContexto.Aplicar(
                 opciones, sp, BaseDatosPostgresDePruebas.CadenaComoRuntime(cadenaPropietario));
         });
+
+        // La identidad de bootstrap real (no una reconstrucción a mano en el
+        // test): los seeders cross-tenant (AsignacionesOperativasBackfillSeeder,
+        // y desde este incidente RetiradaTenantDemoService) tienen que correr
+        // exactamente con esta fábrica, no con una equivalente hecha a mano —
+        // ver CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap.
+        servicios.AddScoped<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>();
 
         servicios.AddIdentityCore<ApplicationUser>()
             .AddRoles<IdentityRole<Guid>>()

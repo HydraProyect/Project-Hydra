@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Domain.Contactos;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -38,6 +39,7 @@ public class DatosPruebaAgendaSeederTests : IAsyncLifetime
     public async Task La_siembra_cubre_todas_las_variantes_de_la_agenda()
     {
         await using (var dbContext = CrearContexto())
+        using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
         {
             var resumen = await DatosPruebaSeeder.SembrarSoloDatosAsync(dbContext, NullLogger.Instance);
             resumen.Should().NotBeNull("la base de datos está vacía, la siembra no debe omitirse");
