@@ -165,6 +165,33 @@ public class F3cRetiradaClientesSubcontratasLegacyTests : IAsyncLifetime
         (await ExisteTablaAsync("Clientes")).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task El_Down_recrea_las_dos_tablas_con_su_RLS_no_solo_con_sus_indices()
+    {
+        // El Down de un DROP es la parte que nadie ejecuta hasta el día malo.
+        // Lo que se comprueba aquí no es que las tablas vuelvan —eso lo genera
+        // EF— sino que vuelvan CON aislamiento: DROP TABLE se lleva las
+        // políticas por delante, y EF no las regenera porque viven en SQL
+        // crudo. Un rollback que dejara dos tablas con TenantId y sin política
+        // sería peor que no poder revertir.
+        await AplicarF3cAsync();
+        (await ExisteTablaAsync("Clientes")).Should().BeFalse();
+
+        await RevertirF3cAsync();
+
+        foreach (var tabla in new[] { "Clientes", "Subcontratas" })
+        {
+            (await ExisteTablaAsync(tabla)).Should().BeTrue();
+
+            var (rlsActiva, rlsForzada, politicas) = await LeerEstadoRlsAsync(tabla);
+            rlsActiva.Should().BeTrue($"{tabla} vuelve con ENABLE ROW LEVEL SECURITY");
+            rlsForzada.Should().BeTrue(
+                $"{tabla} vuelve con FORCE: sin él la política no restringiría al propietario, "
+                + "que es el rol con el que migran todos los entornos");
+            politicas.Should().Be(1, $"{tabla} vuelve con su política aislamiento_tenant");
+        }
+    }
+
     // ---------- utilidades ----------
 
     private async Task AplicarF3cAsync()
@@ -172,6 +199,31 @@ public class F3cRetiradaClientesSubcontratasLegacyTests : IAsyncLifetime
         await using var contexto = CrearContexto(_tenantId);
         var migrador = contexto.GetInfrastructure().GetRequiredService<IMigrator>();
         await migrador.MigrateAsync(MigracionF3c);
+    }
+
+    private async Task RevertirF3cAsync()
+    {
+        await using var contexto = CrearContexto(_tenantId);
+        var migrador = contexto.GetInfrastructure().GetRequiredService<IMigrator>();
+        await migrador.MigrateAsync(MigracionAnteriorAF3c);
+    }
+
+    private async Task<(bool Activa, bool Forzada, int Politicas)> LeerEstadoRlsAsync(string tabla)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = """
+            SELECT c.relrowsecurity, c.relforcerowsecurity,
+                   (SELECT count(*) FROM pg_policy p WHERE p.polrelid = c.oid)
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' AND c.relname = @tabla;
+            """;
+        comando.Parameters.AddWithValue("tabla", tabla);
+        await using var lector = await comando.ExecuteReaderAsync();
+        (await lector.ReadAsync()).Should().BeTrue($"la tabla {tabla} debe existir para leer su RLS");
+        return (lector.GetBoolean(0), lector.GetBoolean(1), (int)lector.GetInt64(2));
     }
 
     private async Task<Guid> ObtenerPrimerTenantAsync()
