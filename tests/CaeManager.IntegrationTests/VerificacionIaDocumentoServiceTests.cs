@@ -58,8 +58,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
     private VerificacionIaDocumentoService CrearServicio(IExtraccionMetadatosDocumentoIaService extraccion, IFileStorageService? almacenamiento = null) =>
         new(_dbContext, _dbContext, almacenamiento ?? new AlmacenamientoFalso(), extraccion,
             new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
-            new AuditoriaExtraccionIaRepository(_dbContext), _dbContext,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<VerificacionIaDocumentoService>.Instance);
+            new AuditoriaExtraccionIaRepository(_dbContext), _dbContext);
 
     private Trabajador CrearTrabajador() => Trabajador.DeEmpresa(_empresa.Id, "Alvaro", "Sanchez Martin", "77189989B");
 
@@ -196,6 +195,72 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         (await _dbContext.RevisionesIaDocumento.CountAsync(r => r.DocumentoId == documento.Id)).Should().Be(1);
     }
 
+    /// <summary>
+    /// D3: un archivo que ya no existe (IFileStorageService.AbrirAsync lo
+    /// normaliza siempre a FileNotFoundException, ver Disk/S3FileStorageService)
+    /// es un fallo real y determinista — debe lanzar SIN envolver, para que
+    /// ProcesadorAnalisisDocumentoHostedService lo reconozca como "no
+    /// reintentable" (RegistrarFalloDefinitivo) en vez de gastar 3 intentos
+    /// en algo que no puede cambiar de resultado.
+    /// </summary>
+    [Fact]
+    public async Task Lanza_FileNotFoundException_sin_envolver_si_el_archivo_no_existe()
+    {
+        var trabajador = CrearTrabajador();
+        _dbContext.Trabajadores.Add(trabajador);
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var servicio = CrearServicio(new ExtraccionIaFalsaConSenal(() => { }), new AlmacenamientoQueFalla());
+
+        await Assert.ThrowsAsync<FileNotFoundException>(() => servicio.ProcesarDocumentoAsync(documento.Id));
+
+        (await _dbContext.RevisionesIaDocumento.AnyAsync(r => r.DocumentoId == documento.Id)).Should().BeFalse();
+        (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// D3: un fallo de apertura que NO es "el archivo no existe" (red, backend
+    /// de almacenamiento caído...) puede ser transitorio, así que se envuelve
+    /// y se deja como reintentable — a diferencia del caso anterior.
+    /// </summary>
+    [Fact]
+    public async Task Envuelve_en_InvalidOperationException_si_falla_la_apertura_por_otra_razon()
+    {
+        var trabajador = CrearTrabajador();
+        _dbContext.Trabajadores.Add(trabajador);
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var servicio = CrearServicio(new ExtraccionIaFalsaConSenal(() => { }), new AlmacenamientoConFalloTransitorio());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ProcesarDocumentoAsync(documento.Id));
+
+        (await _dbContext.RevisionesIaDocumento.AnyAsync(r => r.DocumentoId == documento.Id)).Should().BeFalse();
+        (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
+    /// <summary>D3: un Result fallido del proveedor de IA (sin API key, error de red, respuesta inválida...) también es un fallo real, no un éxito silencioso.</summary>
+    [Fact]
+    public async Task Lanza_si_el_proveedor_de_ia_falla()
+    {
+        var trabajador = CrearTrabajador();
+        _dbContext.Trabajadores.Add(trabajador);
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var servicio = CrearServicio(new ExtraccionIaFalsa(
+            Result.Fallo<MetadatosDocumentoExtraidosDto>(Error.Crear("DocumentAIRouter.SinProveedor", "No hay ningún proveedor de IA disponible."))));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ProcesarDocumentoAsync(documento.Id));
+
+        (await _dbContext.RevisionesIaDocumento.AnyAsync(r => r.DocumentoId == documento.Id)).Should().BeFalse();
+        (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
     private sealed class ExtraccionIaFalsa(Result<MetadatosDocumentoExtraidosDto> resultado) : IExtraccionMetadatosDocumentoIaService
     {
         public Task<Result<MetadatosDocumentoExtraidosDto>> ExtraerAsync(byte[] contenidoPdf, string nombreTipoDocumento, Guid? documentoId = null, CancellationToken cancellationToken = default) =>
@@ -220,5 +285,28 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
 
         public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
             Task.FromResult<Stream>(new MemoryStream([1, 2, 3]));
+    }
+
+    /// <summary>Mismo comportamiento que Disk/S3FileStorageService.AbrirAsync cuando el archivo no existe — ver ARQUITECTURA-IA-DOCUMENTAL, contrato de IFileStorageService.</summary>
+    private sealed class AlmacenamientoQueFalla : IFileStorageService
+    {
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
+            Task.FromResult("falso.pdf");
+
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
+            throw new FileNotFoundException("No encontramos el archivo solicitado.", identificador);
+    }
+
+    private sealed class AlmacenamientoConFalloTransitorio : IFileStorageService
+    {
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
+            Task.FromResult("falso.pdf");
+
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
+            throw new IOException("El backend de almacenamiento no respondió.");
     }
 }
