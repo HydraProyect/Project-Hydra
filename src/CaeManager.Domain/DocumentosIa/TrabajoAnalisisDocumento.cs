@@ -61,11 +61,34 @@ public class TrabajoAnalisisDocumento : EntidadConTenant
     /// </summary>
     public void RegistrarFallo(string error)
     {
+        RegistrarError(error);
+        Estado = Intentos >= MaximoIntentos ? EstadoTrabajoAnalisisDocumento.Fallido : EstadoTrabajoAnalisisDocumento.Pendiente;
+    }
+
+    /// <summary>
+    /// Fallo que no tiene sentido reintentar (D3: p. ej. el archivo del
+    /// Documento ya no existe, <c>FileNotFoundException</c> desde
+    /// <c>IFileStorageService.AbrirAsync</c>) — va directo a
+    /// <see cref="EstadoTrabajoAnalisisDocumento.Fallido"/> sin gastar los
+    /// intentos que le quedaran hasta <see cref="MaximoIntentos"/> en algo
+    /// que no puede cambiar de resultado. A diferencia de
+    /// <see cref="RegistrarFallo"/>, nunca vuelve a Pendiente: cada intento
+    /// adicional sería otra llamada de pago a un proveedor de IA (o, si el
+    /// tipo de análisis no llama a IA, otro evento de Sentry) por algo que
+    /// ya se sabe que va a fallar igual.
+    /// </summary>
+    public void RegistrarFalloDefinitivo(string error)
+    {
+        RegistrarError(error);
+        Estado = EstadoTrabajoAnalisisDocumento.Fallido;
+    }
+
+    private void RegistrarError(string error)
+    {
         Intentos++;
         UltimoError = string.IsNullOrEmpty(error)
             ? null
             : error.Length > LongitudMaximaError ? error[..LongitudMaximaError] : error;
-        Estado = Intentos >= MaximoIntentos ? EstadoTrabajoAnalisisDocumento.Fallido : EstadoTrabajoAnalisisDocumento.Pendiente;
         IniciadoEnUtc = null;
     }
 

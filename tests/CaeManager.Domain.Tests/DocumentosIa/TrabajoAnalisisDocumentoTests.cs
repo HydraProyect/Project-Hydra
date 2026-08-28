@@ -85,6 +85,20 @@ public class TrabajoAnalisisDocumentoTests
     }
 
     [Fact]
+    public void RegistrarFalloDefinitivo_pasa_a_Fallido_de_inmediato_sin_agotar_los_intentos()
+    {
+        var trabajo = CrearTrabajo();
+        trabajo.MarcarEnProceso();
+
+        trabajo.RegistrarFalloDefinitivo("El archivo del Documento ya no existe.");
+
+        trabajo.Estado.Should().Be(EstadoTrabajoAnalisisDocumento.Fallido, "no tiene sentido reintentar algo que no puede cambiar de resultado");
+        trabajo.Intentos.Should().Be(1, "muy por debajo de MaximoIntentos — el salto a Fallido es explícito, no por agotamiento");
+        trabajo.UltimoError.Should().Be("El archivo del Documento ya no existe.");
+        trabajo.IniciadoEnUtc.Should().BeNull();
+    }
+
+    [Fact]
     public void RecuperarSiEstancado_no_hace_nada_si_el_trabajo_no_esta_Procesando()
     {
         var trabajo = CrearTrabajo();
