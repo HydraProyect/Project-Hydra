@@ -31,6 +31,18 @@ namespace CaeManager.IntegrationTests.Arranque;
 /// </summary>
 public class DatosPruebaSeederDeterminismoTests
 {
+    /// <summary>
+    /// Smoke end-to-end a escala de producción (9 clientes / 24 empresas,
+    /// seed 20260803 fijo) — <b>NO es la red de seguridad del defecto 1</b>.
+    /// Con ese seed concreto, la propiedad se cumple incluso mutando el
+    /// arreglo hacia atrás (comprobado a mano): el sorteo de esa tanda en
+    /// particular no cae en un centro sin plantilla, así que este test
+    /// pasaría igual con el bug de vuelta. La red de seguridad real es
+    /// <see cref="SeleccionarCentrosConCanalTests"/>, que fuerza el
+    /// escenario y barre 200 semillas — ese sí falsa de forma fiable. Este
+    /// test se queda porque valida la integración completa (todos los
+    /// seeders encadenados, RLS, Identity), no porque pruebe el defecto.
+    /// </summary>
     [Fact]
     public async Task Dos_siembras_independientes_garantizan_un_centro_bloqueado_con_plantilla_real()
     {
