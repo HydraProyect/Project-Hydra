@@ -95,6 +95,15 @@ Prueba de sensibilidad: verde → mutación válida **que siga compilando** → 
 **por el motivo esperado** → revertir → verde. Un fallo de compilación no
 demuestra sensibilidad.
 
+**Una mutación que pasa cuando predijiste rojo es un hallazgo, no un contratiempo.**
+El reflejo barato es encogerse de hombros y probar otra; el caro y correcto es
+preguntarse por qué no falló, porque la respuesta suele ser que la mutación no
+tocaba lo que creías o que el test no observa lo que dice observar. Y ojo con el
+caso peor: si esa misma mutación llega a fallar **por un motivo distinto** del
+esperado, habrías registrado una prueba de sensibilidad falsa sin enterarte
+nunca. Por eso el rojo tiene que serlo **por el motivo previsto**, comprobado en
+el mensaje, no solo en el color.
+
 **"Pasa en local" y "pasa en local aislado" son afirmaciones distintas.** Un test
 ejecutado con `--filter`, fuera de su suite, es un instrumento diferente del mismo
 test dentro de ella: no comparten arranque, ni estado compartido, ni contención por
