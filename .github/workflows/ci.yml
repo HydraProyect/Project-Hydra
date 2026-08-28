@@ -484,3 +484,41 @@ jobs:
       - name: deploy/resolve-deploy-sha.tests.sh
         run: bash deploy/resolve-deploy-sha.tests.sh
 
+  licencias-dependencias:
+    name: Licencias de dependencias
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # El guion se prueba a sí mismo primero, sin red: si el verificador no
+      # sabe distinguir MediatR 12.5.0 de 13.0.0, su veredicto sobre el árbol
+      # real tampoco vale nada.
+      - name: Probar el verificador (sin red)
+        run: bash scripts/verificar-licencias-nuget.tests.sh
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      # Las versiones se toman RESUELTAS, no del csproj: los comodines de
+      # versión (`12.*`) no dicen qué se instaló de verdad, y es justamente lo
+      # instalado lo que tiene licencia.
+      - name: Listar dependencias de primer nivel
+        run: |
+          dotnet list package --format json > paquetes.json
+          jq -r '[.projects[].frameworks[]?.topLevelPackages[]?
+                  | "\(.id) \(.resolvedVersion)"] | unique | .[]' \
+            paquetes.json > lista-paquetes.txt
+          echo "Dependencias de primer nivel: $(wc -l < lista-paquetes.txt)"
+
+      # Falla si un paquete cambia a una licencia no permitida o la declara
+      # como fichero sin estar en scripts/licencias-revisadas.txt. Es el gate
+      # que habría cazado FluentAssertions 8.x y MediatR 13.x cuando llegaron
+      # como PRs de dependabot indistinguibles de una actualización rutinaria.
+      - name: Verificar licencias
+        run: bash scripts/verificar-licencias-nuget.sh lista-paquetes.txt
+
