@@ -91,9 +91,27 @@ concurrentes, worktree correcto y commit/rama correctos.
 
 **Un test o ratchet que no puede observar la propiedad no cuenta como evidencia.**
 
+**Antes de instrumentar un sistema para que emita evidencia, comprueba si ya la
+emite en algún sitio donde no has mirado.** Un fallo de E2E costó horas de
+hipótesis porque la fixture descarta la salida estándar y se dio por bueno que
+"no había excepción"; la excepción llevaba toda la investigación escrita en el
+sink de fichero de Serilog, en disco. Registro de auditoría, logs en fichero,
+artefactos de CI, informes de cobertura: mira primero lo que el sistema ya
+guarda. Añadir instrumentación nueva para redescubrir lo que ya está escrito
+cuesta una vuelta de suite entera y, peor, hace creer que el dato no existía.
+
 Prueba de sensibilidad: verde → mutación válida **que siga compilando** → rojo
 **por el motivo esperado** → revertir → verde. Un fallo de compilación no
 demuestra sensibilidad.
+
+**Una mutación que pasa cuando predijiste rojo es un hallazgo, no un contratiempo.**
+El reflejo barato es encogerse de hombros y probar otra; el caro y correcto es
+preguntarse por qué no falló, porque la respuesta suele ser que la mutación no
+tocaba lo que creías o que el test no observa lo que dice observar. Y ojo con el
+caso peor: si esa misma mutación llega a fallar **por un motivo distinto** del
+esperado, habrías registrado una prueba de sensibilidad falsa sin enterarte
+nunca. Por eso el rojo tiene que serlo **por el motivo previsto**, comprobado en
+el mensaje, no solo en el color.
 
 **"Pasa en local" y "pasa en local aislado" son afirmaciones distintas.** Un test
 ejecutado con `--filter`, fuera de su suite, es un instrumento diferente del mismo
@@ -109,6 +127,17 @@ mismo más el timeout".
 
 **Un vigía que agota su tiempo sin observar el suceso sale con código 0.** Esperar
 no es medir: distinguir siempre "terminó y el resultado es X" de "dejé de mirar".
+
+**Tras un squash-merge el SHA nunca coincide, así que `--is-ancestor` da negativo
+tanto cuando de verdad falta integrar como cuando tu rama YA se mergeó.** El
+mismo síntoma para dos situaciones opuestas. Distinguirlas exige `gh pr view` o
+comparar el CONTENIDO de los ficheros; el SHA no puede hacerlo. Antes de avisar a
+nadie de que su trabajo se va a perder, diff de contenido — un cero ahí cierra la
+pregunta, un SHA distinto no dice nada.
+
+**Y antes de leer una hora, comprueba en qué reloj está escrita.** Un commit local
+en `+0200` y un merge en UTC son comparables solo tras convertirlos; confundirlos
+inventa discrepancias de dos horas que parecen trabajo sin integrar.
 
 ## 4. Verificación por capas
 
