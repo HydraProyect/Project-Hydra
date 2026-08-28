@@ -1,8 +1,6 @@
 using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
-using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -47,26 +45,31 @@ public class BuscarGlobalAlcanceTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
-        var clienteMio = new Cliente("Zeta Cliente Propio S.L.", "B12345674", esCritico: false);
-        var clienteAjeno = new Cliente("Zeta Cliente Ajeno S.L.", "B87654323", esCritico: false);
-        contexto.Clientes.AddRange(clienteMio, clienteAjeno);
+        // F3c: las tres categorías del buscador viven en la MISMA tabla
+        // Empresas — "Cliente" es EsCritico != null y "Subcontrata" es
+        // NivelServicio != null, los mismos discriminadores que usan
+        // ObtenerClientesQuery/ObtenerSubcontratasQuery. Antes de F3c estas
+        // filas se sembraban en las tablas legacy, así que el test no podía
+        // observar el solape entre categorías que la producción ya tenía
+        // desde F3b.
+        var clienteMio = Empresa.CrearComoCliente(
+            "Zeta Cliente Propio S.L.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        var clienteAjeno = Empresa.CrearComoCliente(
+            "Zeta Cliente Ajeno S.L.", "B87654323", esCritico: false, notas: null, ejecutivoUsuarioId: null);
 
         var empresaMia = new Empresa("Zeta Empresa Propia S.L.");
         var empresaAjena = new Empresa("Zeta Empresa Ajena S.L.");
-        contexto.Empresas.AddRange(empresaMia, empresaAjena);
 
-        var subcontrataMia = new Subcontrata("Zeta Subcontrata Propia S.L.");
-        var subcontrataAjena = new Subcontrata("Zeta Subcontrata Ajena S.L.");
-        contexto.Subcontratas.AddRange(subcontrataMia, subcontrataAjena);
+        var subcontrataMia = Empresa.CrearComoSubcontrata("Zeta Subcontrata Propia S.L.", null, "Gestionada");
+        var subcontrataAjena = Empresa.CrearComoSubcontrata("Zeta Subcontrata Ajena S.L.", null, "Gestionada");
+
+        contexto.Empresas.AddRange(clienteMio, clienteAjeno, empresaMia, empresaAjena, subcontrataMia, subcontrataAjena);
 
         await contexto.SaveChangesAsync();
 
-        // F3b: ClienteId de Centro repunta contra Empresas — clienteMio/clienteAjeno
-        // se quedan a propósito solo en Clientes (esta prueba ejercita justo la
-        // rama Cliente de BuscarGlobalQuery, una de las 6 consultas congeladas
-        // por D2 hasta F4), así que el Centro usa empresaMia/empresaAjena como
-        // FK, sin relación semántica con el cliente probado — el buscador global
-        // acota Centro por su propio Id de cartera, no por el del cliente.
+        // El Centro se ancla a empresaMia/empresaAjena y no a clienteMio: el
+        // buscador global acota Centro por su propio Id de cartera, no por el
+        // del cliente, así que el ancla concreta no cambia lo que se mide.
         var centroMio = new Centro(empresaMia.Id, empresaMia.Id, "Zeta Centro Propio");
         var centroAjeno = new Centro(empresaAjena.Id, empresaAjena.Id, "Zeta Centro Ajeno");
         contexto.Centros.AddRange(centroMio, centroAjeno);
@@ -136,8 +139,18 @@ public class BuscarGlobalAlcanceTests : IAsyncLifetime
         var resultado = await BuscarAsync(new AlcanceDatosServiceFalso());
 
         resultado.Clientes.Should().HaveCount(2);
-        resultado.Empresas.Should().HaveCount(2);
         resultado.Subcontratas.Should().HaveCount(2);
+
+        // La categoría "Empresas" no filtra por discriminador — igual que el
+        // listado /empresas al que enlaza, que tampoco lo hace. Tras F3c eso
+        // se ve: las seis filas sembradas son Empresas, y la categoría las
+        // devuelve todas hasta su límite de 5 por categoría. No es un cambio
+        // de comportamiento de F3c: en producción, toda contraparte es una
+        // fila de Empresas desde F3b — este test es el primero que puede
+        // observarlo. Que Cliente y Subcontrata aparezcan además bajo
+        // "Empresas" es una pregunta de producto abierta, no una regresión.
+        resultado.Empresas.Should().HaveCount(5);
+        resultado.Empresas.Select(e => e.Id).Should().Contain([_empresaEnCartera, _empresaFueraDeCartera]);
         resultado.Centros.Should().HaveCount(2);
         resultado.Trabajadores.Should().HaveCount(2);
     }
@@ -145,7 +158,7 @@ public class BuscarGlobalAlcanceTests : IAsyncLifetime
     private async Task<ResultadoBusquedaGlobalDto> BuscarAsync(AlcanceDatosServiceFalso alcance)
     {
         await using var contexto = CrearContexto();
-        var handler = new BuscarGlobalQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, alcance);
+        var handler = new BuscarGlobalQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto, contexto, alcance);
 
         return await handler.Handle(new BuscarGlobalQuery(Termino), CancellationToken.None);
     }
