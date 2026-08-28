@@ -61,6 +61,20 @@ public class Tenant : Entity
 
     public DateTime? EstadoComercialActualizadoEnUtc { get; private set; }
 
+    /// <summary>
+    /// Marca de finalización de <c>DatosPruebaSeeder</c> para ESTE tenant —
+    /// null hasta que una siembra completa termina sin cortarse. Incidente de
+    /// producción del 2026-08-28: el guard anterior ("¿existe algún Cliente
+    /// en este tenant?") no distinguía "sembrado a fondo" de "tiene algún
+    /// dato suelto de otro origen" (un volcado, una siembra interrumpida a
+    /// mitad) — un tenant en ese segundo estado se quedaba con el guard
+    /// disparado para siempre, sin cartera completa y sin ninguna señal de
+    /// que algo faltaba. Esta marca es deliberada y explícita, no inferida
+    /// del volumen de datos: solo <see cref="MarcarDatosDemoCompletados"/>,
+    /// llamado al FINAL de una siembra completa, la establece.
+    /// </summary>
+    public DateTime? DatosDemoCompletadosEnUtc { get; private set; }
+
     private Tenant()
     {
         // Requerido por EF Core.
@@ -136,6 +150,13 @@ public class Tenant : Entity
         EstadoComercial = nuevoEstado;
         EstadoComercialActualizadoEnUtc = DateTime.UtcNow;
     }
+
+    /// <summary>
+    /// Llamarlo dos veces es válido (empuja la fecha) — <c>DatosPruebaSeeder</c>
+    /// no reintenta una siembra ya marcada, así que en la práctica esto corre
+    /// una sola vez por tenant salvo que se retire y se resiembre desde cero.
+    /// </summary>
+    public void MarcarDatosDemoCompletados() => DatosDemoCompletadosEnUtc = DateTime.UtcNow;
 
     private void EstablecerNombre(string nombre)
     {

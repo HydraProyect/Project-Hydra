@@ -451,6 +451,46 @@ if (args.Contains("--migrate-only"))
     return;
 }
 
+// Modo administrativo explícito para retirar por completo un tenant de demo
+// (ver RetiradaTenantDemoService, motivado por el incidente de siembra
+// parcial del 2026-08-28): tenant, usuarios y toda fila tenant-scoped, fuera
+// del arranque normal — nunca corre sola, exige el TenantId exacto como
+// argumento y termina el proceso sin levantar Kestrel, mismo patrón que
+// --migrate-only. RetiradaTenantDemoService se niega a tocar cualquier
+// tenant que no esté en su allowlist de nombres de demo conocidos, empezando
+// por el de plataforma — ese rechazo es la garantía real, no esta capa de
+// entrada.
+if (args.Contains("--retirar-tenant-demo"))
+{
+    var indiceArgumento = Array.IndexOf(args, "--retirar-tenant-demo");
+    if (indiceArgumento < 0 || indiceArgumento + 1 >= args.Length ||
+        !Guid.TryParse(args[indiceArgumento + 1], out var tenantIdARetirar))
+    {
+        Console.Error.WriteLine("Uso: --retirar-tenant-demo <TenantId guid> — falta el argumento o no es un Guid válido.");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    using var scopeRetirada = app.Services.CreateScope();
+    var dbContextRetirada = scopeRetirada.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+    var loggerRetirada = scopeRetirada.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        var resultado = await RetiradaTenantDemoService.RetirarAsync(dbContextRetirada, tenantIdARetirar, loggerRetirada);
+        Console.WriteLine(
+            $"Retirado: '{resultado.NombreTenant}' ({resultado.TenantId}) — " +
+            $"{resultado.FilasBorradas} filas tenant-scoped, {resultado.UsuariosBorrados} usuarios.");
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.Error.WriteLine($"Retirada rechazada: {ex.Message}");
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
 // Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y DEPLOY.md),
 // Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS

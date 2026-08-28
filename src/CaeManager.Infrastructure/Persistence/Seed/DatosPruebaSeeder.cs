@@ -21,6 +21,7 @@ using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
+using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Visitas;
@@ -229,14 +230,9 @@ public static class DatosPruebaSeeder
             return;
         }
 
-        // F3b: "ya se sembró" se detecta por la señal que el propio backfill
-        // de F3a ya usa para reconocer una fila ex-Cliente — EsCritico nunca
-        // es NULL para las que este seeder crea (ver Empresa.CrearComoCliente).
-        if (await dbContext.Empresas.AnyAsync(e => e.EsCritico != null, cancellationToken))
-        {
-            logger.LogInformation("DatosPrueba:Activo está en true, pero ya hay Clientes — se omite la siembra de datos de prueba.");
+        var tenant = await ObtenerTenantActualAsync(dbContext, cancellationToken);
+        if (await OmitirPorSiembraYaResueltaAsync(dbContext, tenant, logger, cancellationToken))
             return;
-        }
 
         // Antes de escribir nada: si esto es Producción y no hay credenciales
         // configuradas, lanza. Ver CredencialesDemo.
@@ -249,6 +245,9 @@ public static class DatosPruebaSeeder
             dbContext, aleatorio, RazonesSocialesClientes.Length, numeroEmpresas: 24, numeroSubcontratas: 8, cancellationToken);
 
         await SembrarUsuariosYCarteraAsync(dbContext, userManager, credenciales, logger, cancellationToken);
+
+        tenant.MarcarDatosDemoCompletados();
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
             "Datos de prueba sembrados: {Clientes} clientes, {Empresas} empresas, {Subcontratas} subcontratas, " +
@@ -267,10 +266,8 @@ public static class DatosPruebaSeeder
     public static async Task<ResumenSiembra?> SembrarSoloDatosAsync(
         CaeManagerDbContext dbContext, ILogger logger, CancellationToken cancellationToken = default)
     {
-        // F3b: "ya se sembró" se detecta por la señal que el propio backfill
-        // de F3a ya usa para reconocer una fila ex-Cliente — EsCritico nunca
-        // es NULL para las que este seeder crea (ver Empresa.CrearComoCliente).
-        if (await dbContext.Empresas.AnyAsync(e => e.EsCritico != null, cancellationToken))
+        var tenant = await ObtenerTenantActualAsync(dbContext, cancellationToken);
+        if (await OmitirPorSiembraYaResueltaAsync(dbContext, tenant, logger, cancellationToken))
             return null;
 
         // Semilla distinta a la del tenant principal a propósito: mismos
@@ -279,6 +276,9 @@ public static class DatosPruebaSeeder
         var aleatorio = new Random(20260802);
         var resumen = await SembrarDatosOperativosAsync(
             dbContext, aleatorio, numeroClientes: 3, numeroEmpresas: 9, numeroSubcontratas: 3, cancellationToken);
+
+        tenant.MarcarDatosDemoCompletados();
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
             "Datos operativos sembrados en tenant de demo adicional: {Clientes} clientes, {Empresas} empresas, {Trabajadores} trabajadores.",
@@ -298,10 +298,8 @@ public static class DatosPruebaSeeder
     public static async Task<ResumenSiembra?> SembrarSoloDatosCompletosAsync(
         CaeManagerDbContext dbContext, ILogger logger, CancellationToken cancellationToken = default)
     {
-        // F3b: "ya se sembró" se detecta por la señal que el propio backfill
-        // de F3a ya usa para reconocer una fila ex-Cliente — EsCritico nunca
-        // es NULL para las que este seeder crea (ver Empresa.CrearComoCliente).
-        if (await dbContext.Empresas.AnyAsync(e => e.EsCritico != null, cancellationToken))
+        var tenant = await ObtenerTenantActualAsync(dbContext, cancellationToken);
+        if (await OmitirPorSiembraYaResueltaAsync(dbContext, tenant, logger, cancellationToken))
             return null;
 
         // Semilla distinta a la del tenant principal (20260801) y a la del
@@ -310,11 +308,73 @@ public static class DatosPruebaSeeder
         var resumen = await SembrarDatosOperativosAsync(
             dbContext, aleatorio, RazonesSocialesClientes.Length, numeroEmpresas: 24, numeroSubcontratas: 8, cancellationToken);
 
+        tenant.MarcarDatosDemoCompletados();
+        await dbContext.SaveChangesAsync(cancellationToken);
+
         logger.LogInformation(
             "Datos operativos completos sembrados en tenant de demo adicional: {Clientes} clientes, {Empresas} empresas, {Trabajadores} trabajadores.",
             resumen.Clientes, resumen.Empresas, resumen.Trabajadores);
 
         return resumen;
+    }
+
+    private static async Task<Tenant> ObtenerTenantActualAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var tenantId = AmbitoTenantExplicito.TenantIdActual
+            ?? throw new InvalidOperationException(
+                "DatosPruebaSeeder necesita un AmbitoTenantExplicito establecido — ver DelegacionDemoSeeder/SegundoTenantSeeder.");
+
+        return await dbContext.Tenants.SingleAsync(t => t.Id == tenantId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Incidente de producción del 2026-08-28: antes, "¿ya hay Clientes en
+    /// este tenant?" era la única señal de "ya sembrado" — y no distinguía
+    /// una siembra completa de este seeder de un tenant con datos sueltos de
+    /// otro origen (un volcado, una siembra interrumpida a mitad). Un tenant
+    /// en ese segundo estado se quedaba con el guard disparado para siempre:
+    /// sin cartera completa, y con el log diciendo "ya hay Clientes" como si
+    /// no faltara nada.
+    ///
+    /// Ahora la señal de "completo" es explícita
+    /// (<see cref="Tenant.DatosDemoCompletadosEnUtc"/>, marcada solo al FINAL
+    /// de una siembra que terminó sin cortarse) y se comprueba PRIMERO. Si no
+    /// está marcada pero ya hay Clientes, no se reintenta sembrar encima —
+    /// duplicaría filas sin ningún control de qué falta — pero el log deja
+    /// de sonar a "todo en orden": dice exactamente qué pasa y cómo se
+    /// arregla (retirar el tenant con <c>--retirar-tenant-demo</c> y dejar
+    /// que la siembra lo complete desde cero en el próximo arranque). Ese
+    /// "cómo se arregla" es la retirada, no una auto-reparación aquí: encajar
+    /// una reconciliación fila a fila en este método arriesgaba
+    /// duplicaciones sutiles por una ganancia que la retirada ya cubre.
+    /// </summary>
+    private static async Task<bool> OmitirPorSiembraYaResueltaAsync(
+        CaeManagerDbContext dbContext, Tenant tenant, ILogger logger, CancellationToken cancellationToken)
+    {
+        if (tenant.DatosDemoCompletadosEnUtc is not null)
+        {
+            logger.LogInformation(
+                "DatosPrueba:Activo está en true, pero este tenant ya completó su siembra el {Fecha} — se omite.",
+                tenant.DatosDemoCompletadosEnUtc);
+            return true;
+        }
+
+        // F3b: la señal de "hay algo" es la misma que usaba el guard antiguo
+        // — EsCritico nunca es NULL para las filas que este seeder crea (ver
+        // Empresa.CrearComoCliente) — pero ahora solo decide SI hay que
+        // avisar, no si hay que omitir: la decisión de omitir ya la tomó el
+        // marcador de arriba.
+        if (await dbContext.Empresas.AnyAsync(e => e.EsCritico != null, cancellationToken))
+        {
+            logger.LogWarning(
+                "DatosPrueba:Activo está en true y este tenant YA TIENE Clientes, pero NUNCA se marcó como " +
+                "siembra completa — es un estado A MEDIAS (volcado externo o siembra interrumpida), no 'ya está " +
+                "listo'. Se omite igual que antes para no duplicar filas, pero esto necesita una acción manual: " +
+                "retira este tenant con --retirar-tenant-demo <TenantId> y reinicia para que la siembra lo complete desde cero.");
+            return true;
+        }
+
+        return false;
     }
 
     private static async Task<ResumenSiembra> SembrarDatosOperativosAsync(
