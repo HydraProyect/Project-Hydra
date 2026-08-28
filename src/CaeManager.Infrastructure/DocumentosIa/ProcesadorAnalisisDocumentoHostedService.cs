@@ -138,7 +138,30 @@ public class ProcesadorAnalisisDocumentoHostedService(
         foreach (var tenantId in tenantsActivos)
         {
             stoppingToken.ThrowIfCancellationRequested();
-            await ProcesarPendientesDelTenantAsync(tenantId, stoppingToken);
+
+            // Un tenant a la vez, aislado: sin este try/catch, una excepción
+            // en el tenant k (en cualquiera de las llamadas de
+            // ProcesarPendientesDelTenantAsync que no son EjecutarAnalisisAsync
+            // — RecuperarEstancadosAsync, ObtenerSiguientePendienteAsync, los
+            // SaveChangesAsync, AvisarSiCorrespondeAsync) se propaga hasta
+            // ExecuteAsync y aborta el tick entero, dejando sin procesar a
+            // k+1..N. Como el orden de tenantsActivos es estable, el mismo
+            // tenant vuelve a fallar en el mismo punto en cada sondeo (cada 5
+            // s) y bloquea a los mismos siguientes indefinidamente.
+            try
+            {
+                await ProcesarPendientesDelTenantAsync(tenantId, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Falló el sondeo de la cola de análisis IA del tenant {TenantId}; se continúa con el resto de tenants en este tick.",
+                    tenantId);
+            }
         }
     }
 
@@ -149,20 +172,39 @@ public class ProcesadorAnalisisDocumentoHostedService(
 
         foreach (var tenantId in tenantsActivos)
         {
-            using var ambito = ambitoFactory.CreateScope();
-            using var _ = AmbitoTenantExplicito.Establecer(tenantId);
-
-            var repositorio = ambito.ServiceProvider.GetRequiredService<ITrabajoAnalisisDocumentoRepository>();
-            total += await repositorio.ContarActivosAsync(stoppingToken);
-
-            // Reutiliza la misma consulta que ya usa el sondeo real (ordena
-            // por CreadoEnUtc ascendente) solo para leer su antigüedad — no
-            // hace falta un método de repositorio nuevo para esto.
-            var pendienteDelTenant = await repositorio.ObtenerSiguientePendienteAsync(stoppingToken);
-            if (pendienteDelTenant is not null &&
-                (masAntiguoPendiente is null || pendienteDelTenant.CreadoEnUtc < masAntiguoPendiente.CreadoEnUtc))
+            // Aislado igual que en SondearTodosLosTenantsAsync: esta medición
+            // corre ANTES del procesamiento (línea de arriba), así que sin
+            // este try/catch una excepción en el tenant k no solo perdería su
+            // propia medición — abortaría MedirProfundidadColaAsync entero y
+            // ProcesarPendientesDelTenantAsync no llegaría a ejecutarse para
+            // ningún tenant en este tick.
+            try
             {
-                masAntiguoPendiente = pendienteDelTenant;
+                using var ambito = ambitoFactory.CreateScope();
+                using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+
+                var repositorio = ambito.ServiceProvider.GetRequiredService<ITrabajoAnalisisDocumentoRepository>();
+                total += await repositorio.ContarActivosAsync(stoppingToken);
+
+                // Reutiliza la misma consulta que ya usa el sondeo real (ordena
+                // por CreadoEnUtc ascendente) solo para leer su antigüedad — no
+                // hace falta un método de repositorio nuevo para esto.
+                var pendienteDelTenant = await repositorio.ObtenerSiguientePendienteAsync(stoppingToken);
+                if (pendienteDelTenant is not null &&
+                    (masAntiguoPendiente is null || pendienteDelTenant.CreadoEnUtc < masAntiguoPendiente.CreadoEnUtc))
+                {
+                    masAntiguoPendiente = pendienteDelTenant;
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Falló la medición de profundidad de cola del tenant {TenantId}; se continúa con el resto de tenants.",
+                    tenantId);
             }
         }
 
