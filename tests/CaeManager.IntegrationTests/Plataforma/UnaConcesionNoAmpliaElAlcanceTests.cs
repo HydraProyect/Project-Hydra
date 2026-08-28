@@ -1,6 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Infrastructure.Autorizacion;
@@ -53,7 +53,8 @@ public class UnaConcesionNoAmpliaElAlcanceTests : IAsyncLifetime
         await using var contexto = CrearContexto(_tenantVisitado);
         await contexto.Database.MigrateAsync();
 
-        contexto.Clientes.Add(new Cliente("Cliente del tenant visitado", "B12345674", esCritico: false));
+        contexto.Empresas.Add(Empresa.CrearComoCliente(
+            "Cliente del tenant visitado", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null));
 
         // Una asignación del tenant visitado, para el catálogo global.
         contexto.AsignacionesOperacion.Add(AsignacionOperacion.Raiz(
@@ -80,7 +81,7 @@ public class UnaConcesionNoAmpliaElAlcanceTests : IAsyncLifetime
         await using var conexion = await AbrirRestringidaAsync(
             tenantActivo: _tenantDelSoporte, tenantOrigen: _tenantDelSoporte, usuario: _usuarioSoporte);
 
-        (await ContarAsync(conexion, "Clientes")).Should().Be(0,
+        (await ContarAsync(conexion, "Empresas")).Should().Be(0,
             "la concesión permite ABRIR una sesión sobre ese tenant, no leer sus datos por el hecho de existir");
     }
 

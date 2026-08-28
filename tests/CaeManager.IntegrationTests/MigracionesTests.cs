@@ -1,4 +1,4 @@
-﻿using CaeManager.Domain.Clientes;
+﻿using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -77,11 +77,11 @@ public class MigracionesTests : IAsyncLifetime
     [Fact]
     public async Task Guarda_y_recupera_un_cliente()
     {
-        var cliente = new Cliente("Cadena Industrial Iberia S.A.", "B12345674", esCritico: true);
-        _dbContext.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia S.A.", "B12345674", esCritico: true, notas: null, ejecutivoUsuarioId: null);
+        _dbContext.Empresas.Add(cliente);
         await _dbContext.SaveChangesAsync();
 
-        var recuperado = await _dbContext.Clientes.FindAsync(cliente.Id);
+        var recuperado = await _dbContext.Empresas.FindAsync(cliente.Id);
 
         recuperado.Should().NotBeNull();
         recuperado!.RazonSocial.Should().Be("Cadena Industrial Iberia S.A.");
@@ -90,8 +90,8 @@ public class MigracionesTests : IAsyncLifetime
     [Fact]
     public async Task El_filtro_global_de_soft_delete_oculta_los_clientes_eliminados()
     {
-        var cliente = new Cliente("RENDELSUR", "B12345674", esCritico: true);
-        _dbContext.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("RENDELSUR", "B12345674", esCritico: true, notas: null, ejecutivoUsuarioId: null);
+        _dbContext.Empresas.Add(cliente);
         await _dbContext.SaveChangesAsync();
 
         cliente.MarcarComoEliminado(Guid.NewGuid());
@@ -99,7 +99,7 @@ public class MigracionesTests : IAsyncLifetime
 
         // FindAsync resuelve primero contra el change tracker local, sin aplicar el
         // query filter — se consulta explícitamente para probar el filtro real.
-        var visible = await _dbContext.Clientes.FirstOrDefaultAsync(c => c.Id == cliente.Id);
+        var visible = await _dbContext.Empresas.FirstOrDefaultAsync(c => c.Id == cliente.Id);
 
         visible.Should().BeNull();
     }
@@ -150,12 +150,12 @@ public class MigracionesTests : IAsyncLifetime
     {
         // Etapa 3 (cierre): TenantSelladoInterceptor sella TenantId con el
         // valor de ITenantActual — el Command (aquí, el propio test) nunca
-        // lo asigna, Cliente no expone ningún setter para ello.
-        var cliente = new Cliente("RENDELSUR", "B12345674", esCritico: false);
-        _dbContext.Clientes.Add(cliente);
+        // lo asigna, Empresa no expone ningún setter para ello.
+        var cliente = Empresa.CrearComoCliente("RENDELSUR", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        _dbContext.Empresas.Add(cliente);
         await _dbContext.SaveChangesAsync();
 
-        var recuperado = await _dbContext.Clientes.FindAsync(cliente.Id);
+        var recuperado = await _dbContext.Empresas.FindAsync(cliente.Id);
 
         recuperado!.TenantId.Should().Be(TenantSeedData.IdPorDefecto);
     }
@@ -223,7 +223,7 @@ public class MigracionesTests : IAsyncLifetime
         await _dbContext.Database.OpenConnectionAsync();
         comando.CommandText =
             "SELECT is_nullable FROM information_schema.columns " +
-            "WHERE table_name = 'Clientes' AND column_name = 'TenantId';";
+            "WHERE table_name = 'Empresas' AND column_name = 'TenantId';";
 
         var esNullable = (string?)await comando.ExecuteScalarAsync();
 

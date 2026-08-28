@@ -1,6 +1,4 @@
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
-using CaeManager.Domain.Subcontratas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -54,26 +52,23 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
     {
         var tenantId = Guid.NewGuid();
         var ejecutivoId = Guid.NewGuid();
-        Cliente clienteOriginal;
+        var clienteId = Guid.NewGuid();
 
-        await using (var contexto = CrearContexto(tenantId))
-        {
-            clienteOriginal = new Cliente("Iberojet S.A.", "B10380194", esCritico: true, notas: "Cliente prioritario", ejecutivoUsuarioId: ejecutivoId);
-            contexto.Clientes.Add(clienteOriginal);
-            await contexto.SaveChangesAsync();
-        }
+        await SiembraTablasLegacyF3.InsertarClienteAsync(
+            _cadenaConexion, clienteId, tenantId, "Iberojet S.A.", "B10380194",
+            esCritico: true, notas: "Cliente prioritario", ejecutivoUsuarioId: ejecutivoId);
 
         await AplicarMigracionF3aAsync(tenantId);
 
         await using var contextoVerificacion = CrearContexto(tenantId);
-        var copia = await contextoVerificacion.Empresas.SingleAsync(e => e.Id == clienteOriginal.Id);
+        var copia = await contextoVerificacion.Empresas.SingleAsync(e => e.Id == clienteId);
 
         copia.EsPropia.Should().BeFalse();
-        copia.RazonSocial.Should().Be(clienteOriginal.RazonSocial);
-        copia.Cif.Should().Be(clienteOriginal.Cif);
-        copia.EsCritico.Should().Be(clienteOriginal.EsCritico);
-        copia.Notas.Should().Be(clienteOriginal.Notas);
-        copia.EjecutivoUsuarioId.Should().Be(clienteOriginal.EjecutivoUsuarioId);
+        copia.RazonSocial.Should().Be("Iberojet S.A.");
+        copia.Cif.Should().Be("B10380194");
+        copia.EsCritico.Should().BeTrue();
+        copia.Notas.Should().Be("Cliente prioritario");
+        copia.EjecutivoUsuarioId.Should().Be(ejecutivoId);
         copia.NivelServicio.Should().BeNull("EsCritico/Notas/EjecutivoUsuarioId son de Cliente; NivelServicio no aplica a una fila ex-Cliente");
     }
 
@@ -81,19 +76,12 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
     public async Task El_backfill_real_copia_un_Cliente_soft_deleted_conservando_su_estado_de_borrado()
     {
         var tenantId = Guid.NewGuid();
-        Guid clienteId;
+        var clienteId = Guid.NewGuid();
         var usuarioQueElimino = Guid.NewGuid();
 
-        await using (var contexto = CrearContexto(tenantId))
-        {
-            var cliente = new Cliente("Cliente a eliminar", "B12345674", esCritico: false);
-            contexto.Clientes.Add(cliente);
-            await contexto.SaveChangesAsync();
-            clienteId = cliente.Id;
-
-            cliente.MarcarComoEliminado(usuarioQueElimino);
-            await contexto.SaveChangesAsync();
-        }
+        await SiembraTablasLegacyF3.InsertarClienteAsync(
+            _cadenaConexion, clienteId, tenantId, "Cliente a eliminar", "B12345674",
+            esCritico: false, eliminadoPorUsuarioId: usuarioQueElimino);
 
         await AplicarMigracionF3aAsync(tenantId);
 
@@ -116,24 +104,20 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
     public async Task El_backfill_real_traduce_NivelServicio_de_Subcontrata_del_entero_al_texto_esperado()
     {
         var tenantId = Guid.NewGuid();
-        Subcontrata subcontrataOriginal;
+        var subcontrataId = Guid.NewGuid();
 
-        await using (var contexto = CrearContexto(tenantId))
-        {
-            subcontrataOriginal = new Subcontrata("Medición de Temperatura S.L.", "B10380186");
-            subcontrataOriginal.CambiarNivelServicio(NivelServicioSubcontrata.Supervisada);
-            contexto.Subcontratas.Add(subcontrataOriginal);
-            await contexto.SaveChangesAsync();
-        }
+        await SiembraTablasLegacyF3.InsertarSubcontrataAsync(
+            _cadenaConexion, subcontrataId, tenantId, "Medición de Temperatura S.L.", "B10380186",
+            nivelServicio: 1);
 
         await AplicarMigracionF3aAsync(tenantId);
 
         await using var contextoVerificacion = CrearContexto(tenantId);
-        var copia = await contextoVerificacion.Empresas.SingleAsync(e => e.Id == subcontrataOriginal.Id);
+        var copia = await contextoVerificacion.Empresas.SingleAsync(e => e.Id == subcontrataId);
 
         copia.NivelServicio.Should().Be("Supervisada", "el CASE WHEN debe traducir el entero 1, no copiarlo tal cual");
-        copia.RazonSocial.Should().Be(subcontrataOriginal.RazonSocial);
-        copia.Cif.Should().Be(subcontrataOriginal.Cif);
+        copia.RazonSocial.Should().Be("Medición de Temperatura S.L.");
+        copia.Cif.Should().Be("B10380186");
         copia.EsCritico.Should().BeNull("EsCritico es de Cliente, no aplica a una fila ex-Subcontrata");
     }
 
@@ -145,19 +129,16 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
         // por error habría pasado inadvertido (el otro test solo cubre el
         // valor no-default).
         var tenantId = Guid.NewGuid();
-        Subcontrata subcontrataOriginal;
+        var subcontrataId = Guid.NewGuid();
 
-        await using (var contexto = CrearContexto(tenantId))
-        {
-            subcontrataOriginal = new Subcontrata("Subcontrata Gestionada S.L.", "B87654323");
-            contexto.Subcontratas.Add(subcontrataOriginal);
-            await contexto.SaveChangesAsync();
-        }
+        await SiembraTablasLegacyF3.InsertarSubcontrataAsync(
+            _cadenaConexion, subcontrataId, tenantId, "Subcontrata Gestionada S.L.", "B87654323",
+            nivelServicio: 0);
 
         await AplicarMigracionF3aAsync(tenantId);
 
         await using var contextoVerificacion = CrearContexto(tenantId);
-        var copia = await contextoVerificacion.Empresas.SingleAsync(e => e.Id == subcontrataOriginal.Id);
+        var copia = await contextoVerificacion.Empresas.SingleAsync(e => e.Id == subcontrataId);
         copia.NivelServicio.Should().Be("Gestionada");
     }
 

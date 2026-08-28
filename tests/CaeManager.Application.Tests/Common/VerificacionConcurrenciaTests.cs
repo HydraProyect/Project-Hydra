@@ -1,5 +1,5 @@
 using CaeManager.Application.Common;
-using CaeManager.Domain.Clientes;
+using CaeManager.Domain.Empresas;
 using FluentAssertions;
 using Xunit;
 
@@ -12,7 +12,8 @@ namespace CaeManager.Application.Tests.Common;
 /// </summary>
 public class VerificacionConcurrenciaTests
 {
-    private static Cliente CrearCliente() => new("Ficha S.L.", "B12345674", esCritico: false);
+    private static Empresa CrearCliente() =>
+        Empresa.CrearComoCliente("Ficha S.L.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
 
     [Fact]
     public void Con_la_version_vigente_deja_pasar()

@@ -61,7 +61,6 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         // construye, así que este contenedor mínimo necesita la interfaz
         // aunque el propio comportamiento no toque nada para una Query.
         servicios.AddSingleton<CaeManager.Application.Tenants.ITenantsQueryContext>(_dbContext);
-        servicios.AddSingleton<CaeManager.Application.Clientes.IClientesQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Empresas.IEmpresasQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Centros.ICentrosQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Trabajadores.ITrabajadoresQueryContext>(_dbContext);

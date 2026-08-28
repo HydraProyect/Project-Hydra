@@ -216,10 +216,6 @@ public class AlcanceDeCredencialesDeAccesoTests
             throw new InvalidOperationException(
                 "La consulta llegó a la base de datos con el agregado fuera de la cartera del usuario.");
 
-        public IQueryable<Subcontrata> Subcontratas => Explota<Subcontrata>();
-
-
-
         public IQueryable<CredencialAccesoSubcontrata> CredencialesAccesoSubcontrata =>
             Explota<CredencialAccesoSubcontrata>();
 

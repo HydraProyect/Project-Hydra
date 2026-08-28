@@ -1,5 +1,4 @@
 using CaeManager.Domain.ApiKeys;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -48,19 +47,18 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         await using var dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
         await dbContext.Database.MigrateAsync();
 
-        var cliente = new Cliente("RENDELSUR", "B12345674", esCritico: false);
-        dbContext.Clientes.Add(cliente);
         dbContext.ClavesApi.Add(new ClaveApi("Integración de prueba", "cae_abcd", "hash-de-prueba", Guid.NewGuid()));
 
         var tipoDocumento = new TipoDocumento("Certificado", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
         dbContext.TiposDocumento.Add(tipoDocumento);
 
-        // F3b — Documento.ClienteId repunta contra Empresas, no contra el
-        // `cliente` de arriba (que se queda en Clientes a propósito, para que
-        // los tests de RLS sobre esa tabla sigan viendo su única fila). Se
-        // ancla aquí a `empresa`, creada antes de lo que tenía el código
-        // original solo para tener su Id disponible en este punto.
-        var empresa = new Empresa("Empresa de prueba", "B12345674");
+        // F3c — la tabla legacy Clientes ya no existe: la única fila que estos
+        // tests de RLS observan es esta Empresa. Sigue habiendo exactamente
+        // UNA fila del tenant A en la tabla observada, que es lo que los
+        // recuentos de abajo esperan. Empresas está en la misma lista de RLS
+        // que estaba Clientes (HabilitarRlsPostgres) — misma política, mismo
+        // WITH CHECK.
+        var empresa = new Empresa("RENDELSUR", "B12345674");
         dbContext.Empresas.Add(empresa);
         var documento = Documento.DeCliente(empresa.Id, tipoDocumento.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
         dbContext.Documentos.Add(documento);
@@ -112,10 +110,10 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         await comando.ExecuteNonQueryAsync();
     }
 
-    private static async Task<long> ContarClientesAsync(NpgsqlConnection conexion)
+    private static async Task<long> ContarEmpresasAsync(NpgsqlConnection conexion)
     {
         await using var consulta = conexion.CreateCommand();
-        consulta.CommandText = "SELECT count(*) FROM \"Clientes\";";
+        consulta.CommandText = "SELECT count(*) FROM \"Empresas\";";
         return (long)(await consulta.ExecuteScalarAsync())!;
     }
 
@@ -145,7 +143,7 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
     {
         await using var conexion = await AbrirComoRolRestringidoAsync();
 
-        var total = await ContarClientesAsync(conexion);
+        var total = await ContarEmpresasAsync(conexion);
 
         total.Should().Be(0, "sin app.tenant_id fijado la política debe ocultar todas las filas, no solo las de otros tenants");
     }
@@ -156,10 +154,10 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         await using var conexion = await AbrirComoRolRestringidoAsync();
 
         await FijarTenantDeSesionAsync(conexion, _tenantA);
-        (await ContarClientesAsync(conexion)).Should().Be(1);
+        (await ContarEmpresasAsync(conexion)).Should().Be(1);
 
         await FijarTenantDeSesionAsync(conexion, _tenantB);
-        (await ContarClientesAsync(conexion)).Should().Be(0);
+        (await ContarEmpresasAsync(conexion)).Should().Be(0);
     }
 
     /// <summary>
@@ -185,7 +183,7 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         await FijarTenantDeSesionAsync(conexion, _tenantA);
 
         await using var comando = conexion.CreateCommand();
-        comando.CommandText = "UPDATE \"Clientes\" SET \"TenantId\" = @destino;";
+        comando.CommandText = "UPDATE \"Empresas\" SET \"TenantId\" = @destino;";
         comando.Parameters.AddWithValue("destino", _tenantB);
 
         var accion = async () => await comando.ExecuteNonQueryAsync();
@@ -205,7 +203,7 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         await FijarTenantDeSesionAsync(conexion, _tenantA);
 
         await using var comando = conexion.CreateCommand();
-        comando.CommandText = "UPDATE \"Clientes\" SET \"RazonSocial\" = 'RENDELSUR (editada)';";
+        comando.CommandText = "UPDATE \"Empresas\" SET \"RazonSocial\" = 'RENDELSUR (editada)';";
 
         (await comando.ExecuteNonQueryAsync()).Should().Be(1);
     }
@@ -219,8 +217,10 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
 
         await using var comando = conexion.CreateCommand();
         comando.CommandText =
-            "INSERT INTO \"Clientes\" (\"Id\", \"TenantId\", \"RazonSocial\", \"Cif\") " +
-            "VALUES (gen_random_uuid(), @destino, 'Sembrado en ajeno S.L.', 'B00000000');";
+            "INSERT INTO \"Empresas\" (\"Id\", \"TenantId\", \"RazonSocial\", \"Cif\", " +
+            "\"EsActividadAnexoI\", \"EsPropia\", \"CreadoEnUtc\", \"EstaEliminado\", \"Version\") " +
+            "VALUES (gen_random_uuid(), @destino, 'Sembrado en ajeno S.L.', 'B00000000', " +
+            "false, false, now(), false, gen_random_uuid());";
         comando.Parameters.AddWithValue("destino", _tenantB);
 
         var accion = async () => await comando.ExecuteNonQueryAsync();
@@ -240,7 +240,7 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         await using var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
 
-        (await ContarClientesAsync(conexion)).Should().Be(1);
+        (await ContarEmpresasAsync(conexion)).Should().Be(1);
     }
 
     [Fact]
@@ -332,8 +332,8 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
 
         await using var insertar = conexion.CreateCommand();
         insertar.CommandText =
-            "INSERT INTO \"Clientes\" (\"Id\", \"RazonSocial\", \"Cif\", \"EsCritico\", \"TenantId\", \"Version\", \"CreadoEnUtc\", \"EstaEliminado\") " +
-            "VALUES (@id, 'Intento cruzado', 'B99999999', false, @tenantOtro, @version, now(), false);";
+            "INSERT INTO \"Empresas\" (\"Id\", \"RazonSocial\", \"Cif\", \"EsCritico\", \"EsActividadAnexoI\", \"EsPropia\", \"TenantId\", \"Version\", \"CreadoEnUtc\", \"EstaEliminado\") " +
+            "VALUES (@id, 'Intento cruzado', 'B99999999', false, false, false, @tenantOtro, @version, now(), false);";
         insertar.Parameters.AddWithValue("id", Guid.NewGuid());
         insertar.Parameters.AddWithValue("tenantOtro", _tenantB);
         insertar.Parameters.AddWithValue("version", Guid.NewGuid());

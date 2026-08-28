@@ -1,5 +1,4 @@
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -125,20 +124,20 @@ public class F3bClienteRepunteoFksTests : IAsyncLifetime
         await AplicarMigracionF3aAsync(tenantId);
         await AplicarMigracionF3bAsync(tenantId);
 
-        await using var contexto = CrearContexto(tenantId);
-        var clienteSoloLegacy = new Cliente("Solo en legacy S.L.", "B12345674", esCritico: false);
-        contexto.Clientes.Add(clienteSoloLegacy);
-        await contexto.SaveChangesAsync();
+        var clienteSoloLegacyId = Guid.NewGuid();
+        await SiembraTablasLegacyF3.InsertarClienteAsync(
+            _cadenaConexion, clienteSoloLegacyId, tenantId, "Solo en legacy S.L.", "B12345674", esCritico: false);
 
+        await using var contexto = CrearContexto(tenantId);
         var empresaTitular = new Empresa("Empresa Titular S.L.", "B87654323");
         contexto.Empresas.Add(empresaTitular);
         await contexto.SaveChangesAsync();
 
-        contexto.Centros.Add(new Centro(clienteSoloLegacy.Id, empresaTitular.Id, "Centro imposible"));
+        contexto.Centros.Add(new Centro(clienteSoloLegacyId, empresaTitular.Id, "Centro imposible"));
         var accion = async () => await contexto.SaveChangesAsync();
 
         await accion.Should().ThrowAsync<DbUpdateException>(
-            "clienteSoloLegacy.Id no existe en Empresas — la FK repuntada debe rechazarlo aunque exista en Clientes");
+            "clienteSoloLegacyId no existe en Empresas — la FK repuntada debe rechazarlo aunque exista en Clientes");
     }
 
     [Fact]
@@ -155,15 +154,10 @@ public class F3bClienteRepunteoFksTests : IAsyncLifetime
         // propio Up(); un Cliente insertado después de F3a nunca llegaría a
         // Empresas, y este test estaría demostrando otra cosa.
         var tenantId = Guid.NewGuid();
-        Guid clienteId;
+        var clienteId = Guid.NewGuid();
 
-        await using (var contextoPrevio = CrearContexto(tenantId))
-        {
-            var cliente = new Cliente("Cliente Preexistente S.L.", "B10380186", esCritico: false);
-            contextoPrevio.Clientes.Add(cliente);
-            await contextoPrevio.SaveChangesAsync();
-            clienteId = cliente.Id;
-        }
+        await SiembraTablasLegacyF3.InsertarClienteAsync(
+            _cadenaConexion, clienteId, tenantId, "Cliente Preexistente S.L.", "B10380186", esCritico: false);
 
         await AplicarMigracionF3aAsync(tenantId);
         await AplicarMigracionF3bAsync(tenantId);

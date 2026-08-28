@@ -6,7 +6,6 @@ using CaeManager.Application.Dashboard.Catalogo;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Contactos;

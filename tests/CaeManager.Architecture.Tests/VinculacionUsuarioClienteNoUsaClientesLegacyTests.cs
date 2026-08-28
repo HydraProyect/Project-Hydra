@@ -20,6 +20,14 @@ namespace CaeManager.Architecture.Tests;
 /// / <c>dbContext.Clientes</c> / el tipo de dominio <c>Cliente</c>) para
 /// resolver esa vinculación, sea cual sea el nombre que le pongan.
 /// </para>
+///
+/// <para>
+/// <b>F3c (2026-08-28)</b>: <c>IClientesQueryContext</c>, el tipo
+/// <c>Cliente</c> y la tabla <c>Clientes</c> ya no existen. El patrón que
+/// este ratchet persigue no puede volver a aparecer sin reintroducir antes
+/// todo eso, así que su sensibilidad es residual — se deja escrito para que
+/// nadie lo lea como una barrera viva que sigue atrapando algo.
+/// </para>
 /// </summary>
 public class VinculacionUsuarioClienteNoUsaClientesLegacyTests
 {

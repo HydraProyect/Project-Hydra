@@ -1,4 +1,4 @@
-﻿using CaeManager.Domain.Clientes;
+﻿using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -38,18 +38,18 @@ public class SelladoEnGuardadoSincronoTests : IAsyncLifetime
     {
         using var contexto = CrearContexto(_tenantA);
 
-        var cliente = new Cliente("Sellada Sincrona S.L.", "B12345674", esCritico: false);
-        contexto.Clientes.Add(cliente);
+        var cliente = Empresa.CrearComoCliente("Sellada Sincrona S.L.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        contexto.Empresas.Add(cliente);
         contexto.SaveChanges();
 
-        contexto.Entry(cliente).Property(nameof(Cliente.TenantId)).CurrentValue.Should().Be(_tenantA);
+        contexto.Entry(cliente).Property(nameof(Empresa.TenantId)).CurrentValue.Should().Be(_tenantA);
     }
 
     [Fact]
     public void Un_guardado_sincrono_sin_tenant_resuelto_falla_cerrado()
     {
         using var contexto = CrearContexto(tenantId: null);
-        contexto.Clientes.Add(new Cliente("Sin Tenant S.L.", "B12345674", esCritico: false));
+        contexto.Empresas.Add(Empresa.CrearComoCliente("Sin Tenant S.L.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null));
 
         var guardar = () => contexto.SaveChanges();
 
@@ -62,8 +62,8 @@ public class SelladoEnGuardadoSincronoTests : IAsyncLifetime
         Guid clienteId;
         using (var contextoA = CrearContexto(_tenantA))
         {
-            var cliente = new Cliente("Del Tenant A S.L.", "B12345674", esCritico: false);
-            contextoA.Clientes.Add(cliente);
+            var cliente = Empresa.CrearComoCliente("Del Tenant A S.L.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+            contextoA.Empresas.Add(cliente);
             contextoA.SaveChanges();
             clienteId = cliente.Id;
         }
@@ -73,8 +73,8 @@ public class SelladoEnGuardadoSincronoTests : IAsyncLifetime
         // IgnoreQueryFilters para alcanzar la fila ajena a propósito: es el
         // escenario que el interceptor existe para atrapar (defensa en
         // profundidad sobre el filtro global, no sustituto).
-        var ajeno = contextoB.Clientes.IgnoreQueryFilters().First(c => c.Id == clienteId);
-        ajeno.Actualizar("Renombrada Por Otro Tenant S.L.", "B12345674", esCritico: false, notas: null);
+        var ajeno = contextoB.Empresas.IgnoreQueryFilters().First(c => c.Id == clienteId);
+        ajeno.ActualizarComoCliente("Renombrada Por Otro Tenant S.L.", "B12345674", esCritico: false, notas: null);
 
         var guardar = () => contextoB.SaveChanges();
 

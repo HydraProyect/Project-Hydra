@@ -3,7 +3,6 @@ using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
@@ -109,10 +108,10 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     }
 
     // --- agregados con soft delete (EntidadBase) ---
-
-    [Fact]
-    public Task Aislamiento_Cliente() => VerificarAislamientoAsync(
-        () => new Cliente("RENDELSUR", "B12345674", esCritico: false));
+    //
+    // F3c (2026-08-28) retiró Cliente y Subcontrata como agregados: sus filas
+    // son Empresas contraparte, cubiertas por Aislamiento_Empresa. No hay
+    // hueco de cobertura — hay un agregado menos que aislar.
 
     [Fact]
     public Task Aislamiento_Centro()
@@ -143,10 +142,6 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     [Fact]
     public Task Aislamiento_Empresa() => VerificarAislamientoAsync(
         () => new Empresa("Ibertec S.A."));
-
-    [Fact]
-    public Task Aislamiento_Subcontrata() => VerificarAislamientoAsync(
-        () => new Subcontrata("Subcontrata de prueba"));
 
     [Fact]
     public Task Aislamiento_Trabajador()

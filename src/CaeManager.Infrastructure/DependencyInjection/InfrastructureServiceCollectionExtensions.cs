@@ -4,7 +4,6 @@ using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
@@ -256,8 +255,9 @@ public static class InfrastructureServiceCollectionExtensions
         // F3b: IClienteRepository/ClienteRepository e
         // ISubcontrataRepository/SubcontrataRepository retirados — Cliente y
         // Subcontrata pasan a ser Empresa contraparte (EsPropia=false), ver
-        // Empresa.CrearComoCliente/CrearComoSubcontrata. Clientes/Subcontratas
-        // quedan legacy read-only (f3b-decision-d2-transicion-acotada-2026-08-25.md).
+        // Empresa.CrearComoCliente/CrearComoSubcontrata. F3c (2026-08-28)
+        // retiró además las tablas Clientes/Subcontratas y sus tipos de
+        // dominio: ya no existe ninguna fuente legacy que registrar aquí.
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         services.AddScoped<ICredencialAccesoEmpresaRepository, CredencialAccesoEmpresaRepository>();
         services.AddScoped<IVerificacionExternaSubcontrataRepository, VerificacionExternaSubcontrataRepository>();
@@ -354,7 +354,6 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<CaeManager.Application.Comunicaciones.Eventos.INotificadorMensajesTiempoReal, NotificadorMensajesTiempoReal>();
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
-        services.AddScoped<CaeManager.Application.Clientes.IClientesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Empresas.IEmpresasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Subcontratas.ISubcontratasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Blindaje42.IBlindaje42QueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());

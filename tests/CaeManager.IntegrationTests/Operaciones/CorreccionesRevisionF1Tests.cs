@@ -2,7 +2,6 @@ using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
@@ -95,8 +94,10 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         // gestor que veía sus 3 clientes pasaba a ver los 200.
         await using (var otros = CrearContexto(_propietario))
         {
-            otros.Clientes.Add(new Cliente("Cliente de otro gestor", "B10380186", false));
-            otros.Clientes.Add(new Cliente("Cliente sin gestor", "B10380194", false));
+            otros.Empresas.Add(Empresa.CrearComoCliente(
+                "Cliente de otro gestor", "B10380186", esCritico: false, notas: null, ejecutivoUsuarioId: null));
+            otros.Empresas.Add(Empresa.CrearComoCliente(
+                "Cliente sin gestor", "B10380194", esCritico: false, notas: null, ejecutivoUsuarioId: null));
             await otros.SaveChangesAsync();
         }
 

@@ -20,6 +20,17 @@ namespace CaeManager.Architecture.Tests;
 /// una divergencia silenciosa entre lo que el código escribe y lo que las
 /// seis pantallas congeladas siguen leyendo.
 /// </para>
+///
+/// <para>
+/// <b>F3c (2026-08-28)</b>: la tabla y su <c>DbSet</c> ya no existen — se
+/// retiraron con <c>F3cRetiradaClientesSubcontratasLegacy</c>. Hoy este
+/// ratchet ya no puede fallar por una escritura real: escribir sobre ese
+/// <c>DbSet</c> es un error de compilación, que es una garantía más fuerte
+/// que la suya. Se conserva —y se deja escrito que su sensibilidad es ya
+/// residual— porque sigue cubriendo el único hueco que el compilador no
+/// cubre: que alguien reintroduzca la entidad y el <c>DbSet</c> enteros y
+/// vuelva a escribir en ellos.
+/// </para>
 /// </summary>
 public class EscrituraLegacyDeClienteRetiradaTests
 {
