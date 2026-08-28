@@ -16,7 +16,7 @@
          1.7.1 (no 1.7.0) porque HtmlSanitizer 9.2.995, que Infrastructure usa
          para sanear el HTML de correo, exige >= 1.7.1 y la degradación rompe
          la restauración de este proyecto (NU1605). -->
-    <PackageReference Include="AngleSharp" Version="1.7.1" />
+    <PackageReference Include="AngleSharp" Version="1.7.2" />
     <PackageReference Include="coverlet.collector" Version="10.0.1" />
     <PackageReference Include="FluentAssertions" Version="6.*" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
