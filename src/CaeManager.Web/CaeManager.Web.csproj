@@ -32,7 +32,7 @@
          composition root: Application/Infrastructure emiten trazas/métricas
          con los tipos de System.Diagnostics(.Metrics) del framework
          compartido (ver Observabilidad.cs), no con el SDK. -->
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.18.0" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
