@@ -461,6 +461,12 @@ jobs:
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # La Action exige clave de licencia cuando el repositorio pertenece
+          # a una organización — mira el tipo de cuenta del propietario, no la
+          # visibilidad del repo ni cuántos hay. Mientras estuvo en cuenta
+          # personal no hacía falta ninguna. La clave de organización es hoy
+          # gratuita (gitleaks.io); el binario que ejecuta por debajo es MIT.
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
   deploy-script-tests:
     name: Prueba de mutación — SHA determinista en el despliegue
