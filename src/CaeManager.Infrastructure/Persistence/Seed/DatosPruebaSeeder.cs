@@ -67,6 +67,13 @@ public static class DatosPruebaSeeder
     private const string DominioEmailPrueba = "@caemanager.local";
 
     /// <summary>
+    /// Verificador ficticio de VerificacionExternaSubcontrata. Fijo (no
+    /// Guid.NewGuid()) para que dos siembras produzcan el mismo dato — no hay
+    /// FK a usuarios real que romper, así que no hace falta que sea aleatorio.
+    /// </summary>
+    private static readonly Guid VerificadorSiembraId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+    /// <summary>
     /// Contraseña y claves API de demo: <b>ya no son constantes de este
     /// tipo</b>. Fuera de Producción siguen siendo los valores públicos de
     /// siempre —las suites E2E dependen de ellos— pero en Producción tienen
@@ -377,7 +384,13 @@ public static class DatosPruebaSeeder
         return false;
     }
 
-    private static async Task<ResumenSiembra> SembrarDatosOperativosAsync(
+    /// <summary>
+    /// internal (no private) a propósito: CaeManager.IntegrationTests puede
+    /// invocarlo con combinaciones de tamaño que fuercen deterministamente
+    /// escenarios que un seed fijo de producción no garantiza provocar (ver
+    /// DatosPruebaSeederDeterminismoTests).
+    /// </summary>
+    internal static async Task<ResumenSiembra> SembrarDatosOperativosAsync(
         CaeManagerDbContext dbContext, Random aleatorio, int numeroClientes, int numeroEmpresas,
         int numeroSubcontratas, CancellationToken cancellationToken)
     {
@@ -423,6 +436,23 @@ public static class DatosPruebaSeeder
                 paresEmpresaCliente.Add((contratista.Id, cliente.Id));
                 dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(contratista.Id, cliente.Id, ahoraSeed));
             }
+        }
+
+        // Garantía: ninguna empresa se queda sin cliente. El sorteo de arriba
+        // puede dejar alguna sin ser elegida por ningún cliente; sin cliente
+        // no hay centro (bloque siguiente), y sin centro la empresa y su
+        // plantilla quedan invisibles en cualquier pantalla que navegue
+        // Centro→Trabajador. La repesca es determinista por posición en la
+        // lista de empresas, no un nuevo sorteo.
+        var empresasConCliente = paresEmpresaCliente.Select(par => par.EmpresaId).ToHashSet();
+        for (var i = 0; i < empresas.Count; i++)
+        {
+            var empresa = empresas[i];
+            if (empresasConCliente.Contains(empresa.Id)) continue;
+
+            var clienteAsignado = clientes[i % clientes.Count];
+            paresEmpresaCliente.Add((empresa.Id, clienteAsignado.Id));
+            dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(empresa.Id, clienteAsignado.Id, ahoraSeed));
         }
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -756,7 +786,16 @@ public static class DatosPruebaSeeder
         // un canal de correo adicional ---
         var proveedoresCae = await dbContext.ProveedoresPlataformaCae
             .Where(p => p.Activo).OrderBy(p => p.Codigo).Take(4).ToListAsync(cancellationToken);
-        var centrosConCanal = ElementosAleatoriosUnicos(aleatorio, centros, Math.Min(8, centros.Count));
+
+        // El bloque de "Requisitos documentales" de abajo necesita que
+        // centrosConCanal[0..2] tengan plantilla real: si no, el requisito se
+        // graba pero no hay ningún trabajador al que le falte, y el centro no
+        // sale bloqueado. SeleccionarCentrosConCanal sortea primero entre los
+        // centros con gente y solo completa con el resto si no hay
+        // suficientes — así la garantía no depende de dónde caiga el sorteo
+        // (ver SeleccionarCentrosConCanalTests, que la fuerza con Random
+        // arbitrarios en vez de depender del seed fijo de producción).
+        var centrosConCanal = SeleccionarCentrosConCanal(centros, centrosConGente, aleatorio);
         for (var i = 0; i < centrosConCanal.Count; i++)
         {
             var centro = centrosConCanal[i];
@@ -780,8 +819,10 @@ public static class DatosPruebaSeeder
         }
 
         // --- Requisitos documentales por centro. El bloqueante está
-        // garantizado: ningún trabajador sembrado tiene "DNI o NIE en vigor",
-        // así que ese centro queda en EstadoCentro.Bloqueado ---
+        // garantizado: ningún trabajador sembrado tiene "DNI o NIE en vigor"
+        // (ver DocumentacionEstandarTrabajador) y centrosConCanal[0] sale de
+        // centros con plantilla real (ver arriba), así que ese centro queda
+        // en EstadoCentro.Bloqueado ---
         if (centrosConCanal.Count >= 3)
         {
             var tipoDniNie = tiposDocumento.Single(t => t.Nombre == "DNI o NIE en vigor");
@@ -830,8 +871,8 @@ public static class DatosPruebaSeeder
             .OrderBy(t => t.Orden)
             .ToList();
         // Sin FK a usuarios (los usuarios de prueba se siembran después):
-        // basta un verificador ficticio estable dentro de la tanda.
-        var verificadorSiembraId = Guid.NewGuid();
+        // basta el verificador ficticio fijo de la clase.
+        var verificadorSiembraId = VerificadorSiembraId;
         var variante = 0;
         for (var indice = 0; indice < subcontratas.Count; indice++)
         {
@@ -1377,5 +1418,24 @@ public static class DatosPruebaSeeder
     {
         cantidad = Math.Min(cantidad, lista.Count);
         return lista.OrderBy(_ => aleatorio.Next()).Take(cantidad).ToList();
+    }
+
+    /// <summary>
+    /// Centros con canal de gestión documental — y candidatos al requisito
+    /// "bloqueante garantizado" que se graba sobre <c>[0..2]</c> (ver el
+    /// llamador). Sortea primero entre los centros con plantilla real
+    /// (<paramref name="centrosConGente"/>) y solo completa con el resto si
+    /// no hay al menos 3 — así el resultado nunca depende de la suerte del
+    /// sorteo para cumplir la garantía. internal (no private) para que
+    /// SeleccionarCentrosConCanalTests la ejercite sin pasar por toda la
+    /// siembra.
+    /// </summary>
+    internal static List<Centro> SeleccionarCentrosConCanal(
+        IReadOnlyList<Centro> centros, IReadOnlyCollection<Guid> centrosConGente, Random aleatorio, int maximo = 8)
+    {
+        var centrosConGenteSet = centrosConGente.ToHashSet();
+        var centrosConPlantilla = centros.Where(c => centrosConGenteSet.Contains(c.Id)).ToList();
+        var centrosParaCanal = centrosConPlantilla.Count >= 3 ? (IReadOnlyList<Centro>)centrosConPlantilla : centros;
+        return ElementosAleatoriosUnicos(aleatorio, centrosParaCanal, Math.Min(maximo, centrosParaCanal.Count));
     }
 }
