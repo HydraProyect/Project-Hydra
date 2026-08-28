@@ -25,7 +25,7 @@ public class AccionCenterTests : BunitContext
         Guid.NewGuid(), "ITA", null, false, 1, CaeManager.Domain.Documentos.AmbitoAplicacion.Trabajador,
         CaeManager.Domain.Documentos.RequisitoDocumental.Si,
         CaeManager.Domain.Documentos.NaturalezaJuridica.RequisitoCliente,
-        null, null, null, null, false, false, false, CaeManager.Domain.Documentos.PerfilDocumentoOficial.Ninguno);
+        null, null, null, null, false, false, false, CaeManager.Domain.Documentos.PerfilDocumentoOficial.Ninguno, []);
 
     [Fact]
     public void Sin_ninguna_sugerencia_pendiente_no_renderiza_nada()
