@@ -91,6 +91,15 @@ concurrentes, worktree correcto y commit/rama correctos.
 
 **Un test o ratchet que no puede observar la propiedad no cuenta como evidencia.**
 
+**Antes de instrumentar un sistema para que emita evidencia, comprueba si ya la
+emite en algún sitio donde no has mirado.** Un fallo de E2E costó horas de
+hipótesis porque la fixture descarta la salida estándar y se dio por bueno que
+"no había excepción"; la excepción llevaba toda la investigación escrita en el
+sink de fichero de Serilog, en disco. Registro de auditoría, logs en fichero,
+artefactos de CI, informes de cobertura: mira primero lo que el sistema ya
+guarda. Añadir instrumentación nueva para redescubrir lo que ya está escrito
+cuesta una vuelta de suite entera y, peor, hace creer que el dato no existía.
+
 Prueba de sensibilidad: verde → mutación válida **que siga compilando** → rojo
 **por el motivo esperado** → revertir → verde. Un fallo de compilación no
 demuestra sensibilidad.
