@@ -17,6 +17,8 @@ public class TipoDocumento : EntidadConTenant
     public const int LongitudMaximaSeSolicitaA = 300;
     public const int LongitudMaximaObservaciones = 1000;
 
+    private readonly List<TipoDocumentoAlias> _aliases = [];
+
     public string Nombre { get; private set; } = string.Empty;
     public int? VigenciaMeses { get; private set; }
     public bool AplicaVencimientoAutomatico { get; private set; }
@@ -133,6 +135,14 @@ public class TipoDocumento : EntidadConTenant
     /// </summary>
     public PerfilDocumentoOficial PerfilDocumentoOficial { get; private set; }
 
+    /// <summary>
+    /// Siglas, alias históricos o nombres cortos por los que también se
+    /// conoce este tipo de documento (p. ej. "TC2", "CIF") — buscables sin
+    /// tener que meterlos dentro de <see cref="Nombre"/>. Ver
+    /// <see cref="TipoDocumentoAlias"/>.
+    /// </summary>
+    public IReadOnlyList<TipoDocumentoAlias> Aliases => _aliases.AsReadOnly();
+
     private TipoDocumento()
     {
     }
@@ -190,6 +200,26 @@ public class TipoDocumento : EntidadConTenant
     public void EstablecerVerificacionIaActiva(bool activa) => VerificacionIaActiva = activa;
 
     public void EstablecerPerfilDocumentoOficial(PerfilDocumentoOficial perfil) => PerfilDocumentoOficial = perfil;
+
+    /// <summary>
+    /// Reemplaza el conjunto completo de alias — mismo criterio que
+    /// <c>ContactoAgenda.EstablecerTiposDocumento</c>: la pantalla edita la
+    /// lista entera, así no queda a medias entre dos operaciones. Los
+    /// duplicados (sin distinguir mayúsculas/espacios) se colapsan en uno
+    /// solo antes de guardar.
+    /// </summary>
+    public void EstablecerAliases(IEnumerable<string> aliases)
+    {
+        _aliases.Clear();
+
+        var normalizados = aliases
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Select(a => a.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var alias in normalizados)
+            _aliases.Add(new TipoDocumentoAlias(Id, alias));
+    }
 
     private void EstablecerGlosario(string? descripcion, string? criteriosValidacion, string? seSolicitaA, string? observaciones)
     {

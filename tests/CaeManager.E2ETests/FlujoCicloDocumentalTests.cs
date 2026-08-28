@@ -55,8 +55,9 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // defecto (ver TipoDocumentoSeedData) — CrearDocumentoCommand no
         // encolaría ningún análisis si se reutilizara uno existente sin
         // tocarlo. Orden=0 lo deja siempre primero en /tipos-documento (el
-        // catálogo semilla empieza en 1), sin tener que paginar para
-        // encontrarlo — esa pantalla no tiene buscador de texto.
+        // catálogo semilla empieza en 1), sin tener que paginar ni buscar
+        // para encontrarlo por muchos tipos que hayan creado otros tests de
+        // "AppCollection".
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/tipos-documento");
         await page.GetByText("+ Nuevo tipo").ClickAsync();
         await drawer.GetByLabel("Nombre").FillAsync(nombreTipoDocumento);
@@ -66,10 +67,34 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
         var filaTipo = page.Locator("tr", new PageLocatorOptions { HasText = nombreTipoDocumento });
         await filaTipo.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await filaTipo
-            .GetByTitle("Verifica por IA el tipo, fecha de emisión y firma del documento contra lo introducido al subirlo, con confidence score")
-            .Locator("input")
-            .CheckAsync();
+        var interruptorVerificacionIa = filaTipo.GetByTitle(
+            "Verifica por IA el tipo, fecha de emisión y firma del documento contra lo introducido al subirlo, con confidence score");
+        await interruptorVerificacionIa.Locator("input").CheckAsync();
+
+        // CheckAsync solo confirma que el navegador marcó la casilla: el
+        // @onchange de Blazor es una ida y vuelta por SignalR, y
+        // VerificacionIaActiva no queda persistido hasta que
+        // ActualizarVerificacionIaGlobalCommand termina y CargarAsync repinta
+        // la etiqueta releyendo de la base ("Desactivada" → "Activa"). El
+        // GotoAsync del Paso 1 tira el circuito entero, y con él el ámbito de
+        // DI: un comando todavía en vuelo muere a mitad de consulta con
+        // ObjectDisposedException sobre la NpgsqlConnection ya desechada.
+        //
+        // No es teórico — es la causa medida del fallo de este test (log de la
+        // app, cinco ejecuciones): el comando tarda ~60 ms y el
+        // POST /_blazor/disconnect llegaba a los ~50 ms. Cuando perdía esa
+        // carrera, el tipo se quedaba con VerificacionIaActiva=false,
+        // CrearDocumentoCommand no encolaba ningún TrabajoAnalisisDocumento y
+        // la fila de /documentos/revision-ia NO LLEGABA A EXISTIR — no llegaba
+        // tarde. Por eso subir el presupuesto de espera no arreglaba nada (con
+        // 300 s tampoco aparecía) y por eso el fallo parecía mudo: el comando
+        // revienta en un circuito ya cerrado, así que no llega a ninguna capa
+        // que el test pueda ver — la traza está en el log de archivo de la
+        // app (App_Data/logs de CaeManager.Web, ver WebAppFixture).
+        //
+        // Texto exacto, no subcadena: "Desactivada" contiene "activa".
+        await Expect(interruptorVerificacionIa).ToHaveTextAsync(
+            "Activa", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 
         // --- Paso 1: Cliente → Empresa → Centro encadenados (alta guiada) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
@@ -301,16 +326,26 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
     /// /documentos/revision-ia no se actualiza sola cuando termina un
     /// análisis en segundo plano (ver el comentario del Paso 5 más arriba) —
     /// se recarga en bucle hasta encontrar la fila o agotar el presupuesto
-    /// de tiempo. 90s (antes 45s) cubre con margen el sondeo de 5s de
+    /// de tiempo. 90s cubre con margen el sondeo de 5s de
     /// ProcesadorAnalisisDocumentoHostedService más la elección de líder y
-    /// el resto de la tubería (clasificación, extracción, guardado) — el
-    /// margen original ya no bastaba con la suite de AppCollection tan
-    /// crecida esta noche (varios flujos nuevos compitiendo por el mismo
-    /// runner de CI), sin que cambiara nada en la tubería en sí.
+    /// el resto de la tubería (clasificación, extracción, guardado): medido
+    /// en el log de la app, la tubería entera tarda ~11s desde que el
+    /// Documento se guarda hasta que la revisión es visible.
+    ///
+    /// El presupuesto ya se subió una vez de 45s a 90s culpando a la carga
+    /// de la suite; esa lectura era falsa y queda corregida aquí. Cuando este
+    /// test fallaba, la revisión no llegaba tarde: no llegaba a existir (el
+    /// interruptor de Verificación IA del Paso 0 no se había persistido, ver
+    /// allí), y con 300s tampoco aparecía. Si vuelve a agotarse el
+    /// presupuesto, el sospechoso NO es el presupuesto — es que no se encoló
+    /// ningún TrabajoAnalisisDocumento, y la traza está en el log de la app
+    /// (App_Data/logs/log-*.txt del directorio de CaeManager.Web, sink de
+    /// archivo de Serilog), no en la salida del test.
     /// </summary>
     private static async Task<ILocator> EsperarFilaRevisionIaAsync(IPage page, string baseUrl, string apellidosTrabajador)
     {
-        var limite = DateTime.UtcNow.AddSeconds(90);
+        var presupuesto = TimeSpan.FromSeconds(90);
+        var limite = DateTime.UtcNow + presupuesto;
 
         while (true)
         {
@@ -322,7 +357,8 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
             if (DateTime.UtcNow >= limite)
                 throw new TimeoutException(
-                    $"La revisión IA de \"{apellidosTrabajador}\" no apareció en /documentos/revision-ia tras 90s.");
+                    $"La revisión IA de \"{apellidosTrabajador}\" no apareció en /documentos/revision-ia "
+                    + $"tras {presupuesto.TotalSeconds:F0}s.");
 
             await page.WaitForTimeoutAsync(2_000);
         }

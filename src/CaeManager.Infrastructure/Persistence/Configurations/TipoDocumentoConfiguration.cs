@@ -35,6 +35,31 @@ public class TipoDocumentoConfiguration : IEntityTypeConfiguration<TipoDocumento
         // hacia TipoDocumento — ver P0-1 de docs/business/MATURITY_REVIEW.md.
         builder.HasIndex(t => new { t.TenantId, t.Id }).IsUnique();
 
+        builder.HasMany(t => t.Aliases)
+            .WithOne()
+            .HasForeignKey(a => a.TipoDocumentoId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(t => t.Aliases).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         builder.HasData(TipoDocumentoSeedData.ComoFilasParaMigracion());
+    }
+}
+
+public class TipoDocumentoAliasConfiguration : IEntityTypeConfiguration<TipoDocumentoAlias>
+{
+    public void Configure(EntityTypeBuilder<TipoDocumentoAlias> builder)
+    {
+        builder.ToTable("TiposDocumentoAlias");
+        builder.HasKey(a => a.Id);
+
+        builder.Property(a => a.Texto).IsRequired().HasMaxLength(TipoDocumentoAlias.LongitudMaximaTexto);
+
+        builder.HasIndex(a => a.TipoDocumentoId);
+
+        // Único por tipo de documento: el mismo alias repetido dos veces no
+        // añade nada buscable — mismo criterio que ContactoAgendaTipoDocumento.
+        builder.HasIndex(a => new { a.TenantId, a.TipoDocumentoId, a.Texto }).IsUnique();
+
+        // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }

@@ -106,11 +106,18 @@ public class WebAppFixture : IAsyncLifetime
         // de CI — un test E2E que falla por timeout esperando contenido daba
         // exactamente el mismo síntoma tanto si la página tardaba de más
         // como si el servidor había reventado al renderizarla, y no había
-        // forma de distinguirlos. stdout sigue descartado a propósito: es
-        // ruido de logging normal (Information/Debug) que no ayuda a
-        // diagnosticar un fallo — leer los buffers con BeginOutputReadLine
-        // ya evita que se llenen y bloqueen al proceso hijo, se escriba o no
-        // lo que traen.
+        // forma de distinguirlos. stdout NO se reenvía aquí para no ahogar la
+        // salida del runner, pero eso no significa que se pierda: Serilog
+        // escribe lo mismo en su sink de archivo (ver Program.cs,
+        // "Logging:RutaArchivo"), que con el content root de estos tests cae
+        // en src/CaeManager.Web/bin/{Configuration}/net10.0/App_Data/logs/
+        // log-AAAAMMDD.txt. Ese fichero es el sitio donde mirar cuando un
+        // test E2E se queda esperando algo que nunca llega: un comando que
+        // revienta en un circuito de Blazor ya cerrado solo deja rastro ahí
+        // (así se encontró la causa del fallo del Paso 0 de
+        // FlujoCicloDocumentalTests). Leer los buffers con BeginOutputReadLine
+        // sigue siendo necesario aunque no se escriba nada: evita que se
+        // llenen y bloqueen al proceso hijo.
         _proceso.OutputDataReceived += (_, _) => { };
         _proceso.ErrorDataReceived += (_, e) =>
         {

@@ -21,7 +21,8 @@ public record CrearTipoDocumentoCommand(
     string? CriteriosValidacion,
     string? SeSolicitaA,
     string? Observaciones,
-    IReadOnlyList<Guid> CentroIds) : ICommand<Guid>;
+    IReadOnlyList<Guid> CentroIds,
+    IReadOnlyList<string>? Aliases = null) : ICommand<Guid>;
 
 public class CrearTipoDocumentoCommandValidator : AbstractValidator<CrearTipoDocumentoCommand>
 {
@@ -30,6 +31,10 @@ public class CrearTipoDocumentoCommandValidator : AbstractValidator<CrearTipoDoc
         RuleFor(c => c.Nombre)
             .NotEmpty().WithMessage("El nombre es obligatorio.")
             .MaximumLength(TipoDocumento.LongitudMaximaNombre);
+
+        RuleForEach(c => c.Aliases)
+            .MaximumLength(TipoDocumentoAlias.LongitudMaximaTexto)
+            .WithMessage($"Un alias no puede superar {TipoDocumentoAlias.LongitudMaximaTexto} caracteres.");
 
         RuleFor(c => c.VigenciaMeses)
             .GreaterThan(0).WithMessage("La vigencia debe ser mayor que cero.")
@@ -82,6 +87,8 @@ public class CrearTipoDocumentoCommandHandler(
             request.CriteriosValidacion,
             request.SeSolicitaA,
             request.Observaciones);
+
+        tipoDocumento.EstablecerAliases(request.Aliases ?? []);
 
         repositorio.Agregar(tipoDocumento);
 

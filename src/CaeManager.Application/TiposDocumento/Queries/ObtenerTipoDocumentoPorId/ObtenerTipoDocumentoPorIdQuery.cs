@@ -22,7 +22,8 @@ public record TipoDocumentoDetalleDto(
     string? CriteriosValidacion,
     string? SeSolicitaA,
     string? Observaciones,
-    IReadOnlyList<Guid> CentroIds);
+    IReadOnlyList<Guid> CentroIds,
+    IReadOnlyList<string> Aliases);
 
 public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext dbContext)
     : IRequestHandler<ObtenerTipoDocumentoPorIdQuery, TipoDocumentoDetalleDto?>
@@ -56,9 +57,14 @@ public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext d
             .Select(tc => tc.CentroId)
             .ToListAsync(cancellationToken);
 
+        var aliases = await dbContext.TiposDocumentoAlias
+            .Where(a => a.TipoDocumentoId == request.Id)
+            .Select(a => a.Texto)
+            .ToListAsync(cancellationToken);
+
         return new TipoDocumentoDetalleDto(
             tipoDocumento.Id, tipoDocumento.Nombre, tipoDocumento.VigenciaMeses, tipoDocumento.AplicaVencimientoAutomatico,
             tipoDocumento.Orden, tipoDocumento.AmbitoAplicacion, tipoDocumento.Requerido, tipoDocumento.Naturaleza, tipoDocumento.Notas, tipoDocumento.Descripcion,
-            tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones, centroIds);
+            tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones, centroIds, aliases);
     }
 }
