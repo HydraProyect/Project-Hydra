@@ -22,6 +22,12 @@ public class SentryAlertaOperativa : IAlertaOperativa
     public void Emitir(string mensaje, NivelAlertaOperativa nivel) =>
         SentrySdk.CaptureMessage(mensaje, NivelSentry(nivel));
 
+    public void CapturarExcepcion(Exception excepcion) => SentrySdk.CaptureException(excepcion);
+
+    public void DejarMigaDePan(string mensaje) => SentrySdk.AddBreadcrumb(mensaje, level: BreadcrumbLevel.Error);
+
+    public IDisposable IniciarAmbitoDeCaptura() => SentrySdk.PushScope();
+
     private static SentryLevel NivelSentry(NivelAlertaOperativa nivel) => nivel switch
     {
         NivelAlertaOperativa.Critica => SentryLevel.Error,

@@ -92,5 +92,22 @@ public class ApplicationServiceCollectionExtensionsTests
         public void Emitir(string mensaje, NivelAlertaOperativa nivel)
         {
         }
+
+        public void CapturarExcepcion(Exception excepcion)
+        {
+        }
+
+        public void DejarMigaDePan(string mensaje)
+        {
+        }
+
+        public IDisposable IniciarAmbitoDeCaptura() => new AmbitoDePrueba();
+
+        private sealed class AmbitoDePrueba : IDisposable
+        {
+            public void Dispose()
+            {
+            }
+        }
     }
 }
