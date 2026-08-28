@@ -65,9 +65,9 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
     }
 
     private ValidacionDocumentoOficialService CrearServicio(
-        Result<ResultadoVerificacionFirmasPdf> firmas, Result<IReadOnlyList<string>>? texto = null) =>
+        Result<ResultadoVerificacionFirmasPdf> firmas, Result<IReadOnlyList<string>>? texto = null, IFileStorageService? almacenamiento = null) =>
         new(_dbContext, _dbContext, _dbContext,
-            new AlmacenamientoFalso(),
+            almacenamiento ?? new AlmacenamientoFalso(),
             new VerificadorFirmaFalso(firmas),
             new ExtractorTextoFalso(texto ?? Result.Exito<IReadOnlyList<string>>([TextoTgssValido])),
             new ParserDocumentoOficialRegistry([
@@ -311,6 +311,30 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
     }
 
+    /// <summary>Mismo criterio que VerificacionIaDocumentoServiceTests (D3): un archivo que ya no existe es un fallo real y determinista — debe lanzar SIN envolver.</summary>
+    [Fact]
+    public async Task Lanza_FileNotFoundException_sin_envolver_si_el_archivo_no_existe()
+    {
+        var documento = await CrearDocumentoAsync();
+        var servicio = CrearServicio(Result.Exito(FirmaSelloDeOrgano()), almacenamiento: new AlmacenamientoQueFalla());
+
+        await Assert.ThrowsAsync<FileNotFoundException>(() => servicio.ProcesarDocumentoAsync(documento.Id));
+
+        (await _dbContext.VerificacionesDocumentoOficial.AnyAsync(v => v.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
+    /// <summary>D3: un fallo de apertura que NO es "el archivo no existe" puede ser transitorio, así que se envuelve y se deja como reintentable.</summary>
+    [Fact]
+    public async Task Envuelve_en_InvalidOperationException_si_falla_la_apertura_por_otra_razon()
+    {
+        var documento = await CrearDocumentoAsync();
+        var servicio = CrearServicio(Result.Exito(FirmaSelloDeOrgano()), almacenamiento: new AlmacenamientoConFalloTransitorio());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ProcesarDocumentoAsync(documento.Id));
+
+        (await _dbContext.VerificacionesDocumentoOficial.AnyAsync(v => v.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
     private sealed class VerificadorFirmaFalso(Result<ResultadoVerificacionFirmasPdf> resultado) : IVerificadorFirmaPdfService
     {
         public Task<Result<ResultadoVerificacionFirmasPdf>> VerificarAsync(byte[] contenidoPdf, CancellationToken cancellationToken = default) =>
@@ -331,5 +355,28 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
 
         public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
             Task.FromResult<Stream>(new MemoryStream([1, 2, 3]));
+    }
+
+    /// <summary>Mismo comportamiento que Disk/S3FileStorageService.AbrirAsync cuando el archivo no existe.</summary>
+    private sealed class AlmacenamientoQueFalla : IFileStorageService
+    {
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
+            Task.FromResult("falso.pdf");
+
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
+            throw new FileNotFoundException("No encontramos el archivo solicitado.", identificador);
+    }
+
+    private sealed class AlmacenamientoConFalloTransitorio : IFileStorageService
+    {
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
+            Task.FromResult("falso.pdf");
+
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
+            throw new IOException("El backend de almacenamiento no respondió.");
     }
 }
