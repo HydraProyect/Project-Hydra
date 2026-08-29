@@ -245,9 +245,6 @@ jobs:
       - name: Compilar (warnings como errores)
         run: dotnet build CaeManager.slnx --no-restore -warnaserror
 
-      - name: Verificar formato (dotnet format)
-        run: dotnet format CaeManager.slnx --no-restore --verify-no-changes
-
       - name: Tests de Domain
         run: >
           dotnet test tests/CaeManager.Domain.Tests --no-restore --logger "console;verbosity=normal"
@@ -286,10 +283,35 @@ jobs:
   # Si falla cualquiera de los dos jobs de los que depende, este se queda sin
   # ejecutar, el check obligatorio no reporta exito y la rama sigue bloqueada.
   # Cierra en fallo, no en silencio.
+  # `dotnet format` no depende de los tests ni de la cobertura: solo necesita
+  # restaurar y mirar el codigo. Estaba dentro de compilacion-y-unitarios, en
+  # serie, y sus ~100 s se sumaban a los de esa cadena en vez de solaparse.
+  #
+  # No es required status check por si mismo — lo exige "Build, format y tests",
+  # que si lo es, en su comprobacion explicita de dependencias. Un fallo de
+  # formato sigue bloqueando la rama exactamente igual que antes.
+  formato:
+    name: Verificar formato
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Verificar formato (dotnet format)
+        run: dotnet format CaeManager.slnx --no-restore --verify-no-changes
+
+
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest
-    needs: [compilacion-y-unitarios, tests-integracion]
+    needs: [compilacion-y-unitarios, formato, tests-integracion]
     # SIEMPRE se ejecuta, incluso si sus dependencias fallan. No es un detalle:
     # un job que se salta reporta su check como "skipped", y la proteccion de
     # rama trata un check obligatorio omitido como aprobado. Sin esto, un bloque
@@ -305,9 +327,11 @@ jobs:
         run: |
           compilacion="${{ needs.compilacion-y-unitarios.result }}"
           integracion="${{ needs.tests-integracion.result }}"
+          formato="${{ needs.formato.result }}"
           echo "Compilación y tests unitarios: $compilacion"
           echo "Tests de integración (4 bloques): $integracion"
-          if [ "$compilacion" != "success" ] || [ "$integracion" != "success" ]; then
+          echo "Verificar formato: $formato"
+          if [ "$compilacion" != "success" ] || [ "$formato" != "success" ] || [ "$integracion" != "success" ]; then
             echo "::error::Una dependencia no termino en success. Este check obligatorio falla a proposito en vez de quedarse sin ejecutar, porque un check obligatorio omitido cuenta como aprobado."
             exit 1
           fi
