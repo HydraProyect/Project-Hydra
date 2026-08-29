@@ -335,6 +335,8 @@ public static class DatosPruebaSeeder
 
         await SembrarUsuariosYCarteraAsync(dbContext, userManager, credenciales, logger, cancellationToken);
 
+        await ActivarVerificacionIaSiHayProveedorAsync(dbContext, configuration, logger, cancellationToken);
+
         tenant.MarcarDatosDemoCompletados();
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -344,6 +346,75 @@ public static class DatosPruebaSeeder
             "(email prueba.<rol><n>@caemanager.local; la contraseña es la configurada en DatosPrueba:Contrasena).",
             resumen.Clientes, resumen.Empresas, resumen.Subcontratas, resumen.Centros, resumen.Trabajadores,
             resumen.Documentos, Roles.Todos.Count * 3);
+    }
+
+
+    /// <summary>Clave de configuracion que decide si hay proveedor de IA real.</summary>
+    internal const string ClaveApiProveedorIa = "Anthropic:ApiKey";
+
+    /// <summary>
+    /// Enciende <see cref="TipoDocumento.VerificacionIaActiva"/> en los tipos de
+    /// Trabajador del tenant actual, pero SOLO si hay un proveedor de IA
+    /// configurado de verdad.
+    ///
+    /// <para>Mismo patron "inerte por defecto" que <c>BackupsOptions</c>,
+    /// <c>DataProtectionKmsOptions</c> o el propio asistente: sin clave esto no
+    /// hace nada y el comportamiento es identico al de antes. Con clave, la demo
+    /// muestra revisiones IA sin que nadie las encienda a mano en
+    /// <c>/tipos-documento</c>.</para>
+    ///
+    /// <para><b>Por que solo Trabajador</b>: es la misma restriccion que impone
+    /// <c>ActualizarVerificacionIaGlobalCommand</c>, que rechaza cualquier otro
+    /// ambito. Sembrar mas amplio crearia un estado que el propio producto
+    /// declara invalido y que ninguna pantalla podria deshacer.</para>
+    ///
+    /// <para>Solo toca tenants de demo: todas las rutas que llaman aqui estan
+    /// detras de <c>DatosPrueba:Activo</c>.</para>
+    /// </summary>
+    internal static async Task<int> ActivarVerificacionIaSiHayProveedorAsync(
+        CaeManagerDbContext dbContext, IConfiguration configuration, ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (!HayProveedorIaConfigurado(configuration))
+        {
+            logger.LogInformation(
+                "Sin proveedor de IA configurado ({Clave}) - la verificacion IA queda apagada, " +
+                "como hasta ahora. Se enciende a mano desde /tipos-documento.",
+                ClaveApiProveedorIa);
+            return 0;
+        }
+
+        var tipos = await dbContext.TiposDocumento.ToListAsync(cancellationToken);
+        var activados = ActivarVerificacionIaEnTiposDeTrabajador(tipos);
+        logger.LogInformation(
+            "Verificacion IA activada en {Tipos} tipos de documento de Trabajador.", activados);
+        return activados;
+    }
+
+    /// <summary>
+    /// Decision pura, sin base de datos: hay proveedor de IA configurado?
+    /// Separada de la escritura a proposito, para poder falsarla sin levantar nada.
+    /// </summary>
+    internal static bool HayProveedorIaConfigurado(IConfiguration configuration) =>
+        !string.IsNullOrWhiteSpace(configuration[ClaveApiProveedorIa]);
+
+    /// <summary>
+    /// Aplica el encendido y devuelve cuantos cambio. Idempotente: los que ya
+    /// estaban activos no se cuentan ni se vuelven a tocar.
+    /// </summary>
+    internal static int ActivarVerificacionIaEnTiposDeTrabajador(IReadOnlyList<TipoDocumento> tipos)
+    {
+        var activados = 0;
+        foreach (var tipo in tipos)
+        {
+            if (tipo.AmbitoAplicacion != AmbitoAplicacion.Trabajador) continue;
+            if (!tipo.LecturaIaActiva || tipo.VerificacionIaActiva) continue;
+
+            tipo.EstablecerVerificacionIaActiva(true);
+            activados++;
+        }
+
+        return activados;
     }
 
     /// <summary>
