@@ -13,10 +13,11 @@
          vulnerabilidad moderada conocida (GHSA-pgww-w46g-26qg) — se fija
          explícitamente a una versión parcheada en vez de silenciar el
          aviso, porque bunit 2.7.2 sigue funcionando bien contra ella.
-         1.7.1 (no 1.7.0) porque HtmlSanitizer 9.2.995, que Infrastructure usa
-         para sanear el HTML de correo, exige >= 1.7.1 y la degradación rompe
-         la restauración de este proyecto (NU1605). -->
-    <PackageReference Include="AngleSharp" Version="1.7.1" />
+         1.7.2 (no 1.7.1) porque HtmlSanitizer 9.2.1039, que Infrastructure usa
+         para sanear el HTML de correo, exige >= 1.7.2 y la degradación rompe
+         la restauración de este proyecto (NU1605). Este pin sube en tándem con
+         el suelo de HtmlSanitizer: cada bump suyo obliga a revisarlo aquí. -->
+    <PackageReference Include="AngleSharp" Version="1.7.2" />
     <PackageReference Include="coverlet.collector" Version="10.0.1" />
     <!-- Fijado en exacta (no comodín): la 8.x exige licencia comercial de
          pago (Xceed); ver el razonamiento completo en
