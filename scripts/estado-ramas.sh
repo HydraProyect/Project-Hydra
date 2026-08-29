@@ -107,8 +107,20 @@ else
     notas=""
     case "$r" in
       origin/*) ;;
-      *) up=$(git for-each-ref --format='%(upstream:short)' "refs/heads/$r")
-         if [ -z "${PUBLICADA[$r]:-}" ] && [ -z "$up" ]; then
+      *) # "Sin upstream" NO significa "sin publicar": el mismo commit puede estar
+         # ya en el remoto bajo OTRO nombre de rama (p. ej. como cabeza de un PR
+         # de dependabot). Falso positivo real, 2026-08-29: la rama local
+         # dep-htmlsanitizer se marco SIN-EMPUJAR cuando su punta ya era la
+         # cabeza del PR #333. La identidad de una rama no distingue "sin
+         # publicar" de "publicado con otro nombre" — se pregunta por el commit.
+         up=$(git for-each-ref --format='%(upstream:short)' "refs/heads/$r")
+         remota=$(git for-each-ref --format='%(refname:short)'                     --contains "${PUNTA_DE[$r]}" refs/remotes/origin | head -1)
+         if [ -n "$remota" ]; then
+           case "$remota" in
+             "origin/$r") ;;
+             *) notas="${notas}publicada-como:${remota#origin/} " ;;
+           esac
+         elif [ -z "${PUBLICADA[$r]:-}" ] && [ -z "$up" ]; then
            notas="${notas}SIN-EMPUJAR "
          fi ;;
     esac
@@ -119,6 +131,9 @@ else
   echo
   gris
   echo "SIN-EMPUJAR: el trabajo solo existe en este disco (CLAUDE.md § 21)."
+  echo "             Se comprueba por commit, no por upstream: una rama puede"
+  echo "             estar publicada en el remoto bajo otro nombre."
+  echo "publicada-como: su punta ya esta en el remoto, con otro nombre de rama."
   echo "DIFF-GRANDE: >60 ficheros. Comprueba que sean tuyos y no de una base vieja."
   fin
 fi
