@@ -200,8 +200,8 @@ jobs:
           path: reparto
           retention-days: 1
 
-  build-and-test:
-    name: Build, format y tests
+  compilacion-y-unitarios:
+    name: Compilación y tests unitarios
     runs-on: ubuntu-latest
     # Ya no espera a los bloques: la agregacion vive en su propio job, asi
     # que este corre en paralelo con ellos en vez de detras. No necesita
@@ -251,24 +251,49 @@ jobs:
           path: coverage
           retention-days: 1
 
-  # LA AGREGACION, EN SU PROPIO JOB.
+  # EL GATE FINAL. Conserva el nombre "Build, format y tests" a proposito.
   #
-  # Vivia dentro de "Build, format y tests", que por eso tenia que esperar a
-  # los cuatro bloques: sus ~4,5 min propios se sumaban a los ~12,5 de ellos en
-  # vez de solaparse. Separandola, aquel job corre en paralelo con los bloques
-  # y solo esta agregacion queda detras.
+  # Aqui viven el ratchet de cobertura y las tres comprobaciones del reparto, y
+  # ese nombre es uno de los ocho required status checks de la proteccion de
+  # rama. Manteniendolo pegado al job que TIENE los gates —en vez de al que
+  # compila— la optimizacion no baja el nivel de control ni por un instante: no
+  # hace falta dar de alta ningun check nuevo, no hay ventana entre el merge y
+  # el alta, y no depende de que nadie se acuerde de un paso manual.
   #
-  # ESTE JOB TIENE QUE SER UN REQUIRED STATUS CHECK. Aqui viven el ratchet de
-  # cobertura y las dos comprobaciones del reparto; si no es obligatorio, puede
-  # fallar sin bloquear nada y las tres guardas se vuelven decorativas.
-  # El nombre hay que darlo de alta en la proteccion de rama DESPUES de que
-  # este workflow este en main — darlo antes deja a todos los PR esperando un
-  # check que nadie puede reportar todavia.
-  cobertura-y-reparto:
-    name: Cobertura y reparto de tests
+  # Lo que se gana igual: la compilacion y los tests unitarios se fueron a
+  # `compilacion-y-unitarios`, que ya no espera a los bloques y corre en
+  # paralelo con ellos. Antes sus ~4,5 min se sumaban a los ~12,5 de los
+  # bloques; ahora solo queda detras esta agregacion, que no compila nada.
+  #
+  # Si falla cualquiera de los dos jobs de los que depende, este se queda sin
+  # ejecutar, el check obligatorio no reporta exito y la rama sigue bloqueada.
+  # Cierra en fallo, no en silencio.
+  build-and-test:
+    name: Build, format y tests
     runs-on: ubuntu-latest
-    needs: [build-and-test, tests-integracion]
+    needs: [compilacion-y-unitarios, tests-integracion]
+    # SIEMPRE se ejecuta, incluso si sus dependencias fallan. No es un detalle:
+    # un job que se salta reporta su check como "skipped", y la proteccion de
+    # rama trata un check obligatorio omitido como aprobado. Sin esto, un bloque
+    # de integracion en rojo dejaria este job sin correr y la rama quedaria
+    # MERGEABLE — el gate desaparece justo cuando hace falta.
+    #
+    # Con `always()` el job siempre reporta, y el primer paso exige explicitamente
+    # que las dependencias hayan salido en success. Cierra en fallo, no en
+    # silencio, y no depende de como interprete GitHub un check omitido.
+    if: always()
     steps:
+      - name: Exigir que las dependencias hayan pasado
+        run: |
+          compilacion="${{ needs.compilacion-y-unitarios.result }}"
+          integracion="${{ needs.tests-integracion.result }}"
+          echo "Compilación y tests unitarios: $compilacion"
+          echo "Tests de integración (4 bloques): $integracion"
+          if [ "$compilacion" != "success" ] || [ "$integracion" != "success" ]; then
+            echo "::error::Una dependencia no termino en success. Este check obligatorio falla a proposito en vez de quedarse sin ejecutar, porque un check obligatorio omitido cuenta como aprobado."
+            exit 1
+          fi
+
       - uses: actions/checkout@v7
 
       - name: Instalar .NET SDK
