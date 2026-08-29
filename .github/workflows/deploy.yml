@@ -52,6 +52,9 @@ on:
 
 env:
   VPS_HOST: 2.29.9.79
+  # Clave publica del host. No es un secreto: identifica al servidor, no da
+  # acceso. Vive versionada a proposito, para que cambiarla deje rastro.
+  VPS_HOST_KEY: "2.29.9.79 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJdktXchT+yIjLV+Z7181+W+Sv7cnTuzk3hC8QwU7DsW"
 
 jobs:
   staging:
@@ -74,7 +77,12 @@ jobs:
         run: |
           install -m 600 -D /dev/null ~/.ssh/id_ed25519
           printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          # Clave de host FIJADA, no aprendida. `ssh-keyscan` en cada ejecucion
+          # confia en la primera clave que le contesten: si alguien se interpone
+          # una sola vez, el despliegue le entrega la sesion sin distinguirlo de
+          # una rotacion legitima. Fijada aqui, un cambio de clave rompe el
+          # despliegue y obliga a mirar, que es lo que debe pasar.
+          echo "$VPS_HOST_KEY" >> ~/.ssh/known_hosts
 
       - name: Desplegar SHA exacto a staging
         run: ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "staging ${{ github.sha }}"
@@ -96,7 +104,12 @@ jobs:
         run: |
           install -m 600 -D /dev/null ~/.ssh/id_ed25519
           printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          # Clave de host FIJADA, no aprendida. `ssh-keyscan` en cada ejecucion
+          # confia en la primera clave que le contesten: si alguien se interpone
+          # una sola vez, el despliegue le entrega la sesion sin distinguirlo de
+          # una rotacion legitima. Fijada aqui, un cambio de clave rompe el
+          # despliegue y obliga a mirar, que es lo que debe pasar.
+          echo "$VPS_HOST_KEY" >> ~/.ssh/known_hosts
 
       - name: Desplegar SHA exacto a producción
         run: ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "produccion ${{ github.sha }}"

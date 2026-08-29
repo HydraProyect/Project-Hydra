@@ -9,3 +9,12 @@
 .gitignore
 tests/
 *.md
+
+# Ficheros de entorno: NUNCA en el contexto de build.
+# El Dockerfile actual no los copia, pero el contexto entero viaja a BuildKit
+# y queda en su cache. Que hoy nadie los lea no es una garantia: es una
+# coincidencia que un COPY mal puesto deshace sin avisar.
+.env
+.env.*
+**/.env
+**/.env.*
