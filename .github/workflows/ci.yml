@@ -782,48 +782,148 @@ jobs:
   gitleaks:
     name: Escaneo de secretos (gitleaks)
     runs-on: ubuntu-latest
-    # gitleaks-action@v3 aborta en la cola de merge con «ERROR: The
-    # [merge_group] event is not yet supported» — no es un secreto encontrado,
-    # es que la Action se niega a arrancar. Como el escaneo es check obligatorio,
-    # eso bloqueaba TODAS las entradas de la cola.
-    #
-    # Saltarlo aquí no deja ningún hueco: cada PR se escanea íntegro por la vía
-    # `pull_request` ANTES de poder entrar en la cola, y una entrada de la cola
-    # es la combinación de PRs ya escaneados con un `main` ya escaneado. Un
-    # secreto no aparece por combinar dos ramas limpias.
-    #
-    # Un job saltado reporta «skipped», que GitHub da por satisfecho en los
-    # checks obligatorios — por eso la cola puede completar.
-    #
-    # Deuda declarada: el binario `gitleaks` que esta Action descarga y ejecuta
-    # por debajo es MIT y no tiene ninguna de sus tres limitaciones (licencia por
-    # tipo de cuenta, validación remota que su propio autor dejó desactivada, y
-    # este evento sin soportar). Sustituir la Action por el binario resolvería
-    # las tres de golpe; queda como incremento propio, no como parche a la
-    # carrera de un gate roto.
-    if: github.event_name != 'merge_group'
+    timeout-minutes: 8
     permissions:
       contents: read
-      pull-requests: read
+    # Ya NO se salta en merge_group. Se saltaba porque gitleaks-action abortaba
+    # con «The [merge_group] event is not yet supported», y un job saltado
+    # reporta "skipped", que la proteccion de rama da por aprobado. El binario
+    # no tiene esa limitacion, asi que la cola tambien se escanea.
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: gitleaks
-        uses: gitleaks/gitleaks-action@v3
+      # BINARIO MIT FIJADO, en vez de la Action.
+      #
+      # La deuda estaba declarada en este mismo fichero: la Action arrastra tres
+      # limitaciones que el binario no tiene —licencia segun el tipo de cuenta
+      # propietaria, validacion remota, y el evento merge_group sin soportar—.
+      #
+      # SHA-256 comprobado contra gitleaks_8.22.1_checksums.txt de la release
+      # oficial, no copiado de un documento.
+      - name: Instalar gitleaks verificado
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # La Action exige clave de licencia cuando el repositorio pertenece
-          # a una organización — mira el tipo de cuenta del propietario, no la
-          # visibilidad del repo ni cuántos hay. Mientras estuvo en cuenta
-          # personal no hacía falta ninguna. La clave de organización es hoy
-          # gratuita (gitleaks.io); el binario que ejecuta por debajo es MIT.
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
-          # Explicito a proposito: sin esto dependeriamos de que la Action
-          # busque .gitleaks.toml por su cuenta, y un fallo silencioso ahi se
-          # parece a "no hay excepciones configuradas" en vez de a un error.
-          GITLEAKS_CONFIG: .gitleaks.toml
+          VERSION: "8.22.1"
+          SHA256: "2f92ab3b8e08319ac30836c32b90818e01519c3a4982771e4f45a7f5607872f7"
+        run: |
+          set -euo pipefail
+          archivo="gitleaks_${VERSION}_linux_x64.tar.gz"
+          curl --proto '=https' --tlsv1.2 --location --fail --silent --show-error \
+            --output "/tmp/$archivo" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${archivo}"
+          echo "${SHA256}  /tmp/$archivo" | sha256sum -c -
+          tar -xzf "/tmp/$archivo" -C /tmp gitleaks
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      # PRUEBA DE SENSIBILIDAD: que el escaner detecte un secreto de control
+      # ANTES de creerle un verde.
+      #
+      # Se asierta sobre el INFORME, no sobre el codigo de salida. Es
+      # deliberado: si la configuracion estuviera rota, gitleaks saldria con
+      # codigo distinto de cero, y un `if gitleaks ...; then fallar; fi` leeria
+      # ese error como "detecto el secreto". El fichero de hallazgos no se
+      # presta a esa confusion — o hay uno dentro, o no lo hay.
+      #
+      # El token se construye en tiempo de ejecucion para que este fichero no
+      # contenga nunca algo que parezca una credencial.
+      - name: Comprobar que gitleaks detecta un secreto de control
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sensibilidad
+          printf 'token = "ghp_%s"\n' 'aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789' \
+            > /tmp/sensibilidad/control.txt
+          gitleaks detect --no-git --no-banner --redact \
+            --config .gitleaks.toml --source /tmp/sensibilidad \
+            --report-format json --report-path /tmp/sensibilidad.json || true
+          if [ ! -f /tmp/sensibilidad.json ]; then
+            echo "::error::gitleaks no genero informe: la configuracion o el binario fallaron. Un verde de este job no significaria nada."
+            exit 1
+          fi
+          hallazgos=$(jq 'length' /tmp/sensibilidad.json)
+          echo "Hallazgos sobre el secreto de control: $hallazgos"
+          if [ "${hallazgos:-0}" -lt 1 ]; then
+            echo "::error::gitleaks NO detecto un token canonico de control. El escaner esta ciego; no se puede confiar en su verde."
+            exit 1
+          fi
+
+      # El escaneo real. Tambien por informe: un fallo del binario no puede
+      # parecerse a "no hay secretos".
+      - name: Escanear el arbol
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/arbol
+          git archive --format=tar HEAD | tar -xf - -C /tmp/arbol
+          gitleaks detect --no-git --no-banner --redact \
+            --config .gitleaks.toml --source /tmp/arbol \
+            --report-format json --report-path /tmp/arbol.json || true
+          if [ ! -f /tmp/arbol.json ]; then
+            echo "::error::gitleaks no genero informe del arbol."
+            exit 1
+          fi
+          hallazgos=$(jq 'length' /tmp/arbol.json)
+          echo "Hallazgos en el arbol: $hallazgos"
+          if [ "${hallazgos:-0}" -gt 0 ]; then
+            jq -r '.[] | "  \(.File):\(.StartLine)  \(.RuleID)"' /tmp/arbol.json
+            echo "::error::gitleaks encontro $hallazgos secreto(s) en el arbol."
+            exit 1
+          fi
+
+      # HISTORIAL INTRODUCIDO. Escanear solo el arbol final dejaria pasar un
+      # secreto commiteado y borrado despues dentro del mismo PR: el fichero ya
+      # no esta, pero el objeto sigue en la historia y es recuperable.
+      #
+      # La guarda del final es la que importa: un rango mal resuelto no
+      # contendria commits, gitleaks no encontraria nada y el job saldria VERDE
+      # habiendo escaneado el vacio. Por eso se cuenta el rango y se falla si
+      # sale cero — un universo vacio no es una ausencia de secretos.
+      - name: Escanear el historial introducido
+        env:
+          EVENTO: ${{ github.event_name }}
+          PUSH_BASE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          MERGE_BASE: ${{ github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENTO" in
+            pull_request) base="$PR_BASE";   head="$PR_HEAD"  ;;
+            merge_group)  base="$MERGE_BASE"; head="$HEAD_SHA" ;;
+            push)         base="$PUSH_BASE";  head="$HEAD_SHA" ;;
+            *) echo "::error::Evento no soportado: $EVENTO"; exit 1 ;;
+          esac
+          git cat-file -e "${head}^{commit}"
+          if [[ "$base" =~ ^0+$ ]] || [ -z "$base" ]; then
+            rango="-1 $head"
+            commits=1
+          else
+            git cat-file -e "${base}^{commit}"
+            rango="${base}..${head}"
+            commits=$(git rev-list --count "$rango")
+          fi
+          echo "Rango: $rango — commits: $commits"
+          if [ "$commits" -lt 1 ]; then
+            echo "::error::El rango no contiene ningun commit. Escanear el vacio saldria verde sin haber mirado nada."
+            exit 1
+          fi
+          gitleaks detect --no-banner --redact --config .gitleaks.toml \
+            --source . --log-opts="$rango" \
+            --report-format json --report-path /tmp/historial.json || true
+          if [ ! -f /tmp/historial.json ]; then
+            echo "::error::gitleaks no genero informe del historial."
+            exit 1
+          fi
+          hallazgos=$(jq 'length' /tmp/historial.json)
+          echo "Hallazgos en el historial introducido: $hallazgos"
+          if [ "${hallazgos:-0}" -gt 0 ]; then
+            jq -r '.[] | "  \(.File):\(.StartLine)  \(.RuleID)  commit \(.Commit[0:8])"' /tmp/historial.json
+            echo "::error::gitleaks encontro $hallazgos secreto(s) en los commits introducidos."
+            exit 1
+          fi
+
 
   deploy-script-tests:
     name: Prueba de mutación — SHA determinista en el despliegue
