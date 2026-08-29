@@ -379,6 +379,19 @@ su progreso — y antes de declarar que dos trabajos se duplican.
 si el repositorio reactiva las ramas abiertas. Con N PRs simultáneos el coste no
 crece con N: crece con su cuadrado.
 
+Desde 2026-08-29 ese coste ya no se paga aquí: `main` tiene **cola de merge**
+(`merge_method: SQUASH`, `grouping_strategy: ALLGREEN`) y **ninguna regla de
+checks obligatorios en modo estricto**, así que las ramas abiertas no necesitan
+actualizarse contra `main` antes de entrar — la cola prueba el resultado ya
+fusionado. El workflow `actualizar-ramas-pr.yml`, que hacía ese trabajo a mano,
+se retiró por obsoleto: su comentario afirmaba que la cola «no está disponible
+para este repositorio (personal, no organización)», y eso dejó de ser cierto al
+pasar el repositorio a la organización `HydraProyect`. Con el traslado, además,
+la organización empezó a rechazar su PAT por vigencia superior a 366 días, y el
+workflow llevaba fallando en cada push a `main` sin que nadie lo mirara — un
+rojo permanente enseña a ignorar los rojos. Caso de manual de la § 23: cambiar
+el repositorio de sitio rompió el CI sin tocar una línea de código.
+
 **No apilar PRs**: se mergea de uno en uno, en verde y completo.
 
 **Ante un fallo transversal de CI** —uno que rompe todos los PRs a la vez— lo
