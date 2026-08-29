@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using ClosedXML.Excel;
 using Microsoft.Playwright;
 using PdfSharp.Pdf;
@@ -222,6 +222,85 @@ public static class Ayudas
         while (DateTime.UtcNow < vencimiento)
         {
             if (await disparador.GetAttributeAsync("aria-expanded") == "true")
+                return true;
+
+            await Task.Delay(100);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Selecciona una fila de la bandeja unificada de <c>/comunicaciones</c>
+    /// (<c>FilaConversacion.razor</c>) confirmando que el clic llegó de verdad
+    /// al circuito de Blazor antes de devolver el control.
+    ///
+    /// Mismo modo de fallo que <see cref="AbrirMenuAccionesAsync"/> y por el
+    /// mismo motivo: la fila es un <c>&lt;li&gt;</c> con <c>@onclick</c> dentro
+    /// de una página <c>@rendermode InteractiveServer</c>, así que está en el
+    /// DOM —visible, clicable— desde el prerenderizado estático, antes de que
+    /// su controlador exista del lado servidor; y un re-render simultáneo (la
+    /// carga del detalle del hilo anterior, o el refresco en tiempo real de
+    /// <c>AlRecibirMensajeAsync</c>) puede invalidar el id del controlador de
+    /// un clic ya en vuelo. En los dos casos el clic se pierde EN SILENCIO:
+    /// Playwright lo da por entregado, la selección nunca ocurre, y el fallo
+    /// aparece 30 s después en la espera siguiente — que en
+    /// <c>DeepLinksTests</c> era un <c>WaitForURLAsync</c> y se comía el
+    /// timeout entero sin decir por qué (job 99116263442, "Tests E2E
+    /// (Playwright)" de main <c>eed3a648</c>: 33 s de test para 3 s de
+    /// trabajo real). Por eso el arreglo no es subir el timeout — el clic no
+    /// llega tarde, no llega.
+    ///
+    /// La señal fiable de que sí llegó es la clase <c>bandeja-fila-activa</c>,
+    /// que Blazor renderiza desde <c>_conversacionSeleccionadaId</c> (ver
+    /// Bandeja.razor): estado del servidor, no del navegador. A diferencia del
+    /// menú "⋯", seleccionar no es un interruptor sino una asignación, así que
+    /// reintentar es idempotente y no puede deshacer un clic que sí había
+    /// llegado; aun así solo se reclica si la fila sigue sin estar activa.
+    ///
+    /// <paramref name="fila"/> debe resolver a un único <c>.bandeja-fila</c>.
+    /// </summary>
+    public static async Task SeleccionarFilaBandejaAsync(ILocator fila)
+    {
+        await fila.WaitForAsync(
+            new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 30_000 });
+
+        for (var intento = 1; intento <= IntentosSeleccionarFilaBandeja; intento++)
+        {
+            if (!await FilaBandejaActivaAsync(fila))
+                await fila.ClickAsync(new LocatorClickOptions { Timeout = 15_000 });
+
+            // Mismo margen que AbrirMenuAccionesAsync: 5 s es enorme para una
+            // ida y vuelta de SignalR contra la app en el mismo runner, así
+            // que si la clase no ha aparecido el clic no llegó al circuito.
+            if (await EsperarFilaBandejaActivaAsync(fila, TimeSpan.FromSeconds(5)))
+                return;
+        }
+
+        throw new TimeoutException(
+            $"La fila de la bandeja no llegó a seleccionarse tras {IntentosSeleccionarFilaBandeja} clics: " +
+            "nunca apareció la clase \"bandeja-fila-activa\" que Blazor renderiza desde " +
+            "_conversacionSeleccionadaId (ver Bandeja.razor), así que ningún clic llegó al circuito " +
+            "(componente aún no interactivo tras el prerenderizado, o controlador @onclick invalidado por " +
+            "un re-render simultáneo).");
+    }
+
+    private const int IntentosSeleccionarFilaBandeja = 4;
+
+    /// <summary>
+    /// <c>bandeja-fila-activa</c> no es prefijo ni sufijo de ninguna otra clase
+    /// de la fila (<c>bandeja-fila</c>, <c>bandeja-fila-esperando</c>), así que
+    /// buscarla como subcadena del atributo no puede dar un falso positivo.
+    /// </summary>
+    private static async Task<bool> FilaBandejaActivaAsync(ILocator fila) =>
+        (await fila.GetAttributeAsync("class"))?.Contains("bandeja-fila-activa") == true;
+
+    private static async Task<bool> EsperarFilaBandejaActivaAsync(ILocator fila, TimeSpan limite)
+    {
+        var vencimiento = DateTime.UtcNow + limite;
+        while (DateTime.UtcNow < vencimiento)
+        {
+            if (await FilaBandejaActivaAsync(fila))
                 return true;
 
             await Task.Delay(100);

@@ -103,8 +103,6 @@ public class Tenant : Entity
     /// </summary>
     public void MarcarComoPlataforma() => EsPlataforma = true;
 
-    public void DejarDeSerPlataforma() => EsPlataforma = false;
-
     public void Suspender() => Estado = EstadoTenant.Suspendido;
 
     public void Reactivar() => Estado = EstadoTenant.Activo;

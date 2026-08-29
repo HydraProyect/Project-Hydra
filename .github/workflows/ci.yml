@@ -26,14 +26,46 @@ concurrency:
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # SUELO del reparto de tests de integracion (scripts/repartir-clases-de-test.sh).
+  #
+  # La comprobacion "el reparto cubrio todas las clases" compara dos numeros que
+  # salen de la MISMA deteccion: eso la protege de que los bloques deriven entre
+  # si, pero no de que la deteccion entera se rompa. Si `--list-tests` devolviera
+  # 3 clases en vez de 145, los dos lados dirian 3, coincidirian, y 142 clases no
+  # se ejecutarian en ningun bloque con el gate en verde. La igualdad no distingue
+  # "coinciden porque esta bien" de "coinciden porque los dos estan vacios".
+  #
+  # 145 clases el 2026-08-29; suelo en 120, con holgura para que no salte al
+  # crecer o menguar de forma normal. Es un ratchet: se sube cuando el numero real
+  # crezca de forma sostenida, nunca se baja para que pase un PR concreto.
+  MINIMO_CLASES: "120"
 
 jobs:
-  build-and-test:
-    name: Build, format y tests
+  # Los tests de integración eran el camino crítico del CI: medido el
+  # 2026-08-29, 1138 s de los 1354 s que duraba "Build, format y tests" —el
+  # 84%— y el job más largo del workflow con diferencia, así que marcaba el
+  # ritmo de toda la cola de merge. Aquí se reparten en cuatro bloques que
+  # corren a la vez.
+  #
+  # El reparto se CALCULA, no se escribe: cada bloque lista las clases de
+  # test, las ordena y se queda con las que le tocan por posición. Una clase
+  # nueva cae en un bloque sola, sin que nadie mantenga una lista que se
+  # desincronice.
+  #
+  # Los minutos de Actions son gratis en un repositorio público, así que
+  # comprar tiempo de reloj con paralelismo aquí no cuesta dinero — al revés
+  # que apilar PRs, que sí multiplica ejecuciones completas (§ 22).
+  tests-integracion:
+    name: Tests de integración (bloque ${{ matrix.bloque }} de 4)
     runs-on: ubuntu-latest
-    # Los tests de integración corren contra PostgreSQL real desde la
-    # migración de ADR-003 (ver BaseDatosPostgresDePruebas): cada test crea y
-    # borra su propia base de datos en este servicio.
+    strategy:
+      # Un bloque que falla no cancela a los demás: de una ejecución interesa
+      # ver TODOS los fallos, no solo el primero que aparezca.
+      fail-fast: false
+      matrix:
+        bloque: [1, 2, 3, 4]
+    # Cada bloque levanta su propio PostgreSQL: son procesos distintos en
+    # máquinas distintas, así que no comparten clúster y no pueden pisarse.
     services:
       postgres:
         image: postgres:17
@@ -54,11 +86,133 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      # === INSTALACIÓN DE LIBREOFFICE PARA LOS TESTS ===
+      # Solo lo necesita CaeManager.IntegrationTests, en
+      # Conversion/LibreOfficeConversorWordPdfServiceTests. Por eso se instala
+      # aquí y ya no en el job de build, que se ahorra los ~25 s.
       - name: Instalar LibreOffice (Entorno de conversión)
         run: |
           sudo apt-get update
           sudo apt-get install -y libreoffice-writer
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Compilar los tests de integración
+        run: dotnet build tests/CaeManager.IntegrationTests --no-restore -warnaserror
+
+      # BOOTSTRAP DE CLÚSTER — prerrequisito de cualquier MigrateAsync.
+      #
+      # Los roles son objetos de clúster (pg_authid es catálogo compartido) y
+      # ninguna migración los crea: crearlos desde la migración de una base
+      # ponía a seis migradores a competir y tres de seis fallaban con 42704.
+      # deploy/bootstrap/roles-de-cluster.sql es la especificación normativa y
+      # este paso es su adaptador de CI; el guion trae dentro su propia
+      # verificación post-bootstrap.
+      #
+      # ON_ERROR_STOP=1: sin esto psql seguiría adelante tras un error y el
+      # bloque arrancaría contra un clúster fuera de contrato.
+      - name: Bootstrap de roles de clúster
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -f deploy/bootstrap/roles-de-cluster.sql
+
+      # El reparto vive en scripts/repartir-clases-de-test.sh, no aqui: asi
+      # tiene sus propios tests (repartir-clases-de-test.tests.sh) y no hay
+      # que escapar una expresion regular dentro de YAML dentro de shell.
+      #
+      # Ese guion falla si el bloque quedase vacio, en vez de dejar correr un
+      # `dotnet test` con un filtro que no casa con nada — que termina en
+      # VERDE sin ejecutar un solo test.
+      # El listado se saca AQUI y se guarda, porque este job es el unico que
+      # tiene PostgreSQL delante — y el descubrimiento lo necesita.
+      #
+      # Medido el 2026-08-29: sin base de datos alcanzable, `--list-tests`
+      # devuelve 773 entradas en vez de 783, con codigo de salida 0 y sin un
+      # solo aviso. Las 15 que faltan son los casos de las cinco [Theory] con
+      # MemberData de AislamientoRlsCentroYSatelitesTests: el inicializador de
+      # modulo del bootstrap de cluster toca la base al cargar el ensamblado, y
+      # sin ella xUnit no puede expandir los datos, asi que las lista sin
+      # expandir. Son los tests de aislamiento RLS.
+      #
+      # Calcular el denominador donde no hay base de datos comparaba un
+      # descubrimiento degradado contra una ejecucion completa.
+      - name: Repartir las clases de test en este bloque
+        id: reparto
+        run: |
+          mkdir -p reparto
+          dotnet test tests/CaeManager.IntegrationTests --no-build --list-tests > reparto/listado-bloque-${{ matrix.bloque }}.txt
+          filtro=$(LISTADO_DE_TESTS=reparto/listado-bloque-${{ matrix.bloque }}.txt bash scripts/repartir-clases-de-test.sh sin-compilar 4 ${{ matrix.bloque }})
+          echo "filtro=$filtro" >> "$GITHUB_OUTPUT"
+          LISTADO_DE_TESTS=reparto/listado-bloque-${{ matrix.bloque }}.txt REPARTO_SALIDA=reparto/bloque-${{ matrix.bloque }}.txt bash scripts/repartir-clases-de-test.sh sin-compilar 4 ${{ matrix.bloque }} > /dev/null
+
+      - name: Ejecutar el bloque
+        run: >
+          dotnet test tests/CaeManager.IntegrationTests --no-build --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=bloque-${{ matrix.bloque }}.trx"
+          --filter "${{ steps.reparto.outputs.filtro }}"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/integration
+
+      # El paso de reparto garantiza que el FILTRO no este vacio, pero no que
+      # el filtro haya CASADO con algo: `dotnet test` con un patron que no
+      # encuentra tests termina en 0, sin fallar. Con cuatro bloques hay cuatro
+      # sitios donde un bloque mudo se leeria como un bloque que pasa, y la
+      # suma seguiria pareciendo verde.
+      #
+      # Se cuenta sobre el .trx, que es el recuento que produjo la propia
+      # ejecucion, en vez de fiarse del codigo de salida.
+      - name: Comprobar que el bloque ejecuto tests de verdad
+        run: |
+          trx=$(find coverage/integration -name "bloque-*.trx" | head -1)
+          if [ -z "$trx" ]; then
+            echo "::error::No se genero ningun .trx: no hay prueba de que este bloque ejecutara nada."
+            exit 1
+          fi
+          ejecutados=$(grep -o "total=\"[0-9]*\"" "$trx" | head -1 | grep -o "[0-9]*")
+          echo "Tests ejecutados en el bloque ${{ matrix.bloque }}: ${ejecutados:-0}"
+          if [ "${ejecutados:-0}" -eq 0 ]; then
+            echo "::error::El bloque ${{ matrix.bloque }} no ejecuto ningun test. El filtro no caso con nada y dotnet test habria salido en verde."
+            exit 1
+          fi
+
+      # El ratchet de cobertura se aplica en "Build, format y tests", que es
+      # el check obligatorio de la protección de rama. Necesita la cobertura
+      # de los CUATRO bloques: sin esto mediría solo Domain y Application y
+      # caería muy por debajo del umbral, que es justo lo que un gate no debe
+      # hacer — cambiar de significado sin que nadie lo decida.
+      - name: Publicar la cobertura del bloque
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-integracion-${{ matrix.bloque }}
+          path: coverage/integration
+          retention-days: 1
+
+      # La lista de clases que ESTE bloque dijo suyas. "Build, format y tests"
+      # junta las cuatro y comprueba que suman la suite entera: sin eso, una
+      # clase podria caerse del reparto y no ejecutarse en NINGUN bloque, con
+      # los cuatro en verde y nadie mirando. Es una perdida parcial y muda,
+      # peor que un bloque entero vacio porque no se nota.
+      - name: Publicar el reparto del bloque
+        uses: actions/upload-artifact@v4
+        with:
+          name: reparto-bloque-${{ matrix.bloque }}
+          path: reparto
+          retention-days: 1
+
+  compilacion-y-unitarios:
+    name: Compilación y tests unitarios
+    runs-on: ubuntu-latest
+    # Ya no espera a los bloques: la agregacion vive en su propio job, asi
+    # que este corre en paralelo con ellos en vez de detras. No necesita
+    # PostgreSQL ni LibreOffice.
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -76,31 +230,6 @@ jobs:
       - name: Verificar formato (dotnet format)
         run: dotnet format CaeManager.slnx --no-restore --verify-no-changes
 
-      # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
-      # en los tres proyectos de test) escribe un coverage.cobertura.xml por
-      # suite bajo ./coverage — P1-19 de docs/business/MATURITY_REVIEW.md:
-      # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
-      # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
-      # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
-      # después de él es el gate real (ratchet, ver su comentario).
-      # BOOTSTRAP DE CLÚSTER — prerrequisito de cualquier MigrateAsync.
-      #
-      # Los roles son objetos de clúster (pg_authid es catálogo compartido) y
-      # desde este incremento NINGUNA migración los crea: crearlos desde la
-      # migración de una base ponía a seis migradores a competir y tres de seis
-      # fallaban con 42704. deploy/bootstrap/roles-de-cluster.sql es la
-      # especificación normativa y este paso es su adaptador de CI; el guion
-      # trae dentro su propia verificación post-bootstrap.
-      #
-      # ON_ERROR_STOP=1: sin esto psql seguiría adelante tras un error y el job
-      # arrancaría contra un clúster fuera de contrato.
-      - name: Bootstrap de roles de clúster
-        env:
-          PGPASSWORD: postgres
-        run: >
-          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
-          -f deploy/bootstrap/roles-de-cluster.sql
-
       - name: Tests de Domain
         run: >
           dotnet test tests/CaeManager.Domain.Tests --no-restore --logger "console;verbosity=normal"
@@ -114,10 +243,189 @@ jobs:
       - name: Tests de arquitectura
         run: dotnet test tests/CaeManager.Architecture.Tests --no-restore --logger "console;verbosity=normal"
 
-      - name: Tests de integración
-        run: >
-          dotnet test tests/CaeManager.IntegrationTests --no-restore --logger "console;verbosity=normal"
-          --collect "XPlat Code Coverage" --results-directory ./coverage/integration
+
+      - name: Publicar la cobertura de Domain y Application
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-unitarios
+          path: coverage
+          retention-days: 1
+
+  # EL GATE FINAL. Conserva el nombre "Build, format y tests" a proposito.
+  #
+  # Aqui viven el ratchet de cobertura y las tres comprobaciones del reparto, y
+  # ese nombre es uno de los ocho required status checks de la proteccion de
+  # rama. Manteniendolo pegado al job que TIENE los gates —en vez de al que
+  # compila— la optimizacion no baja el nivel de control ni por un instante: no
+  # hace falta dar de alta ningun check nuevo, no hay ventana entre el merge y
+  # el alta, y no depende de que nadie se acuerde de un paso manual.
+  #
+  # Lo que se gana igual: la compilacion y los tests unitarios se fueron a
+  # `compilacion-y-unitarios`, que ya no espera a los bloques y corre en
+  # paralelo con ellos. Antes sus ~4,5 min se sumaban a los ~12,5 de los
+  # bloques; ahora solo queda detras esta agregacion, que no compila nada.
+  #
+  # Si falla cualquiera de los dos jobs de los que depende, este se queda sin
+  # ejecutar, el check obligatorio no reporta exito y la rama sigue bloqueada.
+  # Cierra en fallo, no en silencio.
+  build-and-test:
+    name: Build, format y tests
+    runs-on: ubuntu-latest
+    needs: [compilacion-y-unitarios, tests-integracion]
+    # SIEMPRE se ejecuta, incluso si sus dependencias fallan. No es un detalle:
+    # un job que se salta reporta su check como "skipped", y la proteccion de
+    # rama trata un check obligatorio omitido como aprobado. Sin esto, un bloque
+    # de integracion en rojo dejaria este job sin correr y la rama quedaria
+    # MERGEABLE — el gate desaparece justo cuando hace falta.
+    #
+    # Con `always()` el job siempre reporta, y el primer paso exige explicitamente
+    # que las dependencias hayan salido en success. Cierra en fallo, no en
+    # silencio, y no depende de como interprete GitHub un check omitido.
+    if: always()
+    steps:
+      - name: Exigir que las dependencias hayan pasado
+        run: |
+          compilacion="${{ needs.compilacion-y-unitarios.result }}"
+          integracion="${{ needs.tests-integracion.result }}"
+          echo "Compilación y tests unitarios: $compilacion"
+          echo "Tests de integración (4 bloques): $integracion"
+          if [ "$compilacion" != "success" ] || [ "$integracion" != "success" ]; then
+            echo "::error::Una dependencia no termino en success. Este check obligatorio falla a proposito en vez de quedarse sin ejecutar, porque un check obligatorio omitido cuenta como aprobado."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      # Solo para reportgenerator; no se compila nada en este job.
+      - name: Restaurar herramientas locales
+        run: dotnet tool restore
+
+      - name: Recoger la cobertura de Domain y Application
+        uses: actions/download-artifact@v4
+        with:
+          name: cobertura-unitarios
+          path: coverage
+
+      - name: Recoger el reparto de los bloques
+        uses: actions/download-artifact@v4
+        with:
+          pattern: reparto-bloque-*
+          path: reparto
+          merge-multiple: true
+
+      # Los cuatro bloques descubren por separado. Si discreparan, el
+      # denominador dependeria de cual se mirase, asi que se exige que los
+      # cuatro listados sean identicos antes de usar el del bloque 1.
+      - name: Comprobar que los cuatro bloques descubrieron lo mismo
+        run: |
+          for b in 2 3 4; do
+            if ! diff -q reparto/listado-bloque-1.txt "reparto/listado-bloque-$b.txt" > /dev/null; then
+              echo "::error::El bloque $b descubrio una lista distinta a la del bloque 1. El denominador no seria fiable."
+              diff reparto/listado-bloque-1.txt "reparto/listado-bloque-$b.txt" | head -20
+              exit 1
+            fi
+          done
+          echo "Los cuatro bloques descubrieron la misma lista."
+
+      # EL REPARTO CUBRIO LA SUITE ENTERA.
+      #
+      # Que cada bloque ejecutara algo no implica que entre los cuatro las
+      # ejecutaran TODAS: cuatro bloques con recuento no nulo pueden dejarse una
+      # clase fuera, y esa clase no falla porque no corre. Perdida parcial, en
+      # verde y sin ruido — peor que un bloque mudo, que al menos es entero.
+      #
+      # El denominador se calcula con el MISMO guion del reparto pidiendole un
+      # solo bloque de uno. Eso protege de que los bloques deriven entre si; del
+      # colapso conjunto protege el suelo MINIMO_CLASES, no esta igualdad.
+      #
+      # Se compara a nivel de CLASE. Una version anterior de este comentario
+      # justificaba esa eleccion diciendo que --list-tests y la ejecucion no
+      # cuentan lo mismo (212 frente a 210). ERA FALSO, y el error era de
+      # medicion: aquella ejecucion uso un filtro contaminado con la salida de
+      # error del guion, porque se capturo 2>&1 en la variable. Con el filtro
+      # limpio el bloque 1 da 212 listadas y 212 ejecutadas — sin discrepancia.
+      #
+      # Vale la pena conservar el incidente porque es el modo de fallo que este
+      # job vigila, mordiendo a quien lo estaba construyendo: un filtro que no
+      # es el que crees ejecuta MENOS tests, en verde y sin decir nada. De ahi
+      # que el paso de ejecucion tome el recuento del .trx.
+      - name: Comprobar que el reparto cubrio todas las clases
+        run: |
+          LISTADO_DE_TESTS=reparto/listado-bloque-1.txt REPARTO_SALIDA=/tmp/esperadas-sin-ordenar.txt bash scripts/repartir-clases-de-test.sh sin-compilar 1 1 > /dev/null
+          sort /tmp/esperadas-sin-ordenar.txt > /tmp/esperadas.txt
+          cat reparto/bloque-*.txt | sort > /tmp/repartidas.txt
+          esperadas=$(wc -l < /tmp/esperadas.txt)
+          repartidas=$(wc -l < /tmp/repartidas.txt)
+          unicas=$(sort -u /tmp/repartidas.txt | wc -l)
+          echo "Clases de la suite: $esperadas — repartidas: $repartidas — distintas: $unicas"
+          if [ "$esperadas" -ne "$unicas" ] || [ "$repartidas" -ne "$unicas" ]; then
+            echo "::error::El reparto no cubre la suite exactamente una vez. Alguna clase no se ejecuto en ningun bloque, o se ejecuto en dos."
+            diff /tmp/esperadas.txt /tmp/repartidas.txt || true
+            exit 1
+          fi
+
+
+      # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
+      # en los tres proyectos de test) escribe un coverage.cobertura.xml por
+      # suite bajo ./coverage — P1-19 de docs/business/MATURITY_REVIEW.md:
+      # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
+      # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
+      # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
+      # después de él es el gate real (ratchet, ver su comentario).
+      # Los cuatro bloques de tests-integracion publican su cobertura; aqui se
+      # recogen para que el informe y el ratchet de abajo midan exactamente el
+      # mismo conjunto que antes: Domain + Application + Integration.
+      #
+      # Sin este paso el ratchet seguiria ejecutandose, pero sobre dos suites
+      # en vez de tres: caeria por debajo del umbral y el fallo se leeria como
+      # una perdida de cobertura del producto. Un gate que cambia de
+      # significado sin que nadie lo decida es peor que no tenerlo.
+      - name: Recoger la cobertura de los bloques de integración
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cobertura-integracion-*
+          path: coverage/integration
+          merge-multiple: true
+      # SE EJECUTARON TODOS LOS TESTS, no solo todas las clases.
+      #
+      # La comprobacion de clases detecta que un bloque se deje una clase
+      # entera fuera. No detecta que una clase corra A MEDIAS — que es lo que
+      # ocurrio el 2026-08-29 construyendo esto: un filtro contaminado ejecuto
+      # 210 de 212 tests de un bloque, en verde, con todas sus clases
+      # presentes. Esta comprobacion si lo habria visto.
+      #
+      # `total` del .trx es el contador correcto: incluye los omitidos
+      # (medido — un bloque con 4 omitidos da total=206 y executed=202).
+      # Contra `executed` faltarian los 4 omitidos de la suite y el gate
+      # fallaria solo. Y el atributo `notExecuted` de <Counters> es una trampa:
+      # vale 0 aunque haya omitidos, asi que no sirve para contarlos.
+      #
+      # Los dos lados se miden en ESTE run, nunca contra un numero escrito a
+      # mano: un numero fijo envejece con cada test nuevo y acaba bajandose
+      # para que pase un PR, que es como mueren estas guardas. El descubrimiento
+      # se hace ademas sobre el arbol recien compilado — listar con --no-build
+      # sobre un ensamblado rancio devolvio una vez un test fantasma que ya no
+      # existia en el codigo.
+      - name: Comprobar que se ejecutaron todos los tests
+        run: |
+          esperados=$(grep -cE "^[[:space:]]+CaeManager\.IntegrationTests\." reparto/listado-bloque-1.txt)
+          sumados=0
+          for f in $(find coverage/integration -name "bloque-*.trx"); do
+            n=$(grep -o "total=\"[0-9]*\"" "$f" | head -1 | grep -o "[0-9]*")
+            echo "  $(basename "$f"): ${n:-0}"
+            sumados=$((sumados + ${n:-0}))
+          done
+          echo "Tests descubiertos: $esperados — ejecutados entre los bloques: $sumados"
+          if [ "$esperados" -ne "$sumados" ]; then
+            echo "::error::Los bloques ejecutaron $sumados tests de $esperados. Si faltan, alguna clase corrio a medias o un filtro no caso con todo lo suyo; si sobran, algun test se ejecuto en dos bloques."
+            exit 1
+          fi
+
 
       # MarkdownSummaryGithub: pensado por ReportGenerator específicamente
       # para $GITHUB_STEP_SUMMARY — aparece en la pestaña Summary del run,
@@ -494,6 +802,10 @@ jobs:
           # personal no hacía falta ninguna. La clave de organización es hoy
           # gratuita (gitleaks.io); el binario que ejecuta por debajo es MIT.
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          # Explicito a proposito: sin esto dependeriamos de que la Action
+          # busque .gitleaks.toml por su cuenta, y un fallo silencioso ahi se
+          # parece a "no hay excepciones configuradas" en vez de a un error.
+          GITLEAKS_CONFIG: .gitleaks.toml
 
   deploy-script-tests:
     name: Prueba de mutación — SHA determinista en el despliegue
@@ -503,6 +815,9 @@ jobs:
 
       - name: deploy/resolve-deploy-sha.tests.sh
         run: bash deploy/resolve-deploy-sha.tests.sh
+
+      - name: deploy/liberar-disco.tests.sh
+        run: bash deploy/liberar-disco.tests.sh
 
   licencias-dependencias:
     name: Licencias de dependencias
