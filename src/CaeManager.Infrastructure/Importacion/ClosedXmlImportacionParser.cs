@@ -38,8 +38,8 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
     // → nombre exacto del TipoDocumento semilla (ver Fase 0 / TipoDocumentoSeedData).
     private static readonly (int Columna, string TipoDocumento)[] ColumnasDocumentos =
     [
-        (7, "Apto médico laboral"),           // G: Fecha
-        (10, "EPIS (firma)"),                 // J: Fecha firma
+        (7, "Certificado de aptitud médica"), // G: Fecha
+        (10, "Entrega de EPI"),                // J: Fecha firma
         (13, "Formación 60h (base convenio)"),// M: Fecha
         (14, "Formación 20h"),                // N: Fecha
         (15, "Formación 6h"),                 // O: Fecha

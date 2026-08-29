@@ -653,7 +653,7 @@ public static class ComunicacionesDatosPruebaSeeder
         var trabajadorSugerido = await dbContext.Trabajadores.OrderBy(t => t.CreadoEnUtc).ThenBy(t => t.Id)
             .FirstOrDefaultAsync(cancellationToken);
         var tipoEpis = await dbContext.TiposDocumento
-            .FirstOrDefaultAsync(t => t.Nombre == "EPIS (firma)", cancellationToken);
+            .FirstOrDefaultAsync(t => t.Nombre == "Entrega de EPI", cancellationToken);
         if (trabajadorSugerido is not null && tipoEpis is not null)
         {
             var sugerenciaGestion = new SugerenciaGestionCorreo(

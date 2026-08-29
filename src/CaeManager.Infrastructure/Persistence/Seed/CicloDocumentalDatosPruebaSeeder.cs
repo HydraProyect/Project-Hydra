@@ -71,10 +71,10 @@ public static class CicloDocumentalDatosPruebaSeeder
 
         // Tres pendientes con motivos distintos y dos ya resueltas.
         dbContext.RevisionesIaDocumento.Add(RevisionIaDocumento.Crear(
-            documentos[0].Id, 58, "Apto médico laboral", hoy.AddMonths(-11), hoy.AddDays(20), true,
+            documentos[0].Id, 58, "Certificado de aptitud médica", hoy.AddMonths(-11), hoy.AddDays(20), true,
             "Confianza baja (58%)."));
         dbContext.RevisionesIaDocumento.Add(RevisionIaDocumento.Crear(
-            documentos[1].Id, 74, "EPIS (firma)", hoy.AddMonths(-2), null, false,
+            documentos[1].Id, 74, "Entrega de EPI", hoy.AddMonths(-2), null, false,
             "La fecha de emisión introducida no coincide con la detectada."));
         dbContext.RevisionesIaDocumento.Add(RevisionIaDocumento.Crear(
             documentos[2].Id, 66, "Contrato de Trabajo", hoy.AddMonths(-6), null, null,
@@ -148,14 +148,14 @@ public static class CicloDocumentalDatosPruebaSeeder
         // incidencias), OCR previo, resultado servido de caché (coste 0) y
         // "ninguno" (ningún proveedor disponible).
         dbContext.AuditoriasExtraccionIa.Add(AuditoriaExtraccionIa.Crear(
-            new string('a', 64), "Apto médico laboral", "anthropic", 2140, null, 0.012m, 2, 95, null));
+            new string('a', 64), "Certificado de aptitud médica", "anthropic", 2140, null, 0.012m, 2, 95, null));
         dbContext.AuditoriasExtraccionIa.Add(AuditoriaExtraccionIa.Crear(
             new string('b', 64), "ITA", "mistral-ocr", 5320, 0.004m, 0.021m, 6, 88, null));
         dbContext.AuditoriasExtraccionIa.Add(AuditoriaExtraccionIa.Crear(
-            new string('c', 64), "EPIS (firma)", "gemini", 3810, null, 0.009m, 1, 62,
+            new string('c', 64), "Entrega de EPI", "gemini", 3810, null, 0.009m, 1, 62,
             "Confianza por debajo del umbral; se generó revisión IA."));
         dbContext.AuditoriasExtraccionIa.Add(AuditoriaExtraccionIa.Crear(
-            new string('d', 64), "Apto médico laboral", "cache", 12, null, 0m, 2, 95, null));
+            new string('d', 64), "Certificado de aptitud médica", "cache", 12, null, 0m, 2, 95, null));
         dbContext.AuditoriasExtraccionIa.Add(AuditoriaExtraccionIa.Crear(
             new string('e', 64), "Contrato de Trabajo", "ninguno", 3, null, null, 0, 0,
             "Ningún proveedor de IA configurado para este análisis."));

@@ -21,8 +21,8 @@ public class NaturalezaDelCatalogoSemillaTests
     /// obligaciones materiales de los arts. 16, 18 y 19 de la LPRL.
     /// </summary>
     [Theory]
-    [InlineData("EVR (Evaluación de Riesgos Laborales)")]
-    [InlineData("PAP (Planificación de la Actividad Preventiva)")]
+    [InlineData("Evaluación de Riesgos Laborales")]
+    [InlineData("Planificación de la Actividad Preventiva")]
     [InlineData("Plan de Prevención")]
     [InlineData("Modalidad Preventiva")]
     [InlineData("Información Art. 18")]
@@ -39,9 +39,9 @@ public class NaturalezaDelCatalogoSemillaTests
     /// producto estaría afirmando una ley inexistente.
     /// </summary>
     [Theory]
-    [InlineData("EPIS (firma)")]
+    [InlineData("Entrega de EPI")]
     [InlineData("Certificado de estar al corriente con la Seguridad Social")]
-    [InlineData("SPA (Servicio de Prevención Ajeno)")]
+    [InlineData("Servicio de Prevención Ajeno")]
     public void La_practica_del_sector_no_se_disfraza_de_ley(string nombre)
     {
         Buscar(nombre).Naturaleza.Should().Be(NaturalezaJuridica.PracticaSector,
@@ -53,7 +53,7 @@ public class NaturalezaDelCatalogoSemillaTests
     /// es el que impide que vuelvan por descuido.
     /// </summary>
     [Theory]
-    [InlineData("Apto médico laboral", "someterse a la vigilancia de la salud requiere el consentimiento del trabajador (art. 22.1 LPRL)")]
+    [InlineData("Certificado de aptitud médica", "someterse a la vigilancia de la salud requiere el consentimiento del trabajador (art. 22.1 LPRL)")]
     [InlineData("Seguro de Responsabilidad Civil + recibo de pago", "no existe obligación legal general de RC en España")]
     public void Lo_que_no_es_obligacion_legal_no_se_rotula_como_tal(string nombre, string porque)
     {

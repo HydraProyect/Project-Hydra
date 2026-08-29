@@ -12,7 +12,7 @@ namespace CaeManager.E2ETests;
 /// encadenado que FlujoCriticoTests) antes de poder subir la plantilla.
 ///
 /// La plantilla lleva dos filas: una válida (el DNI del Trabajador recién
-/// creado, con "Apto médico laboral" — TipoDocumento sembrado — y una fecha
+/// creado, con "Certificado de aptitud médica" — TipoDocumento sembrado — y una fecha
 /// de emisión pasada) y una deliberada con un DNI que no existe en el
 /// sistema. Es el caso "referencia a una entidad inexistente" que este
 /// bloque de tests debe demostrar que la app detecta: la fila con el DNI
@@ -73,10 +73,10 @@ public class ImportarDocumentosTests(WebAppFixture fixture)
         hoja.Cell(1, 2).Value = "Tipo de documento";
         hoja.Cell(1, 3).Value = "Fecha de emisión";
         hoja.Cell(2, 1).Value = dniTrabajador;
-        hoja.Cell(2, 2).Value = "Apto médico laboral";
+        hoja.Cell(2, 2).Value = "Certificado de aptitud médica";
         hoja.Cell(2, 3).Value = fechaEmision;
         hoja.Cell(3, 1).Value = dniInexistente;
-        hoja.Cell(3, 2).Value = "Apto médico laboral";
+        hoja.Cell(3, 2).Value = "Certificado de aptitud médica";
         hoja.Cell(3, 3).Value = fechaEmision;
         var rutaExcel = Ayudas.GuardarLibroDePruebaEnDisco(libro, "importar-documentos.xlsx");
 
@@ -114,7 +114,7 @@ public class ImportarDocumentosTests(WebAppFixture fixture)
         await page.GetByPlaceholder("Buscar por propietario o tipo de documento…").FillAsync(apellidosTrabajador);
         var fila = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await fila.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await Expect(fila).ToContainTextAsync("Apto médico laboral");
+        await Expect(fila).ToContainTextAsync("Certificado de aptitud médica");
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

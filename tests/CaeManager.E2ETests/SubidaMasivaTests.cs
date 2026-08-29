@@ -93,7 +93,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
                 .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({dniTrabajador})");
             await page.WaitForTimeoutAsync(500);
 
-            await confirmacion.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Apto médico laboral" });
+            await confirmacion.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Certificado de aptitud médica" });
             await confirmacion.GetByLabel("Fecha de emisión").FillAsync(DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"));
 
             await confirmacion.GetByText("Confirmar y crear").ClickAsync();
@@ -110,7 +110,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
         await page.GetByPlaceholder("Buscar por propietario o tipo de documento…").FillAsync(apellidosTrabajador);
         var fila = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await fila.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await Expect(fila).ToContainTextAsync("Apto médico laboral");
+        await Expect(fila).ToContainTextAsync("Certificado de aptitud médica");
     }
 
     /// <summary>

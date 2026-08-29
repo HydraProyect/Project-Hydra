@@ -61,5 +61,12 @@ public class TipoDocumentoAliasConfiguration : IEntityTypeConfiguration<TipoDocu
         builder.HasIndex(a => new { a.TenantId, a.TipoDocumentoId, a.Texto }).IsUnique();
 
         // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.
+
+        // Alias del catálogo semilla del tenant #1 (T3, ver
+        // TipoDocumentoSeedData.AliasesParaMigracion) — mismo mecanismo que
+        // TipoDocumentoConfiguration.HasData de arriba: sin esto, el
+        // renombrado del catálogo real no deja alias sembrados y solo un
+        // tenant nuevo (CrearCopiasParaTenant) los recibiría.
+        builder.HasData(TipoDocumentoSeedData.AliasesParaMigracion());
     }
 }

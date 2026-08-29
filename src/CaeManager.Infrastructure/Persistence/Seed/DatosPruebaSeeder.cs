@@ -154,8 +154,8 @@ public static class DatosPruebaSeeder
     /// </summary>
     private static readonly string[] DocumentacionEstandarTrabajador =
     [
-        "Apto médico laboral",
-        "EPIS (firma)",
+        "Certificado de aptitud médica",
+        "Entrega de EPI",
         "Reciclaje 4h",
         "Formación Art. 19",
         "Formación 60h (base convenio)",
@@ -194,7 +194,7 @@ public static class DatosPruebaSeeder
     private static readonly string[] DocumentacionObligatoriaSinVencimientoTrabajador =
     [
         "Información Art. 18",
-        "DNI o NIE en vigor"
+        "Documento de identidad"
     ];
 
     /// <summary>
@@ -761,7 +761,7 @@ public static class DatosPruebaSeeder
             var emisionObligatoria = hoy.AddDays(-(30 + indice * 7 % 370));
             foreach (var tipo in tiposObligatoriosSinVencimiento)
             {
-                if (tipo.Nombre == "DNI o NIE en vigor" && trabajadorIdsSinDni.Contains(trabajador.Id))
+                if (tipo.Nombre == "Documento de identidad" && trabajadorIdsSinDni.Contains(trabajador.Id))
                     continue;
                 if (tipo.Nombre == "Información Art. 18" && trabajadorIdsSinInformacionRiesgos.Contains(trabajador.Id))
                     continue;
@@ -966,7 +966,7 @@ public static class DatosPruebaSeeder
         // construcción tiene plantilla activa. El requisito y el hueco se
         // deciden en el mismo sitio y con el mismo criterio, en vez de
         // depender uno de un efecto secundario del otro ---
-        var tipoDniNie = tiposDocumento.Single(t => t.Nombre == "DNI o NIE en vigor");
+        var tipoDniNie = tiposDocumento.Single(t => t.Nombre == "Documento de identidad");
         if (centroSinIdentidad is not null)
         {
             dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
@@ -979,7 +979,7 @@ public static class DatosPruebaSeeder
         // porque sin plantilla ninguna de las dos se ve en pantalla ---
         if (centrosConCanal.Count >= 3)
         {
-            var tipoAptoMedico = tiposDocumento.Single(t => t.Nombre == "Apto médico laboral");
+            var tipoAptoMedico = tiposDocumento.Single(t => t.Nombre == "Certificado de aptitud médica");
             dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
                 tipoAptoMedico.Id, centrosConCanal[1].Id, periodicidadEspecialMeses: 6));
             dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
@@ -1204,17 +1204,17 @@ public static class DatosPruebaSeeder
                 var finanzas = Siguiente(dominio);
                 ConTipos(
                     ContactoAgenda.DeCliente(cliente.Id, finanzas.Nombre, finanzas.Email, cargo: "Finanzas"),
-                    TipoId("RLC/TC1"), TipoId("RLC/TC1 + Recibo de pago"));
+                    TipoId("RLC"), TipoId("RLC/TC1 + Recibo de pago"));
 
                 var vigilancia = Siguiente(dominio);
                 ConTipos(
                     ContactoAgenda.DeCliente(cliente.Id, vigilancia.Nombre, vigilancia.Email, cargo: "Vigilancia de la Salud"),
-                    TipoId("Apto médico laboral"));
+                    TipoId("Certificado de aptitud médica"));
 
                 var prl = Siguiente(dominio);
                 ConTipos(
                     ContactoAgenda.DeCliente(cliente.Id, prl.Nombre, prl.Email, telefono: "+34 611 22 33 44", cargo: "Responsable de PRL"),
-                    TipoId("EPIS (firma)"), TipoId("Formación Art. 19"));
+                    TipoId("Entrega de EPI"), TipoId("Formación Art. 19"));
 
                 var recepcion = Siguiente(dominio);
                 ConTipos(ContactoAgenda.DeCliente(
@@ -1249,7 +1249,7 @@ public static class DatosPruebaSeeder
                 ContactoAgenda.DeCentro(
                     centroDelPrimerCliente.Id, jefeObra.Nombre, jefeObra.Email,
                     telefono: "+34 644 55 66 77", cargo: "Jefe de obra", recibeProgramacionVisitas: true),
-                TipoId("Apto médico laboral"));
+                TipoId("Certificado de aptitud médica"));
         }
 
         foreach (var (empresa, indice) in empresas.Take(3).Select((e, n) => (e, n)))
