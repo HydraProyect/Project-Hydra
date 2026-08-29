@@ -343,6 +343,20 @@ comprobación mira una referencia local obsoleta y no significa nada. Una rama
 cortada de una base vieja produce diffs de cien ficheros que no son suyos, y el
 diagnóstico se va detrás del conflicto en vez de detrás del cambio.
 
+Esa declaración no se hace de memoria: **la primera orden de cualquier sesión que
+vaya a tocar código es `bash scripts/estado-ramas.sh`**, y no se escribe nada
+hasta haber leído su salida. El guion contesta las cuatro preguntas que evitan el
+retrabajo — de qué base partes, qué líneas siguen vivas, cuáles se cortaron de
+otra rama en vez de `origin/main`, y qué ficheros se disputan dos sesiones — y
+lista las PRs abiertas para no reabrir una que ya existe.
+
+**Nunca cortes una rama de otra rama de trabajo.** Siempre de `origin/main`. Si
+la rama padre entra en main por squash, sus commits conservan un SHA que main no
+tiene aunque el contenido ya esté integrado: el diff de la rama hija se dispara a
+cientos de ficheros y deja de ser revisable. Ocurrió de verdad y costó cuatro PRs
+tirados y rehechos (#228, #229, #230 y #302, todos hijos de la rama del rediseño
+que entró como #227). La sección 3 del guion detecta exactamente ese caso.
+
 **Una sesión que termina su encargo empuja su rama al remoto antes de cerrarse**,
 aunque no abra PR. Empujar no es publicar: es no dejar el trabajo colgando de un
 directorio local que desaparece con la sesión.
