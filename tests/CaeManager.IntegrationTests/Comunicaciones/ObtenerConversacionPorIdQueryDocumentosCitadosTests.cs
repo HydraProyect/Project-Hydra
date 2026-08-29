@@ -1,6 +1,5 @@
 using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
-using CaeManager.Domain.Clientes;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -43,9 +42,9 @@ public class ObtenerConversacionPorIdQueryDocumentosCitadosTests : IAsyncLifetim
         Guid conversacionId, documentoId;
         await using (var contexto = CrearContexto())
         {
-            var cliente = new Cliente("Cliente Citados Confirmado S.L.", "B10380202", esCritico: false);
+            var cliente = Empresa.CrearComoCliente("Cliente Citados Confirmado S.L.", "B10380202", esCritico: false, notas: null, ejecutivoUsuarioId: null);
             var empresa = new Empresa("Empresa Citados Confirmado S.L.", "B12345674");
-            contexto.Clientes.Add(cliente);
+            contexto.Empresas.Add(cliente);
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
@@ -85,9 +84,9 @@ public class ObtenerConversacionPorIdQueryDocumentosCitadosTests : IAsyncLifetim
         Guid conversacionId, primeroId, segundoId;
         await using (var contexto = CrearContexto())
         {
-            var cliente = new Cliente("Cliente Citados Reclamación S.L.", "B10000016", esCritico: false);
+            var cliente = Empresa.CrearComoCliente("Cliente Citados Reclamación S.L.", "B10000016", esCritico: false, notas: null, ejecutivoUsuarioId: null);
             var empresa = new Empresa("Empresa Citados Reclamación S.L.", "B10000024");
-            contexto.Clientes.Add(cliente);
+            contexto.Empresas.Add(cliente);
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
@@ -131,9 +130,9 @@ public class ObtenerConversacionPorIdQueryDocumentosCitadosTests : IAsyncLifetim
         Guid conversacionId;
         await using (var contexto = CrearContexto())
         {
-            var cliente = new Cliente("Cliente Citados Candidato S.L.", "B20000014", esCritico: false);
+            var cliente = Empresa.CrearComoCliente("Cliente Citados Candidato S.L.", "B20000014", esCritico: false, notas: null, ejecutivoUsuarioId: null);
             var empresa = new Empresa("Empresa Citados Candidato S.L.", "B20000022");
-            contexto.Clientes.Add(cliente);
+            contexto.Empresas.Add(cliente);
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
@@ -174,9 +173,9 @@ public class ObtenerConversacionPorIdQueryDocumentosCitadosTests : IAsyncLifetim
         Guid conversacionId, documentoConfirmadoId, documentoPropietarioId;
         await using (var contexto = CrearContexto())
         {
-            var cliente = new Cliente("Cliente Citados Propietario S.L.", "B87654323", esCritico: false);
+            var cliente = Empresa.CrearComoCliente("Cliente Citados Propietario S.L.", "B87654323", esCritico: false, notas: null, ejecutivoUsuarioId: null);
             var empresa = new Empresa("Empresa Citados Propietario S.L.", "B50000017");
-            contexto.Clientes.Add(cliente);
+            contexto.Empresas.Add(cliente);
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
 
@@ -217,7 +216,7 @@ public class ObtenerConversacionPorIdQueryDocumentosCitadosTests : IAsyncLifetim
     {
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
