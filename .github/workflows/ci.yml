@@ -121,8 +121,31 @@ jobs:
       - name: Ejecutar el bloque
         run: >
           dotnet test tests/CaeManager.IntegrationTests --no-build --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=bloque-${{ matrix.bloque }}.trx"
           --filter "${{ steps.reparto.outputs.filtro }}"
           --collect "XPlat Code Coverage" --results-directory ./coverage/integration
+
+      # El paso de reparto garantiza que el FILTRO no este vacio, pero no que
+      # el filtro haya CASADO con algo: `dotnet test` con un patron que no
+      # encuentra tests termina en 0, sin fallar. Con cuatro bloques hay cuatro
+      # sitios donde un bloque mudo se leeria como un bloque que pasa, y la
+      # suma seguiria pareciendo verde.
+      #
+      # Se cuenta sobre el .trx, que es el recuento que produjo la propia
+      # ejecucion, en vez de fiarse del codigo de salida.
+      - name: Comprobar que el bloque ejecuto tests de verdad
+        run: |
+          trx=$(find coverage/integration -name "bloque-*.trx" | head -1)
+          if [ -z "$trx" ]; then
+            echo "::error::No se genero ningun .trx: no hay prueba de que este bloque ejecutara nada."
+            exit 1
+          fi
+          ejecutados=$(grep -o "total=\"[0-9]*\"" "$trx" | head -1 | grep -o "[0-9]*")
+          echo "Tests ejecutados en el bloque ${{ matrix.bloque }}: ${ejecutados:-0}"
+          if [ "${ejecutados:-0}" -eq 0 ]; then
+            echo "::error::El bloque ${{ matrix.bloque }} no ejecuto ningun test. El filtro no caso con nada y dotnet test habria salido en verde."
+            exit 1
+          fi
 
       # El ratchet de cobertura se aplica en "Build, format y tests", que es
       # el check obligatorio de la protección de rama. Necesita la cobertura
