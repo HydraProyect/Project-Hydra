@@ -361,6 +361,35 @@
                             <p>@_clienteActivo.Notas</p>
                         </div>
                     }
+
+                    @if (_detalle?.DocumentosCitados.Count > 0)
+                    {
+                        <div class="bandeja-documentos-citados">
+                            <span class="bandeja-cliente-notas-titulo">Documentos citados</span>
+                            <ul class="bandeja-documentos-citados-lista">
+                                @foreach (var documento in _detalle.DocumentosCitados)
+                                {
+                                    <li class="bandeja-documento-citado">
+                                        @if (documento.DocumentoId is { } documentoId)
+                                        {
+                                            <a class="bandeja-documento-citado-nombre" href="@($"/documentos?documentoId={documentoId}")">@documento.TipoDocumentoNombre</a>
+                                        }
+                                        else
+                                        {
+                                            <span class="bandeja-documento-citado-nombre">@documento.TipoDocumentoNombre</span>
+                                        }
+                                        <span class="bandeja-documento-citado-meta">
+                                            @if (documento.PropietarioNombre is not null)
+                                            {
+                                                <span class="bandeja-documento-citado-propietario">@documento.PropietarioNombre</span>
+                                            }
+                                            <Badge Tono="@NivelBadgeTono(documento.Nivel)" Tamano="TamanoBadge.Pequeno">@NivelBadgeEtiqueta(documento.Nivel)</Badge>
+                                        </span>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    }
                 }
             </aside>
         }

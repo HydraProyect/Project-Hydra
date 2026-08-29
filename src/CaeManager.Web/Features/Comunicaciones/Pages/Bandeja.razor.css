@@ -563,6 +563,60 @@
     color: var(--color-text);
 }
 
+/* --- "Documentos citados" (tres niveles de certeza — ver DocumentoCitadoDetalleDto) --- */
+
+.bandeja-documentos-citados {
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface-subtle);
+}
+
+.bandeja-documentos-citados-lista {
+    list-style: none;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.bandeja-documento-citado {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface);
+}
+
+.bandeja-documento-citado-nombre {
+    font: var(--font-body-sm);
+    color: var(--color-text);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+a.bandeja-documento-citado-nombre:hover {
+    color: var(--color-primary-600);
+    text-decoration: underline;
+}
+
+.bandeja-documento-citado-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+.bandeja-documento-citado-propietario {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
 /* --- Adaptive Layout (docs/COMUNICACIONES.md § 11) — colapso progresivo por
    ancho; los Drawer deslizantes por breakpoint quedan pendientes (§ 14), esto
    es el escalón de apilado que ya cubría el layout anterior, con los cortes

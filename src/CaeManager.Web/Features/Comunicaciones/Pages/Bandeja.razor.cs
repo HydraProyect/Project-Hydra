@@ -1071,6 +1071,21 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         _ => TonoBadge.Neutro
     };
 
+    /// <summary>Ver DocumentoCitadoDetalleDto — el tono/etiqueta hace visible el nivel de certeza, no solo agrupa.</summary>
+    private static TonoBadge NivelBadgeTono(NivelConfianzaDocumentoCitado nivel) => nivel switch
+    {
+        NivelConfianzaDocumentoCitado.Confirmado => TonoBadge.Exito,
+        NivelConfianzaDocumentoCitado.CandidatoIA => TonoBadge.Advertencia,
+        _ => TonoBadge.Neutro
+    };
+
+    private static string NivelBadgeEtiqueta(NivelConfianzaDocumentoCitado nivel) => nivel switch
+    {
+        NivelConfianzaDocumentoCitado.Confirmado => "Confirmado",
+        NivelConfianzaDocumentoCitado.CandidatoIA => "Posible (IA)",
+        _ => "Del propietario"
+    };
+
     /// <summary>Dos letras de la razón social para el avatar de la columna de contexto — mismo criterio que UnifiedTimeline.ObtenerIniciales.</summary>
     private static string ObtenerInicialesCliente(string razonSocial)
     {
