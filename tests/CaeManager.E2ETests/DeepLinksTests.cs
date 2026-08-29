@@ -1,4 +1,4 @@
-using Microsoft.Playwright;
+﻿using Microsoft.Playwright;
 
 namespace CaeManager.E2ETests;
 
@@ -178,7 +178,12 @@ public class DeepLinksTests(WebAppFixture fixture)
         var filas = page.Locator(".bandeja-fila");
         await filas.First.WaitForAsync();
 
-        await filas.First.ClickAsync();
+        // Por el helper y no por un ClickAsync a secas: la fila es un
+        // @onclick server-side sobre una página InteractiveServer, así que un
+        // clic dado en la ventana del prerenderizado se pierde en silencio y
+        // el fallo saldría 30 s después esperando el botón de copiar enlace,
+        // sin decir que la causa fue el clic (ver Ayudas.SeleccionarFilaBandejaAsync).
+        await Ayudas.SeleccionarFilaBandejaAsync(filas.First);
         await page.Locator(".bandeja-centro-copiar-enlace").WaitForAsync();
         var asuntoOriginal = (await page.Locator(".bandeja-centro-titulo-fila h2").TextContentAsync())!.Trim();
 
@@ -202,11 +207,83 @@ public class DeepLinksTests(WebAppFixture fixture)
 
         // --- Cambiar de hilo actualiza "conversacion" en la URL — no queda
         // colgado el id del hilo anterior. ---
-        if (await filas.CountAsync() > 1)
+        //
+        // Sin la guarda "if (await filas.CountAsync() > 1)" que envolvía este
+        // bloque: cuántas filas hay dependía del tenant compartido de
+        // "AppCollection", así que el bloque podía saltarse entero y el test
+        // daba verde sin haber comprobado nunca la propiedad que anuncia su
+        // propio nombre. Aquí la premisa se afirma en vez de esquivarse:
+        // ComunicacionesDatosPruebaSeeder siembra 38 conversaciones, 5 de
+        // ellas de triage (ClienteId null, visibles a cualquier rol de gestión
+        // CAE con independencia de la cartera — ver ObtenerConversacionesQuery),
+        // y ningún otro test E2E crea, asigna ni borra conversaciones. Menos
+        // de dos filas es un cambio de la siembra o del alcance que hay que
+        // ver fallar, no una razón para no probar nada.
+        var totalFilas = await filas.CountAsync();
+        Assert.True(
+            totalFilas >= 2,
+            $"La bandeja trajo {totalFilas} fila(s) y hacen falta dos hilos distintos para probar que cambiar " +
+            "de conversación actualiza \"conversacion\" en la URL. ComunicacionesDatosPruebaSeeder siembra 38 " +
+            "conversaciones (5 de triage, visibles con independencia de la cartera): si aquí no hay dos, lo que " +
+            "cambió es la siembra o el alcance de datos, y esta propiedad se quedó sin cubrir.");
+
+        // La fila objetivo se elige por la marca que pone el propio servidor
+        // ("bandeja-fila-activa" sale de _conversacionSeleccionadaId), no por
+        // un índice a ciegas. Clicar la conversación YA abierta dejaría este
+        // bloque esperando para siempre sin que hubiera ningún defecto de
+        // producto: SeleccionarConversacionAsync no toca la URL en ese caso a
+        // propósito — la guarda «if (id.ToString() != ConversacionInicial)»
+        // de Bandeja.razor.cs existe para cortar el bucle de redirecciones
+        // del prerenderizado.
+        var indiceObjetivo = await IndiceDePrimeraFilaNoActivaAsync(filas, totalFilas);
+        var filaObjetivo = filas.Nth(indiceObjetivo);
+        var asuntoObjetivo = (await filaObjetivo.Locator(".bandeja-fila-asunto").TextContentAsync())!.Trim();
+
+        await Ayudas.SeleccionarFilaBandejaAsync(filaObjetivo);
+
+        // Solo ahora se espera la URL: el helper ya ha confirmado que el clic
+        // llegó al circuito y que el servidor tiene seleccionado OTRO hilo,
+        // así que si la URL no cambia el fallo es de la feature, no del clic.
+        try
         {
-            await filas.Nth(1).ClickAsync();
             await page.WaitForURLAsync(url => url.Contains("conversacion=") && url != urlConversacionOriginal);
         }
+        catch (TimeoutException ex)
+        {
+            throw new TimeoutException(
+                $"El servidor ya marcó como activa la fila {indiceObjetivo} (otro hilo distinto del abierto), " +
+                $"pero la URL se quedó en «{page.Url}» en vez de actualizar \"conversacion\". El clic sí llegó al " +
+                "circuito, así que esto no es un flake de Playwright: es el deep-link de Conversación no " +
+                "reflejando el hilo seleccionado (ver SeleccionarConversacionAsync en Bandeja.razor.cs).",
+                ex);
+        }
+
+        // La URL cambió; que además sea el hilo que se clicó —y no cualquier
+        // otro— lo comprueba el detalle del centro.
+        await Expect(page.Locator(".bandeja-centro-titulo-fila h2")).ToHaveTextAsync(asuntoObjetivo);
+    }
+
+    /// <summary>
+    /// Índice de la primera <c>.bandeja-fila</c> que el servidor NO tiene
+    /// seleccionada. La clase <c>bandeja-fila-activa</c> la renderiza Blazor
+    /// desde <c>_conversacionSeleccionadaId</c> (ver Bandeja.razor), así que
+    /// es la propia app quien dice cuál es el hilo abierto — no hace falta
+    /// suponer que la lista conserva el orden ni que <c>Nth(1)</c> es otro
+    /// hilo.
+    /// </summary>
+    private static async Task<int> IndiceDePrimeraFilaNoActivaAsync(ILocator filas, int total)
+    {
+        for (var indice = 0; indice < total; indice++)
+        {
+            var clases = await filas.Nth(indice).GetAttributeAsync("class") ?? string.Empty;
+            if (!clases.Contains("bandeja-fila-activa"))
+                return indice;
+        }
+
+        throw new InvalidOperationException(
+            $"Las {total} filas de la bandeja están marcadas como activas a la vez — imposible con un único " +
+            "_conversacionSeleccionadaId (ver Bandeja.razor), así que o el marcado de la fila cambió o la " +
+            "lista se está leyendo a mitad de un re-render.");
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
