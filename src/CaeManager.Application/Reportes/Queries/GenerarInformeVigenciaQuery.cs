@@ -21,9 +21,15 @@ namespace CaeManager.Application.Reportes.Queries;
 /// pero ni rechazo de portal ni bloqueo de periodo existen como concepto de
 /// dominio en ningún sitio; el único dato real detrás de "Incidencias" es
 /// Vencido/Urgente, así que el informe solo promete eso.
+///
+/// Devuelve <c>null</c> cuando el Cliente/Centro pedido cae fuera de la
+/// cartera del usuario — mismo criterio que las consultas <c>*PorId*</c>
+/// (ver <see cref="AlcanceDatosServiceExtensions"/>): se comporta igual que
+/// "no existe", nunca como un error explícito que confirme que la fila sí
+/// está ahí.
 /// </summary>
 public record GenerarInformeVigenciaQuery(Guid? ClienteId, Guid? CentroId, bool IncluirVigentes)
-    : IRequest<InformeVigenciaDto>;
+    : IRequest<InformeVigenciaDto?>;
 
 public record InformeVigenciaDto(string Alcance, IReadOnlyList<FilaReporteDocumentoDto> Filas);
 
@@ -39,11 +45,21 @@ public class GenerarInformeVigenciaQueryHandler(
     IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext,
     IEmpresasQueryContext empresasContext,
     ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
-    IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext)
-    : IRequestHandler<GenerarInformeVigenciaQuery, InformeVigenciaDto>
+    IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext,
+    IAlcanceDatosService alcanceDatos)
+    : IRequestHandler<GenerarInformeVigenciaQuery, InformeVigenciaDto?>
 {
-    public async Task<InformeVigenciaDto> Handle(GenerarInformeVigenciaQuery request, CancellationToken cancellationToken)
+    public async Task<InformeVigenciaDto?> Handle(GenerarInformeVigenciaQuery request, CancellationToken cancellationToken)
     {
+        // El alcance pedido llega por query string (/reportes/vigencia.pdf?clienteId=…),
+        // no solo por el selector de la página: sin esta comprobación, cualquier
+        // usuario con acceso a Reportes podía pedir el informe de un Cliente
+        // ajeno con solo conocer su Guid.
+        if (request.CentroId is { } centroPedido && !await alcanceDatos.CentroVisibleAsync(centroPedido, cancellationToken))
+            return null;
+        if (request.ClienteId is { } clientePedido && !await alcanceDatos.ClienteVisibleAsync(clientePedido, cancellationToken))
+            return null;
+
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
@@ -51,7 +67,7 @@ public class GenerarInformeVigenciaQueryHandler(
         // un Trabajador puede tener Documentos aunque hoy no esté asignado a
         // ningún centro de este Cliente, y ese Documento no pertenece al
         // alcance que se está pidiendo.
-        IQueryable<Guid> trabajadorIdsEnAlcance = asignacionesContext.Asignaciones.Where(a => a.FechaBaja == null).Select(a => a.TrabajadorId);
+        IQueryable<Guid>? trabajadorIdsEnAlcance = null;
         if (request.CentroId is { } centroId)
             trabajadorIdsEnAlcance = asignacionesContext.Asignaciones.Where(a => a.FechaBaja == null && a.CentroId == centroId).Select(a => a.TrabajadorId);
         else if (request.ClienteId is { } clienteId)
@@ -59,6 +75,15 @@ public class GenerarInformeVigenciaQueryHandler(
                 from a in asignacionesContext.Asignaciones
                 join c in centrosContext.Centros on a.CentroId equals c.Id
                 where a.FechaBaja == null && c.ClienteId == clienteId
+                select a.TrabajadorId;
+        else if (await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken) is { } clienteIdsVisibles)
+            // Sin filtro explícito, "toda la cartera" es la del usuario, no la
+            // del tenant: un Gestor CAE que no toca el selector no puede acabar
+            // con los documentos de los clientes de otro gestor en el informe.
+            trabajadorIdsEnAlcance =
+                from a in asignacionesContext.Asignaciones
+                join c in centrosContext.Centros on a.CentroId equals c.Id
+                where a.FechaBaja == null && clienteIdsVisibles.Contains(c.ClienteId)
                 select a.TrabajadorId;
 
         var consultaBase =
@@ -80,8 +105,8 @@ public class GenerarInformeVigenciaQueryHandler(
                 documento.FechaVencimiento
             };
 
-        if (request.ClienteId is not null || request.CentroId is not null)
-            consultaBase = consultaBase.Where(f => trabajadorIdsEnAlcance.Contains(f.TrabajadorId!.Value));
+        if (trabajadorIdsEnAlcance is { } idsEnAlcance)
+            consultaBase = consultaBase.Where(f => idsEnAlcance.Contains(f.TrabajadorId!.Value));
 
         var filas = await consultaBase.ToListAsync(cancellationToken);
 
