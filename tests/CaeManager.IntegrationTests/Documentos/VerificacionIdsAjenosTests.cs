@@ -1,4 +1,4 @@
-using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
+﻿using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
@@ -54,7 +54,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
     public async Task CrearAsignacion_rechaza_un_TrabajadorId_inexistente()
     {
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionCommandHandler(new AsignacionRepository(contexto), contexto, contexto, contexto);
+        var handler = new CrearAsignacionCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionCommand(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1)),

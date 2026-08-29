@@ -1,4 +1,4 @@
-using CaeManager.Application.Alertas;
+﻿using CaeManager.Application.Alertas;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
@@ -75,7 +75,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
     public async Task Crea_el_producto_cartesiano_y_omite_en_silencio_lo_ya_activo()
     {
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, contexto, contexto, contexto);
+        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand(
@@ -97,7 +97,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
     public async Task Un_id_de_trabajador_inexistente_se_reporta_como_error_sin_bloquear_el_resto()
     {
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, contexto, contexto, contexto);
+        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand(
@@ -117,7 +117,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var creacion = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, contexto, contexto, contexto);
+            var creacion = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
             await creacion.Handle(
                 new CrearAsignacionesCommand([_trabajador2Id], [_centro1Id, _centro2Id], DateOnly.FromDateTime(DateTime.UtcNow)),
                 CancellationToken.None);
@@ -131,7 +131,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         }
 
         await using var contextoBaja = CrearContexto();
-        var handlerBaja = new DarDeBajaAsignacionesCommandHandler(new AsignacionRepository(contextoBaja), contextoBaja);
+        var handlerBaja = new DarDeBajaAsignacionesCommandHandler(new AsignacionRepository(contextoBaja), new AutoridadAsignacionesServiceFalso(contextoBaja), contextoBaja);
 
         var resultado = await handlerBaja.Handle(
             new DarDeBajaAsignacionesCommand([asignacion1Id, asignacion2Id, Guid.NewGuid()], DateOnly.FromDateTime(DateTime.UtcNow)),

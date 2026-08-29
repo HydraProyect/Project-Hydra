@@ -1,4 +1,4 @@
-using CaeManager.Application.Centros;
+﻿using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Asignaciones;
@@ -39,7 +39,7 @@ public class CrearAsignacionesCommandValidator : AbstractValidator<CrearAsignaci
 
 public class CrearAsignacionesCommandHandler(
     IAsignacionRepository repositorio, IAsignacionesQueryContext asignacionesContext,
-    ITrabajadoresQueryContext trabajadoresContext, ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
+    ITrabajadoresQueryContext trabajadoresContext, IAutoridadAsignacionesService autoridad, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearAsignacionesCommand, Result<ResultadoAsignacionLoteDto>>
 {
     public async Task<Result<ResultadoAsignacionLoteDto>> Handle(CrearAsignacionesCommand request, CancellationToken cancellationToken)
@@ -53,10 +53,13 @@ public class CrearAsignacionesCommandHandler(
             .Select(t => t.Id)
             .ToListAsync(cancellationToken);
 
-        var centroIdsValidos = await centrosContext.Centros
-            .Where(c => request.CentroIds.Contains(c.Id))
-            .Select(c => c.Id)
-            .ToListAsync(cancellationToken);
+        // Autoridad sobre cada centro, no solo existencia (decision del
+        // propietario, 2026-08-29). Filtra igual que antes filtraba la
+        // existencia -descartando en silencio del lote- porque el mensaje que
+        // sigue ya cuenta cuantos quedaron fuera: un centro ajeno se comporta
+        // como uno que ya no existe, y no se confirma cual de las dos cosas es.
+        var centroIdsValidos = await autoridad.FiltrarCentrosConAutoridadAsync(
+            request.CentroIds, cancellationToken);
 
         var errores = new List<string>();
         var trabajadoresFaltantes = request.TrabajadorIds.Count - trabajadorIdsValidos.Count;
