@@ -247,15 +247,20 @@ jobs:
       # verde y sin ruido — peor que un bloque mudo, que al menos es entero.
       #
       # El denominador se calcula con el MISMO guion del reparto pidiendole un
-      # solo bloque de uno, asi que ambos lados salen del mismo codigo: si la
-      # deteccion de clases cambiara, cambia en los dos y la comparacion sigue
-      # significando lo mismo.
+      # solo bloque de uno. Eso protege de que los bloques deriven entre si; del
+      # colapso conjunto protege el suelo MINIMO_CLASES, no esta igualdad.
       #
-      # Se compara a nivel de CLASE y no de test: medido el 2026-08-29, el
-      # numero de entradas de --list-tests y el de tests ejecutados no coinciden
-      # (212 frente a 210 en un bloque real), asi que una igualdad sobre
-      # recuentos de test fallaria sola. La causa esta sin diagnosticar; el
-      # reparto de clases si es exacto y es lo que este paso vigila.
+      # Se compara a nivel de CLASE. Una version anterior de este comentario
+      # justificaba esa eleccion diciendo que --list-tests y la ejecucion no
+      # cuentan lo mismo (212 frente a 210). ERA FALSO, y el error era de
+      # medicion: aquella ejecucion uso un filtro contaminado con la salida de
+      # error del guion, porque se capturo 2>&1 en la variable. Con el filtro
+      # limpio el bloque 1 da 212 listadas y 212 ejecutadas — sin discrepancia.
+      #
+      # Vale la pena conservar el incidente porque es el modo de fallo que este
+      # job vigila, mordiendo a quien lo estaba construyendo: un filtro que no
+      # es el que crees ejecuta MENOS tests, en verde y sin decir nada. De ahi
+      # que el paso de ejecucion tome el recuento del .trx.
       - name: Comprobar que el reparto cubrio todas las clases
         run: |
           REPARTO_SALIDA=/tmp/esperadas-sin-ordenar.txt bash scripts/repartir-clases-de-test.sh tests/CaeManager.IntegrationTests 1 1 > /dev/null
