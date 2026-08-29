@@ -3169,6 +3169,33 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Documentos.TipoDocumentoAlias", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Texto")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("TipoDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TipoDocumentoId");
+
+                    b.HasIndex("TenantId", "TipoDocumentoId", "Texto")
+                        .IsUnique();
+
+                    b.ToTable("TiposDocumentoAlias", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Documentos.TipoDocumentoCentro", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6844,6 +6871,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Documentos.TipoDocumentoAlias", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Documentos.TipoDocumento", null)
+                        .WithMany("Aliases")
+                        .HasForeignKey("TipoDocumentoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Documentos.TipoDocumentoCentro", b =>
                 {
                     b.HasOne("CaeManager.Domain.Centros.Centro", null)
@@ -7317,6 +7353,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>
                 {
                     b.Navigation("HistorialRechazos");
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.TipoDocumento", b =>
+                {
+                    b.Navigation("Aliases");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Integraciones.LineaWhatsApp", b =>
