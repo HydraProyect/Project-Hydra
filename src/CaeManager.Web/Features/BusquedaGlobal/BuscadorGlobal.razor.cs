@@ -1,4 +1,6 @@
+using CaeManager.Application.BusquedaGlobal.Commands.RegistrarUsoReciente;
 using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
+using CaeManager.Application.BusquedaGlobal.Queries.ObtenerRecientes;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Web;
@@ -36,6 +38,42 @@ public partial class BuscadorGlobal : ComponentBase
     private ResultadoBusquedaGlobalDto? _resultado;
     private CancellationTokenSource? _debounceCts;
     private int _indiceSeleccionado = -1;
+
+    /// <summary>"Recientes" del estado inicial — cargado una sola vez al abrir el palette, no en cada tecla.</summary>
+    private IReadOnlyList<ItemRecienteDto> _recientes = [];
+
+    /// <summary>"En esta pantalla" del estado inicial — resuelto una sola vez al abrir, a partir de la ruta actual.</summary>
+    private IReadOnlyList<ItemBusquedaDto> _accionesPantalla = [];
+
+    /// <summary>true mientras la query está vacía (&lt;2 caracteres) — el estado que muestra Recientes + En esta pantalla en vez de resultados de búsqueda.</summary>
+    private bool ConsultaVacia => _termino.Trim().Length < 2;
+
+    /// <summary>
+    /// Marcador para "Guardar filtro actual" en <see cref="AccionesContextualesPorPantalla"/> — a
+    /// diferencia de "Nuevo X"/"Exportar a Excel" (rutas fijas), esta acción
+    /// tiene que preservar los filtros que ya haya en la URL actual (?q=,
+    /// ?estado=...), así que su ruta real se construye en <see cref="ConstruirAccionesPantalla"/>
+    /// con <c>NavigationManager.GetUriWithQueryParameter</c> en vez de ser un literal aquí.
+    /// </summary>
+    private const string MarcadorGuardarFiltro = "__guardar-filtro__";
+
+    /// <summary>
+    /// Acciones contextuales por pantalla del grupo "En esta pantalla" —
+    /// mismo estilo literal que <see cref="DestinosNavegacion"/>/<see cref="AccionesFijas"/>.
+    /// Solo cubre verbos que YA existen de verdad en cada pantalla (ver plan
+    /// de implementación): no se inventa "Exportar la vista" ni "Guardar
+    /// filtro" donde el propio módulo no lo tiene todavía.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, IReadOnlyList<(string Titulo, string Ruta)>> AccionesContextualesPorPantalla =
+        new Dictionary<string, IReadOnlyList<(string, string)>>
+        {
+            ["clientes"] = [("Nuevo cliente", "/clientes?accion=crear"), ("Exportar a Excel", "/clientes/exportar.xlsx"), ("Guardar filtro actual", MarcadorGuardarFiltro)],
+            ["empresas"] = [("Nueva empresa", "/empresas?accion=crear"), ("Exportar a Excel", "/empresas/exportar.xlsx")],
+            ["subcontratas"] = [("Nueva subcontrata", "/subcontratas?accion=crear"), ("Exportar a Excel", "/subcontratas/exportar.xlsx")],
+            ["centros"] = [("Nuevo centro", "/centros?accion=crear"), ("Exportar a Excel", "/centros/exportar.xlsx")],
+            ["trabajadores"] = [("Nuevo trabajador", "/trabajadores?accion=crear"), ("Exportar a Excel", "/trabajadores/exportar.xlsx"), ("Guardar filtro actual", MarcadorGuardarFiltro)],
+            ["documentos"] = [("Nuevo documento", "/documentos?accion=crear"), ("Exportar a Excel", "/documentos/exportar.xlsx"), ("Guardar filtro actual", MarcadorGuardarFiltro)],
+        };
 
     /// <summary>
     /// Grupo "Ir a" del palette (Parte XVI PROMPT 05) — navegación pura a
@@ -115,22 +153,44 @@ public partial class BuscadorGlobal : ComponentBase
     }
 
     /// <summary>
-    /// Todos los grupos en el mismo orden en que se renderizan (Entidades →
-    /// Ir a → Acciones, Parte XVI PROMPT 05) — para navegar con ↑↓/Tab + Enter.
+    /// Todos los grupos en el mismo orden en que se renderizan — Recientes →
+    /// En esta pantalla con la query vacía; Entidades → Ir a → Acciones con
+    /// texto escrito (Parte XVI PROMPT 05) — para navegar con ↑↓/Tab + Enter.
     /// </summary>
-    private IReadOnlyList<ItemBusquedaDto> ElementosPlanos => _resultado is null
-        ? [.. IrA, .. Acciones]
-        : [.. _resultado.Clientes, .. _resultado.Empresas, .. _resultado.Subcontratas, .. _resultado.Centros,
-           .. _resultado.Trabajadores, .. _resultado.Documentos, .. IrA, .. Acciones];
+    private IReadOnlyList<ItemBusquedaDto> ElementosPlanos => ConsultaVacia
+        ? [.. _recientes.Select(RecienteComoItem), .. _accionesPantalla]
+        : _resultado is null
+            ? [.. IrA, .. Acciones]
+            : [.. _resultado.Clientes, .. _resultado.Empresas, .. _resultado.Subcontratas, .. _resultado.Centros,
+               .. _resultado.Trabajadores, .. _resultado.Documentos, .. IrA, .. Acciones];
+
+    /// <summary>
+    /// Tipo de historial (para RegistrarUsoRecienteCommand) de cada elemento
+    /// de <see cref="ElementosPlanos"/>, en el mismo orden — null donde no se
+    /// registra uso ("Ir a": navegación pura, no cuenta como "uso" del
+    /// palette). Se recorre en paralelo a ElementosPlanos en vez de fundir el
+    /// tipo dentro de ItemBusquedaDto porque ese DTO es de Application y lo
+    /// consume también BuscarGlobalQuery sin noción de "tipo para historial".
+    /// </summary>
+    private IReadOnlyList<string?> TiposPlanos => ConsultaVacia
+        ? [.. _recientes.Select(r => (string?)r.Tipo), .. Enumerable.Repeat((string?)"Accion", _accionesPantalla.Count)]
+        : _resultado is null
+            ? [.. Enumerable.Repeat((string?)null, IrA.Count), .. Enumerable.Repeat((string?)"Accion", Acciones.Count)]
+            : [.. Enumerable.Repeat((string?)"Cliente", _resultado.Clientes.Count), .. Enumerable.Repeat((string?)"Empresa", _resultado.Empresas.Count),
+               .. Enumerable.Repeat((string?)"Subcontrata", _resultado.Subcontratas.Count), .. Enumerable.Repeat((string?)"Centro", _resultado.Centros.Count),
+               .. Enumerable.Repeat((string?)"Trabajador", _resultado.Trabajadores.Count), .. Enumerable.Repeat((string?)"Documento", _resultado.Documentos.Count),
+               .. Enumerable.Repeat((string?)null, IrA.Count), .. Enumerable.Repeat((string?)"Accion", Acciones.Count)];
 
     /// <summary>Índice (en ElementosPlanos) del primer elemento de cada grupo no vacío, en orden — usado por Tab para saltar de grupo en vez de elemento a elemento.</summary>
     private IReadOnlyList<int> InicioDeGrupo
     {
         get
         {
-            var grupos = _resultado is null
-                ? new[] { IrA, Acciones }
-                : new[] { _resultado.Clientes, _resultado.Empresas, _resultado.Subcontratas, _resultado.Centros, _resultado.Trabajadores, _resultado.Documentos, IrA, Acciones };
+            var grupos = ConsultaVacia
+                ? new IReadOnlyList<ItemBusquedaDto>[] { [.. _recientes.Select(RecienteComoItem)], _accionesPantalla }
+                : _resultado is null
+                    ? new[] { IrA, Acciones }
+                    : new[] { _resultado.Clientes, _resultado.Empresas, _resultado.Subcontratas, _resultado.Centros, _resultado.Trabajadores, _resultado.Documentos, IrA, Acciones };
 
             var inicios = new List<int>();
             var acumulado = 0;
@@ -142,6 +202,65 @@ public partial class BuscadorGlobal : ComponentBase
 
             return inicios;
         }
+    }
+
+    private static ItemBusquedaDto RecienteComoItem(ItemRecienteDto r) =>
+        new(r.EntidadId ?? Guid.Empty, r.Titulo, r.Subtitulo, r.UrlDestino);
+
+    /// <summary>Icono por tipo de "reciente" — mismo Nombre que ya usan las categorías de Entidades; "Accion" reutiliza el icono del grupo Acciones.</summary>
+    private static string IconoParaTipo(string tipo) => tipo switch
+    {
+        "Cliente" => "clientes",
+        "Empresa" => "empresas",
+        "Subcontrata" => "subcontratas",
+        "Centro" => "centros",
+        "Trabajador" => "trabajadores",
+        "Documento" => "documentos",
+        _ => "editar"
+    };
+
+    /// <summary>
+    /// "En esta pantalla" del estado inicial — resuelve la ruta actual contra
+    /// <see cref="AccionesContextualesPorPantalla"/>. "Guardar filtro actual"
+    /// se construye añadiendo el parámetro a la URL ACTUAL completa (con los
+    /// filtros que ya tenga), nunca sustituyéndola por una plantilla fija:
+    /// si se perdieran los demás parámetros (?q=, ?estado=...) al navegar,
+    /// la página resincronizaría sus filtros desde una URL vacía antes de
+    /// abrir el modal, y "guardar filtro actual" acabaría guardando un
+    /// filtro vacío.
+    /// </summary>
+    private IReadOnlyList<ItemBusquedaDto> ConstruirAccionesPantalla()
+    {
+        var segmento = SegmentoDeRuta(Navigation.Uri);
+        if (segmento is null || !AccionesContextualesPorPantalla.TryGetValue(segmento, out var acciones))
+            return [];
+
+        return acciones
+            .Select(a => new ItemBusquedaDto(
+                Guid.Empty,
+                a.Titulo,
+                null,
+                a.Ruta == MarcadorGuardarFiltro
+                    ? Navigation.GetUriWithQueryParameter("accion", "guardar-filtro")
+                    : a.Ruta))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Segmento de ruta, pero SOLO si es la pantalla de listado exacta
+    /// (<c>/trabajadores</c>), nunca una sub-ruta (<c>/trabajadores/{id}</c>
+    /// — Trabajador 360, Centro 360). "Guardar filtro actual" navegaría a
+    /// esa misma sub-ruta con <c>?accion=guardar-filtro</c> añadido, y esa
+    /// página de ficha no tiene ningún código que reaccione a ese parámetro
+    /// (vive en la página de listado) — mostrarlo ahí sería una acción que
+    /// no hace nada. Sin match exacto, "En esta pantalla" no muestra nada,
+    /// que es el comportamiento correcto para una pantalla sin acciones
+    /// contextuales definidas.
+    /// </summary>
+    private static string? SegmentoDeRuta(string uri)
+    {
+        var segmentos = new Uri(uri).AbsolutePath.Trim('/').Split('/');
+        return segmentos.Length == 1 && !string.IsNullOrEmpty(segmentos[0]) ? segmentos[0] : null;
     }
 
     protected override void OnInitialized()
@@ -189,6 +308,12 @@ public partial class BuscadorGlobal : ComponentBase
         _valorMostrado = string.Empty;
         _resultado = null;
         _indiceSeleccionado = -1;
+
+        // Una sola vez por apertura, no en cada tecla (a diferencia de la
+        // búsqueda, que sí se repite con el debounce).
+        _accionesPantalla = ConstruirAccionesPantalla();
+        _recientes = await Mediator.Send(new ObtenerRecientesQuery());
+
         StateHasChanged();
 
         if (_modulo is not null)
@@ -250,10 +375,70 @@ public partial class BuscadorGlobal : ComponentBase
                 break;
 
             case "Enter" when _indiceSeleccionado >= 0 && _indiceSeleccionado < ElementosPlanos.Count:
-                var destino = ElementosPlanos[_indiceSeleccionado].UrlDestino;
-                Cerrar();
-                Navigation.NavigateTo(destino);
+                Seleccionar(ElementosPlanos[_indiceSeleccionado], TiposPlanos[_indiceSeleccionado]);
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Punto único de navegación del palette — usado tanto por Enter
+    /// (teclado) como por el clic de cada <c>&lt;a&gt;</c> del .razor
+    /// (interceptado con <c>@onclick:preventDefault</c> en vez de dejar la
+    /// navegación nativa del enlace). Hacía falta centralizarlo: un enlace
+    /// nativo a <c>?accion=crear</c>/<c>?accion=guardar-filtro</c> disparado
+    /// desde la MISMA página que ya está montada (el caso normal de "En esta
+    /// pantalla", que solo aparece estando ya en esa pantalla) usa la
+    /// navegación mejorada de Blazor y reutiliza la instancia del
+    /// componente — <c>OnInitializedAsync</c> nunca vuelve a ejecutarse y el
+    /// query string se pierde en silencio (comprobado manualmente: "Nueva
+    /// subcontrata" desde /subcontratas no abría el modal). <c>forceLoad</c>
+    /// para estas rutas fuerza una recarga real del navegador, que sí
+    /// remonta el componente desde cero.
+    /// </summary>
+    private void Seleccionar(ItemBusquedaDto item, string? tipo)
+    {
+        RegistrarUsoReciente(tipo, item);
+        Cerrar();
+        Navigation.NavigateTo(item.UrlDestino, forceLoad: RequiereNavegacionCompleta(item.UrlDestino));
+    }
+
+    /// <summary>
+    /// Descargas (Exportar a Excel) y disparadores <c>?accion=...</c> que una
+    /// página solo procesa en su montaje inicial (crear/guardar-filtro,
+    /// ver <see cref="Seleccionar"/>) necesitan una recarga real del
+    /// navegador, no la navegación SPA de Blazor.
+    /// </summary>
+    private static bool RequiereNavegacionCompleta(string urlDestino) =>
+        urlDestino.Contains("/exportar.xlsx", StringComparison.Ordinal) ||
+        urlDestino.Contains("accion=crear", StringComparison.Ordinal) ||
+        urlDestino.Contains("accion=guardar-filtro", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Registro de uso reciente, best-effort. <paramref name="tipo"/> null
+    /// significa "Ir a": navegación pura, nunca cuenta como "uso".
+    /// </summary>
+    private void RegistrarUsoReciente(string? tipo, ItemBusquedaDto item)
+    {
+        if (tipo is null) return;
+
+        // Fire-and-forget deliberado: el registro de recientes es
+        // best-effort, nunca puede bloquear, cancelar ni alterar la
+        // navegación del usuario. Se lanza sin esperar y navega/cierra de
+        // inmediato; cualquier fallo (incluida la pérdida del evento si el
+        // circuito se destruye antes de completar) se descarta en silencio.
+        _ = RegistrarUsoRecienteSilenciosamenteAsync(tipo, item);
+    }
+
+    private async Task RegistrarUsoRecienteSilenciosamenteAsync(string tipo, ItemBusquedaDto item)
+    {
+        try
+        {
+            await Mediator.Send(new RegistrarUsoRecienteCommand(
+                tipo, item.Id == Guid.Empty ? null : item.Id, item.Titulo, item.Subtitulo, item.UrlDestino));
+        }
+        catch
+        {
+            // Best-effort: un fallo aquí nunca debe afectar al usuario.
         }
     }
 

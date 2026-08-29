@@ -74,6 +74,9 @@ public partial class Subcontratas : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    /// <summary>Comando del palette "Crear subcontrata": /subcontratas?accion=crear abre el modal directamente — mismo patrón que Clientes/Empresas/Centros/Trabajadores/Documentos.</summary>
+    [SupplyParameterFromQuery] public string? Accion { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IValidator<CrearSubcontrataCommand> ValidadorCrear { get; set; } = default!;
 
@@ -81,6 +84,9 @@ public partial class Subcontratas : ComponentBase
     {
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         await CargarAsync();
+
+        if (Accion == "crear")
+            await AbrirCrear();
     }
 
     /// <summary>Se re-ejecuta en cada navegación dentro de la propia página — mismo criterio que Centros.razor.cs.</summary>

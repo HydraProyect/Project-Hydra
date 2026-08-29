@@ -305,6 +305,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Infrastructure.Configuracion.IRegistroAutomatizacionesService, CaeManager.Infrastructure.Configuracion.RegistroAutomatizacionesService>();
         services.AddScoped<CaeManager.Domain.Importacion.IHistorialImportacionRepository, HistorialImportacionRepository>();
         services.AddScoped<CaeManager.Domain.Reportes.IHistorialInformeRepository, HistorialInformeRepository>();
+        services.AddScoped<CaeManager.Domain.BusquedaGlobal.IEventoRecienteUsuarioRepository, CaeManager.Infrastructure.Persistence.Repositories.EventoRecienteUsuarioRepository>();
         services.AddScoped<ITarifaClienteRepository, TarifaClienteRepository>();
         services.AddScoped<IProyectoRepository, ProyectoRepository>();
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
@@ -369,6 +370,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Configuracion.IConfiguracionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Importacion.IImportacionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Reportes.IReportesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.BusquedaGlobal.IBusquedaGlobalQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Auditoria.IAuditoriaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Tenants.ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Facturacion.IFacturacionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());

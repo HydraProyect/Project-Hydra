@@ -19,7 +19,50 @@
             <div class="buscador-resultados">
                 @if (_termino.Trim().Length < 2)
                 {
-                    <p class="buscador-mensaje">Escribe al menos 2 caracteres para buscar.</p>
+                    if (_recientes.Count == 0 && _accionesPantalla.Count == 0)
+                    {
+                        <p class="buscador-mensaje">Escribe al menos 2 caracteres para buscar.</p>
+                    }
+                    else
+                    {
+                        var indice = 0;
+                        @if (_recientes.Count > 0)
+                        {
+                            <div class="buscador-grupo">
+                                <h2 class="buscador-grupo-titulo">Recientes</h2>
+                                <div class="buscador-categoria">
+                                    @foreach (var item in _recientes)
+                                    {
+                                        var indiceItem = indice++;
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")"
+                                           href="@item.UrlDestino" @onclick='() => Seleccionar(RecienteComoItem(item), item.Tipo)' @onclick:preventDefault="true">
+                                            <Icono Nombre="@IconoParaTipo(item.Tipo)" Tamano="TamanoIcono.Pequeno" />@item.Titulo
+                                            @if (item.Subtitulo is not null)
+                                            {
+                                                <span class="buscador-item-subtitulo">@item.Subtitulo</span>
+                                            }
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        @if (_accionesPantalla.Count > 0)
+                        {
+                            <div class="buscador-grupo">
+                                <h2 class="buscador-grupo-titulo">En esta pantalla</h2>
+                                <div class="buscador-categoria">
+                                    @foreach (var item in _accionesPantalla)
+                                    {
+                                        var indiceItem = indice++;
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")"
+                                           href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Accion")' @onclick:preventDefault="true">
+                                            <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />@item.Titulo
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
                 }
                 else if (_buscando)
                 {
@@ -43,7 +86,7 @@
                                     @foreach (var item in _resultado.Clientes)
                                     {
                                         var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Cliente")' @onclick:preventDefault="true">
                                             <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" />@item.Titulo
                                         </a>
                                     }
@@ -56,7 +99,7 @@
                                     @foreach (var item in _resultado.Empresas)
                                     {
                                         var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Empresa")' @onclick:preventDefault="true">
                                             <Icono Nombre="empresas" Tamano="TamanoIcono.Pequeno" />@item.Titulo
                                         </a>
                                     }
@@ -69,7 +112,7 @@
                                     @foreach (var item in _resultado.Subcontratas)
                                     {
                                         var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Subcontrata")' @onclick:preventDefault="true">
                                             <Icono Nombre="subcontratas" Tamano="TamanoIcono.Pequeno" />@item.Titulo
                                         </a>
                                     }
@@ -82,7 +125,7 @@
                                     @foreach (var item in _resultado.Centros)
                                     {
                                         var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Centro")' @onclick:preventDefault="true">
                                             <Icono Nombre="centros" Tamano="TamanoIcono.Pequeno" />@item.Titulo
                                         </a>
                                     }
@@ -95,7 +138,7 @@
                                     @foreach (var item in _resultado.Trabajadores)
                                     {
                                         var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Trabajador")' @onclick:preventDefault="true">
                                             <Icono Nombre="trabajadores" Tamano="TamanoIcono.Pequeno" />@item.Titulo <span class="buscador-item-subtitulo">@item.Subtitulo</span>
                                         </a>
                                     }
@@ -108,7 +151,7 @@
                                     @foreach (var item in _resultado.Documentos)
                                     {
                                         var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Documento")' @onclick:preventDefault="true">
                                             <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />@item.Titulo <span class="buscador-item-subtitulo">@item.Subtitulo</span>
                                         </a>
                                     }
@@ -139,7 +182,7 @@
                                 @foreach (var item in Acciones)
                                 {
                                     var indiceItem = indice++;
-                                    <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
+                                    <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Accion")' @onclick:preventDefault="true">
                                         <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />@item.Titulo
                                     </a>
                                 }

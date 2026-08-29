@@ -27,7 +27,10 @@
 <div class="contenedor-pagina">
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">@_tituloPagina</h1>
-        <Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton>
+        <div class="acciones-cabecera">
+            <a class="enlace-exportar" href="/trabajadores/exportar.xlsx">Exportar a Excel</a>
+            <Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton>
+        </div>
     </div>
 
     <div class="barra-filtros">
