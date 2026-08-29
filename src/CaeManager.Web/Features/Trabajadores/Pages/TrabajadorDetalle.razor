@@ -4,6 +4,7 @@
 *@
 @page "/trabajadores/{TrabajadorId:guid}"
 @rendermode InteractiveServer
+@attribute [Authorize]
 @using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador
