@@ -156,8 +156,12 @@ public class UsosDeEsPlataformaCongeladosTests
             new(1, CategoriaUso.Autoridad, ":46 — lo retira el bloque B (el comando entero desaparece)"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActividadSoporteQuery.cs"] =
             new(1, CategoriaUso.Autoridad,
-                ":55, en OR con la vía del cliente visitado. B reescribe el predicado por concesión propia; " +
-                "la rama del cliente SE CONSERVA (D-6: es obligación de transparencia, no cortesía)"),
+                ":55, en OR con la vía del cliente visitado. B reescribe el predicado por concesión propia. " +
+                "AVISO: D-6 obliga a conservar la rama del cliente, y ESTE RATCHET NO LO COMPRUEBA — solo " +
+                "cuenta el flag. Si B rompiera únicamente esa rama, el conteo seguiría en 1 y esto pasaría en " +
+                "verde. Hoy la rama del cliente tiene cobertura CERO en los cinco proyectos de test, así que " +
+                "nada la protege; B debe añadir esa prueba y enlazarla desde aquí. No leas esta entrada como " +
+                "cobertura de la vía del cliente: no lo es"),
 
         // ── REGLA COMERCIAL ───────────────────────────────────────────────────────
         ["src/CaeManager.Application/Common/GateComercialTenantBehavior.cs"] =
