@@ -26,8 +26,12 @@ public class BadgesAcreditacionTests : BunitContext
                 new AcreditacionResumenDto(Guid.NewGuid(), "Dokify", EstadoAcreditacion.Aceptada)
             ]));
 
-        cut.Markup.Should().Contain("Nalanda").And.Contain("rechazado");
-        cut.Markup.Should().Contain("Dokify").And.Contain("aceptado");
+        // Femenino: concuerda con «acreditación», que es lo que el badge
+        // nombra, y con el propio enum (Rechazada/Aceptada). Decisión del
+        // propietario, 2026-08-29 — antes decía «rechazado»/«aceptado» y
+        // código e interfaz discrepaban sobre el mismo valor.
+        cut.Markup.Should().Contain("Nalanda").And.Contain("rechazada");
+        cut.Markup.Should().Contain("Dokify").And.Contain("aceptada");
     }
 
     [Theory]

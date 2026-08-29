@@ -20,7 +20,7 @@
         @foreach (var acreditacion in Acreditaciones)
         {
             <Badge @key="acreditacion.Id" Tono="TonoDe(acreditacion.Estado)" Tamano="TamanoBadge.Pequeno">
-                @acreditacion.NombrePlataforma: @TextoDe(acreditacion.Estado)
+                @acreditacion.NombrePlataforma: @EstadoAcreditacionUi.Texto(acreditacion.Estado)
             </Badge>
         }
     </span>
@@ -35,13 +35,7 @@
         _ => TonoBadge.Neutro
     };
 
-    private static string TextoDe(EstadoAcreditacion estado) => estado switch
-    {
-        EstadoAcreditacion.PendienteDeSubir => "pendiente de envío",
-        EstadoAcreditacion.Subida => "enviado",
-        EstadoAcreditacion.Aceptada => "aceptado",
-        EstadoAcreditacion.Rechazada => "rechazado",
-        EstadoAcreditacion.NoRequerida => "no exigido",
-        _ => estado.ToString()
-    };
+    // El texto vive en EstadoAcreditacionUi, no aquí: era la copia que
+    // PlataformaTab duplicaba a mano, y dos copias del mismo mapeo son dos
+    // vocabularios en cuanto una cambie.
 }
