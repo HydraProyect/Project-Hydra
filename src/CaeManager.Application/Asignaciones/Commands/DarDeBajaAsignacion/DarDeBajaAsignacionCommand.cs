@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -22,13 +22,26 @@ public class DarDeBajaAsignacionCommandValidator : AbstractValidator<DarDeBajaAs
     }
 }
 
-public class DarDeBajaAsignacionCommandHandler(IAsignacionRepository repositorio, IUnitOfWork unitOfWork)
+public class DarDeBajaAsignacionCommandHandler(
+    IAsignacionRepository repositorio, IAutoridadAsignacionesService autoridad, IUnitOfWork unitOfWork)
     : IRequestHandler<DarDeBajaAsignacionCommand, Result>
 {
     public async Task<Result> Handle(DarDeBajaAsignacionCommand request, CancellationToken cancellationToken)
     {
         var asignacion = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (asignacion is null)
+            return Result.Fallo(Error.Crear("Asignacion.NoEncontrada", "No encontramos esta asignación."));
+
+        // Dar de baja exige la misma autoridad que dar de alta (decision del
+        // propietario, 2026-08-29): "la baja no es una excepcion por ser
+        // reversible". Antes se cargaba por identificador y se daba de baja sin
+        // comprobar nada, asi que un gestor podia retirar a un trabajador del
+        // centro de otro conociendo el Id de la asignacion.
+        //
+        // Se comprueba sobre el CENTRO de la asignacion, no sobre quien la
+        // creo: un CoordinadorCae tiene autoridad sobre las asignaciones de los
+        // gestores a su cargo, y "es mia" habria dejado fuera ese caso.
+        if (!await autoridad.PuedeModificarAsignacionesDelCentroAsync(asignacion.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("Asignacion.NoEncontrada", "No encontramos esta asignación."));
 
         try

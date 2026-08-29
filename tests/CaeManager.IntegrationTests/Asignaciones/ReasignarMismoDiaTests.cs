@@ -1,4 +1,4 @@
-using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
+﻿using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignacion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -63,7 +63,7 @@ public class ReasignarMismoDiaTests : IAsyncLifetime
         Guid asignacionOriginalId;
         await using (var contexto = CrearContexto())
         {
-            var creacion = new CrearAsignacionCommandHandler(new AsignacionRepository(contexto), contexto, contexto, contexto);
+            var creacion = new CrearAsignacionCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
             var alta = await creacion.Handle(new CrearAsignacionCommand(_trabajadorId, _centroId, hoy), CancellationToken.None);
             alta.EsExitoso.Should().BeTrue();
             asignacionOriginalId = alta.Valor;
@@ -71,14 +71,14 @@ public class ReasignarMismoDiaTests : IAsyncLifetime
 
         await using (var contextoBaja = CrearContexto())
         {
-            var baja = new DarDeBajaAsignacionCommandHandler(new AsignacionRepository(contextoBaja), contextoBaja);
+            var baja = new DarDeBajaAsignacionCommandHandler(new AsignacionRepository(contextoBaja), new AutoridadAsignacionesServiceFalso(contextoBaja), contextoBaja);
             var resultadoBaja = await baja.Handle(new DarDeBajaAsignacionCommand(asignacionOriginalId, hoy), CancellationToken.None);
             resultadoBaja.EsExitoso.Should().BeTrue();
         }
 
         await using (var contextoReasignar = CrearContexto())
         {
-            var reasignacion = new CrearAsignacionCommandHandler(new AsignacionRepository(contextoReasignar), contextoReasignar, contextoReasignar, contextoReasignar);
+            var reasignacion = new CrearAsignacionCommandHandler(new AsignacionRepository(contextoReasignar), contextoReasignar, new AutoridadAsignacionesServiceFalso(contextoReasignar), contextoReasignar);
             var resultado = await reasignacion.Handle(new CrearAsignacionCommand(_trabajadorId, _centroId, hoy), CancellationToken.None);
 
             resultado.EsExitoso.Should().BeTrue();

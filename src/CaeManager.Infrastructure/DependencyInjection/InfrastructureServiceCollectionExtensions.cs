@@ -1,4 +1,4 @@
-using CaeManager.Application.Comercial.Common;
+﻿using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.DocumentosIa.Common;
@@ -385,6 +385,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Integraciones.IProveedoresPlataformaCaeQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Plantillas.IPlantillasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
+        // Eje distinto del anterior a proposito: alcance de LECTURA frente a
+        // autoridad para MODIFICAR. Ver IAutoridadAsignacionesService.
+        services.AddScoped<IAutoridadAsignacionesService, AutoridadAsignacionesService>();
         services.AddScoped<CaeManager.Application.Operaciones.IOperacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Plataforma.IPlataformaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         // Revalida contra la base la sesión privilegiada que el token nombre —

@@ -1,4 +1,4 @@
-using CaeManager.Application.Centros;
+﻿using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Asignaciones;
@@ -21,7 +21,8 @@ public class CrearAsignacionCommandValidator : AbstractValidator<CrearAsignacion
 }
 
 public class CrearAsignacionCommandHandler(
-    IAsignacionRepository repositorio, ITrabajadoresQueryContext trabajadoresContext, ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
+    IAsignacionRepository repositorio, ITrabajadoresQueryContext trabajadoresContext,
+    IAutoridadAsignacionesService autoridad, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearAsignacionCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearAsignacionCommand request, CancellationToken cancellationToken)
@@ -33,7 +34,15 @@ public class CrearAsignacionCommandHandler(
         if (!await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == request.TrabajadorId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Asignacion.TrabajadorNoEncontrado", "No encontramos este trabajador."));
 
-        if (!await centrosContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
+        // Autoridad sobre el centro, no solo existencia (decision del
+        // propietario, 2026-08-29): un gestor no asigna a un centro fuera de su
+        // arbol. Antes bastaba con que el centro existiera en el tenant, asi
+        // que cualquier gestor podia dar de alta a un trabajador en el centro
+        // de otro con solo conocer su Id.
+        //
+        // Mismo error que "no encontrado" a proposito: distinguir <<no existe>>
+        // de <<no es tuyo>> confirma la existencia de un centro ajeno.
+        if (!await autoridad.PuedeModificarAsignacionesDelCentroAsync(request.CentroId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Asignacion.CentroNoEncontrado", "No encontramos este centro."));
 
         if (await repositorio.ExisteActivaAsync(request.TrabajadorId, request.CentroId, cancellationToken))
