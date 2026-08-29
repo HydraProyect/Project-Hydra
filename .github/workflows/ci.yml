@@ -147,12 +147,30 @@ jobs:
           echo "filtro=$filtro" >> "$GITHUB_OUTPUT"
           LISTADO_DE_TESTS=reparto/listado-bloque-${{ matrix.bloque }}.txt REPARTO_SALIDA=reparto/bloque-${{ matrix.bloque }}.txt bash scripts/repartir-clases-de-test.sh sin-compilar 4 ${{ matrix.bloque }} > /dev/null
 
+      # PARALELISMO DENTRO DEL BLOQUE, solo en CI.
+      #
+      # xunit.runner.json fija 6 hilos, y ese numero NO viene de ahorrar
+      # minutos: viene de la maquina de desarrollo. Ahi hay UN solo PostgreSQL
+      # compartido entre worktrees y con max_connections=100, y el limite se
+      # puso el 2026-08-13 tras una inestabilidad real —fallos de handshake al
+      # arrancar una clase— porque 16 hilos x 10 conexiones de pool por clase
+      # se comian el cupo del servidor.
+      #
+      # Aqui cada bloque levanta SU PROPIO PostgreSQL, asi que ese cupo no se
+      # comparte con nadie: 8 x 10 = 80 conexiones, con 20 de holgura bajo el
+      # max_connections por defecto. Se sube solo aqui, por RunSettings, y el
+      # fichero sigue diciendo 6: en local el cluster SI es compartido y
+      # subirlo alli romperia a otras sesiones.
+      #
+      # 8 y no mas porque el siguiente escalon exige tocar max_connections del
+      # servicio, que es otro cambio y merece su propia medicion.
       - name: Ejecutar el bloque
         run: >
           dotnet test tests/CaeManager.IntegrationTests --no-build --logger "console;verbosity=normal"
           --logger "trx;LogFileName=bloque-${{ matrix.bloque }}.trx"
           --filter "${{ steps.reparto.outputs.filtro }}"
           --collect "XPlat Code Coverage" --results-directory ./coverage/integration
+          -- xUnit.MaxParallelThreads=8
 
       # El paso de reparto garantiza que el FILTRO no este vacio, pero no que
       # el filtro haya CASADO con algo: `dotnet test` con un patron que no
