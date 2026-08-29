@@ -76,6 +76,27 @@ public record EventoDetalleDto(Guid Id, TipoEventoConversacion Tipo, Guid Refere
 /// </summary>
 public record SugerenciaVinculacionDetalleDto(Guid ConversacionDestinoId, string AsuntoDestino, DesgloseCoincidenciaDto Desglose);
 
+/// <summary>
+/// No hay ninguna relación Mensaje/Adjunto↔Documento modelada en el dominio —
+/// "Documentos citados" del panel de contexto se arma en tres niveles de
+/// certeza decreciente, todos calculados en cada lectura (ver
+/// ObtenerDocumentosCitadosAsync):
+/// <see cref="Confirmado"/> viene de EventoConversacion (DocumentoActualizado
+/// y, vía ReclamacionesDocumentalesDocumento, ReclamacionEnviada) — un gestor
+/// ya confirmó que el documento salió de esta conversación.
+/// <see cref="CandidatoIA"/> viene de DetalleSugerenciaGestionCorreo pendiente
+/// — la IA detectó un TipoDocumento/Trabajador candidato en un mensaje, pero
+/// no hay Documento concreto todavía.
+/// <see cref="DelPropietario"/> es el fallback cuando no hay señal directa:
+/// documentos del Trabajador/Empresa que participan en el hilo, no
+/// necesariamente relevantes a esta conversación en concreto.
+/// </summary>
+public enum NivelConfianzaDocumentoCitado { Confirmado, CandidatoIA, DelPropietario }
+
+public record DocumentoCitadoDetalleDto(
+    Guid? DocumentoId, string TipoDocumentoNombre, string? PropietarioNombre, DateOnly? FechaVencimiento,
+    NivelConfianzaDocumentoCitado Nivel);
+
 public record ConversacionDetalleDto(
     Guid Id,
     Guid? ClienteId,
@@ -88,6 +109,7 @@ public record ConversacionDetalleDto(
     IReadOnlyList<MensajeDetalleDto> Mensajes,
     IReadOnlyList<ParticipanteDetalleDto> Participantes,
     IReadOnlyList<EventoDetalleDto> Eventos,
+    IReadOnlyList<DocumentoCitadoDetalleDto> DocumentosCitados,
     CanalConversacion Canal = CanalConversacion.Correo,
     string? TelefonoContacto = null,
     DateTime? FechaUltimoMensajeEntranteUtc = null,
@@ -277,12 +299,134 @@ public class ObtenerConversacionPorIdQueryHandler(
         var eventos = await ObtenerEventosAsync(request.Id, cancellationToken);
         var sugerenciaVinculacion = await ObtenerSugerenciaVinculacionAsync(
             conversacion.Id, conversacion.ClienteId, conversacion.Canal, conversacion.Estado, conversacion.FechaUltimoMensajeUtc, cancellationToken);
+        var documentosCitados = await ObtenerDocumentosCitadosAsync(
+            request.Id, participantes, mensajes.SelectMany(m => m.SugerenciasGestion).ToList(), cancellationToken);
 
         return new ConversacionDetalleDto(
             conversacion.Id, conversacion.ClienteId, conversacion.ClienteRazonSocial, conversacion.Asunto,
             conversacion.Estado, conversacion.EjecutivoAsignadoId, conversacion.Etiquetas, conversacion.FechaUltimoMensajeUtc,
-            mensajes, participantes, eventos, conversacion.Canal, conversacion.TelefonoContacto, conversacion.FechaUltimoMensajeEntranteUtc,
-            sugerenciaVinculacion, esConversacionInformativaPreCae, esConversacionInformativaPreCae ? clasificacionRelevancia!.Resumen : null);
+            mensajes, participantes, eventos, documentosCitados, conversacion.Canal, conversacion.TelefonoContacto,
+            conversacion.FechaUltimoMensajeEntranteUtc, sugerenciaVinculacion, esConversacionInformativaPreCae,
+            esConversacionInformativaPreCae ? clasificacionRelevancia!.Resumen : null);
+    }
+
+    /// <summary>
+    /// "Documentos citados" del panel de contexto (ver DocumentoCitadoDetalleDto) — tres
+    /// consultas independientes, una por nivel de certeza, unidas al final. No hay tabla que
+    /// junte esto hoy, así que se recalcula en cada lectura, igual que ObtenerEventosAsync.
+    /// </summary>
+    private const int MaximoDocumentosDelPropietario = 5;
+
+    private async Task<IReadOnlyList<DocumentoCitadoDetalleDto>> ObtenerDocumentosCitadosAsync(
+        Guid conversacionId, IReadOnlyList<ParticipanteDetalleDto> participantes,
+        IReadOnlyList<SugerenciaGestionDetalleDto> sugerenciasGestion, CancellationToken cancellationToken)
+    {
+        var eventosDocumentales = await comunicacionesContext.EventosConversacion
+            .Where(e => e.ConversacionId == conversacionId &&
+                (e.Tipo == TipoEventoConversacion.DocumentoActualizado || e.Tipo == TipoEventoConversacion.ReclamacionEnviada))
+            .Select(e => new { e.Tipo, e.ReferenciaId })
+            .ToListAsync(cancellationToken);
+
+        var reclamacionIds = eventosDocumentales
+            .Where(e => e.Tipo == TipoEventoConversacion.ReclamacionEnviada)
+            .Select(e => e.ReferenciaId)
+            .ToList();
+        var documentoIdsReclamados = reclamacionIds.Count == 0
+            ? []
+            : await reclamacionesContext.ReclamacionesDocumentalesDocumento
+                .Where(d => reclamacionIds.Contains(d.ReclamacionDocumentalId))
+                .Select(d => d.DocumentoId)
+                .ToListAsync(cancellationToken);
+
+        var documentoIdsConfirmados = eventosDocumentales
+            .Where(e => e.Tipo == TipoEventoConversacion.DocumentoActualizado)
+            .Select(e => e.ReferenciaId)
+            .Concat(documentoIdsReclamados)
+            .Distinct()
+            .ToList();
+
+        // Nivel DelPropietario: fallback cuando no hay señal directa — documentos del
+        // Trabajador/Empresa que participan en el hilo, acotados a los que vencen antes (los
+        // más accionables), sin repetir lo que ya salió como Confirmado.
+        var trabajadorIds = participantes
+            .Where(p => p.TipoOrigen == TipoParticipanteOrigen.Trabajador && p.EntidadRelacionadaId is not null)
+            .Select(p => p.EntidadRelacionadaId!.Value).Distinct().ToList();
+        var empresaIds = participantes
+            .Where(p => p.TipoOrigen == TipoParticipanteOrigen.Empresa && p.EntidadRelacionadaId is not null)
+            .Select(p => p.EntidadRelacionadaId!.Value).Distinct().ToList();
+
+        var documentoIdsDelPropietario = trabajadorIds.Count == 0 && empresaIds.Count == 0
+            ? []
+            : await documentosContext.Documentos
+                .Where(d => (d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value))
+                    || (d.EmpresaId != null && empresaIds.Contains(d.EmpresaId.Value)))
+                .Where(d => !documentoIdsConfirmados.Contains(d.Id))
+                .OrderBy(d => d.FechaVencimiento == null ? 1 : 0).ThenBy(d => d.FechaVencimiento)
+                .Take(MaximoDocumentosDelPropietario)
+                .Select(d => d.Id)
+                .ToListAsync(cancellationToken);
+
+        var todosLosDocumentoIds = documentoIdsConfirmados.Concat(documentoIdsDelPropietario).Distinct().ToList();
+        var documentos = await documentosContext.Documentos
+            .Where(d => todosLosDocumentoIds.Contains(d.Id))
+            .Select(d => new { d.Id, d.TipoDocumentoId, d.TrabajadorId, d.EmpresaId, d.FechaVencimiento })
+            .ToDictionaryAsync(d => d.Id, cancellationToken);
+
+        var tipoDocumentoIds = documentos.Values.Select(d => d.TipoDocumentoId).Distinct().ToList();
+        var nombresTipoDocumento = await tiposDocumentoContext.TiposDocumento
+            .Where(t => tipoDocumentoIds.Contains(t.Id))
+            .Select(t => new { t.Id, t.Nombre })
+            .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
+
+        var trabajadorIdsDocumentos = documentos.Values.Where(d => d.TrabajadorId is not null).Select(d => d.TrabajadorId!.Value).Distinct().ToList();
+        var nombresTrabajadorDocumentos = await trabajadoresContext.Trabajadores
+            .Where(t => trabajadorIdsDocumentos.Contains(t.Id))
+            .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos })
+            .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
+
+        var empresaIdsDocumentos = documentos.Values.Where(d => d.EmpresaId is not null).Select(d => d.EmpresaId!.Value).Distinct().ToList();
+        var nombresEmpresaDocumentos = await empresasContext.Empresas
+            .Where(e => empresaIdsDocumentos.Contains(e.Id))
+            .Select(e => new { e.Id, e.RazonSocial })
+            .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
+
+        string? NombrePropietario(Guid tipoDocumentoId, Guid? trabajadorId, Guid? empresaId) =>
+            trabajadorId is { } t ? nombresTrabajadorDocumentos.GetValueOrDefault(t)
+                : empresaId is { } e ? nombresEmpresaDocumentos.GetValueOrDefault(e)
+                : null;
+
+        var resultado = new List<DocumentoCitadoDetalleDto>();
+
+        foreach (var documentoId in documentoIdsConfirmados)
+        {
+            if (!documentos.TryGetValue(documentoId, out var documento)) continue;
+            resultado.Add(new DocumentoCitadoDetalleDto(
+                documento.Id, nombresTipoDocumento.GetValueOrDefault(documento.TipoDocumentoId, "Documento"),
+                NombrePropietario(documento.TipoDocumentoId, documento.TrabajadorId, documento.EmpresaId),
+                documento.FechaVencimiento, NivelConfianzaDocumentoCitado.Confirmado));
+        }
+
+        // Deduplicado por TipoDocumento+Trabajador: el mismo candidato puede repetirse en varios
+        // mensajes de la conversación (SugerenciasGestionPendientes ya viene aplanado por mensaje).
+        foreach (var candidato in sugerenciasGestion
+            .Where(s => s.TipoDocumentoId is not null)
+            .DistinctBy(s => (s.TipoDocumentoId, s.TrabajadorId)))
+        {
+            resultado.Add(new DocumentoCitadoDetalleDto(
+                null, candidato.TipoDocumentoNombre ?? "Documento", candidato.TrabajadorNombre, null,
+                NivelConfianzaDocumentoCitado.CandidatoIA));
+        }
+
+        foreach (var documentoId in documentoIdsDelPropietario)
+        {
+            if (!documentos.TryGetValue(documentoId, out var documento)) continue;
+            resultado.Add(new DocumentoCitadoDetalleDto(
+                documento.Id, nombresTipoDocumento.GetValueOrDefault(documento.TipoDocumentoId, "Documento"),
+                NombrePropietario(documento.TipoDocumentoId, documento.TrabajadorId, documento.EmpresaId),
+                documento.FechaVencimiento, NivelConfianzaDocumentoCitado.DelPropietario));
+        }
+
+        return resultado;
     }
 
     /// <summary>
