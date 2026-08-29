@@ -598,6 +598,13 @@ using (var scope = app.Services.CreateScope())
     // que SegundoTenant:Activo esté configurado explícitamente.
     await SegundoTenantSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
 
+    // Despues de TODOS los sembradores, no dentro de ninguno: la verificacion
+    // IA se reconcilia sobre los tenants de demo que ya existen, no solo sobre
+    // los que se acaban de crear. Colgarla de un camino de siembra dejo cinco
+    // de seis tenants sin encender en produccion (ver el metodo).
+    await DatosPruebaSeeder.ReconciliarVerificacionIaEnTenantsDeDemoAsync(
+        dbContext, app.Configuration, logger);
+
     // Al final a propósito: aprovisiona la delegación de soporte —apagada—
     // de todo tenant que exista, incluidos los que acaben de sembrarse.
     // Idempotente, así que cubre también los tenants creados en arranques

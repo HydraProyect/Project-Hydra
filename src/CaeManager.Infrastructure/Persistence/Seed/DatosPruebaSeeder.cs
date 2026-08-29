@@ -335,8 +335,6 @@ public static class DatosPruebaSeeder
 
         await SembrarUsuariosYCarteraAsync(dbContext, userManager, credenciales, logger, cancellationToken);
 
-        await ActivarVerificacionIaSiHayProveedorAsync(dbContext, configuration, logger, cancellationToken);
-
         tenant.MarcarDatosDemoCompletados();
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -349,47 +347,68 @@ public static class DatosPruebaSeeder
     }
 
 
-    /// <summary>Clave de configuracion que decide si hay proveedor de IA real.</summary>
-    internal const string ClaveApiProveedorIa = "Anthropic:ApiKey";
-
     /// <summary>
-    /// Enciende <see cref="TipoDocumento.VerificacionIaActiva"/> en los tipos de
-    /// Trabajador del tenant actual, pero SOLO si hay un proveedor de IA
-    /// configurado de verdad.
+    /// Reconcilia la verificacion IA en TODOS los tenants de demo, no solo en
+    /// los que se acaban de sembrar.
     ///
-    /// <para>Mismo patron "inerte por defecto" que <c>BackupsOptions</c>,
-    /// <c>DataProtectionKmsOptions</c> o el propio asistente: sin clave esto no
-    /// hace nada y el comportamiento es identico al de antes. Con clave, la demo
-    /// muestra revisiones IA sin que nadie las encienda a mano en
-    /// <c>/tipos-documento</c>.</para>
+    /// <para><b>Por que hizo falta</b>: la primera version de esto (#338)
+    /// colgaba de los caminos de siembra, y en produccion encendio 39 tipos de
+    /// UN tenant de seis. Los otros cinco ya estaban sembrados —o se siembran
+    /// por rutas distintas, tres de ellos con 71 tipos en vez de 81— asi que
+    /// nunca pasaron por la llamada. El codigo era correcto, los tests verdes y
+    /// la sensibilidad probada; lo que fallaba era el sitio.</para>
     ///
-    /// <para><b>Por que solo Trabajador</b>: es la misma restriccion que impone
-    /// <c>ActualizarVerificacionIaGlobalCommand</c>, que rechaza cualquier otro
-    /// ambito. Sembrar mas amplio crearia un estado que el propio producto
-    /// declara invalido y que ninguna pantalla podria deshacer.</para>
+    /// <para>Reconciliar es idempotente por construccion: los que ya estan
+    /// activos no se recuentan ni se tocan. Por eso puede correr en cada
+    /// arranque sin efecto acumulativo.</para>
     ///
-    /// <para>Solo toca tenants de demo: todas las rutas que llaman aqui estan
-    /// detras de <c>DatosPrueba:Activo</c>.</para>
+    /// <para>Solo tenants de demo: se identifican por
+    /// <see cref="Tenant.DatosDemoCompletadosEnUtc"/>, que solo marca la siembra
+    /// de prueba. Un tenant real nunca lo tiene.</para>
     /// </summary>
-    internal static async Task<int> ActivarVerificacionIaSiHayProveedorAsync(
+    public static async Task ReconciliarVerificacionIaEnTenantsDeDemoAsync(
         CaeManagerDbContext dbContext, IConfiguration configuration, ILogger logger,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
+        if (!configuration.GetValue<bool>("DatosPrueba:Activo")) return;
+
         if (!HayProveedorIaConfigurado(configuration))
         {
             logger.LogInformation(
-                "Sin proveedor de IA configurado ({Clave}) - la verificacion IA queda apagada, " +
-                "como hasta ahora. Se enciende a mano desde /tipos-documento.",
+                "Sin proveedor de IA configurado ({Clave}) - la verificacion IA queda apagada.",
                 ClaveApiProveedorIa);
-            return 0;
+            return;
         }
 
-        var tipos = await dbContext.TiposDocumento.ToListAsync(cancellationToken);
-        var activados = ActivarVerificacionIaEnTiposDeTrabajador(tipos);
+        var tenantsDemo = await dbContext.Tenants
+            .Where(t => t.DatosDemoCompletadosEnUtc != null)
+            .Select(t => new { t.Id, t.Nombre })
+            .ToListAsync(cancellationToken);
+
+        var totalActivados = 0;
+        foreach (var tenant in tenantsDemo)
+        {
+            using (AmbitoTenantExplicito.Establecer(tenant.Id))
+            {
+                var tipos = await dbContext.TiposDocumento.ToListAsync(cancellationToken);
+                var activados = ActivarVerificacionIaEnTiposDeTrabajador(tipos);
+                if (activados == 0) continue;
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                totalActivados += activados;
+                logger.LogInformation(
+                    "Verificacion IA activada en {Tipos} tipos de Trabajador del tenant {Tenant}.",
+                    activados, tenant.Nombre);
+            }
+        }
+
         logger.LogInformation(
-            "Verificacion IA activada en {Tipos} tipos de documento de Trabajador.", activados);
-        return activados;
+            "Reconciliacion de verificacion IA: {Total} tipos activados en {Tenants} tenants de demo.",
+            totalActivados, tenantsDemo.Count);
     }
+
+    /// <summary>Clave de configuracion que decide si hay proveedor de IA real.</summary>
+    internal const string ClaveApiProveedorIa = "Anthropic:ApiKey";
 
     /// <summary>
     /// Decision pura, sin base de datos: hay proveedor de IA configurado?

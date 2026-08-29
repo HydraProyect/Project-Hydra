@@ -108,8 +108,6 @@ public static class DelegacionDemoSeeder
         using (AmbitoTenantExplicito.Establecer(refrielectricId))
         {
             await DatosPruebaSeeder.SembrarSoloDatosCompletosAsync(dbContext, logger, cancellationToken);
-            await DatosPruebaSeeder.ActivarVerificacionIaSiHayProveedorAsync(
-                dbContext, configuration, logger, cancellationToken);
             var gestoresRefrielectric = await SembrarUsuariosRefrielectricAsync(dbContext, userManager, userStore, credenciales, logger, cancellationToken);
             await SembrarEscenariosDashboardRefrielectricAsync(dbContext, gestoresRefrielectric, logger, cancellationToken);
         }
@@ -142,8 +140,6 @@ public static class DelegacionDemoSeeder
         using (AmbitoTenantExplicito.Establecer(tenantCliente2Id))
         {
             await DatosPruebaSeeder.SembrarSoloDatosAsync(dbContext, logger, cancellationToken);
-            await DatosPruebaSeeder.ActivarVerificacionIaSiHayProveedorAsync(
-                dbContext, configuration, logger, cancellationToken);
             await SembrarUsuariosDemo2Async(dbContext, userManager, userStore, credenciales, logger, cancellationToken);
         }
         await CrearDelegacionAsync(
