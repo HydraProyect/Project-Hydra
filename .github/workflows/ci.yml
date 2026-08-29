@@ -26,6 +26,19 @@ concurrency:
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # SUELO del reparto de tests de integracion (scripts/repartir-clases-de-test.sh).
+  #
+  # La comprobacion "el reparto cubrio todas las clases" compara dos numeros que
+  # salen de la MISMA deteccion: eso la protege de que los bloques deriven entre
+  # si, pero no de que la deteccion entera se rompa. Si `--list-tests` devolviera
+  # 3 clases en vez de 145, los dos lados dirian 3, coincidirian, y 142 clases no
+  # se ejecutarian en ningun bloque con el gate en verde. La igualdad no distingue
+  # "coinciden porque esta bien" de "coinciden porque los dos estan vacios".
+  #
+  # 145 clases el 2026-08-29; suelo en 120, con holgura para que no salte al
+  # crecer o menguar de forma normal. Es un ratchet: se sube cuando el numero real
+  # crezca de forma sostenida, nunca se baja para que pase un PR concreto.
+  MINIMO_CLASES: "120"
 
 jobs:
   # Los tests de integración eran el camino crítico del CI: medido el

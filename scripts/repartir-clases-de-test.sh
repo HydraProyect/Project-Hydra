@@ -47,6 +47,30 @@ if [ -z "$clases" ]; then
   exit 1
 fi
 
+# SUELO ABSOLUTO sobre el universo descubierto.
+#
+# Sin esto, un descubrimiento averiado se cuela en VERDE: si `--list-tests`
+# devolviera 3 clases en vez de 145, el reparto daria 3, la comprobacion de
+# cobertura del reparto compararia 3 contra 3, coincidirian, y 142 clases no se
+# ejecutarian en ninguna parte sin que nada fallara. Que los dos lados de esa
+# igualdad salgan del mismo codigo protege de la deriva entre ellos y expone al
+# colapso conjunto — el primer modo de fallo de la auditoria de ratchets.
+#
+# La igualdad no distingue "coinciden porque esta bien" de "coinciden porque
+# los dos estan vacios". El suelo si.
+#
+# Es un ratchet: se sube cuando el numero real crezca de forma sostenida,
+# nunca se baja para que pase un PR concreto.
+numero=$(printf '%s\n' "$clases" | wc -l | tr -d ' ')
+if [ -n "${MINIMO_CLASES:-}" ] && [ "$numero" -lt "$MINIMO_CLASES" ]; then
+  echo "Se descubrieron $numero clases de test, por debajo del suelo de $MINIMO_CLASES." >&2
+  echo "Esto no es un reparto malo: es un descubrimiento averiado. Repartir" >&2
+  echo "sobre una lista truncada dejaria clases sin ejecutar en ningun bloque," >&2
+  echo "y la comprobacion de cobertura del reparto no lo veria, porque sus dos" >&2
+  echo "lados saldrian de esta misma lista." >&2
+  exit 1
+fi
+
 mias=$(printf '%s\n' "$clases" | awk -v n="$total" -v k="$bloque" 'NR % n == (k % n)')
 
 if [ -z "$mias" ]; then

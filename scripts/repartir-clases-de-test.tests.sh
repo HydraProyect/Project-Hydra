@@ -66,6 +66,26 @@ LISTADO_DE_TESTS="$VACIO" bash "$GUION" proyecto 1 1 >/dev/null 2>&1
 comprobar "un listado sin clases sale con error" "1" "$?"
 rm -f "$VACIO"
 
+# EL SUELO. Un descubrimiento colapsado tiene que saltar POR EL SUELO, no por
+# la igualdad del reparto: esa comparacion no lo ve, porque sus dos lados
+# salen de la misma lista truncada.
+LISTADO_DE_TESTS="$LISTADO" MINIMO_CLASES=120 bash "$GUION" proyecto 1 1 >/dev/null 2>&1
+comprobar "4 clases con suelo de 120 salta" "1" "$?"
+
+salida=$(LISTADO_DE_TESTS="$LISTADO" MINIMO_CLASES=120 bash "$GUION" proyecto 1 1 2>&1 >/dev/null | head -1)
+case "$salida" in
+  *"por debajo del suelo"*) comprobar "y salta POR EL SUELO, no por otra cosa" "si" "si" ;;
+  *) comprobar "y salta POR EL SUELO, no por otra cosa" "si" "no ($salida)" ;;
+esac
+
+# Con el suelo por debajo del numero real, no estorba.
+LISTADO_DE_TESTS="$LISTADO" MINIMO_CLASES=4 bash "$GUION" proyecto 1 1 >/dev/null 2>&1
+comprobar "4 clases con suelo de 4 pasa" "0" "$?"
+
+# Sin suelo declarado, el guion no lo inventa.
+LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 1 1 >/dev/null 2>&1
+comprobar "sin MINIMO_CLASES no se aplica suelo" "0" "$?"
+
 # Argumentos invalidos: bloque fuera de rango.
 LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 4 5 >/dev/null 2>&1
 comprobar "bloque fuera de rango sale con error de uso" "2" "$?"
