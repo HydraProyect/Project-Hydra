@@ -2,6 +2,7 @@
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.BusquedaGlobal;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
@@ -218,6 +219,16 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     [Fact]
     public Task Aislamiento_ClaveApi() => VerificarAislamientoAsync(
         () => new ClaveApi("Integración de prueba", "hydra_ab12cd", $"hash-{Guid.NewGuid():N}", Guid.NewGuid()));
+
+    // Command Palette, grupo "Recientes" (ver plan de implementación) — mismo
+    // UsuarioId en ambos tenants a propósito: el aislamiento tiene que venir
+    // del TenantId, no de que los usuarios de prueba resulten distintos.
+    [Fact]
+    public Task Aislamiento_EventoRecienteUsuario() => VerificarAislamientoAsync(
+        () => new EventoRecienteUsuario(
+            _usuarioCompartido, "Cliente", Guid.NewGuid(), "Refrielectric S.A.", "Cliente", "/clientes?q=Refrielectric"));
+
+    private static readonly Guid _usuarioCompartido = Guid.NewGuid();
 
     // --- tablas de unión/satélite (EntidadConTenant directa, sin soft delete) ---
 

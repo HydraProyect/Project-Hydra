@@ -4,6 +4,7 @@ using CaeManager.Application.ApiKeys;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Auditoria;
 using CaeManager.Application.Blindaje42;
+using CaeManager.Application.BusquedaGlobal;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Configuracion;
@@ -34,6 +35,7 @@ using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Blindaje42;
+using CaeManager.Domain.BusquedaGlobal;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
@@ -83,7 +85,8 @@ public class CaeManagerDbContext(
         ITelemetriaQueryContext, CaeManager.Application.Contactos.IContactosAgendaQueryContext,
         CaeManager.Application.Plantillas.IPlantillasQueryContext, IImportacionQueryContext, IReportesQueryContext,
         IOperacionesQueryContext, CaeManager.Application.Plataforma.IPlataformaQueryContext,
-        IBlindaje42QueryContext
+        IBlindaje42QueryContext,
+        IBusquedaGlobalQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -288,6 +291,8 @@ public class CaeManagerDbContext(
     IQueryable<HistorialImportacion> IImportacionQueryContext.HistorialImportaciones => HistorialImportaciones;
     public DbSet<HistorialInforme> HistorialInformes => Set<HistorialInforme>();
     IQueryable<HistorialInforme> IReportesQueryContext.HistorialInformes => HistorialInformes;
+    public DbSet<EventoRecienteUsuario> EventosRecientesUsuario => Set<EventoRecienteUsuario>();
+    IQueryable<EventoRecienteUsuario> IBusquedaGlobalQueryContext.EventosRecientesUsuario => EventosRecientesUsuario;
     public DbSet<ConexionIntegracion> ConexionesIntegracion => Set<ConexionIntegracion>();
     IQueryable<ConexionIntegracion> IIntegracionesQueryContext.ConexionesIntegracion => ConexionesIntegracion;
     public DbSet<CredencialIntegracion> CredencialesIntegracion => Set<CredencialIntegracion>();

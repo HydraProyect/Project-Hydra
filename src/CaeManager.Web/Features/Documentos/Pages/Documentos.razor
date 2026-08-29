@@ -33,6 +33,7 @@
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">Documentos</h1>
         <div class="acciones-cabecera">
+            <a class="enlace-exportar" href="/documentos/exportar.xlsx">Exportar a Excel</a>
             <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
                 <a class="enlace-exportar" href="/importacion?plantilla=documentos">Importar documentos</a>
             </AuthorizeView>

@@ -208,6 +208,17 @@ public partial class Clientes : ComponentBase
         _busqueda = deLaUrl;
         _soloCriticos = soloCriticosDeLaUrl;
 
+        // A diferencia de "accion=crear" (OnInitializedAsync, solo se
+        // ejecuta al montar: siempre llega desde otra página), "guardar-filtro"
+        // tiene que funcionar estando YA en /clientes — el propio Command
+        // Palette navega a la misma ruta añadiendo el query string, sin
+        // recrear el componente. OnParametersSet es el único hook que se
+        // re-ejecuta en ese caso, y se ejecuta después de resincronizar los
+        // filtros de arriba desde la URL, así que el modal parte de los
+        // filtros ya vigentes en pantalla.
+        if (Accion == "guardar-filtro")
+            _mostrarGuardarFiltro = true;
+
         return cambio && _grid is not null ? RecargarAsync() : Task.CompletedTask;
     }
 

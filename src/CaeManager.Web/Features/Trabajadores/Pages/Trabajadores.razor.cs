@@ -201,6 +201,17 @@ public partial class Trabajadores : ComponentBase
             : string.Empty;
         if (estadoDeLaUrl != _estadoFiltro)
             _estadoFiltro = estadoDeLaUrl;
+
+        // A diferencia de "accion=crear" (OnInitializedAsync, solo se
+        // ejecuta al montar: siempre llega desde otra página), "guardar-filtro"
+        // tiene que funcionar estando YA en /trabajadores — el propio Command
+        // Palette navega a la misma ruta añadiendo el query string, sin
+        // recrear el componente. OnParametersSet es el único hook que se
+        // re-ejecuta en ese caso, y se ejecuta después de resincronizar los
+        // filtros de arriba desde la URL, así que el modal parte de los
+        // filtros ya vigentes en pantalla.
+        if (Accion == "guardar-filtro")
+            _mostrarGuardarFiltro = true;
     }
 
     private async Task CambiarEstadoAsync(string valor)

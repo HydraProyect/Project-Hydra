@@ -172,6 +172,17 @@ public partial class Documentos : ComponentBase
         // valor que no exista en vez de dejar la página en blanco.
         if (!string.IsNullOrWhiteSpace(Pestana) && _pestanasDocumentos.Any(p => p.Id == Pestana))
             _pestanaActiva = Pestana;
+
+        // A diferencia de "accion=crear" (OnAfterRenderAsync, solo primer
+        // render: siempre llega desde otra página), "guardar-filtro" tiene
+        // que funcionar estando YA en /documentos — el propio Command
+        // Palette navega a la misma ruta añadiendo el query string, sin
+        // recrear el componente. OnParametersSet es el único hook que se
+        // re-ejecuta en ese caso, y se ejecuta después de resincronizar los
+        // filtros de arriba desde la URL, así que el modal parte de los
+        // filtros ya vigentes en pantalla.
+        if (Accion == "guardar-filtro")
+            _mostrarGuardarFiltro = true;
     }
 
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
