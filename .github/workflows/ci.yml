@@ -802,6 +802,10 @@ jobs:
           # personal no hacía falta ninguna. La clave de organización es hoy
           # gratuita (gitleaks.io); el binario que ejecuta por debajo es MIT.
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          # Explicito a proposito: sin esto dependeriamos de que la Action
+          # busque .gitleaks.toml por su cuenta, y un fallo silencioso ahi se
+          # parece a "no hay excepciones configuradas" en vez de a un error.
+          GITLEAKS_CONFIG: .gitleaks.toml
 
   deploy-script-tests:
     name: Prueba de mutación — SHA determinista en el despliegue
