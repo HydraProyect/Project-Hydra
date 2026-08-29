@@ -812,6 +812,9 @@ jobs:
       - name: deploy/resolve-deploy-sha.tests.sh
         run: bash deploy/resolve-deploy-sha.tests.sh
 
+      - name: deploy/liberar-disco.tests.sh
+        run: bash deploy/liberar-disco.tests.sh
+
   licencias-dependencias:
     name: Licencias de dependencias
     runs-on: ubuntu-latest
