@@ -189,12 +189,9 @@ jobs:
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest
-    # Espera a los bloques de integración porque el ratchet de cobertura de
-    # más abajo se calcula sobre Domain + Application + Integration, y este
-    # job es el que la protección de rama exige por nombre. Ya no necesita
-    # PostgreSQL ni LibreOffice: los únicos tests que los usaban se fueron a
-    # `tests-integracion`.
-    needs: tests-integracion
+    # Ya no espera a los bloques: la agregacion vive en su propio job, asi
+    # que este corre en paralelo con ellos en vez de detras. No necesita
+    # PostgreSQL ni LibreOffice.
     steps:
       - uses: actions/checkout@v7
 
@@ -232,6 +229,72 @@ jobs:
       - name: Tests de arquitectura
         run: dotnet test tests/CaeManager.Architecture.Tests --no-restore --logger "console;verbosity=normal"
 
+
+      # El descubrimiento se hace AQUI, sobre el arbol recien compilado, y se
+      # publica. Asi el job de agregacion no necesita restaurar ni compilar
+      # solo para poder listar — y sobre todo, no puede listar contra un
+      # ensamblado rancio: eso devolvio una vez un test fantasma que ya no
+      # existia en el codigo.
+      - name: Publicar la lista de tests descubiertos
+        run: |
+          mkdir -p descubrimiento
+          dotnet test tests/CaeManager.IntegrationTests --no-build --list-tests > descubrimiento/lista.txt
+
+      - name: Publicar el descubrimiento
+        uses: actions/upload-artifact@v4
+        with:
+          name: descubrimiento-de-tests
+          path: descubrimiento
+          retention-days: 1
+
+      - name: Publicar la cobertura de Domain y Application
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-unitarios
+          path: coverage
+          retention-days: 1
+
+  # LA AGREGACION, EN SU PROPIO JOB.
+  #
+  # Vivia dentro de "Build, format y tests", que por eso tenia que esperar a
+  # los cuatro bloques: sus ~4,5 min propios se sumaban a los ~12,5 de ellos en
+  # vez de solaparse. Separandola, aquel job corre en paralelo con los bloques
+  # y solo esta agregacion queda detras.
+  #
+  # ESTE JOB TIENE QUE SER UN REQUIRED STATUS CHECK. Aqui viven el ratchet de
+  # cobertura y las dos comprobaciones del reparto; si no es obligatorio, puede
+  # fallar sin bloquear nada y las tres guardas se vuelven decorativas.
+  # El nombre hay que darlo de alta en la proteccion de rama DESPUES de que
+  # este workflow este en main — darlo antes deja a todos los PR esperando un
+  # check que nadie puede reportar todavia.
+  cobertura-y-reparto:
+    name: Cobertura y reparto de tests
+    runs-on: ubuntu-latest
+    needs: [build-and-test, tests-integracion]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      # Solo para reportgenerator; no se compila nada en este job.
+      - name: Restaurar herramientas locales
+        run: dotnet tool restore
+
+      - name: Recoger el descubrimiento
+        uses: actions/download-artifact@v4
+        with:
+          name: descubrimiento-de-tests
+          path: descubrimiento
+
+      - name: Recoger la cobertura de Domain y Application
+        uses: actions/download-artifact@v4
+        with:
+          name: cobertura-unitarios
+          path: coverage
+
       - name: Recoger el reparto de los bloques
         uses: actions/download-artifact@v4
         with:
@@ -263,7 +326,7 @@ jobs:
       # que el paso de ejecucion tome el recuento del .trx.
       - name: Comprobar que el reparto cubrio todas las clases
         run: |
-          REPARTO_SALIDA=/tmp/esperadas-sin-ordenar.txt bash scripts/repartir-clases-de-test.sh tests/CaeManager.IntegrationTests 1 1 > /dev/null
+          LISTADO_DE_TESTS=descubrimiento/lista.txt REPARTO_SALIDA=/tmp/esperadas-sin-ordenar.txt bash scripts/repartir-clases-de-test.sh sin-compilar 1 1 > /dev/null
           sort /tmp/esperadas-sin-ordenar.txt > /tmp/esperadas.txt
           cat reparto/bloque-*.txt | sort > /tmp/repartidas.txt
           esperadas=$(wc -l < /tmp/esperadas.txt)
@@ -320,7 +383,7 @@ jobs:
       # existia en el codigo.
       - name: Comprobar que se ejecutaron todos los tests
         run: |
-          esperados=$(dotnet test tests/CaeManager.IntegrationTests --no-build --list-tests | grep -cE "^[[:space:]]+CaeManager\.IntegrationTests\.")
+          esperados=$(grep -cE "^[[:space:]]+CaeManager\.IntegrationTests\." descubrimiento/lista.txt)
           sumados=0
           for f in $(find coverage/integration -name "bloque-*.trx"); do
             n=$(grep -o "total=\"[0-9]*\"" "$f" | head -1 | grep -o "[0-9]*")
