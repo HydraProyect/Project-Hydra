@@ -125,13 +125,27 @@ jobs:
       # Ese guion falla si el bloque quedase vacio, en vez de dejar correr un
       # `dotnet test` con un filtro que no casa con nada — que termina en
       # VERDE sin ejecutar un solo test.
+      # El listado se saca AQUI y se guarda, porque este job es el unico que
+      # tiene PostgreSQL delante — y el descubrimiento lo necesita.
+      #
+      # Medido el 2026-08-29: sin base de datos alcanzable, `--list-tests`
+      # devuelve 773 entradas en vez de 783, con codigo de salida 0 y sin un
+      # solo aviso. Las 15 que faltan son los casos de las cinco [Theory] con
+      # MemberData de AislamientoRlsCentroYSatelitesTests: el inicializador de
+      # modulo del bootstrap de cluster toca la base al cargar el ensamblado, y
+      # sin ella xUnit no puede expandir los datos, asi que las lista sin
+      # expandir. Son los tests de aislamiento RLS.
+      #
+      # Calcular el denominador donde no hay base de datos comparaba un
+      # descubrimiento degradado contra una ejecucion completa.
       - name: Repartir las clases de test en este bloque
         id: reparto
         run: |
-          filtro=$(bash scripts/repartir-clases-de-test.sh tests/CaeManager.IntegrationTests 4 ${{ matrix.bloque }})
-          echo "filtro=$filtro" >> "$GITHUB_OUTPUT"
           mkdir -p reparto
-          REPARTO_SALIDA=reparto/bloque-${{ matrix.bloque }}.txt bash scripts/repartir-clases-de-test.sh tests/CaeManager.IntegrationTests 4 ${{ matrix.bloque }} > /dev/null
+          dotnet test tests/CaeManager.IntegrationTests --no-build --list-tests > reparto/listado-bloque-${{ matrix.bloque }}.txt
+          filtro=$(LISTADO_DE_TESTS=reparto/listado-bloque-${{ matrix.bloque }}.txt bash scripts/repartir-clases-de-test.sh sin-compilar 4 ${{ matrix.bloque }})
+          echo "filtro=$filtro" >> "$GITHUB_OUTPUT"
+          LISTADO_DE_TESTS=reparto/listado-bloque-${{ matrix.bloque }}.txt REPARTO_SALIDA=reparto/bloque-${{ matrix.bloque }}.txt bash scripts/repartir-clases-de-test.sh sin-compilar 4 ${{ matrix.bloque }} > /dev/null
 
       - name: Ejecutar el bloque
         run: >
@@ -230,23 +244,6 @@ jobs:
         run: dotnet test tests/CaeManager.Architecture.Tests --no-restore --logger "console;verbosity=normal"
 
 
-      # El descubrimiento se hace AQUI, sobre el arbol recien compilado, y se
-      # publica. Asi el job de agregacion no necesita restaurar ni compilar
-      # solo para poder listar — y sobre todo, no puede listar contra un
-      # ensamblado rancio: eso devolvio una vez un test fantasma que ya no
-      # existia en el codigo.
-      - name: Publicar la lista de tests descubiertos
-        run: |
-          mkdir -p descubrimiento
-          dotnet test tests/CaeManager.IntegrationTests --no-build --list-tests > descubrimiento/lista.txt
-
-      - name: Publicar el descubrimiento
-        uses: actions/upload-artifact@v4
-        with:
-          name: descubrimiento-de-tests
-          path: descubrimiento
-          retention-days: 1
-
       - name: Publicar la cobertura de Domain y Application
         uses: actions/upload-artifact@v4
         with:
@@ -283,12 +280,6 @@ jobs:
       - name: Restaurar herramientas locales
         run: dotnet tool restore
 
-      - name: Recoger el descubrimiento
-        uses: actions/download-artifact@v4
-        with:
-          name: descubrimiento-de-tests
-          path: descubrimiento
-
       - name: Recoger la cobertura de Domain y Application
         uses: actions/download-artifact@v4
         with:
@@ -301,6 +292,20 @@ jobs:
           pattern: reparto-bloque-*
           path: reparto
           merge-multiple: true
+
+      # Los cuatro bloques descubren por separado. Si discreparan, el
+      # denominador dependeria de cual se mirase, asi que se exige que los
+      # cuatro listados sean identicos antes de usar el del bloque 1.
+      - name: Comprobar que los cuatro bloques descubrieron lo mismo
+        run: |
+          for b in 2 3 4; do
+            if ! diff -q reparto/listado-bloque-1.txt "reparto/listado-bloque-$b.txt" > /dev/null; then
+              echo "::error::El bloque $b descubrio una lista distinta a la del bloque 1. El denominador no seria fiable."
+              diff reparto/listado-bloque-1.txt "reparto/listado-bloque-$b.txt" | head -20
+              exit 1
+            fi
+          done
+          echo "Los cuatro bloques descubrieron la misma lista."
 
       # EL REPARTO CUBRIO LA SUITE ENTERA.
       #
@@ -326,7 +331,7 @@ jobs:
       # que el paso de ejecucion tome el recuento del .trx.
       - name: Comprobar que el reparto cubrio todas las clases
         run: |
-          LISTADO_DE_TESTS=descubrimiento/lista.txt REPARTO_SALIDA=/tmp/esperadas-sin-ordenar.txt bash scripts/repartir-clases-de-test.sh sin-compilar 1 1 > /dev/null
+          LISTADO_DE_TESTS=reparto/listado-bloque-1.txt REPARTO_SALIDA=/tmp/esperadas-sin-ordenar.txt bash scripts/repartir-clases-de-test.sh sin-compilar 1 1 > /dev/null
           sort /tmp/esperadas-sin-ordenar.txt > /tmp/esperadas.txt
           cat reparto/bloque-*.txt | sort > /tmp/repartidas.txt
           esperadas=$(wc -l < /tmp/esperadas.txt)
@@ -383,7 +388,7 @@ jobs:
       # existia en el codigo.
       - name: Comprobar que se ejecutaron todos los tests
         run: |
-          esperados=$(grep -cE "^[[:space:]]+CaeManager\.IntegrationTests\." descubrimiento/lista.txt)
+          esperados=$(grep -cE "^[[:space:]]+CaeManager\.IntegrationTests\." reparto/listado-bloque-1.txt)
           sumados=0
           for f in $(find coverage/integration -name "bloque-*.trx"); do
             n=$(grep -o "total=\"[0-9]*\"" "$f" | head -1 | grep -o "[0-9]*")
