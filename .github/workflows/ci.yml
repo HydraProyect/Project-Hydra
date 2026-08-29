@@ -298,6 +298,41 @@ jobs:
           pattern: cobertura-integracion-*
           path: coverage/integration
           merge-multiple: true
+      # SE EJECUTARON TODOS LOS TESTS, no solo todas las clases.
+      #
+      # La comprobacion de clases detecta que un bloque se deje una clase
+      # entera fuera. No detecta que una clase corra A MEDIAS — que es lo que
+      # ocurrio el 2026-08-29 construyendo esto: un filtro contaminado ejecuto
+      # 210 de 212 tests de un bloque, en verde, con todas sus clases
+      # presentes. Esta comprobacion si lo habria visto.
+      #
+      # `total` del .trx es el contador correcto: incluye los omitidos
+      # (medido — un bloque con 4 omitidos da total=206 y executed=202).
+      # Contra `executed` faltarian los 4 omitidos de la suite y el gate
+      # fallaria solo. Y el atributo `notExecuted` de <Counters> es una trampa:
+      # vale 0 aunque haya omitidos, asi que no sirve para contarlos.
+      #
+      # Los dos lados se miden en ESTE run, nunca contra un numero escrito a
+      # mano: un numero fijo envejece con cada test nuevo y acaba bajandose
+      # para que pase un PR, que es como mueren estas guardas. El descubrimiento
+      # se hace ademas sobre el arbol recien compilado — listar con --no-build
+      # sobre un ensamblado rancio devolvio una vez un test fantasma que ya no
+      # existia en el codigo.
+      - name: Comprobar que se ejecutaron todos los tests
+        run: |
+          esperados=$(dotnet test tests/CaeManager.IntegrationTests --no-build --list-tests | grep -cE "^[[:space:]]+CaeManager\.IntegrationTests\.")
+          sumados=0
+          for f in $(find coverage/integration -name "bloque-*.trx"); do
+            n=$(grep -o "total=\"[0-9]*\"" "$f" | head -1 | grep -o "[0-9]*")
+            echo "  $(basename "$f"): ${n:-0}"
+            sumados=$((sumados + ${n:-0}))
+          done
+          echo "Tests descubiertos: $esperados — ejecutados entre los bloques: $sumados"
+          if [ "$esperados" -ne "$sumados" ]; then
+            echo "::error::Los bloques ejecutaron $sumados tests de $esperados. Si faltan, alguna clase corrio a medias o un filtro no caso con todo lo suyo; si sobran, algun test se ejecuto en dos bloques."
+            exit 1
+          fi
+
 
       # MarkdownSummaryGithub: pensado por ReportGenerator específicamente
       # para $GITHUB_STEP_SUMMARY — aparece en la pestaña Summary del run,
