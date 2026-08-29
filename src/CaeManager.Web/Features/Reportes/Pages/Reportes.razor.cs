@@ -175,6 +175,12 @@ public partial class Reportes : ComponentBase
 
             await Task.WhenAll(tarea, Task.Delay(1400));
 
+            // Null = el Cliente/Centro pedido cae fuera de la cartera del
+            // usuario (ver GenerarInformeVigenciaQuery). No es alcanzable desde
+            // esta pantalla —el selector ya viene acotado—, pero si llegara a
+            // pasar no hay informe que enseñar ni nada que registrar.
+            if (!TienePlan) return;
+
             var nombreCliente = ClienteIdActual is not null
                 ? _clientesDisponibles.FirstOrDefault(c => c.Id == ClienteIdActual)?.RazonSocial
                 : null;
