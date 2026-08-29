@@ -1,0 +1,35 @@
+# Configuración de gitleaks para este repositorio.
+#
+# Se extienden las reglas por defecto: aquí NO se desactiva ninguna. Lo único
+# que se añade es una excepción, y está construida para que no pueda ocultar
+# un secreto ni por accidente.
+#
+# EL PROBLEMA. Las plantillas `deploy/local/*.example` declaran los nombres de
+# las variables con el valor vacío, para que quien despliega sepa cuáles hay
+# que rellenar. La regla `generic-api-key` marca algunas de esas líneas por el
+# NOMBRE —«ClaveApi», «Contrasena»— aunque no haya ningún valor detrás.
+# Ocurrió el 2026-08-29 con `DatosPrueba__ClaveApiActiva=` en
+# `.env.staging.example`, añadida precisamente para documentar que esa clave
+# es obligatoria si la siembra está activa.
+#
+# POR QUÉ ESTA EXCEPCIÓN ES SEGURA. Solo exime líneas que terminan en `=` sin
+# absolutamente nada detrás. Una línea así no contiene un secreto: no hay
+# valor que filtrar. En el momento en que alguien escriba algo a la derecha
+# del `=` —un valor real, aunque sea de prueba— la línea deja de casar con
+# esta excepción y gitleaks vuelve a examinarla con todas las reglas.
+#
+# Es decir: la excepción no se apoya en confiar en un fichero ni en una ruta.
+# Se apoya en una propiedad comprobable de la propia línea. Por eso NO se
+# excluye `deploy/local/` ni `*.example` por ruta, que sería lo cómodo y lo
+# peligroso: bastaría con que alguien commiteara una plantilla rellenada por
+# error para que el escaneo no dijera nada.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Asignaciones con el valor vacío: nombres de variable sin secreto detrás"
+regexTarget = "line"
+regexes = [
+  '''^\s*[A-Za-z_][A-Za-z0-9_]*\s*=\s*$''',
+]
