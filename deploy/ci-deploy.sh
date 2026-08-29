@@ -27,6 +27,18 @@ esac
 
 bash /opt/talveg/deploy/resolve-deploy-sha.sh /opt/talveg "${SHA:-}"
 
+# Antes de construir: mantener el disco por debajo del umbral. Un build en un
+# disco lleno no falla de forma legible —da errores de NuGet que no mencionan
+# el disco— y, peor, deja a PostgreSQL sin poder escribir, lo que tumba
+# produccion aunque nadie haya desplegado nada. Paso el 2026-08-26 y otra vez
+# el 2026-08-29, con 23 GB de cache de build sin usar acumulada porque este
+# guion no la retiraba nunca.
+#
+# Si tras liberar el disco sigue critico, liberar-disco.sh corta aqui: mejor
+# un despliegue que no arranca con un mensaje claro que uno que se rompe a
+# medias y se lleva la base de datos por delante.
+bash /opt/talveg/deploy/liberar-disco.sh
+
 cd /opt/talveg/deploy/local
 case "$ENTORNO" in
   staging)

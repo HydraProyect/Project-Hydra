@@ -1,0 +1,49 @@
+# Configuración de gitleaks para este repositorio.
+#
+# Se extienden las reglas por defecto: aquí NO se desactiva ninguna. Lo único
+# que se añade es una excepción, y es la misma que gitleaks ya trae de serie,
+# ampliada a un caso que su versión no cubre.
+#
+# EL MECANISMO, que no es evidente. La regla `generic-api-key` termina así:
+#
+#     ... = [\x60'"\s=]{0,5} ([\w.=-]{10,150}) ...
+#
+# Ese `\s` incluye el SALTO DE LÍNEA. Así que ante dos variables vacías
+# seguidas:
+#
+#     DatosPrueba__ClaveApiActiva=
+#     DatosPrueba__ClaveApiRevocada=
+#
+# gitleaks toma como «secreto» la LÍNEA SIGUIENTE — el nombre de la segunda
+# variable— y marca la primera. Por eso marcaba la línea 50 de
+# `.env.staging.example` y no la 51, y por eso una excepción anclada a una
+# sola línea no servía: el hallazgo abarca dos.
+#
+# La propia regla ya trae una excepción para exactamente esto:
+#
+#     (?-i:(?:[A-Z_]+=\n[A-Z_]+=|[a-z_]+=\n[a-z_]+=)(?:\n|\z))
+#
+# pero solo contempla nombres en MAYÚSCULAS o en minúsculas. Los de este
+# proyecto son PascalCase con doble guion bajo (`DatosPrueba__ClaveApiActiva`),
+# así que quedan fuera. Lo de abajo es esa misma excepción admitiendo mayúsculas
+# y minúsculas mezcladas.
+#
+# POR QUÉ NO PUEDE OCULTAR UN SECRETO. Solo exime el caso en que el supuesto
+# secreto es, literalmente, «un nombre de variable seguido de `=` y nada más».
+# En cuanto haya un valor detrás del igual, el texto deja de casar y la regla
+# se aplica entera. Comprobado contra `sk-ant-api03-...`, `hunter2...` y un
+# valor en base64 terminado en `=`: los tres siguen detectándose.
+#
+# Deliberadamente NO se excluye `deploy/local/` ni `*.example` por ruta, que
+# era la salida cómoda: bastaría con que alguien commiteara una plantilla
+# rellenada por error para que el escaneo se callara.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Dos asignaciones vacías seguidas: el «secreto» detectado es el nombre de la variable de la línea siguiente"
+regexTarget = "match"
+regexes = [
+  '''(?-i:(?:[A-Za-z_][A-Za-z0-9_]*=\n[A-Za-z_][A-Za-z0-9_]*=)(?:\n|\z))''',
+]
