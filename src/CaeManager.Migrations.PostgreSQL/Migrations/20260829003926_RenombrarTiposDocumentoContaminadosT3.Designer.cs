@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20260828171712_F3cRetiradaClientesSubcontratasLegacy")]
-    partial class F3cRetiradaClientesSubcontratasLegacy
+    [Migration("20260829003926_RenombrarTiposDocumentoContaminadosT3")]
+    partial class RenombrarTiposDocumentoContaminadosT3
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -1863,7 +1863,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionCondicionada",
-                            Nombre = "Apto médico laboral",
+                            Nombre = "Certificado de aptitud médica",
                             Notas = "Renovación anual estándar. Obligatorio por defecto (2026-08-09): sí o sí exigido en CAE.",
                             Orden = 1,
                             PerfilDocumentoOficial = "Ninguno",
@@ -1880,7 +1880,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "PracticaSector",
-                            Nombre = "EPIS (firma)",
+                            Nombre = "Entrega de EPI",
                             Notas = "Se firman cada año según nota de origen. Obligatorio por defecto (2026-08-09): justificante de entrega de EPIs.",
                             Orden = 2,
                             PerfilDocumentoOficial = "Ninguno",
@@ -2156,7 +2156,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Formación EPIs",
-                            Notas = "Distinto de \"EPIS (firma)\" (la entrega/firma de recepción) — esta es la formación de uso.",
+                            Notas = "Distinto de \"Entrega de EPI\" (antes \"EPIS (firma)\"; la entrega/firma de recepción) — esta es la formación de uso.",
                             Orden = 19,
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
@@ -2445,7 +2445,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "DNI o NIE en vigor",
+                            Nombre = "Documento de identidad",
                             Notas = "Verifica identidad y permiso de trabajo. Vigencia según DGT/Extranjería — vencimiento manual. Obligatorio por defecto (2026-08-09).",
                             Orden = 37,
                             PerfilDocumentoOficial = "Ninguno",
@@ -2511,7 +2511,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "RLC/TC1",
+                            Nombre = "RLC",
                             Notas = "Mensual — el documento de un periodo (p. ej. 01/05) vence 3 meses después (01/08), porque tarda en emitirse con la fecha del periodo ya pasada.",
                             Orden = 19,
                             PerfilDocumentoOficial = "Rlc",
@@ -2529,7 +2529,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Recibo de pago RLC/TC1",
-                            Notas = "Mismo criterio de vigencia que el RLC/TC1.",
+                            Notas = "Mismo criterio de vigencia que el RLC.",
                             Orden = 20,
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
@@ -2546,7 +2546,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "RLC/TC1 + Recibo de pago",
-                            Notas = "Variante combinada — mismo criterio de vigencia que el RLC/TC1.",
+                            Notas = "Variante combinada — mismo criterio de vigencia que el RLC.",
                             Orden = 21,
                             PerfilDocumentoOficial = "Rlc",
                             Requerido = "Si",
@@ -2562,8 +2562,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             DeteccionTrabajadoresActiva = true,
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "RNT/TC2",
-                            Notas = "Mismo criterio que el RLC/TC1.",
+                            Nombre = "RNT",
+                            Notas = "Mismo criterio que el RLC.",
                             Orden = 22,
                             PerfilDocumentoOficial = "Rnt",
                             Requerido = "Si",
@@ -2611,7 +2611,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "PracticaSector",
-                            Nombre = "SPA (Servicio de Prevención Ajeno)",
+                            Nombre = "Servicio de Prevención Ajeno",
                             Notas = "Debe venir acompañado de un certificado de pago que indica la fecha fin de validez — se introduce esa fecha manualmente.",
                             Orden = 25,
                             PerfilDocumentoOficial = "Ninguno",
@@ -2627,7 +2627,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionLegal",
-                            Nombre = "EVR (Evaluación de Riesgos Laborales)",
+                            Nombre = "Evaluación de Riesgos Laborales",
                             Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
                             Orden = 26,
                             PerfilDocumentoOficial = "Ninguno",
@@ -2643,7 +2643,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionLegal",
-                            Nombre = "PAP (Planificación de la Actividad Preventiva)",
+                            Nombre = "Planificación de la Actividad Preventiva",
                             Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
                             Orden = 27,
                             PerfilDocumentoOficial = "Ninguno",
@@ -2659,7 +2659,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "Tarjeta CIF",
+                            Nombre = "Tarjeta de identificación fiscal",
                             Notas = "Opcional — no obligatorio para todos los clientes.",
                             Orden = 28,
                             PerfilDocumentoOficial = "Ninguno",
@@ -3194,6 +3194,120 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsUnique();
 
                     b.ToTable("TiposDocumentoAlias", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000001"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Apto médico laboral",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000002"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "EPIS (firma)",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000003"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "DNI o NIE en vigor",
+                            TipoDocumentoId = new Guid("50000016-0000-0000-0000-000000000016")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000004"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "DNI/NIE/TIE",
+                            TipoDocumentoId = new Guid("50000016-0000-0000-0000-000000000016")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000005"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "RLC/TC1",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000004")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000006"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "TC1",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000004")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000007"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "RNT/TC2",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000007")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000008"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "TC2",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000007")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000009"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "SPA (Servicio de Prevención Ajeno)",
+                            TipoDocumentoId = new Guid("2000000a-0000-0000-0000-00000000000a")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000010"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "SPA",
+                            TipoDocumentoId = new Guid("2000000a-0000-0000-0000-00000000000a")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000011"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "EVR (Evaluación de Riesgos Laborales)",
+                            TipoDocumentoId = new Guid("2000000b-0000-0000-0000-00000000000b")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000012"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "EVR",
+                            TipoDocumentoId = new Guid("2000000b-0000-0000-0000-00000000000b")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000013"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "PAP (Planificación de la Actividad Preventiva)",
+                            TipoDocumentoId = new Guid("2000000c-0000-0000-0000-00000000000c")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000014"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "PAP",
+                            TipoDocumentoId = new Guid("2000000c-0000-0000-0000-00000000000c")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000015"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Tarjeta CIF",
+                            TipoDocumentoId = new Guid("2000000d-0000-0000-0000-00000000000d")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000000-0000-0000-0000-000000000016"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "CIF",
+                            TipoDocumentoId = new Guid("2000000d-0000-0000-0000-00000000000d")
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.TipoDocumentoCentro", b =>

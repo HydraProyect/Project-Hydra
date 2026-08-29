@@ -53,7 +53,7 @@ public class ImportacionTests(WebAppFixture fixture)
         hojaEmpleados.Cell(4, 2).Value = nombreTrabajador;
         hojaEmpleados.Cell(4, 3).Value = apellidosTrabajador;
         hojaEmpleados.Cell(4, 4).Value = dniTrabajador;
-        hojaEmpleados.Cell(4, 7).Value = fechaEmision; // Columna G: Apto médico laboral (ver ColumnasDocumentos).
+        hojaEmpleados.Cell(4, 7).Value = fechaEmision; // Columna G: Certificado de aptitud médica (ver ColumnasDocumentos).
 
         // Hoja obligatoria para el parser (ver ClosedXmlImportacionParser) —
         // sin datos, el bucle de Empleados/Extranjeros la deja vacía sin
@@ -146,7 +146,7 @@ public class ImportacionTests(WebAppFixture fixture)
         await page.GetByPlaceholder("Buscar por propietario o tipo de documento…").FillAsync(apellidosTrabajador);
         var filaDocumento = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await Expect(filaDocumento).ToContainTextAsync("Apto médico laboral");
+        await Expect(filaDocumento).ToContainTextAsync("Certificado de aptitud médica");
 
         // --- Verificación real de lo que NO ocurrió: ni Cliente ni Centro existen con este nombre ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");

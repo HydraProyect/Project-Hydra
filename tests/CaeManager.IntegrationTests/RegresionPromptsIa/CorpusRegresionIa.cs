@@ -41,8 +41,8 @@ public static class CorpusRegresionIa
     public static IReadOnlyList<DocumentoCorpusIa> Documentos { get; } =
     [
         new DocumentoCorpusIa(
-            Nombre: "Apto médico laboral",
-            TipoEsperado: "Apto médico laboral",
+            Nombre: "Certificado de aptitud médica",
+            TipoEsperado: "Certificado de aptitud médica",
             Texto: """
                 SERVICIO DE PREVENCIÓN MANCOMUNADO FICTICIO
                 CERTIFICADO DE APTITUD MÉDICA
@@ -106,8 +106,8 @@ public static class CorpusRegresionIa
             }),
 
         new DocumentoCorpusIa(
-            Nombre: "RNT/TC2 de empresa",
-            TipoEsperado: "RNT/TC2",
+            Nombre: "RNT de empresa",
+            TipoEsperado: "RNT",
             Texto: """
                 TESORERÍA GENERAL DE LA SEGURIDAD SOCIAL (SIMULACIÓN)
                 RELACIÓN NOMINAL DE TRABAJADORES (RNT) — MODELO TC2

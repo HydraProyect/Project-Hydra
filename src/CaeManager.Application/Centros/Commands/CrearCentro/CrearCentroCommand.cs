@@ -54,8 +54,8 @@ public class CrearCentroCommandHandler(
     /// </summary>
     private static readonly string[] NombresCatalogoMinimo =
     [
-        "Apto médico laboral",
-        "EPIS (firma)",
+        "Certificado de aptitud médica",
+        "Entrega de EPI",
         "Formación Art. 19",
         "Información Art. 18"
     ];

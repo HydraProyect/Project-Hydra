@@ -49,9 +49,9 @@ public class ObtenerDocumentacionRequeridaDeCentroQueryTests : IAsyncLifetime
 
         // A propósito: ningún TipoDocumentoCentro para este Centro. Es el
         // caso real de todo el catálogo semilla (ver DatosPruebaSeeder): el
-        // único sitio que da de alta overrides lo hace solo para "DNI o NIE
-        // en vigor" y "Apto médico laboral", nunca para los tipos de Empresa
-        // que toca este incremento.
+        // único sitio que da de alta overrides lo hace solo para "Documento
+        // de identidad" y "Certificado de aptitud médica", nunca para los
+        // tipos de Empresa que toca este incremento.
 
         _centroId = centro.Id;
     }
@@ -73,9 +73,9 @@ public class ObtenerDocumentacionRequeridaDeCentroQueryTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("EVR (Evaluación de Riesgos Laborales)")]
+    [InlineData("Evaluación de Riesgos Laborales")]
     [InlineData("Certificado de estar al corriente con la Seguridad Social")]
-    [InlineData("Apto médico laboral")]
+    [InlineData("Certificado de aptitud médica")]
     public async Task Lo_que_T2_no_toca_sigue_aplicando_por_defecto(string nombre)
     {
         var fila = (await ObtenerAsync()).Single(f => f.Nombre == nombre);

@@ -26,14 +26,28 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// mismo día (2026-08-09, indicado directamente por el usuario): un único
 /// tipo de documento cubre la modalidad preventiva de la empresa, sea SPA,
 /// Propia o Mancomunada — no se modela como grupo de alternativas.
+///
+/// <c>Nombre</c> tras T3 (2026-08-29, taxonomia-documental-cae-propuesta-2026-08-27.md
+/// §2bis, aprobada 2026-08-27 tarde): limpieza de los patrones A/B/C/D/E de
+/// nombres contaminados — estado, resultado, formato de evidencia, alias
+/// histórico y acrónimo dentro del nombre. Cada tipo tocado conserva el
+/// nombre contaminado anterior como <see cref="TipoDocumentoAlias"/> (ver
+/// <see cref="AliasesPorId"/>) para que nada que busque por el nombre viejo
+/// deje de encontrarlo. Patrón G (parámetro en el nombre: "Formación
+/// 60h/20h/6h", "Reciclaje 4h") y patrón H (referencia normativa:
+/// "Información Art. 18", "Formación Art. 19"), y los tipos de patrón F (dos
+/// documentos en un tipo: "RLC/TC1 + Recibo de pago", "Recibo de pago
+/// RLC/TC1", "Seguro de Responsabilidad Civil + recibo de pago") NO se
+/// tocan — son decisiones de producto/modelo, no renombrados mecánicos (ver
+/// el propio documento §2bis).
 /// </summary>
 public static class TipoDocumentoSeedData
 {
     public static readonly (Guid Id, string Nombre, int? VigenciaMeses, bool AplicaVencimiento, int Orden, AmbitoAplicacion Ambito, bool EsObligatorio, string? Notas)[] Datos =
     [
         // --- Catálogo original de Trabajador (Fase 0, hoja "Parametros" del Excel) ---
-        (new Guid("10000000-0000-0000-0000-000000000001"), "Apto médico laboral", 12, true, 1, AmbitoAplicacion.Trabajador, true, "Renovación anual estándar. Obligatorio por defecto (2026-08-09): sí o sí exigido en CAE."),
-        (new Guid("10000000-0000-0000-0000-000000000002"), "EPIS (firma)", 12, true, 2, AmbitoAplicacion.Trabajador, true, "Se firman cada año según nota de origen. Obligatorio por defecto (2026-08-09): justificante de entrega de EPIs."),
+        (new Guid("10000000-0000-0000-0000-000000000001"), "Certificado de aptitud médica", 12, true, 1, AmbitoAplicacion.Trabajador, true, "Renovación anual estándar. Obligatorio por defecto (2026-08-09): sí o sí exigido en CAE."),
+        (new Guid("10000000-0000-0000-0000-000000000002"), "Entrega de EPI", 12, true, 2, AmbitoAplicacion.Trabajador, true, "Se firman cada año según nota de origen. Obligatorio por defecto (2026-08-09): justificante de entrega de EPIs."),
         (new Guid("10000000-0000-0000-0000-000000000003"), "Reciclaje 4h", 48, true, 3, AmbitoAplicacion.Trabajador, false, "Cada 4 años, según Dpto. Formación."),
         (new Guid("10000000-0000-0000-0000-000000000004"), "Formación Art. 19", 36, true, 4, AmbitoAplicacion.Trabajador, true, "Recordatorio cada 3 años. Obligatorio por defecto (2026-08-09): formación PRL Art. 19."),
         (new Guid("10000000-0000-0000-0000-000000000005"), "Formación 60h (base convenio)", null, false, 5, AmbitoAplicacion.Trabajador, false, "Formación base, no consta caducidad."),
@@ -52,7 +66,7 @@ public static class TipoDocumentoSeedData
         (new Guid("50000000-0000-0000-0000-000000000001"), "Contrato de Trabajo", null, false, 16, AmbitoAplicacion.Trabajador, false, "Vigente mientras dure la relación laboral — sin fecha de caducidad propia."),
         (new Guid("50000000-0000-0000-0000-000000000002"), "Alta en Seguridad Social", null, false, 17, AmbitoAplicacion.Trabajador, false, "Vigente mientras continúe contratado — sin fecha de caducidad propia."),
         (new Guid("50000000-0000-0000-0000-000000000003"), "Formación Riesgos Específicos", null, false, 18, AmbitoAplicacion.Trabajador, false, "Vigente hasta cambio de puesto o de riesgos — vencimiento manual."),
-        (new Guid("50000000-0000-0000-0000-000000000004"), "Formación EPIs", null, false, 19, AmbitoAplicacion.Trabajador, false, "Distinto de \"EPIS (firma)\" (la entrega/firma de recepción) — esta es la formación de uso."),
+        (new Guid("50000000-0000-0000-0000-000000000004"), "Formación EPIs", null, false, 19, AmbitoAplicacion.Trabajador, false, "Distinto de \"Entrega de EPI\" (antes \"EPIS (firma)\"; la entrega/firma de recepción) — esta es la formación de uso."),
         (new Guid("50000000-0000-0000-0000-000000000005"), "Permiso de conducir", null, false, 20, AmbitoAplicacion.Trabajador, false, "Vigencia según DGT, muy variable — vencimiento manual."),
         (new Guid("50000000-0000-0000-0000-000000000006"), "Riesgo Eléctrico", 36, true, 21, AmbitoAplicacion.Trabajador, false, "Renovación cada 3 años, criterio habitual del sector."),
         (new Guid("50000000-0000-0000-0000-000000000007"), "Manipulación Manual de Cargas", null, false, 22, AmbitoAplicacion.Trabajador, false, "Vigencia según política de cada empresa — vencimiento manual."),
@@ -73,22 +87,22 @@ public static class TipoDocumentoSeedData
 
         // --- Documento base de identidad del Trabajador (2026-08-09, indicado
         // directamente por el usuario: sí o sí exigido en cualquier CAE) ---
-        (new Guid("50000016-0000-0000-0000-000000000016"), "DNI o NIE en vigor", null, false, 37, AmbitoAplicacion.Trabajador, true, "Verifica identidad y permiso de trabajo. Vigencia según DGT/Extranjería — vencimiento manual. Obligatorio por defecto (2026-08-09)."),
+        (new Guid("50000016-0000-0000-0000-000000000016"), "Documento de identidad", null, false, 37, AmbitoAplicacion.Trabajador, true, "Verifica identidad y permiso de trabajo. Vigencia según DGT/Extranjería — vencimiento manual. Obligatorio por defecto (2026-08-09)."),
 
         // --- Documentos base de Empresa, obligatorios para todos los clientes (2026-07, indicados directamente por el usuario) ---
         (new Guid("20000000-0000-0000-0000-000000000001"), "Certificado de estar al corriente con la Seguridad Social", 1, true, 16, AmbitoAplicacion.Empresa, true, "Mensual."),
         (new Guid("20000000-0000-0000-0000-000000000002"), "Certificado de estar al corriente con Hacienda", null, false, 17, AmbitoAplicacion.Empresa, true, "Vigencia variable (1, 3, 6 o 12 meses según lo que exija el cliente) — la fecha de vencimiento se introduce a mano al subir el documento."),
         (new Guid("20000000-0000-0000-0000-000000000003"), "ITA", 1, true, 18, AmbitoAplicacion.Empresa, true, "Mensual."),
-        (new Guid("20000000-0000-0000-0000-000000000004"), "RLC/TC1", 3, true, 19, AmbitoAplicacion.Empresa, true, "Mensual — el documento de un periodo (p. ej. 01/05) vence 3 meses después (01/08), porque tarda en emitirse con la fecha del periodo ya pasada."),
-        (new Guid("20000000-0000-0000-0000-000000000005"), "Recibo de pago RLC/TC1", 3, true, 20, AmbitoAplicacion.Empresa, true, "Mismo criterio de vigencia que el RLC/TC1."),
-        (new Guid("20000000-0000-0000-0000-000000000006"), "RLC/TC1 + Recibo de pago", 3, true, 21, AmbitoAplicacion.Empresa, true, "Variante combinada — mismo criterio de vigencia que el RLC/TC1."),
-        (new Guid("20000000-0000-0000-0000-000000000007"), "RNT/TC2", 3, true, 22, AmbitoAplicacion.Empresa, true, "Mismo criterio que el RLC/TC1."),
+        (new Guid("20000000-0000-0000-0000-000000000004"), "RLC", 3, true, 19, AmbitoAplicacion.Empresa, true, "Mensual — el documento de un periodo (p. ej. 01/05) vence 3 meses después (01/08), porque tarda en emitirse con la fecha del periodo ya pasada."),
+        (new Guid("20000000-0000-0000-0000-000000000005"), "Recibo de pago RLC/TC1", 3, true, 20, AmbitoAplicacion.Empresa, true, "Mismo criterio de vigencia que el RLC."),
+        (new Guid("20000000-0000-0000-0000-000000000006"), "RLC/TC1 + Recibo de pago", 3, true, 21, AmbitoAplicacion.Empresa, true, "Variante combinada — mismo criterio de vigencia que el RLC."),
+        (new Guid("20000000-0000-0000-0000-000000000007"), "RNT", 3, true, 22, AmbitoAplicacion.Empresa, true, "Mismo criterio que el RLC."),
         (new Guid("20000000-0000-0000-0000-000000000008"), "Mutua", null, false, 23, AmbitoAplicacion.Empresa, true, "Vigencia sin especificar — fecha de vencimiento manual."),
         (new Guid("20000000-0000-0000-0000-000000000009"), "Seguro de Responsabilidad Civil + recibo de pago", null, false, 24, AmbitoAplicacion.Empresa, true, "Vigencia sin especificar — fecha de vencimiento manual."),
-        (new Guid("2000000A-0000-0000-0000-00000000000A"), "SPA (Servicio de Prevención Ajeno)", null, false, 25, AmbitoAplicacion.Empresa, true, "Debe venir acompañado de un certificado de pago que indica la fecha fin de validez — se introduce esa fecha manualmente."),
-        (new Guid("2000000B-0000-0000-0000-00000000000B"), "EVR (Evaluación de Riesgos Laborales)", null, false, 26, AmbitoAplicacion.Empresa, true, "Vigencia sin especificar — fecha de vencimiento manual."),
-        (new Guid("2000000C-0000-0000-0000-00000000000C"), "PAP (Planificación de la Actividad Preventiva)", null, false, 27, AmbitoAplicacion.Empresa, true, "Vigencia sin especificar — fecha de vencimiento manual."),
-        (new Guid("2000000D-0000-0000-0000-00000000000D"), "Tarjeta CIF", null, false, 28, AmbitoAplicacion.Empresa, false, "Opcional — no obligatorio para todos los clientes."),
+        (new Guid("2000000A-0000-0000-0000-00000000000A"), "Servicio de Prevención Ajeno", null, false, 25, AmbitoAplicacion.Empresa, true, "Debe venir acompañado de un certificado de pago que indica la fecha fin de validez — se introduce esa fecha manualmente."),
+        (new Guid("2000000B-0000-0000-0000-00000000000B"), "Evaluación de Riesgos Laborales", null, false, 26, AmbitoAplicacion.Empresa, true, "Vigencia sin especificar — fecha de vencimiento manual."),
+        (new Guid("2000000C-0000-0000-0000-00000000000C"), "Planificación de la Actividad Preventiva", null, false, 27, AmbitoAplicacion.Empresa, true, "Vigencia sin especificar — fecha de vencimiento manual."),
+        (new Guid("2000000D-0000-0000-0000-00000000000D"), "Tarjeta de identificación fiscal", null, false, 28, AmbitoAplicacion.Empresa, false, "Opcional — no obligatorio para todos los clientes."),
 
         // --- Ampliación del catálogo de Empresa (Fase 37, 2026-07, a partir de un listado de documentación CAE/PRL de España pasado por el usuario) ---
         (new Guid("40000000-0000-0000-0000-000000000001"), "Plan de Prevención", null, false, 29, AmbitoAplicacion.Empresa, true, "Vigente con revisiones — vencimiento manual."),
@@ -159,7 +173,7 @@ public static class TipoDocumentoSeedData
     private static readonly HashSet<Guid> IdsConDeteccionTrabajadores =
     [
         new Guid("20000000-0000-0000-0000-000000000003"), // ITA
-        new Guid("20000000-0000-0000-0000-000000000007"), // RNT/TC2
+        new Guid("20000000-0000-0000-0000-000000000007"), // RNT
     ];
 
     /// <summary>
@@ -167,7 +181,7 @@ public static class TipoDocumentoSeedData
     /// con validación automática (verificación de firma + parser, ver
     /// PerfilDocumentoOficial). El "Recibo de pago RLC/TC1" suelto queda
     /// fuera: es un justificante bancario, no un documento sellado por la
-    /// TGSS. La variante combinada comparte parser con el RLC — si la
+    /// TGSS. La variante combinada comparte parser con "RLC" — si la
     /// calibración con muestras reales pide un ancla extra del recibo, se
     /// ajusta entonces (plan, PR-6).
     /// </summary>
@@ -195,6 +209,30 @@ public static class TipoDocumentoSeedData
         Datos.Where(d => d.Nombre == nombre)
             .Select(d => PerfilesOficiales.GetValueOrDefault(d.Id, PerfilDocumentoOficial.Ninguno))
             .FirstOrDefault();
+
+    /// <summary>
+    /// Aliases del catálogo, por Id — precondición de T3 (PR #313, campo de
+    /// nombres alternativos) que este incremento por fin usa: cada tipo cuyo
+    /// nombre se limpió de contaminación (§2bis, patrones A/B/C/D/E) conserva
+    /// aquí el nombre contaminado anterior, y en los casos de acrónimo/alias
+    /// histórico (D, E) también la sigla suelta — para que nada que ya busque
+    /// o filtre por el nombre antiguo deje de encontrar la fila. Solo entran
+    /// los Id efectivamente renombrados en este incremento; el resto del
+    /// catálogo no tenía nombre contaminado o su patrón (F, G, H) queda fuera
+    /// de alcance a propósito (ver el docstring de la clase).
+    /// </summary>
+    private static readonly Dictionary<Guid, string[]> AliasesPorId = new()
+    {
+        [new Guid("10000000-0000-0000-0000-000000000001")] = ["Apto médico laboral"],
+        [new Guid("10000000-0000-0000-0000-000000000002")] = ["EPIS (firma)"],
+        [new Guid("50000016-0000-0000-0000-000000000016")] = ["DNI o NIE en vigor", "DNI/NIE/TIE"],
+        [new Guid("20000000-0000-0000-0000-000000000004")] = ["RLC/TC1", "TC1"],
+        [new Guid("20000000-0000-0000-0000-000000000007")] = ["RNT/TC2", "TC2"],
+        [new Guid("2000000A-0000-0000-0000-00000000000A")] = ["SPA (Servicio de Prevención Ajeno)", "SPA"],
+        [new Guid("2000000B-0000-0000-0000-00000000000B")] = ["EVR (Evaluación de Riesgos Laborales)", "EVR"],
+        [new Guid("2000000C-0000-0000-0000-00000000000C")] = ["PAP (Planificación de la Actividad Preventiva)", "PAP"],
+        [new Guid("2000000D-0000-0000-0000-00000000000D")] = ["Tarjeta CIF", "CIF"],
+    };
 
     /// <summary>
     /// Copia editable del catálogo completo para un tenant nuevo
@@ -232,8 +270,8 @@ public static class TipoDocumentoSeedData
     {
         // — Obligación legal directa: la norma lo exige por escrito y sin condición —
         // Art. 10 RD 171/2004: lo único que se exige por escrito en concurrencia.
-        "EVR (Evaluación de Riesgos Laborales)" => NaturalezaJuridica.ObligacionLegal,
-        "PAP (Planificación de la Actividad Preventiva)" => NaturalezaJuridica.ObligacionLegal,
+        "Evaluación de Riesgos Laborales" => NaturalezaJuridica.ObligacionLegal,
+        "Planificación de la Actividad Preventiva" => NaturalezaJuridica.ObligacionLegal,
         // Art. 16 LPRL: el plan de prevención y tener modalidad preventiva válida.
         "Plan de Prevención" => NaturalezaJuridica.ObligacionLegal,
         "Modalidad Preventiva" => NaturalezaJuridica.ObligacionLegal,
@@ -247,7 +285,7 @@ public static class TipoDocumentoSeedData
         // Art. 22.1 LPRL: la vigilancia de la salud exige consentimiento del
         // trabajador. El requisito documental se satisface con el
         // reconocimiento O la renuncia (documentos alternativos, sin modelar).
-        "Apto médico laboral" => NaturalezaJuridica.ObligacionCondicionada,
+        "Certificado de aptitud médica" => NaturalezaJuridica.ObligacionCondicionada,
         // Dependen del supuesto: recursos preventivos y procedimiento de CAE.
         "Designación de Recursos Preventivos" => NaturalezaJuridica.ObligacionCondicionada,
         "Procedimiento de Coordinación de Actividades Empresariales" => NaturalezaJuridica.ObligacionCondicionada,
@@ -262,12 +300,12 @@ public static class TipoDocumentoSeedData
         // — Práctica del sector: ninguna norma lo exige, lo piden todos —
         // RD 773/1997 obliga a PROPORCIONAR el EPI (art. 3.c); revisados los
         // arts. 1-10, ninguno exige registro firmado de entrega.
-        "EPIS (firma)" => NaturalezaJuridica.PracticaSector,
+        "Entrega de EPI" => NaturalezaJuridica.PracticaSector,
         // El blindaje del art. 42.1 ET nace de que la principal lo solicite a
         // la TGSS, no de archivar el que envía el contratista. Se pide igual.
         "Certificado de estar al corriente con la Seguridad Social" => NaturalezaJuridica.PracticaSector,
         // Tener modalidad es obligación (arriba); entregar el concierto es práctica.
-        "SPA (Servicio de Prevención Ajeno)" => NaturalezaJuridica.PracticaSector,
+        "Servicio de Prevención Ajeno" => NaturalezaJuridica.PracticaSector,
 
         // Todo lo demás: la afirmación más débil y verdadera.
         _ => NaturalezaJuridica.RequisitoCliente,
@@ -309,6 +347,8 @@ public static class TipoDocumentoSeedData
                 NaturalezaDe(t.Nombre), t.Notas);
             copia.EstablecerDeteccionTrabajadoresActiva(TieneDeteccionTrabajadores(t.Nombre));
             copia.EstablecerPerfilDocumentoOficial(PerfilOficialDe(t.Nombre));
+            if (AliasesPorId.TryGetValue(t.Id, out var aliases))
+                copia.EstablecerAliases(aliases);
             return copia;
         });
 
@@ -338,4 +378,32 @@ public static class TipoDocumentoSeedData
             // no una referencia a esta misma fila.
             TenantId = TenantSeedData.IdPorDefecto
         });
+
+    /// <summary>
+    /// Proyección plana de <see cref="AliasesPorId"/> para el
+    /// <c>HasData</c> de <see cref="TipoDocumentoAlias"/> — mismo criterio
+    /// que <see cref="ComoFilasParaMigracion"/>: el catálogo semilla
+    /// pertenece al tenant #1, y estos son los únicos alias que existían
+    /// antes de que el Administrador pueda editar nada. Id deterministas
+    /// (prefijo 90000000, un bloque de 16 no usado por ningún otro seed) para
+    /// que la migración sea reproducible.
+    /// </summary>
+    public static IEnumerable<object> AliasesParaMigracion()
+    {
+        var indice = 0;
+        foreach (var (tipoDocumentoId, aliases) in AliasesPorId)
+        {
+            foreach (var texto in aliases)
+            {
+                indice++;
+                yield return new
+                {
+                    Id = new Guid($"90000000-0000-0000-0000-{indice:D12}"),
+                    TipoDocumentoId = tipoDocumentoId,
+                    Texto = texto,
+                    TenantId = TenantSeedData.IdPorDefecto
+                };
+            }
+        }
+    }
 }

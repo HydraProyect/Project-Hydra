@@ -34,7 +34,7 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
         hoja.Row(FilaCabecera).Style.Font.Bold = true;
 
         hoja.Cell(PrimeraFilaDatos, 1).Value = "EJEMPLO — Borra esta fila antes de importar";
-        hoja.Cell(PrimeraFilaDatos, 2).Value = "Apto médico laboral";
+        hoja.Cell(PrimeraFilaDatos, 2).Value = "Certificado de aptitud médica";
         hoja.Cell(PrimeraFilaDatos, 3).Value = "01/01/2026";
 
         hoja.Columns().AdjustToContents();
