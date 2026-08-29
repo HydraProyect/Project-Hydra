@@ -105,6 +105,13 @@ public class UsosDeEsPlataformaCongeladosTests
     /// Identificadores vigilados. Son disjuntos como texto: <c>MarcarComoPlataforma</c> y
     /// <c>DejarDeSerPlataforma</c> no contienen <c>EsPlataforma</c> como subcadena, así que
     /// cada uno suma por separado y una línea puede aportar dos apariciones.
+    ///
+    /// <para>
+    /// <c>DejarDeSerPlataforma</c> <b>ya no existe</b> —A4.2 lo retiró por código muerto— y
+    /// aun así se sigue vigilando <b>a propósito</b>: hoy aporta cero, y el día que alguien
+    /// lo reintroduzca el conteo subirá y esto se pondrá rojo. Quitarlo del patrón sería
+    /// perder la guarda contra su resurrección justo después de haberlo retirado.
+    /// </para>
     /// </summary>
     private static readonly Regex Patron = new(
         @"\b(EsPlataforma|MarcarComoPlataforma|DejarDeSerPlataforma)\b", RegexOptions.Compiled);
@@ -113,9 +120,23 @@ public class UsosDeEsPlataformaCongeladosTests
         [".cs", ".razor", ".cshtml", ".sql", ".json", ".csproj", ".yml"];
 
     /// <summary>
-    /// Medido sobre <c>2e463b1d</c> el 2026-08-29: 22 ficheros, 36 apariciones.
+    /// Medido el 2026-08-29: <b>22 ficheros, 34 apariciones</b>. Eran 36 sobre
+    /// <c>2e463b1d</c>, antes de que A4.2 retirase <c>DejarDeSerPlataforma</c> y sus dos
+    /// apariciones.
+    ///
+    /// <para>
     /// Cada entrada se leyó una a una; el conteo <b>no</b> se ajustó a lo que salió del
-    /// escaneo — eso es precisamente cómo mueren estos ratchets.
+    /// escaneo — eso es precisamente cómo mueren estos ratchets. Así se explicó, por
+    /// ejemplo, que <c>Tenant.cs</c> aportara 7 y no 4: las líneas del mutador contienen
+    /// dos identificadores vigilados cada una.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Este número se mantiene a mano y ninguna aserción lo lee.</b> Si se desalinea del
+    /// árbol —pasó en A4.2, que actualizó la entrada de <c>Tenant.cs</c> y olvidó esta
+    /// cifra— el ratchet sigue siendo correcto, pero el instrumento estaría declarando un
+    /// total que ya no es el suyo. Al cambiar cualquier entrada, cuadra también esta suma.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, EntradaBlanca> Autorizados = new()
     {
@@ -174,11 +195,12 @@ public class UsosDeEsPlataformaCongeladosTests
 
         // ── PORTADOR ──────────────────────────────────────────────────────────────
         ["src/CaeManager.Domain/Tenants/Tenant.cs"] =
-            new(7, CategoriaUso.Portador,
-                ":35 propiedad, :87 asignación en el ctor, :93 comentario, :104 MarcarComoPlataforma y " +
-                ":106 DejarDeSerPlataforma. Las dos últimas aportan DOS apariciones cada una, porque el " +
-                "nombre del método y el del campo casan ambos. A4.2 retira :106 (código muerto: cero " +
-                "llamadores de cualquier tipo) y esta entrada baja a 5"),
+            new(5, CategoriaUso.Portador,
+                ":35 propiedad, :87 asignación en el ctor, :93 comentario y :104 MarcarComoPlataforma, que " +
+                "aporta DOS apariciones porque el nombre del método y el del campo casan ambos. Eran 7 hasta " +
+                "A4.2: DejarDeSerPlataforma se retiró por código muerto —una sola aparición en todo el repo, " +
+                "su propia definición— y el ratchet se puso rojo con «= 5 (la lista dice 7)» hasta actualizar " +
+                "este número. Ésa es la razón de que la comparación sea de igualdad y no de umbral"),
 
         // ── COMENTARIO ────────────────────────────────────────────────────────────
         ["src/CaeManager.Application/Plataforma/IAutorizacionAdminPlataforma.cs"] =
@@ -413,7 +435,6 @@ public class UsosDeEsPlataformaCongeladosTests
         "CambiarPerfilVocabulario",
         "CreadoEnUtc",
         "DatosDemoCompletadosEnUtc",
-        "DejarDeSerPlataforma",
         "EsPlataforma",
         "Estado",
         "EstadoComercial",
