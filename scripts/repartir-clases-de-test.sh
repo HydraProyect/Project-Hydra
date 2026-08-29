@@ -59,6 +59,15 @@ fi
 echo "Clases en total: $(printf '%s\n' "$clases" | wc -l | tr -d ' ')" >&2
 echo "En el bloque $bloque de $total: $(printf '%s\n' "$mias" | wc -l | tr -d ' ')" >&2
 
+# REPARTO_SALIDA: ademas del filtro, deja la lista de clases de este bloque,
+# una por linea. Sirve para comprobar despues que la union de los bloques es
+# la suite entera — que cada bloque ejecute algo no implica que entre todos
+# ejecuten TODO, y una clase que se cayera del reparto no fallaria: no
+# correria en ninguna parte, con todos los bloques en verde.
+if [ -n "${REPARTO_SALIDA:-}" ]; then
+  printf '%s\n' "$mias" > "$REPARTO_SALIDA"
+fi
+
 # El punto final importa: con `~` (contiene) y sin el, una clase cuyo nombre
 # es prefijo de otra (MisTests / MisTestsExtra) arrastraria tambien a la
 # segunda, que se ejecutaria dos veces mientras su bloque la cuenta como suya.

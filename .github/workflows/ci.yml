@@ -117,6 +117,8 @@ jobs:
         run: |
           filtro=$(bash scripts/repartir-clases-de-test.sh tests/CaeManager.IntegrationTests 4 ${{ matrix.bloque }})
           echo "filtro=$filtro" >> "$GITHUB_OUTPUT"
+          mkdir -p reparto
+          REPARTO_SALIDA=reparto/bloque-${{ matrix.bloque }}.txt bash scripts/repartir-clases-de-test.sh tests/CaeManager.IntegrationTests 4 ${{ matrix.bloque }} > /dev/null
 
       - name: Ejecutar el bloque
         run: >
@@ -157,6 +159,18 @@ jobs:
         with:
           name: cobertura-integracion-${{ matrix.bloque }}
           path: coverage/integration
+          retention-days: 1
+
+      # La lista de clases que ESTE bloque dijo suyas. "Build, format y tests"
+      # junta las cuatro y comprueba que suman la suite entera: sin eso, una
+      # clase podria caerse del reparto y no ejecutarse en NINGUN bloque, con
+      # los cuatro en verde y nadie mirando. Es una perdida parcial y muda,
+      # peor que un bloque entero vacio porque no se nota.
+      - name: Publicar el reparto del bloque
+        uses: actions/upload-artifact@v4
+        with:
+          name: reparto-bloque-${{ matrix.bloque }}
+          path: reparto
           retention-days: 1
 
   build-and-test:
@@ -204,6 +218,46 @@ jobs:
 
       - name: Tests de arquitectura
         run: dotnet test tests/CaeManager.Architecture.Tests --no-restore --logger "console;verbosity=normal"
+
+      - name: Recoger el reparto de los bloques
+        uses: actions/download-artifact@v4
+        with:
+          pattern: reparto-bloque-*
+          path: reparto
+          merge-multiple: true
+
+      # EL REPARTO CUBRIO LA SUITE ENTERA.
+      #
+      # Que cada bloque ejecutara algo no implica que entre los cuatro las
+      # ejecutaran TODAS: cuatro bloques con recuento no nulo pueden dejarse una
+      # clase fuera, y esa clase no falla porque no corre. Perdida parcial, en
+      # verde y sin ruido — peor que un bloque mudo, que al menos es entero.
+      #
+      # El denominador se calcula con el MISMO guion del reparto pidiendole un
+      # solo bloque de uno, asi que ambos lados salen del mismo codigo: si la
+      # deteccion de clases cambiara, cambia en los dos y la comparacion sigue
+      # significando lo mismo.
+      #
+      # Se compara a nivel de CLASE y no de test: medido el 2026-08-29, el
+      # numero de entradas de --list-tests y el de tests ejecutados no coinciden
+      # (212 frente a 210 en un bloque real), asi que una igualdad sobre
+      # recuentos de test fallaria sola. La causa esta sin diagnosticar; el
+      # reparto de clases si es exacto y es lo que este paso vigila.
+      - name: Comprobar que el reparto cubrio todas las clases
+        run: |
+          REPARTO_SALIDA=/tmp/esperadas-sin-ordenar.txt bash scripts/repartir-clases-de-test.sh tests/CaeManager.IntegrationTests 1 1 > /dev/null
+          sort /tmp/esperadas-sin-ordenar.txt > /tmp/esperadas.txt
+          cat reparto/bloque-*.txt | sort > /tmp/repartidas.txt
+          esperadas=$(wc -l < /tmp/esperadas.txt)
+          repartidas=$(wc -l < /tmp/repartidas.txt)
+          unicas=$(sort -u /tmp/repartidas.txt | wc -l)
+          echo "Clases de la suite: $esperadas — repartidas: $repartidas — distintas: $unicas"
+          if [ "$esperadas" -ne "$unicas" ] || [ "$repartidas" -ne "$unicas" ]; then
+            echo "::error::El reparto no cubre la suite exactamente una vez. Alguna clase no se ejecuto en ningun bloque, o se ejecuto en dos."
+            diff /tmp/esperadas.txt /tmp/repartidas.txt || true
+            exit 1
+          fi
+
 
       # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
       # en los tres proyectos de test) escribe un coverage.cobertura.xml por
