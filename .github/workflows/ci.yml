@@ -28,12 +28,31 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  build-and-test:
-    name: Build, format y tests
+  # Los tests de integración eran el camino crítico del CI: medido el
+  # 2026-08-29, 1138 s de los 1354 s que duraba "Build, format y tests" —el
+  # 84%— y el job más largo del workflow con diferencia, así que marcaba el
+  # ritmo de toda la cola de merge. Aquí se reparten en cuatro bloques que
+  # corren a la vez.
+  #
+  # El reparto se CALCULA, no se escribe: cada bloque lista las clases de
+  # test, las ordena y se queda con las que le tocan por posición. Una clase
+  # nueva cae en un bloque sola, sin que nadie mantenga una lista que se
+  # desincronice.
+  #
+  # Los minutos de Actions son gratis en un repositorio público, así que
+  # comprar tiempo de reloj con paralelismo aquí no cuesta dinero — al revés
+  # que apilar PRs, que sí multiplica ejecuciones completas (§ 22).
+  tests-integracion:
+    name: Tests de integración (bloque ${{ matrix.bloque }} de 4)
     runs-on: ubuntu-latest
-    # Los tests de integración corren contra PostgreSQL real desde la
-    # migración de ADR-003 (ver BaseDatosPostgresDePruebas): cada test crea y
-    # borra su propia base de datos en este servicio.
+    strategy:
+      # Un bloque que falla no cancela a los demás: de una ejecución interesa
+      # ver TODOS los fallos, no solo el primero que aparezca.
+      fail-fast: false
+      matrix:
+        bloque: [1, 2, 3, 4]
+    # Cada bloque levanta su propio PostgreSQL: son procesos distintos en
+    # máquinas distintas, así que no comparten clúster y no pueden pisarse.
     services:
       postgres:
         image: postgres:17
@@ -54,11 +73,85 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      # === INSTALACIÓN DE LIBREOFFICE PARA LOS TESTS ===
+      # Solo lo necesita CaeManager.IntegrationTests, en
+      # Conversion/LibreOfficeConversorWordPdfServiceTests. Por eso se instala
+      # aquí y ya no en el job de build, que se ahorra los ~25 s.
       - name: Instalar LibreOffice (Entorno de conversión)
         run: |
           sudo apt-get update
           sudo apt-get install -y libreoffice-writer
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Compilar los tests de integración
+        run: dotnet build tests/CaeManager.IntegrationTests --no-restore -warnaserror
+
+      # BOOTSTRAP DE CLÚSTER — prerrequisito de cualquier MigrateAsync.
+      #
+      # Los roles son objetos de clúster (pg_authid es catálogo compartido) y
+      # ninguna migración los crea: crearlos desde la migración de una base
+      # ponía a seis migradores a competir y tres de seis fallaban con 42704.
+      # deploy/bootstrap/roles-de-cluster.sql es la especificación normativa y
+      # este paso es su adaptador de CI; el guion trae dentro su propia
+      # verificación post-bootstrap.
+      #
+      # ON_ERROR_STOP=1: sin esto psql seguiría adelante tras un error y el
+      # bloque arrancaría contra un clúster fuera de contrato.
+      - name: Bootstrap de roles de clúster
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -f deploy/bootstrap/roles-de-cluster.sql
+
+      # El reparto vive en scripts/repartir-clases-de-test.sh, no aqui: asi
+      # tiene sus propios tests (repartir-clases-de-test.tests.sh) y no hay
+      # que escapar una expresion regular dentro de YAML dentro de shell.
+      #
+      # Ese guion falla si el bloque quedase vacio, en vez de dejar correr un
+      # `dotnet test` con un filtro que no casa con nada — que termina en
+      # VERDE sin ejecutar un solo test.
+      - name: Repartir las clases de test en este bloque
+        id: reparto
+        run: |
+          filtro=$(bash scripts/repartir-clases-de-test.sh tests/CaeManager.IntegrationTests 4 ${{ matrix.bloque }})
+          echo "filtro=$filtro" >> "$GITHUB_OUTPUT"
+
+      - name: Ejecutar el bloque
+        run: >
+          dotnet test tests/CaeManager.IntegrationTests --no-build --logger "console;verbosity=normal"
+          --filter "${{ steps.reparto.outputs.filtro }}"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/integration
+
+      # El ratchet de cobertura se aplica en "Build, format y tests", que es
+      # el check obligatorio de la protección de rama. Necesita la cobertura
+      # de los CUATRO bloques: sin esto mediría solo Domain y Application y
+      # caería muy por debajo del umbral, que es justo lo que un gate no debe
+      # hacer — cambiar de significado sin que nadie lo decida.
+      - name: Publicar la cobertura del bloque
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-integracion-${{ matrix.bloque }}
+          path: coverage/integration
+          retention-days: 1
+
+  build-and-test:
+    name: Build, format y tests
+    runs-on: ubuntu-latest
+    # Espera a los bloques de integración porque el ratchet de cobertura de
+    # más abajo se calcula sobre Domain + Application + Integration, y este
+    # job es el que la protección de rama exige por nombre. Ya no necesita
+    # PostgreSQL ni LibreOffice: los únicos tests que los usaban se fueron a
+    # `tests-integracion`.
+    needs: tests-integracion
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -76,31 +169,6 @@ jobs:
       - name: Verificar formato (dotnet format)
         run: dotnet format CaeManager.slnx --no-restore --verify-no-changes
 
-      # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
-      # en los tres proyectos de test) escribe un coverage.cobertura.xml por
-      # suite bajo ./coverage — P1-19 de docs/business/MATURITY_REVIEW.md:
-      # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
-      # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
-      # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
-      # después de él es el gate real (ratchet, ver su comentario).
-      # BOOTSTRAP DE CLÚSTER — prerrequisito de cualquier MigrateAsync.
-      #
-      # Los roles son objetos de clúster (pg_authid es catálogo compartido) y
-      # desde este incremento NINGUNA migración los crea: crearlos desde la
-      # migración de una base ponía a seis migradores a competir y tres de seis
-      # fallaban con 42704. deploy/bootstrap/roles-de-cluster.sql es la
-      # especificación normativa y este paso es su adaptador de CI; el guion
-      # trae dentro su propia verificación post-bootstrap.
-      #
-      # ON_ERROR_STOP=1: sin esto psql seguiría adelante tras un error y el job
-      # arrancaría contra un clúster fuera de contrato.
-      - name: Bootstrap de roles de clúster
-        env:
-          PGPASSWORD: postgres
-        run: >
-          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
-          -f deploy/bootstrap/roles-de-cluster.sql
-
       - name: Tests de Domain
         run: >
           dotnet test tests/CaeManager.Domain.Tests --no-restore --logger "console;verbosity=normal"
@@ -114,10 +182,27 @@ jobs:
       - name: Tests de arquitectura
         run: dotnet test tests/CaeManager.Architecture.Tests --no-restore --logger "console;verbosity=normal"
 
-      - name: Tests de integración
-        run: >
-          dotnet test tests/CaeManager.IntegrationTests --no-restore --logger "console;verbosity=normal"
-          --collect "XPlat Code Coverage" --results-directory ./coverage/integration
+      # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
+      # en los tres proyectos de test) escribe un coverage.cobertura.xml por
+      # suite bajo ./coverage — P1-19 de docs/business/MATURITY_REVIEW.md:
+      # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
+      # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
+      # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
+      # después de él es el gate real (ratchet, ver su comentario).
+      # Los cuatro bloques de tests-integracion publican su cobertura; aqui se
+      # recogen para que el informe y el ratchet de abajo midan exactamente el
+      # mismo conjunto que antes: Domain + Application + Integration.
+      #
+      # Sin este paso el ratchet seguiria ejecutandose, pero sobre dos suites
+      # en vez de tres: caeria por debajo del umbral y el fallo se leeria como
+      # una perdida de cobertura del producto. Un gate que cambia de
+      # significado sin que nadie lo decida es peor que no tenerlo.
+      - name: Recoger la cobertura de los bloques de integración
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cobertura-integracion-*
+          path: coverage/integration
+          merge-multiple: true
 
       # MarkdownSummaryGithub: pensado por ReportGenerator específicamente
       # para $GITHUB_STEP_SUMMARY — aparece en la pestaña Summary del run,
