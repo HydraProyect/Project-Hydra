@@ -3,7 +3,15 @@ using CaeManager.Domain.Common;
 
 namespace CaeManager.Application.Integraciones;
 
-public record TokensGraphDto(string AccessToken, string RefreshToken);
+/// <summary>
+/// <see cref="AccessTokenExpiraUtc"/> (auditoría módulo 6, ampliación de
+/// AccesoGraphService): permite cachear el access token entre llamadas en
+/// vez de refrescar en cada una — antes, cada operación rotaba el refresh
+/// token aunque el access token vigente todavía sirviera, multiplicando sin
+/// necesidad la ventana en la que dos refrescos concurrentes pueden
+/// competir por la misma conexión.
+/// </summary>
+public record TokensGraphDto(string AccessToken, string RefreshToken, DateTime AccessTokenExpiraUtc);
 
 public record SuscripcionGraphDto(string GraphSubscriptionId, DateTime FechaExpiracionUtc);
 
