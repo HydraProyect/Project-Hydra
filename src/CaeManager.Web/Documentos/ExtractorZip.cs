@@ -49,9 +49,10 @@ public static class ExtractorZip
     /// en silencio — son estructura, no archivos que subir.
     /// </summary>
     /// <param name="maximoEntradas">
-    /// Cuántos archivos puede traer el .zip. Se comprueba antes de
-    /// descomprimir nada: el llamador ya rechazaba los lotes de más de N
-    /// archivos, pero lo hacía después de haberlos expandido en memoria.
+    /// Cuántos archivos puede traer aún este .zip: son las plazas que quedan
+    /// en el lote, no el tope de la subida. Se comprueba antes de descomprimir
+    /// nada — el llamador ya rechazaba los lotes de más de N archivos, pero lo
+    /// hacía después de haberlos expandido en memoria.
     /// </param>
     /// <param name="maximoPorEntrada">
     /// Tope por archivo extraído, el mismo que el llamador aplica a un
@@ -83,8 +84,13 @@ public static class ExtractorZip
             .ToList();
 
         if (entradas.Count > maximoEntradas)
+            // Sin cifra de máximo a propósito: lo que se recibe aquí son las
+            // plazas que QUEDAN en el lote, no el tope de la subida, así que
+            // anunciarlo como "el máximo es N" mentiría en cuanto el lote
+            // llevara algún archivo — al usuario le diría que el límite es 5
+            // cuando son 60.
             throw new InvalidDataException(
-                $"El .zip contiene {entradas.Count} archivos y el máximo por subida es {maximoEntradas}.");
+                $"El .zip contiene {entradas.Count} archivos y no caben en esta subida.");
 
         var presupuestoRestante = presupuestoTotalBytes;
 
