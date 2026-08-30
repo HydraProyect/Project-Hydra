@@ -695,6 +695,27 @@ jobs:
       - name: Tests E2E
         run: dotnet test tests/CaeManager.E2ETests --no-build --logger "console;verbosity=normal"
 
+      # WebAppFixture no reenvía stdout del proceso de CaeManager.Web (ver su
+      # comentario) porque Serilog ya escribe lo mismo en su sink de fichero,
+      # bajo el content root de estos tests
+      # (src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/). Ese fichero es
+      # donde queda la única traza de una excepción no controlada mientras la
+      # app ya estaba sirviendo — así se encontró en su día la causa del
+      # fallo del Paso 0 de FlujoCicloDocumentalTests, en local, leyendo el
+      # fichero a mano. Sin este paso, el runner de CI se destruye al acabar
+      # el job y esa misma evidencia desaparece justo cuando más hace falta:
+      # en un fallo intermitente que no se reproduce en la siguiente
+      # ejecución (CLAUDE.md § 3 — mirar primero lo que el sistema ya
+      # escribe, antes de instrumentar de nuevo para redescubrirlo).
+      - name: Publicar logs de CaeManager.Web si el E2E falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-caemanager-web-e2e
+          path: src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/
+          retention-days: 7
+          if-no-files-found: warn
+
   load-test:
     name: Prueba de carga base (k6)
     runs-on: ubuntu-latest
