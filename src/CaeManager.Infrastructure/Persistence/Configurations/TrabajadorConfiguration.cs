@@ -16,12 +16,20 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
         builder.Property(t => t.Apellidos).IsRequired().HasMaxLength(Trabajador.LongitudMaximaApellidos);
         builder.Property(t => t.Alias).HasMaxLength(Trabajador.LongitudMaximaAlias);
         builder.Property(t => t.Puesto).HasMaxLength(Trabajador.LongitudMaximaPuesto);
-        builder.Property(t => t.Dni).IsRequired().HasMaxLength(Trabajador.LongitudMaximaDni);
+        builder.Property(t => t.Dni).HasMaxLength(Trabajador.LongitudMaximaDni);
         builder.Property(t => t.Email).HasMaxLength(Trabajador.LongitudMaximaEmail);
         builder.Property(t => t.Telefono).HasMaxLength(Trabajador.LongitudMaximaTelefono);
         builder.Property(t => t.Observaciones).HasMaxLength(Trabajador.LongitudMaximaObservaciones);
 
-        builder.HasIndex(t => new { t.TenantId, t.Dni }).IsUnique();
+        // Parcial, no total (auditoría Módulo 5, hallazgo crítico 9/9): un
+        // trabajador anonimizado tiene Dni null, y sin excluir los nulos el
+        // segundo anonimizado del mismo tenant chocaría contra el primero —
+        // Postgres SÍ considera NULL = NULL como no-coincidente en un índice
+        // único normal, pero aquí Dni dejó de ser NOT NULL, así que el filtro
+        // lo deja explícito en vez de confiar en ese comportamiento implícito.
+        builder.HasIndex(t => new { t.TenantId, t.Dni })
+               .IsUnique()
+               .HasFilter($"\"{nameof(Trabajador.Dni)}\" IS NOT NULL");
         // Resolver "de quién es este WhatsApp entrante" busca por teléfono en
         // la ingesta, no por Id — sin índice sería un scan por cada mensaje.
         builder.HasIndex(t => new { t.TenantId, t.Telefono });
