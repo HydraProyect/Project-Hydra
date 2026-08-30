@@ -10,7 +10,9 @@ using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
+using CaeManager.Application.Common;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -199,7 +201,9 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
             var handlerRenovar = new RenovarDocumentoCommandHandler(
                 new DocumentoRepository(contexto), contexto, new AlcanceDatosServiceFalso(), contexto,
                 new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
-                new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso(), contexto);
+                new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso(), contexto,
+                new AlmacenamientoQueNoSeUsaAqui(),
+                NullLogger<RenovarDocumentoCommandHandler>.Instance);
 
             var resultado = await handlerRenovar.Handle(
                 new RenovarDocumentoCommand(documentoId, new DateOnly(2026, 2, 1), null, null, null),
@@ -249,5 +253,23 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
 
         public Task<int> ContarActivosAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(0);
+    }
+
+    /// <summary>
+    /// El caso de este fichero renueva sin adjuntar archivo nuevo, así que el
+    /// handler nunca llega a borrar nada. Lanzar si se le llamara es la forma
+    /// de que un cambio futuro que sí borrase aquí se note, en vez de pasar
+    /// como un no-op silencioso.
+    /// </summary>
+    private sealed class AlmacenamientoQueNoSeUsaAqui : IFileStorageService
+    {
+        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Este escenario no debe borrar ningún archivo.");
     }
 }
