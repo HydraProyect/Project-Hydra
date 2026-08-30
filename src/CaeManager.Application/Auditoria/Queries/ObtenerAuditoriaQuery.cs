@@ -92,7 +92,14 @@ public class ObtenerAuditoriaQueryHandler(IAuditoriaQueryContext dbContext)
             .Take(request.TamanoPagina)
             .Select(r => new
             {
-                r.Id, r.EntidadTipo, r.EntidadId, r.Accion, r.UsuarioId, r.FechaUtc, r.DatosAntes, r.DatosDespues
+                r.Id,
+                r.EntidadTipo,
+                r.EntidadId,
+                r.Accion,
+                r.UsuarioId,
+                r.FechaUtc,
+                r.DatosAntes,
+                r.DatosDespues
             })
             .ToListAsync(cancellationToken);
 
