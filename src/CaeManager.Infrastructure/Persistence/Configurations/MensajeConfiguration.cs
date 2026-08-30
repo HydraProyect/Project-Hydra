@@ -22,7 +22,10 @@ public class MensajeConfiguration : IEntityTypeConfiguration<Mensaje>
         builder.HasIndex(m => new { m.TenantId, m.MensajeExternoId }).IsUnique();
 
         // Colección de solo lectura respaldada por campo privado — mismo
-        // patrón que Conversacion.Mensajes/Participantes.
+        // patrón que Conversacion.Mensajes/Participantes. FK de una sola
+        // columna, no compuesta con TenantId — ver el comentario de
+        // ConversacionConfiguration sobre por qué (navegación de colección
+        // real + TenantSelladoInterceptor, auditoría Módulo 8).
         builder.HasMany(m => m.Adjuntos)
             .WithOne()
             .HasForeignKey(a => a.MensajeId)
