@@ -123,6 +123,45 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         firmas.Should().ContainSingle().Which.FirmanteNif.Should().Be("Q2827003A");
     }
 
+    /// <summary>
+    /// Revisado tras auditoría de seguridad del módulo (2026-08-30): una
+    /// revocación no comprobable (OCSP/CRL caído) ya no basta para
+    /// auto-validar — un certificado robado o revocado seguiría aprobando
+    /// automáticamente durante esa caída si se aceptara.
+    /// </summary>
+    [Fact]
+    public async Task Revocacion_no_comprobable_exige_revision_en_vez_de_auto_validar()
+    {
+        var documento = await CrearDocumentoAsync();
+        var servicio = CrearServicio(Result.Exito(FirmaSelloDeOrgano(NivelConfianzaDocumental.FirmaValidaSinRevocacion)));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
+        verificacion.Decision.Should().Be(DecisionValidacionOficial.SinFirmaValida);
+        (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Auditoría de seguridad del módulo (2026-08-30): una cadena confiable
+    /// por sí sola no prueba que el firmante sea el organismo del perfil —
+    /// el certificado personal de cualquier ciudadano con FNMT cuelga de la
+    /// misma raíz. Sin EsSelloDeOrgano, a revisión, aunque la firma sea
+    /// válida y los datos coincidan.
+    /// </summary>
+    [Fact]
+    public async Task Firma_valida_de_certificado_personal_no_es_sello_de_organo_y_exige_revision()
+    {
+        var documento = await CrearDocumentoAsync();
+        var servicio = CrearServicio(Result.Exito(FirmaSelloDeOrgano(esSelloDeOrgano: false)));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
+        verificacion.Decision.Should().Be(DecisionValidacionOficial.SinFirmaValida);
+        (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
     [Fact]
     public async Task Un_documento_manipulado_queda_sin_firma_valida_y_sin_aprobacion()
     {

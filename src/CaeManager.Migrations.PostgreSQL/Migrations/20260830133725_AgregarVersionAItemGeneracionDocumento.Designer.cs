@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260830133725_AgregarVersionAItemGeneracionDocumento")]
+    partial class AgregarVersionAItemGeneracionDocumento
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -192,22 +195,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "FechaUtc")
-                        .HasDatabaseName("IX_RegistrosAuditoria_TenantId_FechaUtc");
-
-                    b.HasIndex("TenantId", "ViaAccesoId")
-                        .HasDatabaseName("IX_RegistrosAuditoria_TenantId_ViaAccesoId")
-                        .HasFilter("\"ViaAccesoId\" IS NOT NULL");
-
-                    b.HasIndex("TenantId", "ActorRealUsuarioId", "FechaUtc")
-                        .HasDatabaseName("IX_RegistrosAuditoria_TenantId_ActorRealUsuarioId_FechaUtc")
+                    b.HasIndex("ActorRealUsuarioId")
                         .HasFilter("\"ActorRealUsuarioId\" IS NOT NULL");
 
-                    b.HasIndex("TenantId", "UsuarioId", "FechaUtc")
-                        .HasDatabaseName("IX_RegistrosAuditoria_TenantId_UsuarioId_FechaUtc");
+                    b.HasIndex("FechaUtc");
 
-                    b.HasIndex("TenantId", "EntidadTipo", "EntidadId", "FechaUtc")
-                        .HasDatabaseName("IX_RegistrosAuditoria_TenantId_EntidadTipo_EntidadId_FechaUtc");
+                    b.HasIndex("ViaAccesoId")
+                        .HasFilter("\"ViaAccesoId\" IS NOT NULL");
+
+                    b.HasIndex("EntidadTipo", "EntidadId");
 
                     b.ToTable("RegistrosAuditoria", (string)null);
                 });
@@ -701,10 +697,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "Estado");
 
-                    b.HasIndex("TenantId", "Canal", "Estado");
-
-                    b.HasIndex("TenantId", "ConexionIntegracionId", "HiloExternoId")
+                    b.HasIndex("TenantId", "HiloExternoId")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "Canal", "Estado");
 
                     b.HasIndex("TenantId", "ConexionIntegracionId", "TelefonoContacto");
 
@@ -1166,9 +1162,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("TenantId")
-                        .IsUnique();
 
                     b.ToTable("ParametrosSistema", (string)null);
 
@@ -3594,9 +3587,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Intentos")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime?>("SiguienteIntentoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
@@ -4033,12 +4023,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("AccessToken")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("AccessTokenExpiraUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<Guid>("ConexionIntegracionId")
                         .HasColumnType("uuid");
 
@@ -4047,10 +4031,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("Version")
-                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
@@ -4259,14 +4239,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("FechaRecepcionUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("IniciadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Intentos")
@@ -4276,8 +4249,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<DateTime?>("SiguienteIntentoEnUtc")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<bool>("Procesado")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -4286,9 +4259,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("ConexionIntegracionId");
 
-                    b.HasIndex("TenantId", "FechaRecepcionUtc")
-                        .HasDatabaseName("IX_EventosWebhook_TenantId_FechaRecepcionUtc_Pendientes")
-                        .HasFilter("\"Estado\" = 'Pendiente'");
+                    b.HasIndex("TenantId", "Procesado");
 
                     b.ToTable("EventosWebhook", (string)null);
                 });
@@ -4340,9 +4311,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsUnique();
 
                     b.HasIndex("PhoneNumberId")
-                        .IsUnique();
-
-                    b.HasIndex("TenantId", "ConexionIntegracionId")
                         .IsUnique();
 
                     b.ToTable("LineasWhatsApp", (string)null);
@@ -4573,34 +4541,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Codigo = "opground",
                             Nombre = "Opground"
                         });
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Integraciones.SolicitudConexionMicrosoft365", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ClienteId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("FechaExpiracionUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("GestorPropietarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("UsuarioSolicitanteId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FechaExpiracionUtc");
-
-                    b.ToTable("SolicitudesConexionMicrosoft365", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Integraciones.SuscripcionWebhook", b =>
@@ -7183,8 +7123,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 {
                     b.HasOne("CaeManager.Domain.Integraciones.ConexionIntegracion", null)
                         .WithOne()
-                        .HasForeignKey("CaeManager.Domain.Integraciones.LineaWhatsApp", "TenantId", "ConexionIntegracionId")
-                        .HasPrincipalKey("CaeManager.Domain.Integraciones.ConexionIntegracion", "TenantId", "Id")
+                        .HasForeignKey("CaeManager.Domain.Integraciones.LineaWhatsApp", "ConexionIntegracionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

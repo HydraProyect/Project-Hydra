@@ -165,7 +165,7 @@ public class VerificadorFirmaPdfService(
 
         var (fechaFirmaUtc, tieneSelloDeTiempo) = ExtraerFechaFirma(firmante);
         var (cadenaConfiable, revocacion, motivoCadena) =
-            EvaluarCadena(certificado, cms.Certificates, fechaFirmaUtc, cancellationToken);
+            EvaluarCadena(certificado, cms.Certificates, tieneSelloDeTiempo ? fechaFirmaUtc : null, cancellationToken);
         var (esSello, nombre, nif) = InterpretarFirmante(certificado);
 
         return new FirmaPdfVerificada(
@@ -190,13 +190,17 @@ public class VerificadorFirmaPdfService(
     /// reevalúa sin revocación para distinguir "emisor no confiable" de
     /// "confiable pero sin poder comprobar revocación" — la degradación del
     /// plan § 4. La validez del certificado se evalúa en el momento de la
-    /// firma cuando hay sello de tiempo (un certificado hoy caducado pudo
-    /// firmar válidamente en su día — PAdES).
+    /// firma solo cuando <paramref name="fechaFirmaVerificadaUtc"/> viene de
+    /// un sello de tiempo RFC 3161 ya verificado (un certificado hoy caducado
+    /// pudo firmar válidamente en su día — PAdES); el llamador debe pasar
+    /// <c>null</c> cuando la fecha es solo el signingTime declarado por el
+    /// propio firmante, para no dejarle retrofechar la firma a un momento en
+    /// el que su certificado todavía parecía válido.
     /// </summary>
     private (bool CadenaConfiable, ComprobacionRevocacion Revocacion, string? Motivo) EvaluarCadena(
         X509Certificate2 certificado,
         X509Certificate2Collection certificadosEmbebidos,
-        DateTime? fechaFirmaUtc,
+        DateTime? fechaFirmaVerificadaUtc,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -209,7 +213,7 @@ public class VerificadorFirmaPdfService(
         var publicaRevocacion = PublicaPuntosDeRevocacion(certificado);
 
         using var cadenaEnLinea = CrearCadena(
-            certificadosEmbebidos, fechaFirmaUtc,
+            certificadosEmbebidos, fechaFirmaVerificadaUtc,
             publicaRevocacion ? X509RevocationMode.Online : X509RevocationMode.NoCheck);
         if (cadenaEnLinea.Build(certificado))
         {
@@ -224,7 +228,7 @@ public class VerificadorFirmaPdfService(
 
         if (soloFallaRevocacion)
         {
-            using var cadenaSinRevocacion = CrearCadena(certificadosEmbebidos, fechaFirmaUtc, X509RevocationMode.NoCheck);
+            using var cadenaSinRevocacion = CrearCadena(certificadosEmbebidos, fechaFirmaVerificadaUtc, X509RevocationMode.NoCheck);
             if (cadenaSinRevocacion.Build(certificado))
                 return (true, ComprobacionRevocacion.NoDisponible, null);
             estados = cadenaSinRevocacion.ChainStatus.Select(s => s.Status).ToList();
@@ -240,7 +244,7 @@ public class VerificadorFirmaPdfService(
     }
 
     private X509Chain CrearCadena(
-        X509Certificate2Collection certificadosEmbebidos, DateTime? fechaFirmaUtc, X509RevocationMode modo)
+        X509Certificate2Collection certificadosEmbebidos, DateTime? fechaFirmaVerificadaUtc, X509RevocationMode modo)
     {
         var cadena = new X509Chain();
         cadena.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
@@ -249,7 +253,9 @@ public class VerificadorFirmaPdfService(
         cadena.ChainPolicy.RevocationMode = modo;
         cadena.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
         cadena.ChainPolicy.UrlRetrievalTimeout = TimeoutRevocacion;
-        if (fechaFirmaUtc is { } fecha)
+        // Sin sello de tiempo verificado, se evalúa a fecha actual (default
+        // de X509Chain) — nunca a la fecha que el propio firmante declaró.
+        if (fechaFirmaVerificadaUtc is { } fecha)
             cadena.ChainPolicy.VerificationTime = fecha.ToLocalTime();
         return cadena;
     }
@@ -367,43 +373,115 @@ public class VerificadorFirmaPdfService(
 
     private sealed record FirmaLocalizada(int[] ByteRange, byte[] ContenidoCms, string SubFilter);
 
+    // Cotas de saneamiento contra un PDF malicioso: ningún documento real
+    // tiene miles de campos de firma ni una jerarquía /Kids de docenas de
+    // niveles — un valor muy por encima de cualquier caso legítimo, para no
+    // rechazar PDFs reales por casualidad.
+    private const int ProfundidadMaximaCamposAcroForm = 32;
+    private const int MaximoCamposAcroFormVisitados = 5_000;
+
+    // Una firma CAdES/PAdES real (CMS/PKCS#7 detached) pesa de unos pocos KB
+    // a, como mucho, unas pocas decenas de KB incluso con cadena completa
+    // embebida. 2 MB es una cota generosa que sigue acotando la asignación.
+    private const int TamanoMaximoContenidoCms = 2 * 1024 * 1024;
+
     /// <summary>
-    /// AcroForm → Fields → campos /FT /Sig → /V. El /ByteRange se lee del
-    /// modelo de objetos; el /Contents, de los bytes crudos del hueco que el
-    /// propio rango define (literal hexadecimal, con relleno de ceros que
-    /// SignedCms ignora porque el DER declara su longitud).
+    /// AcroForm → Fields (recorriendo /Kids, con límite de profundidad y de
+    /// nodos visitados) → campos /FT /Sig → /V. El /ByteRange se valida en
+    /// aritmética `long` antes de usarse para nada: un PDF hostil puede
+    /// declarar cualquier entero en ese array, y de ahí se deriva tamaño de
+    /// asignaciones y offsets de `Array.Copy`. El /Contents se lee de los
+    /// bytes crudos del hueco que el propio rango define (literal
+    /// hexadecimal, con relleno de ceros que SignedCms ignora porque el DER
+    /// declara su longitud). Cada campo se procesa dentro de su propia
+    /// frontera de excepción: un campo malformado se descarta, no invalida
+    /// las demás firmas del documento.
     /// </summary>
     private static List<FirmaLocalizada> LocalizarFirmas(byte[] pdf)
     {
         using var flujo = new MemoryStream(pdf);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Import);
 
-        var campos = documento.Internals.Catalog.Elements
+        var camposRaiz = documento.Internals.Catalog.Elements
             .GetDictionary("/AcroForm")?.Elements.GetArray("/Fields");
-        if (campos is null) return [];
+        if (camposRaiz is null) return [];
 
         var firmas = new List<FirmaLocalizada>();
-        foreach (var elemento in campos)
+        var visitados = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
+        var pendientes = new Stack<(PdfArray Campos, int Profundidad)>();
+        pendientes.Push((camposRaiz, 0));
+
+        while (pendientes.Count > 0)
         {
-            var campo = elemento is PdfReference referencia ? referencia.Value as PdfDictionary : elemento as PdfDictionary;
-            if (campo?.Elements.GetName("/FT") != "/Sig") continue;
+            var (campos, profundidad) = pendientes.Pop();
+            if (profundidad > ProfundidadMaximaCamposAcroForm) continue;
 
-            var valorFirma = campo.Elements.GetDictionary("/V");
-            var byteRangeArray = valorFirma?.Elements.GetArray("/ByteRange");
-            if (valorFirma is null || byteRangeArray is null) continue;
+            foreach (var elemento in campos)
+            {
+                if (visitados.Count > MaximoCamposAcroFormVisitados) return firmas;
 
-            var byteRange = byteRangeArray.Elements.Items
-                .Select(item => ((PdfInteger)item).Value)
-                .ToArray();
-            if (byteRange.Length != 4) continue;
+                var campo = elemento is PdfReference referencia ? referencia.Value as PdfDictionary : elemento as PdfDictionary;
+                if (campo is null || !visitados.Add(campo)) continue; // null o ya visitado (ciclo /Kids)
 
-            firmas.Add(new FirmaLocalizada(
-                byteRange,
-                ExtraerContenidoCmsDelHueco(pdf, byteRange),
-                valorFirma.Elements.GetName("/SubFilter")));
+                if (campo.Elements.GetName("/FT") == "/Sig")
+                {
+                    try
+                    {
+                        var valorFirma = campo.Elements.GetDictionary("/V");
+                        var byteRangeArray = valorFirma?.Elements.GetArray("/ByteRange");
+                        if (valorFirma is not null && byteRangeArray is not null)
+                        {
+                            var byteRange = byteRangeArray.Elements.Items
+                                .OfType<PdfInteger>()
+                                .Select(item => item.Value)
+                                .ToArray();
+                            if (ByteRangeEsValido(byteRange, pdf.Length))
+                            {
+                                firmas.Add(new FirmaLocalizada(
+                                    byteRange,
+                                    ExtraerContenidoCmsDelHueco(pdf, byteRange),
+                                    valorFirma.Elements.GetName("/SubFilter")));
+                            }
+                        }
+                    }
+                    catch (Exception ex) when (ex is FormatException or ArgumentException or IndexOutOfRangeException or InvalidOperationException)
+                    {
+                        // /Contents no es un literal hexadecimal válido dentro
+                        // del hueco declarado: se descarta este campo, no el
+                        // documento entero.
+                    }
+                }
+
+                var kids = campo.Elements.GetArray("/Kids");
+                if (kids is not null)
+                    pendientes.Push((kids, profundidad + 1));
+            }
         }
 
         return firmas;
+    }
+
+    /// <summary>
+    /// Exactamente cuatro enteros no negativos, en aritmética `long` para no
+    /// desbordar: primer tramo dentro del archivo, hueco sin solapar el
+    /// primer tramo y de tamaño acotado, segundo tramo sin salirse del
+    /// archivo. Un /ByteRange que no cumpla esto no es una firma inválida —
+    /// es un campo que ni siquiera se procesa.
+    /// </summary>
+    private static bool ByteRangeEsValido(int[] byteRange, int longitudPdf)
+    {
+        if (byteRange.Length != 4) return false;
+        if (byteRange.Any(v => v < 0)) return false;
+
+        long inicio1 = byteRange[0], longitud1 = byteRange[1], inicio2 = byteRange[2], longitud2 = byteRange[3];
+        var finTramo1 = inicio1 + longitud1;
+        var finTramo2 = inicio2 + longitud2;
+        var tamanoHueco = inicio2 - finTramo1;
+
+        return finTramo1 <= longitudPdf
+            && inicio2 >= finTramo1
+            && finTramo2 <= longitudPdf
+            && tamanoHueco is >= 2 and <= TamanoMaximoContenidoCms;
     }
 
     private static byte[] ExtraerContenidoCmsDelHueco(byte[] pdf, int[] byteRange)

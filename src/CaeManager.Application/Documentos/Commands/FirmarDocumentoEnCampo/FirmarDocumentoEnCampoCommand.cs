@@ -127,13 +127,21 @@ public class FirmarDocumentoEnCampoCommandHandler(
             }
         }
 
-        // El sello es un realce secundario de la constancia: si el Id llegó
-        // pero ya no hay sello guardado (se borró entre que se cargó el
-        // selector y se firmó), se firma igualmente sin él en vez de
-        // bloquear la firma por algo que no es la firma en sí.
+        // Autorización del sello (auditoría de seguridad del módulo,
+        // 2026-08-30): SelloEmpresaId llega del cliente sin comprobar antes
+        // que esa Empresa esté en la cartera del usuario — sin este gate, un
+        // operador podía estampar sobre un documento visible el sello de
+        // cualquier otra Empresa del tenant. Distinto del caso "ya no hay
+        // sello guardado" (se borró entre que se cargó el selector y se
+        // firmó): ese sigue firmando sin sello, porque no es un problema de
+        // autorización — pero un SelloEmpresaId fuera de cartera SÍ debe
+        // fallar explícitamente, nunca continuar en silencio sin él.
         byte[]? selloPng = null;
         if (request.SelloEmpresaId is { } empresaIdDelSello)
         {
+            if (!await alcanceDatos.EmpresaVisibleAsync(empresaIdDelSello, cancellationToken))
+                return Result.Fallo(Error.Crear("FirmaEnCampo.SelloNoAutorizado", "No tienes acceso a este sello de empresa."));
+
             var selloEmpresa = await selloEmpresaRepositorio.ObtenerPorEmpresaAsync(empresaIdDelSello, cancellationToken);
             if (selloEmpresa is not null)
             {
