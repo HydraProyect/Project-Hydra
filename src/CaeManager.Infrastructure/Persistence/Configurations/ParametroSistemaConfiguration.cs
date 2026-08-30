@@ -5,13 +5,19 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace CaeManager.Infrastructure.Persistence.Configurations;
 
-/// <summary>Fila única — su unicidad la garantiza el Id fijo de la semilla, no una constraint de BD adicional.</summary>
+/// <summary>Fila única por tenant — invariante impuesta en Postgres, no solo por el Id fijo de la semilla del tenant #1.</summary>
 public class ParametroSistemaConfiguration : IEntityTypeConfiguration<ParametroSistema>
 {
     public void Configure(EntityTypeBuilder<ParametroSistema> builder)
     {
         builder.ToTable("ParametrosSistema");
         builder.HasKey(p => p.Id);
+
+        // El Id fijo de la semilla solo protege al tenant #1: cualquier otro
+        // tenant siembra su fila con un Id nuevo (ver comentario de TenantId
+        // más abajo) y nada en el modelo impedía una segunda fila para el
+        // mismo tenant (auditoría Módulo 8).
+        builder.HasIndex(p => p.TenantId).IsUnique();
 
         builder.HasData(new
         {

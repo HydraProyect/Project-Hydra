@@ -27,7 +27,7 @@ public static class RequisitosDocumentalesEndpoints
                 ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 : "application/pdf";
 
-            return Results.File(flujo, tipoContenido, nombreArchivo);
+            return Results.File(flujo, tipoContenido, nombreArchivo, enableRangeProcessing: true);
         });
 
         return endpoints;

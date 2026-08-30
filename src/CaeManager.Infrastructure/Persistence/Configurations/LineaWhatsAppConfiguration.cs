@@ -27,13 +27,21 @@ public class LineaWhatsAppConfiguration : IEntityTypeConfiguration<LineaWhatsApp
         builder.HasIndex(l => l.PhoneNumberId).IsUnique();
         builder.HasIndex(l => l.ConexionIntegracionId).IsUnique();
 
+        // FK compuesta con TenantId (auditoría Módulo 8) — ConexionIntegracion
+        // también es EntidadConTenant, así que no hace falta columna nueva.
         builder.HasOne<ConexionIntegracion>()
             .WithOne()
-            .HasForeignKey<LineaWhatsApp>(l => l.ConexionIntegracionId)
+            .HasForeignKey<LineaWhatsApp>(l => new { l.TenantId, l.ConexionIntegracionId })
+            .HasPrincipalKey<ConexionIntegracion>(c => new { c.TenantId, c.Id })
             .OnDelete(DeleteBehavior.Cascade);
 
         // Colección de solo lectura respaldada por campo privado — mismo
-        // patrón que Conversacion.Mensajes.
+        // patrón que Conversacion.Mensajes. FK de una sola columna, NO
+        // compuesta con TenantId a diferencia de la de arriba hacia
+        // ConexionIntegracion: esta SÍ es una navegación de colección real
+        // (HasMany), y componerla choca con TenantSelladoInterceptor exactamente
+        // igual que Conversacion→Mensajes — ver ese comentario (auditoría
+        // Módulo 8, intentado y revertido 2026-08-30).
         builder.HasMany(l => l.MiembrosPool)
             .WithOne()
             .HasForeignKey(m => m.LineaWhatsAppId)

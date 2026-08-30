@@ -36,8 +36,20 @@ internal static class ConfiguracionDeContexto
             npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL");
 
             // Contra un servidor de red hay errores transitorios que con un
-            // archivo local sencillamente no existían.
-            npgsql.EnableRetryOnFailure();
+            // archivo local sencillamente no existían. Parámetros explícitos
+            // (auditoría Módulo 8) — son los mismos que EF Core aplicaría por
+            // defecto sin argumentos, pero como número mágico implícito no
+            // había ni un sitio que decidiera cambiarlos ni un valor que leer
+            // sin ir a la documentación de Npgsql.
+            npgsql.EnableRetryOnFailure(maxRetryCount: 6, maxRetryDelay: TimeSpan.FromSeconds(30), errorCodesToAdd: null);
+
+            // Límite explícito por comando: sin él, una consulta colgada
+            // (lock inesperado, plan de ejecución degenerado) se queda
+            // esperando indefinidamente en vez de fallar de forma observable.
+            // 30s es generoso para las consultas de pantalla; los jobs de
+            // fondo que necesiten más (informes, importaciones masivas) lo
+            // fijan en su propio DbContext/comando, no aquí.
+            npgsql.CommandTimeout(30);
         });
 
         opciones.AddInterceptors(

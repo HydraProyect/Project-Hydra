@@ -22,7 +22,7 @@ public static class ComunicacionesEndpoints
                 return Results.NotFound();
 
             var flujo = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken);
-            return Results.File(flujo, adjunto.TipoContenido, adjunto.NombreArchivo);
+            return Results.File(flujo, adjunto.TipoContenido, adjunto.NombreArchivo, enableRangeProcessing: true);
         });
         // Sin .RequireAuthorization() explícito: el FallbackPolicy global de
         // Program.cs (RequireAuthenticatedUser) ya lo cubre, mismo criterio

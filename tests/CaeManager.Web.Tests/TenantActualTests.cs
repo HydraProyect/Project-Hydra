@@ -50,6 +50,35 @@ public class TenantActualTests
         tenantActual.TenantId.Should().BeNull();
     }
 
+    /// <summary>
+    /// Invariante de la que depende <c>RevalidacionCircuitoActivoHandler</c>
+    /// (Módulo 9, auditoría 2026-08-30): su temporizador de fondo solo cierra
+    /// el hueco de lectura de un circuito ya abierto porque esta propiedad
+    /// relee <see cref="IClienteActivoSeleccionado.TenantIdSeleccionado"/> en
+    /// vivo en cada acceso — el claim de sesión sí se cachea en <c>_resuelto</c>,
+    /// la selección nunca. Si algún día se "optimizara" cacheando también la
+    /// selección, este test es el que lo detectaría: sin él, el handler
+    /// seguiría invalidando en memoria sin que ningún lector lo notara nunca
+    /// — un fallo silencioso indistinguible de un éxito.
+    /// </summary>
+    [Fact]
+    public void La_seleccion_de_workspace_se_relee_en_vivo_aunque_el_claim_de_tenant_ya_este_cacheado()
+    {
+        var authStateProvider = new AuthenticationStateProviderFalso(UsuarioAutenticadoCon(TenantIdDeEjemplo));
+        var seleccion = new ClienteActivoSeleccionadoFalso { TenantIdSeleccionado = Guid.NewGuid() };
+        var tenantActual = new TenantActual(authStateProvider, new HttpContextAccessorFalso(null), seleccion);
+
+        // Primera lectura: fuerza a TenantActual a resolver y cachear el claim
+        // base (_resuelto = true), y a la vez a devolver la selección viva.
+        tenantActual.TenantId.Should().Be(seleccion.TenantIdSeleccionado);
+
+        // Invalidación en memoria, sin volver a tocar el claim de sesión — es
+        // exactamente lo único que hace RevalidacionCircuitoActivoHandler.
+        seleccion.TenantIdSeleccionado = null;
+
+        tenantActual.TenantId.Should().Be(TenantIdDeEjemplo, "la selección invalidada debe dejar paso al tenant propio, no quedarse con el valor viejo cacheado");
+    }
+
     private static ClaimsPrincipal UsuarioAutenticadoCon(Guid tenantId)
     {
         var identidad = new ClaimsIdentity(
@@ -88,7 +117,7 @@ public class TenantActualTests
 
     private sealed class ClienteActivoSeleccionadoFalso : IClienteActivoSeleccionado
     {
-        public Guid? TenantIdSeleccionado => null;
+        public Guid? TenantIdSeleccionado { get; set; }
         public Guid? AsignacionOperacionIdSeleccionada => null;
         public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
