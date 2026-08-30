@@ -61,8 +61,15 @@ public static class WebhookWhatsAppEndpoints
             ILogger<Program> logger,
             CancellationToken cancellationToken) =>
         {
-            using var lector = new StreamReader(request.Body);
-            var payload = await lector.ReadToEndAsync(cancellationToken);
+            var cuerpo = await LimiteCuerpoWebhook.LeerAsync(request, cancellationToken);
+            if (cuerpo is null)
+            {
+                logger.LogWarning(
+                    "Notificación de webhook de WhatsApp rechazada: cuerpo mayor de {Maximo} bytes.", LimiteCuerpoWebhook.MaximoBytes);
+                return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            }
+
+            var payload = Encoding.UTF8.GetString(cuerpo);
 
             var firma = request.Headers["X-Hub-Signature-256"].FirstOrDefault();
             if (!FirmaValida(payload, firma, opciones.Value.AppSecret))
@@ -71,21 +78,25 @@ public static class WebhookWhatsAppEndpoints
                 return Results.Unauthorized();
             }
 
+            // Reparte el sobre firmado por línea ANTES de persistir: si Meta
+            // agrupa varias líneas en una notificación, cada tenant recibe
+            // solo sus propios entry/changes — nunca el JSON de otro tenant
+            // (fuga física de PHI/PII detectada en la auditoría del módulo 6).
             var hayPendientes = false;
-            foreach (var phoneNumberId in whatsAppClient.ExtraerPhoneNumberIds(payload))
+            foreach (var fragmento in whatsAppClient.ParticionarPorPhoneNumberId(payload))
             {
-                var verificacion = await tenantResolver.ResolverPorPhoneNumberIdAsync(phoneNumberId, cancellationToken);
+                var verificacion = await tenantResolver.ResolverPorPhoneNumberIdAsync(fragmento.PhoneNumberId, cancellationToken);
                 if (!verificacion.Verificado)
                 {
                     // Línea desconocida (p. ej. dada de baja): se ignora sin
                     // devolver error — un 4xx haría que Meta reintentara para
                     // siempre un payload que nunca vamos a poder atender.
-                    logger.LogWarning("Webhook de WhatsApp para un phone_number_id desconocido: {PhoneNumberId}.", phoneNumberId);
+                    logger.LogWarning("Webhook de WhatsApp para un phone_number_id desconocido: {PhoneNumberId}.", fragmento.PhoneNumberId);
                     continue;
                 }
 
                 using var _ = AmbitoTenantExplicito.Establecer(verificacion.TenantId!.Value);
-                eventoRepositorio.Agregar(new EventoWebhook(verificacion.ConexionIntegracionId!.Value, payload));
+                eventoRepositorio.Agregar(new EventoWebhook(verificacion.ConexionIntegracionId!.Value, fragmento.PayloadJson));
                 await unitOfWork.SaveChangesAsync(cancellationToken);
                 hayPendientes = true;
             }

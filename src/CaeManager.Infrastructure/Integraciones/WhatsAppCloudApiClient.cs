@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Common;
@@ -47,6 +48,88 @@ public class WhatsAppCloudApiClient(
 
         return resultado;
     }
+
+    public IReadOnlyList<FragmentoWebhookWhatsAppDto> ParticionarPorPhoneNumberId(string payloadJson)
+    {
+        var fragmentos = new List<FragmentoWebhookWhatsAppDto>();
+
+        JsonDocument documento;
+        try
+        {
+            documento = JsonDocument.Parse(payloadJson);
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "Payload de webhook de WhatsApp no es JSON válido — se descarta.");
+            return fragmentos;
+        }
+
+        using var _ = documento;
+        if (!documento.RootElement.TryGetProperty("entry", out var entradas) || entradas.ValueKind != JsonValueKind.Array)
+            return fragmentos;
+
+        foreach (var phoneNumberId in ExtraerPhoneNumberIds(payloadJson))
+        {
+            using var buffer = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(buffer))
+            {
+                writer.WriteStartObject();
+                foreach (var propiedad in documento.RootElement.EnumerateObject())
+                {
+                    if (!propiedad.NameEquals("entry"))
+                    {
+                        writer.WritePropertyName(propiedad.Name);
+                        propiedad.Value.WriteTo(writer);
+                        continue;
+                    }
+
+                    writer.WritePropertyName("entry");
+                    writer.WriteStartArray();
+                    foreach (var entrada in entradas.EnumerateArray())
+                    {
+                        if (!entrada.TryGetProperty("changes", out var cambios) || cambios.ValueKind != JsonValueKind.Array)
+                            continue;
+
+                        var cambiosDeLaLinea = cambios.EnumerateArray()
+                            .Where(cambio => EsCambioDeLaLinea(cambio, phoneNumberId))
+                            .ToList();
+                        if (cambiosDeLaLinea.Count == 0)
+                            continue;
+
+                        writer.WriteStartObject();
+                        foreach (var propiedadEntrada in entrada.EnumerateObject())
+                        {
+                            if (propiedadEntrada.NameEquals("changes"))
+                            {
+                                writer.WritePropertyName("changes");
+                                writer.WriteStartArray();
+                                foreach (var cambio in cambiosDeLaLinea)
+                                    cambio.WriteTo(writer);
+                                writer.WriteEndArray();
+                                continue;
+                            }
+
+                            writer.WritePropertyName(propiedadEntrada.Name);
+                            propiedadEntrada.Value.WriteTo(writer);
+                        }
+                        writer.WriteEndObject();
+                    }
+                    writer.WriteEndArray();
+                }
+                writer.WriteEndObject();
+            }
+
+            fragmentos.Add(new FragmentoWebhookWhatsAppDto(phoneNumberId, Encoding.UTF8.GetString(buffer.ToArray())));
+        }
+
+        return fragmentos;
+    }
+
+    private static bool EsCambioDeLaLinea(JsonElement cambio, string phoneNumberId) =>
+        cambio.TryGetProperty("value", out var value) &&
+        value.TryGetProperty("metadata", out var metadata) &&
+        metadata.TryGetProperty("phone_number_id", out var pni) &&
+        pni.GetString() == phoneNumberId;
 
     public NotificacionWhatsAppDto ExtraerNotificacion(string payloadJson, string phoneNumberId)
     {
