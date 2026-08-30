@@ -5,8 +5,11 @@ namespace CaeManager.Domain.Documentos;
 /// de lo que dice un Documento, según su firma digital — niveles discretos
 /// con nombre, no un score inventado (PLAN-FIRMA-DIGITAL-PDF.md § 1). El
 /// orden importa: valores mayores = más confianza; la auto-validación de
-/// documentos oficiales exige como mínimo <see cref="FirmaValidaSinRevocacion"/>
-/// (decisión § 6.1 del plan).
+/// documentos oficiales exige como mínimo <see cref="FirmaValida"/> —
+/// revocación comprobada, no solo emisor confiable (revisado tras auditoría
+/// de seguridad, 2026-08-30: la degradación original a
+/// <see cref="FirmaValidaSinRevocacion"/> exponía a auto-validar con un
+/// certificado revocado durante una caída de OCSP/CRL).
 /// </summary>
 public enum NivelConfianzaDocumental
 {
