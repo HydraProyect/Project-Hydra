@@ -97,10 +97,6 @@ services:
       ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
       AlmacenamientoArchivos__Ruta: /data/documentos
       DataProtection__RutaClaves: /data/dataprotection-keys
-      # El backup a S3 del BackupHostedService queda apagado en esta etapa: el
-      # backup lo hace scripts/backup-borg.sh (cron del host) contra el
-      # Storage Box de Hetzner, que no habla S3.
-      Backups__Activo: "false"
     volumes:
       - caemanager-data:/data
     # Sin `ports` publicados: la app solo es alcanzable desde la red interna

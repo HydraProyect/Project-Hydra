@@ -82,7 +82,6 @@ services:
       # Sin backup real: staging es desechable por diseño (datos de prueba
       # re-sembrables con DatosPrueba__Activo=true), no vale la pena montar
       # scripts/backup-borg.sh contra un segundo repo Borg para esto.
-      Backups__Activo: "false"
     volumes:
       - caemanager-staging-data:/data
     # Sin `ports` publicados — igual que producción, solo alcanzable desde

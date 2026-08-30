@@ -31,7 +31,6 @@ using CaeManager.Infrastructure.Autorizacion;
 using Amazon;
 using Amazon.KeyManagementService;
 using Amazon.S3;
-using CaeManager.Infrastructure.Backups;
 using CaeManager.Infrastructure.Comercial;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Coordinacion;
@@ -178,7 +177,7 @@ public static class InfrastructureServiceCollectionExtensions
             // construir el contenedor, así que sale en el arranque.
             Console.WriteLine(
                 "[AVISO] DataProtection:Kms no está configurado — las claves de Data Protection se guardan SIN CIFRAR. " +
-                "Con Backups activo viajan en claro junto a la base de datos que protegen (ver RUNBOOK-CLAVES.md).");
+                "El backup (scripts/backup-borg.sh) las incluye junto a la base de datos que protegen, así que viajan en claro también ahí (ver RUNBOOK-CLAVES.md).");
         }
 
         // Llavero compartido entre réplicas (P3-30 de docs/business/MATURITY_REVIEW.md):
@@ -248,7 +247,7 @@ public static class InfrastructureServiceCollectionExtensions
         // registrado siempre, no solo si Microsoft365 está configurado —
         // redacta eventos de cualquier proveedor (WhatsApp incluido). Apagada
         // por defecto (ver RetencionEventosWebhookOptions), mismo criterio
-        // que RetencionDatosOptions/BackupsOptions.
+        // que RetencionDatosOptions.
         services.Configure<RetencionEventosWebhookOptions>(
             configuration.GetSection(RetencionEventosWebhookOptions.SeccionConfiguracion));
         services.AddHostedService<RedaccionPayloadWebhookHostedService>();
@@ -500,9 +499,6 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<LibreOfficeConversorWordPdfServiceOptions>(configuration.GetSection(LibreOfficeConversorWordPdfServiceOptions.SeccionConfiguracion));
         services.AddSingleton<IConversorWordPdfService, LibreOfficeConversorWordPdfService>();
-
-        services.Configure<BackupsOptions>(configuration.GetSection(BackupsOptions.SeccionConfiguracion));
-        services.AddHostedService<BackupHostedService>();
 
         // Política de retención RGPD: los plazos son decisión legal y viven en
         // configuración, no en el código (ver RetencionDatosOptions).

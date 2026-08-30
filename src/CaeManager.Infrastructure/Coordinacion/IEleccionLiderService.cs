@@ -2,9 +2,7 @@ namespace CaeManager.Infrastructure.Coordinacion;
 
 /// <summary>
 /// Elección de líder entre réplicas para un <c>BackgroundService</c> que no
-/// debe correr a la vez en más de un proceso — hoy <c>BackupHostedService</c>
-/// (dos backups simultáneos no rompen nada pero desperdician ancho de banda
-/// y credenciales de pg_dump concurrentes) y
+/// debe correr a la vez en más de un proceso — hoy
 /// <c>ProcesadorAnalisisDocumentoHostedService</c> (dos réplicas leyendo
 /// "el siguiente trabajo pendiente" sin bloqueo de fila competirían por el
 /// mismo <c>TrabajoAnalisisDocumento</c> y podrían procesarlo dos veces).
