@@ -62,14 +62,22 @@ public class AcotarActivoUnicoProyectoTecnicoMigrationTests : IAsyncLifetime
 
             // Dos altas ACTIVAS del mismo técnico sobre el mismo proyecto,
             // con fechas de alta distintas: el índice viejo (con FechaAlta
-            // en la clave) lo permite.
-            var antigua = new ProyectoTecnico(proyecto.Id, trabajador.Id, new DateOnly(2026, 1, 5));
-            var reciente = new ProyectoTecnico(proyecto.Id, trabajador.Id, new DateOnly(2026, 2, 1));
-            contexto.ProyectosTecnicos.AddRange(antigua, reciente);
-            await contexto.SaveChangesAsync();
-
-            altaAntigua = antigua.Id;
-            altaReciente = reciente.Id;
+            // en la clave) lo permite. Se siembran por SQL crudo, no por el
+            // DbContext: en MigracionAntes la tabla todavía no tiene la
+            // columna "Version" (la añade HuecosArquitectonicosModulo5,
+            // posterior a la migración objetivo), así que un INSERT vía EF
+            // con el modelo actual fallaría con "column Version does not
+            // exist".
+            altaAntigua = Guid.NewGuid();
+            altaReciente = Guid.NewGuid();
+            await contexto.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO "ProyectosTecnicos" ("Id", "TenantId", "ProyectoId", "TrabajadorId", "FechaAlta", "FechaBaja")
+                VALUES ({altaAntigua}, {_tenantId}, {proyecto.Id}, {trabajador.Id}, {new DateOnly(2026, 1, 5)}, NULL)
+                """);
+            await contexto.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO "ProyectosTecnicos" ("Id", "TenantId", "ProyectoId", "TrabajadorId", "FechaAlta", "FechaBaja")
+                VALUES ({altaReciente}, {_tenantId}, {proyecto.Id}, {trabajador.Id}, {new DateOnly(2026, 2, 1)}, NULL)
+                """);
         }
 
         await using (var contexto = CrearContexto())
@@ -79,6 +87,13 @@ public class AcotarActivoUnicoProyectoTecnicoMigrationTests : IAsyncLifetime
             // No debe fallar: si la migración creara el índice sin cerrar
             // antes el duplicado heredado, este MigrateAsync lanzaría 23505.
             await migrador.MigrateAsync(MigracionObjetivo);
+
+            // Migraciones posteriores (p. ej. HuecosArquitectonicosModulo5,
+            // que añade "Version" a esta misma tabla) no son objeto de este
+            // test, pero hacen falta para que la lectura de verificación de
+            // abajo, hecha con el DbContext y su modelo actual, encuentre
+            // todas las columnas que ese modelo espera.
+            await migrador.MigrateAsync();
         }
 
         await using var verificacion = CrearContexto();
