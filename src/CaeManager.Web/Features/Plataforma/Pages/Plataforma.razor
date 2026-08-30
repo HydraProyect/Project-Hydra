@@ -10,7 +10,9 @@
 @using CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio
 @using CaeManager.Domain.Plataforma
 @using MediatR
+@using Microsoft.AspNetCore.Components.Forms
 @inject IMediator Mediator
+@inject AntiforgeryStateProvider AntiforgeryStateProvider
 
 <PageTitle>Plataforma — @Marca.Nombre</PageTitle>
 
@@ -18,6 +20,44 @@
     <a href="/configuracion" class="enlace-volver-configuracion">← Configuración</a>
 
     <h1 class="titulo-pagina">Administración de plataforma</h1>
+
+    @* ── Cierre de la sesión de soporte (B1.3) ─────────────────────────────
+       Se llega aquí desde /cuenta/soporte/salir, que borra la cookie de contexto
+       y trae el id en la URL. El cierre NO se despacha desde el circuito: va por
+       un <form> normal al endpoint, igual que el selector de workspace y por el
+       mismo motivo —escribe estado de servidor y necesita token antiforgery—.
+
+       Y hay un motivo más, propio de esta pantalla: dentro de un circuito no hay
+       HttpContext, así que ni la selección ni la sesión privilegiada se resuelven
+       (SeleccionSinHttpContextTests). Un botón que despachara el comando desde
+       aquí no podría comprobar si el técnico sigue dentro del tenant visitado; el
+       endpoint sí. *@
+    @if (SesionCerrada)
+    {
+        <p role="status" class="alerta-info">Sesión de soporte cerrada.</p>
+    }
+    else if (ErrorCierre is not null)
+    {
+        <p role="alert" class="mensaje-error">@TextoDeErrorDeCierre(ErrorCierre)</p>
+    }
+    else if (SesionParaCerrar is { } sesion)
+    {
+        <p class="descripcion-seleccion-cliente">
+            Has salido del cliente visitado, pero la sesión de soporte sigue abierta y lo
+            estará hasta que venza su ventana. Ciérrala ahora para que conste cuándo
+            terminó la visita.
+        </p>
+
+        <form method="post" action="/cuenta/soporte/cerrar">
+            @if (_token is not null)
+            {
+                <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+            }
+            <input type="hidden" name="sesionPrivilegiadaId" value="@sesion" />
+
+            <button type="submit" class="boton boton-primario">Cerrar la sesión de soporte</button>
+        </form>
+    }
 
     @if (_cargando)
     {
@@ -54,12 +94,42 @@
     private bool _puedeInicializar;
     private bool _ejecutando;
     private string? _error;
+    private AntiforgeryRequestToken? _token;
+
+    /// <summary>
+    /// El id que trae <c>/cuenta/soporte/salir</c> en la redirección. No es
+    /// autoridad: quien decide si esa sesión se puede cerrar es el comando, y
+    /// debajo de él la política RLS <c>privilegio_del_usuario</c>, que solo
+    /// entrega las sesiones que cuelgan de una concesión del usuario actual.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "sesionParaCerrar")]
+    public Guid? SesionParaCerrar { get; set; }
+
+    [SupplyParameterFromQuery(Name = "errorCierre")]
+    public string? ErrorCierre { get; set; }
+
+    [SupplyParameterFromQuery(Name = "cerrada")]
+    public string? Cerrada { get; set; }
+
+    private bool SesionCerrada => Cerrada == "1";
 
     protected override async Task OnInitializedAsync()
     {
+        _token = AntiforgeryStateProvider.GetAntiforgeryToken();
         _puedeInicializar = await Mediator.Send(new PuedeInicializarPlataformaQuery());
         _cargando = false;
     }
+
+    /// <summary>
+    /// Traduce el código que viaja en la URL. Se traduce aquí y no se muestra
+    /// crudo porque el endpoint manda un código, nunca texto de excepción.
+    /// </summary>
+    private static string TextoDeErrorDeCierre(string codigo) => codigo switch
+    {
+        "SesionPrivilegiada.YaCerrada" => "Esa sesión de soporte ya estaba cerrada.",
+        "SesionPrivilegiada.NoEncontrada" => "No encontramos esa sesión de soporte.",
+        _ => "No se pudo cerrar la sesión de soporte.",
+    };
 
     private async Task InicializarAsync()
     {

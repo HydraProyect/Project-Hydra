@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma.Commands.AbrirSesionPrivilegiada;
+using CaeManager.Application.Plataforma.Commands.CerrarSesionPrivilegiada;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Services;
 using MediatR;
@@ -53,6 +54,21 @@ public static class SesionSoporteEndpoints
             AbrirAsync(
                 concesionPrivilegioId, tenantObjetivoId, motivo, diasDeVentana, ticket, returnUrl,
                 httpContext, mediator, currentUserService, clienteActivoSeleccionado, dataProtectionProvider));
+
+        // La salida. POST por el mismo motivo que la apertura: borra la cookie de
+        // contexto, que es estado de servidor.
+        endpoints.MapPost("/cuenta/soporte/salir", (
+            HttpContext httpContext, ICurrentUserService currentUserService,
+            IClienteActivoSeleccionado clienteActivoSeleccionado) =>
+            SalirAsync(httpContext, currentUserService, clienteActivoSeleccionado));
+
+        // El cierre. Va SEPARADO de la salida y es una petición distinta a propósito
+        // — ver el comentario de <see cref="CerrarAsync"/>.
+        endpoints.MapPost("/cuenta/soporte/cerrar", (
+            [FromForm] Guid sesionPrivilegiadaId,
+            IMediator mediator, ICurrentUserService currentUserService,
+            IClienteActivoSeleccionado clienteActivoSeleccionado) =>
+            CerrarAsync(sesionPrivilegiadaId, mediator, currentUserService, clienteActivoSeleccionado));
 
         return endpoints;
     }
@@ -130,5 +146,100 @@ public static class SesionSoporteEndpoints
         // privilegiada el principal se queda sin claims de rol, así que muchas rutas
         // fallarían cerradas — aterrizar en "/" es lo único que se puede prometer.
         return Results.LocalRedirect("/");
+    }
+
+    /// <summary>
+    /// <b>Salir del tenant visitado</b> — primera mitad de la ceremonia de cierre (B1.3).
+    ///
+    /// <para>
+    /// Borra la cookie de contexto y <b>lleva el id de la sesión en la redirección</b>.
+    /// Eso último no es comodidad: al volver, la cookie ya no existe, así que el id no
+    /// puede salir de ella, y <c>IPlataformaQueryContext</c> declara de forma normativa
+    /// que «no existe ni debe existir un listar sesiones» — así que tampoco puede salir
+    /// de una consulta. Pasarlo por la URL es lo único que queda, y es seguro porque
+    /// <b>el id no es autoridad</b>: la política RLS <c>privilegio_del_usuario</c> (F2b-5)
+    /// solo entrega las sesiones que cuelgan de una concesión que nombra al usuario
+    /// actual, así que un id ajeno escrito a mano no encuentra ninguna fila que cerrar.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>No cierra aquí.</b> En esta misma petición el interceptor ya hizo
+    /// <c>SET ROLE cae_app_soporte</c> —que solo tiene <c>SELECT</c>— y
+    /// <c>RevalidacionClienteActivoMiddleware</c> ya memoizó la sesión en
+    /// <c>ISesionPrivilegiadaActual</c>, así que el <c>UPDATE</c> del cierre moriría
+    /// dos veces: denegado por <c>AutorizacionEscrituraBehavior</c> y, si se le
+    /// exceptuara, con 42501 en Postgres. Borrar la cookie de la respuesta no cambia
+    /// ninguna de las dos cosas dentro de la petición que se está sirviendo.
+    /// </para>
+    /// </summary>
+    public static async Task<IResult> SalirAsync(
+        HttpContext httpContext,
+        ICurrentUserService currentUserService,
+        IClienteActivoSeleccionado clienteActivoSeleccionado)
+    {
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Results.Unauthorized();
+
+        // Sin sesión de plano 3 no hay nada que abandonar. Se corta en vez de borrar
+        // la cookie igualmente: este endpoint no es un "olvida el workspace" genérico
+        // —ese es /cuenta/cliente-activo, con sus propias reglas— y confundirlos daría
+        // una segunda vía de salir del plano 2 sin pasar por ellas.
+        if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not { } sesionId)
+            return Results.Forbid();
+
+        httpContext.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
+
+        return Results.LocalRedirect($"/configuracion/plataforma?sesionParaCerrar={sesionId}");
+    }
+
+    /// <summary>
+    /// <b>Cerrar la sesión privilegiada</b> — segunda mitad, y por eso una petición
+    /// aparte (B1.3, opción B).
+    ///
+    /// <para>
+    /// Al llegar aquí la cookie ya no viaja, así que el interceptor <b>no</b> adopta el
+    /// rol de solo lectura y <c>ISesionPrivilegiadaActual</c> resuelve a nulo: el
+    /// <c>UPDATE</c> corre bajo <c>cae_app_runtime</c> y el behavior lo deja pasar. La
+    /// alternativa —invalidar la sesión a mitad de petición para que la escritura
+    /// pasara— exigía añadir un método a <c>ISesionPrivilegiadaActual</c> cuyo único
+    /// propósito sería apagar la garantía de solo lectura del plano 3. Se descartó por
+    /// eso: funcionaría, y dejaría el interruptor puesto para siempre.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>La guarda vive aquí y no en la pantalla</b>, y no es una preferencia. Dentro
+    /// de un circuito de Blazor no hay <c>HttpContext</c>, así que
+    /// <c>ClienteActivoSeleccionado</c> resuelve a nulo y memoiza ese nulo
+    /// (<c>SeleccionSinHttpContextTests</c>): una comprobación en la página diría
+    /// siempre «no hay sesión activa» y sería un instrumento ciego. En un endpoint la
+    /// cookie sí es legible, así que aquí la comprobación observa de verdad lo que dice
+    /// observar.
+    /// </para>
+    /// </summary>
+    public static async Task<IResult> CerrarAsync(
+        Guid sesionPrivilegiadaId,
+        IMediator mediator,
+        ICurrentUserService currentUserService,
+        IClienteActivoSeleccionado clienteActivoSeleccionado)
+    {
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Results.Unauthorized();
+
+        // Todavía dentro del tenant visitado: se corta ANTES de despachar. Si se
+        // despachara, el behavior lo denegaría igual, pero con un mensaje sobre solo
+        // lectura que no explica lo que hay que hacer — que es salir primero.
+        if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
+            return Results.Forbid();
+
+        var resultado = await mediator.Send(new CerrarSesionPrivilegiadaCommand(sesionPrivilegiadaId));
+
+        // Mismo criterio que la apertura: el código de error viaja en la URL para que
+        // la pantalla lo traduzca, nunca el texto de una excepción.
+        return resultado.EsFallido
+            ? Results.LocalRedirect(
+                $"/configuracion/plataforma?errorCierre={Uri.EscapeDataString(resultado.Error.Codigo)}")
+            : Results.LocalRedirect("/configuracion/plataforma?cerrada=1");
     }
 }

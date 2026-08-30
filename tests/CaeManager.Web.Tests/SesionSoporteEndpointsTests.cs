@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma.Commands.AbrirSesionPrivilegiada;
+using CaeManager.Application.Plataforma.Commands.CerrarSesionPrivilegiada;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Features.Plataforma;
 using CaeManager.Web.Services;
@@ -124,7 +125,166 @@ public class SesionSoporteEndpointsTests
         CookieEmitida(contexto).Should().BeNull();
     }
 
+    // ── Salida (B1.3) ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// El efecto que importa de la salida: la cookie deja de viajar. Se observa en
+    /// la cabecera real —una cookie se borra emitiendo un <c>Set-Cookie</c> vacío y
+    /// caducado, no omitiéndola— porque un doble diría que sí sin que el navegador
+    /// llegue a hacerlo.
+    /// </summary>
+    [Fact]
+    public async Task Al_salir_se_borra_la_cookie_de_contexto()
+    {
+        var contexto = new DefaultHttpContext();
+
+        var resultado = await InvocarSalir(
+            contexto, new ClienteActivoSeleccionadoFalso(sesionPrivilegiadaIdSeleccionada: Sesion));
+
+        CookieBorrada(contexto).Should().BeTrue(
+            "mientras la cookie siga viajando, el interceptor sigue haciendo SET ROLE al rol de solo " +
+            "lectura y el cierre no podría escribir");
+
+        resultado.Should().BeOfType<RedirectHttpResult>()
+            .Which.Url.Should().Be($"/configuracion/plataforma?sesionParaCerrar={Sesion}",
+                "al volver ya no hay cookie de la que sacar el id, y el contrato de lectura del plano 3 " +
+                "prohíbe un 'listar sesiones': si la redirección no lo lleva, no queda de dónde sacarlo");
+    }
+
+    /// <summary>
+    /// Este endpoint no es un "olvida el workspace" genérico. Sin sesión de plano 3
+    /// corta, en vez de borrar la cookie igualmente: si la borrara, sería una
+    /// segunda forma de salir del plano 2 sin pasar por las reglas de
+    /// <c>/cuenta/cliente-activo</c>.
+    /// </summary>
+    [Fact]
+    public async Task Salir_no_borra_la_cookie_de_un_workspace_de_plano_2()
+    {
+        var contexto = new DefaultHttpContext();
+
+        var resultado = await InvocarSalir(
+            contexto, new ClienteActivoSeleccionadoFalso(tenantIdSeleccionado: TenantObjetivo));
+
+        resultado.Should().BeOfType<ForbidHttpResult>();
+        CookieBorrada(contexto).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Salir_sin_usuario_autenticado_no_toca_la_cookie()
+    {
+        var contexto = new DefaultHttpContext();
+
+        var resultado = await InvocarSalir(
+            contexto, new ClienteActivoSeleccionadoFalso(sesionPrivilegiadaIdSeleccionada: Sesion),
+            sinUsuario: true);
+
+        resultado.Should().BeOfType<UnauthorizedHttpResult>();
+        CookieBorrada(contexto).Should().BeFalse();
+    }
+
+    // ── Cierre (B1.3) ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>La guarda que hace posible la opción B.</b> Desde dentro del tenant
+    /// visitado el cierre no se intenta siquiera: la conexión lleva
+    /// <c>SET ROLE cae_app_soporte</c> —solo <c>SELECT</c>— y
+    /// <c>AutorizacionEscrituraBehavior</c> ya memoizó la sesión, así que el
+    /// <c>UPDATE</c> moriría por partida doble.
+    ///
+    /// <para>
+    /// Se comprueba además que <b>no despacha</b>. Cortar después de despachar
+    /// daría el mismo código de respuesta y sería un test verde sobre un endpoint
+    /// que ya habría pedido a la base una escritura imposible.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task No_cierra_mientras_el_tecnico_sigue_dentro_del_tenant_visitado()
+    {
+        // Respuesta preparada a propósito aunque no deba usarse: si la guarda
+        // desapareciera, el test tiene que fallar por su aserción y no por un cast
+        // nulo. Un rojo por excepción no demuestra que se observara la propiedad.
+        var mediator = new MediatorFalso { Respuesta = Result.Exito() };
+
+        var resultado = await InvocarCerrar(
+            mediator, new ClienteActivoSeleccionadoFalso(sesionPrivilegiadaIdSeleccionada: Sesion));
+
+        resultado.Should().BeOfType<ForbidHttpResult>(
+            "primero se sale y después se cierra: son dos peticiones porque borrar la cookie de la " +
+            "respuesta no cambia nada dentro de la petición que se está sirviendo");
+
+        mediator.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Ya_fuera_el_cierre_despacha_el_comando_con_la_sesion_indicada()
+    {
+        var mediator = new MediatorFalso { Respuesta = Result.Exito() };
+
+        var resultado = await InvocarCerrar(mediator, new ClienteActivoSeleccionadoFalso());
+
+        mediator.Enviados.Should().ContainSingle()
+            .Which.Should().BeOfType<CerrarSesionPrivilegiadaCommand>()
+            .Which.SesionPrivilegiadaId.Should().Be(Sesion);
+
+        resultado.Should().BeOfType<RedirectHttpResult>()
+            .Which.Url.Should().Be("/configuracion/plataforma?cerrada=1");
+    }
+
+    /// <summary>
+    /// Un cierre fallido lleva el <b>código</b> a la pantalla, no el texto de una
+    /// excepción — mismo criterio que la apertura. El caso vivo es el reenvío del
+    /// formulario: cerrar dos veces da <c>YaCerrada</c> y tiene que verse como un
+    /// mensaje, no como un 500.
+    /// </summary>
+    [Fact]
+    public async Task Un_cierre_fallido_lleva_su_codigo_a_la_pantalla()
+    {
+        var mediator = new MediatorFalso
+        {
+            Respuesta = Result.Fallo(Error.Crear(
+                "SesionPrivilegiada.YaCerrada", "Esa sesión de soporte ya estaba cerrada.")),
+        };
+
+        var resultado = await InvocarCerrar(mediator, new ClienteActivoSeleccionadoFalso());
+
+        resultado.Should().BeOfType<RedirectHttpResult>()
+            .Which.Url.Should().Be("/configuracion/plataforma?errorCierre=SesionPrivilegiada.YaCerrada");
+    }
+
+    [Fact]
+    public async Task Cerrar_sin_usuario_autenticado_no_despacha_nada()
+    {
+        var mediator = new MediatorFalso();
+
+        var resultado = await InvocarCerrar(mediator, new ClienteActivoSeleccionadoFalso(), sinUsuario: true);
+
+        resultado.Should().BeOfType<UnauthorizedHttpResult>();
+        mediator.Enviados.Should().BeEmpty();
+    }
+
     // ── Andamiaje ──────────────────────────────────────────────────────────
+
+    private static Task<IResult> InvocarSalir(
+        HttpContext contexto, IClienteActivoSeleccionado seleccion, bool sinUsuario = false) =>
+        SesionSoporteEndpoints.SalirAsync(
+            contexto, new CurrentUserServiceFalso(sinUsuario ? null : Usuario), seleccion);
+
+    private static Task<IResult> InvocarCerrar(
+        IMediator mediator, IClienteActivoSeleccionado seleccion, bool sinUsuario = false) =>
+        SesionSoporteEndpoints.CerrarAsync(
+            Sesion, mediator, new CurrentUserServiceFalso(sinUsuario ? null : Usuario), seleccion);
+
+    /// <summary>
+    /// Si la respuesta borra la cookie de contexto. Borrar es emitir un
+    /// <c>Set-Cookie</c> con valor vacío y caducidad en el pasado, así que no basta
+    /// con mirar si hay cabecera: la apertura también emite una y pasaría por
+    /// borrado.
+    /// </summary>
+    private static bool CookieBorrada(HttpContext contexto) =>
+        contexto.Response.Headers.SetCookie.Any(c =>
+            c is not null
+            && c.StartsWith(ClienteActivoSeleccionado.NombreCookie + "=;", StringComparison.Ordinal)
+            && c.Contains("expires=Thu, 01 Jan 1970", StringComparison.OrdinalIgnoreCase));
 
     private static Task<IResult> Invocar(
         HttpContext contexto,
@@ -176,14 +336,15 @@ public class SesionSoporteEndpointsTests
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
-    private sealed class ClienteActivoSeleccionadoFalso(Guid? tenantIdSeleccionado = null)
+    private sealed class ClienteActivoSeleccionadoFalso(
+        Guid? tenantIdSeleccionado = null, Guid? sesionPrivilegiadaIdSeleccionada = null)
         : IClienteActivoSeleccionado
     {
         public Guid? TenantIdSeleccionado => tenantIdSeleccionado;
 
         public Guid? AsignacionOperacionIdSeleccionada => null;
 
-        public Guid? SesionPrivilegiadaIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => sesionPrivilegiadaIdSeleccionada;
     }
 
     private sealed class MediatorFalso : IMediator
