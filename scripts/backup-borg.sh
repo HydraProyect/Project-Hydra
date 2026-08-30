@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Backup del stack local (deploy/local/) al Storage Box de Hetzner con Borg.
 #
-# Sustituye al BackupHostedService (apagado en esta etapa con
-# Backups__Activo=false): el Storage Box no habla S3, así que el backup corre
-# como cron del host. Mantiene la invariante de RUNBOOK-CLAVES.md — el volcado
+# Único mecanismo de backup automático: el Storage Box no habla S3, así que
+# el backup corre como cron del host, no como servicio dentro de la app.
+# Mantiene la invariante de RUNBOOK-CLAVES.md — el volcado
 # de la BD y dataprotection-keys/ van SIEMPRE en el mismo archivo de backup
 # (restaurar la BD con claves de otro momento deja las credenciales cifradas
 # de Empresa/Subcontrata irrecuperables) — y añade lo que el servicio antiguo
@@ -39,7 +39,7 @@ docker exec caemanager-db pg_dump -U postgres --format=custom caemanager \
 
 echo "==> 2/4 Copiando dataprotection-keys/ y documentos/ del volumen..."
 docker cp caemanager-app:/data/dataprotection-keys "$DIR_TRABAJO/dataprotection-keys"
-# Sin claves no hay backup válido — mismo criterio que el BackupHostedService.
+# Sin claves no hay backup válido.
 ls "$DIR_TRABAJO/dataprotection-keys"/*.xml >/dev/null 2>&1 \
     || { echo "ERROR: dataprotection-keys/ no contiene ninguna clave XML — ver RUNBOOK-CLAVES.md"; exit 1; }
 # documentos/ puede no existir aún (nadie subió un PDF todavía) — eso sí es válido.
@@ -86,9 +86,8 @@ echo "Ensayo de restauración periódico: scripts/ensayo-restauracion-borg.sh (a
 # backup que ya se completó.
 #
 # Opcional y apagado por defecto, mismo patrón "inerte sin configurar" que
-# el resto de integraciones de este despliegue (Sentry, KMS, Backups a S3
-# de la etapa Railway): sin BETTERSTACK_HEARTBEAT_URL no se hace ninguna
-# llamada de red.
+# el resto de integraciones de este despliegue (Sentry, KMS): sin
+# BETTERSTACK_HEARTBEAT_URL no se hace ninguna llamada de red.
 if [ -n "${BETTERSTACK_HEARTBEAT_URL:-}" ]; then
     echo "==> Avisando al heartbeat de Better Stack..."
     curl -fsS -m 10 --retry 3 --retry-delay 5 "$BETTERSTACK_HEARTBEAT_URL" >/dev/null \

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Ensayo de restauración del backup Borg (equivalente post-Railway de
-# scripts/ensayo-restauracion.sh, que ensayaba contra el bucket S3 del
-# BackupHostedService).
+# Ensayo de restauración del backup Borg (sustituye al ensayo que corría
+# contra el bucket S3 del antiguo BackupHostedService, retirado junto con
+# el resto de la infraestructura AWS de la etapa Railway).
 #
 # Extrae el último archivo `caemanager-*` del repo Borg del Storage Box y lo
 # restaura de extremo a extremo contra un PostgreSQL desechable en Docker, SIN

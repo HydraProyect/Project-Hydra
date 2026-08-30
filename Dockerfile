@@ -46,35 +46,12 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # LibreOfficeConversorWordPdfService invoca en modo headless para convertir
 # Word (.docx) a PDF al subir un Documento — ver ARCHITECTURE.md.
 #
-# postgresql-client-18 aporta pg_dump, que BackupHostedService invoca cuando
-# el motor es PostgreSQL. pg_dump tiene que ser >= la versión del servidor
-# (el Postgres de Railway es 18.4, comprobado 2026-08-01) — el paquete
-# "postgresql-client" sin versión de los repos por defecto de esta imagen
-# resuelve a la 16, insuficiente (falla con "aborting because of server
-# version mismatch"), así que se instala desde el repositorio oficial de
-# PostgreSQL (PGDG), que sí publica la 18. Si el Postgres de Railway sube de
-# versión mayor otra vez, hay que subir el número de aquí abajo también.
 # gosu: deja que el entrypoint arranque como root, corrija permisos del
 # volumen si hace falta, y baje de privilegios a $APP_UID sin perder el
 # manejo de señales (reemplaza el proceso, a diferencia de `su`) — ver
 # docker-entrypoint.sh.
-# SHA-256 de la clave de firma de PGDG (ACCC4CF8.asc) comprobado a mano
-# contra postgresql.org antes de fijarlo abajo — mismo criterio que el
-# binario de gitleaks en ci.yml. Sin esa comprobación, un MITM o una brecha
-# en el propio sitio de postgresql.org durante el build cambia en silencio
-# qué firma se confía para todo el repositorio APT que se añade después.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libreoffice-writer curl ca-certificates gnupg gosu \
-    && install -d /usr/share/postgresql-common/pgdg \
-    && curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail \
-       https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-    && echo "0144068502a1eddd2a0280ede10ef607d1ec592ce819940991203941564e8e76 /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc" \
-       | sha256sum -c - \
-    && . /etc/os-release \
-    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
-       > /etc/apt/sources.list.d/pgdg.list \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends postgresql-client-18 \
+    && apt-get install -y --no-install-recommends libreoffice-writer curl ca-certificates gosu \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build --chown=$APP_UID:$APP_UID /app/publish .
