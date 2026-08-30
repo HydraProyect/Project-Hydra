@@ -224,7 +224,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
             Task.FromResult<Stream>(new MemoryStream([1, 2, 3]));
     }
 
-    /// <summary>Mismo comportamiento que Disk/S3FileStorageService.AbrirAsync cuando el archivo no existe.</summary>
+    /// <summary>Mismo comportamiento que DiskFileStorageService.AbrirAsync cuando el archivo no existe.</summary>
     private sealed class AlmacenamientoQueFalla : IFileStorageService
     {
         public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => Task.CompletedTask;

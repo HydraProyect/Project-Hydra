@@ -95,8 +95,8 @@ public class DeteccionTrabajadoresService(
         catch (FileNotFoundException)
         {
             // Se relanza SIN envolver, a propósito: ver el mismo catch en
-            // VerificacionIaDocumentoService (D3) — Disk/S3FileStorageService
-            // ya normalizan a FileNotFoundException el único caso realmente
+            // VerificacionIaDocumentoService (D3) — DiskFileStorageService
+            // ya normaliza a FileNotFoundException el único caso realmente
             // determinista (el archivo no existe o no resuelve a este
             // tenant), y no va a aparecer en un segundo intento.
             throw;

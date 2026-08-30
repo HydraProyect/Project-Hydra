@@ -7,7 +7,7 @@ namespace CaeManager.Infrastructure.DataProtection;
 
 /// <summary>
 /// Un objeto S3 por clave de Data Protection, bajo <see cref="DataProtectionS3Options.Prefijo"/>
-/// — mismo bucket que puede compartir <c>AlmacenamientoS3</c>, distinto prefijo.
+/// — puede compartir bucket con otros usos, siempre bajo su propio prefijo.
 ///
 /// <see cref="IXmlRepository"/> es una interfaz síncrona (así la definió
 /// ASP.NET Core, pensada originalmente para disco local): <c>GetAwaiter().GetResult()</c>
