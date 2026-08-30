@@ -136,6 +136,21 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
 
         await paginaPortal.FillAsync("#password-nueva", contrasenaNueva);
         await paginaPortal.FillAsync("#password-confirmar", contrasenaNueva);
+
+        // El boton nace DESHABILITADO —su disabled depende de que la politica
+        // de contrasena se cumpla y las dos coincidan— y solo se habilita
+        // cuando el circuito ha procesado lo que acabamos de escribir. Se
+        // afirma explicitamente en vez de dejar que ClickAsync espere por
+        // accionabilidad: asi un fallo dice "el boton sigue deshabilitado",
+        // que nombra la causa, en vez de un timeout mudo de 30 s.
+        //
+        // Esta espera destapo un defecto real de producto: la pagina no
+        // declaraba @rendermode, asi que ese disabled se evaluaba en servidor
+        // con la contraseña vacia y NADA podia habilitarlo. Restablecer la
+        // contrasena era imposible para cualquier usuario.
+        await Assertions.Expect(paginaPortal.Locator("button[type=\"submit\"]"))
+            .ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 30_000 });
+
         await paginaPortal.ClickAsync("button[type=\"submit\"]");
 
         // Esperar la confirmación ANTES de navegar. ClickAsync vuelve en cuanto
