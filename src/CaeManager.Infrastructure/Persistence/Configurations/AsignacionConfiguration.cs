@@ -20,6 +20,16 @@ public class AsignacionConfiguration : IEntityTypeConfiguration<Asignacion>
         // mismo centro el mismo día: la fila inactiva con esa fecha seguía colisionando
         // contra el índice aunque ExisteActivaAsync ya la descartara (bug real, reproducido
         // con datos: Shin Nohara, Terminal Ciudad Gotica 016 — 23505 de Postgres).
+        // Este índice impide DOS filas simultáneamente abiertas del mismo trío,
+        // no que sus RANGOS de fecha (FechaAlta..FechaBaja) se solapen contra
+        // una fila ya cerrada del mismo trío — ver
+        // SolapamientoDeAsignacionesTests (IntegrationTests) para el caso
+        // reproducido. Auditoría Módulo 5, hallazgo #5: no se cierra con
+        // EXCLUDE USING gist(daterange) porque bloquear el solape es una
+        // regla de negocio pendiente de decisión (¿el mismo Trabajador puede
+        // tener presencia legítima y solapada en el mismo Centro por turnos o
+        // proyectos distintos, o es siempre un error de datos?), no algo que
+        // se pueda inventar en modo autónomo.
         builder.HasIndex(a => new { a.TenantId, a.TrabajadorId, a.CentroId })
                .IsUnique()
                .HasFilter($"\"{nameof(Asignacion.FechaBaja)}\" IS NULL")
