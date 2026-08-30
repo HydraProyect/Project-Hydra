@@ -85,6 +85,40 @@ public class DiskFileStorageServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Guardar_no_deja_ficheros_temporales_junto_al_definitivo()
+    {
+        // GuardarAsync escribe primero a un temporal y lo publica con
+        // File.Move: la carpeta del tenant no debe conservar el temporal
+        // una vez terminada la operación, ni aunque la operación falle antes
+        // de empezar a escribir (ver el test de cancelación).
+        var servicio = CrearServicio(_tenantA);
+        using var contenido = new MemoryStream("contenido de prueba"u8.ToArray());
+
+        await servicio.GuardarAsync(contenido, "documento.pdf");
+
+        var ficheros = Directory.GetFiles(Path.Combine(_rutaTemporal, _tenantA.ToString("N")));
+        ficheros.Should().ContainSingle()
+            .Which.Should().NotContain(".tmp-", "el temporal se renombra al final, nunca queda junto al definitivo");
+    }
+
+    [Fact]
+    public async Task Cancelar_el_guardado_no_deja_ni_temporal_ni_definitivo_en_disco()
+    {
+        var servicio = CrearServicio(_tenantA);
+        using var contenido = new MemoryStream("contenido de prueba"u8.ToArray());
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var accion = async () => await servicio.GuardarAsync(contenido, "documento.pdf", cts.Token);
+
+        await accion.Should().ThrowAsync<OperationCanceledException>();
+
+        var carpeta = Path.Combine(_rutaTemporal, _tenantA.ToString("N"));
+        if (Directory.Exists(carpeta))
+            Directory.GetFiles(carpeta).Should().BeEmpty("una escritura cancelada no debe dejar rastro, ni temporal ni definitivo");
+    }
+
+    [Fact]
     public async Task El_tenant_que_guardo_el_archivo_puede_volver_a_abrirlo_y_recupera_el_mismo_contenido()
     {
         var servicio = CrearServicio(_tenantA);

@@ -127,7 +127,28 @@ public class DiskFileStorageService : IFileStorageService
         MarcaFormatoV2.CopyTo(salida, 0);
         cifrado.CopyTo(salida, MarcaFormatoV2.Length);
 
-        await File.WriteAllBytesAsync(rutaCompleta, salida, cancellationToken);
+        // Escritura atómica: se escribe primero a un temporal en la MISMA
+        // carpeta (mismo volumen, condición para que el rename sea atómico
+        // en vez de una copia) y solo se publica con File.Move al terminar.
+        // Sin esto, un proceso interrumpido a mitad de WriteAllBytesAsync
+        // (OOM del contenedor, kill -9, caída del host) deja en la ruta
+        // final un fichero truncado que ya sería servible en cuanto el
+        // identificador se devolviera — salvo que la interrupción sea
+        // anterior a ese punto, en cuyo caso el fichero queda huérfano y sin
+        // fila propietaria (compensado ya por el mecanismo existente para
+        // ese caso). Con el temporal, lo peor que deja una interrupción es
+        // el `.tmp` huérfano; la ruta final nunca existe a medias.
+        var rutaTemporal = $"{rutaCompleta}.tmp-{Guid.NewGuid():N}";
+        try
+        {
+            await File.WriteAllBytesAsync(rutaTemporal, salida, cancellationToken);
+            File.Move(rutaTemporal, rutaCompleta);
+        }
+        catch
+        {
+            if (File.Exists(rutaTemporal)) File.Delete(rutaTemporal);
+            throw;
+        }
 
         return identificador;
     }
