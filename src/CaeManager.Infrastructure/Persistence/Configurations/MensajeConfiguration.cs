@@ -29,10 +29,13 @@ public class MensajeConfiguration : IEntityTypeConfiguration<Mensaje>
         builder.HasIndex(m => new { m.TenantId, m.MensajeExternoId }).IsUnique();
 
         // Colección de solo lectura respaldada por campo privado — mismo
-        // patrón que Conversacion.Mensajes/Participantes. FK de una sola
-        // columna, no compuesta con TenantId — ver el comentario de
+        // patrón que Conversacion.Mensajes/Participantes. FK de EF de una
+        // sola columna, no compuesta con TenantId — ver el comentario de
         // ConversacionConfiguration sobre por qué (navegación de colección
-        // real + TenantSelladoInterceptor, auditoría Módulo 8).
+        // real + TenantSelladoInterceptor, auditoría Módulo 8). La FK
+        // compuesta (MensajeId, TenantId) → Mensajes (Id, TenantId) para
+        // AdjuntosMensaje vive en SQL crudo en la migración
+        // FkCompuestaTenantComunicaciones, fuera de este modelo Fluent.
         builder.HasMany(m => m.Adjuntos)
             .WithOne()
             .HasForeignKey(a => a.MensajeId)

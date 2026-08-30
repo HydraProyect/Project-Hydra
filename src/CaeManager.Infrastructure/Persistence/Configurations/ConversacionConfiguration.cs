@@ -38,23 +38,19 @@ public class ConversacionConfiguration : IEntityTypeConfiguration<Conversacion>
         // pública (que no expone Add). Mismo patrón estándar de EF Core para
         // agregados DDD con colecciones encapsuladas.
         //
-        // FK de una sola columna, NO compuesta con TenantId, y no por
-        // descuido (auditoría Módulo 8, hallazgo crítico — intentado y
-        // revertido 2026-08-30): al ser una navegación de colección real
-        // (HasMany, a diferencia del HasOne<T>().WithMany() sin navegación
-        // que usa AsignacionConfiguration/DocumentoConfiguration), EF Core
-        // fija la relación en cuanto el Mensaje/Participante entra al
-        // ChangeTracker por el grafo de Conversacion — antes de que
-        // TenantSelladoInterceptor selle el TenantId real. Componer la FK
-        // con TenantId hace que ese sellado choque con
-        // "The property 'Mensaje.TenantId' is part of a key and so cannot
-        // be modified" (reproducido rompiendo 14 tests de Comunicaciones:
-        // ingesta de WhatsApp/correo, clasificación de ruido, reclamaciones).
-        // Cerrar el hueco de verdad exige que TenantSelladoInterceptor sepa
-        // sellar el tenant ANTES del fixup de EF sobre navegaciones vivas
-        // (o construir estas entidades sin pasar por la colección), que es
-        // un cambio al propio interceptor — componente compartido por toda
-        // la app — y no cabe en este incremento.
+        // FK de EF de una sola columna, NO compuesta con TenantId: al ser
+        // una navegación de colección real (HasMany, a diferencia del
+        // HasOne<T>().WithMany() sin navegación que usa
+        // AsignacionConfiguration/DocumentoConfiguration), componer TenantId
+        // aquí como relación de EF Core chocaba con el fixup del
+        // ChangeTracker antes de que TenantSelladoInterceptor sellara el
+        // tenant real (auditoría Módulo 8, intentado y revertido
+        // 2026-08-30). La defensa en profundidad real vive fuera de este
+        // fichero: la migración FkCompuestaTenantComunicaciones añade en SQL
+        // crudo la FK compuesta (ConversacionId, TenantId) → Conversaciones
+        // (Id, TenantId) para Mensajes y ParticipantesConversacion —
+        // deliberadamente invisible al modelo Fluent para no volver a
+        // disparar el mismo fixup.
         builder.HasMany(c => c.Mensajes)
             .WithOne()
             .HasForeignKey(m => m.ConversacionId)
