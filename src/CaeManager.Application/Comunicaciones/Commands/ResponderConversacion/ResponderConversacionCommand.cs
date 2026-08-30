@@ -5,6 +5,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
@@ -34,6 +35,14 @@ public class ResponderConversacionCommandValidator : AbstractValidator<Responder
 /// <see cref="ComunicacionesRemitenteOptions"/> — salvo que el entorno haya
 /// activado a propósito el remitente simulado (solo pensado para datos
 /// sembrados por <c>ComunicacionesDatosPruebaSeeder</c>, nunca producción).
+///
+/// Envío real y registro local son dos pasos que no comparten transacción
+/// (auditoría módulo 6): si Graph acepta el envío y el SaveChangesAsync
+/// posterior falla, el mensaje YA salió de verdad hacia el cliente. Devolver
+/// un fallo aquí invitaría a reintentar — y un reintento volvería a
+/// enviarlo, esta vez sí duplicado. Por eso ese caso concreto se admite como
+/// éxito (con el fallo de registro solo en el log, para que se note y se
+/// reconcilie) en vez de arriesgar un envío real duplicado.
 /// </summary>
 public class ResponderConversacionCommandHandler(
     IConversacionRepository repositorio,
@@ -43,7 +52,8 @@ public class ResponderConversacionCommandHandler(
     AccesoGraphService accesoGraph,
     IFileStorageService almacenamiento,
     IOptions<ComunicacionesRemitenteOptions> opcionesRemitente,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<ResponderConversacionCommandHandler> logger)
     : IRequestHandler<ResponderConversacionCommand, Result>
 {
     private const string RemitenteSimuladoEmail = "equipo-cae@buzon-simulado.local";
@@ -57,6 +67,7 @@ public class ResponderConversacionCommandHandler(
             return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
 
         Mensaje mensajeCreado;
+        var huboEnvioReal = false;
 
         if (conversacion.ConexionIntegracionId is { } conexionId)
         {
@@ -64,6 +75,7 @@ public class ResponderConversacionCommandHandler(
             if (envioResultado.EsFallido)
                 return Result.Fallo(envioResultado.Error);
             mensajeCreado = envioResultado.Valor;
+            huboEnvioReal = true;
         }
         else if (opcionesRemitente.Value.PermitirRemitenteSimulado)
         {
@@ -83,7 +95,18 @@ public class ResponderConversacionCommandHandler(
         if (request.Adjuntos is { Count: > 0 })
             await GuardarAdjuntosAsync(mensajeCreado, request.Adjuntos, cancellationToken);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex) when (huboEnvioReal)
+        {
+            logger.LogError(ex,
+                "El mensaje se envió por Graph pero no se pudo registrar localmente en la conversación {ConversacionId}. Requiere reconciliación manual.",
+                request.ConversacionId);
+            return Result.Exito();
+        }
+
         return Result.Exito();
     }
 

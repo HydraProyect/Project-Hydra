@@ -15,6 +15,9 @@ public class WhatsAppCloudApiClientFalso : IWhatsAppCloudApiClient
 
     public IReadOnlyList<string> ExtraerPhoneNumberIds(string payloadJson) => [NotificacionADevolver.PhoneNumberId];
 
+    public IReadOnlyList<FragmentoWebhookWhatsAppDto> ParticionarPorPhoneNumberId(string payloadJson) =>
+        [new FragmentoWebhookWhatsAppDto(NotificacionADevolver.PhoneNumberId, payloadJson)];
+
     public NotificacionWhatsAppDto ExtraerNotificacion(string payloadJson, string phoneNumberId) => NotificacionADevolver;
 
     public Task<Result<string>> EnviarTextoAsync(

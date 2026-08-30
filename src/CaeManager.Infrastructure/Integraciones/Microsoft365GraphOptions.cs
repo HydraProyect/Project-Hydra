@@ -25,5 +25,17 @@ public class Microsoft365GraphOptions
 
     public string? ClientSecret { get; set; }
 
-    public bool EstaConfigurado => !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(ClientSecret);
+    /// <summary>
+    /// URL pública canónica de la aplicación (ej. https://app.talveg.es),
+    /// sin barra final. El redirect_uri de OAuth y la URL de notificación de
+    /// la suscripción de Graph se construyen SIEMPRE desde aquí, nunca desde
+    /// <c>HttpRequest.Scheme</c>/<c>Host</c> (auditoría módulo 6): una
+    /// configuración de proxy/host filtering incorrecta permitiría derivar
+    /// esas URLs de seguridad desde una cabecera Host manipulada por quien
+    /// hace la petición.
+    /// </summary>
+    public string? UrlPublicaBase { get; set; }
+
+    public bool EstaConfigurado =>
+        !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(ClientSecret) && !string.IsNullOrWhiteSpace(UrlPublicaBase);
 }

@@ -1,3 +1,5 @@
+using System.Text;
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
@@ -48,8 +50,9 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
 
         var nuevoDocumentoId = Guid.NewGuid();
         var mediatorFalso = new MediatorDocumentoFalso(resultadoCrear: Result.Exito(nuevoDocumentoId));
+        var almacenamiento = AlmacenamientoConAdjuntoSembrado();
         var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(
-            contexto, new AlcanceDatosServiceFalso(), contexto, mediatorFalso, mediatorFalso,
+            contexto, new AlcanceDatosServiceFalso(), contexto, mediatorFalso, mediatorFalso, almacenamiento,
             NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
         var comando = new ActualizarDocumentoDesdeAdjuntoCommand(
@@ -60,7 +63,11 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Should().Be(nuevoDocumentoId);
         mediatorFalso.ComandoCrearRecibido.Should().NotBeNull();
-        mediatorFalso.ComandoCrearRecibido!.ArchivoUrl.Should().Be("adjuntos/certificado.pdf");
+        // Nunca la misma clave que el adjunto de origen (auditoría módulo 6,
+        // hallazgo coordinado con el módulo 2): el Documento debe tener su
+        // propia copia, con el mismo contenido.
+        mediatorFalso.ComandoCrearRecibido!.ArchivoUrl.Should().NotBe("adjuntos/certificado.pdf");
+        almacenamiento.Leer(mediatorFalso.ComandoCrearRecibido.ArchivoUrl).Should().Equal(ContenidoAdjuntoDePrueba);
         mediatorFalso.ComandoRenovarRecibido.Should().BeNull();
         mediatorFalso.Publicados.Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new DocumentoActualizadoEvent(conversacionId, nuevoDocumentoId));
@@ -76,8 +83,9 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var mediatorFalso = new MediatorDocumentoFalso(resultadoRenovar: Result.Exito());
+        var almacenamiento = AlmacenamientoConAdjuntoSembrado();
         var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(
-            contexto, new AlcanceDatosServiceFalso(), contexto, mediatorFalso, mediatorFalso,
+            contexto, new AlcanceDatosServiceFalso(), contexto, mediatorFalso, mediatorFalso, almacenamiento,
             NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
         var comando = new ActualizarDocumentoDesdeAdjuntoCommand(
@@ -89,6 +97,8 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         resultado.Valor.Should().Be(documentoExistente.Id);
         mediatorFalso.ComandoRenovarRecibido.Should().NotBeNull();
         mediatorFalso.ComandoRenovarRecibido!.Id.Should().Be(documentoExistente.Id);
+        mediatorFalso.ComandoRenovarRecibido.ArchivoUrl.Should().NotBe("adjuntos/certificado.pdf");
+        almacenamiento.Leer(mediatorFalso.ComandoRenovarRecibido.ArchivoUrl).Should().Equal(ContenidoAdjuntoDePrueba);
         mediatorFalso.ComandoCrearRecibido.Should().BeNull();
         mediatorFalso.Publicados.Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new DocumentoActualizadoEvent(conversacionId, documentoExistente.Id));
@@ -102,7 +112,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         var fallo = Result.Fallo<Guid>(Error.Crear("Documento.AmbitoIncorrecto", "No cuadra el ámbito."));
         var mediatorFalso = new MediatorDocumentoFalso(resultadoCrear: fallo);
         var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(
-            contexto, new AlcanceDatosServiceFalso(), contexto, mediatorFalso, mediatorFalso,
+            contexto, new AlcanceDatosServiceFalso(), contexto, mediatorFalso, mediatorFalso, AlmacenamientoConAdjuntoSembrado(),
             NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
         var comando = new ActualizarDocumentoDesdeAdjuntoCommand(
@@ -113,6 +123,51 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Documento.AmbitoIncorrecto");
         mediatorFalso.Publicados.Should().BeEmpty();
+    }
+
+    /// <summary>Auditoría módulo 6: un adjunto de un buzón personal ajeno no debe poder convertirse en Documento por otro gestor.</summary>
+    [Fact]
+    public async Task Un_adjunto_de_un_buzon_personal_ajeno_no_se_puede_usar()
+    {
+        var contexto = CrearContexto();
+
+        var empresa = new Empresa("Empresa Buzón Ajeno S.L.", "B10380186");
+        contexto.Empresas.Add(empresa);
+        await contexto.SaveChangesAsync();
+
+        var trabajador = Trabajador.DeEmpresa(empresa.Id, "Marta", "Ruiz", "11223344B");
+        var tipoDocumento = new TipoDocumento("Certificado de formación", 12, true, 1, AmbitoAplicacion.Trabajador);
+        contexto.Trabajadores.Add(trabajador);
+        contexto.TiposDocumento.Add(tipoDocumento);
+        await contexto.SaveChangesAsync();
+
+        var conversacion = new Conversacion("Documentación recibida en buzón personal");
+        var conexionAjenaId = Guid.NewGuid();
+        conversacion.AsociarConexion(conexionAjenaId, "hilo-externo-ajeno");
+        contexto.Conversaciones.Add(conversacion);
+        await contexto.SaveChangesAsync();
+
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Adjunto el certificado");
+        await contexto.SaveChangesAsync();
+
+        var adjunto = new AdjuntoMensaje(mensaje.Id, "certificado.pdf", "application/pdf", 1024, "adjuntos/certificado.pdf");
+        contexto.AdjuntosMensaje.Add(adjunto);
+        await contexto.SaveChangesAsync();
+
+        var mediatorFalso = new MediatorDocumentoFalso();
+        var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(
+            contexto, new AlcanceDatosServiceFalso(conexionesIntegracionAjenas: [conexionAjenaId]), contexto, mediatorFalso, mediatorFalso,
+            new AlmacenamientoEnMemoriaFalso(), NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+
+        var comando = new ActualizarDocumentoDesdeAdjuntoCommand(
+            adjunto.Id, tipoDocumento.Id, trabajador.Id, null, new DateOnly(2026, 8, 1), null, null);
+
+        var resultado = await handler.Handle(comando, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Adjunto.NoEncontrado");
+        mediatorFalso.ComandoCrearRecibido.Should().BeNull();
+        mediatorFalso.ComandoRenovarRecibido.Should().BeNull();
     }
 
     [Fact]
@@ -192,6 +247,44 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    private static readonly byte[] ContenidoAdjuntoDePrueba = Encoding.UTF8.GetBytes("contenido del certificado de prueba");
+
+    /// <summary>El adjunto de <see cref="SembrarEscenarioAsync"/> siempre vive en "adjuntos/certificado.pdf" — se preseeda con ese contenido para poder leer la copia que el handler debe producir.</summary>
+    private static AlmacenamientoEnMemoriaFalso AlmacenamientoConAdjuntoSembrado()
+    {
+        var almacenamiento = new AlmacenamientoEnMemoriaFalso();
+        almacenamiento.Sembrar("adjuntos/certificado.pdf", ContenidoAdjuntoDePrueba);
+        return almacenamiento;
+    }
+
+    /// <summary>Fake en memoria de <see cref="IFileStorageService"/> — a diferencia de otros fakes del repo (que lanzan por no necesitarlo), este SÍ Guarda/Abre de verdad: hace falta para probar la copia a una clave propia del Documento (auditoría módulo 6).</summary>
+    private sealed class AlmacenamientoEnMemoriaFalso : IFileStorageService
+    {
+        private readonly Dictionary<string, byte[]> _archivos = [];
+
+        public void Sembrar(string identificador, byte[] contenido) => _archivos[identificador] = contenido;
+
+        public byte[] Leer(string identificador) => _archivos[identificador];
+
+        public async Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default)
+        {
+            using var memoria = new MemoryStream();
+            await contenido.CopyToAsync(memoria, cancellationToken);
+            var identificador = $"documentos/{Guid.NewGuid():N}{Path.GetExtension(nombreArchivoOriginal)}";
+            _archivos[identificador] = memoria.ToArray();
+            return identificador;
+        }
+
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
+            Task.FromResult<Stream>(new MemoryStream(_archivos[identificador]));
+
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default)
+        {
+            _archivos.Remove(identificador);
+            return Task.CompletedTask;
+        }
     }
 
     /// <summary>Resuelve únicamente Crear/RenovarDocumentoCommand con el Result preconfigurado — mismo patrón que MediatorDeUnSoloComandoFalso de PedirPrioridadValidacionCommandTests, extendido para capturar también lo publicado.</summary>

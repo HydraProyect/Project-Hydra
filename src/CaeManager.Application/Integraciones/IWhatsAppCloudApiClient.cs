@@ -23,6 +23,17 @@ public record NotificacionWhatsAppDto(
     IReadOnlyList<MensajeEntranteWhatsAppDto> Mensajes,
     IReadOnlyList<EstadoMensajeWhatsAppDto> Estados);
 
+/// <summary>
+/// Fragmento del sobre firmado de Meta que corresponde a UNA sola línea —
+/// <see cref="PayloadJson"/> contiene solo los <c>entry[].changes[]</c> cuyo
+/// <c>value.metadata.phone_number_id</c> es <see cref="PhoneNumberId"/>,
+/// nunca los del resto de líneas que Meta pudo agrupar en la misma
+/// notificación. Es lo único que <see cref="WebhookWhatsAppEndpoints"/> debe
+/// persistir por tenant — persistir el payload completo bajo cada tenant
+/// filtraría mensajes de un tenant dentro del <c>PayloadCrudo</c> de otro.
+/// </summary>
+public record FragmentoWebhookWhatsAppDto(string PhoneNumberId, string PayloadJson);
+
 public record MediaDescargadoWhatsAppDto(byte[] Contenido, string TipoContenido);
 
 public static class LimitesMediaWhatsApp
@@ -47,6 +58,15 @@ public interface IWhatsAppCloudApiClient
 {
     /// <summary>Puro parseo: los phone_number_id presentes en el payload (una notificación puede agrupar varias líneas de la misma app).</summary>
     IReadOnlyList<string> ExtraerPhoneNumberIds(string payloadJson);
+
+    /// <summary>
+    /// Puro parseo: reparte el sobre agrupado de Meta en un
+    /// <see cref="FragmentoWebhookWhatsAppDto"/> por cada línea presente —
+    /// cada fragmento lleva solo sus propios <c>entry[].changes[]</c>. Es lo
+    /// que <see cref="WebhookWhatsAppEndpoints"/> debe persistir por tenant
+    /// (nunca <see cref="ExtraerPhoneNumberIds"/> + el payload completo).
+    /// </summary>
+    IReadOnlyList<FragmentoWebhookWhatsAppDto> ParticionarPorPhoneNumberId(string payloadJson);
 
     /// <summary>Puro parseo: mensajes entrantes y estados del payload que pertenecen a la línea indicada.</summary>
     NotificacionWhatsAppDto ExtraerNotificacion(string payloadJson, string phoneNumberId);

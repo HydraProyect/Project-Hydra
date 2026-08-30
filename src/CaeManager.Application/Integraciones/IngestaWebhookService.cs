@@ -33,11 +33,6 @@ public class IngestaWebhookService(
     IRelevanciaCaeService relevanciaCae,
     ILogger<IngestaWebhookService> logger)
 {
-    // Tope defensivo, no un límite real de Graph: un adjunto de correo
-    // legítimo rara vez supera esto, y descargar/guardar algo mucho más
-    // grande en un job de fondo (sin límite de tiempo del request) es el
-    // vector de abuso más barato de cerrar aquí sin construir nada nuevo.
-    private const long TamanoMaximoAdjuntoEntranteBytes = 25 * 1024 * 1024;
     public async Task ProcesarAsync(EventoWebhook evento, CancellationToken cancellationToken)
     {
         try
@@ -86,7 +81,7 @@ public class IngestaWebhookService(
         if (await conversacionRepositorio.ExisteMensajeExternoAsync(mensaje.MensajeExternoId, cancellationToken))
             return; // idempotencia: Graph puede reenviar la misma notificación más de una vez.
 
-        var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(mensaje.HiloExternoId, cancellationToken);
+        var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, mensaje.HiloExternoId, cancellationToken);
         if (conversacion is null)
         {
             conversacion = new Conversacion(mensaje.Asunto, conexion.ClienteId);
@@ -180,11 +175,11 @@ public class IngestaWebhookService(
     private async Task DescargarYGuardarAdjuntoAsync(
         Mensaje mensaje, string accessToken, string mensajeExternoId, AdjuntoGraphDto adjunto, CancellationToken cancellationToken)
     {
-        if (adjunto.TamanoBytes > TamanoMaximoAdjuntoEntranteBytes)
+        if (adjunto.TamanoBytes > LimitesAdjuntosCorreo.TamanoMaximoDescargaBytes)
         {
             logger.LogWarning(
                 "Adjunto {NombreArchivo} del mensaje {MensajeId} omitido: {TamanoBytes} bytes supera el máximo de {Maximo}.",
-                adjunto.NombreArchivo, mensajeExternoId, adjunto.TamanoBytes, TamanoMaximoAdjuntoEntranteBytes);
+                adjunto.NombreArchivo, mensajeExternoId, adjunto.TamanoBytes, LimitesAdjuntosCorreo.TamanoMaximoDescargaBytes);
             return;
         }
 

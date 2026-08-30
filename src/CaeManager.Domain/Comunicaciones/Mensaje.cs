@@ -18,6 +18,16 @@ public class Mensaje : EntidadConTenant
 
     public const int LongitudMaximaErrorEntrega = 500;
 
+    /// <summary>
+    /// Tope defensivo (auditoría módulo 6): sin límite, un cuerpo entrante
+    /// (correo o WhatsApp) podía crecer sin cota — nunca un límite real de
+    /// ningún proveedor, solo el vector de abuso más barato de cerrar aquí.
+    /// Se trunca, nunca se rechaza: mismo criterio que <see cref="ErrorEntrega"/>
+    /// — un mensaje entrante real no debe perderse por pasarse de una cota
+    /// defensiva.
+    /// </summary>
+    public const int LongitudMaximaCuerpoHtml = 1024 * 1024;
+
     public Guid ConversacionId { get; private set; }
     public DireccionMensaje Direccion { get; private set; }
 
@@ -68,7 +78,7 @@ public class Mensaje : EntidadConTenant
         Direccion = direccion;
         Canal = canal;
         Remitente = remitente.Trim();
-        CuerpoHtml = cuerpoHtml;
+        CuerpoHtml = cuerpoHtml.Length > LongitudMaximaCuerpoHtml ? cuerpoHtml[..LongitudMaximaCuerpoHtml] : cuerpoHtml;
         FechaUtc = fechaUtc;
         MensajeExternoId = mensajeExternoId;
     }

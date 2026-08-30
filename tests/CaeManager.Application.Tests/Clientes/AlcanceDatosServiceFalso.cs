@@ -5,7 +5,7 @@ namespace CaeManager.Application.Tests.Clientes;
 public class AlcanceDatosServiceFalso(
     bool tieneAccesoTotal = true, IReadOnlyList<Guid>? clienteIdsVisibles = null, IReadOnlyList<Guid>? trabajadorIdsVisibles = null,
     bool conexionIntegracionVisible = true, IReadOnlyList<Guid>? empresaIdsVisibles = null, IReadOnlyList<Guid>? centroIdsVisibles = null,
-    IReadOnlyList<Guid>? subcontrataIdsVisibles = null)
+    IReadOnlyList<Guid>? subcontrataIdsVisibles = null, IReadOnlyList<Guid>? conexionesIntegracionAjenas = null)
     : IAlcanceDatosService
 {
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(tieneAccesoTotal);
@@ -31,6 +31,9 @@ public class AlcanceDatosServiceFalso(
 
     public Task<IReadOnlyList<Guid>?> ObtenerVehiculoIdsVisiblesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Guid>?>(null);
 
+    /// <summary>Si el test pasa <c>conexionesIntegracionAjenas</c>, decide por Id (una conexión ajena, el resto visibles); si no, aplica el flag global de siempre.</summary>
     public Task<bool> ConexionIntegracionVisibleAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(conexionIntegracionVisible);
+        Task.FromResult(conexionesIntegracionAjenas is not null
+            ? !conexionesIntegracionAjenas.Contains(conexionIntegracionId)
+            : conexionIntegracionVisible);
 }

@@ -89,7 +89,7 @@ public class Microsoft365GraphClient(
             if (!respuesta.IsSuccessStatusCode)
             {
                 var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
-                logger.LogError("Microsoft Entra ID devolvió {StatusCode} al canjear tokens: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                logger.LogError("Microsoft Entra ID devolvió {StatusCode} al canjear tokens: {CodigoError}", (int)respuesta.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
                 return Result.Fallo<TokensGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
             }
 
@@ -151,8 +151,8 @@ public class Microsoft365GraphClient(
 
             var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
             logger.LogError(
-                "Microsoft Graph devolvió {StatusCode} al responder al mensaje {MensajeId} del buzón {Buzon}: {Cuerpo}",
-                (int)respuesta.StatusCode, mensajeExternoIdOrigen, buzonEmail, cuerpoError);
+                "Microsoft Graph devolvió {StatusCode} al responder al mensaje {MensajeId}: {CodigoError}",
+                (int)respuesta.StatusCode, mensajeExternoIdOrigen, CodigoErrorGraph.Extraer(cuerpoError));
             return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar la respuesta."));
         }
         catch (HttpRequestException ex)
@@ -192,15 +192,15 @@ public class Microsoft365GraphClient(
             {
                 var cuerpoError = await respuestaBorrador.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError(
-                    "Microsoft Graph devolvió {StatusCode} al crear borrador desde el buzón {Buzon}: {Cuerpo}",
-                    (int)respuestaBorrador.StatusCode, buzonEmail, cuerpoError);
+                    "Microsoft Graph devolvió {StatusCode} al crear un borrador: {CodigoError}",
+                    (int)respuestaBorrador.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
                 return Result.Fallo<MensajeEnviadoGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar el mensaje."));
             }
 
             var borrador = await respuestaBorrador.Content.ReadFromJsonAsync<RespuestaCrearMensajeGraph>(cancellationToken);
             if (string.IsNullOrWhiteSpace(borrador?.Id) || string.IsNullOrWhiteSpace(borrador.ConversationId))
             {
-                logger.LogError("Microsoft Graph no devolvió un Id o ConversationId válido al crear borrador desde el buzón {Buzon}.", buzonEmail);
+                logger.LogError("Microsoft Graph no devolvió un Id o ConversationId válido al crear un borrador.");
                 return Result.Fallo<MensajeEnviadoGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar el mensaje."));
             }
 
@@ -219,8 +219,8 @@ public class Microsoft365GraphClient(
             {
                 var cuerpoError = await respuestaEnvio.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError(
-                    "Microsoft Graph devolvió {StatusCode} al enviar borrador {MensajeId} desde el buzón {Buzon}: {Cuerpo}",
-                    (int)respuestaEnvio.StatusCode, mensajeExternoId, buzonEmail, cuerpoError);
+                    "Microsoft Graph devolvió {StatusCode} al enviar el borrador {MensajeId}: {CodigoError}",
+                    (int)respuestaEnvio.StatusCode, mensajeExternoId, CodigoErrorGraph.Extraer(cuerpoError));
 
                 try
                 {
@@ -314,32 +314,43 @@ public class Microsoft365GraphClient(
     public async Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
         string accessToken, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken)
     {
+        // $value devuelve el binario crudo — a diferencia de $select=contentBytes
+        // (que envolvía el contenido en JSON como base64, con ~33% de
+        // amplificación más el propio JSON completo en memoria antes de poder
+        // empezar a decodificar nada), esto permite copiar con límite real
+        // mientras se descarga en vez de confiar solo en el tamaño declarado
+        // por el llamador (auditoría módulo 6).
         var url = "https://graph.microsoft.com/v1.0/me/messages/" +
-            $"{Uri.EscapeDataString(mensajeId)}/attachments/{Uri.EscapeDataString(adjuntoExternoId)}" +
-            "?$select=contentBytes";
+            $"{Uri.EscapeDataString(mensajeId)}/attachments/{Uri.EscapeDataString(adjuntoExternoId)}/$value";
         using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
 
         try
         {
-            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+            using var respuesta = await httpClient.SendAsync(peticion, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (!respuesta.IsSuccessStatusCode)
                 return Result.Fallo<byte[]>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos descargar este adjunto."));
 
-            var adjunto = await respuesta.Content.ReadFromJsonAsync<AdjuntoContenidoGraph>(cancellationToken);
-            if (adjunto?.ContentBytes is null)
-                return Result.Fallo<byte[]>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos descargar este adjunto."));
+            await using var flujo = await respuesta.Content.ReadAsStreamAsync(cancellationToken);
+            using var destino = new MemoryStream();
+            var lote = new byte[81920];
+            int leidos;
+            while ((leidos = await flujo.ReadAsync(lote, cancellationToken)) > 0)
+            {
+                if (destino.Length + leidos > LimitesAdjuntosCorreo.TamanoMaximoDescargaBytes)
+                {
+                    return Result.Fallo<byte[]>(Error.Crear(
+                        "Integraciones.Microsoft365.AdjuntoDemasiadoGrande", "El adjunto supera el tamaño máximo admitido."));
+                }
 
-            return Result.Exito(Convert.FromBase64String(adjunto.ContentBytes));
+                destino.Write(lote, 0, leidos);
+            }
+
+            return Result.Exito(destino.ToArray());
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al descargar el adjunto {AdjuntoId} del mensaje {MensajeId} vía Microsoft Graph.", adjuntoExternoId, mensajeId);
             return Result.Fallo<byte[]>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
-        }
-        catch (FormatException ex)
-        {
-            logger.LogError(ex, "Contenido de adjunto {AdjuntoId} no es base64 válido.", adjuntoExternoId);
-            return Result.Fallo<byte[]>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el contenido de este adjunto."));
         }
     }
 
@@ -447,8 +458,8 @@ public class Microsoft365GraphClient(
             {
                 var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError(
-                    "Microsoft Graph devolvió {StatusCode} al crear la suscripción del buzón {Buzon}: {Cuerpo}",
-                    (int)respuesta.StatusCode, buzonEmail, cuerpoError);
+                    "Microsoft Graph devolvió {StatusCode} al crear la suscripción del buzón: {CodigoError}",
+                    (int)respuesta.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
                 return Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorSuscripcion", "No pudimos activar las notificaciones de este buzón."));
             }
 
@@ -460,7 +471,7 @@ public class Microsoft365GraphClient(
         }
         catch (HttpRequestException ex)
         {
-            logger.LogError(ex, "Fallo de red al crear la suscripción del buzón {Buzon} vía Microsoft Graph.", buzonEmail);
+            logger.LogError(ex, "Fallo de red al crear la suscripción del buzón vía Microsoft Graph.");
             return Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
     }
@@ -480,8 +491,8 @@ public class Microsoft365GraphClient(
             {
                 var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError(
-                    "Microsoft Graph devolvió {StatusCode} al renovar la suscripción {SubscriptionId}: {Cuerpo}",
-                    (int)respuesta.StatusCode, graphSubscriptionId, cuerpoError);
+                    "Microsoft Graph devolvió {StatusCode} al renovar la suscripción {SubscriptionId}: {CodigoError}",
+                    (int)respuesta.StatusCode, graphSubscriptionId, CodigoErrorGraph.Extraer(cuerpoError));
                 return Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorSuscripcion", "No pudimos renovar las notificaciones de este buzón."));
             }
 
@@ -507,8 +518,8 @@ public class Microsoft365GraphClient(
 
             var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
             logger.LogError(
-                "Microsoft Graph devolvió {StatusCode} al eliminar la suscripción {SubscriptionId}: {Cuerpo}",
-                (int)respuesta.StatusCode, graphSubscriptionId, cuerpoError);
+                "Microsoft Graph devolvió {StatusCode} al eliminar la suscripción {SubscriptionId}: {CodigoError}",
+                (int)respuesta.StatusCode, graphSubscriptionId, CodigoErrorGraph.Extraer(cuerpoError));
             return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorSuscripcion", "No pudimos eliminar la suscripción en Microsoft."));
         }
         catch (HttpRequestException ex)
@@ -541,6 +552,20 @@ public class Microsoft365GraphClient(
         {
             var notificacion = JsonSerializer.Deserialize<NotificacionesGraph>(payloadJson);
             return notificacion?.Value?.FirstOrDefault()?.ClientState;
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "Payload de notificación de webhook de Microsoft Graph no es JSON válido.");
+            return null;
+        }
+    }
+
+    public string? ExtraerSubscriptionIdDeNotificacion(string payloadJson)
+    {
+        try
+        {
+            var notificacion = JsonSerializer.Deserialize<NotificacionesGraph>(payloadJson);
+            return notificacion?.Value?.FirstOrDefault()?.SubscriptionId;
         }
         catch (JsonException ex)
         {
@@ -608,8 +633,6 @@ public class Microsoft365GraphClient(
         [property: JsonPropertyName("contentType")] string? ContentType,
         [property: JsonPropertyName("size")] long? Size);
 
-    private sealed record AdjuntoContenidoGraph([property: JsonPropertyName("contentBytes")] string? ContentBytes);
-
     private sealed record CarpetaDetalleGraph(
         [property: JsonPropertyName("id")] string? Id,
         [property: JsonPropertyName("displayName")] string? DisplayName,
@@ -657,7 +680,8 @@ public class Microsoft365GraphClient(
 
     private sealed record NotificacionGraph(
         [property: JsonPropertyName("resourceData")] RecursoNotificacionGraph? ResourceData,
-        [property: JsonPropertyName("clientState")] string? ClientState);
+        [property: JsonPropertyName("clientState")] string? ClientState,
+        [property: JsonPropertyName("subscriptionId")] string? SubscriptionId);
 
     private sealed record NotificacionesGraph([property: JsonPropertyName("value")] IReadOnlyList<NotificacionGraph>? Value);
 }

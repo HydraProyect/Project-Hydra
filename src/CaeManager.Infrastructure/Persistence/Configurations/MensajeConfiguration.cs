@@ -12,6 +12,13 @@ public class MensajeConfiguration : IEntityTypeConfiguration<Mensaje>
         builder.HasKey(m => m.Id);
 
         builder.Property(m => m.Remitente).IsRequired().HasMaxLength(320);
+        // Sin HasMaxLength a propósito, a diferencia de los demás campos
+        // acotados de esta entidad: forzar aquí un varchar(N) generaría una
+        // migración que Postgres podría rechazar si ya existe en producción
+        // alguna fila más larga que el nuevo tope (que este cambio introduce
+        // solo hacia delante — ver Mensaje.LongitudMaximaCuerpoHtml, aplicado
+        // en el constructor). La columna sigue siendo "text"; el límite real
+        // lo impone el dominio, no el esquema.
         builder.Property(m => m.CuerpoHtml).IsRequired();
         builder.Property(m => m.MensajeExternoId).HasMaxLength(Mensaje.LongitudMaximaMensajeExternoId);
         builder.Property(m => m.ErrorEntrega).HasMaxLength(Mensaje.LongitudMaximaErrorEntrega);

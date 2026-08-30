@@ -88,6 +88,36 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         resultado.Error.Codigo.Should().Be("Adjunto.NoEncontrado");
     }
 
+    /// <summary>Auditoría módulo 6: un hilo atado a un buzón personal ajeno no debe ser visible aunque comparta Cliente o no tenga Cliente asignado.</summary>
+    [Fact]
+    public async Task Un_adjunto_de_un_buzon_personal_ajeno_no_es_visible()
+    {
+        await using var contexto = CrearContexto();
+
+        var conversacion = new Conversacion("Documentación recibida en buzón personal");
+        var conexionAjenaId = Guid.NewGuid();
+        conversacion.AsociarConexion(conexionAjenaId, "hilo-externo-ajeno");
+        contexto.Conversaciones.Add(conversacion);
+        await contexto.SaveChangesAsync();
+
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Adjunto el certificado");
+        await contexto.SaveChangesAsync();
+
+        var adjunto = new AdjuntoMensaje(mensaje.Id, "certificado.pdf", "application/pdf", 1024, "adjuntos/certificado.pdf");
+        contexto.AdjuntosMensaje.Add(adjunto);
+        await contexto.SaveChangesAsync();
+
+        var opciones = Options.Create(new ExtraccionDocumentoAdjuntoOptions { Activa = false });
+        var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
+            contexto, new AlcanceDatosServiceFalso(conexionesIntegracionAjenas: [conexionAjenaId]), new AlmacenamientoQueNuncaSeDebeLlamar(),
+            new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto);
+
+        var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Adjunto.NoEncontrado");
+    }
+
     private CaeManagerDbContext CrearContexto()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };

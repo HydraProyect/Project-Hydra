@@ -88,7 +88,7 @@ public class EnviarMensajeNuevoCommandHandler(
         if (envioResultado.EsFallido)
             return Result.Fallo<Guid>(envioResultado.Error);
 
-        var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(envioResultado.Valor.HiloExternoId, cancellationToken);
+        var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, envioResultado.Valor.HiloExternoId, cancellationToken);
         if (conversacion is null)
         {
             conversacion = new Conversacion(request.Asunto, clienteId);

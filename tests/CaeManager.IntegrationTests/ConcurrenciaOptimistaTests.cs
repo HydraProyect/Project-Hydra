@@ -1,4 +1,5 @@
 ﻿using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -109,6 +110,54 @@ public class ConcurrenciaOptimistaTests : IAsyncLifetime
         var versionFinal = (await contextoComprobacion.Empresas.FirstAsync(c => c.Id == _clienteId)).Version;
 
         versionFinal.Should().NotBe(versionInicial);
+    }
+
+    /// <summary>
+    /// Auditoría módulo 6: dos refrescos concurrentes del mismo buzón de
+    /// Microsoft 365 partían del mismo refresh token de Graph (que rota en
+    /// cada canje) y se pisaban en silencio — el que ganara el guardado
+    /// dejaba vigente un token que Graph ya había invalidado al emitir el
+    /// otro, rompiendo la conexión hasta reconectarla a mano. Mismo
+    /// escenario que arriba, pero sobre CredencialIntegracion en vez de
+    /// Empresa: dos "respuestas" concurrentes (una manual, una de la
+    /// ingesta de fondo) son exactamente dos DbContext independientes
+    /// leyendo la misma fila.
+    /// </summary>
+    [Fact]
+    public async Task Dos_refrescos_concurrentes_de_la_misma_credencial_no_se_pisan_en_silencio()
+    {
+        Guid credencialId;
+        await using (var contexto = CrearContexto())
+        {
+            var conexion = new ConexionIntegracion("cae@cliente.test", "Buzón CAE");
+            var credencial = new CredencialIntegracion(conexion.Id, "refresh-token-original");
+            contexto.ConexionesIntegracion.Add(conexion);
+            contexto.CredencialesIntegracion.Add(credencial);
+            await contexto.SaveChangesAsync();
+            credencialId = credencial.Id;
+        }
+
+        await using var contextoPrimero = CrearContexto();
+        await using var contextoSegundo = CrearContexto();
+
+        var credencialPrimero = await contextoPrimero.CredencialesIntegracion.FirstAsync(c => c.Id == credencialId);
+        var credencialSegundo = await contextoSegundo.CredencialesIntegracion.FirstAsync(c => c.Id == credencialId);
+
+        // Graph acepta las dos peticiones de refresco (el refresh token de
+        // partida seguía siendo válido para ambas) y devuelve un par
+        // distinto a cada una — el primero en guardar gana.
+        credencialPrimero.ActualizarRefreshToken("refresh-token-rotado-por-el-primero");
+        await contextoPrimero.SaveChangesAsync();
+
+        credencialSegundo.ActualizarRefreshToken("refresh-token-rotado-por-el-segundo");
+        var guardarSegundo = async () => await contextoSegundo.SaveChangesAsync();
+
+        await guardarSegundo.Should().ThrowAsync<DbUpdateConcurrencyException>(
+            "el segundo cargó una versión de la credencial que ya no es la vigente");
+
+        await using var contextoComprobacion = CrearContexto();
+        var almacenada = await contextoComprobacion.CredencialesIntegracion.FirstAsync(c => c.Id == credencialId);
+        almacenada.RefreshToken.Should().Be("refresh-token-rotado-por-el-primero");
     }
 
     private CaeManagerDbContext CrearContexto()

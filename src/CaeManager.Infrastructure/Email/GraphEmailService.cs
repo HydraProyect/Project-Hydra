@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using CaeManager.Domain.Common;
+using CaeManager.Infrastructure.Integraciones;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -26,7 +27,7 @@ public class GraphEmailService(
 
         if (!config.EstaConfigurado)
         {
-            logger.LogWarning("Se intentó enviar un correo sin Graph:* configurado (destinatario: {Destinatario}).", destinatarioEmail);
+            logger.LogWarning("Se intentó enviar un correo sin Graph:* configurado.");
             return Result.Fallo(Error.Crear("Email.NoConfigurado", "El envío de correo no está configurado."));
         }
 
@@ -54,13 +55,13 @@ public class GraphEmailService(
 
             var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
             logger.LogError(
-                "Microsoft Graph devolvió {StatusCode} al enviar correo a {Destinatario}: {Cuerpo}",
-                (int)respuesta.StatusCode, destinatarioEmail, cuerpoError);
+                "Microsoft Graph devolvió {StatusCode} al enviar un correo: {CodigoError}",
+                (int)respuesta.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
             return Result.Fallo(Error.Crear("Email.ErrorApi", "No pudimos enviar el correo."));
         }
         catch (HttpRequestException ex)
         {
-            logger.LogError(ex, "Fallo de red al enviar correo a {Destinatario} vía Microsoft Graph.", destinatarioEmail);
+            logger.LogError(ex, "Fallo de red al enviar correo vía Microsoft Graph.");
             return Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo."));
         }
     }
@@ -87,7 +88,7 @@ public class GraphEmailService(
                 // 401/invalid_client más probable causa: el Client Secret expiró
                 // o se revocó (caducan como máximo a los 24 meses, ver DEPLOY.md).
                 var cuerpoError = await respuestaToken.Content.ReadAsStringAsync(cancellationToken);
-                logger.LogError("No se pudo obtener token de Microsoft Graph: {StatusCode} {Cuerpo}", (int)respuestaToken.StatusCode, cuerpoError);
+                logger.LogError("No se pudo obtener token de Microsoft Graph: {StatusCode} {CodigoError}", (int)respuestaToken.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
                 return null;
             }
 

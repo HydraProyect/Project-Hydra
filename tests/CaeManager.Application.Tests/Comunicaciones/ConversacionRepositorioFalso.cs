@@ -10,8 +10,10 @@ public class ConversacionRepositorioFalso : IConversacionRepository
     public Task<Conversacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones.FirstOrDefault(c => c.Id == id));
 
-    public Task<Conversacion?> ObtenerPorHiloExternoAsync(string hiloExternoId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Conversaciones.FirstOrDefault(c => c.HiloExternoId == hiloExternoId));
+    public Task<Conversacion?> ObtenerPorHiloExternoAsync(
+        Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Conversaciones.FirstOrDefault(
+            c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId));
 
     public Task<bool> ExisteMensajeExternoAsync(string mensajeExternoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones.SelectMany(c => c.Mensajes).Any(m => m.MensajeExternoId == mensajeExternoId));

@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Common;
@@ -21,6 +22,16 @@ public class WhatsAppCloudApiClient(
     ILogger<WhatsAppCloudApiClient> logger) : IWhatsAppCloudApiClient
 {
     private const string BaseGraphMeta = "https://graph.facebook.com";
+
+    /// <summary>
+    /// Hosts propios de Meta bajo los que puede llegar la URL de lookaside
+    /// del salto 2 de <see cref="DescargarMediaAsync"/> (auditoría módulo 6):
+    /// esa URL sale de un campo JSON de la respuesta de metadatos, no de una
+    /// constante — sin esta comprobación, un metadato inesperado convertiría
+    /// el cliente en un SSRF que además manda el Bearer token a quien sea.
+    /// </summary>
+    private static readonly string[] HostsPermitidosMedia =
+        [".fbsbx.com", ".facebook.com", ".fbcdn.net", ".cdninstagram.com", ".whatsapp.net"];
 
     public IReadOnlyList<string> ExtraerPhoneNumberIds(string payloadJson)
     {
@@ -47,6 +58,88 @@ public class WhatsAppCloudApiClient(
 
         return resultado;
     }
+
+    public IReadOnlyList<FragmentoWebhookWhatsAppDto> ParticionarPorPhoneNumberId(string payloadJson)
+    {
+        var fragmentos = new List<FragmentoWebhookWhatsAppDto>();
+
+        JsonDocument documento;
+        try
+        {
+            documento = JsonDocument.Parse(payloadJson);
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "Payload de webhook de WhatsApp no es JSON válido — se descarta.");
+            return fragmentos;
+        }
+
+        using var _ = documento;
+        if (!documento.RootElement.TryGetProperty("entry", out var entradas) || entradas.ValueKind != JsonValueKind.Array)
+            return fragmentos;
+
+        foreach (var phoneNumberId in ExtraerPhoneNumberIds(payloadJson))
+        {
+            using var buffer = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(buffer))
+            {
+                writer.WriteStartObject();
+                foreach (var propiedad in documento.RootElement.EnumerateObject())
+                {
+                    if (!propiedad.NameEquals("entry"))
+                    {
+                        writer.WritePropertyName(propiedad.Name);
+                        propiedad.Value.WriteTo(writer);
+                        continue;
+                    }
+
+                    writer.WritePropertyName("entry");
+                    writer.WriteStartArray();
+                    foreach (var entrada in entradas.EnumerateArray())
+                    {
+                        if (!entrada.TryGetProperty("changes", out var cambios) || cambios.ValueKind != JsonValueKind.Array)
+                            continue;
+
+                        var cambiosDeLaLinea = cambios.EnumerateArray()
+                            .Where(cambio => EsCambioDeLaLinea(cambio, phoneNumberId))
+                            .ToList();
+                        if (cambiosDeLaLinea.Count == 0)
+                            continue;
+
+                        writer.WriteStartObject();
+                        foreach (var propiedadEntrada in entrada.EnumerateObject())
+                        {
+                            if (propiedadEntrada.NameEquals("changes"))
+                            {
+                                writer.WritePropertyName("changes");
+                                writer.WriteStartArray();
+                                foreach (var cambio in cambiosDeLaLinea)
+                                    cambio.WriteTo(writer);
+                                writer.WriteEndArray();
+                                continue;
+                            }
+
+                            writer.WritePropertyName(propiedadEntrada.Name);
+                            propiedadEntrada.Value.WriteTo(writer);
+                        }
+                        writer.WriteEndObject();
+                    }
+                    writer.WriteEndArray();
+                }
+                writer.WriteEndObject();
+            }
+
+            fragmentos.Add(new FragmentoWebhookWhatsAppDto(phoneNumberId, Encoding.UTF8.GetString(buffer.ToArray())));
+        }
+
+        return fragmentos;
+    }
+
+    private static bool EsCambioDeLaLinea(JsonElement cambio, string phoneNumberId) =>
+        cambio.TryGetProperty("value", out var value) &&
+        value.TryGetProperty("metadata", out var metadata) &&
+        metadata.TryGetProperty("phone_number_id", out var pni) &&
+        pni.GetString() == phoneNumberId;
 
     public NotificacionWhatsAppDto ExtraerNotificacion(string payloadJson, string phoneNumberId)
     {
@@ -176,18 +269,44 @@ public class WhatsAppCloudApiClient(
                 return Result.Fallo<MediaDescargadoWhatsAppDto>(Error.Crear(
                     "Integraciones.WhatsApp.ErrorMedia", "Meta no devolvió la URL del adjunto."));
 
+            if (!EsHostDeMediaPermitido(urlEfimera))
+            {
+                logger.LogError("Meta devolvió una URL de media con un host no permitido para {MediaId}.", mediaId);
+                return Result.Fallo<MediaDescargadoWhatsAppDto>(Error.Crear(
+                    "Integraciones.WhatsApp.ErrorMedia", "No pudimos descargar el archivo adjunto de Meta."));
+            }
+
             // Salto 2: la URL de lookaside exige el mismo Bearer.
             using var peticionBinario = new HttpRequestMessage(HttpMethod.Get, urlEfimera);
             peticionBinario.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenAcceso);
 
-            using var respuestaBinario = await httpClient.SendAsync(peticionBinario, cancellationToken);
+            using var respuestaBinario = await httpClient.SendAsync(
+                peticionBinario, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (!respuestaBinario.IsSuccessStatusCode)
                 return Result.Fallo<MediaDescargadoWhatsAppDto>(Error.Crear(
                     "Integraciones.WhatsApp.ErrorMedia", "No pudimos descargar el archivo adjunto de Meta."));
 
-            var contenido = await respuestaBinario.Content.ReadAsByteArrayAsync(cancellationToken);
+            // El file_size de los metadatos ya se comprobó arriba, pero es un
+            // dato declarado por Meta, no una garantía sobre los bytes reales
+            // — se vuelve a acotar mientras se copia, en vez de confiar solo
+            // en el metadato (auditoría módulo 6).
+            await using var flujoBinario = await respuestaBinario.Content.ReadAsStreamAsync(cancellationToken);
+            using var destino = new MemoryStream();
+            var lote = new byte[81920];
+            int leidos;
+            while ((leidos = await flujoBinario.ReadAsync(lote, cancellationToken)) > 0)
+            {
+                if (destino.Length + leidos > LimitesMediaWhatsApp.TamanoMaximoBytes)
+                {
+                    return Result.Fallo<MediaDescargadoWhatsAppDto>(Error.Crear(
+                        "Integraciones.WhatsApp.MediaDemasiadoGrande", "El adjunto supera el tamaño máximo admitido."));
+                }
+
+                destino.Write(lote, 0, leidos);
+            }
+
             return Result.Exito(new MediaDescargadoWhatsAppDto(
-                contenido, tipoContenido ?? "application/octet-stream"));
+                destino.ToArray(), tipoContenido ?? "application/octet-stream"));
         }
         catch (HttpRequestException ex)
         {
@@ -196,6 +315,12 @@ public class WhatsAppCloudApiClient(
                 "Integraciones.WhatsApp.ErrorRed", "No pudimos conectar con Meta."));
         }
     }
+
+    /// <summary>HTTPS y host propio de Meta (por sufijo, ver <see cref="HostsPermitidosMedia"/>) — nunca se sigue una URL de otro origen con el Bearer token de la línea.</summary>
+    private static bool EsHostDeMediaPermitido(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+        uri.Scheme == Uri.UriSchemeHttps &&
+        HostsPermitidosMedia.Any(sufijo => uri.Host.EndsWith(sufijo, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>entry[].changes[].value de una notificación — el sobre común de todos los webhooks de Meta.</summary>
     private static IEnumerable<JsonElement> EnumerarValues(JsonDocument documento)

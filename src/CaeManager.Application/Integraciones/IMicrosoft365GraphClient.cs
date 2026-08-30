@@ -40,6 +40,15 @@ public static class LimitesAdjuntosCorreo
     /// <see cref="IMicrosoft365GraphClient.EnviarRespuestaAsync"/>/<see cref="IMicrosoft365GraphClient.EnviarNuevoMensajeAsync"/>.
     /// </summary>
     public const long TamanoMaximoTotalAdjuntosBytes = 3 * 1024 * 1024;
+
+    /// <summary>
+    /// Tope defensivo para un adjunto ENTRANTE (mismo valor que
+    /// <c>LimitesMediaWhatsApp.TamanoMaximoBytes</c>): el tamaño declarado por
+    /// Graph antes de descargar es solo un pre-filtro — <see cref="IMicrosoft365GraphClient.ObtenerContenidoAdjuntoAsync"/>
+    /// vuelve a acotar mientras copia los bytes reales, en vez de confiar
+    /// solo en el metadato (auditoría módulo 6).
+    /// </summary>
+    public const long TamanoMaximoDescargaBytes = 25 * 1024 * 1024;
 }
 
 /// <summary>
@@ -122,4 +131,15 @@ public interface IMicrosoft365GraphClient
     /// del payload. Null si el payload no trae ninguna notificación válida.
     /// </summary>
     string? ExtraerClientStateDeNotificacion(string payloadJson);
+
+    /// <summary>
+    /// Puro parseo, sin llamada de red — el <c>subscriptionId</c> que Graph
+    /// asigna a la suscripción y devuelve en cada notificación. Segunda
+    /// comprobación además del <c>clientState</c> (auditoría módulo 6): si un
+    /// <c>clientState</c> llegara a filtrarse, exigir también que coincida
+    /// con la suscripción activa de <c>SuscripcionWebhook</c> reduce lo que
+    /// un payload fabricado puede hacer aceptar. Null si el payload no trae
+    /// ninguna notificación válida.
+    /// </summary>
+    string? ExtraerSubscriptionIdDeNotificacion(string payloadJson);
 }

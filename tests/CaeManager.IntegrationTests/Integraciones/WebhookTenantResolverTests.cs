@@ -43,14 +43,14 @@ public class WebhookTenantResolverTests : IAsyncLifetime
     public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
     [Fact]
-    public async Task Verifica_y_resuelve_el_tenant_propietario_cuando_el_clientState_coincide()
+    public async Task Verifica_y_resuelve_el_tenant_propietario_cuando_el_clientState_y_el_subscriptionId_coinciden()
     {
         // Contexto de un tenant DISTINTO al propietario — simula la petición
         // HTTP anónima, sin ningún tenant de sesión resuelto todavía.
         await using var contexto = CrearContexto(Guid.NewGuid());
         var resolver = new WebhookTenantResolver(contexto);
 
-        var resultado = await resolver.VerificarAsync(_conexionId, "secreto-correcto", CancellationToken.None);
+        var resultado = await resolver.VerificarAsync(_conexionId, "secreto-correcto", "graph-sub-1", CancellationToken.None);
 
         resultado.Verificado.Should().BeTrue();
         resultado.TenantId.Should().Be(_tenantPropietario);
@@ -62,10 +62,34 @@ public class WebhookTenantResolverTests : IAsyncLifetime
         await using var contexto = CrearContexto(Guid.NewGuid());
         var resolver = new WebhookTenantResolver(contexto);
 
-        var resultado = await resolver.VerificarAsync(_conexionId, "secreto-falso", CancellationToken.None);
+        var resultado = await resolver.VerificarAsync(_conexionId, "secreto-falso", "graph-sub-1", CancellationToken.None);
 
         resultado.Verificado.Should().BeFalse();
         resultado.TenantId.Should().BeNull();
+    }
+
+    /// <summary>Auditoría módulo 6: segunda comprobación además del clientState — reduce lo que un clientState filtrado, por sí solo, podría hacer aceptar.</summary>
+    [Fact]
+    public async Task Rechaza_un_subscriptionId_que_no_coincide_con_la_suscripcion_activa()
+    {
+        await using var contexto = CrearContexto(Guid.NewGuid());
+        var resolver = new WebhookTenantResolver(contexto);
+
+        var resultado = await resolver.VerificarAsync(_conexionId, "secreto-correcto", "graph-sub-de-otra-suscripcion", CancellationToken.None);
+
+        resultado.Verificado.Should().BeFalse();
+        resultado.TenantId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Rechaza_un_subscriptionId_ausente()
+    {
+        await using var contexto = CrearContexto(Guid.NewGuid());
+        var resolver = new WebhookTenantResolver(contexto);
+
+        var resultado = await resolver.VerificarAsync(_conexionId, "secreto-correcto", null, CancellationToken.None);
+
+        resultado.Verificado.Should().BeFalse();
     }
 
     [Fact]
@@ -74,7 +98,7 @@ public class WebhookTenantResolverTests : IAsyncLifetime
         await using var contexto = CrearContexto(Guid.NewGuid());
         var resolver = new WebhookTenantResolver(contexto);
 
-        var resultado = await resolver.VerificarAsync(Guid.NewGuid(), "cualquier-secreto", CancellationToken.None);
+        var resultado = await resolver.VerificarAsync(Guid.NewGuid(), "cualquier-secreto", "graph-sub-1", CancellationToken.None);
 
         resultado.Verificado.Should().BeFalse();
     }

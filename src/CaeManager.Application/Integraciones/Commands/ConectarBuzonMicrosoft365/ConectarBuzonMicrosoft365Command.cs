@@ -5,6 +5,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
 
@@ -42,7 +43,8 @@ public class ConectarBuzonMicrosoft365CommandHandler(
     IAlcanceDatosService alcanceDatos,
     IDirectorioUsuariosService directorioUsuarios,
     IMicrosoft365GraphClient graphClient,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<ConectarBuzonMicrosoft365CommandHandler> logger)
     : IRequestHandler<ConectarBuzonMicrosoft365Command, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(ConectarBuzonMicrosoft365Command request, CancellationToken cancellationToken)
@@ -77,7 +79,31 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         suscripcionRepositorio.Agregar(new SuscripcionWebhook(
             conexion.Id, suscripcionResultado.Valor.GraphSubscriptionId, clientState, suscripcionResultado.Valor.FechaExpiracionUtc));
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // Compensación best-effort (auditoría módulo 6): si la conexión
+            // no se pudo persistir localmente, no dejar una suscripción
+            // huérfana en Graph que Hydra nunca sabrá que existe — mismo
+            // criterio que el borrador huérfano de EnviarNuevoMensajeAsync.
+            try
+            {
+                await graphClient.EliminarSuscripcionAsync(
+                    request.AccessToken, suscripcionResultado.Valor.GraphSubscriptionId, cancellationToken);
+            }
+            catch (Exception exCompensacion)
+            {
+                logger.LogWarning(exCompensacion,
+                    "No se pudo eliminar la suscripción huérfana {SubscriptionId} tras un fallo al conectar el buzón.",
+                    suscripcionResultado.Valor.GraphSubscriptionId);
+            }
+
+            throw;
+        }
+
         return Result.Exito(conexion.Id);
     }
 }

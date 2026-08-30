@@ -10,9 +10,23 @@ namespace CaeManager.Domain.Integraciones;
 /// memoria durante la petición — el cifrado en reposo es un
 /// <c>ValueConverter</c> de EF Core en Infrastructure, este Domain no lo
 /// conoce.
+///
+/// <see cref="IVersionable"/> sin heredar <c>EntidadBase</c> (no necesita
+/// soft delete: se reemplaza, nunca se "elimina" como fila aparte) — pero sí
+/// necesita el token de concurrencia (auditoría módulo 6): Graph rota el
+/// refresh token en cada canje, así que dos refrescos concurrentes de la
+/// MISMA conexión (una respuesta manual y la ingesta de fondo, por ejemplo)
+/// partían del mismo refresh token y se pisaban en silencio — el que
+/// ganara el guardado dejaba vigente un token que Graph ya había invalidado
+/// al emitir el otro, rompiendo la conexión hasta reconectarla a mano. Con
+/// el token, el segundo guardado falla con <c>DbUpdateConcurrencyException</c>
+/// (ya traducido a un Result de fallo legible por <c>ConcurrenciaBehavior</c>)
+/// en vez de corromper el dato sin avisar.
 /// </summary>
-public class CredencialIntegracion : EntidadConTenant
+public class CredencialIntegracion : EntidadConTenant, IVersionable
 {
+    public Guid Version { get; private set; } = Guid.NewGuid();
+
     public Guid ConexionIntegracionId { get; private set; }
     public string RefreshToken { get; private set; } = string.Empty;
 
