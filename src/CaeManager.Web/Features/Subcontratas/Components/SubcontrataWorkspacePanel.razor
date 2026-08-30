@@ -29,7 +29,6 @@
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
-@inject ICurrentUserService CurrentUserService
 
 @if (_cargando)
 {
@@ -804,11 +803,7 @@ else
 
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            if (usuarioId is null) return;
-
-            var resultado = await Mediator.Send(new EliminarVerificacionExternaSubcontrataCommand(
-                _verificacionAEliminarId, usuarioId.Value));
+            var resultado = await Mediator.Send(new EliminarVerificacionExternaSubcontrataCommand(_verificacionAEliminarId));
 
             if (resultado.EsFallido)
             {
