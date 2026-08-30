@@ -19,9 +19,9 @@ public class EliminarDocumentosCommandHandlerTests
         repositorio.Agregar(dos);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new EliminarDocumentosCommandHandler(
-            repositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork);
+            repositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
-        var resultado = await handler.Handle(new EliminarDocumentosCommand([uno.Id, dos.Id], Guid.NewGuid()), CancellationToken.None);
+        var resultado = await handler.Handle(new EliminarDocumentosCommand([uno.Id, dos.Id]), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(2);
@@ -38,10 +38,10 @@ public class EliminarDocumentosCommandHandlerTests
         repositorio.Agregar(existente);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new EliminarDocumentosCommandHandler(
-            repositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork);
+            repositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
         var resultado = await handler.Handle(
-            new EliminarDocumentosCommand([existente.Id, Guid.NewGuid()], Guid.NewGuid()), CancellationToken.None);
+            new EliminarDocumentosCommand([existente.Id, Guid.NewGuid()]), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(1);
@@ -58,13 +58,33 @@ public class EliminarDocumentosCommandHandlerTests
         repositorio.Agregar(documento);
         var unitOfWork = new UnitOfWorkFalso();
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]);
-        var handler = new EliminarDocumentosCommandHandler(repositorio, alcance, new ProyectosQueryContextFalso(), unitOfWork);
+        var handler = new EliminarDocumentosCommandHandler(repositorio, alcance, new ProyectosQueryContextFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
-        var resultado = await handler.Handle(new EliminarDocumentosCommand([documento.Id], Guid.NewGuid()), CancellationToken.None);
+        var resultado = await handler.Handle(new EliminarDocumentosCommand([documento.Id]), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(0);
         resultado.Valor.Errores.Should().ContainSingle();
+        documento.EstaEliminado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task No_borra_ninguno_del_lote_sin_identidad_resuelta()
+    {
+        // Se comprueba antes del bucle a propósito: un éxito parcial sin autor
+        // no es un éxito parcial, y dejar la mitad del lote borrada sin poder
+        // decir quién lo hizo es peor que no borrar nada.
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), null);
+        var repositorio = new DocumentoRepositorioFalso();
+        repositorio.Agregar(documento);
+        var handler = new EliminarDocumentosCommandHandler(
+            repositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
+            new UnitOfWorkFalso(), new CurrentUserServiceFalso(usuarioId: null));
+
+        var resultado = await handler.Handle(new EliminarDocumentosCommand([documento.Id]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Documento.SinIdentidad");
         documento.EstaEliminado.Should().BeFalse();
     }
 }
