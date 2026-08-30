@@ -16,9 +16,10 @@ public class EliminarClientesCommandHandlerTests
         repositorio.Agregar(uno);
         repositorio.Agregar(dos);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarClientesCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = new EliminarClientesCommandHandler(
+            repositorio, new AlcanceDatosServiceFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
-        var resultado = await handler.Handle(new EliminarClientesCommand([uno.Id, dos.Id], Guid.NewGuid()), CancellationToken.None);
+        var resultado = await handler.Handle(new EliminarClientesCommand([uno.Id, dos.Id]), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(2);
@@ -38,10 +39,11 @@ public class EliminarClientesCommandHandlerTests
         repositorio.Agregar(conCentros);
         repositorio.IdsConCentrosActivos.Add(conCentros.Id);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarClientesCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = new EliminarClientesCommandHandler(
+            repositorio, new AlcanceDatosServiceFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
         var resultado = await handler.Handle(
-            new EliminarClientesCommand([sinCentros.Id, conCentros.Id], Guid.NewGuid()), CancellationToken.None);
+            new EliminarClientesCommand([sinCentros.Id, conCentros.Id]), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(1);
@@ -55,9 +57,10 @@ public class EliminarClientesCommandHandlerTests
     {
         var repositorio = new EmpresaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarClientesCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = new EliminarClientesCommandHandler(
+            repositorio, new AlcanceDatosServiceFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
-        var resultado = await handler.Handle(new EliminarClientesCommand([Guid.NewGuid()], Guid.NewGuid()), CancellationToken.None);
+        var resultado = await handler.Handle(new EliminarClientesCommand([Guid.NewGuid()]), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(0);
@@ -76,9 +79,9 @@ public class EliminarClientesCommandHandlerTests
         repositorio.Agregar(ajeno);
         var unitOfWork = new UnitOfWorkFalso();
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [propio.Id]);
-        var handler = new EliminarClientesCommandHandler(repositorio, alcance, unitOfWork);
+        var handler = new EliminarClientesCommandHandler(repositorio, alcance, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
-        var resultado = await handler.Handle(new EliminarClientesCommand([propio.Id, ajeno.Id], Guid.NewGuid()), CancellationToken.None);
+        var resultado = await handler.Handle(new EliminarClientesCommand([propio.Id, ajeno.Id]), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(1);

@@ -370,8 +370,7 @@ public partial class TrabajadorDetalle : ComponentBase
         _dandoDeBajaTrabajador = true;
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarTrabajadorCommand(TrabajadorId, usuarioId ?? Guid.Empty));
+            var resultado = await Mediator.Send(new EliminarTrabajadorCommand(TrabajadorId));
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);

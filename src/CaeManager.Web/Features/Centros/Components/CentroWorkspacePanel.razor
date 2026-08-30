@@ -1384,8 +1384,7 @@ else
 
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarCanalGestionCommand(canal.Id, usuarioId ?? Guid.Empty));
+            var resultado = await Mediator.Send(new EliminarCanalGestionCommand(canal.Id));
 
             if (resultado.EsFallido)
             {

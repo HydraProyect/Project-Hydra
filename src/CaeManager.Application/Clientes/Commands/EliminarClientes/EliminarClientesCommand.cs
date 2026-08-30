@@ -12,7 +12,7 @@ namespace CaeManager.Application.Clientes.Commands.EliminarClientes;
 /// una única transacción. Éxito parcial no es fallo del Command: se reporta
 /// en <see cref="ResultadoEliminacionLoteDto"/> para que la UI lo resuma.
 /// </summary>
-public record EliminarClientesCommand(IReadOnlyList<Guid> Ids, Guid UsuarioId) : ICommand<ResultadoEliminacionLoteDto>;
+public record EliminarClientesCommand(IReadOnlyList<Guid> Ids) : ICommand<ResultadoEliminacionLoteDto>;
 
 public record ResultadoEliminacionLoteDto(int Eliminados, IReadOnlyList<string> Errores);
 
@@ -21,11 +21,18 @@ public class EliminarClientesCommandValidator : AbstractValidator<EliminarClient
     public EliminarClientesCommandValidator() => RuleFor(c => c.Ids).NotEmpty();
 }
 
-public class EliminarClientesCommandHandler(IEmpresaRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+public class EliminarClientesCommandHandler(
+    IEmpresaRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService)
     : IRequestHandler<EliminarClientesCommand, Result<ResultadoEliminacionLoteDto>>
 {
     public async Task<Result<ResultadoEliminacionLoteDto>> Handle(EliminarClientesCommand request, CancellationToken cancellationToken)
     {
+        // Auditoría Módulo 5, hallazgo crítico 7/9 — ver EliminarCentroCommand.
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo<ResultadoEliminacionLoteDto>(Error.Crear("Cliente.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
+
         var eliminados = 0;
         var errores = new List<string>();
 
@@ -44,7 +51,7 @@ public class EliminarClientesCommandHandler(IEmpresaRepository repositorio, IAlc
                 continue;
             }
 
-            empresa.MarcarComoEliminado(request.UsuarioId);
+            empresa.MarcarComoEliminado(usuarioId.Value);
             eliminados++;
         }
 

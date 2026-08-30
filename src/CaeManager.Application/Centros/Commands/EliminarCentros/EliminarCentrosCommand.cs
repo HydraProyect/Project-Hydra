@@ -10,7 +10,7 @@ using MediatR;
 namespace CaeManager.Application.Centros.Commands.EliminarCentros;
 
 /// <summary>Borrado en lote — ver EliminarClientesCommand para el criterio de éxito parcial.</summary>
-public record EliminarCentrosCommand(IReadOnlyList<Guid> Ids, Guid UsuarioId) : ICommand<ResultadoEliminacionLoteDto>;
+public record EliminarCentrosCommand(IReadOnlyList<Guid> Ids) : ICommand<ResultadoEliminacionLoteDto>;
 
 public class EliminarCentrosCommandValidator : AbstractValidator<EliminarCentrosCommand>
 {
@@ -21,11 +21,17 @@ public class EliminarCentrosCommandHandler(
     ICentroRepository repositorio,
     IAsignacionRepository asignaciones,
     IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService)
     : IRequestHandler<EliminarCentrosCommand, Result<ResultadoEliminacionLoteDto>>
 {
     public async Task<Result<ResultadoEliminacionLoteDto>> Handle(EliminarCentrosCommand request, CancellationToken cancellationToken)
     {
+        // Auditoría Módulo 5, hallazgo crítico 7/9 — ver EliminarCentroCommand.
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo<ResultadoEliminacionLoteDto>(Error.Crear("Centro.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
+
         var eliminados = 0;
         var errores = new List<string>();
 
@@ -38,7 +44,7 @@ public class EliminarCentrosCommandHandler(
                 continue;
             }
 
-            centro.MarcarComoEliminado(request.UsuarioId);
+            centro.MarcarComoEliminado(usuarioId.Value);
             await CierreDeAsignaciones.PorCentroEliminadoAsync(asignaciones, centro.Id, cancellationToken);
             eliminados++;
         }
