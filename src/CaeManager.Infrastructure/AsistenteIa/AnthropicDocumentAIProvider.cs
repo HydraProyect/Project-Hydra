@@ -28,6 +28,9 @@ public class AnthropicDocumentAIProvider(
 
     public CapacidadesProveedorIa Capacidades => CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada;
 
+    /// <summary>Inerte sin credencial: sin ApiKey configurada cada método ya devolvía un Result fallido, pero el router no lo sabía hasta después de haberlo elegido. Ahora no se elige.</summary>
+    public bool EstaDisponible => !string.IsNullOrWhiteSpace(opciones.Value.ApiKey);
+
     private const string SystemPromptOcr =
         """
         Eres un sistema de OCR, no un asistente conversacional. Transcribe

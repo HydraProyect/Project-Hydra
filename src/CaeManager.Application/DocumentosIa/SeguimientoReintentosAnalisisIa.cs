@@ -59,7 +59,13 @@ public sealed class SeguimientoReintentosAnalisisIa(IAlertaOperativa alertaOpera
     /// </summary>
     public void RegistrarFallo(TrabajoAnalisisDocumento trabajo, Exception excepcion)
     {
-        if (excepcion is FileNotFoundException)
+        // NotSupportedException junto a FileNotFoundException: la lanza
+        // ProcesadorAnalisisDocumentoHostedService cuando un TipoAnalisisDocumento
+        // no tiene ejecución asociada. Como el archivo que no existe, no puede
+        // cambiar de resultado en un segundo intento — hacen falta líneas de
+        // código nuevas, no otra pasada — así que gastar los reintentos solo
+        // produciría tres eventos de Sentry idénticos.
+        if (excepcion is FileNotFoundException or NotSupportedException)
         {
             trabajo.RegistrarFalloDefinitivo(excepcion.Message);
             alertaOperativa.CapturarExcepcion(excepcion);

@@ -92,53 +92,125 @@ public class DocumentAIRouterService(
             return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIRouter.SinProveedor", mensaje));
         }
 
-        var proveedorUsado = proveedoresEstructuracion[0];
-        var resultado = await proveedorUsado.ExtraerEstructuradoAsync(texto.Valor.Texto, tipoEsperado, cancellationToken);
-
-        (resultado, proveedorUsado) = await ReintentarSiHaceFaltaAsync(resultado, proveedorUsado, proveedoresEstructuracion, texto.Valor.Texto, tipoEsperado, cancellationToken);
+        var estructuracion = await EstructurarAsync(
+            proveedoresEstructuracion, texto.Valor.Texto, tipoEsperado, cancellationToken);
+        var resultado = estructuracion.Resultado;
 
         if (resultado.EsFallido)
         {
             await RegistrarAuditoriaAsync(
                 hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
-                texto.Valor.CosteEstimadoOcr, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, resultado.Error.Mensaje, documentoId, cancellationToken);
+                texto.Valor.CosteEstimadoOcr, estructuracion.CosteAcumulado, clasificacion.Valor.TotalPaginas, 0,
+                CombinarIncidencias(resultado.Error.Mensaje, estructuracion.NotaIntentos), documentoId, cancellationToken);
             return resultado;
         }
 
         await GuardarEnCacheAsync(hash, resultado.Valor, cancellationToken);
-        var incidencias = CombinarIncidencias(texto.Valor.NotaLocalizacion, resultado.Valor.NotasValidacion);
+        var incidencias = CombinarIncidencias(
+            texto.Valor.NotaLocalizacion, resultado.Valor.NotasValidacion, estructuracion.NotaIntentos);
         await RegistrarAuditoriaAsync(
-            hash, tipoEsperado, proveedorUsado.Codigo, cronometro.ElapsedMilliseconds,
-            texto.Valor.CosteEstimadoOcr, resultado.Valor.CosteEstimado,
+            hash, tipoEsperado, estructuracion.ProveedorCodigo, cronometro.ElapsedMilliseconds,
+            texto.Valor.CosteEstimadoOcr, estructuracion.CosteAcumulado,
             clasificacion.Valor.TotalPaginas, resultado.Valor.ConfianzaGeneral, incidencias, documentoId, cancellationToken);
 
         return resultado;
     }
 
-    private static string? CombinarIncidencias(string? notaLocalizacion, string? notasValidacion)
+    private static string? CombinarIncidencias(params string?[] partes)
     {
-        var partes = new[] { notaLocalizacion, notasValidacion }.Where(parte => !string.IsNullOrWhiteSpace(parte)).ToList();
-        return partes.Count == 0 ? null : string.Join(" ", partes);
+        var utiles = partes.Where(parte => !string.IsNullOrWhiteSpace(parte)).ToList();
+        return utiles.Count == 0 ? null : string.Join(" ", utiles);
     }
 
-    private async Task<(Result<ExtraccionEstructuradaDto> Resultado, IDocumentAIProvider Proveedor)> ReintentarSiHaceFaltaAsync(
-        Result<ExtraccionEstructuradaDto> resultado, IDocumentAIProvider proveedorUsado, IReadOnlyList<IDocumentAIProvider> proveedoresEstructuracion,
-        string texto, string tipoEsperado, CancellationToken cancellationToken)
+    /// <summary>Lo que dejó una vuelta completa por los candidatos de estructuración: quién ganó, cuánto costó TODO (no solo el ganador) y qué se intentó.</summary>
+    private sealed record ResultadoEstructuracion(
+        Result<ExtraccionEstructuradaDto> Resultado, string ProveedorCodigo, decimal? CosteAcumulado, string? NotaIntentos);
+
+    /// <summary>
+    /// Recorre los candidatos en el orden declarado por
+    /// <see cref="IDocumentAIProviderFactory.ObtenerPorCapacidad"/> y se queda
+    /// con el mejor resultado, con dos diferencias frente a lo que hacía antes.
+    ///
+    /// <b>Fallback ante fallo</b>: antes el segundo proveedor solo entraba si
+    /// el primero devolvía <em>éxito</em> con confianza baja. Un timeout, un
+    /// 429, una credencial ausente o un JSON inválido en el primero abortaban
+    /// el análisis entero aunque hubiera alternativas configuradas y sanas —
+    /// un solo proveedor mal configurado tumbaba la lectura IA de todos los
+    /// tenants. Ahora un fallo pasa al siguiente candidato; solo se devuelve
+    /// error cuando se agotan todos, y el que se devuelve es el del último
+    /// intento.
+    ///
+    /// <b>El coste no se pierde</b>: antes, si el segundo modelo mejoraba al
+    /// primero, la auditoría registraba solo el coste del ganador y el del
+    /// descartado desaparecía — el gasto real quedaba infravalorado justo en
+    /// los documentos que más llamadas consumen.
+    /// <see cref="ResultadoEstructuracion.CosteAcumulado"/> suma todos los
+    /// intentos que devolvieron coste.
+    ///
+    /// Lo que <b>no</b> cambia es cuándo se paga un segundo modelo: si el
+    /// primero responde con confianza suficiente
+    /// (<see cref="UmbralReintento"/>), se corta ahí y no se llama a nadie más.
+    ///
+    /// Sigue sin haber ninguna comprobación de si a este tenant se le pueden
+    /// enviar estos datos a este proveedor: el fallback recorre la lista
+    /// entera sin preguntar por región ni base jurídica. No amplía el conjunto
+    /// de destinatarios respecto a lo que ya hacía el reintento por confianza
+    /// baja — pero sí hace más probable llegar al segundo. Es deuda conocida,
+    /// no un descuido.
+    /// </summary>
+    private async Task<ResultadoEstructuracion> EstructurarAsync(
+        IReadOnlyList<IDocumentAIProvider> candidatos, string texto, string tipoEsperado, CancellationToken cancellationToken)
     {
-        if (resultado.EsFallido || resultado.Valor.ConfianzaGeneral >= UmbralReintento || proveedoresEstructuracion.Count < 2)
-            return (resultado, proveedorUsado);
+        decimal? costeAcumulado = null;
+        var intentos = new List<string>(candidatos.Count);
 
-        var segundoProveedor = proveedoresEstructuracion[1];
-        var segundoResultado = await segundoProveedor.ExtraerEstructuradoAsync(texto, tipoEsperado, cancellationToken);
+        Result<ExtraccionEstructuradaDto>? mejor = null;
+        var proveedorMejor = "ninguno";
+        Result<ExtraccionEstructuradaDto>? ultimoFallo = null;
 
-        if (segundoResultado.EsFallido || segundoResultado.Valor.ConfianzaGeneral <= resultado.Valor.ConfianzaGeneral)
-            return (resultado, proveedorUsado);
+        foreach (var candidato in candidatos)
+        {
+            var actual = await candidato.ExtraerEstructuradoAsync(texto, tipoEsperado, cancellationToken);
 
-        logger.LogInformation(
-            "Reintento con {Proveedor} mejoró la confianza de {ConfianzaAnterior}% a {ConfianzaNueva}%.",
-            segundoProveedor.Codigo, resultado.Valor.ConfianzaGeneral, segundoResultado.Valor.ConfianzaGeneral);
+            if (actual.EsFallido)
+            {
+                intentos.Add($"{candidato.Codigo}: {actual.Error.Codigo}");
+                ultimoFallo = actual;
+                continue;
+            }
 
-        return (segundoResultado, segundoProveedor);
+            if (actual.Valor.CosteEstimado is { } coste)
+                costeAcumulado = (costeAcumulado ?? 0m) + coste;
+
+            intentos.Add($"{candidato.Codigo}: {actual.Valor.ConfianzaGeneral}%");
+
+            if (mejor is null || actual.Valor.ConfianzaGeneral > mejor.Valor.ConfianzaGeneral)
+            {
+                if (mejor is not null)
+                {
+                    logger.LogInformation(
+                        "Reintento con {Proveedor} mejoró la confianza de {ConfianzaAnterior}% a {ConfianzaNueva}%.",
+                        candidato.Codigo, mejor.Valor.ConfianzaGeneral, actual.Valor.ConfianzaGeneral);
+                }
+
+                mejor = actual;
+                proveedorMejor = candidato.Codigo;
+            }
+
+            // Confianza suficiente: no se paga un modelo más solo por tenerlo.
+            if (mejor.Valor.ConfianzaGeneral >= UmbralReintento)
+                break;
+        }
+
+        var nota = intentos.Count > 1 ? $"Proveedores invocados: {string.Join(", ", intentos)}." : null;
+
+        if (mejor is { } ganador)
+            return new ResultadoEstructuracion(ganador, proveedorMejor, costeAcumulado, nota);
+
+        var error = ultimoFallo ?? Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear(
+            "DocumentAIRouter.SinProveedor", "No hay ningún proveedor de IA disponible para procesar este documento."));
+
+        return new ResultadoEstructuracion(error, "ninguno", costeAcumulado, nota);
     }
 
     private async Task<Result<TextoExtraidoDto>> ObtenerTextoAsync(

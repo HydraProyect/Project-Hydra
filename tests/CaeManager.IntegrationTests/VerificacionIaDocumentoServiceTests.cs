@@ -154,6 +154,96 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         auditoriaActualizada.FechaDecisionUtc.Should().NotBeNull();
     }
 
+    /// <summary>
+    /// El agujero que cerró este incremento: con confianza alta, las tres
+    /// reglas anteriores exigían que el dato EXISTIERA para poder discrepar,
+    /// así que una extracción que no determinaba ni fecha ni firma devolvía
+    /// cero motivos y el documento quedaba aprobado automáticamente. Cuanto
+    /// menos entendía la IA el archivo, más fácil lo aprobaba.
+    /// </summary>
+    [Theory]
+    [InlineData(false, true, "No se pudo verificar la fecha de emisión")]
+    [InlineData(true, false, "No hay evidencia de firma")]
+    [InlineData(false, false, "No se pudo verificar la fecha de emisión")]
+    public async Task Revisa_en_vez_de_aprobar_cuando_falta_la_evidencia_pese_a_la_confianza_alta(
+        bool hayFecha, bool hayFirma, string motivoEsperado)
+    {
+        var trabajador = CrearTrabajador();
+        _dbContext.Trabajadores.Add(trabajador);
+        var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var extraido = new MetadatosDocumentoExtraidosDto(
+            _tipoApto.Nombre,
+            hayFecha ? fechaEmision : null,
+            null,
+            hayFirma ? true : null,
+            99,
+            null);
+        var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var revisiones = await _dbContext.RevisionesIaDocumento.Where(r => r.DocumentoId == documento.Id).ToListAsync();
+        revisiones.Should().ContainSingle("la ausencia de evidencia no puede cerrar un documento sin que lo mire nadie");
+        revisiones[0].Motivo.Should().Contain(motivoEsperado);
+
+        var aprobaciones = await _dbContext.AprobacionesDocumento.Where(a => a.DocumentoId == documento.Id).ToListAsync();
+        aprobaciones.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// TieneFirma == null y TieneFirma == false llevan al mismo sitio: "no se
+    /// sabe si hay firma" y "no hay firma" son ambos ausencia de prueba de
+    /// firma. Antes solo el segundo generaba revisión.
+    /// </summary>
+    [Fact]
+    public async Task Trata_la_firma_desconocida_igual_que_la_firma_ausente()
+    {
+        var trabajador = CrearTrabajador();
+        _dbContext.Trabajadores.Add(trabajador);
+        var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var extraido = new MetadatosDocumentoExtraidosDto(_tipoApto.Nombre, fechaEmision, null, null, 99, null);
+        var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var revisiones = await _dbContext.RevisionesIaDocumento.Where(r => r.DocumentoId == documento.Id).ToListAsync();
+        revisiones.Should().ContainSingle();
+        revisiones[0].TieneFirmaDetectada.Should().BeNull("la revisión conserva que el dato era desconocido, no lo convierte en un 'no'");
+    }
+
+    /// <summary>
+    /// Una respuesta sin tipo es una respuesta que no identificó el documento
+    /// — típicamente un archivo ilegible o una respuesta truncada del
+    /// proveedor. No puede contar como éxito.
+    /// </summary>
+    [Fact]
+    public async Task Revisa_cuando_el_modelo_no_determina_el_tipo_del_documento()
+    {
+        var trabajador = CrearTrabajador();
+        _dbContext.Trabajadores.Add(trabajador);
+        var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var extraido = new MetadatosDocumentoExtraidosDto(null, fechaEmision, null, true, 99, null);
+        var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var revisiones = await _dbContext.RevisionesIaDocumento.Where(r => r.DocumentoId == documento.Id).ToListAsync();
+        revisiones.Should().ContainSingle();
+        revisiones[0].Motivo.Should().Contain("No se pudo determinar el tipo real del documento");
+    }
+
     [Fact]
     public async Task No_hace_nada_si_el_tipo_de_documento_no_tiene_verificacion_activa()
     {

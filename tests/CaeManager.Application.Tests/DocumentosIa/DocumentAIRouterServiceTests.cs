@@ -120,7 +120,7 @@ public class DocumentAIRouterServiceTests
     public async Task Reintenta_con_un_segundo_proveedor_cuando_la_confianza_del_primero_es_baja_y_mejora()
     {
         var primero = new ProveedorIaFalso(
-            "mistral", CapacidadesProveedorIa.ExtraccionEstructurada,
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
             resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 55, "baja calidad")));
         var segundo = new ProveedorIaFalso(
             "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,
@@ -139,7 +139,7 @@ public class DocumentAIRouterServiceTests
     public async Task No_reintenta_cuando_la_confianza_del_primero_ya_es_alta()
     {
         var primero = new ProveedorIaFalso(
-            "mistral", CapacidadesProveedorIa.ExtraccionEstructurada,
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
             resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 98, null)));
         var segundo = new ProveedorIaFalso("gemini", CapacidadesProveedorIa.ExtraccionEstructurada);
         var router = CrearRouter(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), primero, segundo);
@@ -165,11 +165,83 @@ public class DocumentAIRouterServiceTests
         unico.VecesLlamadoParaEstructurado.Should().Be(1);
     }
 
+    /// <summary>
+    /// El fallback que no existía: antes, el segundo proveedor solo entraba si
+    /// el primero devolvía ÉXITO con confianza baja, así que un timeout, un 429
+    /// o una credencial ausente en el primario tumbaban el análisis aunque
+    /// hubiera alternativas sanas configuradas.
+    /// </summary>
+    [Fact]
+    public async Task Cae_al_siguiente_proveedor_cuando_el_primero_falla()
+    {
+        var primero = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Fallo<ExtraccionEstructuradaDto>(
+                Error.Crear("DocumentAIProvider.ErrorApi", "No pudimos procesar el documento automáticamente.")));
+        var segundo = new ProveedorIaFalso(
+            "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 88, null)));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), primero, segundo);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.ConfianzaGeneral.Should().Be(88);
+        primero.VecesLlamadoParaEstructurado.Should().Be(1);
+        segundo.VecesLlamadoParaEstructurado.Should().Be(1);
+        auditoria.Auditorias[0].ProveedorCodigo.Should().Be("gemini", "el ganador es quien respondió, no quien se intentó primero");
+    }
+
+    [Fact]
+    public async Task Devuelve_el_ultimo_error_cuando_fallan_todos_los_proveedores()
+    {
+        var primero = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIProvider.ErrorApi", "caído")));
+        var segundo = new ProveedorIaFalso(
+            "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIProvider.ErrorRed", "sin red")));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), primero, segundo);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("DocumentAIProvider.ErrorRed", "el error devuelto es el del último intento");
+        primero.VecesLlamadoParaEstructurado.Should().Be(1);
+        segundo.VecesLlamadoParaEstructurado.Should().Be(1);
+        auditoria.Auditorias[0].ProveedorCodigo.Should().Be("ninguno");
+    }
+
+    /// <summary>
+    /// Antes, si el segundo modelo mejoraba al primero se auditaba solo el
+    /// coste del ganador: el gasto real quedaba infravalorado justo en los
+    /// documentos que consumen más llamadas.
+    /// </summary>
+    [Fact]
+    public async Task Suma_en_la_auditoria_el_coste_del_intento_descartado()
+    {
+        var primero = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 55, null, CosteEstimado: 0.02m)));
+        var segundo = new ProveedorIaFalso(
+            "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 92, null, CosteEstimado: 0.03m)));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), primero, segundo);
+
+        await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
+
+        auditoria.Auditorias[0].CosteEstimado.Should().Be(0.05m, "0.02 del descartado + 0.03 del ganador");
+        auditoria.Auditorias[0].Incidencias.Should().Contain("anthropic").And.Contain("gemini");
+    }
+
     [Fact]
     public async Task No_se_queda_con_el_segundo_resultado_si_no_mejora_la_confianza()
     {
         var primero = new ProveedorIaFalso(
-            "mistral", CapacidadesProveedorIa.ExtraccionEstructurada,
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
             resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 60, null)));
         var segundo = new ProveedorIaFalso(
             "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,

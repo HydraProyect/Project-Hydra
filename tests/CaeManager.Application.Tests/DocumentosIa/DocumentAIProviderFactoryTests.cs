@@ -52,4 +52,56 @@ public class DocumentAIProviderFactoryTests
 
         resultado.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// Reproduce el reparto real del contenedor: Mistral se registra ANTES que
+    /// Anthropic y declara también extracción estructurada, así que mientras el
+    /// orden salía del contenedor, el primario de estructuración era Mistral —
+    /// aunque el comentario del registro afirmara que era Anthropic. Quién
+    /// recibe los datos del documento no puede depender del orden de unas
+    /// líneas de DI.
+    /// </summary>
+    [Fact]
+    public void ObtenerPorCapacidad_usa_el_orden_declarado_y_no_el_de_registro()
+    {
+        var mistral = new ProveedorIaFalso("mistral-ocr", CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada);
+        var anthropic = new ProveedorIaFalso("anthropic", CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada);
+        var gemini = new ProveedorIaFalso("gemini", CapacidadesProveedorIa.ExtraccionEstructurada);
+
+        // Orden de registro deliberadamente "malo": el mismo que el DI real.
+        var factory = new DocumentAIProviderFactory([mistral, anthropic, gemini]);
+
+        factory.ObtenerPorCapacidad(CapacidadesProveedorIa.ExtraccionEstructurada)
+            .Select(p => p.Codigo).Should().Equal("anthropic", "gemini", "mistral-ocr");
+
+        // Para OCR sí manda Mistral, que es el especializado — el orden es por
+        // capacidad, no uno global.
+        factory.ObtenerPorCapacidad(CapacidadesProveedorIa.OcrImagenAEscaneado)
+            .Select(p => p.Codigo).Should().Equal("mistral-ocr", "anthropic");
+    }
+
+    [Fact]
+    public void ObtenerPorCapacidad_excluye_a_los_proveedores_sin_credencial()
+    {
+        var sinClave = new ProveedorIaFalso("anthropic", CapacidadesProveedorIa.ExtraccionEstructurada, estaDisponible: false);
+        var conClave = new ProveedorIaFalso("gemini", CapacidadesProveedorIa.ExtraccionEstructurada);
+        var factory = new DocumentAIProviderFactory([sinClave, conClave]);
+
+        // Sin el filtro, Anthropic iría primero por orden declarado y se
+        // llevaría el trabajo pese a no poder atenderlo.
+        factory.ObtenerPorCapacidad(CapacidadesProveedorIa.ExtraccionEstructurada)
+            .Select(p => p.Codigo).Should().Equal("gemini");
+    }
+
+    [Fact]
+    public void ObtenerPorCapacidad_ordena_los_proveedores_desconocidos_por_codigo_al_final()
+    {
+        var nuevoZ = new ProveedorIaFalso("z-proveedor-nuevo", CapacidadesProveedorIa.ExtraccionEstructurada);
+        var nuevoA = new ProveedorIaFalso("a-proveedor-nuevo", CapacidadesProveedorIa.ExtraccionEstructurada);
+        var conocido = new ProveedorIaFalso("gemini", CapacidadesProveedorIa.ExtraccionEstructurada);
+        var factory = new DocumentAIProviderFactory([nuevoZ, conocido, nuevoA]);
+
+        factory.ObtenerPorCapacidad(CapacidadesProveedorIa.ExtraccionEstructurada)
+            .Select(p => p.Codigo).Should().Equal("gemini", "a-proveedor-nuevo", "z-proveedor-nuevo");
+    }
 }

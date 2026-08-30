@@ -8,10 +8,14 @@ public class ProveedorIaFalso(
     string codigo,
     CapacidadesProveedorIa capacidades,
     Result<TextoExtraccionDto>? resultadoTexto = null,
-    Result<ExtraccionEstructuradaDto>? resultadoEstructurado = null) : IDocumentAIProvider
+    Result<ExtraccionEstructuradaDto>? resultadoEstructurado = null,
+    bool estaDisponible = true) : IDocumentAIProvider
 {
     public string Codigo => codigo;
     public CapacidadesProveedorIa Capacidades => capacidades;
+
+    /// <summary>Disponible salvo que el test quiera justo lo contrario: un proveedor sin credencial al que el router no debe elegir.</summary>
+    public bool EstaDisponible => estaDisponible;
 
     public int VecesLlamadoParaTexto { get; private set; }
     public int VecesLlamadoParaEstructurado { get; private set; }

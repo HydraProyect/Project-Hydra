@@ -18,6 +18,24 @@ public interface IDocumentAIProvider
     CapacidadesProveedorIa Capacidades { get; }
 
     /// <summary>
+    /// Si este proveedor puede atender una llamada ahora mismo — en la
+    /// práctica, si tiene credencial configurada. Deliberadamente separado de
+    /// <see cref="Capacidades"/>: un proveedor sin API key sigue siendo capaz
+    /// de OCR "en abstracto", pero incluirlo en la lista de candidatos hace
+    /// que el router lo elija y falle sin haber intentado ninguno de los que
+    /// sí podían responder.
+    ///
+    /// Sin propiedad, ni <see cref="IDocumentAIProviderFactory"/> ni el router
+    /// tenían forma de distinguir "no configurado" de "configurado y caído":
+    /// los tres proveedores reales declaraban sus capacidades siempre, y el
+    /// primero de la lista se llevaba el trabajo aunque su clave estuviera
+    /// vacía. No tiene implementación por defecto a propósito — un proveedor
+    /// nuevo tiene que pronunciarse sobre cuándo está disponible, no
+    /// heredarlo por descuido.
+    /// </summary>
+    bool EstaDisponible { get; }
+
+    /// <summary>
     /// OCR/lectura nativa: extrae el texto plano de un archivo completo
     /// (PDF escaneado o imagen suelta — <paramref name="nombreArchivo"/> es
     /// lo que decide cómo se envía al proveedor, p. ej. como bloque
