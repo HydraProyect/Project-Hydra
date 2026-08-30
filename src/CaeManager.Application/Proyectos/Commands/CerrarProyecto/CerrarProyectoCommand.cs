@@ -16,13 +16,13 @@ public class CerrarProyectoCommandValidator : AbstractValidator<CerrarProyectoCo
     }
 }
 
-public class CerrarProyectoCommandHandler(IProyectoRepository repositorio, IUnitOfWork unitOfWork)
+public class CerrarProyectoCommandHandler(IProyectoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<CerrarProyectoCommand, Result>
 {
     public async Task<Result> Handle(CerrarProyectoCommand request, CancellationToken cancellationToken)
     {
         var proyecto = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (proyecto is null)
+        if (proyecto is null || !await ProyectoAutorizacion.VisibleAsync(proyecto.ClienteId, alcanceDatos, cancellationToken))
             return Result.Fallo(Error.Crear("Proyecto.NoEncontrado", "El proyecto no existe o no tienes acceso."));
 
         if (!proyecto.EstaAbierto)

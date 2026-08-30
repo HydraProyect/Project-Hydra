@@ -16,13 +16,19 @@ public class DesasignarTecnicoProyectoCommandValidator : AbstractValidator<Desas
     }
 }
 
-public class DesasignarTecnicoProyectoCommandHandler(IProyectoTecnicoRepository repositorio, IUnitOfWork unitOfWork)
+public class DesasignarTecnicoProyectoCommandHandler(
+    IProyectoTecnicoRepository repositorio, IProyectoRepository proyectoRepositorio,
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<DesasignarTecnicoProyectoCommand, Result>
 {
     public async Task<Result> Handle(DesasignarTecnicoProyectoCommand request, CancellationToken cancellationToken)
     {
         var proyectoTecnico = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (proyectoTecnico is null)
+            return Result.Fallo(Error.Crear("Proyecto.TecnicoNoEncontrado", "No encontramos esta asignación de técnico."));
+
+        var proyecto = await proyectoRepositorio.ObtenerPorIdAsync(proyectoTecnico.ProyectoId, cancellationToken);
+        if (proyecto is null || !await ProyectoAutorizacion.VisibleAsync(proyecto.ClienteId, alcanceDatos, cancellationToken))
             return Result.Fallo(Error.Crear("Proyecto.TecnicoNoEncontrado", "No encontramos esta asignación de técnico."));
 
         try
