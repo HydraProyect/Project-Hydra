@@ -29,11 +29,18 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// El alcance son las carpetas de identidad. <c>GraphEmailService</c> registra
-/// el destinatario al fallar un envío y queda fuera a propósito: es la capa de
-/// correo, su diagnóstico gira sobre la dirección misma y su revisión
-/// corresponde al módulo de Comunicaciones. Los sembradores de demo también,
-/// porque sus direcciones son literales del repositorio, no datos de nadie.
+/// El alcance son las carpetas de identidad y la de correo.
+/// <c>GraphEmailService</c> estuvo fuera mientras registró la dirección del
+/// destinatario al fallar un envío; el módulo de Comunicaciones lo cerró
+/// (PR #370: los tres logs sin dirección, y los cuerpos de error de Graph
+/// saneados con <c>CodigoErrorGraph</c>, que solo deja pasar el <c>code</c> y
+/// nunca el <c>message</c>). Al entrar en <c>main</c>, aquella exclusión pasó
+/// de ser una decisión a ser una puerta abierta, así que la carpeta entra aquí.
+/// </para>
+///
+/// <para>
+/// Los sembradores de demo siguen fuera, y esos sí por decisión: sus
+/// direcciones son literales del repositorio, no datos de nadie.
 /// </para>
 /// </summary>
 public class SinCorreosEnLogsDeIdentidadTests
@@ -43,6 +50,13 @@ public class SinCorreosEnLogsDeIdentidadTests
         "src/CaeManager.Web/Components/Account",
         "src/CaeManager.Web/Features/Usuarios",
         "src/CaeManager.Web/Features/GestionRoles",
+
+        // Entra al cerrarse el hallazgo del módulo de Comunicaciones (PR #370).
+        // Mientras GraphEmailService registró la dirección del destinatario,
+        // vigilarla habría dado rojo por un uso que su dueño todavía no había
+        // decidido; ahora que está corregido, dejarla fuera solo dejaría la
+        // puerta abierta a que vuelva.
+        "src/CaeManager.Infrastructure/Email",
     ];
 
     private static readonly Regex PlantillaConCorreo = new(
@@ -86,12 +100,30 @@ public class SinCorreosEnLogsDeIdentidadTests
             .Should().BeFalse("el reemplazo correcto no puede dar positivo, o el ratchet sería inservible");
     }
 
+    /// <summary>
+    /// <b>Cada</b> carpeta vigilada existe y aporta ficheros, no solo el
+    /// conjunto en total.
+    ///
+    /// <para>
+    /// La versión anterior solo exigía que el resultado global no fuera vacío,
+    /// y eso no basta: con cuatro carpetas en la lista, una errata en una sola
+    /// —o un renombrado— la deja aportando cero ficheros mientras las otras
+    /// tres sostienen el verde. El escaneo diría "sin infracciones" sobre una
+    /// carpeta que no está mirando, que es exactamente la clase de resultado
+    /// vacío que no es una ausencia. Se comprueba una a una para que la que
+    /// falle se nombre.
+    /// </para>
+    /// </summary>
     [Fact]
-    public void Hay_carpetas_que_inspeccionar()
+    public void Cada_carpeta_vigilada_existe_y_aporta_ficheros()
     {
-        // Sin esto, renombrar una carpeta dejaría el escaneo sobre un conjunto
-        // vacío y el test seguiría en verde para siempre.
-        ArchivosVigilados().Should().NotBeEmpty();
+        var vacias = CarpetasVigiladas
+            .Where(c => ArchivosVigilados().All(a => !a.Relativa.StartsWith(c, StringComparison.Ordinal)))
+            .ToList();
+
+        string.Join(Environment.NewLine, vacias).Should().BeEmpty(
+            "una carpeta que no aporta ni un fichero no se está escaneando —ruta mal escrita, movida o " +
+            "renombrada— y su verde no significa que no haya correos en sus logs, sino que nadie ha mirado");
     }
 
     private static List<(string Ruta, string Relativa)> ArchivosVigilados()
