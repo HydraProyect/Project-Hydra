@@ -695,6 +695,49 @@ jobs:
       - name: Tests E2E
         run: dotnet test tests/CaeManager.E2ETests --no-build --logger "console;verbosity=normal"
 
+      # WebAppFixture no reenvía stdout del proceso de CaeManager.Web (ver su
+      # comentario) porque Serilog ya escribe lo mismo en su sink de fichero,
+      # bajo el content root de estos tests
+      # (src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/ — confirmado por
+      # el Módulo 1 en los dos ejes que podían vaciarlo en silencio:
+      # WorkingDirectory del proceso, y que el job compila en Debug sin -c).
+      # Ese fichero es donde queda la única traza de una excepción no
+      # controlada mientras la app ya estaba sirviendo — así se encontró en
+      # su día la causa del fallo del Paso 0 de FlujoCicloDocumentalTests, en
+      # local, leyendo el fichero a mano. Sin este paso, el runner de CI se
+      # destruye al acabar el job y esa misma evidencia desaparece justo
+      # cuando más hace falta: en un fallo intermitente que no se reproduce
+      # en la siguiente ejecución (CLAUDE.md § 3 — mirar primero lo que el
+      # sistema ya escribe, antes de instrumentar de nuevo para
+      # redescubrirlo).
+      #
+      # El manifiesto de abajo es lo que distingue "no hubo logs" de "miré
+      # donde no era" — con if-no-files-found: warn a secas, un artefacto
+      # vacío y una ruta equivocada producen el mismo resultado observable
+      # (nada), y el primer fallo real que lo disparara podría leerse como
+      # "el sink no escribió nada" cuando en realidad la ruta cambió (p. ej.
+      # si algún día el build pasa a -c Release). El manifiesto sale de /tmp,
+      # así que existe siempre, y su contenido dice cuál de los dos casos es.
+      - name: Comprobar el directorio de logs si el E2E falla
+        if: failure()
+        run: |
+          mkdir -p /tmp/diagnostico-e2e
+          find src/CaeManager.Web/bin/Debug/net10.0/App_Data -maxdepth 3 \
+            > /tmp/diagnostico-e2e/manifiesto.txt 2>&1 \
+            || echo "App_Data no existe en la ruta esperada (src/CaeManager.Web/bin/Debug/net10.0/App_Data)" \
+            > /tmp/diagnostico-e2e/manifiesto.txt
+
+      - name: Publicar logs de CaeManager.Web si el E2E falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-caemanager-web-e2e
+          path: |
+            src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/
+            /tmp/diagnostico-e2e/manifiesto.txt
+          retention-days: 7
+          if-no-files-found: warn
+
   load-test:
     name: Prueba de carga base (k6)
     runs-on: ubuntu-latest
