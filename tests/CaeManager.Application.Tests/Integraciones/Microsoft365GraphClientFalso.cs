@@ -11,6 +11,7 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public bool FallaCreacionSuscripcion { get; set; }
     public string AccessTokenDevuelto { get; set; } = "access-token-falso";
     public string RefreshTokenDevuelto { get; set; } = "refresh-token-falso";
+    public DateTime AccessTokenExpiraUtcDevuelto { get; set; } = DateTime.UtcNow.AddHours(1);
     public string? UltimoMensajeExternoIdRespondido { get; private set; }
     public MensajeEnviadoGraphDto MensajeEnviadoADevolver { get; set; } = new("msg-ext-falso-123", "hilo-ext-falso-456");
     public MensajeGraphDto? MensajeADevolver { get; set; }
@@ -24,12 +25,17 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public string ConstruirUrlAutorizacion(string redirectUri, string state) => $"https://login.microsoftonline.com/common/authorize?state={state}";
 
     public Task<Result<TokensGraphDto>> IntercambiarCodigoPorTokensAsync(string code, string redirectUri, CancellationToken cancellationToken) =>
-        Task.FromResult(Result.Exito(new TokensGraphDto(AccessTokenDevuelto, RefreshTokenDevuelto)));
+        Task.FromResult(Result.Exito(new TokensGraphDto(AccessTokenDevuelto, RefreshTokenDevuelto, AccessTokenExpiraUtcDevuelto)));
 
-    public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken) =>
-        Task.FromResult(FallaRefresco
+    public int VecesRefrescado { get; private set; }
+
+    public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken)
+    {
+        VecesRefrescado++;
+        return Task.FromResult(FallaRefresco
             ? Result.Fallo<TokensGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "fallo simulado"))
-            : Result.Exito(new TokensGraphDto(AccessTokenDevuelto, RefreshTokenDevuelto)));
+            : Result.Exito(new TokensGraphDto(AccessTokenDevuelto, RefreshTokenDevuelto, AccessTokenExpiraUtcDevuelto)));
+    }
 
     public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
         Task.FromResult(Result.Exito("buzon@cliente-falso.test"));
