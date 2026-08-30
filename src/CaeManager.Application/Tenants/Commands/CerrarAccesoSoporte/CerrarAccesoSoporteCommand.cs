@@ -66,7 +66,7 @@ public class CerrarAccesoSoporteCommandHandler(
 
         using (AmbitoTenantExplicito.Establecer(delegacion.TenantClienteId))
         {
-            registroRepositorio.Agregar(new RegistroActividadSoporte(
+            registroRepositorio.Agregar(RegistroActividadSoporte.PorDelegacion(
                 usuarioId.Value, delegacion.Id, TipoActividadSoporte.AccesoRevocado, "Cerrado manualmente."));
 
             await unitOfWork.SaveChangesAsync(cancellationToken);

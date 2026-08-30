@@ -31,10 +31,21 @@ public class RegistroActividadSoporte : EntidadConTenant
     public TipoActividadSoporte Tipo { get; private set; }
 
     /// <summary>
-    /// Agrupa todo lo ocurrido en una misma ventana de acceso, para poder
-    /// reconstruir una visita completa en vez de eventos sueltos.
+    /// Agrupador de la vía HEREDADA. Nullable desde B2: los registros nuevos
+    /// cuelgan de una sesión privilegiada, no de una delegación.
+    ///
+    /// <para>
+    /// No se retira ni se reescribe el histórico: sigue siendo la única forma
+    /// de consultar las visitas anteriores a B, y su índice se conserva.
+    /// </para>
     /// </summary>
-    public Guid DelegacionTenantId { get; private set; }
+    public Guid? DelegacionTenantId { get; private set; }
+
+    /// <summary>
+    /// Agrupador de la vía NUEVA: la sesión privilegiada por la que se abrió
+    /// el contexto. Guid suelto, mismo patrón que <see cref="DelegacionTenantId"/>.
+    /// </summary>
+    public Guid? SesionPrivilegiadaId { get; private set; }
 
     /// <summary>Ruta de la pantalla, o identificación del elemento con el que se interactuó.</summary>
     public string? Detalle { get; private set; }
@@ -46,16 +57,62 @@ public class RegistroActividadSoporte : EntidadConTenant
         // Requerido por EF Core.
     }
 
-    public RegistroActividadSoporte(
+    /// <summary>
+    /// Registro de la vía heredada, colgado de una delegación de soporte.
+    /// Se conserva mientras B3 no retire esa vía: durante B1 y B2 <b>conviven
+    /// las dos</b>, que es lo que garantiza no quedarse sin soporte a mitad de
+    /// la migración.
+    /// </summary>
+    public static RegistroActividadSoporte PorDelegacion(
         Guid usuarioSoporteId, Guid delegacionTenantId, TipoActividadSoporte tipo, string? detalle = null)
+    {
+        if (delegacionTenantId == Guid.Empty)
+            throw new ArgumentException(
+                "El registro de soporte por delegación debe identificar la delegación.", nameof(delegacionTenantId));
+
+        return new RegistroActividadSoporte(usuarioSoporteId, tipo, detalle)
+        {
+            DelegacionTenantId = delegacionTenantId
+        };
+    }
+
+    /// <summary>
+    /// Registro de la vía nueva, colgado de una sesión privilegiada.
+    /// </summary>
+    public static RegistroActividadSoporte PorSesionPrivilegiada(
+        Guid usuarioSoporteId, Guid sesionPrivilegiadaId, TipoActividadSoporte tipo, string? detalle = null)
+    {
+        if (sesionPrivilegiadaId == Guid.Empty)
+            throw new ArgumentException(
+                "El registro de soporte por sesión debe identificar la sesión.", nameof(sesionPrivilegiadaId));
+
+        return new RegistroActividadSoporte(usuarioSoporteId, tipo, detalle)
+        {
+            SesionPrivilegiadaId = sesionPrivilegiadaId
+        };
+    }
+
+    /// <summary>
+    /// Constructor privado: obliga a pasar por una de las dos fábricas, que son
+    /// las únicas que informan un agrupador.
+    ///
+    /// <para>
+    /// <b>Por qué no un constructor público con los dos nullables.</b> Un
+    /// registro de actividad de soporte sin agrupador no es reconstruible: no
+    /// se puede saber a qué visita pertenece, y una traza que no se puede
+    /// agrupar no responde a la pregunta para la que existe —«enséñame todo lo
+    /// que hizo soporte en esta visita»—. Dejando el constructor privado, ese
+    /// estado es <b>irrepresentable</b> en vez de estar solo desaconsejado. La
+    /// restricción <c>CK_RegistrosActividadSoporte_UnSoloAgrupador</c> dice lo
+    /// mismo en la base, para lo que no pase por el dominio.
+    /// </para>
+    /// </summary>
+    private RegistroActividadSoporte(Guid usuarioSoporteId, TipoActividadSoporte tipo, string? detalle)
     {
         if (usuarioSoporteId == Guid.Empty)
             throw new ArgumentException("El registro de soporte debe identificar al usuario.", nameof(usuarioSoporteId));
-        if (delegacionTenantId == Guid.Empty)
-            throw new ArgumentException("El registro de soporte debe colgar de una delegación.", nameof(delegacionTenantId));
 
         UsuarioSoporteId = usuarioSoporteId;
-        DelegacionTenantId = delegacionTenantId;
         Tipo = tipo;
         Detalle = detalle is { Length: > LongitudMaximaDetalle } ? detalle[..LongitudMaximaDetalle] : detalle;
     }

@@ -147,16 +147,16 @@ public static class DelegacionesSoporteSeeder
             if (await dbContext.RegistrosActividadSoporte.AnyAsync(cancellationToken))
                 return;
 
-            dbContext.RegistrosActividadSoporte.Add(new RegistroActividadSoporte(
+            dbContext.RegistrosActividadSoporte.Add(RegistroActividadSoporte.PorDelegacion(
                 usuarioSoporte.Id, soporteDemo3.Id, TipoActividadSoporte.AccesoConcedido,
                 "Incidencia DEMO-1234: documentos que no cargan en el listado."));
-            dbContext.RegistrosActividadSoporte.Add(new RegistroActividadSoporte(
+            dbContext.RegistrosActividadSoporte.Add(RegistroActividadSoporte.PorDelegacion(
                 usuarioSoporte.Id, soporteDemo3.Id, TipoActividadSoporte.WorkspaceActivado));
-            dbContext.RegistrosActividadSoporte.Add(new RegistroActividadSoporte(
+            dbContext.RegistrosActividadSoporte.Add(RegistroActividadSoporte.PorDelegacion(
                 usuarioSoporte.Id, soporteDemo3.Id, TipoActividadSoporte.Navegacion, "/documentos"));
-            dbContext.RegistrosActividadSoporte.Add(new RegistroActividadSoporte(
+            dbContext.RegistrosActividadSoporte.Add(RegistroActividadSoporte.PorDelegacion(
                 usuarioSoporte.Id, soporteDemo3.Id, TipoActividadSoporte.Interaccion, "Exportar listado de documentos"));
-            dbContext.RegistrosActividadSoporte.Add(new RegistroActividadSoporte(
+            dbContext.RegistrosActividadSoporte.Add(RegistroActividadSoporte.PorDelegacion(
                 usuarioSoporte.Id, soporteDemo3.Id, TipoActividadSoporte.AccesoRevocado,
                 "Fin de la revisión — incidencia reproducida y documentada."));
 
