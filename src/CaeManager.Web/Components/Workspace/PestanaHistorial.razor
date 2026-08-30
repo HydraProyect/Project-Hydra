@@ -49,7 +49,7 @@ else
     [Parameter, EditorRequired] public string EntidadTipo { get; set; } = string.Empty;
     [Parameter, EditorRequired] public Guid EntidadId { get; set; }
 
-    private IReadOnlyList<RegistroAuditoriaDto> _registros = [];
+    private IReadOnlyList<RegistroAuditoriaListaDto> _registros = [];
     private readonly Dictionary<Guid, string> _usuariosPorId = new();
     private bool _cargando = true;
     private bool _error;
