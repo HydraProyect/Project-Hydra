@@ -143,10 +143,9 @@
             // siguiente navegación aunque no se comprobara aquí, pero
             // resolverlo ya en el login evita un salto visible de "/" (o
             // ReturnUrl) a la pantalla de cambio de contraseña.
-            var usuario = cuenta;
             logger.LogInformation("Login correcto: {UsuarioId}", idCuenta);
 
-            if (usuario is { DebeCambiarContrasena: true })
+            if (cuenta is { DebeCambiarContrasena: true })
             {
                 Navigation.NavigateTo("/cuenta/cambiar-contrasena", forceLoad: true);
                 return;
