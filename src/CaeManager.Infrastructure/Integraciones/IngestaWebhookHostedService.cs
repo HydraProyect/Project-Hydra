@@ -146,7 +146,20 @@ public class IngestaWebhookHostedService(
                     throw;
                 }
 
-                await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
+                try
+                {
+                    await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
+                }
+                catch
+                {
+                    // Compensación best-effort (auditoría módulo 6): los
+                    // adjuntos ya subidos durante ProcesarAsync no deben
+                    // quedar huérfanos si el registro que los referenciaría
+                    // nunca llega a guardarse — ver CompensacionBlobsHuerfanosIngesta.
+                    await CompensacionBlobsHuerfanosIngesta.EliminarSiOrfanosAsync(
+                        ingesta.ArchivosGuardados, ambito.ServiceProvider.GetRequiredService<IFileStorageService>(), logger);
+                    throw;
+                }
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

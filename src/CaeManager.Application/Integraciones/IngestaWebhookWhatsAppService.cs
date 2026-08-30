@@ -38,6 +38,11 @@ public class IngestaWebhookWhatsAppService(
     IFileStorageService almacenamiento,
     ILogger<IngestaWebhookWhatsAppService> logger)
 {
+    private readonly List<string> _archivosGuardados = [];
+
+    /// <summary>Ver el comentario homónimo en <see cref="IngestaWebhookService"/> — mismo criterio de compensación de blobs huérfanos (auditoría módulo 6).</summary>
+    public IReadOnlyList<string> ArchivosGuardados => _archivosGuardados;
+
     public async Task<IReadOnlyList<MensajeWhatsAppRecibidoEvent>> ProcesarAsync(
         EventoWebhook evento, CancellationToken cancellationToken)
     {
@@ -195,6 +200,7 @@ public class IngestaWebhookWhatsAppService(
 
         using var flujo = new MemoryStream(descarga.Valor.Contenido);
         var archivoUrl = await almacenamiento.GuardarAsync(flujo, nombreArchivo, cancellationToken);
+        _archivosGuardados.Add(archivoUrl);
         mensajeCreado.AgregarAdjunto(
             nombreArchivo, mensaje.TipoContenido ?? descarga.Valor.TipoContenido, descarga.Valor.Contenido.LongLength, archivoUrl);
     }

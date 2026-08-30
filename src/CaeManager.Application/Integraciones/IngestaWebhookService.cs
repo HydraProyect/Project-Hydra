@@ -33,6 +33,21 @@ public class IngestaWebhookService(
     IRelevanciaCaeService relevanciaCae,
     ILogger<IngestaWebhookService> logger)
 {
+    private readonly List<string> _archivosGuardados = [];
+
+    /// <summary>
+    /// Claves de <see cref="IFileStorageService"/> escritas durante ESTE
+    /// <see cref="ProcesarAsync"/> (auditoría módulo 6, retención/orfandad de
+    /// blobs): el registro que las referenciaría se guarda en una única
+    /// transacción, DESPUÉS de que este método vuelve — si ese guardado
+    /// falla, el llamador (<c>IngestaWebhookHostedService</c>) necesita esta
+    /// lista para poder compensar y no dejar el archivo huérfano en el
+    /// almacenamiento. Instancia nueva por evento (esta clase se resuelve
+    /// dentro de un <c>IServiceScope</c> por evento), así que no hace falta
+    /// limpiarla entre llamadas.
+    /// </summary>
+    public IReadOnlyList<string> ArchivosGuardados => _archivosGuardados;
+
     public async Task ProcesarAsync(EventoWebhook evento, CancellationToken cancellationToken)
     {
         try
@@ -202,6 +217,7 @@ public class IngestaWebhookService(
 
         using var flujo = new MemoryStream(contenidoResultado.Valor);
         var archivoUrl = await almacenamiento.GuardarAsync(flujo, adjunto.NombreArchivo, cancellationToken);
+        _archivosGuardados.Add(archivoUrl);
         mensaje.AgregarAdjunto(adjunto.NombreArchivo, adjunto.TipoContenido, adjunto.TamanoBytes, archivoUrl);
     }
 }

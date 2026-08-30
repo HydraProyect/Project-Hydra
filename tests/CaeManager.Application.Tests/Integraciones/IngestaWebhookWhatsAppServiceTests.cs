@@ -206,6 +206,23 @@ public class IngestaWebhookWhatsAppServiceTests
     }
 
     [Fact]
+    public async Task Registra_en_ArchivosGuardados_el_media_descargado_para_poder_compensarlo_si_falla_el_guardado()
+    {
+        _whatsApp.MediaADevolver = new MediaDescargadoWhatsAppDto([1, 2, 3], "image/jpeg");
+        var conexion = CrearLinea(ModoAsignacionLinea.GestorFijo, comercialId: Guid.NewGuid());
+        ConfigurarNotificacion([
+            new MensajeEntranteWhatsAppDto(
+                "wamid.img", Telefono, "Chris", "image", null, "media-1", null, "image/jpeg", DateTime.UtcNow),
+        ]);
+        var servicio = CrearServicio();
+
+        await servicio.ProcesarAsync(new EventoWebhook(conexion.Id, "{}"), CancellationToken.None);
+
+        var mensaje = _conversaciones.Conversaciones.Single().Mensajes.Single();
+        servicio.ArchivosGuardados.Should().ContainSingle().Which.Should().Be(mensaje.Adjuntos.Single().ArchivoUrl);
+    }
+
+    [Fact]
     public async Task Una_conexion_deshabilitada_descarta_el_evento_sin_reintentos()
     {
         var conexion = CrearLinea(ModoAsignacionLinea.GestorFijo, comercialId: Guid.NewGuid());
