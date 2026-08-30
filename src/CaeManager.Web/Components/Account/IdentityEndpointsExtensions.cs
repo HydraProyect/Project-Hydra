@@ -63,6 +63,7 @@ public static class IdentityEndpointsExtensions
             IEmailService emailService,
             ILogger<Program> logger,
             ILoggerFactory loggerFactory,
+            Microsoft.Extensions.Options.IOptions<AzureAdOptions> opcionesAzureAd,
             string? returnUrl) =>
         {
             var infoExterna = await signInManager.GetExternalLoginInfoAsync();
@@ -90,6 +91,23 @@ public static class IdentityEndpointsExtensions
                 // espera ("Pendientes de asignar", ver Roles.razor) hasta que
                 // un Administrador le asigna un rol — nunca entra con acceso
                 // real solo por tener cuenta de Microsoft de la empresa.
+                //
+                // El tenant de Hydra tiene que estar declarado. Antes no se
+                // asignaba ninguno, así que la cuenta nacía con Guid.Empty: sin
+                // pertenecer a ninguna organización real, sin ver nada, y aun
+                // así ofrecida en la sala de espera de /roles para que
+                // cualquier Administrador la adoptara. Fallo cerrado: sin
+                // tenant declarado no se crea la cuenta, porque una cuenta que
+                // no se sabe de quién es no se arregla más tarde.
+                if (opcionesAzureAd.Value.TenantHydraId is not { } tenantDestino || tenantDestino == Guid.Empty)
+                {
+                    logger.LogError(
+                        "Login de Microsoft rechazado: falta AzureAd:TenantHydraId, así que no se puede " +
+                        "determinar a qué tenant pertenecería la cuenta nueva.");
+                    await signInManager.SignOutAsync();
+                    return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+                }
+
                 var nombreCompleto = infoExterna.Principal.FindFirstValue(ClaimTypes.Name) ?? email;
                 usuario = new ApplicationUser
                 {
@@ -98,6 +116,7 @@ public static class IdentityEndpointsExtensions
                     NombreCompleto = nombreCompleto,
                     EmailConfirmed = true,
                     DebeCambiarContrasena = false,
+                    TenantId = tenantDestino,
                 };
 
                 var resultadoCreacion = await userManager.CreateAsync(usuario);
@@ -144,10 +163,28 @@ public static class IdentityEndpointsExtensions
         return endpoints;
     }
 
+    /// <summary>
+    /// Avisa <b>solo</b> a los Administradores del tenant al que pertenece la
+    /// cuenta nueva.
+    ///
+    /// <para>
+    /// <c>GetUsersInRoleAsync</c> no filtra por tenant —<c>AspNetUsers</c> es la
+    /// única tabla sin filtro global ni RLS— así que este correo enviaba el
+    /// nombre y la dirección de la persona recién registrada a los
+    /// Administradores de <b>todas</b> las organizaciones del SaaS: difusión
+    /// automática de datos personales entre clientes, cada vez que alguien
+    /// entraba por primera vez. El filtro se aplica sobre la lista porque en
+    /// este punto no hay sesión ni tenant activo del que tirar
+    /// (<c>DirectorioUsuariosTenant</c> resuelve contra el tenant de la sesión,
+    /// y aquí todavía no hay ninguna).
+    /// </para>
+    /// </summary>
     private static async Task NotificarAdministradoresUsuarioPendienteAsync(
         UserManager<ApplicationUser> userManager, IEmailService emailService, ILogger logger, ApplicationUser usuarioPendiente)
     {
-        var administradores = await userManager.GetUsersInRoleAsync(Roles.Administrador);
+        var administradores = (await userManager.GetUsersInRoleAsync(Roles.Administrador))
+            .Where(a => a.TenantId == usuarioPendiente.TenantId)
+            .ToList();
         var cuerpo = $"""
             <p>{System.Net.WebUtility.HtmlEncode(usuarioPendiente.NombreCompleto)} ({System.Net.WebUtility.HtmlEncode(usuarioPendiente.Email)}) inició sesión con su cuenta de Microsoft y está a la espera de que le asignes un rol.</p>
             <p>Puedes hacerlo desde la pestaña "Pendientes de asignar" en Roles.</p>
