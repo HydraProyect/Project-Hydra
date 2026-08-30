@@ -685,6 +685,13 @@ app.UseSesionPrivilegiadaSinRolDeNegocio();
 // efectivo de la cartera de ese workspace (ver RolEfectivoDelWorkspaceMiddleware).
 app.UseRolEfectivoDelWorkspace();
 
+// Una cuenta a medio activar (contraseña temporal sin cambiar, o Administrador
+// sin 2FA) no alcanza nada fuera de /cuenta/. Antes esas dos obligaciones solo
+// las imponía MainLayout, que es una pantalla: con la cookie ya emitida se
+// llegaba a cualquier endpoint autenticado sin renderizar ningún layout — entre
+// ellos la descarga de PDFs (ver CuentaAMedioActivarSinAccesoMiddleware).
+app.UseCuentaAMedioActivarSinAcceso();
+
 // Tras UseAuthentication (el límite distingue anónimo/autenticado) y antes
 // de que ningún endpoint procese la petición.
 app.UseRateLimiter();

@@ -3,8 +3,9 @@ using FluentAssertions;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// Los dos middlewares que corrigen el rol del principal están registrados, y
-/// están <b>entre</b> <c>UseAuthentication</c> y <c>UseAuthorization</c>.
+/// Los tres middlewares que corrigen o restringen al principal ya autenticado
+/// están registrados, y están <b>entre</b> <c>UseAuthentication</c> y
+/// <c>UseAuthorization</c>.
 ///
 /// <para>
 /// <b>Por qué hace falta este test.</b> Sus tests unitarios los ejercitan en
@@ -24,7 +25,7 @@ namespace CaeManager.Architecture.Tests;
 /// antes de <c>UseAuthorization</c> porque después ya no sirve de nada.
 /// </para>
 /// </summary>
-public class OrdenDeLosMiddlewaresDeRolTests
+public class OrdenDeLosMiddlewaresDeIdentidadTests
 {
     private const string ArchivoDelPipeline = "src/CaeManager.Web/Program.cs";
 
@@ -34,6 +35,10 @@ public class OrdenDeLosMiddlewaresDeRolTests
     [InlineData("UseRolEfectivoDelWorkspace",
         "un workspace delegado conservaría el rol del tenant de origen: un Administrador en A delegado como " +
         "Consulta en B superaría las puertas de Administrador de B")]
+    [InlineData("UseCuentaAMedioActivarSinAcceso",
+        "una cuenta con contraseña temporal sin cambiar, o un Administrador sin 2FA, alcanzaría cualquier " +
+        "endpoint autenticado —incluida la descarga de PDFs— porque esas dos obligaciones solo las impone " +
+        "MainLayout, que es una pantalla y no corre en una petición a un endpoint")]
     public void El_middleware_esta_registrado_entre_autenticacion_y_autorizacion(string middleware, string porque)
     {
         var lineas = LineasDeCodigo();
@@ -48,8 +53,8 @@ public class OrdenDeLosMiddlewaresDeRolTests
             "antes de UseAuthentication no hay principal autenticado que corregir");
 
         posicion.Should().BeLessThan(autorizacion,
-            "después de UseAuthorization las puertas de rol ya han contestado, así que corregir el principal " +
-            "llega tarde y no cambia ninguna decisión");
+            "el principal tiene que quedar corregido y la petición filtrada antes de que la autorización " +
+            "decida: después, las puertas de rol ya han contestado y el endpoint ya es alcanzable");
     }
 
     [Fact]
