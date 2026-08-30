@@ -63,7 +63,7 @@ public class ReasignarMismoDiaTests : IAsyncLifetime
         Guid asignacionOriginalId;
         await using (var contexto = CrearContexto())
         {
-            var creacion = new CrearAsignacionCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+            var creacion = new CrearAsignacionCommandHandler(new AsignacionRepository(contexto), new AutoridadAsignacionesServiceFalso(contexto), contexto);
             var alta = await creacion.Handle(new CrearAsignacionCommand(_trabajadorId, _centroId, hoy), CancellationToken.None);
             alta.EsExitoso.Should().BeTrue();
             asignacionOriginalId = alta.Valor;
@@ -78,7 +78,7 @@ public class ReasignarMismoDiaTests : IAsyncLifetime
 
         await using (var contextoReasignar = CrearContexto())
         {
-            var reasignacion = new CrearAsignacionCommandHandler(new AsignacionRepository(contextoReasignar), contextoReasignar, new AutoridadAsignacionesServiceFalso(contextoReasignar), contextoReasignar);
+            var reasignacion = new CrearAsignacionCommandHandler(new AsignacionRepository(contextoReasignar), new AutoridadAsignacionesServiceFalso(contextoReasignar), contextoReasignar);
             var resultado = await reasignacion.Handle(new CrearAsignacionCommand(_trabajadorId, _centroId, hoy), CancellationToken.None);
 
             resultado.EsExitoso.Should().BeTrue();
