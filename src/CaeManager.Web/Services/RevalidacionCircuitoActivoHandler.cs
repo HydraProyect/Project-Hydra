@@ -85,13 +85,25 @@ public class RevalidacionCircuitoActivoHandler(
     /// para ese momento, así que la lectura puede memoizar nulo por pura
     /// carrera de scheduling — no porque la selección no exista.
     ///
-    /// <c>OnCircuitOpenedAsync</c> es un punto más fiable: medido en local
-    /// (8 circuitos, con y sin selección activa) el <c>HttpContext</c> de la
-    /// negociación estuvo presente el 100% de las veces en este punto, nunca
-    /// en las lecturas posteriores de arranque. Forzar aquí aprovecha esa
-    /// ventana — la misma instancia scoped que el resto del circuito usará
-    /// (confirmado por Módulo 1: este handler y <c>ClienteActivoSeleccionado</c>
-    /// comparten scope), así que memoizar aquí memoiza para todos.
+    /// La propiedad que hay que proteger no es "el <c>HttpContext</c> de la
+    /// negociación es fiable en algún punto y en otro no" — si estuviera
+    /// siempre disponible en <c>OnCircuitOpenedAsync</c>, por sí solo eso no
+    /// explicaría que la memoización de nulo llegara a ocurrir nunca. Lo que
+    /// realmente varía es <b>cuándo ocurre la primera lectura</b>: sin este
+    /// fix, la dispara quien primero necesite <c>TenantIdSeleccionado</c>
+    /// durante el renderizado de componentes, en un instante no determinista
+    /// que puede caer después de que la ventana se haya cerrado. Con el fix,
+    /// la primera lectura ocurre siempre en <c>OnCircuitOpenedAsync</c>, que
+    /// el ciclo de vida de Blazor Server garantiza que corre antes de que el
+    /// árbol de componentes empiece a construirse — un punto fijo y temprano,
+    /// no una ventana que a veces sí y a veces no (corrección de Módulo 1
+    /// sobre la primera versión de este comentario, que sí sugería lo
+    /// segundo). Medido en local (8 circuitos, con y sin selección activa) el
+    /// <c>HttpContext</c> de la negociación estuvo presente el 100% de las
+    /// veces en ese punto fijo — consistente con la garantía del framework,
+    /// no una casualidad de la muestra. Memoiza en la misma instancia scoped
+    /// que el resto del circuito usará (confirmado por Módulo 1: este handler
+    /// y <c>ClienteActivoSeleccionado</c> comparten scope).
     ///
     /// Si <c>HttpContext</c> resulta no estar disponible ni siquiera aquí (no
     /// observado en las mediciones, pero no descartado con certeza total para
