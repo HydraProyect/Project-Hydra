@@ -12,6 +12,7 @@
 @using Microsoft.AspNetCore.Identity
 @using QRCoder
 @inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ILoggerFactory LoggerFactory
 @inject NavigationManager NavigationManager
@@ -158,6 +159,22 @@
 
         await UserManager.SetTwoFactorEnabledAsync(_usuario, true);
         mensajeError = null;
+
+        // Reemite el ticket de autenticación, y hacen falta las dos cosas que
+        // eso arregla:
+        //
+        // 1. El claim "requiere_activacion" lo sella la CLAIMS FACTORY, que
+        //    corre al iniciar sesión, no en cada petición — a diferencia de la
+        //    claims transformation en la que confía el forceLoad de más abajo.
+        //    Sin reemitir, el ticket seguiría diciendo que esta cuenta está a
+        //    medio activar y CuentaAMedioActivarSinAccesoMiddleware la
+        //    devolvería aquí una y otra vez: el mismo cepo que este método ya
+        //    evitaba para MainLayout, por una vía distinta.
+        //
+        // 2. SetTwoFactorEnabledAsync cambia el sello de seguridad, así que el
+        //    validador periódico de AddIdentityCookies habría cerrado la sesión
+        //    dentro de su ventana. Eso pasaba ya antes de este cambio.
+        await SignInManager.RefreshSignInAsync(_usuario);
 
         LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
             .LogInformation("2FA activado: {UsuarioId}", _usuario.Id);

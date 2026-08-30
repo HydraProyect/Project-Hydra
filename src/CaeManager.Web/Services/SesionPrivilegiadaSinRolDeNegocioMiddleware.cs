@@ -11,7 +11,7 @@ namespace CaeManager.Web.Services;
 /// <c>CurrentUserService.ObtenerRolActualAsync</c>.</b> Ese método gobierna la
 /// autorización que pasa por la aplicación (alcance de datos, behavior de
 /// escritura) y ya devuelve <c>null</c> bajo sesión privilegiada. Pero hay una
-/// segunda familia de puertas que no lo consulta jamás: los 28
+/// segunda familia de puertas que no lo consulta jamás: los 30
 /// <c>[Authorize(Roles = …)]</c> de páginas y endpoints, que preguntan
 /// directamente al <c>ClaimsPrincipal</c>. Ahí el rol que contesta es el que el
 /// técnico tiene en <b>su</b> tenant de plataforma — una autoridad que no tiene
@@ -26,7 +26,7 @@ namespace CaeManager.Web.Services;
 /// La regla del ADR-011 § 4bis.3 es que las tres capas se evalúan por separado
 /// y que la autorización <i>de negocio</i> no aplica a una sesión de plano 3:
 /// quien entra por privilegio de plataforma no es miembro del workspace que
-/// visita. Sin rol, esas 28 puertas fallan cerradas, que es la única forma
+/// visita. Sin rol, esas 30 puertas fallan cerradas, que es la única forma
 /// segura de equivocarse. Lo que la sesión sí concede —lectura del tenant
 /// objetivo— se concede por capacidad en <c>AlcanceDatosService</c>, no por rol.
 ///

@@ -78,25 +78,28 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddDbContext<CaeManagerDbContext>((serviceProvider, options) =>
         {
-            // CaeManagerDbRuntime es opcional y, ausente (el caso de hoy en
-            // todos los entornos), cae en la misma cadena de siempre — cero
-            // cambio de comportamiento. Solo tras provisionar el rol
-            // restringido de RUNBOOK-RLS.md tiene sentido configurarla: es el
-            // rol que hace que las políticas RLS de la migración
-            // HabilitarRlsPostgres empiecen a restringir de verdad (RLS no
-            // aplica al propietario de la tabla ni a un superusuario). Las
-            // migraciones (Program.cs) siguen conectando con CaeManagerDb sin
-            // pasar por aquí — ese rol necesita DDL que el de runtime no tiene.
-            var cadena = configuration.GetConnectionString("CaeManagerDbRuntime")
-                ?? configuration.GetConnectionString("CaeManagerDb");
-
-            Persistence.ConfiguracionDeContexto.Aplicar(options, serviceProvider, cadena);
+            // CaeManagerDbRuntime es la conexión del TRÁFICO, con el rol
+            // restringido cae_app_runtime (NOSUPERUSER NOBYPASSRLS, ver
+            // deploy/bootstrap/roles-de-cluster.sql). Es el rol que hace que
+            // las políticas de HabilitarRlsPostgres restrinjan de verdad: RLS
+            // no aplica ni al propietario de la tabla ni a un superusuario, así
+            // que conectar con CaeManagerDb —el rol propietario, `postgres` en
+            // el compose de producción— deja RLS decorativa. Las migraciones
+            // (Program.cs) siguen usando CaeManagerDb sin pasar por aquí: ese
+            // rol necesita DDL que el de runtime no tiene.
+            //
+            // Fallo CERRADO. Antes esta caída al rol administrativo era
+            // silenciosa y automática, así que una variable de entorno ausente
+            // apagaba entera la segunda línea de aislamiento sin que nada lo
+            // dijera — y el comentario que vivía aquí daba por hecho que la
+            // conexión restringida no estaba puesta "en ningún entorno",
+            // mientras deploy/local/.env.example la documenta como activa en
+            // producción desde 2026-08-14. Dos afirmaciones contradictorias
+            // sobre el mismo hecho es exactamente el estado en el que un
+            // arranque tiene que negarse a adivinar.
+            Persistence.ConfiguracionDeContexto.Aplicar(
+                options, serviceProvider, ResolverCadenaDeTrafico(configuration, entorno));
         });
-
-        // Ruidoso a propósito (mismo criterio que VerificacionKmsHostedService):
-        // deja dicho en cada arranque si CaeManagerDbRuntime está aprovisionado
-        // y si el rol que usa de verdad está restringido (auditoría Módulo 8).
-        services.AddHostedService<Persistence.VerificacionRolRuntimeHostedService>();
 
         services
             .AddIdentityCore<ApplicationUser>(opciones =>
@@ -703,4 +706,57 @@ public static class InfrastructureServiceCollectionExtensions
             opciones.CircuitBreaker.SamplingDuration = timeoutPorIntento * 3;
             opciones.Retry.MaxRetryAttempts = 2;
         });
+
+    /// <summary>
+    /// Clave de configuración que permite arrancar el tráfico con la identidad
+    /// administrativa. Es una opción <b>insegura</b> y se llama como se llama
+    /// para que nadie la ponga sin leer qué apaga.
+    /// </summary>
+    internal const string ClaveDegradacionInsegura = "Rls:PermitirIdentidadAdministrativaInsegura";
+
+    /// <summary>
+    /// Con qué identidad conecta el tráfico. Función pura de (configuración,
+    /// entorno) para que la decisión se pueda probar sin montar un host.
+    ///
+    /// <para>
+    /// Si hay <c>CaeManagerDbRuntime</c>, esa. Si no, en desarrollo se cae al
+    /// rol propietario sin ceremonia —es el flujo de <c>docker compose up</c> y
+    /// del arnés E2E, que arranca con <c>ASPNETCORE_ENVIRONMENT=Development</c>
+    /// y solo define <c>ConnectionStrings__CaeManagerDb</c>—, y fuera de
+    /// desarrollo hace falta decirlo a propósito con
+    /// <see cref="ClaveDegradacionInsegura"/>; sin esa declaración, el arranque
+    /// se niega.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Por qué abortar y no seguir avisando.</b> Un log de advertencia en el
+    /// arranque no lo lee nadie a las tres semanas, y el sistema queda
+    /// aparentemente sano mientras su segunda línea de aislamiento no existe.
+    /// El coste de equivocarse en cada dirección no es simétrico: un arranque
+    /// que falla se ve en el acto y se arregla en minutos; un aislamiento
+    /// apagado en silencio no se ve hasta que alguien lee datos de otro tenant.
+    /// </para>
+    /// </summary>
+    internal static string ResolverCadenaDeTrafico(IConfiguration configuration, IHostEnvironment entorno)
+    {
+        var cadenaRuntime = configuration.GetConnectionString("CaeManagerDbRuntime");
+        if (!string.IsNullOrWhiteSpace(cadenaRuntime))
+            return cadenaRuntime;
+
+        var cadenaPropietario = configuration.GetConnectionString("CaeManagerDb");
+
+        if (!entorno.IsDevelopment() && !configuration.GetValue(ClaveDegradacionInsegura, defaultValue: false))
+            throw new InvalidOperationException(
+                $"Falta ConnectionStrings:CaeManagerDbRuntime en el entorno '{entorno.EnvironmentName}'. " +
+                "El tráfico se ejecutaría con el rol propietario de la base, al que PostgreSQL nunca " +
+                "somete a RLS (ni siquiera con FORCE ROW LEVEL SECURITY), dejando el aislamiento por " +
+                "tenant a merced únicamente del filtro global de EF Core. Configura la conexión del rol " +
+                "restringido cae_app_runtime (deploy/bootstrap/roles-de-cluster.sql) o, si de verdad " +
+                $"quieres arrancar sin esa protección, declara {ClaveDegradacionInsegura}=true.");
+
+        return cadenaPropietario
+            ?? throw new InvalidOperationException(
+                "No hay ninguna conexión PostgreSQL configurada: ni ConnectionStrings:CaeManagerDbRuntime " +
+                "ni ConnectionStrings:CaeManagerDb.");
+    }
 }

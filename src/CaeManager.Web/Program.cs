@@ -573,6 +573,37 @@ using (var scope = app.Services.CreateScope())
     var userStore = scope.ServiceProvider.GetRequiredService<IUserStore<ApplicationUser>>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
+    // Si alguien declaró la conexión de runtime, que la demuestre. La cadena
+    // configurada solo prueba que existe una cadena: apuntarla al rol
+    // propietario deja RLS igual de decorativa que no configurarla, y en
+    // silencio. Se comprueba después de migrar, porque la propiedad se observa
+    // sobre las tablas con RLS ya creadas, y sobre la conexión del contexto
+    // inyectado, que es la que usará el tráfico.
+    //
+    // Y si NO está declarada, aquí solo se llega habiendo pasado por la puerta
+    // de ResolverCadenaDeTrafico: o esto es Development, o alguien puso
+    // Rls:PermitirIdentidadAdministrativaInsegura. En los dos casos el tráfico
+    // corre con el rol propietario, al que PostgreSQL no somete a RLS, y eso
+    // tiene que decirse en CADA arranque y no solo en un comentario que nadie
+    // vuelve a mirar — es lo que aportaba VerificacionRolRuntimeHostedService
+    // (Módulo 8), retirado al fusionar porque comprobaba lo mismo que la línea
+    // de arriba y su aviso quedaba inalcanzable detrás de ella.
+    if (!string.IsNullOrWhiteSpace(app.Configuration.GetConnectionString("CaeManagerDbRuntime")))
+    {
+        await CaeManager.Infrastructure.Persistence.VerificacionIdentidadDeRuntime
+            .ExigirIdentidadSometidaARlsAsync(dbContext);
+    }
+    else
+    {
+        logger.LogWarning(
+            "[AVISO] Sin ConnectionStrings:CaeManagerDbRuntime, el tráfico conecta con el rol propietario " +
+            "de las tablas, al que PostgreSQL no somete a RLS ni con FORCE ROW LEVEL SECURITY. El " +
+            "aislamiento por tenant descansa hoy solo en el filtro global de EF Core, que no cubre SQL " +
+            "crudo, IgnoreQueryFilters ni las tablas de Identity. Entorno: {Entorno}. Ver " +
+            "deploy/bootstrap/roles-de-cluster.sql para aprovisionar cae_app_runtime.",
+            app.Environment.EnvironmentName);
+    }
+
     // Identidad ADMINISTRATIVA para los dos seeders que no son trafico de
     // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
     // usuario, y el backfill de asignaciones es cross-tenant por diseno.
@@ -674,6 +705,19 @@ app.UseAuthentication();
 // [Authorize(Roles = …)] preguntan al principal, no a CurrentUserService (ver
 // SesionPrivilegiadaSinRolDeNegocioMiddleware).
 app.UseSesionPrivilegiadaSinRolDeNegocio();
+
+// Inmediatamente después del anterior y ANTES de UseAuthorization: bajo un
+// workspace delegado (plano 2) el claim de rol es el del tenant de ORIGEN, y
+// las puertas [Authorize(Roles = …)] lo creerían. Aquí se sustituye por el rol
+// efectivo de la cartera de ese workspace (ver RolEfectivoDelWorkspaceMiddleware).
+app.UseRolEfectivoDelWorkspace();
+
+// Una cuenta a medio activar (contraseña temporal sin cambiar, o Administrador
+// sin 2FA) no alcanza nada fuera de /cuenta/. Antes esas dos obligaciones solo
+// las imponía MainLayout, que es una pantalla: con la cookie ya emitida se
+// llegaba a cualquier endpoint autenticado sin renderizar ningún layout — entre
+// ellos la descarga de PDFs (ver CuentaAMedioActivarSinAccesoMiddleware).
+app.UseCuentaAMedioActivarSinAcceso();
 
 // Tras UseAuthentication (el límite distingue anónimo/autenticado) y antes
 // de que ningún endpoint procese la petición.

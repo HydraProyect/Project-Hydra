@@ -25,10 +25,20 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// debe poder aparecer como ejecutivo asignable (ADR-004 § 5.3). Filtrar solo
 /// por <c>TenantId</c> los habría hecho invisibles en el cliente que
 /// justamente gestionan.
+///
+/// <para>
+/// <b>Por qué toma el <c>CaeManagerDbContext</c> además del <c>UserManager</c>.</b>
+/// Los recuentos por rol y la lista de cuentas sin rol necesitan
+/// <c>AspNetUserRoles</c>, que el <c>UserManager</c> solo deja consultar con
+/// <c>GetUsersInRoleAsync</c>/<c>GetRolesAsync</c> — métodos que materializan
+/// sin filtrar y no se pueden componer con LINQ, de donde salían las seis
+/// consultas globales y el N+1 de <c>/roles</c>. Es una dependencia dentro de
+/// Infrastructure, que es donde vive el contexto.
+/// </para>
 /// </summary>
 public class DirectorioUsuariosTenant(
     UserManager<ApplicationUser> userManager, ITenantsQueryContext dbContext, ITenantActual tenantActual,
-    PuertaAccesoDatos puertaAccesoDatos)
+    PuertaAccesoDatos puertaAccesoDatos, Persistence.CaeManagerDbContext identidad)
     : IDirectorioUsuariosService
 {
     /// <summary>
@@ -148,6 +158,94 @@ public class DirectorioUsuariosTenant(
                 u => u.Id,
                 u => string.IsNullOrWhiteSpace(u.NombreCompleto) ? u.Email ?? "—" : u.NombreCompleto);
         }, cancellationToken);
+
+    /// <summary>
+    /// Cuántas cuentas <b>propias</b> del tenant activo tiene cada rol, en una
+    /// sola consulta.
+    ///
+    /// <para>
+    /// <b>Propias, no visibles.</b> A diferencia del resto del directorio, aquí
+    /// los Operadores Delegados quedan fuera a propósito. Su fila en
+    /// <c>AspNetUserRoles</c> guarda el rol de su tenant de ORIGEN, que no es el
+    /// que ejercen aquí —eso lo decide su cartera, ver
+    /// <c>ObtenerRolesDeOperadoresDelegadosAsync</c>— así que contarlos sumaría
+    /// un "Administrador" que nadie es en este tenant. La pantalla de Roles
+    /// gobierna las cuentas de esta organización; el rol de un delegado no se
+    /// gobierna desde aquí.
+    /// </para>
+    ///
+    /// <para>
+    /// Sin tenant resuelto devuelve vacío, no todo: mismo fallo cerrado que el
+    /// resto de la cadena.
+    /// </para>
+    /// </summary>
+    public Task<IReadOnlyDictionary<string, int>> ContarCuentasPropiasPorRolAsync(
+        CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyDictionary<string, int>>(async () =>
+        {
+            if (tenantActual.TenantId is not { } tenantId) return new Dictionary<string, int>();
+
+            // Una agregación en servidor, no seis materializaciones globales
+            // seguidas de un recuento en memoria: el coste deja de crecer con
+            // el número total de usuarios del SaaS.
+            var porRol = await (
+                from usuario in identidad.Users
+                where usuario.TenantId == tenantId
+                join usuarioRol in identidad.UserRoles on usuario.Id equals usuarioRol.UserId
+                join rol in identidad.Roles on usuarioRol.RoleId equals rol.Id
+                group usuario by rol.Name into grupo
+                select new { Rol = grupo.Key, Cantidad = grupo.Count() })
+                .ToListAsync(cancellationToken);
+
+            return porRol
+                .Where(x => x.Rol is not null)
+                .ToDictionary(x => x.Rol!, x => x.Cantidad, StringComparer.Ordinal);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Cuentas propias del tenant activo que todavía no tienen ningún rol — la
+    /// sala de espera de <c>/roles</c>, que alimenta sobre todo el
+    /// autoaprovisionamiento por SSO.
+    ///
+    /// <para>
+    /// Propias por el mismo motivo que <see cref="ContarCuentasPropiasPorRolAsync"/>,
+    /// y con un peso añadido: de esta lista sale una <b>escritura</b>. Ofrecer
+    /// ahí la cuenta de otra organización sería ofrecer el botón que le cambia
+    /// el rol.
+    /// </para>
+    ///
+    /// <para>
+    /// La ausencia de rol se resuelve con un <c>NOT EXISTS</c> en servidor. La
+    /// versión anterior traía todos los usuarios del sistema y preguntaba por
+    /// los roles de cada uno, uno a uno.
+    /// </para>
+    /// </summary>
+    public Task<IReadOnlyList<ApplicationUser>> ObtenerCuentasPropiasSinRolAsync(
+        CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ApplicationUser>>(async () =>
+        {
+            if (tenantActual.TenantId is not { } tenantId) return [];
+
+            return await identidad.Users
+                .Where(u => u.TenantId == tenantId && !identidad.UserRoles.Any(ur => ur.UserId == u.Id))
+                .OrderBy(u => u.FechaCreacion)
+                .ToListAsync(cancellationToken);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Si la cuenta pertenece al tenant activo. <b>No</b> es lo mismo que
+    /// <see cref="EsVisibleEnTenantActualAsync"/>, y la diferencia es la que
+    /// separa leer de mandar: ese predicado da por buenos también a los
+    /// Operadores Delegados, que se ven desde aquí pero cuya cuenta pertenece a
+    /// otra organización y cuyo rol se gobierna allí. Toda operación que
+    /// MODIFIQUE una cuenta tiene que preguntar por esta, no por aquella.
+    /// </summary>
+    public Task<bool> EsCuentaPropiaDelTenantActualAsync(
+        Guid usuarioId, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(async () =>
+            tenantActual.TenantId is { } tenantId
+            && await identidad.Users.AnyAsync(
+                u => u.Id == usuarioId && u.TenantId == tenantId, cancellationToken));
 
     private async Task<Dictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(Guid tenantId, CancellationToken cancellationToken) =>
         await (

@@ -125,7 +125,7 @@ public static class DelegacionDemoSeeder
         // propios".
         using (AmbitoTenantExplicito.Establecer(tenantClienteId))
         {
-            await DatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, entorno, logger, cancellationToken);
+            await DatosPruebaSeeder.SeedAsync(dbContext, userManager, userStore, configuration, entorno, logger, cancellationToken);
             await ComunicacionesDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
             await CicloDocumentalDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
             await SembrarVariantesIdentidadAsync(dbContext, userManager, userStore, credenciales, logger, cancellationToken);

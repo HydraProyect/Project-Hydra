@@ -80,6 +80,14 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // de tenant (que todavía no se puede fijar sin haber leído la clave).
         [("src/CaeManager.Infrastructure/Persistence/Repositories/ClaveApiRepository.cs", "dbContext.ClavesApi.IgnoreQueryFilters()")] = 1,
 
+        // Comprobación de arranque de la identidad de conexión del tráfico. No
+        // consulta ninguna tabla de negocio —solo current_user, pg_roles y
+        // pg_class, catálogos del sistema— así que no hay filas de ningún
+        // tenant que el filtro global pudiera dejar escapar. Tiene que ser SQL
+        // crudo porque lo que mide no está modelado en EF ni podría estarlo: la
+        // identidad efectiva de la sesión de PostgreSQL.
+        [("src/CaeManager.Infrastructure/Persistence/VerificacionIdentidadDeRuntime.cs", "await using var comando = conexion.CreateCommand();")] = 1,
+
         // Segunda línea de defensa RLS (TenantRlsConnectionInterceptor): fija
         // la variable de sesión de Postgres app.tenant_id en cada apertura de
         // conexión con un comando parametrizado (set_config(...)), no SQL
@@ -116,12 +124,6 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // para adquirir el lock, otro para liberarlo).
         [("src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs", "await using (var comandoLock = new NpgsqlCommand(")] = 1,
         [("src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs", "await using var comandoUnlock = new NpgsqlCommand(")] = 1,
-
-        // Verificación de arranque (auditoría Módulo 8): consulta pg_roles
-        // por una conexión Npgsql propia — catálogo de sistema, no tabla de
-        // dominio, sin TenantId ni borrado lógico que un filtro global
-        // tuviera que aplicar. Ver VerificacionRolRuntimeHostedService.
-        [("src/CaeManager.Infrastructure/Persistence/VerificacionRolRuntimeHostedService.cs", "await using var comando = conexion.CreateCommand();")] = 1,
 
         // Retirada de tenant de demo (incidente de siembra parcial del
         // 2026-08-28): borra POR COMPLETO un tenant, así que tiene que
