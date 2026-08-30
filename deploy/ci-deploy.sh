@@ -42,9 +42,19 @@ bash /opt/talveg/deploy/liberar-disco.sh
 cd /opt/talveg/deploy/local
 case "$ENTORNO" in
   staging)
-    docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+# --wait: `up -d` a secas devuelve en cuanto los contenedores ARRANCAN, no
+# cuando estan sanos. El 2026-08-29 el despliegue de 669e3108 reporto
+# "success" en staging y produccion mientras la aplicacion de staging estaba
+# en `Restarting (139)` en bucle: el CD dio por bueno un despliegue roto y el
+# fallo se descubrio horas despues, por otra via. Con --wait, compose espera a
+# que los servicios con healthcheck (app y db) esten healthy y el resto
+# running, y falla si no llegan.
+#
+# 180 s con holgura: el arranque de la aplicacion incluye aplicar migraciones
+# pendientes, que tras varias semanas pueden ser muchas.
+    docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build --wait --wait-timeout 180
     ;;
   produccion)
-    docker compose -f docker-compose.produccion.yml up -d --build
+    docker compose -f docker-compose.produccion.yml up -d --build --wait --wait-timeout 180
     ;;
 esac
