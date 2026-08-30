@@ -2,7 +2,14 @@
 # variables de entorno necesarias (rutas de datos persistentes, credenciales
 # del administrador inicial).
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Cadena de suministro (auditoría Módulo 10, 2026-08-30): tag flotante "10.0"
+# resolvía a la última imagen del día del build, así que el mismo Dockerfile
+# podía producir binarios distintos en CI y en el VPS. Fijado a la versión
+# exacta MÁS el digest (comprobado contra mcr.microsoft.com, no copiado de un
+# blog) — Dependabot (ver .github/dependabot.yml, ecosistema "docker") sigue
+# proponiendo el salto cuando salga una versión nueva, con su propio PR,
+# CI y escaneo Trivy antes de fusionar.
+FROM mcr.microsoft.com/dotnet/sdk:10.0.400@sha256:e1ffd2a92ae84c1291bc1b6887501f8af98e6331e7af6d4c8d37168c5e87a64c AS build
 WORKDIR /src
 
 # Copiar solo los .csproj primero para que `dotnet restore` se cachee entre
@@ -30,7 +37,7 @@ COPY src/ src/
 # se resuelve.
 RUN dotnet publish src/CaeManager.Web/CaeManager.Web.csproj -c Release -o /app/publish -r linux-x64 --self-contained false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.11@sha256:a4556ed033fa96f984bb7a8d348851cb2d36b1281dd2420070045f664fbb5f94 AS final
 WORKDIR /app
 ENV ASPNETCORE_ENVIRONMENT=Production
 
@@ -51,11 +58,18 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # volumen si hace falta, y baje de privilegios a $APP_UID sin perder el
 # manejo de señales (reemplaza el proceso, a diferencia de `su`) — ver
 # docker-entrypoint.sh.
+# SHA-256 de la clave de firma de PGDG (ACCC4CF8.asc) comprobado a mano
+# contra postgresql.org antes de fijarlo abajo — mismo criterio que el
+# binario de gitleaks en ci.yml. Sin esa comprobación, un MITM o una brecha
+# en el propio sitio de postgresql.org durante el build cambia en silencio
+# qué firma se confía para todo el repositorio APT que se añade después.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libreoffice-writer curl ca-certificates gnupg gosu \
     && install -d /usr/share/postgresql-common/pgdg \
     && curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail \
        https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && echo "0144068502a1eddd2a0280ede10ef607d1ec592ce819940991203941564e8e76 /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc" \
+       | sha256sum -c - \
     && . /etc/os-release \
     && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
        > /etc/apt/sources.list.d/pgdg.list \

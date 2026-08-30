@@ -63,7 +63,7 @@ if [ "${1:-}" = "--check" ]; then
 fi
 
 echo "BACKUP COMPLETADO: $ARCHIVO"
-echo "Ensayo de restauración periódico: scripts/ensayo-restauracion-borg.sh (anotar en docs/ENSAYO-RESTAURACION.md)."
+echo "Ensayo de restauración periódico: scripts/ensayo-restauracion-borg.sh (anotar en ENSAYO-RESTAURACION.md, repositorio de negocio)."
 
 # Dead man's switch (Horizonte 2.4 del plan macro): un cron que deja de
 # ejecutarse (host caído, systemd-timer borrado sin querer, el propio script
