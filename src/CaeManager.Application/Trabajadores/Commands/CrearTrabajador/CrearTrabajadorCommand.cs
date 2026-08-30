@@ -69,19 +69,29 @@ public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajador
 }
 
 public class CrearTrabajadorCommandHandler(
-    ITrabajadorRepository repositorio, IEmpresasQueryContext empresasContext, IUnitOfWork unitOfWork)
+    ITrabajadorRepository repositorio, IEmpresasQueryContext empresasContext,
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearTrabajadorCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearTrabajadorCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
-        if (request.EmpresaId is { } empresaId
-            && !await empresasContext.Empresas.AnyAsync(e => e.Id == empresaId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("Trabajador.EmpresaNoEncontrada", "No encontramos esta empresa."));
+        // Autoridad sobre el empleador, no solo existencia (auditoría Módulo
+        // 5, hallazgo crítico 5/9) — ver TrabajadorAutorizacion.
+        if (request.EmpresaId is { } empresaId)
+        {
+            if (!await empresasContext.Empresas.AnyAsync(e => e.Id == empresaId, cancellationToken))
+                return Result.Fallo<Guid>(Error.Crear("Trabajador.EmpresaNoEncontrada", "No encontramos esta empresa."));
+            if (!await alcanceDatos.EmpresaVisibleAsync(empresaId, cancellationToken))
+                return Result.Fallo<Guid>(Error.Crear("Trabajador.EmpresaNoEncontrada", "No encontramos esta empresa."));
+        }
 
-        if (request.SubcontrataId is { } subcontrataId
-            && !await empresasContext.Empresas.AnyAsync(e => e.Id == subcontrataId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("Trabajador.SubcontrataNoEncontrada", "No encontramos esta subcontrata."));
+        if (request.SubcontrataId is { } subcontrataId)
+        {
+            if (!await empresasContext.Empresas.AnyAsync(e => e.Id == subcontrataId, cancellationToken))
+                return Result.Fallo<Guid>(Error.Crear("Trabajador.SubcontrataNoEncontrada", "No encontramos esta subcontrata."));
+            if (!await alcanceDatos.SubcontrataVisibleAsync(subcontrataId, cancellationToken))
+                return Result.Fallo<Guid>(Error.Crear("Trabajador.SubcontrataNoEncontrada", "No encontramos esta subcontrata."));
+        }
 
         if (await repositorio.ExisteConDniAsync(request.Dni, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Trabajador.DniDuplicado", "Ya existe un trabajador con este DNI."));

@@ -39,7 +39,7 @@ public class CrearCentroCommandValidator : AbstractValidator<CrearCentroCommand>
 public class CrearCentroCommandHandler(
     ICentroRepository repositorio, IEmpresasQueryContext empresasContext,
     ITiposDocumentoQueryContext tiposDocumentoContext, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
-    IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearCentroCommand, Result<Guid>>
 {
     /// <summary>
@@ -70,6 +70,15 @@ public class CrearCentroCommandHandler(
             return Result.Fallo<Guid>(Error.Crear("Centro.ClienteNoEncontrado", "No encontramos este cliente."));
 
         if (!await empresasContext.Empresas.AnyAsync(e => e.Id == request.EmpresaId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Centro.EmpresaNoEncontrada", "No encontramos esta empresa."));
+
+        // Autoridad sobre ambas puntas, no solo existencia (auditoría Módulo
+        // 5, hallazgo crítico 5/9): un gestor podía crear un centro dentro de
+        // la cartera de OTRO gestor con solo conocer el Id de su cliente.
+        if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Centro.ClienteNoEncontrado", "No encontramos este cliente."));
+
+        if (!await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Centro.EmpresaNoEncontrada", "No encontramos esta empresa."));
 
         if (await repositorio.ExisteConNombreEnClienteAsync(request.ClienteId, request.Nombre, cancellationToken: cancellationToken))
