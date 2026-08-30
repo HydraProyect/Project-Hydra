@@ -34,17 +34,40 @@ name: Desplegar
 # desplegando el commit Y si main avanzó mientras se esperaba la aprobación
 # (incidente real, 2026-08-26).
 #
-# `produccion` depende de `staging` (needs:) por una razón que no es de
-# orden de despliegue sino de disco: los dos `docker-compose.*.yml` compilan
-# con `build: context: ../..`, es decir, ambos entornos comparten EL MISMO
-# checkout git en /opt/talveg. Sin este `needs:`, GitHub podría arrancar
-# ambos jobs a la vez (si la aprobación de producción llegara rápido) y sus
-# dos `git checkout --detach <sha>` + `docker compose build` competirían por
-# el mismo árbol de ficheros en disco — pisándose entre sí y pudiendo acabar
-# construyendo cualquiera de los dos con el SHA equivocado, precisamente lo
-# que el SHA determinista de arriba quiere evitar. `needs: staging` fuerza a
-# que el build de staging termine (éxito o fallo) antes de que producción
-# empiece siquiera a esperar aprobación.
+# `aprobacion-produccion` depende de `staging` (needs:) por una razón que no
+# es de orden de despliegue sino de disco: los dos `docker-compose.*.yml`
+# compilan con `build: context: ../..`, es decir, ambos entornos comparten EL
+# MISMO checkout git en /opt/talveg. Sin este `needs:`, GitHub podría
+# arrancar ambos jobs a la vez (si la aprobación de producción llegara
+# rápido) y sus dos `git checkout --detach <sha>` + `docker compose build`
+# competirían por el mismo árbol de ficheros en disco — pisándose entre sí y
+# pudiendo acabar construyendo cualquiera de los dos con el SHA equivocado,
+# precisamente lo que el SHA determinista de arriba quiere evitar. `needs:
+# staging` fuerza a que el build de staging termine (éxito o fallo) antes de
+# que producción empiece siquiera a esperar aprobación.
+#
+# La aprobación (`environment: produccion`) vive en un job propio,
+# `aprobacion-produccion`, separado del job que ejecuta el despliegue real
+# (`produccion`, más abajo). Son dos grupos de concurrencia distintos, y esa
+# separación es la que evita la cola interminable de aprobaciones obsoletas
+# (incidente real, 2026-08-30: cada push a main dejaba su propia aprobación
+# pendiente sin que nadie la revisara, y solo se vaciaban rechazándolas una
+# a una a mano — 6 commits obsoletos acumulados antes de vaciar la cola):
+#
+#   - `aprobacion-produccion` usa cancel-in-progress: true. En cuanto llega
+#     un push más nuevo, GitHub cancela solo la aprobación pendiente del
+#     anterior si nadie llegó a revisarla — ya no hace falta rechazarla a
+#     mano para que la cola no crezca sin límite.
+#   - `deploy-produccion` (el job `produccion`) sigue con
+#     cancel-in-progress: false, exactamente como antes. Vive en un grupo
+#     distinto a propósito: la cancelación automática de arriba nunca debe
+#     alcanzar a un despliegue que YA fue aprobado y está corriendo el `ssh`
+#     contra el VPS — interrumpirlo a medias sigue siendo tan peligroso
+#     como siempre (build o `docker compose up` a medio terminar), así que
+#     ese job sigue serializándose, nunca cancelándose solo.
+#
+# En resumen: solo se cancela sola una aprobación que TODAVÍA no se dio.
+# Una vez aprobado, un despliegue corre siempre hasta el final.
 on:
   push:
     branches: [main]
@@ -87,15 +110,29 @@ jobs:
       - name: Desplegar SHA exacto a staging
         run: ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "staging ${{ github.sha }}"
 
-  produccion:
-    name: Desplegar a producción
+  aprobacion-produccion:
+    name: Aprobar despliegue a producción
     needs: staging
     runs-on: ubuntu-latest
     environment: produccion
-    # Grupo propio, igual que staging — y es lo que de verdad importa aquí:
-    # si dos aprobaciones de producción quedaran pendientes a la vez, esta
-    # cola evita que ambas ejecuten `docker compose up` sobre el mismo VPS
-    # en paralelo cuando se aprueben.
+    # cancel-in-progress: true a propósito — ver el comentario de arriba.
+    # Este job no toca el VPS, solo espera al revisor; cancelarlo a medias
+    # no deja nada a medio construir.
+    concurrency:
+      group: aprobacion-produccion
+      cancel-in-progress: true
+    steps:
+      - name: Aprobado
+        run: echo "Despliegue a produccion aprobado para ${{ github.sha }}"
+
+  produccion:
+    name: Desplegar a producción
+    needs: aprobacion-produccion
+    runs-on: ubuntu-latest
+    # Grupo propio, distinto al de la aprobación — y es lo que de verdad
+    # importa aquí: si dos despliegues aprobados quedaran encolados a la
+    # vez, esta cola evita que ambos ejecuten `docker compose up` sobre el
+    # mismo VPS en paralelo, y ninguno de los dos se cancela nunca solo.
     concurrency:
       group: deploy-produccion
       cancel-in-progress: false
