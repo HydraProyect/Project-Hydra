@@ -413,7 +413,6 @@ public partial class SubidaMasiva : ComponentBase
             }
 
             item.Estado = EstadoItem.Creado;
-            item.ContenidoPdf = null; // ya no hace falta mantenerlo en memoria del circuito.
         }
         catch (Exception ex)
         {
@@ -422,6 +421,12 @@ public partial class SubidaMasiva : ComponentBase
                 ReferenciaArchivoTraza.De(item.NombreArchivo));
             item.Estado = EstadoItem.Error;
             item.MensajeError = "No pudimos guardar este documento. Intenta nuevamente.";
+        }
+        finally
+        {
+            // Tanto en éxito como en error, el circuito no necesita seguir
+            // reteniendo el buffer del PDF completo.
+            item.ContenidoPdf = null;
         }
     }
 
