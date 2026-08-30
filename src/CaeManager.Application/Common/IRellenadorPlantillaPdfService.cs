@@ -30,3 +30,20 @@ public record ElementoRellenoPlantilla(
     double Alto,
     string? Valor,
     byte[]? ValorImagen = null);
+
+/// <summary>
+/// Auditoría de seguridad del módulo (2026-08-30), pendiente 3.2: antes, un
+/// elemento cuyo <see cref="ElementoRellenoPlantilla.NombreCampoAcroForm"/>
+/// no existía en el PDF (o venía vacío) se descartaba en silencio — el
+/// documento se generaba igual, con ese campo en blanco. Con la validación
+/// cruzada en confirmación (<c>ConfirmarPlantillaDocumentoVersionCommandHandler</c>,
+/// pendiente 3.3) esto no debería ocurrir para una versión confirmada
+/// después de ese cambio — esta excepción es la defensa en profundidad si
+/// de todos modos ocurre (p. ej. una versión confirmada ANTES de esa
+/// validación, que no se re-valida retroactivamente).
+/// </summary>
+public sealed class CamposAcroFormFaltantesException(IReadOnlyList<string> camposFaltantes)
+    : Exception($"El PDF no tiene los campos AcroForm configurados: {string.Join(", ", camposFaltantes)}.")
+{
+    public IReadOnlyList<string> CamposFaltantes { get; } = camposFaltantes;
+}

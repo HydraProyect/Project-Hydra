@@ -3,6 +3,8 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plantillas;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Plantillas.Commands.AgregarVersionPlantilla;
 
@@ -10,7 +12,8 @@ public class AgregarVersionPlantillaCommandHandler(
     IPlantillaDocumentoRepository plantillaRepositorio,
     IPlantillaDocumentoVersionRepository versionRepositorio,
     IFileStorageService almacenamientoArchivos,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<AgregarVersionPlantillaCommandHandler> logger)
     : IRequestHandler<AgregarVersionPlantillaCommand, Result<AgregarVersionPlantillaResultadoDto>>
 {
     public async Task<Result<AgregarVersionPlantillaResultadoDto>> Handle(
@@ -46,9 +49,47 @@ public class AgregarVersionPlantillaCommandHandler(
 
         versionRepositorio.Agregar(nuevaVersion);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex is not DbUpdateConcurrencyException)
+        {
+            // Auditoría de seguridad del módulo (2026-08-30), pendiente 3.5:
+            // dos altas de versión concurrentes sobre la MISMA plantilla
+            // pueden calcular el mismo siguienteNumeroVersion (MAX+1 leído
+            // antes de guardar) — la restricción única de BD
+            // (TenantId, PlantillaDocumentoId, NumeroVersion) impide que las
+            // dos lleguen a persistirse, pero antes esa excepción llegaba sin
+            // traducir al llamador y el blob ya subido quedaba huérfano. No
+            // es DbUpdateConcurrencyException (ningún token optimista chocó,
+            // son dos inserts nuevos) así que ConcurrenciaBehavior no la ve.
+            await EliminarBlobHuerfanoAsync(archivoUrl, cancellationToken);
+            return Result.Fallo<AgregarVersionPlantillaResultadoDto>(Error.Crear(
+                "Plantilla.VersionEnConflicto",
+                "Otra persona guardó una versión de esta plantilla al mismo tiempo. Vuelve a intentarlo."));
+        }
 
         return Result.Exito(new AgregarVersionPlantillaResultadoDto(nuevaVersion.Id, archivoIdentico));
+    }
+
+    private async Task EliminarBlobHuerfanoAsync(string archivoUrl, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await almacenamientoArchivos.EliminarAsync(archivoUrl, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // No se propaga: el fallo real ya es el conflicto de versión —
+            // perder ese Result.Fallo por un problema al limpiar dejaría al
+            // llamador sin explicación. Mismo patrón de compensación
+            // best-effort que CompensacionBlobsHuerfanosIngesta (módulo 6):
+            // si esta limpieza también falla, el blob queda huérfano sin más
+            // reintento — no existe hoy un barrido periódico que lo recoja.
+            logger.LogWarning(ex,
+                "No se pudo eliminar el blob huérfano {ArchivoUrl} tras un conflicto de versión de plantilla.", archivoUrl);
+        }
     }
 
     private static string CalcularHash(byte[] contenido) => Convert.ToHexStringLower(SHA256.HashData(contenido));

@@ -49,18 +49,33 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
         var acroForm = documento.AcroForm;
 
         var camposPorNombre = IndexarCampos(acroForm.Fields);
+        var camposFaltantes = new List<string>();
 
         foreach (var elemento in elementos)
         {
             if (elemento.Tipo == TipoElementoPlantilla.Firma) continue;
-            if (string.IsNullOrWhiteSpace(elemento.NombreCampoAcroForm)) continue;
-            if (!camposPorNombre.TryGetValue(elemento.NombreCampoAcroForm, out var campo)) continue;
+
+            if (string.IsNullOrWhiteSpace(elemento.NombreCampoAcroForm)
+                || !camposPorNombre.TryGetValue(elemento.NombreCampoAcroForm, out var campo))
+            {
+                camposFaltantes.Add(string.IsNullOrWhiteSpace(elemento.NombreCampoAcroForm)
+                    ? "(elemento sin nombre de campo)" : elemento.NombreCampoAcroForm);
+                continue;
+            }
 
             if (campo is PdfTextField campoTexto)
                 campoTexto.Text = elemento.Valor ?? string.Empty;
             else
                 campo.Value = new PdfSharp.Pdf.PdfString(elemento.Valor ?? string.Empty);
         }
+
+        // La confirmación de la plantilla ya cotejó estos nombres contra el
+        // PDF real (ConfirmarPlantillaDocumentoVersionCommandHandler) — si
+        // de todos modos falta alguno aquí (p. ej. una versión confirmada
+        // antes de esa validación, sin re-validar retroactivamente), mejor
+        // un fallo explícito que un documento con campos en blanco sin aviso.
+        if (camposFaltantes.Count > 0)
+            throw new CamposAcroFormFaltantesException(camposFaltantes);
 
         using var salida = new MemoryStream();
         documento.Save(salida);

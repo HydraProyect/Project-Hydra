@@ -99,8 +99,14 @@ public class RellenadorPlantillaPdfServiceTests
         campo!.Text.Should().Be("Juan Pérez");
     }
 
+    /// <summary>
+    /// Auditoría de seguridad del módulo (2026-08-30), pendiente 3.2: antes
+    /// este caso se descartaba en silencio (el documento salía igual, con el
+    /// campo en blanco) — ahora falla con la lista de campos que no existen,
+    /// para que nunca llegue a generarse un documento incompleto sin aviso.
+    /// </summary>
     [Fact]
-    public void RellenarAcroForm_ignora_elementos_sin_campo_correspondiente()
+    public void RellenarAcroForm_con_campo_sin_correspondencia_lanza_excepcion_con_el_nombre()
     {
         var servicio = new RellenadorPlantillaPdfService();
         var original = CrearPdfConCampoAcroForm("Campo1");
@@ -111,7 +117,8 @@ public class RellenadorPlantillaPdfServiceTests
 
         var accion = () => servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
 
-        accion.Should().NotThrow();
+        accion.Should().Throw<CamposAcroFormFaltantesException>()
+            .Which.CamposFaltantes.Should().ContainSingle().Which.Should().Be("CampoQueNoExiste");
     }
 
     [Fact]
