@@ -3,7 +3,7 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Domain.Plantillas;
 
 /// <summary>Un Trabajador dentro de un <see cref="LoteGeneracionDocumento"/> — ADR-010 § 3, batch acotado a Trabajador (el caso CAE real: un formulario por persona de una lista).</summary>
-public class ItemGeneracionDocumento : EntidadConTenant
+public class ItemGeneracionDocumento : EntidadConTenant, IVersionable
 {
     public const int LongitudMaximaError = 500;
 
@@ -12,6 +12,18 @@ public class ItemGeneracionDocumento : EntidadConTenant
     public Guid? DocumentoGeneradoId { get; private set; }
     public EstadoItemGeneracion Estado { get; private set; }
     public string? Error { get; private set; }
+
+    /// <summary>
+    /// Token de concurrencia optimista (auditoría de seguridad del módulo,
+    /// 2026-08-30): la generación en lote se ejecuta ítem a ítem dentro del
+    /// mismo circuito Blazor síncrono (ADR-010 § 2.6), pero dos pestañas del
+    /// mismo lote —o un reintento— podían procesar el mismo ítem Pendiente a
+    /// la vez sin que nada lo detectara. <see cref="IVersionable"/> y no
+    /// heredar de <c>EntidadBase</c>: esta entidad no necesita soft delete ni
+    /// timestamp de auditoría, solo el token (mismo criterio que
+    /// <c>AsignacionResponsabilidad</c>).
+    /// </summary>
+    public Guid Version { get; private set; } = Guid.NewGuid();
 
     private ItemGeneracionDocumento()
     {
