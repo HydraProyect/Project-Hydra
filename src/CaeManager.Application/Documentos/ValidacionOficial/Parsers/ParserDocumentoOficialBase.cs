@@ -94,6 +94,12 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
             faltantes.Add("fecha de emisión (formato no reconocido)");
 
         var periodoNormalizado = NormalizarPeriodo(periodoTexto);
+        // Mismo criterio que la fecha de emisión (arriba): un valor que la
+        // ancla capturó pero que no se pudo normalizar es un campo obligatorio
+        // sin reconocer, no un periodo ausente — debe bloquear la
+        // auto-validación igual que si no se hubiera encontrado nada.
+        if (periodoTexto is not null && periodoNormalizado is null && AnclaPeriodo!.Obligatorio)
+            faltantes.Add("periodo de liquidación (formato no reconocido)");
         if (fecha is null && FechaEmisionEsPrimerDiaDelPeriodo && periodoNormalizado is not null)
         {
             var partes = periodoNormalizado.Split('-');
@@ -171,9 +177,14 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
         var mes = Array.FindIndex(MesesEs, m => m.Equals(literal.Groups["mes"].Value, StringComparison.OrdinalIgnoreCase)) + 1;
         if (mes == 0) return null;
 
+        // Auditoría de seguridad del módulo (2026-08-30): una fecha imposible
+        // (31 de febrero) se rechaza — no se corrige al último día del mes.
+        // Corregirla en silencio inventaría una fecha de emisión que el
+        // documento no dice, y ese valor puede acabar cotejándose contra la
+        // fecha que el usuario introdujo como si fuera un hecho fiable.
         return int.TryParse(literal.Groups["dia"].Value, out var dia) && int.TryParse(literal.Groups["anio"].Value, out var anio)
-            && dia is >= 1 and <= 31
-            ? new DateOnly(anio, mes, Math.Min(dia, DateTime.DaysInMonth(anio, mes)))
+            && dia is >= 1 and <= 31 && dia <= DateTime.DaysInMonth(anio, mes)
+            ? new DateOnly(anio, mes, dia)
             : null;
     }
 
