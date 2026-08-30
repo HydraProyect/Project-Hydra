@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
+using CaeManager.Application.RelacionesEmpresariales;
 using CaeManager.Domain.RelacionesEmpresariales;
 using FluentValidation;
 using MediatR;
@@ -50,7 +51,8 @@ public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaComm
 public class EditarEmpresaCommandHandler(
     IEmpresaRepository repositorio,
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
-    IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IEmpresasQueryContext empresasContext, IGuardDeCierreDeArista guardDeCierre,
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<EditarEmpresaCommand, Result>
 {
     public async Task<Result> Handle(EditarEmpresaCommand request, CancellationToken cancellationToken)
@@ -99,7 +101,19 @@ public class EditarEmpresaCommandHandler(
         // nombre de una Empresa no es cambiar sus relaciones.
         var ahora = DateTime.UtcNow;
 
-        foreach (var clienteId in actualesClienteIds.Where(id => !deseados.Contains(id)))
+        // PD-1: se BLOQUEA, no se arrastra. Sobre las bajas calculadas, nunca
+        // sobre el conjunto — una contraparte opaca no origina baja ni
+        // bloqueo (invariante de F4.2c). Aquí aplica la primera condición del
+        // guard: la Empresa es la contratista de un centro de ese titular.
+        var bajas = actualesClienteIds.Where(id => !deseados.Contains(id)).ToList();
+
+        foreach (var clienteId in bajas)
+            if (await guardDeCierre.TieneOperacionVivaAsync(empresa.Id, clienteId, cancellationToken))
+                return Result.Fallo(Error.Crear(
+                    "Empresa.AristaConOperacionViva",
+                    "No podemos desvincular a este cliente: la empresa todavía tiene centros o trabajadores activos con él. Retira primero esa operación."));
+
+        foreach (var clienteId in bajas)
             await relacionEmpresarialRepositorio.CerrarVigenteAsync(empresa.Id, clienteId, ahora, cancellationToken);
 
         foreach (var clienteId in clienteIdsNuevos)

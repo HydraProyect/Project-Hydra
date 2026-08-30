@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
+using CaeManager.Application.RelacionesEmpresariales;
 using CaeManager.Domain.RelacionesEmpresariales;
 using FluentValidation;
 using MediatR;
@@ -40,6 +41,7 @@ public class EditarSubcontrataCommandHandler(
     IEmpresaRepository repositorio,
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     IEmpresasQueryContext empresasContext,
+    IGuardDeCierreDeArista guardDeCierre,
     IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EditarSubcontrataCommand, Result>
@@ -93,13 +95,37 @@ public class EditarSubcontrataCommandHandler(
         if (await empresasContext.Empresas.Where(e => clienteIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != clienteIdsNuevos.Count)
             return Result.Fallo(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));
 
+        // PD-1: se BLOQUEA, no se arrastra. Los dos guards van ANTES de
+        // cualquier mutación: si el segundo bloqueara después de que el
+        // primero ya hubiera cerrado aristas, el rechazo dependería de que
+        // nadie llame a SaveChanges por el camino — una garantía que no está
+        // escrita en ningún sitio y que el próximo que edite este handler no
+        // tiene por qué conocer.
+        //
+        // Se evalúan sobre las BAJAS calculadas, nunca sobre el conjunto de
+        // contrapartes: una contraparte opaca no origina baja y por tanto
+        // tampoco bloqueo (invariante de F4.2c).
+        var bajasDeCliente = clienteIdsActuales.Where(id => !clienteIdsDeseados.Contains(id)).ToList();
+
+        // La segunda es la arista de PD-4 (subcontrata → contratista): la que
+        // el guard de F5 § 5.4(a), formulado sobre Centros, no podía ver —
+        // para ese par no existe ni puede existir una fila de Centro—. Era un
+        // clic: abrir la ficha, desmarcar la contratista, guardar.
+        var bajasDeEmpresa = empresaIdsActuales.Where(id => !empresaIdsDeseados.Contains(id)).ToList();
+
+        foreach (var contraparteId in bajasDeCliente.Concat(bajasDeEmpresa))
+            if (await guardDeCierre.TieneOperacionVivaAsync(subcontrata.Id, contraparteId, cancellationToken))
+                return Result.Fallo(Error.Crear(
+                    "Subcontrata.AristaConOperacionViva",
+                    "No podemos desvincular esta relación: la subcontrata todavía tiene trabajadores asignados a centros de esa empresa. Retira primero las asignaciones."));
+
         // RazonSocial/Cif no tocan la arista; los diffs de EmpresaIds/
         // ClienteIds sí. Una baja NO re-resuelve retroactivamente el
         // enmarcadaEn de relaciones Subcontrata→Cliente ya existentes — eso
         // sería editar una relación in situ, y el modelo es append-only;
         // solo las relaciones NUEVAS de esta edición usan el enmarcadaEn
         // resuelto aquí.
-        foreach (var clienteId in clienteIdsActuales.Where(id => !clienteIdsDeseados.Contains(id)))
+        foreach (var clienteId in bajasDeCliente)
             await relacionEmpresarialRepositorio.CerrarVigenteAsync(subcontrata.Id, clienteId, ahora, cancellationToken);
 
         foreach (var clienteId in clienteIdsNuevos)
@@ -110,7 +136,7 @@ public class EditarSubcontrataCommandHandler(
                 subcontrata.Id, clienteId, ahora, enmarcadaEnId, cancellationToken);
         }
 
-        foreach (var empresaId in empresaIdsActuales.Where(id => !empresaIdsDeseados.Contains(id)))
+        foreach (var empresaId in bajasDeEmpresa)
             await relacionEmpresarialRepositorio.CerrarVigenteAsync(subcontrata.Id, empresaId, ahora, cancellationToken);
 
         foreach (var empresaId in empresaIdsNuevos)
