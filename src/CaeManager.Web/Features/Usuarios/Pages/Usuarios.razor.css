@@ -1,0 +1,11 @@
+/* Un enlace de activación es una URL larga con un token dentro: sin romper
+   por cualquier carácter se sale del modal y deja de poder leerse ni
+   seleccionarse entera, que es justo para lo que está ahí. */
+.enlace-activacion {
+    word-break: break-all;
+    font-family: var(--fuente-monoespaciada, monospace);
+    font-size: 0.875rem;
+    background: var(--color-superficie-hundida, #f4f4f4);
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radio-pequeno, 4px);
+}

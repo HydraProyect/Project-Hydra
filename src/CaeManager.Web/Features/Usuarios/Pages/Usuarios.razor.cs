@@ -10,6 +10,7 @@ using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.Usuarios.Pages;
@@ -60,7 +61,20 @@ public partial class Usuarios : ComponentBase
     private Guid? _editandoId;
     private string _email = string.Empty;
     private string _nombreCompleto = string.Empty;
-    private string _password = string.Empty;
+    /// <summary>
+    /// Debe coincidir con la vigencia configurada para
+    /// DataProtectionTokenProviderOptions en AddInfrastructure: el correo se
+    /// lo promete al usuario, y prometer una caducidad distinta de la real es
+    /// peor que no prometer ninguna.
+    /// </summary>
+    private const int MinutosCaducidadActivacion = 60;
+
+    /// <summary>
+    /// El enlace del alta recién hecha, para que quien la hizo pueda
+    /// entregarlo por otra vía si el correo no llega. Se limpia al cerrar o
+    /// reabrir el formulario: no tiene por qué sobrevivir a la operación.
+    /// </summary>
+    private string? _enlaceActivacion;
     private string _rol = Roles.Consulta;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
@@ -171,7 +185,7 @@ public partial class Usuarios : ComponentBase
         _editandoId = null;
         _email = string.Empty;
         _nombreCompleto = string.Empty;
-        _password = string.Empty;
+        _enlaceActivacion = null;
         _rol = Roles.Consulta;
         _coordinadorUsuarioId = string.Empty;
         _clienteCif = string.Empty;
@@ -195,7 +209,7 @@ public partial class Usuarios : ComponentBase
         _editandoId = usuario.Id;
         _email = usuario.Email ?? string.Empty;
         _nombreCompleto = usuario.NombreCompleto;
-        _password = string.Empty;
+        _enlaceActivacion = null;
         _rol = roles.FirstOrDefault() ?? Roles.Consulta;
         _coordinadorUsuarioId = usuario.CoordinadorUsuarioId?.ToString() ?? string.Empty;
         _clienteCif = string.Empty;
@@ -251,7 +265,7 @@ public partial class Usuarios : ComponentBase
 
     private async Task CrearUsuarioAsync()
     {
-        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password) || string.IsNullOrWhiteSpace(_nombreCompleto))
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_nombreCompleto))
         {
             _mensajeErrorFormulario = "Correo, nombre y contraseña son obligatorios.";
             return;
@@ -278,14 +292,19 @@ public partial class Usuarios : ComponentBase
             TenantId = tenantId,
             CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null,
             ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null,
-            // La contraseña que acaba de escribir el Administrador es
-            // temporal, pensada para entregarse fuera de banda — se obliga
-            // a cambiarla en el primer inicio de sesión real del usuario
-            // (ver CambiarContrasena.razor y el guard en MainLayout).
-            DebeCambiarContrasena = true
+            // Nadie más que el propio usuario llega a conocer su contraseña:
+            // la cuenta nace SIN ninguna y él la establece desde el enlace de
+            // activación. Por eso DebeCambiarContrasena queda en false — ya no
+            // hay una contraseña ajena que haya que obligar a sustituir, que
+            // era todo el sentido de esa marca.
+            DebeCambiarContrasena = false
         };
 
-        var resultado = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.CreateAsync(usuario, _password));
+        // Sin contraseña: CreateAsync(usuario) a secas. Antes se creaba con la
+        // que escribía el Administrador y se le enviaba EN CLARO en el cuerpo
+        // del correo — una credencial válida, sin caducidad propia, que queda
+        // en dos buzones para siempre y que además el Administrador conocía.
+        var resultado = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.CreateAsync(usuario));
         if (!resultado.Succeeded)
         {
             _mensajeErrorFormulario = string.Join(" ", resultado.Errors.Select(e => e.Description));
@@ -294,36 +313,68 @@ public partial class Usuarios : ComponentBase
 
         await PuertaAccesoDatos.EjecutarAsync(() => UserManager.AddToRoleAsync(usuario, _rol));
 
+        _enlaceActivacion = await GenerarEnlaceActivacionAsync(usuario);
+
         ToastService.Mostrar("Usuario creado correctamente.", TonoToast.Exito);
-        await EnviarCorreoBienvenidaAsync(usuario.Id, _email, _nombreCompleto, _password);
+        await EnviarCorreoActivacionAsync(usuario.Id, _email, _nombreCompleto, _enlaceActivacion);
         _drawerVisible = false;
         await CargarAsync();
     }
 
     /// <summary>
-    /// Best-effort (Issue #2): un fallo de envío no debe deshacer el alta,
-    /// que ya se guardó. La contraseña que se envía es la temporal que
-    /// acaba de escribir el Administrador — <see cref="ApplicationUser.DebeCambiarContrasena"/>
-    /// ya obliga a cambiarla en el primer inicio de sesión real.
+    /// Token de un solo uso de Identity —el mismo <c>DataProtectorTokenProvider</c>
+    /// que usa "olvidé mi contraseña"— sobre la página que ya sabe consumirlo.
+    /// No se inventa un mecanismo nuevo: el que hay ya es de un solo uso,
+    /// caduca, y está probado.
     /// </summary>
-    private async Task EnviarCorreoBienvenidaAsync(Guid usuarioId, string email, string nombreCompleto, string contrasenaTemporal)
+    private async Task<string> GenerarEnlaceActivacionAsync(ApplicationUser usuario)
     {
-        var urlAcceso = NavigationManager.BaseUri.TrimEnd('/');
+        var token = await PuertaAccesoDatos.EjecutarAsync(
+            () => UserManager.GeneratePasswordResetTokenAsync(usuario));
+        var tokenCodificado = WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(token));
 
+        return NavigationManager
+            .ToAbsoluteUri($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={tokenCodificado}")
+            .ToString();
+    }
+
+    /// <summary>
+    /// El correo lleva un ENLACE de activación, nunca una contraseña.
+    ///
+    /// <para>
+    /// Antes viajaba en el cuerpo la contraseña temporal que acababa de
+    /// escribir el Administrador: una credencial válida, sin caducidad propia,
+    /// que quedaba almacenada en dos buzones indefinidamente y que además una
+    /// segunda persona conocía. El correo no es un canal para credenciales —
+    /// se reenvía, se archiva, se sincroniza y sobrevive a la cuenta.
+    /// </para>
+    ///
+    /// <para>
+    /// El enlace es de un solo uso y caduca (<c>DataProtectorTokenProvider</c>,
+    /// con la vigencia configurada en <c>AddInfrastructure</c>), así que un
+    /// correo viejo no sirve para entrar. Y si nunca llega, el Administrador
+    /// tiene el mismo enlace en pantalla para entregarlo por otra vía, en vez
+    /// de tener que dar de alta a la persona otra vez.
+    /// </para>
+    ///
+    /// <para>
+    /// Best-effort (Issue #2): un fallo de envío no deshace el alta, que ya se
+    /// guardó — y ahora además no deja al usuario sin salida, porque el enlace
+    /// sigue visible para quien acaba de crearlo.
+    /// </para>
+    /// </summary>
+    private async Task EnviarCorreoActivacionAsync(Guid usuarioId, string email, string nombreCompleto, string enlaceActivacion)
+    {
         var cuerpo = $"""
             <p>Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)},</p>
-            <p>Se ha creado tu acceso a {Marca.Nombre}:</p>
-            <ul>
-                <li>Correo: {System.Net.WebUtility.HtmlEncode(email)}</li>
-                <li>Contraseña temporal: {System.Net.WebUtility.HtmlEncode(contrasenaTemporal)}</li>
-            </ul>
-            <p>Se te pedirá cambiarla en tu primer inicio de sesión.</p>
-            <p><a href="{System.Net.WebUtility.HtmlEncode(urlAcceso)}">Entrar a {Marca.Nombre}</a></p>
+            <p>Se ha creado tu acceso a {Marca.Nombre}. Para entrar, establece tu contraseña:</p>
+            <p><a href="{System.Net.WebUtility.HtmlEncode(enlaceActivacion)}">Establecer mi contraseña</a></p>
+            <p>El enlace caduca en {MinutosCaducidadActivacion} minutos y solo puede usarse una vez. Si caduca, pide a quien te dio de alta que te envíe uno nuevo.</p>
             """;
 
-        var resultado = await EmailService.EnviarAsync(email, $"Tu acceso a {Marca.Nombre}", cuerpo);
+        var resultado = await EmailService.EnviarAsync(email, $"Activa tu acceso a {Marca.Nombre}", cuerpo);
         if (resultado.EsFallido)
-            Logger.LogWarning("No se pudo enviar el correo de bienvenida a {UsuarioId}.", usuarioId);
+            Logger.LogWarning("No se pudo enviar el correo de activación a {UsuarioId}.", usuarioId);
     }
 
     private async Task EditarUsuarioAsync(Guid id)
