@@ -51,6 +51,14 @@ public class ProcesadorAnalisisDocumentoHostedService(
     private static readonly TimeSpan IntervaloSondeo = TimeSpan.FromSeconds(5);
 
     /// <summary>
+    /// Máximo de trabajos que se procesan de un mismo tenant antes de pasar
+    /// al siguiente dentro del mismo tick — ver el comentario de
+    /// <see cref="ProcesarPendientesDelTenantAsync"/> sobre por qué hace
+    /// falta un tope.
+    /// </summary>
+    private const int LoteMaximoPorTenant = 20;
+
+    /// <summary>
     /// Cuánto puede llevar un trabajo en "Procesando" antes de asumir que el
     /// proceso que lo reclamó se cayó o se redesplegó a mitad de análisis.
     /// Generoso a propósito: los análisis IA tardan segundos, no minutos, así
@@ -95,11 +103,14 @@ public class ProcesadorAnalisisDocumentoHostedService(
             try
             {
                 // Elección de líder entre réplicas (P3-30 de docs/business/MATURITY_REVIEW.md):
-                // sin bloqueo de fila en ObtenerSiguientePendienteAsync, dos
-                // réplicas sondeando a la vez podrían tomar el mismo
-                // TrabajoAnalisisDocumento y analizarlo dos veces. Solo la
-                // que gana el advisory lock sondea este tick; las demás lo
-                // saltan y lo vuelven a intentar en el siguiente.
+                // solo la que gana el advisory lock sondea este tick; las
+                // demás lo saltan y lo vuelven a intentar en el siguiente. No
+                // es la única exclusión: ReclamarSiguientePendienteAsync
+                // reclama con FOR UPDATE SKIP LOCKED, así que aunque el
+                // advisory lock se pierda a mitad de un lote (la conexión que
+                // lo sostiene cae) una segunda réplica que gane el liderazgo
+                // no puede reclamar un TrabajoAnalisisDocumento que esta ya
+                // tiene en curso.
                 await eleccionLider.IntentarEjecutarComoLiderAsync(
                     "procesador-analisis-documento", SondearTodosLosTenantsAsync, stoppingToken);
             }
@@ -238,23 +249,36 @@ public class ProcesadorAnalisisDocumentoHostedService(
         // (Application) para el porqué y el aislamiento por ámbito.
         using var seguimiento = new SeguimientoReintentosAnalisisIa(alertaOperativa);
 
-        while (!stoppingToken.IsCancellationRequested)
+        // Tope de lote por tenant y por tick (P0 de la auditoría de colas,
+        // 2026-08-30): sin esto, este bucle no salía hasta dejar la cola del
+        // tenant en 0 — un tenant con ingesta continua monopolizaba el único
+        // sondeo (elección de líder = un consumidor global) y los tenants
+        // siguientes en SondearTodosLosTenantsAsync podían quedar bloqueados
+        // indefinidamente. Con el tope, el resto de tenantsActivos se atiende
+        // en el mismo tick tras este; lo que quede pendiente de este tenant
+        // sigue ahí (ordenado por CreadoEnUtc) para el siguiente tick, 5 s
+        // después — no se pierde nada, solo se reparte.
+        var procesadosEnEsteTick = 0;
+
+        while (!stoppingToken.IsCancellationRequested && procesadosEnEsteTick < LoteMaximoPorTenant)
         {
             using var ambito = ambitoFactory.CreateScope();
             using var _ = AmbitoTenantExplicito.Establecer(tenantId);
 
             var repositorio = ambito.ServiceProvider.GetRequiredService<ITrabajoAnalisisDocumentoRepository>();
-            var trabajo = await repositorio.ObtenerSiguientePendienteAsync(stoppingToken);
+
+            // Reclamo atómico (FOR UPDATE SKIP LOCKED + marcado "Procesando"
+            // en la misma transacción) — cierra la ventana que dejaba
+            // ObtenerSiguientePendienteAsync + MarcarEnProceso + SaveChanges
+            // por separado: si el advisory lock de elección de líder se
+            // pierde a mitad de un lote (la conexión que lo sostiene cae),
+            // una segunda réplica que gane el liderazgo ya no puede reclamar
+            // el mismo trabajo que esta tiene en curso.
+            var trabajo = await repositorio.ReclamarSiguientePendienteAsync(stoppingToken);
             if (trabajo is null) return;
 
+            procesadosEnEsteTick++;
             seguimiento.AlEmpezarIntento(trabajo.Id);
-
-            // Se marca "Procesando" y se guarda antes de ejecutar el análisis
-            // — si el proceso se cae durante el análisis, el trabajo queda
-            // visible como estancado (RecuperarEstancadosAsync lo retoma en
-            // el próximo sondeo) en vez de perderse.
-            trabajo.MarcarEnProceso();
-            await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
 
             try
             {
@@ -267,9 +291,15 @@ public class ProcesadorAnalisisDocumentoHostedService(
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                // Apagado normal de la aplicación: se deja "Procesando" tal
-                // cual, sin contar como fallo — RecuperarEstancadosAsync lo
-                // retoma pasado el umbral en el próximo arranque.
+                // Apagado normal de la aplicación: se devuelve a "Pendiente"
+                // de inmediato en vez de dejarlo en "Procesando" quince
+                // minutos hasta que RecuperarEstancadosAsync lo note en el
+                // próximo arranque — un redeploy rutinario no debe costar ese
+                // hueco muerto. CancellationToken.None a propósito: guardar
+                // esto debe ocurrir aunque la cancelación ya esté pedida,
+                // igual que el unlock de EleccionLiderPostgresService.
+                trabajo.DevolverAPendienteTrasCancelacion();
+                await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(CancellationToken.None);
                 throw;
             }
             catch (Exception ex)

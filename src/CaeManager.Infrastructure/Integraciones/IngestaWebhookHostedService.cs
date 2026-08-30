@@ -26,6 +26,12 @@ public class IngestaWebhookHostedService(
 {
     private static readonly TimeSpan IntervaloSondeo = TimeSpan.FromSeconds(10);
 
+    /// <summary>Mismo umbral que <c>ProcesadorAnalisisDocumentoHostedService.UmbralEstancado</c> — la ingesta de Graph es más rápida que un análisis IA, pero un proceso caído a mitad de ingesta deja el evento igual de atascado.</summary>
+    private static readonly TimeSpan UmbralEstancado = TimeSpan.FromMinutes(15);
+
+    /// <summary>Máximo de eventos que se procesan de un mismo tenant antes de pasar al siguiente dentro del mismo tick — ver el comentario del mismo nombre en <c>ProcesadorAnalisisDocumentoHostedService</c>.</summary>
+    private const int LoteMaximoPorTenant = 50;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var temporizador = new PeriodicTimer(IntervaloSondeo);
@@ -62,7 +68,28 @@ public class IngestaWebhookHostedService(
         foreach (var tenantId in tenantsActivos)
         {
             stoppingToken.ThrowIfCancellationRequested();
-            await ProcesarPendientesDelTenantAsync(tenantId, stoppingToken);
+
+            // Aislado igual que en ProcesadorAnalisisDocumentoHostedService:
+            // sin este try/catch, una excepción en el tenant k (p. ej. Graph
+            // devolviendo un error persistente para su conexión) abortaba
+            // este foreach entero y dejaba sin procesar a k+1..N — como el
+            // orden de tenantsActivos es estable, el mismo tenant volvía a
+            // fallar en el mismo punto en cada tick y bloqueaba indefinidamente
+            // a los mismos siguientes.
+            try
+            {
+                await ProcesarPendientesDelTenantAsync(tenantId, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Falló el sondeo de la cola de ingesta de webhooks del tenant {TenantId}; se continúa con el resto de tenants en este tick.",
+                    tenantId);
+            }
         }
     }
 
@@ -79,25 +106,52 @@ public class IngestaWebhookHostedService(
                 return;
         }
 
+        await RecuperarEstancadosAsync(tenantId, stoppingToken);
+
         var huboActividad = false;
+        var procesadosEnEsteTick = 0;
         try
         {
-            while (!stoppingToken.IsCancellationRequested)
+            while (!stoppingToken.IsCancellationRequested && procesadosEnEsteTick < LoteMaximoPorTenant)
             {
                 using var ambito = ambitoFactory.CreateScope();
                 using var _ = AmbitoTenantExplicito.Establecer(tenantId);
 
                 var eventoRepositorio = ambito.ServiceProvider.GetRequiredService<IEventoWebhookRepository>();
-                var evento = await eventoRepositorio.ObtenerSiguientePendienteAsync(ProveedorIntegracion.Microsoft365, stoppingToken);
+
+                // Reclamo atómico (FOR UPDATE SKIP LOCKED + "Procesando" en la
+                // misma transacción) — ver el comentario de
+                // IEventoWebhookRepository.ReclamarSiguientePendienteAsync.
+                var evento = await eventoRepositorio.ReclamarSiguientePendienteAsync(ProveedorIntegracion.Microsoft365, stoppingToken);
                 if (evento is null) break;
 
+                procesadosEnEsteTick++;
                 huboActividad = true;
 
                 var ingesta = ambito.ServiceProvider.GetRequiredService<IngestaWebhookService>();
-                await ingesta.ProcesarAsync(evento, stoppingToken);
+
+                try
+                {
+                    await ingesta.ProcesarAsync(evento, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    // Apagado normal: se devuelve a Pendiente de inmediato en
+                    // vez de dejarlo en "Procesando" hasta que
+                    // RecuperarEstancadosAsync lo note en el próximo arranque
+                    // — CancellationToken.None porque esto debe guardarse
+                    // aunque la cancelación ya esté pedida.
+                    evento.DevolverAPendienteTrasCancelacion();
+                    await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(CancellationToken.None);
+                    throw;
+                }
 
                 await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
             }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
@@ -111,6 +165,27 @@ public class IngestaWebhookHostedService(
         // de Automatizaciones, solo ruido en la fecha.
         if (huboActividad)
             await RegistrarEjecucionAsync(tenantId, exitosa: true, stoppingToken);
+    }
+
+    private async Task RecuperarEstancadosAsync(Guid tenantId, CancellationToken stoppingToken)
+    {
+        using var ambito = ambitoFactory.CreateScope();
+        using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+
+        var repositorio = ambito.ServiceProvider.GetRequiredService<IEventoWebhookRepository>();
+        var estancados = await repositorio.ObtenerEstancadosAsync(ProveedorIntegracion.Microsoft365, UmbralEstancado, stoppingToken);
+        if (estancados.Count == 0) return;
+
+        var ahora = DateTime.UtcNow;
+        foreach (var evento in estancados)
+        {
+            logger.LogWarning(
+                "Evento de webhook {EventoId} (tenant {TenantId}) llevaba más de {Umbral} en \"Procesando\" — se recupera.",
+                evento.Id, tenantId, UmbralEstancado);
+            evento.RecuperarSiEstancado(UmbralEstancado, ahora);
+        }
+
+        await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
     }
 
     private async Task RegistrarEjecucionAsync(Guid tenantId, bool exitosa, CancellationToken stoppingToken)

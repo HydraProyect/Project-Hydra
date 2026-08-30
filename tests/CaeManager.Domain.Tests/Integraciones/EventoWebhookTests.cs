@@ -11,7 +11,7 @@ public class EventoWebhookTests
     {
         var evento = new EventoWebhook(Guid.NewGuid(), "{\"value\":[]}");
 
-        evento.Procesado.Should().BeFalse();
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
         evento.Intentos.Should().Be(0);
         evento.PayloadCrudo.Should().Be("{\"value\":[]}");
     }
@@ -25,6 +25,18 @@ public class EventoWebhookTests
     }
 
     [Fact]
+    public void MarcarEnProceso_lo_marca_procesando_y_limpia_el_siguiente_intento()
+    {
+        var evento = new EventoWebhook(Guid.NewGuid(), "{}");
+        evento.RegistrarFallo("fallo temporal");
+
+        evento.MarcarEnProceso();
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Procesando);
+        evento.SiguienteIntentoEnUtc.Should().BeNull();
+    }
+
+    [Fact]
     public void MarcarProcesado_lo_marca_correcto_y_limpia_el_error()
     {
         var evento = new EventoWebhook(Guid.NewGuid(), "{}");
@@ -32,31 +44,56 @@ public class EventoWebhookTests
 
         evento.MarcarProcesado();
 
-        evento.Procesado.Should().BeTrue();
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
         evento.ErrorProcesado.Should().BeNull();
     }
 
     [Fact]
-    public void RegistrarFallo_incrementa_intentos_sin_agotar_el_maximo()
+    public void RegistrarFallo_incrementa_intentos_sin_agotar_el_maximo_y_fija_backoff()
     {
         var evento = new EventoWebhook(Guid.NewGuid(), "{}");
+        var antesDeFallar = DateTime.UtcNow;
 
         evento.RegistrarFallo("timeout");
 
         evento.Intentos.Should().Be(1);
         evento.ErrorProcesado.Should().Be("timeout");
-        evento.Procesado.Should().BeFalse();
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.SiguienteIntentoEnUtc.Should().NotBeNull().And.BeAfter(antesDeFallar);
     }
 
     [Fact]
-    public void RegistrarFallo_se_da_por_perdido_tras_el_maximo_de_intentos()
+    public void RegistrarFallo_se_da_por_perdido_tras_el_maximo_de_intentos_sin_dejar_backoff()
     {
         var evento = new EventoWebhook(Guid.NewGuid(), "{}");
 
         for (var i = 0; i < EventoWebhook.MaximoIntentos; i++)
             evento.RegistrarFallo("fallo persistente");
 
-        evento.Procesado.Should().BeTrue();
+        evento.Estado.Should().Be(EstadoEventoWebhook.DescartadoDefinitivo);
         evento.Intentos.Should().Be(EventoWebhook.MaximoIntentos);
+        evento.SiguienteIntentoEnUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public void RecuperarSiEstancado_no_hace_nada_si_no_esta_procesando()
+    {
+        var evento = new EventoWebhook(Guid.NewGuid(), "{}");
+
+        evento.RecuperarSiEstancado(TimeSpan.Zero, DateTime.UtcNow);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+    }
+
+    [Fact]
+    public void RecuperarSiEstancado_devuelve_a_pendiente_un_procesando_por_encima_del_umbral()
+    {
+        var evento = new EventoWebhook(Guid.NewGuid(), "{}");
+        evento.MarcarEnProceso();
+
+        evento.RecuperarSiEstancado(TimeSpan.Zero, DateTime.UtcNow.AddMilliseconds(1));
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.Intentos.Should().Be(1, "recuperarse cuenta como un intento fallido más");
     }
 }

@@ -91,13 +91,16 @@ public class ProcesadorAnalisisDocumentoHostedServiceAislamientoTests : IAsyncLi
             // El primer tick de ExecuteAsync corre de inmediato (el do-while
             // ejecuta el cuerpo antes de esperar al PeriodicTimer de 5 s), así
             // que no hace falta esperar ningún intervalo real. Se sondea hasta
-            // que el tenant sano acumule dos llamadas a
-            // ObtenerSiguientePendienteAsync: una desde MedirProfundidadColaAsync
-            // (que corre antes de procesar) y otra desde el bucle de
-            // ProcesarPendientesDelTenantAsync — la prueba de que AMBOS bucles
-            // lo alcanzaron en el mismo tick que el tenant que falla.
+            // que el tenant sano acumule una llamada a
+            // ObtenerSiguientePendienteAsync (MedirProfundidadColaAsync, que
+            // corre antes de procesar, sigue usando la lectura de solo
+            // observación) y una a ReclamarSiguientePendienteAsync (el reclamo
+            // atómico del bucle de ProcesarPendientesDelTenantAsync) — la
+            // prueba de que AMBOS bucles lo alcanzaron en el mismo tick que el
+            // tenant que falla.
             var limite = DateTime.UtcNow.AddSeconds(10);
-            while (repositorio.LlamadasSiguientePendiente(tenantSano.Id) < 2 && DateTime.UtcNow < limite)
+            while ((repositorio.LlamadasObtener(tenantSano.Id) < 1 || repositorio.LlamadasReclamar(tenantSano.Id) < 1)
+                   && DateTime.UtcNow < limite)
                 await Task.Delay(50);
         }
         finally
@@ -107,29 +110,34 @@ public class ProcesadorAnalisisDocumentoHostedServiceAislamientoTests : IAsyncLi
 
         // tenantQueFalla: ContarActivosAsync revienta dentro de
         // MedirProfundidadColaAsync, así que esa misma iteración nunca llega a
-        // llamar ObtenerSiguientePendienteAsync ahí (se corta antes) — 1 sola
-        // llamada, la de ProcesarPendientesDelTenantAsync, que también
-        // revienta y que antes del fix se propagaba fuera de
-        // SondearTodosLosTenantsAsync.
+        // llamar ObtenerSiguientePendienteAsync ahí (se corta antes) — cero
+        // llamadas a Obtener, y una a Reclamar (la de
+        // ProcesarPendientesDelTenantAsync, que también revienta y que antes
+        // del fix se propagaba fuera de SondearTodosLosTenantsAsync).
         repositorio.LlamadasContarActivos(tenantQueFalla.Id).Should().Be(1,
             "MedirProfundidadColaAsync debe intentar este tenant aunque falle");
-        repositorio.LlamadasSiguientePendiente(tenantQueFalla.Id).Should().Be(1,
+        repositorio.LlamadasObtener(tenantQueFalla.Id).Should().Be(0,
+            "ContarActivosAsync revienta antes de llegar a la lectura de observación");
+        repositorio.LlamadasReclamar(tenantQueFalla.Id).Should().Be(1,
             "ProcesarPendientesDelTenantAsync debe intentarse para este tenant en el mismo tick");
 
-        // tenantSano: ambas llamadas de Medir tienen éxito, y las dos
-        // llamadas a ObtenerSiguientePendienteAsync (Medir + Procesar) deben
-        // producirse igual, sin importar si tenantQueFalla se procesó antes o
-        // después en el listado — esa es la propiedad que el fix garantiza.
+        // tenantSano: Medir y Procesar tienen éxito ambos, sin importar si
+        // tenantQueFalla se procesó antes o después en el listado — esa es la
+        // propiedad que el fix garantiza.
         repositorio.LlamadasContarActivos(tenantSano.Id).Should().Be(1);
-        repositorio.LlamadasSiguientePendiente(tenantSano.Id).Should().Be(2);
+        repositorio.LlamadasObtener(tenantSano.Id).Should().Be(1);
+        repositorio.LlamadasReclamar(tenantSano.Id).Should().Be(1);
     }
 
     private sealed class RepositorioFalsoConFalloPorTenant(Guid tenantQueFalla) : ITrabajoAnalisisDocumentoRepository
     {
-        private readonly ConcurrentDictionary<Guid, int> _llamadasSiguientePendiente = new();
+        private readonly ConcurrentDictionary<Guid, int> _llamadasObtener = new();
+        private readonly ConcurrentDictionary<Guid, int> _llamadasReclamar = new();
         private readonly ConcurrentDictionary<Guid, int> _llamadasContarActivos = new();
 
-        public int LlamadasSiguientePendiente(Guid tenantId) => _llamadasSiguientePendiente.GetValueOrDefault(tenantId);
+        public int LlamadasObtener(Guid tenantId) => _llamadasObtener.GetValueOrDefault(tenantId);
+
+        public int LlamadasReclamar(Guid tenantId) => _llamadasReclamar.GetValueOrDefault(tenantId);
 
         public int LlamadasContarActivos(Guid tenantId) => _llamadasContarActivos.GetValueOrDefault(tenantId);
 
@@ -144,7 +152,18 @@ public class ProcesadorAnalisisDocumentoHostedServiceAislamientoTests : IAsyncLi
         public Task<TrabajoAnalisisDocumento?> ObtenerSiguientePendienteAsync(CancellationToken cancellationToken = default)
         {
             var tenantId = TenantActual;
-            _llamadasSiguientePendiente.AddOrUpdate(tenantId, 1, (_, n) => n + 1);
+            _llamadasObtener.AddOrUpdate(tenantId, 1, (_, n) => n + 1);
+
+            if (tenantId == tenantQueFalla)
+                throw new InvalidOperationException("Fallo simulado del tenant bajo prueba.");
+
+            return Task.FromResult<TrabajoAnalisisDocumento?>(null);
+        }
+
+        public Task<TrabajoAnalisisDocumento?> ReclamarSiguientePendienteAsync(CancellationToken cancellationToken = default)
+        {
+            var tenantId = TenantActual;
+            _llamadasReclamar.AddOrUpdate(tenantId, 1, (_, n) => n + 1);
 
             if (tenantId == tenantQueFalla)
                 throw new InvalidOperationException("Fallo simulado del tenant bajo prueba.");

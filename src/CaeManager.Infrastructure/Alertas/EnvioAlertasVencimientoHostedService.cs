@@ -94,7 +94,25 @@ public class EnvioAlertasVencimientoHostedService(
         foreach (var tenantId in tenantsActivos)
         {
             stoppingToken.ThrowIfCancellationRequested();
-            await ProcesarTenantAsync(tenantId, stoppingToken);
+
+            // Aislado igual que ProcesadorAnalisisDocumentoHostedService: sin
+            // este try/catch, un tenant sin destinatarios válidos o con un
+            // fallo persistente de IEmailService abortaba este foreach
+            // entero y dejaba sin resumen diario a los tenants siguientes.
+            try
+            {
+                await ProcesarTenantAsync(tenantId, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Falló el envío del resumen de alertas de vencimiento del tenant {TenantId}; se continúa con el resto de tenants en este ciclo.",
+                    tenantId);
+            }
         }
     }
 
@@ -109,8 +127,13 @@ public class EnvioAlertasVencimientoHostedService(
 
         try
         {
-            await EjecutarEnvioAsync(ambito, tenantId, stoppingToken);
-            await registroAutomatizaciones.RegistrarEjecucionAsync(CatalogoAutomatizaciones.AlertasVencimientoDiarias, exitosa: true, stoppingToken);
+            // Éxito solo si TODOS los destinatarios recibieron el resumen —
+            // antes, un fallo de envío individual solo dejaba un warning en
+            // el log y el ciclo se registraba "exitosa" igual, ocultando el
+            // fallo en la pantalla de Automatizaciones.
+            var huboFallosDeEnvio = await EjecutarEnvioAsync(ambito, tenantId, stoppingToken);
+            await registroAutomatizaciones.RegistrarEjecucionAsync(
+                CatalogoAutomatizaciones.AlertasVencimientoDiarias, exitosa: !huboFallosDeEnvio, stoppingToken);
         }
         catch
         {
@@ -119,7 +142,8 @@ public class EnvioAlertasVencimientoHostedService(
         }
     }
 
-    private async Task EjecutarEnvioAsync(IServiceScope ambito, Guid tenantId, CancellationToken stoppingToken)
+    /// <returns><c>true</c> si al menos un destinatario no recibió el correo.</returns>
+    private async Task<bool> EjecutarEnvioAsync(IServiceScope ambito, Guid tenantId, CancellationToken stoppingToken)
     {
         var dbContext = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var alcanceDatos = ambito.ServiceProvider.GetRequiredService<IAlcanceDatosService>();
@@ -133,7 +157,7 @@ public class EnvioAlertasVencimientoHostedService(
             dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, resolverClientePrincipal, alcanceDatos, documentosFaltantesService);
 
         var alertas = await handler.CalcularAsync(trabajadorIdsVisibles: null, centroIdsVisibles: null, stoppingToken);
-        if (alertas.Count == 0) return;
+        if (alertas.Count == 0) return false;
 
         var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();
         var administradores = await directorio.ObtenerVisiblesEnRolAsync(Roles.Administrador, stoppingToken);
@@ -144,19 +168,25 @@ public class EnvioAlertasVencimientoHostedService(
             .DistinctBy(u => u.Id)
             .ToList();
 
-        if (destinatarios.Count == 0) return;
+        if (destinatarios.Count == 0) return false;
 
         var emailService = ambito.ServiceProvider.GetRequiredService<IEmailService>();
         var (asunto, cuerpo) = ConstruirCorreo(alertas, opciones.Value.UrlBase);
 
+        var huboFallos = false;
         foreach (var destinatario in destinatarios)
         {
             var resultado = await emailService.EnviarAsync(destinatario.Email!, asunto, cuerpo, stoppingToken);
             if (resultado.EsFallido)
+            {
+                huboFallos = true;
                 logger.LogWarning(
                     "No se pudo enviar el resumen de alertas de vencimiento a {Email} (tenant {TenantId}): {Error}",
                     destinatario.Email, tenantId, resultado.Error.Mensaje);
+            }
         }
+
+        return huboFallos;
     }
 
     private static (string Asunto, string CuerpoHtml) ConstruirCorreo(IReadOnlyList<AlertaDto> alertas, string? urlBase)

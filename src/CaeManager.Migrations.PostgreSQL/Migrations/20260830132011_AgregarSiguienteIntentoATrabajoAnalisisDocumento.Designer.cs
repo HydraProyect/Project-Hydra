@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260830132011_AgregarSiguienteIntentoATrabajoAnalisisDocumento")]
+    partial class AgregarSiguienteIntentoATrabajoAnalisisDocumento
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4239,14 +4242,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("FechaRecepcionUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("IniciadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Intentos")
@@ -4256,8 +4252,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<DateTime?>("SiguienteIntentoEnUtc")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<bool>("Procesado")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -4266,7 +4262,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("ConexionIntegracionId");
 
-                    b.HasIndex("TenantId", "Estado");
+                    b.HasIndex("TenantId", "Procesado");
 
                     b.ToTable("EventosWebhook", (string)null);
                 });

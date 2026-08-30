@@ -58,7 +58,7 @@ public class IngestaWebhookServiceTests
 
         await servicio.ProcesarAsync(evento, CancellationToken.None);
 
-        evento.Procesado.Should().BeTrue();
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
         evento.ErrorProcesado.Should().BeNull();
         conversacionRepositorio.Conversaciones.Should().ContainSingle();
         var conversacion = conversacionRepositorio.Conversaciones[0];
@@ -118,7 +118,7 @@ public class IngestaWebhookServiceTests
 
         await servicio.ProcesarAsync(evento, CancellationToken.None);
 
-        evento.Procesado.Should().BeTrue();
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
         evento.ErrorProcesado.Should().BeNull();
         conversacionExistente.Mensajes.Should().ContainSingle();
     }
@@ -137,7 +137,7 @@ public class IngestaWebhookServiceTests
 
         await servicio.ProcesarAsync(evento, CancellationToken.None);
 
-        evento.Procesado.Should().BeTrue();
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
         conversacionRepositorio.Conversaciones.Should().BeEmpty();
     }
 
@@ -215,7 +215,7 @@ public class IngestaWebhookServiceTests
 
         await servicio.ProcesarAsync(evento, CancellationToken.None);
 
-        evento.Procesado.Should().BeFalse();
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
         evento.Intentos.Should().Be(1);
         evento.ErrorProcesado.Should().NotBeNullOrEmpty();
     }
