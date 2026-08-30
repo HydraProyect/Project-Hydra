@@ -1042,3 +1042,34 @@ jobs:
       - name: Verificar licencias
         run: bash scripts/verificar-licencias-nuget.sh lista-paquetes.txt
 
+  paquetes-vulnerables:
+    name: Paquetes NuGet vulnerables
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      # --format json omite la clave "frameworks" en un proyecto cuando no
+      # tiene paquetes vulnerables, y solo la añade —con el paquete y su
+      # advisoryurl— cuando hay algo que reportar (comprobado contra el árbol
+      # real y contra un JSON sintético con una vulnerabilidad inventada). Un
+      # grep sobre el texto en lenguaje natural ("no tiene paquetes
+      # vulnerables" / "has no vulnerable packages") depende del locale del
+      # runner; la forma del JSON no.
+      - name: Comprobar vulnerabilidades conocidas (NuGet Advisory Database)
+        run: |
+          dotnet list CaeManager.slnx package --vulnerable --include-transitive --format json > vulnerables.json
+          jq '.' vulnerables.json
+          if jq -e '.projects[] | select(.frameworks != null)' vulnerables.json > /dev/null; then
+            echo "::error::Hay paquetes NuGet con vulnerabilidades conocidas. Ver el JSON de arriba (advisoryurl por paquete)."
+            exit 1
+          fi
+          echo "Sin vulnerabilidades conocidas en las fuentes actuales."
+
