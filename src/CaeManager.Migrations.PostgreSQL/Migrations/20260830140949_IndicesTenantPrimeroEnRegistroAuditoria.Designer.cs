@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260830140949_IndicesTenantPrimeroEnRegistroAuditoria")]
+    partial class IndicesTenantPrimeroEnRegistroAuditoria
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4697,11 +4700,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("PropietarioTenantId", "AmbitoProyectoId");
 
+                    b.HasIndex("PropietarioTenantId", "AmbitoRelacionClienteId");
+
                     b.HasIndex("PropietarioTenantId", "AmbitoTrabajadorId");
 
                     b.HasIndex("UsuarioId", "Estado");
 
-                    b.HasIndex(new[] { "PropietarioTenantId", "AmbitoRelacionClienteId" }, "IX_AsignacionesCartera_ResponsableRelacionVigente")
+                    b.HasIndex(new[] { "AsignacionOperacionId", "AmbitoRelacionClienteId" }, "IX_AsignacionesCartera_ResponsableRelacionVigente")
                         .IsUnique()
                         .HasFilter("\"Estado\" = 'Vigente' AND \"AmbitoRelacionClienteId\" IS NOT NULL AND \"AmbitoCentroId\" IS NULL AND \"AmbitoTrabajadorId\" IS NULL AND \"AmbitoProyectoId\" IS NULL");
 
@@ -5595,10 +5600,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "TrabajadorId");
 
-                    b.HasIndex("TenantId", "ProyectoId", "TrabajadorId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ProyectosTecnicos_TenantId_ProyectoId_TrabajadorId_Activo")
-                        .HasFilter("\"FechaBaja\" IS NULL");
+                    b.HasIndex("TenantId", "ProyectoId", "TrabajadorId", "FechaAlta")
+                        .IsUnique();
 
                     b.ToTable("ProyectosTecnicos", (string)null);
                 });
@@ -6217,6 +6220,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Dni")
+                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
@@ -6273,8 +6277,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("SubcontrataId");
 
                     b.HasIndex("TenantId", "Dni")
-                        .IsUnique()
-                        .HasFilter("\"Dni\" IS NOT NULL");
+                        .IsUnique();
 
                     b.HasIndex("TenantId", "EmpresaId");
 

@@ -126,6 +126,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 new AlmacenamientoArchivosFalso(),
                 new TenantActualAmbiental { TenantId = _tenant },
                 contextoEjecucion,
+                new AlertaOperativaFalsa(),
                 NullLogger<EjecucionPurgaService>.Instance);
 
             var afectados = await servicioEjecucion.EjecutarAsync(solicitudId, _hoy);
@@ -218,6 +219,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 new AlmacenamientoArchivosFalso(),
                 new TenantActualAmbiental { TenantId = _tenant },
                 contextoEjecucion,
+                new AlertaOperativaFalsa(),
                 NullLogger<EjecucionPurgaService>.Instance);
 
             // Antes de la corrección, esto lanzaba DbUpdateException (23505)
@@ -236,6 +238,106 @@ public class EjecucionPurgaTests : IAsyncLifetime
         segundo_.Dni.Should().BeNull();
     }
 
+    /// <summary>
+    /// Siembra un Documento de Cliente ya vencido y con archivo adjunto, más
+    /// la solicitud de purga que lo alcanza, ya autorizada. Devuelve los dos
+    /// identificadores que los casos necesitan comprobar.
+    /// </summary>
+    private async Task<(Guid DocumentoId, Guid SolicitudId)> SembrarDocumentoPurgableAsync(string archivoUrl)
+    {
+        await using var contexto = CrearContexto();
+
+        var documento = Documento.DeCliente(
+            _clienteId, _tipoDocumentoId,
+            fechaEmision: _hoy.AddYears(-7),
+            fechaVencimiento: _hoy.AddYears(-6),
+            archivoUrl: archivoUrl);
+        contexto.Documentos.Add(documento);
+
+        var solicitud = new SolicitudPurga(TipoDatoPurgable.Documentos, 1, _hoy.AddYears(-5));
+        contexto.SolicitudesPurga.Add(solicitud);
+        await contexto.SaveChangesAsync();
+
+        solicitud.Programar(_hoy, _usuarioAutorizador, _hoy);
+        await contexto.SaveChangesAsync();
+
+        return (documento.Id, solicitud.Id);
+    }
+
+    [Fact]
+    public async Task Si_no_se_puede_borrar_el_archivo_el_documento_no_se_da_por_purgado()
+    {
+        // El orden anterior anonimizaba primero y borraba después: al fallar el
+        // borrado, la fila quedaba marcada como anonimizada y sin ArchivoUrl,
+        // el PDF seguía en almacenamiento y ya nada sabía qué había que borrar.
+        // Un reconocimiento médico conservado para siempre y declarado
+        // suprimido. Este caso fija que un borrado fallido deja el documento
+        // intacto y localizable, para que un reintento posterior lo alcance.
+        var (documentoId, solicitudId) = await SembrarDocumentoPurgableAsync("tenant/medico.pdf");
+
+        var alertas = new AlertaOperativaFalsa();
+        await using (var contextoEjecucion = CrearContexto())
+        {
+            var servicioEjecucion = new EjecucionPurgaService(
+                contextoEjecucion, contextoEjecucion, contextoEjecucion,
+                new SolicitudPurgaRepository(contextoEjecucion),
+                new AlmacenamientoArchivosFalso(fallaAlEliminar: true),
+                new TenantActualAmbiental { TenantId = _tenant },
+                contextoEjecucion,
+                alertas,
+                NullLogger<EjecucionPurgaService>.Instance);
+
+            var afectados = await servicioEjecucion.EjecutarAsync(solicitudId, _hoy);
+            afectados.Should().Be(0, "no se purgó nada: el archivo sigue estando");
+        }
+
+        await using var contextoVerificacion = CrearContexto();
+        var documento = await contextoVerificacion.Documentos
+            .IgnoreQueryFilters()
+            .FirstAsync(d => d.Id == documentoId);
+
+        documento.EstaAnonimizado.Should().BeFalse(
+            "declararlo purgado con su PDF todavía en almacenamiento sería conformidad falsa");
+        documento.ArchivoUrl.Should().Be("tenant/medico.pdf",
+            "sin la referencia, ningún reintento posterior podría encontrar el archivo superviviente");
+
+        alertas.Alertas.Should().ContainSingle()
+            .Which.Nivel.Should().Be(NivelAlertaOperativa.Critica,
+                "la solicitud ya quedó marcada como ejecutada, así que nadie reintentará esto solo");
+    }
+
+    [Fact]
+    public async Task Un_documento_vencido_se_anonimiza_y_pierde_su_archivo()
+    {
+        // Control positivo del caso anterior: sin él, un servicio que no
+        // purgara nunca nada también pasaría aquel.
+        var (documentoId, solicitudId) = await SembrarDocumentoPurgableAsync("tenant/medico.pdf");
+
+        var alertas = new AlertaOperativaFalsa();
+        await using (var contextoEjecucion = CrearContexto())
+        {
+            var servicioEjecucion = new EjecucionPurgaService(
+                contextoEjecucion, contextoEjecucion, contextoEjecucion,
+                new SolicitudPurgaRepository(contextoEjecucion),
+                new AlmacenamientoArchivosFalso(),
+                new TenantActualAmbiental { TenantId = _tenant },
+                contextoEjecucion,
+                alertas,
+                NullLogger<EjecucionPurgaService>.Instance);
+
+            (await servicioEjecucion.EjecutarAsync(solicitudId, _hoy)).Should().Be(1);
+        }
+
+        await using var contextoVerificacion = CrearContexto();
+        var documento = await contextoVerificacion.Documentos
+            .IgnoreQueryFilters()
+            .FirstAsync(d => d.Id == documentoId);
+
+        documento.EstaAnonimizado.Should().BeTrue();
+        documento.ArchivoUrl.Should().BeNull();
+        alertas.Alertas.Should().BeEmpty();
+    }
+
     private CaeManagerDbContext CrearContexto()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
@@ -247,7 +349,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
     }
 
-    private sealed class AlmacenamientoArchivosFalso : IFileStorageService
+    private sealed class AlmacenamientoArchivosFalso(bool fallaAlEliminar = false) : IFileStorageService
     {
         public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
@@ -256,6 +358,26 @@ public class EjecucionPurgaTests : IAsyncLifetime
             throw new NotSupportedException();
 
         public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+            fallaAlEliminar
+                ? throw new IOException("El almacenamiento no está disponible.")
+                : Task.CompletedTask;
+    }
+
+    private sealed class AlertaOperativaFalsa : IAlertaOperativa
+    {
+        public List<(string Mensaje, NivelAlertaOperativa Nivel)> Alertas { get; } = [];
+
+        public void Emitir(string mensaje, NivelAlertaOperativa nivel) => Alertas.Add((mensaje, nivel));
+
+        public void CapturarExcepcion(Exception excepcion) { }
+
+        public void DejarMigaDePan(string mensaje) { }
+
+        public IDisposable IniciarAmbitoDeCaptura() => new AmbitoVacio();
+
+        private sealed class AmbitoVacio : IDisposable
+        {
+            public void Dispose() { }
+        }
     }
 }
