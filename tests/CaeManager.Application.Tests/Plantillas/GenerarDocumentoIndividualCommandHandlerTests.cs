@@ -50,10 +50,10 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         public AsignacionRepositorioFalso Asignaciones { get; } = new();
 
         public GenerarDocumentoIndividualCommandHandler CrearHandler(
-            Guid? usuarioActualId = null, IAlcanceDatosService? alcanceDatos = null) => new(
+            Guid? usuarioActualId = null, IAlcanceDatosService? alcanceDatos = null, bool sinUsuario = false) => new(
             Versiones, Plantillas, Documentos, new DocumentoGeneradoRepositorioFalso(), TiposDocumento,
             Empresas, Trabajadores, Centros, Contactos, Rellenador, Almacenamiento,
-            new CurrentUserServiceFalso(usuarioActualId ?? Guid.NewGuid()),
+            new CurrentUserServiceFalso(sinUsuario ? null : usuarioActualId ?? Guid.NewGuid()),
             alcanceDatos ?? new AlcanceDatosServiceFalso(), Asignaciones, new UnitOfWorkFalso());
     }
 
@@ -344,6 +344,32 @@ public class GenerarDocumentoIndividualCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Plantilla.TrabajadorSinAsignacionEnCentro");
+    }
+
+    /// <summary>
+    /// Auditoría de seguridad del módulo (2026-08-30): el usuario actual se
+    /// resuelve ANTES de generar/guardar el PDF — antes de este fix, un fallo
+    /// aquí llegaba después de GuardarAsync y dejaba un blob huérfano, nunca
+    /// referenciado por ningún Documento porque el fallo aborta el
+    /// SaveChangesAsync que lo habría anclado.
+    /// </summary>
+    [Fact]
+    public async Task Sin_usuario_actual_falla_antes_de_guardar_ningun_archivo()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Pérez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        Confirmar(entorno.Version, [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Campo", FuenteDatoPlantilla.Constante, "x")], Guid.NewGuid());
+        var handler = entorno.CrearHandler(sinUsuario: true);
+        var archivosGuardadosAntes = entorno.Almacenamiento.ArchivosGuardados;
+
+        var resultado = await handler.Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Plantilla.SinUsuarioActual");
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosGuardadosAntes, "no debe quedar ningún PDF huérfano en el almacenamiento");
+        entorno.Documentos.Documentos.Should().BeEmpty();
     }
 
     [Fact]

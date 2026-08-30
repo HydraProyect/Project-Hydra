@@ -90,6 +90,15 @@ public class GenerarDocumentoIndividualCommandHandler(
         if (tipoDocumento is null)
             return Fallo("Plantilla.TipoDocumentoNoEncontrado", "No encontramos el tipo de documento de esta plantilla.");
 
+        // Resuelto ANTES de generar/guardar el blob (auditoría de seguridad
+        // del módulo, 2026-08-30): un fallo aquí después de GuardarAsync
+        // dejaba un PDF huérfano en el almacenamiento — nunca referenciado
+        // por ningún Documento porque el fallo aborta el SaveChangesAsync
+        // que lo habría anclado.
+        var usuarioId = await usuarioActual.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is not { } idUsuario)
+            return Fallo("Plantilla.SinUsuarioActual", "No pudimos identificar quién genera este documento.");
+
         var trabajadorId = plantilla.AmbitoAplicacion == AmbitoAplicacion.Trabajador ? request.OwnerId : (Guid?)null;
         var empresaIdDirecta = plantilla.AmbitoAplicacion == AmbitoAplicacion.Empresa ? request.OwnerId : (Guid?)null;
         var clienteIdDirecto = plantilla.AmbitoAplicacion == AmbitoAplicacion.Cliente ? request.OwnerId : (Guid?)null;
@@ -169,10 +178,6 @@ public class GenerarDocumentoIndividualCommandHandler(
             _ => Documento.DeEmpresa(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl)
         };
         documentoRepositorio.Agregar(documento);
-
-        var usuarioId = await usuarioActual.ObtenerUsuarioActualIdAsync();
-        if (usuarioId is not { } idUsuario)
-            return Fallo("Plantilla.SinUsuarioActual", "No pudimos identificar quién genera este documento.");
 
         var datosUtilizadosJson = JsonSerializer.Serialize(
             valoresPorElemento.ToDictionary(par => par.Key.EtiquetaVisible, par => par.Value));
