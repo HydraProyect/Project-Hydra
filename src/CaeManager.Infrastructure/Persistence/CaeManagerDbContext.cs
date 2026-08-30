@@ -298,6 +298,7 @@ public class CaeManagerDbContext(
     public DbSet<CredencialIntegracion> CredencialesIntegracion => Set<CredencialIntegracion>();
     public DbSet<SuscripcionWebhook> SuscripcionesWebhook => Set<SuscripcionWebhook>();
     public DbSet<EventoWebhook> EventosWebhook => Set<EventoWebhook>();
+    public DbSet<SolicitudConexionMicrosoft365> SolicitudesConexionMicrosoft365 => Set<SolicitudConexionMicrosoft365>();
     public DbSet<LineaWhatsApp> LineasWhatsApp => Set<LineaWhatsApp>();
     IQueryable<LineaWhatsApp> IIntegracionesQueryContext.LineasWhatsApp => LineasWhatsApp;
     public DbSet<MiembroPoolLinea> MiembrosPoolLinea => Set<MiembroPoolLinea>();

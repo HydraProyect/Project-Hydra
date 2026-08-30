@@ -1,9 +1,11 @@
-using System.Security.Cryptography;
+using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Integraciones;
 using MediatR;
-using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Integraciones.Endpoints;
 
@@ -14,52 +16,74 @@ namespace CaeManager.Web.Features.Integraciones.Endpoints;
 /// código propio en vez del middleware de OpenIdConnect: aquí hace falta un
 /// refresh token de larga duración (<c>offline_access</c>) para leer/enviar
 /// correo después, no solo autenticar al usuario de Hydra una vez.
+///
+/// El "state" es un nonce de un solo uso persistido en
+/// <see cref="SolicitudConexionMicrosoft365"/> (auditoría módulo 6) — nunca
+/// un payload cifrado sin ligar a nadie: eso permitía un OAuth
+/// account-linking CSRF (un atacante autoriza su propio buzón y hace que la
+/// víctima complete el callback, conectando el buzón del atacante dentro
+/// del tenant de la víctima). RLS ya impide leer una fila de otro tenant;
+/// <see cref="SolicitudConexionMicrosoft365.EsValidaPara"/> exige además que
+/// quien completa el callback sea quien inició el flujo, y la fila se borra
+/// al consumirse.
 /// </summary>
 public static class ConectarMicrosoft365Endpoints
 {
-    private const string NombreProtector = "CaeManager.Integraciones.OAuthState.v1";
-
     public static IEndpointRouteBuilder MapConectarMicrosoft365Endpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/integraciones/conectar-microsoft365", (
-            Guid? clienteId, Guid? gestorPropietarioId, HttpContext httpContext, IMicrosoft365GraphClient graphClient,
-            IDataProtectionProvider dataProtectionProvider) =>
+        endpoints.MapGet("/integraciones/conectar-microsoft365", async (
+            Guid? clienteId, Guid? gestorPropietarioId, IMicrosoft365GraphClient graphClient,
+            IOptions<Microsoft365GraphOptions> opciones, ISolicitudConexionMicrosoft365Repository solicitudRepositorio,
+            IUnitOfWork unitOfWork, ICurrentUserService currentUser, CancellationToken cancellationToken) =>
         {
-            var protector = dataProtectionProvider.CreateProtector(NombreProtector);
-            var state = protector.Protect($"{clienteId}|{gestorPropietarioId}|{Guid.NewGuid()}");
-            var redirectUri = ConstruirRedirectUriCallback(httpContext);
+            if (string.IsNullOrWhiteSpace(opciones.Value.UrlPublicaBase))
+                return Results.Problem("La integración con Microsoft 365 no tiene configurada la URL pública de la aplicación.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
-            return Results.Redirect(graphClient.ConstruirUrlAutorizacion(redirectUri, state));
+            var usuarioId = await currentUser.ObtenerUsuarioActualIdAsync();
+            if (usuarioId is null)
+                return Results.Unauthorized();
+
+            var solicitud = new SolicitudConexionMicrosoft365(usuarioId.Value, clienteId, gestorPropietarioId, DateTime.UtcNow);
+            solicitudRepositorio.Agregar(solicitud);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            var redirectUri = ConstruirRedirectUriCallback(opciones.Value);
+            return Results.Redirect(graphClient.ConstruirUrlAutorizacion(redirectUri, solicitud.Id.ToString()));
         }).RequireAuthorization(politica => politica.RequireRole(Roles.Administrador));
 
         endpoints.MapGet("/integraciones/microsoft365-callback", async (
-            string? code, string? state, string? error, HttpContext httpContext,
-            IMicrosoft365GraphClient graphClient, IDataProtectionProvider dataProtectionProvider, IMediator mediator,
-            ILogger<Program> logger, CancellationToken cancellationToken) =>
+            string? code, string? state, string? error,
+            IMicrosoft365GraphClient graphClient, IOptions<Microsoft365GraphOptions> opciones,
+            ISolicitudConexionMicrosoft365Repository solicitudRepositorio, IUnitOfWork unitOfWork,
+            ICurrentUserService currentUser, IMediator mediator, ILogger<Program> logger, CancellationToken cancellationToken) =>
         {
-            if (!string.IsNullOrWhiteSpace(error) || string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
-                return Results.LocalRedirect("/integraciones?error=cancelado");
-
-            Guid? clienteId;
-            Guid? gestorPropietarioId;
-            try
+            if (!string.IsNullOrWhiteSpace(error) || string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state) ||
+                string.IsNullOrWhiteSpace(opciones.Value.UrlPublicaBase))
             {
-                var protector = dataProtectionProvider.CreateProtector(NombreProtector);
-                var payload = protector.Unprotect(state);
-                var partes = payload.Split('|');
-                clienteId = partes[0] == string.Empty ? null : Guid.Parse(partes[0]);
-                gestorPropietarioId = partes[1] == string.Empty ? null : Guid.Parse(partes[1]);
-            }
-            catch (CryptographicException)
-            {
-                // "state" no lo generamos nosotros o fue manipulado — mismo
-                // criterio de fallo cerrado que el resto de tokens
-                // protegidos de la app (ver ClienteActivoSeleccionado).
-                logger.LogWarning("Callback de Microsoft 365 con \"state\" inválido — descartado.");
                 return Results.LocalRedirect("/integraciones?error=cancelado");
             }
 
-            var redirectUri = ConstruirRedirectUriCallback(httpContext);
+            var usuarioId = await currentUser.ObtenerUsuarioActualIdAsync();
+            if (usuarioId is null || !Guid.TryParse(state, out var solicitudId))
+                return Results.LocalRedirect("/integraciones?error=cancelado");
+
+            var solicitud = await solicitudRepositorio.ObtenerPorIdAsync(solicitudId, cancellationToken);
+            if (solicitud is null || !solicitud.EsValidaPara(usuarioId.Value, DateTime.UtcNow))
+            {
+                logger.LogWarning("Callback de Microsoft 365 con \"state\" inválido, expirado o de otro usuario — descartado.");
+                return Results.LocalRedirect("/integraciones?error=cancelado");
+            }
+
+            var clienteId = solicitud.ClienteId;
+            var gestorPropietarioId = solicitud.GestorPropietarioId;
+
+            // Consumo de un solo uso ANTES de canjear el código: aunque el
+            // resto del flujo falle a partir de aquí, este "state" nunca
+            // vuelve a ser válido para un segundo intento.
+            solicitudRepositorio.Eliminar(solicitud);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            var redirectUri = ConstruirRedirectUriCallback(opciones.Value);
             var tokensResultado = await graphClient.IntercambiarCodigoPorTokensAsync(code, redirectUri, cancellationToken);
             if (tokensResultado.EsFallido)
                 return Results.LocalRedirect("/integraciones?error=autenticacion");
@@ -68,10 +92,9 @@ public static class ConectarMicrosoft365Endpoints
             if (buzonResultado.EsFallido)
                 return Results.LocalRedirect("/integraciones?error=autenticacion");
 
-            var notificationUrlBase = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
             var comando = new ConectarBuzonMicrosoft365Command(
                 buzonResultado.Valor, buzonResultado.Valor, clienteId,
-                tokensResultado.Valor.AccessToken, tokensResultado.Valor.RefreshToken, notificationUrlBase, gestorPropietarioId);
+                tokensResultado.Valor.AccessToken, tokensResultado.Valor.RefreshToken, opciones.Value.UrlPublicaBase, gestorPropietarioId);
 
             var resultado = await mediator.Send(comando, cancellationToken);
             return resultado.EsExitoso
@@ -82,6 +105,6 @@ public static class ConectarMicrosoft365Endpoints
         return endpoints;
     }
 
-    private static string ConstruirRedirectUriCallback(HttpContext httpContext) =>
-        $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/integraciones/microsoft365-callback";
+    private static string ConstruirRedirectUriCallback(Microsoft365GraphOptions opciones) =>
+        $"{opciones.UrlPublicaBase!.TrimEnd('/')}/integraciones/microsoft365-callback";
 }
