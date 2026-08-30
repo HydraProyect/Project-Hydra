@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 
-public record DesasignarTecnicoProyectoCommand(Guid Id, DateOnly FechaBaja) : ICommand;
+public record DesasignarTecnicoProyectoCommand(Guid Id, DateOnly FechaBaja, Guid Version = default) : ICommand;
 
 public class DesasignarTecnicoProyectoCommandValidator : AbstractValidator<DesasignarTecnicoProyectoCommand>
 {
@@ -30,6 +30,9 @@ public class DesasignarTecnicoProyectoCommandHandler(
         var proyecto = await proyectoRepositorio.ObtenerPorIdAsync(proyectoTecnico.ProyectoId, cancellationToken);
         if (proyecto is null || !await ProyectoAutorizacion.VisibleAsync(proyecto.ClienteId, alcanceDatos, cancellationToken))
             return Result.Fallo(Error.Crear("Proyecto.TecnicoNoEncontrado", "No encontramos esta asignación de técnico."));
+
+        if (ConcurrenciaOptimista.Verificar(proyectoTecnico, request.Version, "esta asignación de técnico") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         try
         {

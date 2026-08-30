@@ -32,9 +32,14 @@ public class ProyectoConfiguration : IEntityTypeConfiguration<Proyecto>
             .HasPrincipalKey(c => new { c.TenantId, c.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Compuesta con ClienteId, no solo con CentroId (auditoría Módulo 5,
+        // hueco arquitectónico): contra la clave alternativa de Centro
+        // (TenantId, Id, ClienteId), un Proyecto cuyo ClienteId no case con
+        // el del Centro es irrepresentable en la base — antes solo lo
+        // comprobaba CrearProyectoCommand.
         builder.HasOne<Centro>().WithMany()
-            .HasForeignKey(p => new { p.TenantId, p.CentroId })
-            .HasPrincipalKey(c => new { c.TenantId, c.Id })
+            .HasForeignKey(p => new { p.TenantId, p.CentroId, p.ClienteId })
+            .HasPrincipalKey(c => new { c.TenantId, c.Id, c.ClienteId })
             .OnDelete(DeleteBehavior.Restrict);
 
         // Prerequisito de la FK que ProyectoTecnico declara hacia Proyecto.

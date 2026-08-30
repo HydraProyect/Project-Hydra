@@ -6,7 +6,7 @@ using MediatR;
 
 namespace CaeManager.Application.Proyectos.Commands.CerrarProyecto;
 
-public record CerrarProyectoCommand(Guid Id, DateOnly FechaCierre) : ICommand;
+public record CerrarProyectoCommand(Guid Id, DateOnly FechaCierre, Guid Version = default) : ICommand;
 
 public class CerrarProyectoCommandValidator : AbstractValidator<CerrarProyectoCommand>
 {
@@ -24,6 +24,9 @@ public class CerrarProyectoCommandHandler(IProyectoRepository repositorio, IAlca
         var proyecto = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (proyecto is null || !await ProyectoAutorizacion.VisibleAsync(proyecto.ClienteId, alcanceDatos, cancellationToken))
             return Result.Fallo(Error.Crear("Proyecto.NoEncontrado", "El proyecto no existe o no tienes acceso."));
+
+        if (ConcurrenciaOptimista.Verificar(proyecto, request.Version, "este proyecto") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         if (!proyecto.EstaAbierto)
             return Result.Fallo(Error.Crear("Proyecto.YaCerrado", "Este proyecto ya está cerrado."));

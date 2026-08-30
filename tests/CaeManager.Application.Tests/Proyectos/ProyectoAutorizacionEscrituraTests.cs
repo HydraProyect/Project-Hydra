@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
 using CaeManager.Application.Proyectos.Commands.AsignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
@@ -167,5 +168,57 @@ public class ProyectoAutorizacionEscrituraTests
 
         resultado.EsExitoso.Should().BeTrue();
         proyecto.Nombre.Should().Be("Nombre cambiado");
+    }
+
+    // ---------- Hueco arquitectónico: concurrencia optimista ----------
+
+    [Fact]
+    public async Task Cerrar_un_proyecto_con_una_version_obsoleta_falla()
+    {
+        var clienteId = Guid.NewGuid();
+        var proyecto = CrearProyecto(clienteId);
+        var repositorio = new ProyectoRepositorioFalso();
+        repositorio.Agregar(proyecto);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new CerrarProyectoCommandHandler(repositorio, AlcanceSinAcceso(clienteId), unitOfWork);
+
+        // Cualquier Guid que no sea el vigente representa la versión que la
+        // segunda persona tenía en pantalla — mismo patrón que
+        // EditarClienteConcurrenciaTests.
+        var versionObsoleta = Guid.NewGuid();
+        versionObsoleta.Should().NotBe(proyecto.Version);
+
+        var resultado = await handler.Handle(
+            new CerrarProyectoCommand(proyecto.Id, new DateOnly(2026, 6, 1), versionObsoleta), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
+        proyecto.EstaAbierto.Should().BeTrue("el cierre con versión obsoleta no debe aplicarse");
+    }
+
+    [Fact]
+    public async Task Desasignar_un_tecnico_con_una_version_obsoleta_falla()
+    {
+        var clienteId = Guid.NewGuid();
+        var proyecto = CrearProyecto(clienteId);
+        var proyectos = new ProyectoRepositorioFalso();
+        proyectos.Agregar(proyecto);
+        var proyectoTecnico = new ProyectoTecnico(proyecto.Id, Guid.NewGuid(), new DateOnly(2026, 1, 10));
+        var proyectosTecnicos = new ProyectoTecnicoRepositorioFalso();
+        proyectosTecnicos.Agregar(proyectoTecnico);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new DesasignarTecnicoProyectoCommandHandler(
+            proyectosTecnicos, proyectos, AlcanceSinAcceso(clienteId), unitOfWork);
+
+        var versionObsoleta = Guid.NewGuid();
+        versionObsoleta.Should().NotBe(proyectoTecnico.Version);
+
+        var resultado = await handler.Handle(
+            new DesasignarTecnicoProyectoCommand(proyectoTecnico.Id, new DateOnly(2026, 2, 1), versionObsoleta),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
+        proyectoTecnico.EstaActivo.Should().BeTrue("la baja con versión obsoleta no debe aplicarse");
     }
 }

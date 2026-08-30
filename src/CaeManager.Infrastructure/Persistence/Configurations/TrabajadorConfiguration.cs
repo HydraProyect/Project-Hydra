@@ -9,7 +9,14 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
 {
     public void Configure(EntityTypeBuilder<Trabajador> builder)
     {
-        builder.ToTable("Trabajadores");
+        // Auditoría Módulo 5, hueco arquitectónico: un Trabajador es de
+        // Empresa O de Subcontrata, nunca ambas ni ninguna — hasta ahora el
+        // dominio lo garantizaba (DeEmpresa/DeSubcontrata) pero el esquema
+        // admitía las dos columnas nulas o las dos informadas. El CHECK deja
+        // la intención escrita en la base, no solo en el constructor.
+        builder.ToTable("Trabajadores", t => t.HasCheckConstraint(
+            "CK_Trabajadores_EmpresaXorSubcontrata",
+            "(\"EmpresaId\" IS NULL) <> (\"SubcontrataId\" IS NULL)"));
         builder.HasKey(t => t.Id);
 
         builder.Property(t => t.Nombre).IsRequired().HasMaxLength(Trabajador.LongitudMaximaNombre);

@@ -48,11 +48,22 @@ public class CrearCentroCommandHandler(
     /// <c>TipoDocumentoSeedData</c> son del catálogo semilla del tenant #1
     /// únicamente (cada tenant recibe su propia copia editable al
     /// aprovisionarse, ver docs/MULTITENANCY.md § 7), así que referenciarlos
-    /// por Id aquí crearía una fila cruzando tenants. Si el tenant no tiene
-    /// (o renombró) alguno de estos tipos, simplemente no se añade esa fila —
-    /// degradación silenciosa, no un error de alta de Centro.
+    /// por Id aquí crearía una fila cruzando tenants. Si un TENANT concreto
+    /// no tiene (o renombró) alguno de estos tipos para su propio catálogo,
+    /// simplemente no se añade esa fila — degradación silenciosa deliberada,
+    /// no un error de alta de Centro: personalizar el catálogo es legítimo.
+    ///
+    /// Lo que esto NO cubre (auditoría Módulo 5, hueco arquitectónico): si el
+    /// CATÁLOGO SEMILLA (<see cref="TipoDocumentoSeedData"/>) renombra uno de
+    /// estos cuatro nombres en una futura limpieza (como ya pasó con la T3,
+    /// ver su doc-comment), todo tenant aprovisionado DESPUÉS de ese cambio
+    /// nacería con el catálogo mínimo incompleto para siempre, en silencio —
+    /// nadie personalizó nada, es la propia semilla la que dejó de casar.
+    /// CatalogoMinimoCentroCasaConSemillaTests (CaeManager.Architecture.Tests)
+    /// es el ratchet que falla en CI si eso ocurre — este campo es público a
+    /// propósito para que ese test pueda referenciarlo.
     /// </summary>
-    private static readonly string[] NombresCatalogoMinimo =
+    public static readonly string[] NombresCatalogoMinimo =
     [
         "Certificado de aptitud médica",
         "Entrega de EPI",

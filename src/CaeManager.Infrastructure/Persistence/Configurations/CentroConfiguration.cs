@@ -40,9 +40,16 @@ public class CentroConfiguration : IEntityTypeConfiguration<Centro>
             .HasPrincipalKey(e => new { e.TenantId, e.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Prerequisito de las FKs que Visita/Proyecto/... declaran
-        // hacia Centro.
+        // Prerequisito de las FKs que Visita/... declaran hacia Centro.
         builder.HasIndex(c => new { c.TenantId, c.Id }).IsUnique();
+
+        // Clave alternativa que INCLUYE ClienteId — auditoría Módulo 5, hueco
+        // arquitectónico: existían FKs separadas hacia Cliente y Centro en
+        // Proyecto, pero nada impedía físicamente un Proyecto cuyo ClienteId
+        // no coincidiera con el ClienteId real del Centro (solo lo comprobaba
+        // el comando de creación). Esta clave es el destino de la FK
+        // compuesta de ProyectoConfiguration que cierra ese hueco.
+        builder.HasAlternateKey(c => new { c.TenantId, c.Id, c.ClienteId });
 
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
