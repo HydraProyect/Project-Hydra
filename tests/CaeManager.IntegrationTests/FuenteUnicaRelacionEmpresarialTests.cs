@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.RelacionesEmpresariales;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Commands.EditarEmpresa;
 using CaeManager.Application.Importacion;
@@ -104,6 +105,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         {
             var handler = new EditarEmpresaCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
+                new GuardDeCierreDeArista(contexto, contexto, contexto),
                 CrearAlcanceConAccesoTotal(contexto), contexto);
 
             // Deseado: quitar clienteUno, añadir clienteDos.
@@ -155,6 +157,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         {
             var handler = new EditarEmpresaCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
+                new GuardDeCierreDeArista(contexto, contexto, contexto),
                 CrearAlcanceConAccesoTotal(contexto), contexto);
 
             // El request trae SOLO el cliente vivo — exactamente lo que la UI
@@ -241,6 +244,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         {
             var handler = new EditarSubcontrataCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
+                new GuardDeCierreDeArista(contexto, contexto, contexto),
                 CrearAlcanceConAccesoTotal(contexto), contexto);
 
             // Deseado: quitar empresaUno, añadir empresaDos y el cliente.
@@ -436,6 +440,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         {
             var handler = new EditarSubcontrataCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
+                new GuardDeCierreDeArista(contexto, contexto, contexto),
                 CrearAlcanceConAccesoTotal(contexto), contexto);
 
             // Guardado "sin cambios": el request es literalmente lo que el DTO trajo.

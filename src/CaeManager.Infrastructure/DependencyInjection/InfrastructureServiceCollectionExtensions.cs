@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Comercial.Common;
+using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.DocumentosIa.Common;
@@ -262,6 +262,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ICredencialAccesoEmpresaRepository, CredencialAccesoEmpresaRepository>();
         services.AddScoped<IVerificacionExternaSubcontrataRepository, VerificacionExternaSubcontrataRepository>();
         services.AddScoped<IRelacionEmpresarialRepository, RelacionEmpresarialRepository>();
+        services.AddScoped<CaeManager.Application.RelacionesEmpresariales.IGuardDeCierreDeArista,
+            CaeManager.Application.RelacionesEmpresariales.GuardDeCierreDeArista>();
         services.AddScoped<ICredencialAccesoSubcontrataRepository, CredencialAccesoSubcontrataRepository>();
         services.AddScoped<CaeManager.Domain.Blindaje42.ISolicitudCertificacionTgssRepository, SolicitudCertificacionTgssRepository>();
         services.AddScoped<ICentroRepository, CentroRepository>();
