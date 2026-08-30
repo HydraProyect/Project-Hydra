@@ -125,7 +125,20 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await paginaPortal.FillAsync("#password", contrasenaTemporal);
         await paginaPortal.ClickAsync("button[type=\"submit\"]");
 
-        await paginaPortal.WaitForURLAsync("**/cuenta/cambiar-contrasena", new PageWaitForURLOptions { Timeout = 15_000 });
+        // ESTE es el punto que la traza del fallo intermitente señalaba
+        // (línea 128 de la versión anterior): WaitForURLAsync llama por dentro
+        // a WaitForLoadStateAsync, que es el marco de Playwright que aparecía
+        // en el TimeoutException. Esperar la URL exige que la navegación
+        // COMPLETA se asiente; bajo carga de CI, el login —hash de contraseña,
+        // cookie, redirección con forceLoad— se pasaba de los 15 s y el test
+        // moría antes de tocar nada de lo que venía a comprobar.
+        //
+        // Se espera el campo del formulario en lugar de la URL: es una señal
+        // concreta que implica las dos cosas —haber llegado Y haber
+        // renderizado—, y no depende de que el estado de carga se asiente.
+        await paginaPortal.Locator("#password-actual")
+            .WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+
         await paginaPortal.FillAsync("#password-actual", contrasenaTemporal);
         await paginaPortal.FillAsync("#password-nueva", contrasenaNueva);
         await paginaPortal.FillAsync("#password-confirmar", contrasenaNueva);
@@ -133,7 +146,26 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await paginaPortal.Locator(".nav-principal").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // --- El alcance real, derivado de RelacionEmpresarial vía AlcanceDatosService ---
-        await Ayudas.NavegarYEsperarAsync(paginaPortal, $"{fixture.BaseUrl}/empresas");
+        //
+        // GotoAsync y NO NavegarYEsperarAsync: ese ayudante añade
+        // WaitForLoadStateAsync(NetworkIdle), que en Blazor Server no dice lo
+        // que parece — la actividad de reconexión del circuito se solapa con
+        // esa espera y la resuelve antes de tiempo (ya documentado en
+        // FlujoAltaYRevocacionDelegacionTests). El daño no es esperar de
+        // menos: es que a continuación se rellena el buscador, y si el
+        // circuito todavía no ha rehidratado ese input no está enlazado, así
+        // que el filtro NO se aplica nunca y la espera de la fila agota sus
+        // 15 s. Ese era el fallo intermitente que bloqueaba la cola de merge
+        // de varios módulos (33 de 34 tests en verde, siempre este).
+        //
+        // La señal concreta de que el circuito ya está vivo Y la consulta de
+        // alcance se resolvió es que haya al menos una fila renderizada.
+        // Esperar a un elemento que solo existe tras ambas cosas es lo que
+        // NetworkIdle no puede prometer.
+        await paginaPortal.GotoAsync($"{fixture.BaseUrl}/empresas");
+        await paginaPortal.Locator(".tarjeta-fila-acordeon").First
+            .WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+
         await paginaPortal.GetByPlaceholder("Buscar por razón social…").FillAsync(razonSocialEmpresaPropia);
         await paginaPortal.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialEmpresaPropia })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
@@ -144,7 +176,12 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await Expect(paginaPortal.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialEmpresaAjena }))
             .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5_000 });
 
-        await Ayudas.NavegarYEsperarAsync(paginaPortal, $"{fixture.BaseUrl}/subcontratas");
+        // Misma razón que arriba: señal concreta de circuito vivo antes de
+        // tocar el buscador, no silencio de red.
+        await paginaPortal.GotoAsync($"{fixture.BaseUrl}/subcontratas");
+        await paginaPortal.Locator(".tarjeta-fila-acordeon").First
+            .WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+
         await paginaPortal.GetByPlaceholder("Buscar por razón social o CIF…").FillAsync(razonSocialSubcontrata);
         await paginaPortal.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialSubcontrata })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
