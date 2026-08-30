@@ -93,6 +93,33 @@ public class ProcesadorAnalisisDocumentoHostedService(
     /// </summary>
     private static readonly TimeSpan CooldownAlertaColaEstancada = TimeSpan.FromMinutes(30);
 
+    /// <summary>
+    /// Cada cuánto se recalcula <see cref="MedirProfundidadColaAsync"/>, por
+    /// separado del <see cref="IntervaloSondeo"/> de 5 s que sí necesita esa
+    /// cadencia para no dejar trabajo real sin procesar.
+    ///
+    /// La medición no reclama nada — es <see cref="ITrabajoAnalisisDocumentoRepository.ContarActivosAsync"/>
+    /// + <see cref="ITrabajoAnalisisDocumentoRepository.ObtenerSiguientePendienteAsync"/>
+    /// por cada tenant activo, es decir ~2N consultas puramente de
+    /// observación en cada tick. A 5 s eso crece sin límite con el número de
+    /// tenants activos y compite por conexiones con el reclamo real
+    /// (<see cref="ReclamarSiguientePendienteAsync"/>) sin que nadie lo esté
+    /// pidiendo: ni el gauge de profundidad ni la alerta de
+    /// <see cref="UmbralColaEstancada"/> (30 min) necesitan una foto cada 5 s
+    /// para ser útiles. Con este intervalo, 30 s de margen entre foto y foto
+    /// siguen dando decenas de muestras dentro de la ventana de 30 min del
+    /// umbral — de sobra para no perder la alerta por resolución.
+    ///
+    /// Reduce la frecuencia, no el número de consultas por medición (sigue
+    /// siendo 2 por tenant cada vez que se mide) — fusionarlas en una sola
+    /// consulta por tenant queda como mejora adicional, no incluida aquí:
+    /// tocaría el contrato de <see cref="ITrabajoAnalisisDocumentoRepository"/>
+    /// y el test de aislamiento que documenta el orden exacto de fallo entre
+    /// ambas llamadas.
+    /// </summary>
+    private static readonly TimeSpan IntervaloMedicionProfundidad = TimeSpan.FromSeconds(30);
+
+    private DateTime? _ultimaMedicionProfundidadUtc;
     private DateTime? _ultimaAlertaColaEstancadaUtc;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -144,7 +171,17 @@ public class ProcesadorAnalisisDocumentoHostedService(
         // (Horizonte 2.3) es el atasco real en este instante, y
         // ProcesarPendientesDelTenantAsync vacía la cola de cada tenant hasta
         // dejarla en 0 — medir al final siempre daría un gauge en cero.
-        await MedirProfundidadColaAsync(tenantsActivos, stoppingToken);
+        //
+        // No en cada tick: ver IntervaloMedicionProfundidad. El primer tick
+        // del servicio siempre mide (_ultimaMedicionProfundidadUtc empieza a
+        // null) — el gauge nunca arranca con un valor stale de un despliegue
+        // anterior.
+        var ahora = DateTime.UtcNow;
+        if (_ultimaMedicionProfundidadUtc is null || ahora - _ultimaMedicionProfundidadUtc >= IntervaloMedicionProfundidad)
+        {
+            await MedirProfundidadColaAsync(tenantsActivos, stoppingToken);
+            _ultimaMedicionProfundidadUtc = ahora;
+        }
 
         foreach (var tenantId in tenantsActivos)
         {

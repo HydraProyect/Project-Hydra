@@ -26,6 +26,49 @@ public class AuditoriaExtraccionIaTests
     }
 
     [Fact]
+    public void Registra_siempre_la_version_de_pipeline_vigente_aunque_no_se_indique()
+    {
+        var auditoria = AuditoriaExtraccionIa.Crear(
+            HashDeEjemplo(), "Certificado", "cache", 5, null, null, 1, 90, "Resultado servido desde caché documental.");
+
+        auditoria.VersionPipeline.Should().Be(ExtraccionIaCache.VersionPipelineActual,
+            "es lo que permite saber bajo qué prompt/esquema se procesó, incluso en un acierto de caché");
+    }
+
+    [Fact]
+    public void Guarda_el_modelo_exacto_el_request_id_y_los_proveedores_invocados()
+    {
+        var auditoria = AuditoriaExtraccionIa.Crear(
+            HashDeEjemplo(), "Póliza de seguro", "gemini", 1500, 0.008m, 0.03m, 3, 92, null,
+            modeloExacto: "gemini-3.5-flash-002", requestId: "x-goog-request-id=abc123", proveedoresInvocados: "anthropic,gemini");
+
+        auditoria.ModeloExacto.Should().Be("gemini-3.5-flash-002");
+        auditoria.RequestId.Should().Be("x-goog-request-id=abc123");
+        auditoria.ProveedoresInvocados.Should().Be("anthropic,gemini");
+    }
+
+    [Fact]
+    public void El_modelo_exacto_el_request_id_y_los_proveedores_invocados_quedan_nulos_por_defecto()
+    {
+        var auditoria = AuditoriaExtraccionIa.Crear(HashDeEjemplo(), "Certificado", "ninguno", 100, null, null, 1, 0, "fallo de clasificación");
+
+        auditoria.ModeloExacto.Should().BeNull();
+        auditoria.RequestId.Should().BeNull();
+        auditoria.ProveedoresInvocados.Should().BeNull();
+    }
+
+    [Fact]
+    public void Trunca_el_modelo_exacto_por_encima_de_la_longitud_maxima()
+    {
+        var modeloLargo = new string('m', AuditoriaExtraccionIa.LongitudMaximaModeloExacto + 20);
+
+        var auditoria = AuditoriaExtraccionIa.Crear(
+            HashDeEjemplo(), "Certificado", "gemini", 100, null, null, 1, 80, null, modeloExacto: modeloLargo);
+
+        auditoria.ModeloExacto.Should().HaveLength(AuditoriaExtraccionIa.LongitudMaximaModeloExacto);
+    }
+
+    [Fact]
     public void Permite_costes_nulos_cuando_el_proveedor_no_los_calcula()
     {
         var auditoria = AuditoriaExtraccionIa.Crear(

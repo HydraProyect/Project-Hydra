@@ -125,7 +125,7 @@ public class GeminiDocumentAIProvider(
             return Result.Fallo<TextoExtraccionDto>(respuesta.Error);
 
         var coste = CalcularCoste(respuesta.Valor.TokensEntrada, respuesta.Valor.TokensSalida);
-        return Result.Exito(new TextoExtraccionDto(respuesta.Valor.Texto.Trim(), coste));
+        return Result.Exito(new TextoExtraccionDto(respuesta.Valor.Texto.Trim(), coste, respuesta.Valor.ModeloExacto, respuesta.Valor.RequestId));
     }
 
     private static bool EsPdf(string nombreArchivo) => nombreArchivo.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
@@ -151,7 +151,7 @@ public class GeminiDocumentAIProvider(
             return Result.Fallo<ExtraccionEstructuradaDto>(respuesta.Error);
 
         var costeEstimado = CalcularCoste(respuesta.Valor.TokensEntrada, respuesta.Valor.TokensSalida);
-        return ParsearEstructurado(respuesta.Valor.Texto, costeEstimado);
+        return ParsearEstructurado(respuesta.Valor.Texto, costeEstimado, respuesta.Valor.ModeloExacto, respuesta.Valor.RequestId);
     }
 
     /// <summary>Coste orientativo, solo para auditoría (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2) — nunca se usa para decidir enrutado.</summary>
@@ -191,8 +191,13 @@ public class GeminiDocumentAIProvider(
                 return Result.Fallo<RespuestaConUso>(Error.Crear($"{prefijoError}.RespuestaVacia", "No pudimos procesar el documento automáticamente."));
             }
 
+            // modelVersion es el modelo resuelto que atendió la llamada (ver
+            // AuditoriaExtraccionIa.ModeloExacto); x-goog-request-id identifica
+            // la petición en el lado de Google para diagnóstico, sin copiar el
+            // cuerpo (ver CorrelacionRespuestaIa).
             return Result.Exito(new RespuestaConUso(
-                texto, cuerpo?.UsageMetadata?.TokensEntrada ?? 0, cuerpo?.UsageMetadata?.TokensSalida ?? 0));
+                texto, cuerpo?.UsageMetadata?.TokensEntrada ?? 0, cuerpo?.UsageMetadata?.TokensSalida ?? 0,
+                cuerpo?.ModelVersion, CorrelacionRespuestaIa.Describir(respuesta)));
         }
         catch (HttpRequestException ex)
         {
@@ -202,7 +207,7 @@ public class GeminiDocumentAIProvider(
     }
 
     /// <summary>Igual red de seguridad que AnthropicDocumentAIProvider: el modelo a veces envuelve el JSON en un bloque de código markdown pese a la instrucción.</summary>
-    private Result<ExtraccionEstructuradaDto> ParsearEstructurado(string texto, decimal costeEstimado)
+    private Result<ExtraccionEstructuradaDto> ParsearEstructurado(string texto, decimal costeEstimado, string? modeloExacto, string? requestId)
     {
         var inicio = texto.IndexOf('{');
         var fin = texto.LastIndexOf('}');
@@ -228,7 +233,8 @@ public class GeminiDocumentAIProvider(
             var confianza = Math.Clamp(extraido.ConfianzaGeneral, 0, 100);
             var campos = (extraido.Campos ?? new Dictionary<string, string?>()) as IReadOnlyDictionary<string, string?>;
 
-            return Result.Exito(new ExtraccionEstructuradaDto(extraido.TipoDetectado, campos, confianza, extraido.NotasValidacion, costeEstimado));
+            return Result.Exito(new ExtraccionEstructuradaDto(
+                extraido.TipoDetectado, campos, confianza, extraido.NotasValidacion, costeEstimado, modeloExacto, requestId));
         }
         catch (JsonException ex)
         {
@@ -275,7 +281,10 @@ public class GeminiDocumentAIProvider(
 
     private sealed record RespuestaGemini(
         [property: JsonPropertyName("candidates")] IReadOnlyList<CandidatoGemini>? Candidates,
-        [property: JsonPropertyName("usageMetadata")] UsoGemini? UsageMetadata);
+        [property: JsonPropertyName("usageMetadata")] UsoGemini? UsageMetadata,
+        // La versión concreta del modelo que respondió — puede diferir del
+        // alias pedido en la URL. Ver AuditoriaExtraccionIa.ModeloExacto.
+        [property: JsonPropertyName("modelVersion")] string? ModelVersion);
 
     private sealed record CandidatoGemini([property: JsonPropertyName("content")] ContenidoRespuestaGemini? Content);
 
@@ -287,5 +296,5 @@ public class GeminiDocumentAIProvider(
         [property: JsonPropertyName("promptTokenCount")] int TokensEntrada,
         [property: JsonPropertyName("candidatesTokenCount")] int TokensSalida);
 
-    private sealed record RespuestaConUso(string Texto, int TokensEntrada, int TokensSalida);
+    private sealed record RespuestaConUso(string Texto, int TokensEntrada, int TokensSalida, string? ModeloExacto = null, string? RequestId = null);
 }

@@ -73,4 +73,31 @@ public class LocalizadorPaginasRelevantesServiceTests
         resultado.Should().BeInAscendingOrder();
         resultado.Should().OnlyHaveUniqueItems();
     }
+
+    [Theory]
+    [InlineData("Revisión periódica: 15/03/2027")]
+    [InlineData("Revisión periódica: 15-03-2027")]
+    [InlineData("Revisión periódica: 2027-03-15")]
+    [InlineData("Revisión periódica: 15 de marzo de 2027")]
+    public void Selecciona_una_pagina_con_una_fecha_aunque_no_lleve_ninguna_palabra_clave_al_lado(string paginaConFecha)
+    {
+        string[] paginas = ["portada sin datos", paginaConFecha, "texto de relleno sin ninguna palabra clave", "cierre"];
+
+        var resultado = _servicio.Localizar(paginas);
+
+        resultado.Should().Contain(1);
+    }
+
+    [Theory]
+    [InlineData("Exclusiones: no cubre daños por negligencia")]
+    [InlineData("Queda excluida la responsabilidad por caso fortuito")]
+    [InlineData("Salvo pacto en contrario, no aplica a subcontratas")]
+    public void Selecciona_una_pagina_con_una_clausula_de_exclusion(string paginaConExclusion)
+    {
+        string[] paginas = ["portada sin datos", paginaConExclusion, "texto de relleno sin ninguna palabra clave", "cierre"];
+
+        var resultado = _servicio.Localizar(paginas);
+
+        resultado.Should().Contain(1);
+    }
 }
