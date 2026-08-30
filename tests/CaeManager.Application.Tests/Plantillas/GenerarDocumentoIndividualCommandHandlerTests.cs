@@ -1,10 +1,12 @@
 using System.Text.Json;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
+using CaeManager.Application.Tests.Asignaciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.TiposDocumento;
+using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
@@ -45,11 +47,14 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         public required FileStorageServiceFalso Almacenamiento { get; init; }
         public required PlantillaDocumentoVersion Version { get; init; }
         public required PlantillaDocumento Plantilla { get; init; }
+        public AsignacionRepositorioFalso Asignaciones { get; } = new();
 
-        public GenerarDocumentoIndividualCommandHandler CrearHandler(Guid? usuarioActualId = null) => new(
+        public GenerarDocumentoIndividualCommandHandler CrearHandler(
+            Guid? usuarioActualId = null, IAlcanceDatosService? alcanceDatos = null) => new(
             Versiones, Plantillas, Documentos, new DocumentoGeneradoRepositorioFalso(), TiposDocumento,
             Empresas, Trabajadores, Centros, Contactos, Rellenador, Almacenamiento,
-            new CurrentUserServiceFalso(usuarioActualId ?? Guid.NewGuid()), new UnitOfWorkFalso());
+            new CurrentUserServiceFalso(usuarioActualId ?? Guid.NewGuid()),
+            alcanceDatos ?? new AlcanceDatosServiceFalso(), Asignaciones, new UnitOfWorkFalso());
     }
 
     private static async Task<Entorno> ConstruirEntornoAsync(TipoDocumento? tipoDocumentoOverride = null)
@@ -167,6 +172,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         entorno.Centros.ListaCentros.Add(centro);
         var trabajador = Trabajador.DeEmpresa(empresa.Id, "Juan", "Pérez", Dni);
         entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        entorno.Asignaciones.Agregar(new Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
         var usuarioId = Guid.NewGuid();
 
         Confirmar(entorno.Version,
@@ -260,6 +266,86 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         entorno.Rellenador.UltimosElementos![0].Tipo.Should().Be(TipoElementoPlantilla.Texto);
     }
 
+    /// <summary>
+    /// Cierre de IDOR (auditoría de seguridad del módulo, 2026-08-30): antes
+    /// de este fix, la existencia por tenant bastaba — un Trabajador fuera de
+    /// la cartera del usuario actual podía usarse igualmente.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_un_trabajador_fuera_de_la_cartera_del_usuario()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Pérez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version, [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Campo", FuenteDatoPlantilla.Constante, "x")], usuarioId);
+        var handler = entorno.CrearHandler(usuarioId, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: []));
+
+        var resultado = await handler.Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Plantilla.PropietarioNoEncontrado");
+    }
+
+    /// <summary>
+    /// Cierre de IDOR: un Centro visible por tenant pero fuera de la cartera
+    /// del usuario ya no puede usarse para resolver empresa/cliente/centro.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_un_centro_fuera_de_la_cartera_del_usuario()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var cliente = Empresa.CrearComoCliente("Cliente SA", "B12345674", false, null, null);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.Add(cliente);
+        entorno.Empresas.ListaEmpresas.Add(empresa);
+        var centro = new Centro(cliente.Id, empresa.Id, "Centro Norte", direccion: "Calle Falsa 123");
+        entorno.Centros.ListaCentros.Add(centro);
+        var trabajador = Trabajador.DeEmpresa(empresa.Id, "Juan", "Pérez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        entorno.Asignaciones.Agregar(new Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version, [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Campo", FuenteDatoPlantilla.Constante, "x")], usuarioId);
+        var handler = entorno.CrearHandler(
+            usuarioId, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [trabajador.Id], centroIdsVisibles: []));
+
+        var resultado = await handler.Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id, CentroId: centro.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Plantilla.CentroNoEncontrado");
+    }
+
+    /// <summary>
+    /// Un Trabajador visible por cartera pero SIN asignación activa en el
+    /// Centro indicado no puede combinarse con ese centro — evita mezclar
+    /// datos de un trabajador con el centro/empresa de otra área BPO.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_un_trabajador_sin_asignacion_activa_en_el_centro()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var cliente = Empresa.CrearComoCliente("Cliente SA", "B12345674", false, null, null);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.Add(cliente);
+        entorno.Empresas.ListaEmpresas.Add(empresa);
+        var centro = new Centro(cliente.Id, empresa.Id, "Centro Norte", direccion: "Calle Falsa 123");
+        entorno.Centros.ListaCentros.Add(centro);
+        var trabajador = Trabajador.DeEmpresa(empresa.Id, "Juan", "Pérez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        // Sin Asignacion activa en este centro a propósito.
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version, [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Campo", FuenteDatoPlantilla.Constante, "x")], usuarioId);
+        var handler = entorno.CrearHandler(usuarioId);
+
+        var resultado = await handler.Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id, CentroId: centro.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Plantilla.TrabajadorSinAsignacionEnCentro");
+    }
+
     [Fact]
     public async Task Guarda_un_snapshot_json_con_la_etiqueta_visible_como_clave()
     {
@@ -275,7 +361,8 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         var handler = new GenerarDocumentoIndividualCommandHandler(
             entorno.Versiones, entorno.Plantillas, entorno.Documentos, documentosGenerados, entorno.TiposDocumento,
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
-            entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId), new UnitOfWorkFalso());
+            entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
+            new AlcanceDatosServiceFalso(), entorno.Asignaciones, new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
             new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
