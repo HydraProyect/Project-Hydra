@@ -18,14 +18,30 @@ public interface IConversacionRepository
     Task<Conversacion?> ObtenerPorHiloExternoAsync(
         Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default);
 
-    /// <summary>Idempotencia ante reintentos de notificación de webhook (P3-33): true si ya existe un Mensaje con ese Id externo (Message-Id de Graph o wamid de WhatsApp).</summary>
-    Task<bool> ExisteMensajeExternoAsync(string mensajeExternoId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Idempotencia ante reintentos de notificación de webhook (P3-33): true
+    /// si ya existe un Mensaje con ese Id externo (Message-Id de Graph o
+    /// wamid de WhatsApp) EN ESA CONEXIÓN. Acotado por
+    /// <paramref name="conexionIntegracionId"/> (auditoría módulo 6): el
+    /// espacio de Message-Id/wamid pertenece al buzón/línea que lo emitió,
+    /// no al tenant entero — sin este filtro, dos conexiones del mismo
+    /// tenant no podrían tener nunca el mismo Id externo aunque pertenezcan
+    /// a proveedores o buzones distintos. No hay índice único compuesto con
+    /// ConexionIntegracionId en Mensajes (ver MensajeConfiguration — mismo
+    /// motivo que impide una FK compuesta con TenantId, auditoría Módulo 8):
+    /// el filtro se aplica aquí, en la consulta, vía el Id de conversación.
+    /// </summary>
+    Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default);
 
     /// <summary>Hilo WhatsApp: la conversación más reciente NO cerrada de ese teléfono en esa línea, o null si toca crear una nueva. Incluye Mensajes.</summary>
     Task<Conversacion?> ObtenerAbiertaPorTelefonoAsync(Guid conexionIntegracionId, string telefonoContacto, CancellationToken cancellationToken = default);
 
-    /// <summary>Para los statuses[] de WhatsApp (delivered/read/failed): localiza el mensaje saliente por su wamid.</summary>
-    Task<Mensaje?> ObtenerMensajePorExternoIdAsync(string mensajeExternoId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Para los statuses[] de WhatsApp (delivered/read/failed): localiza el
+    /// mensaje saliente por su wamid, acotado a <paramref name="conexionIntegracionId"/>
+    /// — mismo motivo de aislamiento por conexión que <see cref="ExisteMensajeExternoAsync"/>.
+    /// </summary>
+    Task<Mensaje?> ObtenerMensajePorExternoIdAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default);
 
     /// <summary>Reparto equitativo del pool inbound: conversaciones WhatsApp vivas (Abierta/Pendiente) asignadas a cada uno de los ejecutivos dados. Los ejecutivos sin ninguna no aparecen en el diccionario.</summary>
     Task<IReadOnlyDictionary<Guid, int>> ContarWhatsAppVivasPorEjecutivoAsync(

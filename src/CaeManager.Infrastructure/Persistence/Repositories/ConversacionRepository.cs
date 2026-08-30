@@ -18,8 +18,11 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
             .Include(c => c.Participantes)
             .FirstOrDefaultAsync(c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId, cancellationToken);
 
-    public Task<bool> ExisteMensajeExternoAsync(string mensajeExternoId, CancellationToken cancellationToken = default) =>
-        dbContext.Mensajes.AnyAsync(m => m.MensajeExternoId == mensajeExternoId, cancellationToken);
+    public Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default) =>
+        (from m in dbContext.Mensajes
+         join c in dbContext.Conversaciones on m.ConversacionId equals c.Id
+         where c.ConexionIntegracionId == conexionIntegracionId && m.MensajeExternoId == mensajeExternoId
+         select m).AnyAsync(cancellationToken);
 
     public Task<Conversacion?> ObtenerAbiertaPorTelefonoAsync(
         Guid conexionIntegracionId, string telefonoContacto, CancellationToken cancellationToken = default) =>
@@ -33,8 +36,11 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
             .OrderByDescending(c => c.FechaUltimoMensajeUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
-    public Task<Mensaje?> ObtenerMensajePorExternoIdAsync(string mensajeExternoId, CancellationToken cancellationToken = default) =>
-        dbContext.Mensajes.FirstOrDefaultAsync(m => m.MensajeExternoId == mensajeExternoId, cancellationToken);
+    public Task<Mensaje?> ObtenerMensajePorExternoIdAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default) =>
+        (from m in dbContext.Mensajes
+         join c in dbContext.Conversaciones on m.ConversacionId equals c.Id
+         where c.ConexionIntegracionId == conexionIntegracionId && m.MensajeExternoId == mensajeExternoId
+         select m).FirstOrDefaultAsync(cancellationToken);
 
     public async Task<IReadOnlyDictionary<Guid, int>> ContarWhatsAppVivasPorEjecutivoAsync(
         IReadOnlyCollection<Guid> ejecutivoIds, CancellationToken cancellationToken = default) =>

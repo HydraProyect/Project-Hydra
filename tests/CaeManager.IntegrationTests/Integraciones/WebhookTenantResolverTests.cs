@@ -92,6 +92,29 @@ public class WebhookTenantResolverTests : IAsyncLifetime
         resultado.Verificado.Should().BeFalse();
     }
 
+    /// <summary>Auditoría módulo 6: una notificación que llega después de que la suscripción caducara localmente no debe aceptarse aunque clientState y subscriptionId coincidan.</summary>
+    [Fact]
+    public async Task Rechaza_una_suscripcion_ya_caducada()
+    {
+        var conexionCaducada = new ConexionIntegracion("otro@cliente.com", "Buzón caducado");
+        var suscripcionCaducada = new SuscripcionWebhook(conexionCaducada.Id, "graph-sub-2", "secreto-caducado", DateTime.UtcNow.AddMinutes(-5));
+
+        await using (var contextoSetup = CrearContexto(_tenantPropietario))
+        {
+            contextoSetup.ConexionesIntegracion.Add(conexionCaducada);
+            contextoSetup.SuscripcionesWebhook.Add(suscripcionCaducada);
+            await contextoSetup.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto(Guid.NewGuid());
+        var resolver = new WebhookTenantResolver(contexto);
+
+        var resultado = await resolver.VerificarAsync(conexionCaducada.Id, "secreto-caducado", "graph-sub-2", CancellationToken.None);
+
+        resultado.Verificado.Should().BeFalse();
+        resultado.TenantId.Should().BeNull();
+    }
+
     [Fact]
     public async Task Rechaza_una_conexion_que_no_existe()
     {

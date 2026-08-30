@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
@@ -22,10 +23,11 @@ public class IngestaWebhookWhatsAppServiceTests
     private readonly ContactoWhatsAppRepositorioFalso _contactos = new();
     private readonly EmpresaRepositorioFalso _clientes = new();
     private readonly WhatsAppCloudApiClientFalso _whatsApp = new();
+    private readonly UnitOfWorkFalso _unitOfWork = new();
 
-    private IngestaWebhookWhatsAppService CrearServicio() =>
+    private IngestaWebhookWhatsAppService CrearServicio(IUnitOfWork? unitOfWork = null) =>
         new(_conexiones, _lineas, _conversaciones, _contactos, _clientes, _whatsApp,
-            new FileStorageServiceFalso(), NullLogger<IngestaWebhookWhatsAppService>.Instance);
+            new FileStorageServiceFalso(), unitOfWork ?? _unitOfWork, NullLogger<IngestaWebhookWhatsAppService>.Instance);
 
     private ConexionIntegracion CrearLinea(
         ModoAsignacionLinea modo, Guid? comercialId = null, IReadOnlyList<Guid>? pool = null,
@@ -133,6 +135,63 @@ public class IngestaWebhookWhatsAppServiceTests
         evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
         _conversaciones.Conversaciones.Should().ContainSingle()
             .Which.Mensajes.Should().ContainSingle(m => m.Direccion == DireccionMensaje.Entrante);
+    }
+
+    /// <summary>
+    /// Auditoría módulo 6: si el guardado del entrante (con su wamid) falla,
+    /// el auto-triage no debe dispararse todavía — sin este orden, un
+    /// reintento del evento no vería nada persistido y repetiría el envío
+    /// real.
+    /// </summary>
+    [Fact]
+    public async Task Si_falla_el_guardado_previo_al_auto_triage_no_se_envia_el_mensaje_real()
+    {
+        var conexion = CrearLinea(ModoAsignacionLinea.PoolInbound, pool: [Guid.NewGuid()], mensajeAutoTriage: "¿Empresa?");
+        ConfigurarNotificacion([MensajeTexto("wamid.1")]);
+
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        await CrearServicio(new UnitOfWorkQueFallaFalso()).ProcesarAsync(evento, CancellationToken.None);
+
+        _whatsApp.EnviosRealizados.Should().BeEmpty("el entrante debe quedar persistido antes de disparar un envío real");
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente, "un fallo de guardado se reintenta, no se da por procesado");
+    }
+
+    /// <summary>
+    /// Auditoría módulo 6, mismo criterio que
+    /// ResponderConversacionWhatsAppCommand: si el auto-triage ya salió por
+    /// WhatsApp y solo falla el guardado posterior, el evento se admite
+    /// como procesado — reintentarlo reenviaría el auto-mensaje duplicado.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_al_registrar_el_auto_triage_ya_enviado_no_hace_fallar_el_evento()
+    {
+        var conexion = CrearLinea(ModoAsignacionLinea.PoolInbound, pool: [Guid.NewGuid()], mensajeAutoTriage: "¿Empresa?");
+        ConfigurarNotificacion([MensajeTexto("wamid.1")]);
+
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        await CrearServicio(new UnitOfWorkFallaAlSegundoGuardadoFalso()).ProcesarAsync(evento, CancellationToken.None);
+
+        _whatsApp.EnviosRealizados.Should().ContainSingle("el auto-mensaje ya salió de verdad por WhatsApp");
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado, "un reintento reenviaría el auto-triage duplicado");
+    }
+
+    private sealed class UnitOfWorkQueFallaFalso : IUnitOfWork
+    {
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Fallo simulado de guardado.");
+    }
+
+    private sealed class UnitOfWorkFallaAlSegundoGuardadoFalso : IUnitOfWork
+    {
+        private int _llamadas;
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            _llamadas++;
+            if (_llamadas == 2)
+                throw new InvalidOperationException("Fallo simulado de guardado.");
+            return Task.FromResult(1);
+        }
     }
 
     [Fact]

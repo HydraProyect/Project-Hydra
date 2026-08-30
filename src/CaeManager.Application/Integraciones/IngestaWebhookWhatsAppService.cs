@@ -36,6 +36,7 @@ public class IngestaWebhookWhatsAppService(
     IEmpresaRepository empresaRepositorio,
     IWhatsAppCloudApiClient whatsAppClient,
     IFileStorageService almacenamiento,
+    IUnitOfWork unitOfWork,
     ILogger<IngestaWebhookWhatsAppService> logger)
 {
     private readonly List<string> _archivosGuardados = [];
@@ -89,7 +90,7 @@ public class IngestaWebhookWhatsAppService(
         }
 
         foreach (var estado in notificacion.Estados)
-            await AplicarEstadoAsync(estado, cancellationToken);
+            await AplicarEstadoAsync(conexion.Id, estado, cancellationToken);
 
         return avisos;
     }
@@ -100,7 +101,7 @@ public class IngestaWebhookWhatsAppService(
     {
         // Meta reintenta webhooks agresivamente — el wamid es la clave de
         // idempotencia (índice único {TenantId, MensajeExternoId}).
-        if (await conversacionRepositorio.ExisteMensajeExternoAsync(mensaje.Wamid, cancellationToken))
+        if (await conversacionRepositorio.ExisteMensajeExternoAsync(conexion.Id, mensaje.Wamid, cancellationToken))
             return null;
 
         var conversacion = await conversacionRepositorio.ObtenerAbiertaPorTelefonoAsync(
@@ -122,7 +123,18 @@ public class IngestaWebhookWhatsAppService(
             await DescargarYGuardarMediaAsync(linea, mensajeCreado, mensaje, cancellationToken);
 
         if (esNueva && conversacion.ClienteId is null && linea.MensajeAutoTriage is { } autoMensaje)
+        {
+            // Persistir el entrante (con su wamid) ANTES de enviar el
+            // auto-triage (auditoría módulo 6): el guardado real del evento
+            // llega más tarde, en el hosted service. Si el envío externo
+            // sale bien pero ese guardado final falla, el evento vuelve a
+            // "Pendiente" y se reintenta desde cero — sin este punto de
+            // guardado intermedio, ExisteMensajeExternoAsync no vería nada
+            // persistido y el reintento dispararía el auto-mensaje real por
+            // segunda vez.
+            await unitOfWork.SaveChangesAsync(cancellationToken);
             await EnviarAutoTriageAsync(linea, conversacion, autoMensaje, cancellationToken);
+        }
 
         return conversacion.Id;
     }
@@ -230,9 +242,25 @@ public class IngestaWebhookWhatsAppService(
         var mensajeAuto = conversacion.AgregarMensaje(
             DireccionMensaje.Saliente, conversacion.Canal, linea.NumeroTelefono, autoMensaje, mensajeExternoId: envio.Valor);
         mensajeAuto.ActualizarEstadoEntrega(EstadoEntregaMensaje.Enviado);
+
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Mismo criterio que ResponderConversacionCommand /
+            // ResponderConversacionWhatsAppCommand (auditoría módulo 6): el
+            // auto-triage ya salió de verdad por WhatsApp — perder solo el
+            // registro local es preferible a que el evento se reintente y
+            // lo reenvíe duplicado.
+            logger.LogError(ex,
+                "El auto-mensaje de triage se envió por WhatsApp pero no se pudo registrar localmente en la conversación {ConversacionId}. Requiere reconciliación manual.",
+                conversacion.Id);
+        }
     }
 
-    private async Task AplicarEstadoAsync(EstadoMensajeWhatsAppDto estado, CancellationToken cancellationToken)
+    private async Task AplicarEstadoAsync(Guid conexionId, EstadoMensajeWhatsAppDto estado, CancellationToken cancellationToken)
     {
         var estadoEntrega = estado.Estado switch
         {
@@ -244,7 +272,7 @@ public class IngestaWebhookWhatsAppService(
         };
         if (estadoEntrega is null) return;
 
-        var mensaje = await conversacionRepositorio.ObtenerMensajePorExternoIdAsync(estado.Wamid, cancellationToken);
+        var mensaje = await conversacionRepositorio.ObtenerMensajePorExternoIdAsync(conexionId, estado.Wamid, cancellationToken);
         // Un status de un mensaje que no tenemos (p. ej. enviado desde otra
         // herramienta con la misma línea) no es un error — se ignora.
         mensaje?.ActualizarEstadoEntrega(estadoEntrega.Value, estado.Error);
