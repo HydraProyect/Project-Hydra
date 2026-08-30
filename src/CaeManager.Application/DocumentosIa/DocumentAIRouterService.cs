@@ -15,9 +15,12 @@ namespace CaeManager.Application.DocumentosIa;
 /// archivo completo (Casos 2-3); Mixto → texto digital de las páginas con
 /// texto + OCR de las páginas escaneadas (Caso 4, con rasterización).
 ///
-/// Antes de llamar a ningún proveedor comprueba la caché documental por
-/// SHA256 (§ 3) — si ya se procesó exactamente este archivo, reutiliza el
-/// resultado sin pagar de nuevo. Registra una <see cref="AuditoriaExtraccionIa"/>
+/// Antes de llamar a ningún proveedor comprueba la caché documental (§ 3) —
+/// si ya se procesó este mismo archivo bajo el mismo tipo esperado y con la
+/// misma versión del pipeline, reutiliza el resultado sin pagar de nuevo. La
+/// clave incluye el tipo a propósito: lo que se guarda es una interpretación
+/// del archivo, no una transcripción, y el tipo esperado entra en el prompt
+/// (ver ExtraccionIaCache). Registra una <see cref="AuditoriaExtraccionIa"/>
 /// en todos los casos (éxito, fallo o caché), nunca usada para decidir
 /// enrutado — solo para poder ver qué se procesó, con qué proveedor,
 /// cuánto tardó, cuánto costó y con qué confianza (§ 4.2).
@@ -50,7 +53,7 @@ public class DocumentAIRouterService(
         var cronometro = Stopwatch.StartNew();
         var hash = CalcularHash(contenido);
 
-        var cacheado = await cacheRepositorio.ObtenerPorHashAsync(hash, cancellationToken);
+        var cacheado = await cacheRepositorio.ObtenerAsync(hash, tipoEsperado, cancellationToken);
         if (cacheado is not null)
         {
             var resultadoCache = DeserializarDesdeCache(cacheado.ExtraccionJson);
@@ -105,7 +108,7 @@ public class DocumentAIRouterService(
             return resultado;
         }
 
-        await GuardarEnCacheAsync(hash, resultado.Valor, cancellationToken);
+        await GuardarEnCacheAsync(hash, tipoEsperado, resultado.Valor, cancellationToken);
         var incidencias = CombinarIncidencias(
             texto.Valor.NotaLocalizacion, resultado.Valor.NotasValidacion, estructuracion.NotaIntentos);
         await RegistrarAuditoriaAsync(
@@ -313,13 +316,14 @@ public class DocumentAIRouterService(
         return new TextoExtraidoDto(texto, nota);
     }
 
-    private async Task GuardarEnCacheAsync(string hash, ExtraccionEstructuradaDto extraccion, CancellationToken cancellationToken)
+    private async Task GuardarEnCacheAsync(
+        string hash, string tipoEsperado, ExtraccionEstructuradaDto extraccion, CancellationToken cancellationToken)
     {
-        if (await cacheRepositorio.ObtenerPorHashAsync(hash, cancellationToken) is not null)
+        if (await cacheRepositorio.ObtenerAsync(hash, tipoEsperado, cancellationToken) is not null)
             return; // ya cacheado (p. ej. por una llamada concurrente) — no duplicar.
 
         var json = JsonSerializer.Serialize(extraccion, JsonOpciones);
-        cacheRepositorio.Agregar(ExtraccionIaCache.Crear(hash, json));
+        cacheRepositorio.Agregar(ExtraccionIaCache.Crear(hash, tipoEsperado, json));
     }
 
     private async Task RegistrarAuditoriaAsync(

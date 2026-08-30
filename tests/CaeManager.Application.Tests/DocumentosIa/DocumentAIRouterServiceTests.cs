@@ -350,6 +350,50 @@ public class DocumentAIRouterServiceTests
         auditoria.Auditorias[1].CosteEstimado.Should().Be(0m);
     }
 
+    /// <summary>
+    /// Lo que guarda la caché no es una transcripción del archivo: es una
+    /// interpretación hecha bajo un tipo esperado concreto, que entra en el
+    /// prompt y condiciona qué campos busca el modelo. Con la clave anterior
+    /// (solo hash) el mismo PDF pedido primero como un tipo y después como otro
+    /// devolvía la primera lectura, sin volver a mirar el documento y sin dejar
+    /// constancia de que la pregunta era distinta.
+    /// </summary>
+    [Fact]
+    public async Task El_mismo_archivo_pedido_como_otro_tipo_no_reutiliza_la_lectura_anterior()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 95, null)));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+
+        byte[] mismoArchivo = [1, 2, 3];
+        await router.ProcesarAsync(mismoArchivo, "documento.pdf", "Póliza de seguro");
+        await router.ProcesarAsync(mismoArchivo, "documento.pdf", "Apto médico");
+
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(2, "son dos preguntas distintas sobre el mismo archivo");
+        auditoria.Auditorias.Should().NotContain(a => a.ProveedorCodigo == "cache");
+    }
+
+    [Fact]
+    public async Task El_mismo_archivo_pedido_como_el_mismo_tipo_si_reutiliza_la_cache()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 95, null)));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+
+        byte[] mismoArchivo = [1, 2, 3];
+        await router.ProcesarAsync(mismoArchivo, "documento.pdf", "Póliza de seguro");
+        // Mayúsculas y espacios distintos: la normalización del tipo tiene que
+        // hacer que siga siendo la misma clave, o la caché no acertaría nunca.
+        await router.ProcesarAsync(mismoArchivo, "documento.pdf", "  PÓLIZA   DE SEGURO ");
+
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(1);
+        auditoria.Auditorias[1].ProveedorCodigo.Should().Be("cache");
+    }
+
     [Fact]
     public async Task Contenidos_distintos_no_comparten_cache()
     {
