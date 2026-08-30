@@ -76,22 +76,13 @@ public class ConexionesFueraDelInterceptorTests
         // dejaría ciega a lo que existe para observar.
         "src/CaeManager.Infrastructure/Persistence/VerificacionIdentidadDeRuntime.cs",
 
-        // Verificación de arranque (auditoría Módulo 8): lee pg_roles para
-        // confirmar si el rol de CaeManagerDbRuntime está restringido de
-        // verdad (rolsuper/rolbypassrls). Es un catálogo de sistema de
-        // PostgreSQL, no una tabla de dominio con TenantId — no hay ninguna
-        // fila de tenant que aislar ni escritura de aplicación que impedir.
-        // Corre una sola vez al arrancar, sin petición ni usuario en juego,
-        // igual que EleccionLiderPostgresService.
-        //
-        // DUPLICIDAD CONOCIDA, pendiente de resolver con el Módulo 8: este
-        // servicio y VerificacionIdentidadDeRuntime (arriba) comprueban lo
-        // mismo y toman decisiones OPUESTAS — aquel aborta el arranque, este
-        // avisa y sigue a propósito. Ambos entran en la lista para que el
-        // ratchet no dé un falso positivo mientras se decide cuál sobrevive;
-        // dos entradas aquí no son una bendición al diseño, solo constancia de
-        // que las dos abren conexión.
-        "src/CaeManager.Infrastructure/Persistence/VerificacionRolRuntimeHostedService.cs",
+        // (Aquí vivía VerificacionRolRuntimeHostedService, del Módulo 8, que
+        // comprobaba lo mismo que la entrada de arriba. Retirado de acuerdo con
+        // esa sesión: con las dos montadas, la de arriba aborta el arranque en
+        // el scope de Program.cs antes de que el host levante los hosted
+        // services, así que el aviso de aquella no llegaba a emitirse nunca.
+        // Lo que sí se conservó de su diseño es el aviso ruidoso al degradar,
+        // ahora en Program.cs.)
     ];
 
     [Fact]

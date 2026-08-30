@@ -568,20 +568,41 @@ using (var scope = app.Services.CreateScope())
 
     var dbContext = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
 
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+    var userStore = scope.ServiceProvider.GetRequiredService<IUserStore<ApplicationUser>>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
     // Si alguien declaró la conexión de runtime, que la demuestre. La cadena
     // configurada solo prueba que existe una cadena: apuntarla al rol
     // propietario deja RLS igual de decorativa que no configurarla, y en
     // silencio. Se comprueba después de migrar, porque la propiedad se observa
     // sobre las tablas con RLS ya creadas, y sobre la conexión del contexto
     // inyectado, que es la que usará el tráfico.
+    //
+    // Y si NO está declarada, aquí solo se llega habiendo pasado por la puerta
+    // de ResolverCadenaDeTrafico: o esto es Development, o alguien puso
+    // Rls:PermitirIdentidadAdministrativaInsegura. En los dos casos el tráfico
+    // corre con el rol propietario, al que PostgreSQL no somete a RLS, y eso
+    // tiene que decirse en CADA arranque y no solo en un comentario que nadie
+    // vuelve a mirar — es lo que aportaba VerificacionRolRuntimeHostedService
+    // (Módulo 8), retirado al fusionar porque comprobaba lo mismo que la línea
+    // de arriba y su aviso quedaba inalcanzable detrás de ella.
     if (!string.IsNullOrWhiteSpace(app.Configuration.GetConnectionString("CaeManagerDbRuntime")))
+    {
         await CaeManager.Infrastructure.Persistence.VerificacionIdentidadDeRuntime
             .ExigirIdentidadSometidaARlsAsync(dbContext);
-
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-    var userStore = scope.ServiceProvider.GetRequiredService<IUserStore<ApplicationUser>>();
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    }
+    else
+    {
+        logger.LogWarning(
+            "[AVISO] Sin ConnectionStrings:CaeManagerDbRuntime, el tráfico conecta con el rol propietario " +
+            "de las tablas, al que PostgreSQL no somete a RLS ni con FORCE ROW LEVEL SECURITY. El " +
+            "aislamiento por tenant descansa hoy solo en el filtro global de EF Core, que no cubre SQL " +
+            "crudo, IgnoreQueryFilters ni las tablas de Identity. Entorno: {Entorno}. Ver " +
+            "deploy/bootstrap/roles-de-cluster.sql para aprovisionar cae_app_runtime.",
+            app.Environment.EnvironmentName);
+    }
 
     // Identidad ADMINISTRATIVA para los dos seeders que no son trafico de
     // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
