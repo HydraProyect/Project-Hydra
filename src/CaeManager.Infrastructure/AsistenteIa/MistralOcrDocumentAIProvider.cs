@@ -134,8 +134,8 @@ public class MistralOcrDocumentAIProvider(
 
             if (!respuesta.IsSuccessStatusCode)
             {
-                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
-                logger.LogError("La API de Mistral OCR devolvió {StatusCode}: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                logger.LogError(
+                    "La API de Mistral OCR devolvió {StatusCode} ({Correlacion}).", (int)respuesta.StatusCode, CorrelacionRespuestaIa.Describir(respuesta));
                 return Result.Fallo<TextoExtraccionDto>(Error.Crear("DocumentAIProvider.ErrorApi", "No pudimos procesar el documento automáticamente."));
             }
 
@@ -190,8 +190,8 @@ public class MistralOcrDocumentAIProvider(
 
             if (!respuesta.IsSuccessStatusCode)
             {
-                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
-                logger.LogError("La API de Mistral chat devolvió {StatusCode}: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                logger.LogError(
+                    "La API de Mistral chat devolvió {StatusCode} ({Correlacion}).", (int)respuesta.StatusCode, CorrelacionRespuestaIa.Describir(respuesta));
                 return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIProvider.ErrorApi", "No pudimos procesar el documento automáticamente."));
             }
 

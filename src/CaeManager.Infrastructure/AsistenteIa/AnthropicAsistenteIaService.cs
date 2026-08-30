@@ -121,9 +121,8 @@ public class AnthropicAsistenteIaService(
                 // 401/403 más probable causa: la key expiró (se configuró con
                 // caducidad de 30 días) o se revocó — se distingue en el log
                 // para que no se confunda con un fallo de red genérico.
-                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError(
-                    "La API de Anthropic devolvió {StatusCode}: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                    "La API de Anthropic devolvió {StatusCode} ({Correlacion}).", (int)respuesta.StatusCode, CorrelacionRespuestaIa.Describir(respuesta));
 
                 return Result.Fallo<string>(Error.Crear(
                     "AsistenteIa.ErrorApi", "No pudimos contactar al asistente. Intenta de nuevo en unos minutos."));

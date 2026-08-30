@@ -191,8 +191,8 @@ public class AnthropicDocumentAIProvider(
 
             if (!respuesta.IsSuccessStatusCode)
             {
-                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
-                logger.LogError("La API de Anthropic devolvió {StatusCode}: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                logger.LogError(
+                    "La API de Anthropic devolvió {StatusCode} ({Correlacion}).", (int)respuesta.StatusCode, CorrelacionRespuestaIa.Describir(respuesta));
                 return Result.Fallo<RespuestaConUso>(Error.Crear($"{prefijoError}.ErrorApi", "No pudimos procesar el documento automáticamente."));
             }
 

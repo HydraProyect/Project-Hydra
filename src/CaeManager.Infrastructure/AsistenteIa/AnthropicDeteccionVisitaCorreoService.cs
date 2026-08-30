@@ -118,9 +118,8 @@ public class AnthropicDeteccionVisitaCorreoService(
 
             if (!respuesta.IsSuccessStatusCode)
             {
-                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError(
-                    "La API de Anthropic devolvió {StatusCode} al detectar visita en correo: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                    "La API de Anthropic devolvió {StatusCode} al detectar visita en correo ({Correlacion}).", (int)respuesta.StatusCode, CorrelacionRespuestaIa.Describir(respuesta));
 
                 return Result.Fallo<DeteccionVisitaCorreoDto>(Error.Crear(
                     "DeteccionVisitaCorreo.ErrorApi", "No pudimos analizar el correo automáticamente."));
