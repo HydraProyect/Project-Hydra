@@ -47,7 +47,21 @@ public class AsignarTecnicoProyectoCommandHandler(
 
         var proyectoTecnico = new ProyectoTecnico(request.ProyectoId, request.TrabajadorId, request.FechaAlta);
         repositorio.Agregar(proyectoTecnico);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // El índice único de activo por proyecto-trabajador (auditoría
+            // Módulo 5, hallazgo crítico 11/9) puede chocar si otra alta
+            // concurrente para el mismo técnico terminó primero — el
+            // ExisteActivoAsync de arriba no lo evita por sí solo, es una
+            // comprobación optimista, no un bloqueo.
+            return Result.Fallo<Guid>(Error.Crear(
+                "Proyecto.TecnicoYaAsignado", "Este técnico ya está asignado al proyecto."));
+        }
 
         return Result.Exito(proyectoTecnico.Id);
     }
