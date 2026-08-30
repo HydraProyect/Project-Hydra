@@ -16,16 +16,19 @@ namespace CaeManager.Infrastructure.Integraciones;
 public class WebhookTenantResolver(CaeManagerDbContext dbContext) : IWebhookTenantResolver
 {
     public async Task<VerificacionWebhookDto> VerificarAsync(
-        Guid conexionIntegracionId, string clientStateRecibido, CancellationToken cancellationToken)
+        Guid conexionIntegracionId, string clientStateRecibido, string? subscriptionIdRecibido, CancellationToken cancellationToken)
     {
         var fila = await dbContext.SuscripcionesWebhook
             .IgnoreQueryFilters()
             .Where(s => s.ConexionIntegracionId == conexionIntegracionId)
-            .Select(s => new { s.TenantId, s.ClientState })
+            .Select(s => new { s.TenantId, s.ClientState, s.GraphSubscriptionId })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (fila is null || fila.ClientState != clientStateRecibido)
+        if (fila is null || fila.ClientState != clientStateRecibido ||
+            string.IsNullOrWhiteSpace(subscriptionIdRecibido) || fila.GraphSubscriptionId != subscriptionIdRecibido)
+        {
             return new VerificacionWebhookDto(Verificado: false, TenantId: null);
+        }
 
         return new VerificacionWebhookDto(Verificado: true, fila.TenantId);
     }

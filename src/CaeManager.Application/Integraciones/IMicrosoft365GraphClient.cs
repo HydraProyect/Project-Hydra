@@ -122,4 +122,15 @@ public interface IMicrosoft365GraphClient
     /// del payload. Null si el payload no trae ninguna notificación válida.
     /// </summary>
     string? ExtraerClientStateDeNotificacion(string payloadJson);
+
+    /// <summary>
+    /// Puro parseo, sin llamada de red — el <c>subscriptionId</c> que Graph
+    /// asigna a la suscripción y devuelve en cada notificación. Segunda
+    /// comprobación además del <c>clientState</c> (auditoría módulo 6): si un
+    /// <c>clientState</c> llegara a filtrarse, exigir también que coincida
+    /// con la suscripción activa de <c>SuscripcionWebhook</c> reduce lo que
+    /// un payload fabricado puede hacer aceptar. Null si el payload no trae
+    /// ninguna notificación válida.
+    /// </summary>
+    string? ExtraerSubscriptionIdDeNotificacion(string payloadJson);
 }

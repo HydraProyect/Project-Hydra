@@ -16,6 +16,7 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public MensajeGraphDto? MensajeADevolver { get; set; }
     public IReadOnlyList<string> MensajeIdsADevolver { get; set; } = [];
     public string? ClientStateADevolver { get; set; }
+    public string? SubscriptionIdADevolver { get; set; }
     public IReadOnlyList<CarpetaGraphDto> CarpetasADevolver { get; set; } = [];
     public IReadOnlyList<MensajeResumenGraphDto> MensajesADevolver { get; set; } = [];
     public byte[] ContenidoAdjuntoADevolver { get; set; } = [];
@@ -82,4 +83,6 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => MensajeIdsADevolver;
 
     public string? ExtraerClientStateDeNotificacion(string payloadJson) => ClientStateADevolver;
+
+    public string? ExtraerSubscriptionIdDeNotificacion(string payloadJson) => SubscriptionIdADevolver;
 }

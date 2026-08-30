@@ -54,11 +54,13 @@ public static class WebhookMicrosoft365Endpoints
             if (string.IsNullOrWhiteSpace(clientStateRecibido))
                 return Results.BadRequest();
 
-            var verificacion = await tenantResolver.VerificarAsync(conexionId, clientStateRecibido, cancellationToken);
+            var subscriptionIdRecibido = graphClient.ExtraerSubscriptionIdDeNotificacion(payload);
+
+            var verificacion = await tenantResolver.VerificarAsync(conexionId, clientStateRecibido, subscriptionIdRecibido, cancellationToken);
             if (!verificacion.Verificado)
             {
                 logger.LogWarning(
-                    "Notificación de webhook de Microsoft 365 rechazada para la conexión {ConexionId}: clientState no coincide.", conexionId);
+                    "Notificación de webhook de Microsoft 365 rechazada para la conexión {ConexionId}: clientState o subscriptionId no coinciden.", conexionId);
                 return Results.Unauthorized();
             }
 
