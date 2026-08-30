@@ -129,40 +129,50 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     }
 
     // ---------- D2: se cierran todas las carteras, no hasta la primera ----------
+    // (auditoría Módulo 5, hallazgo crítico 3/9, endurece el propio escenario de D2)
 
     [Fact]
-    public async Task Reasignar_cierra_todas_las_carteras_vigentes_del_cliente_sea_cual_sea_su_orden()
+    public async Task El_indice_de_responsable_de_cliente_es_ahora_global_no_por_operacion()
     {
-        // Dos carteras vigentes sobre el mismo cliente son posibles: el índice
-        // único es POR OPERACIÓN, así que una interna y una externa conviven.
-        // Con el `return` dentro del bucle, si la coincidente salía primero las
-        // demás quedaban abiertas y su usuario conservaba el acceso.
+        // Hasta esta corrección, dos carteras vigentes sobre el mismo cliente
+        // eran posibles porque el índice único era POR OPERACIÓN: una interna y
+        // una externa convivían sin chocar (era justo el escenario que D2 tenía
+        // que preparar a mano para forzar el bug del `return` dentro del bucle,
+        // ver ReasignarCarteraClienteAsync). Eso permitía que dos reasignaciones
+        // concurrentes hacia operaciones distintas dejaran dos operadores con
+        // acceso simultáneo, cada una creyendo haber reemplazado al responsable.
+        //
+        // Ahora el propio segundo INSERT choca en la base de datos: la garantía
+        // ya no depende de que ReasignarCarteraClienteAsync llegue a tiempo de
+        // cerrarlas todas, la impone el esquema.
         await EjecutarBackfillAsync();
+        // El backfill ya deja una cartera vigente de _gestorConsultora sobre _clienteId.
 
         var ahora = DateTime.UtcNow;
-        await using (var preparacion = CrearContexto(_propietario))
-        {
-            var raiz = await preparacion.AsignacionesOperacion
-                .FirstAsync(o => o.EsRaiz && o.PropietarioTenantId == _propietario);
+        await using var contexto = CrearContexto(_propietario);
+        var raiz = await contexto.AsignacionesOperacion
+            .FirstAsync(o => o.EsRaiz && o.PropietarioTenantId == _propietario);
 
-            preparacion.AsignacionesCartera.Add(AsignacionCartera.Interna(
-                raiz, _gestorPropietario, AmbitoAsignacion.DeRelacionCliente(_clienteId),
-                ahora, null, ahora));
-            await preparacion.SaveChangesAsync();
-        }
+        contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
+            raiz, _gestorPropietario, AmbitoAsignacion.DeRelacionCliente(_clienteId),
+            ahora, null, ahora));
+
+        await contexto.Invoking(c => c.SaveChangesAsync())
+            .Should().ThrowAsync<DbUpdateException>("el índice único global impide una segunda cartera vigente");
+    }
+
+    [Fact]
+    public async Task Reasignar_cierra_la_cartera_vigente_existente_del_cliente()
+    {
+        await EjecutarBackfillAsync();
+        // _gestorConsultora ya es el responsable vigente de _clienteId.
 
         await using (var contexto = CrearContexto(_propietario))
         {
-            (await contexto.AsignacionesCartera
-                    .CountAsync(c => c.AmbitoRelacionClienteId == _clienteId && c.Estado == EstadoAsignacion.Vigente))
-                .Should().Be(2, "el escenario exige dos vigentes sobre el mismo cliente");
-
             var writer = new AsignacionesOperativasWriter(
                 contexto, new TenantActualAmbiental { TenantId = _propietario },
                 new CurrentUserServiceFalso(_gestorPropietario, Roles.Administrador));
 
-            // Se reasigna al que YA tiene una de las dos: la otra tiene que
-            // cerrarse igualmente.
             await writer.ReasignarCarteraClienteAsync(_clienteId, _gestorPropietario);
             await contexto.SaveChangesAsync();
         }
