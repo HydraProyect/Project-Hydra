@@ -1,4 +1,6 @@
+using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
 using MediatR;
@@ -16,6 +18,7 @@ public record ResolverDeteccionAusenteCommand(Guid DeteccionId, bool Desactivar)
 public class ResolverDeteccionAusenteCommandHandler(
     IDeteccionTrabajadorRepository deteccionRepositorio,
     ITrabajadorRepository trabajadorRepositorio,
+    IAsignacionRepository asignaciones,
     IAlcanceDatosService alcanceDatos,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
@@ -50,6 +53,7 @@ public class ResolverDeteccionAusenteCommandHandler(
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         trabajador.MarcarComoEliminado(usuarioId ?? Guid.Empty);
+        await CierreDeAsignaciones.PorTrabajadorEliminadoAsync(asignaciones, trabajador.Id, cancellationToken);
         deteccion.Resolver("Desactivado");
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

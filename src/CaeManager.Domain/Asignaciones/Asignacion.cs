@@ -44,4 +44,26 @@ public class Asignacion : EntidadConTenant
     {
         FechaBaja = null;
     }
+
+    /// <summary>
+    /// Cierre derivado de que desaparezca uno de los dos extremos de la
+    /// asignación: el centro o el trabajador pasan a <c>EstaEliminado</c>.
+    /// </summary>
+    /// <remarks>
+    /// No es una baja que nadie decida sobre esta asignación —es la
+    /// consecuencia de que deje de existir aquello que la sostiene—, y por
+    /// eso <b>no puede fallar por fecha</b>: si el alta era futura, la baja
+    /// se ancla al alta y la asignación queda cerrada el mismo día que se
+    /// abrió. <see cref="DarDeBaja"/> sí valida, porque allí la fecha la
+    /// elige una persona y una fecha anterior al alta es un error suyo;
+    /// aquí no hay nadie a quien devolverle el error, y lanzar dejaría el
+    /// borrado a medias con la asignación viva colgando de un centro
+    /// muerto — justo la violación que este cierre existe para impedir.
+    /// </remarks>
+    public void CerrarPorAmbitoEliminado(DateOnly fecha)
+    {
+        if (FechaBaja is not null) return;
+
+        FechaBaja = fecha < FechaAlta ? FechaAlta : fecha;
+    }
 }

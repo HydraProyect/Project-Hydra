@@ -1,5 +1,7 @@
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
+using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
 using FluentValidation;
@@ -15,7 +17,11 @@ public class EliminarTrabajadoresCommandValidator : AbstractValidator<EliminarTr
     public EliminarTrabajadoresCommandValidator() => RuleFor(c => c.Ids).NotEmpty();
 }
 
-public class EliminarTrabajadoresCommandHandler(ITrabajadorRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+public class EliminarTrabajadoresCommandHandler(
+    ITrabajadorRepository repositorio,
+    IAsignacionRepository asignaciones,
+    IAlcanceDatosService alcanceDatos,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarTrabajadoresCommand, Result<ResultadoEliminacionLoteDto>>
 {
     public async Task<Result<ResultadoEliminacionLoteDto>> Handle(EliminarTrabajadoresCommand request, CancellationToken cancellationToken)
@@ -33,6 +39,7 @@ public class EliminarTrabajadoresCommandHandler(ITrabajadorRepository repositori
             }
 
             trabajador.MarcarComoEliminado(request.UsuarioId);
+            await CierreDeAsignaciones.PorTrabajadorEliminadoAsync(asignaciones, trabajador.Id, cancellationToken);
             eliminados++;
         }
 

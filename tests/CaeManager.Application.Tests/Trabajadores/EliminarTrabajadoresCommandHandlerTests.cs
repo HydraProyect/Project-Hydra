@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Asignaciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
 using CaeManager.Domain.Trabajadores;
@@ -20,7 +21,7 @@ public class EliminarTrabajadoresCommandHandlerTests
         repositorio.Agregar(uno);
         repositorio.Agregar(dos);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarTrabajadoresCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = new EliminarTrabajadoresCommandHandler(repositorio, new AsignacionRepositorioFalso(), new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new EliminarTrabajadoresCommand([uno.Id, dos.Id], Guid.NewGuid()), CancellationToken.None);
 
@@ -38,7 +39,7 @@ public class EliminarTrabajadoresCommandHandlerTests
         var repositorio = new TrabajadorRepositorioFalso();
         repositorio.Agregar(existente);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarTrabajadoresCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = new EliminarTrabajadoresCommandHandler(repositorio, new AsignacionRepositorioFalso(), new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(
             new EliminarTrabajadoresCommand([existente.Id, Guid.NewGuid()], Guid.NewGuid()), CancellationToken.None);
@@ -56,7 +57,7 @@ public class EliminarTrabajadoresCommandHandlerTests
         repositorio.Agregar(trabajador);
         var unitOfWork = new UnitOfWorkFalso();
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: []);
-        var handler = new EliminarTrabajadoresCommandHandler(repositorio, alcance, unitOfWork);
+        var handler = new EliminarTrabajadoresCommandHandler(repositorio, new AsignacionRepositorioFalso(), alcance, unitOfWork);
 
         var resultado = await handler.Handle(new EliminarTrabajadoresCommand([trabajador.Id], Guid.NewGuid()), CancellationToken.None);
 
