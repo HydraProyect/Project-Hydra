@@ -57,6 +57,18 @@ public static class CabecerasSeguridadExtensions
             // deben salir del sistema en el Referer de un enlace externo.
             cabeceras["Referrer-Policy"] = "strict-origin-when-cross-origin";
 
+            // Por defecto nada se cachea: todo lo que no pasa por aquí como
+            // caso especial va contra MediatR con datos de tenant y no debe
+            // quedar en ninguna caché intermedia ni en el disco del navegador
+            // (hallazgo del Módulo 9, auditoría 2026-08-30 — ninguna respuesta
+            // autenticada declaraba `no-store`). Se fija ANTES de llamar a
+            // `siguiente()`: `app.MapStaticAssets()` sirve los activos con
+            // fingerprint (css/js/imágenes) más abajo en el pipeline y pone su
+            // propio `Cache-Control` de larga duración, que pisa este valor
+            // por defecto sin que este middleware tenga que conocer sus rutas.
+            cabeceras["Cache-Control"] = "no-store, private";
+            cabeceras["Pragma"] = "no-cache";
+
             await siguiente();
         });
     }

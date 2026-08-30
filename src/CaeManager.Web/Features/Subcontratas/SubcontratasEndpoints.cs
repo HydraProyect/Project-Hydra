@@ -24,7 +24,7 @@ public static class SubcontratasEndpoints
                 return Results.NotFound();
 
             var flujo = await almacenamiento.AbrirAsync(evidencia.ArchivoRuta, cancellationToken);
-            return Results.File(flujo, TipoContenidoDe(evidencia.NombreArchivo), evidencia.NombreArchivo);
+            return Results.File(flujo, TipoContenidoDe(evidencia.NombreArchivo), evidencia.NombreArchivo, enableRangeProcessing: true);
         });
 
         // Mismo patrón de referencia que ClientesEndpoints.

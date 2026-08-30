@@ -416,6 +416,12 @@ builder.Services.AddRazorComponents()
 // de bastar (umbral de la multi-réplica, ADR-008 § 2.1).
 builder.Services.AddSingleton<CircuitHandler, CaeManager.Web.Services.MetricasCircuitHandler>();
 
+// Revalidación de lectura dentro de un circuito ya abierto (hallazgo del
+// Módulo 9, auditoría 2026-08-30) — Scoped a propósito, a diferencia del
+// handler de arriba: necesita los servicios scoped del propio circuito (ver
+// CaeManager.Web.Services.RevalidacionCircuitoActivoHandler).
+builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.RevalidacionCircuitoActivoHandler>();
+
 // Health check real (P0-5 de docs/business/MATURITY_REVIEW.md): /salud
 // respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
 // cualquier uptime check externo veía un servicio sano que no podía servir

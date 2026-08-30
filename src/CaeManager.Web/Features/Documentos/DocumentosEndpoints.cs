@@ -48,7 +48,14 @@ public static class DocumentosEndpoints
             ProhibirCache(contexto);
 
             var flujo = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
-            return Results.File(flujo, "application/pdf", $"{documento.TipoDocumentoNombre}.pdf");
+            // enableRangeProcessing: el visor de PDF del navegador pide por
+            // rangos al paginar/buscar en vez de volver a traer el archivo
+            // entero en cada petición. No reduce el coste del servidor —
+            // DiskFileStorageService ya descifra el archivo completo en
+            // memoria antes de servirlo (medición de Módulo 2, PR #360) — la
+            // lectura por rangos que sí lo haría exige un formato cifrado por
+            // bloques, pendiente de decisión.
+            return Results.File(flujo, "application/pdf", $"{documento.TipoDocumentoNombre}.pdf", enableRangeProcessing: true);
         });
 
         endpoints.MapGet("/documentos/plantilla.xlsx", (IPlantillaDocumentosService servicio) =>
