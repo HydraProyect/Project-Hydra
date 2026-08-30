@@ -368,8 +368,7 @@ public partial class Incidencias : ComponentBase
 
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarIncidenciaCommand(_idAEliminar, usuarioId ?? Guid.Empty));
+            var resultado = await Mediator.Send(new EliminarIncidenciaCommand(_idAEliminar));
 
             if (resultado.EsFallido)
             {
@@ -415,8 +414,7 @@ public partial class Incidencias : ComponentBase
 
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarIncidenciasCommand(_seleccionados.ToList(), usuarioId ?? Guid.Empty));
+            var resultado = await Mediator.Send(new EliminarIncidenciasCommand(_seleccionados.ToList()));
             var dto = resultado.Valor;
 
             ToastService.Mostrar(
