@@ -173,8 +173,8 @@ public class MistralOcrDocumentAIProvider(
         var solicitud = new SolicitudChatMistral(
             config.ModeloChat,
             [
-                new MensajeMistral("system", SystemPromptEstructurado),
-                new MensajeMistral("user", $"Tipo de documento esperado: \"{tipoEsperado}\".\n\nTexto del documento:\n{texto}")
+                new MensajeMistral("system", SystemPromptEstructurado + PromptDocumental.ReglasDeAislamiento),
+                new MensajeMistral("user", PromptDocumental.ConstruirMensajeUsuario(tipoEsperado, texto))
             ],
             config.MaxTokensRespuestaChat);
 

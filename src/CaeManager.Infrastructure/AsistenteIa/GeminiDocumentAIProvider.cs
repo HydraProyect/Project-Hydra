@@ -142,8 +142,8 @@ public class GeminiDocumentAIProvider(
         }
 
         var solicitud = new SolicitudGemini(
-            [new ContenidoGemini("user", [new ParteGemini($"Tipo de documento esperado: \"{tipoEsperado}\".\n\nTexto del documento:\n{texto}", null)])],
-            new InstruccionSistemaGemini([new ParteGemini(SystemPromptEstructurado, null)]),
+            [new ContenidoGemini("user", [new ParteGemini(PromptDocumental.ConstruirMensajeUsuario(tipoEsperado, texto), null)])],
+            new InstruccionSistemaGemini([new ParteGemini(SystemPromptEstructurado + PromptDocumental.ReglasDeAislamiento, null)]),
             new ConfiguracionGeneracionGemini(config.MaxTokensRespuesta));
 
         var respuesta = await EnviarAsync(solicitud, config.Modelo, "DocumentAIProvider", cancellationToken);

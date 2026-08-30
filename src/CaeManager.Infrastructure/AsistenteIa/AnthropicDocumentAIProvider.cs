@@ -152,11 +152,11 @@ public class AnthropicDocumentAIProvider(
         var solicitud = new SolicitudAnthropic(
             config.Modelo,
             config.MaxTokensRespuesta,
-            SystemPromptEstructurado,
+            SystemPromptEstructurado + PromptDocumental.ReglasDeAislamiento,
             [
                 new MensajeAnthropic("user",
                 [
-                    new BloqueContenido("text", null, $"Tipo de documento esperado: \"{tipoEsperado}\".\n\nTexto del documento:\n{texto}")
+                    new BloqueContenido("text", null, PromptDocumental.ConstruirMensajeUsuario(tipoEsperado, texto))
                 ])
             ]);
 
