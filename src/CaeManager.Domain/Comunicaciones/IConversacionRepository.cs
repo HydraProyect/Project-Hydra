@@ -5,8 +5,18 @@ public interface IConversacionRepository
     /// <summary>Incluye Mensajes y Participantes — es lo que necesita la pantalla de detalle/respuesta.</summary>
     Task<Conversacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default);
 
-    /// <summary>Para la ingesta de webhook (P3-33): encuentra el hilo existente al que se suma un mensaje entrante nuevo, o null si es el primero del hilo.</summary>
-    Task<Conversacion?> ObtenerPorHiloExternoAsync(string hiloExternoId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Para la ingesta de webhook (P3-33): encuentra el hilo existente al que
+    /// se suma un mensaje entrante nuevo, o null si es el primero del hilo.
+    /// Acotado por <paramref name="conexionIntegracionId"/> (auditoría módulo
+    /// 6) — Graph puede asignar el MISMO conversationId a un hilo que
+    /// participan dos buzones conectados distintos del mismo tenant (está
+    /// documentado por Microsoft: comparten conversationId los
+    /// participantes de Exchange Online de la misma organización); sin este
+    /// filtro, el mensaje de un buzón se colaría en el hilo del otro.
+    /// </summary>
+    Task<Conversacion?> ObtenerPorHiloExternoAsync(
+        Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default);
 
     /// <summary>Idempotencia ante reintentos de notificación de webhook (P3-33): true si ya existe un Mensaje con ese Id externo (Message-Id de Graph o wamid de WhatsApp).</summary>
     Task<bool> ExisteMensajeExternoAsync(string mensajeExternoId, CancellationToken cancellationToken = default);

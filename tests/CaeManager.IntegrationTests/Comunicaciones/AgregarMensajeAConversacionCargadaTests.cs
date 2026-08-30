@@ -86,11 +86,12 @@ public class AgregarMensajeAConversacionCargadaTests : IAsyncLifetime
     public async Task La_respuesta_a_un_hilo_de_correo_cargado_se_persiste()
     {
         Guid conversacionId;
+        var conexionId = Guid.NewGuid();
 
         await using (var contexto = CrearContexto())
         {
             var conversacion = new Conversacion("Hilo de correo");
-            conversacion.AsociarConexion(Guid.NewGuid(), "hilo-repro-1");
+            conversacion.AsociarConexion(conexionId, "hilo-repro-1");
             conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>Primero</p>", mensajeExternoId: "graph.repro.1");
             contexto.Conversaciones.Add(conversacion);
             await contexto.SaveChangesAsync();
@@ -100,7 +101,7 @@ public class AgregarMensajeAConversacionCargadaTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             var repositorio = new ConversacionRepository(contexto);
-            var conversacion = await repositorio.ObtenerPorHiloExternoAsync("hilo-repro-1");
+            var conversacion = await repositorio.ObtenerPorHiloExternoAsync(conexionId, "hilo-repro-1");
             conversacion.Should().NotBeNull();
 
             conversacion!.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>Segundo</p>", mensajeExternoId: "graph.repro.2");

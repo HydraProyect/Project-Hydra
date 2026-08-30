@@ -20,8 +20,14 @@ public class ConversacionConfiguration : IEntityTypeConfiguration<Conversacion>
         builder.HasIndex(c => new { c.TenantId, c.Estado });
         builder.HasIndex(c => new { c.TenantId, c.ClienteId });
         builder.HasIndex(c => c.FechaUltimoMensajeUtc);
-        // Único por tenant: un HiloExternoId de Graph identifica un único hilo (P3-33).
-        builder.HasIndex(c => new { c.TenantId, c.HiloExternoId }).IsUnique();
+        // Único por tenant Y por conexión (auditoría módulo 6, no solo por
+        // tenant P3-33): Graph puede asignar el mismo conversationId a un
+        // hilo en el que participan dos buzones conectados distintos del
+        // mismo tenant (documentado por Microsoft — comparten
+        // conversationId los participantes de Exchange Online de la misma
+        // organización). Sin ConexionIntegracionId en el índice, el segundo
+        // buzón no podría tener su propia fila para ese mismo hilo.
+        builder.HasIndex(c => new { c.TenantId, c.ConexionIntegracionId, c.HiloExternoId }).IsUnique();
         // Canal WhatsApp: listado del Chat y lookup de hilo por teléfono en la ingesta.
         builder.HasIndex(c => new { c.TenantId, c.Canal, c.Estado });
         builder.HasIndex(c => new { c.TenantId, c.ConexionIntegracionId, c.TelefonoContacto });

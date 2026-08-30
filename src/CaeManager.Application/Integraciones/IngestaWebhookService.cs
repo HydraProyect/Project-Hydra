@@ -81,7 +81,7 @@ public class IngestaWebhookService(
         if (await conversacionRepositorio.ExisteMensajeExternoAsync(mensaje.MensajeExternoId, cancellationToken))
             return; // idempotencia: Graph puede reenviar la misma notificación más de una vez.
 
-        var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(mensaje.HiloExternoId, cancellationToken);
+        var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, mensaje.HiloExternoId, cancellationToken);
         if (conversacion is null)
         {
             conversacion = new Conversacion(mensaje.Asunto, conexion.ClienteId);
