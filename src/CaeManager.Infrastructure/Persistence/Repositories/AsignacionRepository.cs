@@ -13,5 +13,17 @@ public class AsignacionRepository(CaeManagerDbContext dbContext) : IAsignacionRe
             a => a.TrabajadorId == trabajadorId && a.CentroId == centroId && a.FechaBaja == null,
             cancellationToken);
 
+    public async Task<IReadOnlyList<Asignacion>> ObtenerActivasPorCentroAsync(
+        Guid centroId, CancellationToken cancellationToken = default) =>
+        await dbContext.Asignaciones
+            .Where(a => a.CentroId == centroId && a.FechaBaja == null)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Asignacion>> ObtenerActivasPorTrabajadorAsync(
+        Guid trabajadorId, CancellationToken cancellationToken = default) =>
+        await dbContext.Asignaciones
+            .Where(a => a.TrabajadorId == trabajadorId && a.FechaBaja == null)
+            .ToListAsync(cancellationToken);
+
     public void Agregar(Asignacion asignacion) => dbContext.Asignaciones.Add(asignacion);
 }

@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using CaeManager.Application.Common;
 using FluentAssertions;
@@ -106,6 +106,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.CrearCentroCommandHandler", "ITipoDocumentoCentroRepository"),
         ("Centros.CrearCentroCommandHandler", "ITiposDocumentoQueryContext"),
         ("Centros.EditarCanalGestionCommandHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Centros.EliminarCentroCommandHandler", "IAsignacionRepository"),
+        ("Centros.EliminarCentrosCommandHandler", "IAsignacionRepository"),
         ("Centros.EliminarDocumentacionRequeridaCentroCommandHandler", "ITipoDocumentoCentroRepository"),
         ("Centros.EstablecerDocumentacionRequeridaCentroCommandHandler", "ITipoDocumentoCentroRepository"),
         ("Centros.EstablecerDocumentacionRequeridaCentroCommandHandler", "ITiposDocumentoQueryContext"),
@@ -492,6 +494,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("TiposDocumento.ObtenerTiposDocumentoQueryHandler", "ICentrosQueryContext"),
         ("Trabajadores.CrearTrabajadorCommandHandler", "IEmpresasQueryContext"),
         ("Trabajadores.CrearTrabajadorCommandHandler", "ISubcontratasQueryContext"),
+        ("Trabajadores.EliminarTrabajadorCommandHandler", "IAsignacionRepository"),
+        ("Trabajadores.EliminarTrabajadoresCommandHandler", "IAsignacionRepository"),
         ("Trabajadores.ObtenerDeteccionesPendientesQueryHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IAsignacionesQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "ICentrosQueryContext"),
@@ -613,6 +617,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "IEmpresasQueryContext"),
         ("TiposDocumento.ActualizarLecturaIaClienteCommandHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IEmpresasQueryContext"),
+        ("Trabajadores.ResolverDeteccionAusenteCommandHandler", "IAsignacionRepository"),
         ("Visitas.ObtenerVisitasParaCalendarioQueryHandler", "IEmpresasQueryContext"),
     };
 

@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Asignaciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 using CaeManager.Domain.Trabajadores;
@@ -18,7 +19,7 @@ public class EliminarTrabajadorCommandHandlerTests
         var repositorio = new TrabajadorRepositorioFalso();
         repositorio.Agregar(trabajador);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarTrabajadorCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = new EliminarTrabajadorCommandHandler(repositorio, new AsignacionRepositorioFalso(), new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new EliminarTrabajadorCommand(trabajador.Id, Guid.NewGuid()), CancellationToken.None);
 
@@ -31,7 +32,7 @@ public class EliminarTrabajadorCommandHandlerTests
     {
         var repositorio = new TrabajadorRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarTrabajadorCommandHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = new EliminarTrabajadorCommandHandler(repositorio, new AsignacionRepositorioFalso(), new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new EliminarTrabajadorCommand(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None);
 
@@ -47,7 +48,7 @@ public class EliminarTrabajadorCommandHandlerTests
         repositorio.Agregar(trabajador);
         var unitOfWork = new UnitOfWorkFalso();
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: []);
-        var handler = new EliminarTrabajadorCommandHandler(repositorio, alcance, unitOfWork);
+        var handler = new EliminarTrabajadorCommandHandler(repositorio, new AsignacionRepositorioFalso(), alcance, unitOfWork);
 
         var resultado = await handler.Handle(new EliminarTrabajadorCommand(trabajador.Id, Guid.NewGuid()), CancellationToken.None);
 

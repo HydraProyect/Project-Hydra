@@ -1,5 +1,7 @@
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
+using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -15,7 +17,11 @@ public class EliminarCentrosCommandValidator : AbstractValidator<EliminarCentros
     public EliminarCentrosCommandValidator() => RuleFor(c => c.Ids).NotEmpty();
 }
 
-public class EliminarCentrosCommandHandler(ICentroRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+public class EliminarCentrosCommandHandler(
+    ICentroRepository repositorio,
+    IAsignacionRepository asignaciones,
+    IAlcanceDatosService alcanceDatos,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarCentrosCommand, Result<ResultadoEliminacionLoteDto>>
 {
     public async Task<Result<ResultadoEliminacionLoteDto>> Handle(EliminarCentrosCommand request, CancellationToken cancellationToken)
@@ -33,6 +39,7 @@ public class EliminarCentrosCommandHandler(ICentroRepository repositorio, IAlcan
             }
 
             centro.MarcarComoEliminado(request.UsuarioId);
+            await CierreDeAsignaciones.PorCentroEliminadoAsync(asignaciones, centro.Id, cancellationToken);
             eliminados++;
         }
 

@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Asignaciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente;
 using CaeManager.Domain.Trabajadores;
@@ -10,8 +11,10 @@ public class ResolverDeteccionAusenteCommandHandlerTests
 {
     private static ResolverDeteccionAusenteCommandHandler CrearHandler(
         DeteccionTrabajadorRepositorioFalso deteccionRepositorio, TrabajadorRepositorioFalso trabajadorRepositorio,
-        UnitOfWorkFalso unitOfWork, Guid? usuarioActualId = null) =>
-        new(deteccionRepositorio, trabajadorRepositorio, new AlcanceDatosServiceFalso(),
+        UnitOfWorkFalso unitOfWork, Guid? usuarioActualId = null,
+        AsignacionRepositorioFalso? asignaciones = null) =>
+        new(deteccionRepositorio, trabajadorRepositorio, asignaciones ?? new AsignacionRepositorioFalso(),
+            new AlcanceDatosServiceFalso(),
             new CurrentUserServiceFalso(usuarioActualId ?? Guid.NewGuid()), unitOfWork);
 
     [Fact]
