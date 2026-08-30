@@ -1,11 +1,8 @@
-﻿using CaeManager.Application.Centros;
-using CaeManager.Application.Common;
-using CaeManager.Application.Trabajadores;
+﻿using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 
@@ -21,17 +18,18 @@ public class CrearAsignacionCommandValidator : AbstractValidator<CrearAsignacion
 }
 
 public class CrearAsignacionCommandHandler(
-    IAsignacionRepository repositorio, ITrabajadoresQueryContext trabajadoresContext,
-    IAutoridadAsignacionesService autoridad, IUnitOfWork unitOfWork)
+    IAsignacionRepository repositorio, IAutoridadAsignacionesService autoridad, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearAsignacionCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearAsignacionCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos (P0-1 de docs/business/MATURITY_REVIEW.md):
-        // sin esto, un Id de otro tenant se persistía sin error, sellado con
-        // el tenant actual — el filtro global ya deja "no encontrado" un Id
-        // ajeno, así que basta con consultar dentro del ámbito normal.
-        if (!await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == request.TrabajadorId, cancellationToken))
+        // Autoridad sobre el trabajador, no solo existencia (auditoría Módulo
+        // 5, hallazgo crítico 6/9): antes bastaba con que el trabajador
+        // existiera en el tenant, así que un trabajador fuera de la cartera
+        // del actor quedaba "secuestrado" hacia ella en cuanto se le
+        // asignaba, exponiendo DNI, contacto y documentación médica. Mismo
+        // error que "no encontrado" a propósito — ver PuedeModificarAsignacionesDelCentroAsync.
+        if (!await autoridad.PuedeModificarAsignacionesDelTrabajadorAsync(request.TrabajadorId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Asignacion.TrabajadorNoEncontrado", "No encontramos este trabajador."));
 
         // Autoridad sobre el centro, no solo existencia (decision del

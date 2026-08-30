@@ -20,13 +20,13 @@ public class ActualizarProyectoCommandValidator : AbstractValidator<ActualizarPr
     }
 }
 
-public class ActualizarProyectoCommandHandler(IProyectoRepository repositorio, IUnitOfWork unitOfWork)
+public class ActualizarProyectoCommandHandler(IProyectoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<ActualizarProyectoCommand, Result>
 {
     public async Task<Result> Handle(ActualizarProyectoCommand request, CancellationToken cancellationToken)
     {
         var proyecto = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (proyecto is null)
+        if (proyecto is null || !await ProyectoAutorizacion.VisibleAsync(proyecto.ClienteId, alcanceDatos, cancellationToken))
             return Result.Fallo(Error.Crear("Proyecto.NoEncontrado", "El proyecto no existe o no tienes acceso."));
 
         if (ConcurrenciaOptimista.Verificar(proyecto, request.Version, "este proyecto") is { } conflicto)

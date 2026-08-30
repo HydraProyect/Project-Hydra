@@ -5,6 +5,7 @@ using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Notificaciones;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 
@@ -84,7 +85,21 @@ public class ReasignarEjecutivoClienteCommandHandler(
         await asignacionesWriter.ReasignarCarteraClienteAsync(
             empresa.Id, request.NuevoEjecutivoUsuarioId, cancellationToken);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // El índice único global de responsable vigente (auditoría Módulo 5,
+            // hallazgo crítico 3/9) puede chocar si otra reasignación concurrente
+            // sobre este mismo cliente terminó primero — la traducción evita un
+            // error de base de datos sin explicación en pantalla.
+            return Result.Fallo(Error.Crear(
+                "Cliente.ConflictoDeReasignacion",
+                "Otro cambio sobre la cartera de este cliente se completó primero. Vuelve a intentarlo."));
+        }
+
         return Result.Exito();
     }
 }

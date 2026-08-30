@@ -5,9 +5,11 @@ using MediatR;
 
 namespace CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 
-public record EliminarEmpresaCommand(Guid Id, Guid UsuarioId) : ICommand;
+public record EliminarEmpresaCommand(Guid Id) : ICommand;
 
-public class EliminarEmpresaCommandHandler(IEmpresaRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+public class EliminarEmpresaCommandHandler(
+    IEmpresaRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService)
     : IRequestHandler<EliminarEmpresaCommand, Result>
 {
     public async Task<Result> Handle(EliminarEmpresaCommand request, CancellationToken cancellationToken)
@@ -21,7 +23,12 @@ public class EliminarEmpresaCommandHandler(IEmpresaRepository repositorio, IAlca
                 "Empresa.TieneTrabajadores",
                 "No puedes eliminar una empresa con trabajadores. Da de baja a sus trabajadores primero."));
 
-        empresa.MarcarComoEliminado(request.UsuarioId);
+        // Auditoría Módulo 5, hallazgo crítico 7/9 — ver EliminarCentroCommand.
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo(Error.Crear("Empresa.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
+
+        empresa.MarcarComoEliminado(usuarioId.Value);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

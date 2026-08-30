@@ -273,8 +273,11 @@ public class EjecutarImportacionCombinadaCommandHandler(
             }
         }
 
-        var trabajadoresExistentes = await trabajadoresContext.Trabajadores.ToDictionaryAsync(
-            t => t.Dni, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        // Un trabajador anonimizado (Dni null) no puede ser destino de un
+        // emparejamiento por DNI: queda fuera del diccionario.
+        var trabajadoresExistentes = await trabajadoresContext.Trabajadores
+            .Where(t => t.Dni != null)
+            .ToDictionaryAsync(t => t.Dni!, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
         var trabajadoresCreados = 0;
         var trabajadoresActualizados = 0;

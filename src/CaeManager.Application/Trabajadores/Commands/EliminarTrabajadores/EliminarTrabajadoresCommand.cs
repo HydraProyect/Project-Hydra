@@ -10,7 +10,7 @@ using MediatR;
 namespace CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
 
 /// <summary>Borrado en lote (P3-31) — ver EliminarClientesCommand para el criterio de éxito parcial.</summary>
-public record EliminarTrabajadoresCommand(IReadOnlyList<Guid> Ids, Guid UsuarioId) : ICommand<ResultadoEliminacionLoteDto>;
+public record EliminarTrabajadoresCommand(IReadOnlyList<Guid> Ids) : ICommand<ResultadoEliminacionLoteDto>;
 
 public class EliminarTrabajadoresCommandValidator : AbstractValidator<EliminarTrabajadoresCommand>
 {
@@ -21,11 +21,17 @@ public class EliminarTrabajadoresCommandHandler(
     ITrabajadorRepository repositorio,
     IAsignacionRepository asignaciones,
     IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService)
     : IRequestHandler<EliminarTrabajadoresCommand, Result<ResultadoEliminacionLoteDto>>
 {
     public async Task<Result<ResultadoEliminacionLoteDto>> Handle(EliminarTrabajadoresCommand request, CancellationToken cancellationToken)
     {
+        // Auditoría Módulo 5, hallazgo crítico 7/9 — ver EliminarCentroCommand.
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo<ResultadoEliminacionLoteDto>(Error.Crear("Trabajador.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
+
         var eliminados = 0;
         var errores = new List<string>();
 
@@ -38,7 +44,7 @@ public class EliminarTrabajadoresCommandHandler(
                 continue;
             }
 
-            trabajador.MarcarComoEliminado(request.UsuarioId);
+            trabajador.MarcarComoEliminado(usuarioId.Value);
             await CierreDeAsignaciones.PorTrabajadorEliminadoAsync(asignaciones, trabajador.Id, cancellationToken);
             eliminados++;
         }

@@ -10,12 +10,22 @@ namespace CaeManager.Domain.Proyectos;
 /// necesariamente en esa obra concreta, de ahí la relación explícita:
 /// alimenta la facturación "por técnico" (<see cref="Facturacion.ConceptoFacturable.TecnicoAsignadoProyecto"/>).
 /// </summary>
-public class ProyectoTecnico : EntidadConTenant
+public class ProyectoTecnico : EntidadConTenant, IVersionable
 {
     public Guid ProyectoId { get; private set; }
     public Guid TrabajadorId { get; private set; }
     public DateOnly FechaAlta { get; private set; }
     public DateOnly? FechaBaja { get; private set; }
+
+    /// <summary>
+    /// Auditoría Módulo 5, hueco arquitectónico: DesasignarTecnicoProyecto no
+    /// llevaba protección de concurrencia — dos gestores podían dar de baja
+    /// al mismo técnico con información obsoleta sin que ninguno se enterara.
+    /// No hereda de <see cref="EntidadBase"/> (eso añadiría soft delete, que
+    /// esta entidad no tiene — usa FechaBaja, no EstaEliminado) — mismo
+    /// patrón que AsignacionOperacion/AsignacionCartera.
+    /// </summary>
+    public Guid Version { get; private set; } = Guid.NewGuid();
 
     public bool EstaActivo => FechaBaja is null;
 

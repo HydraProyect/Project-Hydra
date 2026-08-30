@@ -114,7 +114,8 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
             StringComparer.OrdinalIgnoreCase);
 
         var dnisExistentes = new HashSet<string>(
-            await trabajadoresContext.Trabajadores.Select(t => t.Dni).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await trabajadoresContext.Trabajadores.Where(t => t.Dni != null).Select(t => t.Dni!).ToListAsync(cancellationToken),
+            StringComparer.OrdinalIgnoreCase);
 
         using var libro = new XLWorkbook(archivo);
 

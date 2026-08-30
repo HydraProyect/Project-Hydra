@@ -62,8 +62,11 @@ public class EjecutarImportacionCommandHandler(
             c => c.Nombre, c => c.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
         var empresasPorRazonSocial = await empresasContext.Empresas.ToDictionaryAsync(
             e => e.RazonSocial, e => e.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
-        var trabajadoresPorDni = await trabajadoresContext.Trabajadores.ToDictionaryAsync(
-            t => t.Dni, t => t.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        // Un trabajador anonimizado (Dni null) no puede ser destino de un
+        // emparejamiento por DNI: queda fuera del diccionario.
+        var trabajadoresPorDni = await trabajadoresContext.Trabajadores
+            .Where(t => t.Dni != null)
+            .ToDictionaryAsync(t => t.Dni!, t => t.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
         var tiposDocumentoPorNombre = await tiposDocumentoContext.TiposDocumento.ToDictionaryAsync(
             t => t.Nombre, StringComparer.OrdinalIgnoreCase, cancellationToken);
 

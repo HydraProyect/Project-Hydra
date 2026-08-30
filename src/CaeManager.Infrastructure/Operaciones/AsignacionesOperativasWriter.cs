@@ -256,18 +256,52 @@ public class AsignacionesOperativasWriter(
             cartera.Cerrar(motivo, ahora);
     }
 
+    /// <summary>
+    /// Roles válidos para un Operador Delegado. El código de rol persistido en
+    /// <see cref="AsignacionOperadorDelegado.Rol"/> es texto plano (Domain no
+    /// referencia <c>Roles</c> — ver su doc-comment); esta lista blanca es lo
+    /// único que impide que un valor corrupto o inesperado se cuele como rol
+    /// efectivo de la cartera nueva.
+    /// </summary>
+    private static readonly string[] RolesDelegadosPermitidos =
+        [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta];
+
+    /// <summary>
+    /// Falla cerrado: sin una <see cref="AsignacionOperadorDelegado"/> única y
+    /// vigente para exactamente este usuario, propietario y operador, no hay
+    /// autoridad que conceder. Antes, la ausencia de fila degradaba a
+    /// <see cref="Roles.GestorCae"/> — cualquier usuario del tenant operador
+    /// con una operación externa vigente entraba al tenant propietario sin
+    /// estar en su lista de operadores delegados.
+    /// </summary>
     private async Task<string> ObtenerRolDelegadoAsync(
         Guid usuarioId, Guid propietarioTenantId, Guid operadorTenantId, CancellationToken cancellationToken)
     {
-        var rol = await dbContext.AsignacionesOperadorDelegado
-            .Where(a => a.UsuarioId == usuarioId)
-            .Join(dbContext.DelegacionesTenant,
-                a => a.DelegacionTenantId, d => d.Id, (a, d) => new { a.Rol, d.TenantClienteId, d.TenantConsultoraId })
-            .Where(x => x.TenantClienteId == propietarioTenantId && x.TenantConsultoraId == operadorTenantId)
-            .Select(x => x.Rol)
-            .FirstOrDefaultAsync(cancellationToken);
+        var ahora = DateTime.UtcNow;
 
-        return rol ?? Roles.GestorCae;
+        var roles = await dbContext.AsignacionesOperadorDelegado
+            .Where(a => a.UsuarioId == usuarioId)
+            .Join(
+                dbContext.DelegacionesTenant,
+                a => a.DelegacionTenantId,
+                d => d.Id,
+                (a, d) => new { a.Rol, d.TenantClienteId, d.TenantConsultoraId, d.Activa, d.ExpiraEnUtc })
+            .Where(x =>
+                x.TenantClienteId == propietarioTenantId &&
+                x.TenantConsultoraId == operadorTenantId &&
+                x.Activa &&
+                (x.ExpiraEnUtc == null || ahora < x.ExpiraEnUtc.Value))
+            .Select(x => x.Rol)
+            .Distinct()
+            .Take(2)
+            .ToListAsync(cancellationToken);
+
+        if (roles.Count != 1 || !RolesDelegadosPermitidos.Contains(roles[0]))
+            throw new UnauthorizedAccessException(
+                $"El usuario {usuarioId} no tiene una asignación delegada única y vigente sobre el tenant " +
+                $"{propietarioTenantId} desde el operador {operadorTenantId}.");
+
+        return roles[0];
     }
 
     private Task<AsignacionOperacion?> ObtenerRaizVigenteAsync(Guid propietarioTenantId, CancellationToken cancellationToken) =>

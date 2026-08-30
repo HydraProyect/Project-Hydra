@@ -332,8 +332,10 @@ public class ObtenerCatalogoKpisQueryHandler(
             .ToListAsync(cancellationToken);
 
         // Trabajadores con NIE, TIE o documento extranjero (no DNI español).
+        // Un Dni null (trabajador anonimizado) no tiene tipo que clasificar,
+        // así que queda fuera del KPI en vez de forzar un valor.
         return filas
-            .Where(f => ValidadorIdentificacion.Analizar(f.Dni).Tipo != TipoIdentificacion.Dni)
+            .Where(f => f.Dni is not null && ValidadorIdentificacion.Analizar(f.Dni).Tipo != TipoIdentificacion.Dni)
             .GroupBy(f => clientePorCentro[centroPorVisita[f.VisitaId]])
             .ToDictionary(g => g.Key, g => g.Select(x => x.Dni).Distinct().Count());
     }

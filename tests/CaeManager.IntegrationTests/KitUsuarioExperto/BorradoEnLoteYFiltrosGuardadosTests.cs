@@ -59,8 +59,9 @@ public class BorradoEnLoteYFiltrosGuardadosTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var handler = new EliminarClientesCommandHandler(new EmpresaRepository(contexto), new AlcanceDatosServiceFalso(), contexto);
-            var resultado = await handler.Handle(new EliminarClientesCommand([unoId, dosId], Guid.NewGuid()), CancellationToken.None);
+            var handler = new EliminarClientesCommandHandler(
+                new EmpresaRepository(contexto), new AlcanceDatosServiceFalso(), contexto, new CurrentUserServiceFalso(Guid.NewGuid()));
+            var resultado = await handler.Handle(new EliminarClientesCommand([unoId, dosId]), CancellationToken.None);
 
             resultado.EsExitoso.Should().BeTrue();
             resultado.Valor.Eliminados.Should().Be(2);

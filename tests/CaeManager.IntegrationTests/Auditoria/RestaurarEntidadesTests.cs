@@ -56,12 +56,40 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarClienteCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar);
 
         var resultado = await handler.Handle(new RestaurarClienteCommand(clienteId), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         (await contextoRestaurar.Empresas.SingleAsync(c => c.Id == clienteId)).EstaEliminado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_cliente_eliminado_fuera_de_la_cartera_no_se_restaura()
+    {
+        // Auditoría Módulo 5, hallazgo crítico 8/9: mismo tenant, pero sin
+        // autoridad de cartera sobre el cliente.
+        Guid clienteId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Fuera De Cartera S.L.", "B12345674", false, null, null);
+            contexto.Empresas.Add(cliente);
+            await contexto.SaveChangesAsync();
+            cliente.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+            clienteId = cliente.Id;
+        }
+
+        await using var contextoRestaurar = CrearContexto(_tenant);
+        var alcance = new AlcanceDatosServiceFalso(clienteIds: [Guid.NewGuid()]);
+        var handler = new RestaurarClienteCommandHandler(
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar);
+
+        var resultado = await handler.Handle(new RestaurarClienteCommand(clienteId), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        (await contextoRestaurar.Empresas.IgnoreQueryFilters().SingleAsync(c => c.Id == clienteId))
+            .EstaEliminado.Should().BeTrue("sin autoridad sobre el cliente, la restauración no debe ejecutarse");
     }
 
     [Fact]
@@ -80,7 +108,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoAtacante = CrearContexto(_otroTenant);
         var handler = new RestaurarClienteCommandHandler(
-            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, contextoAtacante);
+            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante);
 
         var resultado = await handler.Handle(new RestaurarClienteCommand(clienteId), CancellationToken.None);
 
@@ -103,12 +131,38 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarEmpresaCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar);
 
         var resultado = await handler.Handle(new RestaurarEmpresaCommand(empresaId), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         (await contextoRestaurar.Empresas.SingleAsync(e => e.Id == empresaId)).EstaEliminado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Una_empresa_eliminada_fuera_de_la_cartera_no_se_restaura()
+    {
+        Guid empresaId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var empresa = new Empresa("Empresa Fuera De Cartera S.L.", "B87654323");
+            contexto.Empresas.Add(empresa);
+            await contexto.SaveChangesAsync();
+            empresa.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+            empresaId = empresa.Id;
+        }
+
+        await using var contextoRestaurar = CrearContexto(_tenant);
+        var alcance = new AlcanceDatosServiceFalso(empresaIds: [Guid.NewGuid()]);
+        var handler = new RestaurarEmpresaCommandHandler(
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar);
+
+        var resultado = await handler.Handle(new RestaurarEmpresaCommand(empresaId), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        (await contextoRestaurar.Empresas.IgnoreQueryFilters().SingleAsync(e => e.Id == empresaId))
+            .EstaEliminado.Should().BeTrue();
     }
 
     [Fact]
@@ -127,7 +181,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoAtacante = CrearContexto(_otroTenant);
         var handler = new RestaurarEmpresaCommandHandler(
-            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, contextoAtacante);
+            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante);
 
         var resultado = await handler.Handle(new RestaurarEmpresaCommand(empresaId), CancellationToken.None);
 
@@ -156,12 +210,47 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarCentroCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar);
 
         var resultado = await handler.Handle(new RestaurarCentroCommand(centroId), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         (await contextoRestaurar.Centros.SingleAsync(c => c.Id == centroId)).EstaEliminado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_centro_eliminado_fuera_de_la_cartera_no_se_restaura()
+    {
+        // El filtro de soft delete excluiría al propio centro de
+        // ObtenerCentroIdsVisiblesAsync — la autoridad se comprueba por el
+        // ClienteId persistido, no por CentroVisibleAsync.
+        Guid centroId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Centro Fuera De Cartera S.L.", "B12345674", false, null, null);
+            var empresa = new Empresa("Empresa Centro Fuera De Cartera S.L.", "B87654323");
+            contexto.Empresas.Add(cliente);
+            contexto.Empresas.Add(empresa);
+            await contexto.SaveChangesAsync();
+
+            var centro = new Centro(cliente.Id, empresa.Id, "Centro fuera de cartera");
+            contexto.Centros.Add(centro);
+            await contexto.SaveChangesAsync();
+            centro.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+            centroId = centro.Id;
+        }
+
+        await using var contextoRestaurar = CrearContexto(_tenant);
+        var alcance = new AlcanceDatosServiceFalso(clienteIds: [Guid.NewGuid()]);
+        var handler = new RestaurarCentroCommandHandler(
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar);
+
+        var resultado = await handler.Handle(new RestaurarCentroCommand(centroId), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        (await contextoRestaurar.Centros.IgnoreQueryFilters().SingleAsync(c => c.Id == centroId))
+            .EstaEliminado.Should().BeTrue();
     }
 
     [Fact]
@@ -186,7 +275,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoAtacante = CrearContexto(_otroTenant);
         var handler = new RestaurarCentroCommandHandler(
-            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, contextoAtacante);
+            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante);
 
         var resultado = await handler.Handle(new RestaurarCentroCommand(centroId), CancellationToken.None);
 
@@ -213,12 +302,44 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarTrabajadorCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar);
 
         var resultado = await handler.Handle(new RestaurarTrabajadorCommand(trabajadorId), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         (await contextoRestaurar.Trabajadores.SingleAsync(t => t.Id == trabajadorId)).EstaEliminado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_trabajador_eliminado_fuera_de_la_cartera_no_se_restaura()
+    {
+        // La autoridad se comprueba por el empleador (EmpresaId) persistido,
+        // no por TrabajadorVisibleAsync — mismo motivo que en Centro.
+        Guid trabajadorId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var empresa = new Empresa("Empresa Trabajador Fuera De Cartera S.L.", "B87654323");
+            contexto.Empresas.Add(empresa);
+            await contexto.SaveChangesAsync();
+
+            var trabajador = Trabajador.DeEmpresa(empresa.Id, "Fuera", "De Cartera", "77189989B");
+            contexto.Trabajadores.Add(trabajador);
+            await contexto.SaveChangesAsync();
+            trabajador.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+            trabajadorId = trabajador.Id;
+        }
+
+        await using var contextoRestaurar = CrearContexto(_tenant);
+        var alcance = new AlcanceDatosServiceFalso(empresaIds: [Guid.NewGuid()]);
+        var handler = new RestaurarTrabajadorCommandHandler(
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar);
+
+        var resultado = await handler.Handle(new RestaurarTrabajadorCommand(trabajadorId), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        (await contextoRestaurar.Trabajadores.IgnoreQueryFilters().SingleAsync(t => t.Id == trabajadorId))
+            .EstaEliminado.Should().BeTrue();
     }
 
     [Fact]
@@ -241,7 +362,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoAtacante = CrearContexto(_otroTenant);
         var handler = new RestaurarTrabajadorCommandHandler(
-            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, contextoAtacante);
+            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante);
 
         var resultado = await handler.Handle(new RestaurarTrabajadorCommand(trabajadorId), CancellationToken.None);
 
@@ -333,7 +454,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarClienteCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar);
 
         var resultado = await handler.Handle(new RestaurarClienteCommand(clienteId), CancellationToken.None);
 

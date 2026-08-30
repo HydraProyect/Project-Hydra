@@ -43,7 +43,15 @@ public class Trabajador : EntidadBase
     /// </summary>
     public string? Puesto { get; private set; }
 
-    public string Dni { get; private set; } = string.Empty;
+    /// <summary>
+    /// Solo <c>null</c> tras <see cref="Anonimizar"/> — auditoría Módulo 5,
+    /// hallazgo crítico 9/9. Antes se vaciaba a <c>string.Empty</c>, pero el
+    /// índice único (TenantId, Dni) no tenía filtro: el segundo trabajador
+    /// anonimizado del mismo tenant colisionaba contra el mismo valor vacío
+    /// y bloqueaba el resto del lote de retención. El índice ahora excluye
+    /// los valores nulos.
+    /// </summary>
+    public string? Dni { get; private set; } = string.Empty;
     public DateOnly? FechaNacimiento { get; private set; }
     public string? Email { get; private set; }
 
@@ -170,7 +178,7 @@ public class Trabajador : EntidadBase
         Nombre = referencia;
         Apellidos = string.Empty;
         Alias = null;
-        Dni = string.Empty;
+        Dni = null;
         FechaNacimiento = null;
         Email = null;
         Telefono = null;

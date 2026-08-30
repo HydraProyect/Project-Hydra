@@ -47,7 +47,8 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
     public async Task<PlanImportacionDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
         var trabajadoresPorDni = await trabajadoresContext.Trabajadores
-            .Select(t => t.Dni)
+            .Where(t => t.Dni != null)
+            .Select(t => t.Dni!)
             .ToListAsync(cancellationToken);
         var dnisExistentes = new HashSet<string>(trabajadoresPorDni, StringComparer.OrdinalIgnoreCase);
 

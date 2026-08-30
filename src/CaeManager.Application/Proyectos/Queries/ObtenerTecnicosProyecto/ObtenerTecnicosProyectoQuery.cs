@@ -9,7 +9,7 @@ namespace CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
 public record ObtenerTecnicosProyectoQuery(Guid ProyectoId) : IRequest<IReadOnlyList<TecnicoProyectoDto>>;
 
 public record TecnicoProyectoDto(
-    Guid Id, Guid TrabajadorId, string TrabajadorNombreCompleto, string TrabajadorDni,
+    Guid Id, Guid TrabajadorId, string TrabajadorNombreCompleto, string? TrabajadorDni,
     DateOnly FechaAlta, DateOnly? FechaBaja, bool EstaActivo);
 
 public class ObtenerTecnicosProyectoQueryHandler(IProyectosQueryContext proyectosContext, ITrabajadoresQueryContext trabajadoresContext)

@@ -25,7 +25,8 @@ namespace CaeManager.IntegrationTests;
 /// </summary>
 public class AutoridadAsignacionesServiceFalso(
     CaeManagerDbContext dbContext,
-    IReadOnlyList<Guid>? centrosConAutoridad = null) : IAutoridadAsignacionesService
+    IReadOnlyList<Guid>? centrosConAutoridad = null,
+    IReadOnlyList<Guid>? trabajadoresConAutoridad = null) : IAutoridadAsignacionesService
 {
     public async Task<bool> PuedeModificarAsignacionesDelCentroAsync(
         Guid centroId, CancellationToken cancellationToken = default) =>
@@ -44,6 +45,26 @@ public class AutoridadAsignacionesServiceFalso(
         if (centrosConAutoridad is null) return existentes;
 
         var permitidos = centrosConAutoridad.ToHashSet();
+        return existentes.Where(permitidos.Contains).ToList();
+    }
+
+    public async Task<bool> PuedeModificarAsignacionesDelTrabajadorAsync(
+        Guid trabajadorId, CancellationToken cancellationToken = default) =>
+        (await FiltrarTrabajadoresConAutoridadAsync([trabajadorId], cancellationToken)).Count == 1;
+
+    public async Task<IReadOnlyList<Guid>> FiltrarTrabajadoresConAutoridadAsync(
+        IReadOnlyList<Guid> trabajadorIds, CancellationToken cancellationToken = default)
+    {
+        if (trabajadorIds.Count == 0) return [];
+
+        var existentes = await dbContext.Trabajadores
+            .Where(t => trabajadorIds.Contains(t.Id))
+            .Select(t => t.Id)
+            .ToListAsync(cancellationToken);
+
+        if (trabajadoresConAutoridad is null) return existentes;
+
+        var permitidos = trabajadoresConAutoridad.ToHashSet();
         return existentes.Where(permitidos.Contains).ToList();
     }
 }

@@ -32,7 +32,7 @@ public record ObtenerTrabajadoresDocumentacionPorSubcontrataQuery(Guid Subcontra
     : IRequest<IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>>;
 
 public record TrabajadorDocumentacionSubcontrataDto(
-    Guid TrabajadorId, string TrabajadorNombre, string TrabajadorDni,
+    Guid TrabajadorId, string TrabajadorNombre, string? TrabajadorDni,
     EstadoDocumento PeorEstado, IReadOnlyList<DocumentoRequeridoDto> Documentos);
 
 public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
